@@ -19,13 +19,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.engine.lineup.LineupPlanner
@@ -225,13 +230,22 @@ class LineupService internal constructor(
         return PlanRead(generation, pass, now, snapshot, names, giveUp)
     }
 
+    @Suppress("LongParameterList") // What one plan reads and carries, one for one.
     private fun plannedFrom(
         owner: Owner,
         read: PlanRead,
         libraries: Set<ItemId>,
         current: Lineup?,
         passActedOn: Long?,
+        kept: List<LineupChannel> = emptyList(),
     ): Pair<Lineup, RefreshMeta> {
+        // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
+        val own =
+            current
+                ?.takeIf { !it.finalised }
+                ?.channels
+                .orEmpty()
+                .filter { it.isTheViewers() }
         val planned =
             LineupPlanner.plan(
                 current,
@@ -243,6 +257,7 @@ class LineupService internal constructor(
                 read.now.toEpochMilliseconds(),
                 catalog,
                 withoutCollections = read.giveUp,
+                kept = (kept + own).distinctBy { it.id },
             )
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
@@ -361,8 +376,12 @@ class LineupService internal constructor(
         }
 
     /**
-     * Replaces [account]'s lineup with a fresh first choice from the [libraries], under the account's lock. Like
-     * [refresh] it may set an unreadable or foreign file aside first. The old lineup stays until the new one is
+     * Replaces [account]'s lineup with a fresh first choice from the [libraries], under the account's lock, keeping the
+     * viewer's own channels (spec 22, rulings 18, 23, 24): those of the lineup `edit` would read ([reconciled]).
+     * That is the session's own lineup when it holds a writable one (its channels survive a stored file that has
+     * become unreadable and is set aside), else the stored one; none when nothing is held and the file was set
+     * aside. They are given to the planner, which plans the starters around them. Like [refresh] it may set an
+     * unreadable or foreign file aside first. The old lineup stays until the new one is
      * planned and saved; the save, the forgetting of what was built from the old one and the publishing then finish
      * even if the caller is cancelled, so the lineup is never left forgotten or half replaced. [Saved.Failed]: the
      * save failed or was rejected, and nothing changed. [Saved.Unavailable]: the library could not be read, and nothing
@@ -393,7 +412,10 @@ class LineupService internal constructor(
                     report(LineupEvent.ResetLibrariesUnavailable)
                     return@withLock Saved.Unavailable
                 }
-            val (fresh, meta) = plannedFrom(owner, read, libraries, null, null)
+            // What `edit` reads, so a lineup planned while the file could not be read is never what is kept.
+            val previous = reconciled(entry, start)?.lineup ?: start.current
+            val kept = previous?.channels.orEmpty().filter { it.isTheViewers() }
+            val (fresh, meta) = plannedFrom(owner, read, libraries, null, null, kept)
             withContext(NonCancellable) {
                 if (saveVerified(owner, fresh, meta)) {
                     forgetDerived(owner.key)
@@ -674,6 +696,24 @@ internal class LineupSeams(
     val timed: (Long) -> Unit = {},
     val derived: DayStore? = null,
 )
+
+// A channel the viewer built: custom (a retired starter too), or one whose rules need a newer app but whose stored
+// source says custom. Only the planner's own channels (starters, leftovers) are planned afresh by a reset.
+private fun LineupChannel.isTheViewers(): Boolean =
+    when (val source = source) {
+        is ChannelSource.Custom -> true
+        is ChannelSource.Unusable -> kindOf(source.rawJson) == "custom"
+        else -> false
+    }
+
+@Suppress("SwallowedException") // Raw JSON that does not parse is not a custom channel's.
+private fun kindOf(rawJson: String): String? =
+    try {
+        val kind = (Json.parseToJsonElement(rawJson) as? JsonObject)?.get("kind") as? JsonPrimitive
+        kind?.takeIf { it.isString }?.content
+    } catch (_: IllegalArgumentException) {
+        null
+    }
 
 /** An account in canonical form, as the store keys it, with its IDs for the planner. */
 private class Owner(

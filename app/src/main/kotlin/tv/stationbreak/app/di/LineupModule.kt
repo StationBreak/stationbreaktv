@@ -22,9 +22,13 @@ import tv.stationbreak.app.daySnapshotLine
 import tv.stationbreak.app.lineupTimingProbeFor
 import tv.stationbreak.app.standardOffsetMinutes
 import tv.stationbreak.core.domain.DayStore
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
@@ -35,8 +39,19 @@ import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
+import tv.stationbreak.core.domain.lineup.SharedSnapshots
 import tv.stationbreak.core.domain.lineup.SyncActivity
+import tv.stationbreak.core.domain.lineup.builder.BuiltInChannelPreviews
+import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
+import tv.stationbreak.core.domain.lineup.builder.ChannelBuildManager
+import tv.stationbreak.core.domain.lineup.builder.ChannelBuilder
+import tv.stationbreak.core.domain.lineup.builder.ChannelPreviews
+import tv.stationbreak.core.domain.lineup.builder.LibraryCatalogPicker
+import tv.stationbreak.core.domain.lineup.builder.NewSeed
+import tv.stationbreak.core.domain.lineup.builder.SourceLabels
+import tv.stationbreak.core.domain.lineup.builder.newCustomId
 import tv.stationbreak.core.domain.lineup.eitherWriting
+import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.settings.lineup.FileDayStore
@@ -54,6 +69,7 @@ private const val TAG = "Lineup"
  */
 @Module
 @InstallIn(SingletonComponent::class)
+@Suppress("TooManyFunctions") // One provider for each thing the lineup is made of.
 internal object LineupModule {
     @Provides
     @Singleton
@@ -125,6 +141,72 @@ internal object LineupModule {
         settings: ServerSettings,
     ): ChannelEditor = ChannelManager(service) { settings.loadLibraries() }
 
+    /** The draw of a new channel's or a reshuffle's seed: 64 bits from the platform's secure random source. */
+    @Provides
+    @Singleton
+    fun newSeed(): NewSeed = NewSeed.secure()
+
+    /**
+     * The server's libraries for [account], by the names the server gives them: the one existing current-state read
+     * (ruling 13), through the signed-in session, and only when that session is [account]'s. Null when there is none
+     * or the server can't be reached.
+     */
+    private suspend fun serverLibraries(
+        sessions: SessionRepository,
+        server: MediaServer,
+        account: LibraryAccount,
+    ): List<Library>? {
+        val session = sessions.current.value ?: return null
+        val ours = session.server.id == account.server && session.userId == account.user
+        return if (ours) server.libraries(session).getOrNull() else null
+    }
+
+    /** What the builder's source pickers read (spec 22): the saved library, and the server's library names. */
+    @Provides
+    @Singleton
+    fun catalogPicker(
+        library: LibraryRepository,
+        sessions: SessionRepository,
+        server: MediaServer,
+        settings: ServerSettings,
+    ): CatalogPicker {
+        val libraries: suspend (LibraryAccount) -> List<Library>? = { serverLibraries(sessions, server, it) }
+        return LibraryCatalogPicker(library, libraries) { settings.loadLibraries() }
+    }
+
+    /** How features build channels (spec 22): through the service's lock, with the sources' words from the pickers. */
+    @Provides
+    @Singleton
+    fun channelBuilder(
+        service: LineupService,
+        newSeed: NewSeed,
+        library: LibraryRepository,
+        sessions: SessionRepository,
+        server: MediaServer,
+    ): ChannelBuilder {
+        val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
+        return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke)
+    }
+
+    /**
+     * The library snapshots the schedule source and the channel preview share (spec 22): a preview of a draft reads no
+     * cut-off again that the lineup's days have read. Reads run in a scope of their own, not in a caller.
+     */
+    @Provides
+    @Singleton
+    @Suppress("InjectDispatcher") // A root scope for the snapshot reads, with nothing to inject a dispatcher into.
+    fun sharedSnapshots(): SharedSnapshots = SharedSnapshots(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+
+    /** What a channel being built would air (spec 22): the real scheduler over the shared snapshots. */
+    @Provides
+    @Singleton
+    fun channelPreviews(
+        service: LineupService,
+        library: LibraryRepository,
+        shared: SharedSnapshots,
+        settings: ServerSettings,
+    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared) { settings.loadLibraries() }
+
     @Provides
     @Singleton
     fun builtInScheduleSource(
@@ -132,6 +214,7 @@ internal object LineupModule {
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
+        shared: SharedSnapshots,
     ): BuiltInScheduleSource =
         // The timings are numbers only: day index, milliseconds and counts, never an ID or a title.
         BuiltInScheduleSource(
@@ -159,6 +242,7 @@ internal object LineupModule {
                     allocatedBytes = { runtimeStat("art.gc.bytes-allocated") },
                 ),
             persisted = persisted,
+            shared = shared,
         ) { settings.loadLibraries() }
 
     @Provides

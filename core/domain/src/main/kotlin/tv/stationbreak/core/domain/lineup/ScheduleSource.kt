@@ -37,6 +37,9 @@ enum class HiddenReason {
     /** Everything that matched was removed by the channel's exclusions. */
     AllExcluded,
 
+    /** Everything that matched and was not excluded is removed by the channel's genre, year, runtime or kind filter. */
+    AllFilteredOut,
+
     /** Everything that matched and was not excluded is above the channel's rating ceiling, or has no rating. */
     AllBlockedByCeiling,
 

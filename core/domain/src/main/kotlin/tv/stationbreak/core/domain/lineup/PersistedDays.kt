@@ -8,6 +8,7 @@ import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import java.util.Collections
@@ -58,10 +59,10 @@ enum class DaySnapshotMiss {
  * instead of building it cold (10 s or more on older Fire TVs). [BuiltInScheduleSource] asks it before a build and
  * gives it each cold build after.
  *
- * What is kept is the result of the day build, not its input: per channel, the day pool and why the day is empty
- * ([DaySnapshotCodec]). The days are a pure function of the lineup, the library snapshots at their cut-offs and the
- * code (ADR-0002), so a file is used only when its [DayKey] equals the key of the build it replaces, and that key holds
- * every one of them:
+ * What is kept is the result of the day build, not its input: per channel, the day pool, the film-to-collection map
+ * and why the day is empty ([DaySnapshotCodec]). The days are a pure function of the lineup, the library snapshots at
+ * their cut-offs and the code (ADR-0002), so a file is used only when its [DayKey] equals the key of the build it
+ * replaces, and that key holds every one of them:
  * - [appBuild] is the guard for the code: it must change with every install of the app (the app gives its version code
  *   and install time, since the version code alone does not move between builds), so no build of the app ever reads
  *   days that another build made, whatever changed in the catalog, the holds, the evaluator or the scheduler;
@@ -143,7 +144,7 @@ class PersistedDays internal constructor(
         account: LibraryAccount,
         key: DayKey,
         scheduled: List<Scheduled>,
-        restore: (Scheduled, List<ScheduleItem>, HiddenReason?) -> ChannelDay,
+        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?) -> ChannelDay,
     ): List<ChannelDay>? {
         if (!enabled) return null
         val began = TimeSource.Monotonic.markNow()
@@ -221,7 +222,7 @@ class PersistedDays internal constructor(
         file: ByteArray,
         key: DayKey,
         scheduled: List<Scheduled>,
-        restore: (Scheduled, List<ScheduleItem>, HiddenReason?) -> ChannelDay,
+        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?) -> ChannelDay,
     ): Read {
         // The body is read only for a header that matches: a file for other inputs costs one short line.
         val header = DaySnapshotCodec.header(file) as? DaySnapshotCodec.Header.Read
@@ -231,7 +232,7 @@ class PersistedDays internal constructor(
         // Each day is the one its channel expects, by ID: a file whose days are in another order is a miss.
         val matched = body.map { it.channel } == scheduled.map { it.channel.id.value }
         return if (matched) {
-            Read.Loaded(scheduled.mapIndexed { i, s -> restore(s, body[i].pool, body[i].hidden) })
+            Read.Loaded(scheduled.mapIndexed { i, s -> restore(s, body[i].pool, body[i].films, body[i].hidden) })
         } else {
             Read.Missed(DaySnapshotMiss.Channels)
         }

@@ -10,7 +10,6 @@ import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
-import tv.stationbreak.core.engine.lineup.KidStatus.isKidChannel
 import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
@@ -39,7 +38,8 @@ import kotlin.time.TimeSource
 
 /**
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
- * canonical-ID order. With `buildDay(settings, pool, n, films)` it is the input of the day's schedule. [hidden] is why
+ * canonical-ID order, and its [films] (empty unless the channel's ordering reads collections). With
+ * `buildDay(settings, pool, n, films)` it is the input of the day's schedule. [hidden] is why
  * the day is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
  */
 @Suppress("LongParameterList") // The day's fixed facts, one for one.
@@ -49,6 +49,7 @@ internal class ChannelDay private constructor(
     val settings: SchedulerSettings,
     val n: Long,
     val pool: List<ScheduleItem>,
+    val films: FilmCollections,
     val hidden: HiddenReason?,
     val ceilingRank: Int?,
     // The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once).
@@ -60,10 +61,11 @@ internal class ChannelDay private constructor(
         settings: SchedulerSettings,
         n: Long,
         pool: List<ScheduleItem>,
+        films: FilmCollections,
         hidden: HiddenReason?,
         ceilingRank: Int?,
         laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
-    ) : this(channel, name, settings, n, pool, hidden, ceilingRank, layoutOf(settings, pool, n, laidOut))
+    ) : this(channel, name, settings, n, pool, films, hidden, ceilingRank, layoutOf(settings, pool, n, films, laidOut))
 
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
@@ -81,21 +83,23 @@ internal class ChannelDay private constructor(
     fun shownAs(
         channel: LineupChannel,
         name: String,
-    ): ChannelDay = ChannelDay(channel, name, settings, n, pool, hidden, ceilingRank, layout)
+    ): ChannelDay = ChannelDay(channel, name, settings, n, pool, films, hidden, ceilingRank, layout)
 }
 
 private fun layoutOf(
     settings: SchedulerSettings,
     pool: List<ScheduleItem>,
     n: Long,
+    films: FilmCollections,
     laidOut: (n: Long, ms: Long) -> Unit,
 ): Lazy<Day> =
     lazy {
         val began = TimeSource.Monotonic.markNow()
-        // Until the channels' collection sources reach the day build (Task 14), no film is in a collection.
-        val films = FilmCollections.of(emptyMap())
         buildDay(settings, pool, n, films).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
     }
+
+/** No film is in a collection: a leftovers channel's side map, and a channel whose ordering does not read one. */
+internal val NO_FILMS: FilmCollections = FilmCollections.of(emptyMap())
 
 /** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */
 internal class Scheduled(
@@ -121,7 +125,7 @@ internal class Scheduled(
  * - the pools of the leftovers channels before it, ceilinged ones first (so the grown-up leftovers leaves out what the
  *   kids' leftovers airs, or would air if the user hid it).
  *
- * The rating ceiling a channel is scheduled under never comes from the stored lineup alone ([ceilingOf]): a leftovers
+ * The rating ceiling a channel is scheduled under never comes from the stored lineup alone ([Ceilings.of]): a leftovers
  * channel whose key is in the catalog takes the catalog's, an unedited starter of a kid-safe recipe takes the recipe's,
  * an edited one keeps its own but never above PG, and any channel numbered in the Kids band is held to PG at most.
  *
@@ -140,6 +144,8 @@ internal class LineupDays(
     private val catalog: StarterCatalogView,
     private val laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
 ) {
+    private val ceilings = Ceilings(catalog)
+
     /** The channels of [lineup] that are scheduled at [atMs], in number order. Reads nothing. */
     fun scheduled(
         lineup: Lineup,
@@ -159,7 +165,7 @@ internal class LineupDays(
      * - the server and the UTC offset, which every starter and leftovers channel's settings derive from;
      * - every channel, by ID: its state (on, hidden or on the shelf: which pools are aired, withheld or ignored), its
      *   source as stored but for the name in its rules (the rules, the edited flag, the leftovers key and ceiling, an
-     *   unusable channel's JSON), the ceiling it is scheduled under ([ceilingOf]) and its pool policy
+     *   unusable channel's JSON), the ceiling it is scheduled under ([Ceilings.of]) and its pool policy
      *   ([KidStatus.policyOf]). The last two are where a number counts: the Kids band holds a channel to PG and to
      *   made-for-kids content, so a move into or out of 1-99 that changes either changes the digest;
      * - the order the leftovers channels claim in ([claimOrder]: ceilinged first, then by number), the one other place
@@ -175,7 +181,7 @@ internal class LineupDays(
                     linkedMapOf(
                         "id" to JsonPrimitive(channel.id.value),
                         "state" to JsonPrimitive(channel.state.name),
-                        "ceiling" to JsonPrimitive(ceilingOf(channel)),
+                        "ceiling" to JsonPrimitive(ceilings.of(channel)),
                         "policy" to JsonPrimitive(nameOf(policyOf(channel))),
                         "source" to LineupCodec.sourceOf(unnamed(channel.source)),
                     ),
@@ -230,18 +236,19 @@ internal class LineupDays(
     ): List<ChannelDay> = Build(lineup, snapshots, evaluated).days(scheduled, beforeChannel)
 
     /**
-     * The day of [s] whose day pool is [pool] and whose empty reason is [hidden]: what [days] gives once it has worked
-     * those out, and what a day kept on disk ([PersistedDays]) is made back into. Everything else of the day comes from
-     * [s] and the catalog.
+     * The day of [s] whose day pool is [pool], whose film-to-collection map is [films] and whose empty reason is
+     * [hidden]: what [days] gives once it has worked those out, and what a day kept on disk ([PersistedDays]) is made
+     * back into. Everything else of the day comes from [s] and the catalog.
      */
     fun restore(
         s: Scheduled,
         pool: List<ScheduleItem>,
+        films: FilmCollections,
         hidden: HiddenReason?,
     ): ChannelDay {
-        val ceilingRank = RatingLadder.rankOf(ceilingOf(s.channel))
+        val ceilingRank = RatingLadder.rankOf(ceilings.of(s.channel))
         val name = s.channel.displayName(catalog)
-        return ChannelDay(s.channel, name, s.settings, s.n, pool, hidden, ceilingRank, laidOut)
+        return ChannelDay(s.channel, name, s.settings, s.n, pool, films, hidden, ceilingRank, laidOut)
     }
 
     /**
@@ -368,8 +375,13 @@ internal class LineupDays(
         }
 
         private fun ruledDay(s: Scheduled): ChannelDay {
-            val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
-            return dayOf(s, evaluate(rules, s.cutoffMs, policyOf(s.channel)))
+            val rules = checkNotNull(rulesOf(s.channel))
+            val snapshot = snapshots.getValue(s.cutoffMs)
+            val ruled =
+                ruledDayOf(ceilings, rules, s.channel, snapshot, s.settings, s.n) { r, policy ->
+                    evaluate(r, s.cutoffMs, policy)
+                }
+            return restore(s, ruled.day, ruled.films, hiddenReason(ruled.pool, ruled.day))
         }
 
         private fun leftoversDay(
@@ -387,15 +399,9 @@ internal class LineupDays(
                 val items = if (on != null) EpochPool.build(on.settings, pool.items, on.n) else pool.items
                 items.mapTo(chain.claimed) { it.id }
             }
-            return dayOf(s, leftoversPool(s.channel, snapshot, chain.claimed))
-        }
-
-        private fun dayOf(
-            s: Scheduled,
-            pool: Pool,
-        ): ChannelDay {
+            val pool = leftoversPool(s.channel, snapshot, chain.claimed)
             val day = EpochPool.build(s.settings, pool.items, s.n)
-            return restore(s, day, hiddenReason(pool, day))
+            return restore(s, day, NO_FILMS, hiddenReason(pool, day))
         }
 
         /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */
@@ -418,7 +424,7 @@ internal class LineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), policyOf(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
         // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
@@ -436,15 +442,9 @@ internal class LineupDays(
         // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling and its own policy.
         private fun hiddenRules(): List<PolicyRules> =
             lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
-                rulesOf(channel)?.let { PolicyRules(it.copy(maxRating = ceilingOf(channel)), policyOf(channel)) }
+                rulesOf(channel)?.let { ceilings.policyRules(it, channel) }
             }
     }
-
-    /** Rules to evaluate, and the policy the pool is narrowed by (ADR-0019, ADR-0020). */
-    private data class PolicyRules(
-        val rules: ChannelRules,
-        val policy: PoolPolicy,
-    )
 
     /**
      * What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions, filters and ceiling,
@@ -463,55 +463,14 @@ internal class LineupDays(
     private fun claimOrder(lineup: Lineup): List<LineupChannel> =
         lineup.channels
             .filter { it.source is ChannelSource.Leftovers && it.state != ChannelState.Shelf }
-            .sortedWith(compareBy<LineupChannel> { ceilingOf(it) == null }.then(CHANNEL_ORDER))
-
-    /**
-     * The rating ceiling [channel] is scheduled under. A leftovers channel takes the catalog's ceiling while its key is
-     * in the catalog (the stored one only counts for a retired key). An unedited starter of a kid-safe recipe takes the
-     * recipe's; an edited one keeps its stored ceiling. A channel whose key was ever kid-safe
-     * (`StarterCatalog.EVER_KID_SAFE_KEYS`, whatever its number or edit), and any channel numbered in the Kids band, is
-     * never above PG: a ceiling that is null or higher becomes PG.
-     */
-    private fun ceilingOf(channel: LineupChannel): String? {
-        val stored = storedCeiling(channel.source)
-        return if (isKidChannel(channel) && !atMostPg(stored)) KIDS_MAX_RATING else stored
-    }
-
-    // The ceiling before the kids' cap: the catalog's wherever it governs, else the stored one.
-    private fun storedCeiling(source: ChannelSource): String? =
-        when (source) {
-            is ChannelSource.Leftovers -> leftoversCeiling(source)
-            is ChannelSource.Starter -> starterCeiling(source)
-            is ChannelSource.Custom -> source.rules.maxRating
-            is ChannelSource.Unusable -> null
-        }
-
-    private fun starterCeiling(source: ChannelSource.Starter): String? {
-        val recipeCeiling = catalog.recipes.firstOrNull { it.key == source.recipeKey }?.maxRating
-        return if (recipeCeiling != null && !source.edited) recipeCeiling else source.rules.maxRating
-    }
-
-    // The catalog's ceiling, null included, while the key is in it; the stored one only for a retired key.
-    private fun leftoversCeiling(source: ChannelSource.Leftovers): String? {
-        val recipe = catalog.leftovers.firstOrNull { it.key == source.recipeKey }
-        return if (recipe != null) recipe.maxRating else source.maxRating
-    }
+            .sortedWith(compareBy<LineupChannel> { ceilings.of(it) == null }.then(CHANNEL_ORDER))
 
     private companion object {
-        /** The most a kids' channel may air: the Kids band's maximum. */
-        const val KIDS_MAX_RATING = "PG"
-
         val NO_NAMES = CollectionNames(emptyMap())
 
         /** A grown-up leftovers number, for the stand-in recipe of a retired leftovers key. */
         const val RETIRED_NUMBER = 199
     }
-}
-
-// True for a ceiling on the ladder at PG or lower; null (no ceiling) and unknown names are not.
-private fun atMostPg(rating: String?): Boolean {
-    val rank = RatingLadder.rankOf(rating)
-    return rank != null && rank <= checkNotNull(RatingLadder.rankOf("PG"))
 }
 
 // A policy's name in the days' key; a new policy fails the build here rather than sharing a name.
@@ -545,7 +504,8 @@ internal fun hiddenReason(
     val counts = pool.counts
     val unresolved = counts.unresolvedSources.isNotEmpty() || counts.unresolvedExclusions.isNotEmpty()
     val matched =
-        pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.blockedByCeiling
+        pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.filteredOut +
+            counts.blockedByCeiling
     return when {
         day.isNotEmpty() -> null
         !counts.collectionsSynced && unresolved -> HiddenReason.CollectionsNotSynced
@@ -555,11 +515,13 @@ internal fun hiddenReason(
     }
 }
 
-// Why a pool that matched something has nothing airable: the ceiling wins, then the holds, then the exclusions.
+// Why a pool that matched something has nothing airable: the ceiling wins, then the holds, then the filters, then the
+// exclusions.
 private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
     when {
         counts.blockedByCeiling > 0 -> HiddenReason.AllBlockedByCeiling
         counts.heldOut > 0 -> HiddenReason.NothingMadeForKids
         counts.childrensRatingOut > 0 -> HiddenReason.ChildrensRatingsOnly
+        counts.filteredOut > 0 -> HiddenReason.AllFilteredOut
         else -> HiddenReason.AllExcluded
     }

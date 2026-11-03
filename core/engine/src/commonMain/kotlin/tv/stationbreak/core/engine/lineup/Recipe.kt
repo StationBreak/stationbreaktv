@@ -17,6 +17,12 @@ enum class Band(
     Genre(300..399),
     World(400..499),
     Premium(500..599),
+    ;
+
+    companion object {
+        /** The band [number] is in, or null when it is in none (the custom, seasonal and any other range). */
+        fun of(number: Int): Band? = entries.firstOrNull { number in it.numbers }
+    }
 }
 
 /**

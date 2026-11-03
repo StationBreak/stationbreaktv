@@ -185,9 +185,10 @@ class ChannelsScreenTest {
     private fun show(
         current: ChannelId?,
         access: LineupAccess = LineupAccess.Editable,
+        bravoHidden: HiddenReason = HiddenReason.NoMatches,
     ) {
         schedule.channel(ALPHA, 6, emptyList())
-        schedule.channel(BRAVO, 7, emptyList(), hidden = HiddenReason.NoMatches)
+        schedule.channel(BRAVO, 7, emptyList(), hidden = bravoHidden)
         lineup = Lineup(lineup(), access)
         currentNow.value = current
         runBlocking { library.useAccount(account) }
@@ -262,6 +263,15 @@ class ChannelsScreenTest {
         assertTrue(!exists(ChannelsTags.reason(ALPHA)))
         compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
         assertTrue(exists(ChannelsTags.RESET))
+    }
+
+    @Test
+    fun anAllFilteredReasonShowsItsText() {
+        show(ALPHA, bravoHidden = HiddenReason.AllFilteredOut)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        compose
+            .onNodeWithTag(ChannelsTags.reason(BRAVO), useUnmergedTree = true)
+            .assertTextContains("Everything that fits is filtered out by this channel", substring = true)
     }
 
     @Test

@@ -62,24 +62,14 @@ class ChannelManager(
     }
 
     private fun resultOf(saved: Saved<EditOutcome>?): ChangeResult =
-        when (saved) {
-            null -> {
-                ChangeResult.NotEditable
-            }
-
-            Saved.Failed, Saved.Unavailable -> {
-                ChangeResult.SaveFailed
-            }
-
-            Saved.Invalid -> {
-                ChangeResult.Refused(ChangeRefusal.Invalid)
-            }
-
-            is Saved.Ok -> {
-                when (val outcome = saved.value) {
-                    is EditOutcome.Applied -> ChangeResult.Done
-                    is EditOutcome.Refused -> ChangeResult.Refused(outcome.refusal.toRefusal())
-                }
+        saved.mapped(
+            done = { ChangeResult.Done },
+            refused = { ChangeResult.Refused(it.toRefusal()) },
+        ) {
+            when (it) {
+                Unsaved.NotEditable -> ChangeResult.NotEditable
+                Unsaved.SaveFailed -> ChangeResult.SaveFailed
+                Unsaved.Invalid -> ChangeResult.Refused(ChangeRefusal.Invalid)
             }
         }
 
@@ -131,13 +121,23 @@ class ChannelManager(
 private fun EditRefusal.toRefusal(): ChangeRefusal =
     when (this) {
         EditRefusal.UnknownChannel -> ChangeRefusal.UnknownChannel
+
         EditRefusal.NotSwitchable -> ChangeRefusal.NotSwitchable
+
         EditRefusal.OptInNotConfirmed -> ChangeRefusal.OptInNotConfirmed
+
         EditRefusal.LastOn -> ChangeRefusal.LastOn
+
         EditRefusal.NoFreeNumber -> ChangeRefusal.NoFreeNumber
+
         EditRefusal.OutOfRange -> ChangeRefusal.OutOfRange
+
         EditRefusal.KidsBandOnly -> ChangeRefusal.KidsBandOnly
+
         is EditRefusal.NumberTaken -> ChangeRefusal.NumberTaken(holder)
+
+        // The custom-channel edits are not reachable from a ChannelChange.
+        EditRefusal.NotCustom, EditRefusal.IdTaken -> ChangeRefusal.Invalid
     }
 
 private fun Lineup.hasOn() = channels.any { it.state == ChannelState.On }
@@ -148,4 +148,38 @@ private fun ChannelChange.toEdit(): LineupEdit =
         is ChannelChange.SwitchOff -> LineupEdit.SwitchOff(id)
         is ChannelChange.SetNumber -> LineupEdit.SetNumber(id, number, swapWith)
         is ChannelChange.ClearNumber -> LineupEdit.ClearNumber(id, swapWith)
+    }
+
+/** Why an edit through the service was not applied and not refused either. */
+internal enum class Unsaved { NotEditable, SaveFailed, Invalid }
+
+/**
+ * What came of an edit through [LineupService.edit], in the caller's own words: [done] when it was applied (or changed
+ * nothing), [refused] with the engine's reason, [other] when it was not made for any other reason. The one mapping of
+ * `Saved`, shared by the channel and the builder managers.
+ */
+internal inline fun <R> Saved<EditOutcome>?.mapped(
+    done: () -> R,
+    refused: (EditRefusal) -> R,
+    other: (Unsaved) -> R,
+): R =
+    when (this) {
+        null -> {
+            other(Unsaved.NotEditable)
+        }
+
+        Saved.Failed, Saved.Unavailable -> {
+            other(Unsaved.SaveFailed)
+        }
+
+        Saved.Invalid -> {
+            other(Unsaved.Invalid)
+        }
+
+        is Saved.Ok -> {
+            when (val outcome = value) {
+                is EditOutcome.Applied -> done()
+                is EditOutcome.Refused -> refused(outcome.refusal)
+            }
+        }
     }

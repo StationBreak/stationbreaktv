@@ -16,6 +16,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionMember
@@ -169,6 +170,23 @@ class RoomLibraryRepository internal constructor(
         }
         return CollectionNames(names)
     }
+
+    override suspend fun distinctGenres(account: LibraryAccount): List<String> =
+        account.keys().let { (server, user) -> distinctGenres(dao, seriesDao, server, user) }
+
+    override suspend fun distinctTags(account: LibraryAccount): List<String> =
+        account.keys().let { (server, user) -> distinctTags(dao, seriesDao, server, user) }
+
+    override suspend fun searchTitles(
+        account: LibraryAccount,
+        text: String,
+        limit: Int,
+    ): List<TitleHit> = account.keys().let { (server, user) -> searchTitles(dao, seriesDao, server, user, text, limit) }
+
+    override suspend fun titleNames(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Map<CanonicalId, String> = account.keys().let { (server, user) -> titleNames(dao, seriesDao, server, user, ids) }
 
     override suspend fun programInfo(
         account: LibraryAccount,

@@ -9,11 +9,13 @@ import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.foldNameAscii
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.time.Duration
@@ -381,6 +383,57 @@ class InMemoryLibraryRepository : LibraryRepository {
                 .entries
                 .associate { it.key.second to it.value.name },
         )
+
+    override suspend fun distinctGenres(account: LibraryAccount): List<String> = distinct(account, { it.genres }, { it.genres })
+
+    override suspend fun distinctTags(account: LibraryAccount): List<String> = distinct(account, { it.tags }, { it.tags })
+
+    // The live items' and series' names, exact spelling, by folded name and then name.
+    private fun distinct(
+        account: LibraryAccount,
+        ofItem: (MediaItem) -> List<String>,
+        ofSeries: (RuleSeries) -> List<String>,
+    ): List<String> {
+        val fromItems = rows.filter { it.account == account && !it.tombstoned }.flatMap { ofItem(it.item) }
+        val fromSeries = seriesRows.filter { it.account == account && it.deletedAtMs == null }.flatMap { ofSeries(it.series) }
+        return (fromItems + fromSeries).filter { it.isNotEmpty() }.distinct().sortedWith(compareBy({ foldNameAscii(it) }, { it }))
+    }
+
+    /** Finds the live movies saved with [seed] and the series named with [seedSeriesName], as the real one does. */
+    override suspend fun searchTitles(
+        account: LibraryAccount,
+        text: String,
+        limit: Int,
+    ): List<TitleHit> {
+        if (limit <= 0 || text.isEmpty()) return emptyList()
+        val wanted = foldNameAscii(text)
+        val films =
+            rows
+                .filter { it.account == account && !it.tombstoned && it.item.kind == ItemKind.Movie }
+                .mapNotNull { row ->
+                    val id = CanonicalId.parseOrNull(row.item.id.value)
+                    id
+                        ?.takeIf { wanted in foldNameAscii(row.item.name) }
+                        ?.let { TitleHit(it, row.item.name, TitleKind.Film, row.item.productionYear) }
+                }
+        val shows =
+            seriesNameRows
+                .filter { (key, name) -> key.first == account && wanted in foldNameAscii(name) }
+                .map { (key, name) -> TitleHit(key.second, name, TitleKind.Show, null) }
+        return (films + shows).sortedWith(compareBy({ it.name }, { it.id.value })).take(limit)
+    }
+
+    override suspend fun titleNames(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Map<CanonicalId, String> {
+        val series = seriesNameRows.filter { (key, _) -> key.first == account && key.second in ids }
+        val films =
+            rows
+                .filter { it.account == account && !it.tombstoned && it.item.kind == ItemKind.Movie }
+                .mapNotNull { row -> CanonicalId.parseOrNull(row.item.id.value)?.takeIf { it in ids }?.let { it to row.item.name } }
+        return series.entries.associate { it.key.second to it.value } + films
+    }
 
     /** Reads the live rows saved with [seed]; the series names come from [seedSeriesName]. */
     override suspend fun programInfo(

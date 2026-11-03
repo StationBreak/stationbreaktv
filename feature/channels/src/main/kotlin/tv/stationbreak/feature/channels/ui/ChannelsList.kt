@@ -173,6 +173,7 @@ private fun reasonText(reason: HiddenReason): Int =
         HiddenReason.NothingMadeForKids -> R.string.channels_reason_not_for_kids
         HiddenReason.ChildrensRatingsOnly -> R.string.channels_reason_childrens_only
         HiddenReason.AllExcluded -> R.string.channels_reason_all_excluded
+        HiddenReason.AllFilteredOut -> R.string.channels_reason_all_filtered
         HiddenReason.AllBlockedByCeiling -> R.string.channels_reason_ceiling
         HiddenReason.EmptyToday -> R.string.channels_reason_empty_today
     }

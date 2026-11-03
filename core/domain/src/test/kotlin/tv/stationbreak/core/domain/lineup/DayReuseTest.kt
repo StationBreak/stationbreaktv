@@ -40,7 +40,6 @@ class DayReuseTest {
         runBlocking { library.delegate.useAccount(ACCOUNT) }
     }
 
-    private val toons = LineupIds.starter("toons")
     private val laughs = LineupIds.starter("laughs")
     private val whodunit = LineupIds.starter("whodunit")
     private val frights = LineupIds.starter("frights")
@@ -163,10 +162,13 @@ class DayReuseTest {
 
     @Test
     fun aMoveOutOfTheKidsBandRebuilds() {
-        val tv = process()
+        val mine = ChannelSource.Custom(rules("Mine", Source.Genre("Animation")))
+        val kid = channel("custom-1", 50, ChannelState.On, mine)
+        val tv = process(held().let { it.copy(channels = it.channels + kid) })
         tv.days()
 
-        tv.edit(LineupEdit.SetNumber(toons, 120))
+        // The owner's Kids switch: the only edit that takes a kid channel out of the band.
+        tv.edit(LineupEdit.ReplaceCustom(kid.id, mine.rules, 650, kids = false))
         tv.days()
 
         assertEquals(2, tv.builds.size, "a kid channel moved out of 1-99 is no longer held to made-for-kids content")

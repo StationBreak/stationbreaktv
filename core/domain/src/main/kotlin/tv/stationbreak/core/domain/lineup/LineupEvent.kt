@@ -44,4 +44,7 @@ enum class LineupEvent {
 
     /** A reset failed for a reason other than the library (the plan, say). Nothing was changed. */
     ResetFailed,
+
+    /** A channel build (create, save, reshuffle, delete) failed, not for the lineup's rules. Nothing was changed. */
+    BuildFailed,
 }

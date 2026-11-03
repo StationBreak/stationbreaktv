@@ -175,7 +175,8 @@ internal class LegacyLineupDays(
             val day = legacyEpochPool(s.settings, pool.items, s.n)
             val ceilingRank = RatingLadder.rankOf(ceilingOf(s.channel))
             val name = s.channel.displayName(catalog)
-            return ChannelDay(s.channel, name, s.settings, s.n, day, hiddenReason(pool, day), ceilingRank, laidOut)
+            val hidden = hiddenReason(pool, day)
+            return ChannelDay(s.channel, name, s.settings, s.n, day, NO_FILMS, hidden, ceilingRank, laidOut)
         }
 
         /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */

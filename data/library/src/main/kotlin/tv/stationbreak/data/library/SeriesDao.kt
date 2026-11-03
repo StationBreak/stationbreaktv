@@ -47,6 +47,44 @@ internal abstract class SeriesDao {
         ids: List<String>,
     ): List<SeriesEntity>
 
+    // The picker's reads (the builder, spec 22): the packed genre and tag columns of the live series, decoded by the
+    // caller (VersionCodec), one row per distinct text.
+    @Query("SELECT DISTINCT genres FROM series WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL")
+    abstract suspend fun liveGenreColumns(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    @Query("SELECT DISTINCT tags FROM series WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL")
+    abstract suspend fun liveTagColumns(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    // [pattern] is bound, never joined into the text; see likePattern.
+    @Query(
+        "SELECT seriesId AS id, name AS name, NULL AS year FROM series WHERE serverId = :serverId " +
+            "AND userId = :userId AND deletedAtMs IS NULL AND name LIKE :pattern ESCAPE '\\' " +
+            "ORDER BY name, seriesId LIMIT :limit",
+    )
+    abstract suspend fun searchSeries(
+        serverId: String,
+        userId: String,
+        pattern: String,
+        limit: Int,
+    ): List<TitleRow>
+
+    // The names of the live series among [ids] (at most LibraryDao.MAX_VARIABLES of them).
+    @Query(
+        "SELECT seriesId AS id, name AS name FROM series WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NULL AND seriesId IN (:ids)",
+    )
+    abstract suspend fun seriesNames(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<NameRow>
+
     @Insert
     abstract suspend fun insert(rows: List<SeriesEntity>)
 

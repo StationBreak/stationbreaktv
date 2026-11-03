@@ -259,30 +259,35 @@ class LineupCodecTest {
     private val version2Head = """{"formatVersion":2,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]"""
 
     @Test
-    fun rulesThatUseAVersion2FeatureAreUnusableUntilTheSchedulerHasThemAndWriteBackUnchanged() {
+    fun rulesThatUseAVersion2FeatureAreUsableAndRoundTrip() {
+        val utc = """"timing":{"broadcastDay":{"utcOffsetMinutes":0}}"""
         val texts =
             listOf(
                 """$version2Head,"ordering":{"mode":"rotation"},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}""",
                 """$version2Head,"filters":{},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}""",
-                """{"formatVersion":2,"seed":"1","sources":[{"type":"item","id":"${"a".repeat(32)}"}]}""",
-                """$version2Head,"ordering":{"mode":"shuffle","caps":{"series":2}}}""",
+                """{"formatVersion":2,"seed":"1","sources":[{"type":"item","id":"${"a".repeat(32)}"}],$utc}""",
+                """$version2Head,"ordering":{"mode":"shuffle","caps":{"series":2}},$utc}""",
+                """$version2Head,"ordering":{"mode":"inOrder"},$utc}""",
+                """$version2Head,"filters":{"genres":["Drama"],"years":{"from":1990,"to":1999},""" +
+                    """"runtime":{"minMinutes":60,"maxMinutes":180},"kind":"movie"},$utc}""",
+                """$version2Head,"exclusions":[{"type":"item","id":"${"b".repeat(32)}"}],$utc}""",
+                """$version2Head,"ordering":{"mode":"rotation","caps":{"series":2,"film":4}},$utc}""",
             )
         for (text in texts) {
             val first = assertIs<LineupCodec.Decoded.Loaded>(decode(customWith(text).toString())).lineup
-            assertIs<ChannelSource.Unusable>(first.channels[0].source, text)
-            val written = Json.parseToJsonElement(LineupCodec.encode(first).decodeToString()).jsonObject
-            assertEquals(JsonPrimitive(text), written.channels()[0].source().getValue("rules"), text)
+            val source = assertIs<ChannelSource.Custom>(first.channels[0].source, text)
+            assertEquals(2, source.rules.formatVersion, text)
+            val second = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(first))).lineup
+            assertEquals(first, second, text)
         }
     }
 
     @Test
-    fun aStarterChannelThatNeedsVersion2StaysUnusableAndWritesBackUnchanged() {
+    fun aStarterChannelThatNeedsVersion2IsUsable() {
         val text = """$version2Head,"ordering":{"mode":"inOrder"},"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""
         val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(text))) }
         val first = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
-        assertIs<ChannelSource.Unusable>(first.channels[0].source)
-        val written = Json.parseToJsonElement(LineupCodec.encode(first).decodeToString()).jsonObject
-        assertEquals(JsonPrimitive(text), written.channels()[0].source().getValue("rules"))
+        assertIs<ChannelSource.Starter>(first.channels[0].source)
     }
 
     @Test

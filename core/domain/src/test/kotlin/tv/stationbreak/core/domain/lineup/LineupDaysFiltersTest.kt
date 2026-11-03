@@ -4,7 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
-import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.Seed
@@ -15,8 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * A pool depends on the rules' filters, and the day pool on the runtime filter too. The rules are version 2 and built
- * here, because the lineup codec keeps stored version 2 channels unusable for now.
+ * A pool depends on the rules' filters, and the day pool on the runtime filter too. The rules are version 2.
  */
 class LineupDaysFiltersTest {
     private val days = LineupDays(TestCatalog)
@@ -72,16 +71,55 @@ class LineupDaysFiltersTest {
     }
 
     @Test
+    fun twoChannelsWithEqualFiltersShareOneEvaluation() {
+        val comedy = Source.Genre("Comedy")
+        val filters = Filters(null, 1980, 1999, null, null, null)
+        val first = custom(600, v2Rules("first", filters, comedy))
+        val second = custom(610, v2Rules("second", filters, comedy))
+        val lineup = lineupOf(first, second)
+        val (scheduled, snapshots) = snapshotOf(lineup, year(movie(1, "Comedy"), 1990))
+        var evaluations = 0
+
+        days.days(lineup, scheduled, snapshots, evaluated = { evaluations++ })
+
+        assertEquals(1, evaluations)
+    }
+
+    @Test
+    fun rulesAndWithheldPoolsShareOneEvaluation() {
+        val comedy = Source.Genre("Comedy")
+        val filters = Filters(null, 1980, 1999, null, null, null)
+        val shown = custom(600, v2Rules("shown", filters, comedy))
+        val hidden = shown.copy(id = ChannelId("hidden"), defaultNumber = 610, state = ChannelState.UserHidden)
+        val (_, snapshots) = snapshotOf(lineupOf(shown, hidden), year(movie(1, "Comedy"), 1990))
+        val withHidden = lineupOf(shown, hidden, leftovers("odds-and-ends", 199, null))
+        val withoutHidden = lineupOf(shown, leftovers("odds-and-ends", 199, null))
+
+        // The leftovers withhold the hidden channel's pool and the opt-in recipes'; the hidden pool is the shown one.
+        fun evaluations(lineup: Lineup): Int {
+            var count = 0
+            val scheduledOf = days.scheduled(lineup, atMs)
+            days.days(lineup, scheduledOf, snapshots, evaluated = { count++ })
+            return count
+        }
+
+        assertEquals(evaluations(withoutHidden), evaluations(withHidden))
+    }
+
+    @Test
     fun airingNowhereSeparatesRuntimeFilters() {
         val long = movie(1, "Comedy")
         val short = movie(2, "Drama", runtimeMs = 1_800_000L)
         val comedy = Source.Genre("Comedy")
-        val filtered = custom(600, v2Rules("filtered", Filters(null, null, null, 60, null, null), comedy))
-        val plain = custom(610, v2Rules("plain", Filters(null, null, null, null, null, null), comedy))
-        val lineup = lineupOf(filtered, plain)
-        val (scheduled, snapshots) = snapshotOf(lineup, long, short)
+        val filtered = v2Rules("filtered", Filters(null, null, null, 60, null, null), comedy)
+        val plain = v2Rules("plain", Filters(null, null, null, null, null, null), comedy)
 
-        // The short film is airable under the plain channel's settings and in no channel's pool.
-        assertEquals(1, days.airingNowhere(lineup, scheduled, snapshots))
+        // The short film is airable under the plain channel's settings and in no channel's pool, whichever channel
+        // comes first: a key that ignored the runtime filter would take the first channel's settings for both.
+        for ((first, second) in listOf(filtered to plain, plain to filtered)) {
+            val lineup = lineupOf(custom(600, first), custom(610, second))
+            val (scheduled, snapshots) = snapshotOf(lineup, long, short)
+            assertEquals(1, days.airingNowhere(lineup, scheduled, snapshots), "${first.name} first")
+        }
     }
 }

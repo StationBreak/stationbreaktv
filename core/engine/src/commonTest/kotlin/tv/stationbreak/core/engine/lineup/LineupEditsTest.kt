@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.SeededGen
 import tv.stationbreak.core.engine.forAllCases
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -320,7 +321,13 @@ class LineupEditsTest {
                     is EditOutcome.Applied -> {
                         // Building a Lineup checks the invariants; this also checks nothing else was lost.
                         val ids = lineup.channels.map { c -> c.id }
-                        assertEquals(ids, outcome.lineup.channels.map { c -> c.id }, "$edit")
+                        val after = outcome.lineup.channels.map { c -> c.id }
+                        when (edit) {
+                            is LineupEdit.AddCustom -> assertEquals(ids + edit.id, after, "$edit")
+                            is LineupEdit.RemoveCustom -> assertEquals(ids - edit.id, after, "$edit")
+                            else -> assertEquals(ids, after, "$edit")
+                        }
+                        assertCustomEdit(lineup, edit, outcome.lineup)
                         lineup = outcome.lineup
                         applied++
                     }
@@ -361,11 +368,68 @@ class LineupEditsTest {
         val holders = lineup.channels.filter { it.number != null }
         val number = if (holders.isNotEmpty() && gen.chance(60)) gen.pick(holders).number!! else gen.nextInt(0..1001)
         val swap = if (gen.chance(50)) gen.pick(ids) else null
-        return when (gen.nextInt(4)) {
+        val fresh = ChannelId("n${gen.nextInt(0..3)}")
+        val newRules = someRules.copy(seed = Seed(gen.nextInt(0..99).toULong()))
+        return when (gen.nextInt(8)) {
             0 -> LineupEdit.SwitchOn(id, confirmedOptIn = gen.chance(50))
             1 -> LineupEdit.SwitchOff(id)
             2 -> LineupEdit.SetNumber(id, number, swap)
-            else -> LineupEdit.ClearNumber(id, swap)
+            3 -> LineupEdit.ClearNumber(id, swap)
+            4 -> LineupEdit.AddCustom(fresh, newRules, if (gen.chance(50)) null else number, kids = gen.chance(30))
+            5 -> LineupEdit.ReplaceCustom(id, newRules, number.takeIf { gen.chance(50) }, swap, kids = gen.chance(30))
+            6 -> LineupEdit.Reseed(id, newRules.seed)
+            else -> LineupEdit.RemoveCustom(id)
+        }
+    }
+
+    // Kids off is only the owner's switch: a channel other than the edited one never stops being a kid channel, and
+    // the edited one only by a replace without the kids flag.
+    private fun assertKidStatusKept(
+        before: Lineup,
+        edit: LineupEdit,
+        after: Lineup,
+    ) {
+        val lost =
+            before.channels.filter { old ->
+                val new = after.channels.firstOrNull { it.id == old.id }
+                new != null && KidStatus.isKidChannel(old) && !KidStatus.isKidChannel(new)
+            }
+        for (old in lost) {
+            val allowed = old.id == edit.id && edit is LineupEdit.ReplaceCustom && !edit.kids
+            assertTrue(allowed, "${old.id} stopped being a kid channel by $edit")
+        }
+    }
+
+    // What an applied custom edit must have kept: the stored seed through a replace, only the seed through a reseed.
+    private fun assertCustomEdit(
+        before: Lineup,
+        edit: LineupEdit,
+        after: Lineup,
+    ) {
+        val old = before.channels.firstOrNull { it.id == edit.id }
+        val new = after.channels.firstOrNull { it.id == edit.id }
+        val oldRules = (old?.source as? ChannelSource.Custom)?.rules
+        val newRules = (new?.source as? ChannelSource.Custom)?.rules
+        assertKidStatusKept(before, edit, after)
+        when (edit) {
+            is LineupEdit.ReplaceCustom -> {
+                assertEquals(oldRules?.seed, newRules?.seed, "$edit")
+                assertEquals(old?.state, new?.state, "$edit")
+            }
+
+            is LineupEdit.Reseed -> {
+                assertEquals(oldRules?.copy(seed = edit.seed), newRules, "$edit")
+                assertEquals(old?.copy(source = new!!.source), new, "$edit")
+            }
+
+            is LineupEdit.AddCustom -> {
+                assertEquals(ChannelState.On, new?.state, "$edit")
+                if (edit.kids) assertTrue(KidStatus.isKidChannel(new!!), "$edit")
+            }
+
+            else -> {
+                Unit
+            }
         }
     }
 
