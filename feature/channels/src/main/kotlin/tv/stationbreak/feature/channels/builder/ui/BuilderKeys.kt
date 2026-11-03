@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.builder.ui
 
+import androidx.compose.ui.input.key.Key
 import tv.stationbreak.feature.channels.PanelMove
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderUi
@@ -14,6 +15,13 @@ internal fun BuilderFocus?.typesText(): Boolean =
     this == BuilderFocus.Search ||
         this == BuilderFocus.NameRow(NameRowKind.Name) ||
         this == BuilderFocus.Sheet(SheetRow.Name)
+
+/**
+ * Whether the root takes [key] while the keyboard has the keys: Back, which only puts the keyboard away, and Up and
+ * Down, which a single-line field leaves alone, so Compose's focus search would otherwise move the focus off it (to the
+ * Channels root, or live TV's). The keys that type are the field's.
+ */
+internal fun takenWhileTyping(key: Key): Boolean = key == Key.Back || key == Key.DirectionUp || key == Key.DirectionDown
 
 /**
  * What a key does. Every decision is the ViewModel's, taken on its state at that moment, so a key acts on what the

@@ -85,7 +85,10 @@ internal fun ChannelsRoot(
     // One session per showing, and per opening: the host can close and reopen the screen between two frames.
     DisposableEffect(viewModel, openedAtNanos) {
         viewModel.open(current)
-        onDispose { viewModel.close() }
+        onDispose {
+            viewModel.close()
+            builderViewModel.close()
+        }
     }
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val keys = remember { FocusRequester() }
@@ -97,8 +100,9 @@ internal fun ChannelsRoot(
     val actions = remember(viewModel, openedAtNanos) { ChannelsActions(viewModel) { done(it) } }
     // The builder is made clean for its mode before it is drawn, so it never shows an earlier visit.
     var opened by remember { mutableStateOf<BuilderMode?>(null) }
-    LaunchedEffect(builderViewModel, ui.builder) {
-        val mode = ui.builder
+    val builderMode = ui.builder
+    LaunchedEffect(builderViewModel, builderMode) {
+        val mode = builderMode
         if (mode != null) openBuilder(builderViewModel, mode) { resources.getString(R.string.builder_copy_suffix, it) }
         opened = mode
     }

@@ -24,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -106,10 +105,11 @@ internal fun BuilderRoot(
                 .focusRequester(keys)
                 .onKeyEvent { event ->
                     if (typingNow) {
-                        // The keyboard has the keys; Back only puts it away, so it never leaves the builder.
-                        val back = event.key == Key.Back
-                        if (back && event.type == KeyEventType.KeyUp) typing = false
-                        back
+                        // The keyboard has the keys; Back, Up and Down only put it away, so none of them leaves the
+                        // builder or the field.
+                        val taken = takenWhileTyping(event.key)
+                        if (taken && event.type == KeyEventType.KeyUp) typing = false
+                        taken
                     } else {
                         channelsKey(event, actions::pad)
                     }
