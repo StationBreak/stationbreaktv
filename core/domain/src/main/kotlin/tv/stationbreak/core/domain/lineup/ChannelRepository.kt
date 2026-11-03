@@ -96,6 +96,16 @@ fun List<ChannelSummary>.onLineup(): List<Pair<ChannelId, Int?>> {
 }
 
 /**
+ * The channel to tune when the one numbered [number] has left an [onLineup] list (deleted, switched off or hidden):
+ * the next higher number, else the next lower, as cable does; null when no numbered channel is left.
+ */
+fun List<Pair<ChannelId, Int?>>.neighbourOf(number: Int): ChannelId? {
+    val numbered = mapNotNull { (id, at) -> at?.let { id to it } }
+    val next = numbered.filter { it.second > number }.minByOrNull { it.second }
+    return (next ?: numbered.filter { it.second < number }.maxByOrNull { it.second })?.first
+}
+
+/**
  * What the guide goes by: [onLineup] with each channel's [ChannelSummary.playKey]. The guide shows the days, so a
  * change to how a channel plays (a new play order, a reshuffle) must reload it though no channel or number moved. Live
  * TV and flipping go by [onLineup]: they follow which channels exist and where, and a channel's order reaches them

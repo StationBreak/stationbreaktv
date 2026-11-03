@@ -81,6 +81,50 @@ class ActiveChannelsTest {
         assertEquals(list.onLineup(), renamedWithoutShelf.onLineup())
     }
 
+    private fun on(vararg numbers: Int) = numbers.map { ChannelId("c$it") to (it as Int?) }
+
+    @Test
+    fun theNeighbourIsTheNextHigherNumberElseTheNextLower() {
+        val lineup = on(2, 5, 9)
+        assertEquals(ChannelId("c9"), lineup.neighbourOf(5), "a gap above: the next higher")
+        assertEquals(ChannelId("c9"), lineup.neighbourOf(12), "none higher: the next lower")
+        assertEquals(ChannelId("c2"), lineup.neighbourOf(1), "the lowest gone: the next higher, not the top")
+        assertEquals(null, emptyList<Pair<ChannelId, Int?>>().neighbourOf(5), "nothing left")
+        assertEquals(ChannelId("c5"), listOf(ChannelId("n") to null, ChannelId("c5") to 5).neighbourOf(7))
+    }
+
+    @Test
+    fun aSwitchedOffOrHiddenChannelIsNeverTheNeighbour() {
+        fun summary(
+            number: Int,
+            state: ChannelStatus,
+        ) = ChannelSummary(
+            ChannelId("c$number"),
+            number,
+            "Test $number",
+            state,
+            ChannelKind.Starter,
+            Instant.fromEpochMilliseconds(0),
+            number,
+            kid = false,
+            optIn = false,
+            playKey = PlayKey("test"),
+        )
+        // 7 was playing and was deleted; 8 is on the shelf and 9 is hidden, so the next on the air above is 12.
+        val list =
+            listOf(
+                summary(3, ChannelStatus.On),
+                summary(8, ChannelStatus.Shelf),
+                summary(9, ChannelStatus.UserHidden),
+                summary(12, ChannelStatus.On),
+            )
+
+        assertEquals(ChannelId("c12"), list.onLineup().neighbourOf(7))
+        // The playing channel itself switched off: the same rule, from its own number.
+        val off = list.map { if (it.id == ChannelId("c3")) it.copy(state = ChannelStatus.Shelf) else it }
+        assertEquals(ChannelId("c12"), off.onLineup().neighbourOf(3))
+    }
+
     private companion object {
         const val WAIT_MS = 5_000L
         const val POLL_MS = 20L
