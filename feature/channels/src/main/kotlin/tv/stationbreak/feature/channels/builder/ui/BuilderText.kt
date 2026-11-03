@@ -60,6 +60,19 @@ internal fun orderHint(order: PlayOrder): String =
 @Composable
 internal fun onOff(on: Boolean): String = stringResource(if (on) R.string.builder_on else R.string.builder_off)
 
+/** A cap as the rows show it: the number, or "No limit" while a kept uncapped Shuffle is in force. */
+@Composable
+internal fun capText(cap: Int?): String = cap?.toString() ?: stringResource(R.string.builder_cap_no_limit)
+
+/** "Kept from Name", or a general line when the built-in channel the settings came from is not known. */
+@Composable
+internal fun keptFromText(from: String): String =
+    if (from.isBlank()) {
+        stringResource(R.string.builder_kept_from_copied)
+    } else {
+        stringResource(R.string.builder_kept_from, from)
+    }
+
 @Composable
 internal fun keptText(item: KeptItem): String =
     when (item) {

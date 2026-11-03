@@ -73,6 +73,21 @@ class ChannelDraftTest {
         assertTrue(draft(order = PlayOrder.Shuffle, kept = kept).showsCaps())
     }
 
+    // #560: the rows must not say 3 in a row beside a kept line that says there is no limit.
+    @Test
+    fun theCapsShownAreNoLimitWhileAKeptUncappedShuffleIsInForce() {
+        val uncapped = draft(order = null, kept = KeptSettings("Western", listOf(KeptItem.NoCaps)))
+        val kept = uncapped.copy(seriesCap = null, filmCap = null)
+        assertNull(kept.shownSeriesCap())
+        assertNull(kept.shownFilmCap())
+        // Once the viewer gives caps a value they take the kept item's place.
+        val chosen = kept.copy(seriesCap = 4, filmCap = 2)
+        assertEquals(4, chosen.shownSeriesCap())
+        assertEquals(2, chosen.shownFilmCap())
+        assertEquals(3, draft().shownSeriesCap())
+        assertEquals(1, draft().shownFilmCap())
+    }
+
     @Test
     fun onlyAShuffleCanBeReshuffled() {
         assertTrue(draft(order = PlayOrder.Shuffle).canReshuffle())

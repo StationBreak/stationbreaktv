@@ -101,7 +101,7 @@ internal fun EditSheet(
             }
 
             is SheetLine.KeptHeader -> {
-                NoteText(stringResource(R.string.builder_kept_from, line.from), BuilderTags.SHEET_KEPT_FROM)
+                NoteText(keptFromText(line.from), BuilderTags.SHEET_KEPT_FROM)
             }
 
             is SheetLine.KeptLine -> {
@@ -163,14 +163,14 @@ private fun sheetText(
         SheetRow.SeriesCap -> {
             labelled(
                 stringResource(R.string.builder_series_cap),
-                "${(draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP).coerceIn(ChannelDraft.CAP_RANGE)}",
+                capText(draft.shownSeriesCap()),
             )
         }
 
         SheetRow.FilmCap -> {
             labelled(
                 stringResource(R.string.builder_film_cap),
-                "${(draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP).coerceIn(ChannelDraft.CAP_RANGE)}",
+                capText(draft.shownFilmCap()),
             )
         }
 
