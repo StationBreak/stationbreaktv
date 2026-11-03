@@ -39,6 +39,7 @@
     <string name="channels_reason_not_for_kids">Nothing here is made for kids</string>
     <string name="channels_reason_childrens_only">Only children\'s shows fit; they air on the kids channels</string>
     <string name="channels_reason_all_excluded">Everything that fits is excluded by this channel</string>
+    <string name="channels_reason_all_filtered">Everything that fits is filtered out by this channel</string>
     <string name="channels_reason_ceiling">Everything that fits is above this channel\'s rating limit</string>
     <string name="channels_reason_empty_today">Nothing to air today; back when there is</string>
 </resources>

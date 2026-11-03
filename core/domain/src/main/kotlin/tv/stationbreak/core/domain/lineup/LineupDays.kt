@@ -504,7 +504,8 @@ internal fun hiddenReason(
     val counts = pool.counts
     val unresolved = counts.unresolvedSources.isNotEmpty() || counts.unresolvedExclusions.isNotEmpty()
     val matched =
-        pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.blockedByCeiling
+        pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.filteredOut +
+            counts.blockedByCeiling
     return when {
         day.isNotEmpty() -> null
         !counts.collectionsSynced && unresolved -> HiddenReason.CollectionsNotSynced
@@ -514,11 +515,13 @@ internal fun hiddenReason(
     }
 }
 
-// Why a pool that matched something has nothing airable: the ceiling wins, then the holds, then the exclusions.
+// Why a pool that matched something has nothing airable: the ceiling wins, then the holds, then the filters, then the
+// exclusions.
 private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
     when {
         counts.blockedByCeiling > 0 -> HiddenReason.AllBlockedByCeiling
         counts.heldOut > 0 -> HiddenReason.NothingMadeForKids
         counts.childrensRatingOut > 0 -> HiddenReason.ChildrensRatingsOnly
+        counts.filteredOut > 0 -> HiddenReason.AllFilteredOut
         else -> HiddenReason.AllExcluded
     }
