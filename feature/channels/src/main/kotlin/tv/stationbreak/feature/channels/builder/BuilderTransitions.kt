@@ -11,16 +11,21 @@ import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.model.ChannelId
 
+// Every draft that is opened, or opened again, comes in through here: it is both the draft and the one to compare with,
+// with a kids channel's ceiling made one the kids hold knows, so opening it changes nothing the viewer sees.
+private fun BuilderModel.opened(draft: ChannelDraft): BuilderModel {
+    val ready = draft.kidsCeiling()
+    return copy(draft = ready, opened = ready)
+}
+
 /** The builder's draft opened: the model of a visit the draft has arrived in. */
 internal fun BuilderModel.arrived(
     account: LibraryAccount,
     draft: ChannelDraft,
 ): BuilderModel =
-    copy(
+    opened(draft).copy(
         account = account,
         ready = true,
-        draft = draft.kidsCeiling(),
-        opened = draft.kidsCeiling(),
         focus = if (onSheet) BuilderFocus.Sheet(SheetRow.Name) else BuilderFocus.Tab(SourceKindTab.Libraries),
     )
 
@@ -91,6 +96,6 @@ internal fun BuilderModel.kidsDone(
 
 internal fun BuilderModel.reopened(opening: Opening): BuilderModel =
     when (opening) {
-        is Opening.Draft -> copy(draft = opening.draft, opened = opening.draft, saving = false)
+        is Opening.Draft -> opened(opening.draft).copy(saving = false)
         is Opening.Failed -> copy(message = opening.message, saving = false)
     }

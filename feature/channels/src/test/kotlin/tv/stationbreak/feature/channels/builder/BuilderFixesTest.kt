@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.lineup.builder.KeptSettings
 import tv.stationbreak.core.domain.lineup.builder.OpenResult
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.Seed
 import tv.stationbreak.feature.channels.PanelMove.Down
 import tv.stationbreak.feature.channels.PanelMove.Left
 import tv.stationbreak.feature.channels.PanelMove.Right
@@ -309,6 +310,20 @@ class BuilderFixesTest {
                 )
             rig.vm.openCopy(BUILT_IN) { it }
             rig.settle()
+            assertEquals("PG", rig.ui.draft.filters.maxRating)
+            assertEquals(false, rig.ui.dirty)
+        }
+
+    @Test
+    fun aReshuffledKidsChannelIsReopenedWithACeilingTheHoldKnows() =
+        builderTest { rig ->
+            val kids = draftOf("Kids", listOf(lib1), true, origin = CUSTOM, filters = DraftFilters(maxRating = "R"))
+            rig.openEdit(kids)
+            rig.builder.openResult = OpenResult.Opened(kids.copy(seed = Seed(2uL)), null)
+            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)
+            assertEquals(BuilderFocus.Sheet(SheetRow.Reshuffle), rig.ui.focus)
+            rig.select()
+            assertEquals(Seed(2uL), rig.ui.draft.seed)
             assertEquals("PG", rig.ui.draft.filters.maxRating)
             assertEquals(false, rig.ui.dirty)
         }
