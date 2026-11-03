@@ -4,6 +4,8 @@ package tv.stationbreak.feature.channels.builder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.builder.KeptItem
+import tv.stationbreak.core.domain.lineup.builder.KeptSettings
 import tv.stationbreak.feature.channels.PanelMove.Down
 import tv.stationbreak.feature.channels.PanelMove.Up
 
@@ -45,4 +47,19 @@ class BuilderFocusFixesTest {
             rig.press(Up)
             assertEquals(BuilderFocus.Sheet(SheetRow.Number), rig.ui.focus)
         }
+
+    // From "No limit" the first press gives the default caps, to the right; to the left it stays at no limit.
+    @Test
+    fun theFirstCapPressFromNoLimitGoesToTheDefaultOrStays() {
+        val kept = KeptSettings("Movies", listOf(KeptItem.NoCaps))
+        val uncapped = draftOf("Mine", kept = kept, order = null).copy(seriesCap = null, filmCap = null)
+
+        val right = uncapped.turned(Knob.SeriesCap, by = 1, wrap = false)
+        assertEquals(3, right.seriesCap)
+        assertEquals(1, right.filmCap)
+        assertEquals(uncapped, uncapped.turned(Knob.FilmCap, by = -1, wrap = false))
+        assertEquals(3, uncapped.turned(Knob.FilmCap, by = 1, wrap = false).seriesCap)
+        // Once capped, a press steps as before.
+        assertEquals(4, right.turned(Knob.SeriesCap, by = 1, wrap = false).seriesCap)
+    }
 }

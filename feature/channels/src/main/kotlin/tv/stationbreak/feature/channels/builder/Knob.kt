@@ -50,6 +50,11 @@ private fun ChannelDraft.capsTurned(
     knob: Knob,
     by: Int,
 ): ChannelDraft {
+    // From "No limit" the first press to the right gives the default caps and one to the left stays at no limit.
+    if (shownSeriesCap() == null) {
+        val defaults = copy(seriesCap = ChannelDraft.DEFAULT_SERIES_CAP, filmCap = ChannelDraft.DEFAULT_FILM_CAP)
+        return if (by > 0) defaults else this
+    }
     val series = seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP
     val film = filmCap ?: ChannelDraft.DEFAULT_FILM_CAP
     return if (knob == Knob.SeriesCap) {
