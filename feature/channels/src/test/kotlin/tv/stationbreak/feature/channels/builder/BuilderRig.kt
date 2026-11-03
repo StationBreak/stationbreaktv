@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
+import tv.stationbreak.core.domain.lineup.builder.ChannelPreviews
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.FakeCatalogPicker
@@ -52,12 +53,14 @@ internal fun draftOf(
     origin: ChannelId? = null,
     order: PlayOrder? = PlayOrder.Shuffle,
     kept: KeptSettings? = null,
-) = ChannelDraft(name, sources, emptyList(), DraftFilters(), order, 3, 1, kids, number, kept, false, origin, seed)
+    filters: DraftFilters = DraftFilters(),
+) = ChannelDraft(name, sources, emptyList(), filters, order, 3, 1, kids, number, kept, false, origin, seed)
 
 /** What the builder ViewModel tests share: fakes for every port and a ViewModel on them. */
 internal class BuilderRig(
     private val scope: TestScope,
     wrap: (FakeCatalogPicker) -> CatalogPicker = { it },
+    wrapPreviews: (FakeChannelPreviews) -> ChannelPreviews = { it },
 ) {
     val account = LibraryAccount(ServerId("srv1"), UserId("u1"))
     val library = InMemoryLibraryRepository()
@@ -74,7 +77,7 @@ internal class BuilderRig(
             library,
             builder,
             wrap(picker),
-            previews,
+            wrapPreviews(previews),
             channels,
             clock,
             StandardTestDispatcher(scope.testScheduler),
@@ -129,8 +132,9 @@ internal class BuilderRig(
 
 internal fun builderTest(
     wrap: (FakeCatalogPicker) -> CatalogPicker = { it },
+    wrapPreviews: (FakeChannelPreviews) -> ChannelPreviews = { it },
     body: suspend TestScope.(BuilderRig) -> Unit,
 ) = runTest {
-    val rig = BuilderRig(this, wrap)
+    val rig = BuilderRig(this, wrap, wrapPreviews)
     body(rig)
 }

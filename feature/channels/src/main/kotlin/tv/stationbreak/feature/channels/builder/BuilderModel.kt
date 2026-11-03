@@ -51,6 +51,8 @@ internal data class BuilderModel(
     val message: BuilderMessage? = null,
     val refused: DraftProblem? = null,
     val saving: Boolean = false,
+    /** Numbers other channels hold, with their names: a new channel steps over them. Empty for an edit. */
+    val held: Map<Int, String> = emptyMap(),
 )
 
 internal fun BuilderModel.editing() = mode is BuilderMode.Edit
@@ -95,6 +97,10 @@ internal fun BuilderModel.mended(): BuilderFocus? {
             BuilderFocus.Sheet(SheetRow.Name)
         }
 
+        at is BuilderFocus.PlayRow && at.row !in playRowsOf(draft) -> {
+            BuilderFocus.PlayRow(PlayRowKind.Order)
+        }
+
         else -> {
             at
         }
@@ -130,7 +136,8 @@ internal fun BuilderModel.toUi(): BuilderUi {
         nextEnabled = nextEnabled(),
         ready = ready,
         onSheet = onSheet,
-        problem = refused ?: draft.problem(),
+        problem = problemShown(),
         narrow = narrow,
+        numberHolder = draft.number?.let { held[it] },
     )
 }

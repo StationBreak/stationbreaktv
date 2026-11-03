@@ -28,10 +28,10 @@ import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.ChannelBuilder
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.ChannelPreviews
-import tv.stationbreak.core.domain.lineup.builder.DraftProblem
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
+import tv.stationbreak.core.domain.lineup.builder.hasPool
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.PanelMove
 import javax.inject.Inject
@@ -43,9 +43,6 @@ internal val PREVIEW_DEBOUNCE = 400.milliseconds
 
 /** How long the search text stays quiet before the library is searched. */
 internal val SEARCH_DEBOUNCE = 300.milliseconds
-
-// The name comes first among a draft's problems, so a nameless draft is given one to find out whether it has a pool.
-private const val PROBE_NAME = "-"
 
 /**
  * Holds the channel builder (spec 22): the draft being built or edited, the page it is on, the focus, the pickers and
@@ -116,30 +113,43 @@ internal class BuilderViewModel
             mode: BuilderMode,
             open: suspend (LibraryAccount) -> Opening,
         ) {
-            val generation: Int
             synchronized(lock) {
                 session?.cancel()
                 previewJob?.cancel()
                 searchJob?.cancel()
-                generation = model.generation + 1
+                val generation = model.generation + 1
                 model = BuilderModel(generation = generation, mode = mode, onSheet = mode is BuilderMode.Edit)
                 shown.value = model.toUi()
+                session = scope.launch { arrive(generation, mode, open) }
             }
-            session =
-                scope.launch {
-                    val account = library.activeAccount().filterNotNull().first()
-                    when (val opening = open(account)) {
-                        is Opening.Draft -> {
-                            change(generation) { it.arrived(account, opening.draft) }
-                        }
-
-                        is Opening.Failed -> {
-                            change(generation) { it.copy(account = account, message = opening.message) }
-                        }
-                    }
-                    readTab(generation, SourceKindTab.Libraries)
-                }
         }
+
+        private suspend fun arrive(
+            generation: Int,
+            mode: BuilderMode,
+            open: suspend (LibraryAccount) -> Opening,
+        ) {
+            val account = library.activeAccount().filterNotNull().first()
+            when (val opening = open(account)) {
+                is Opening.Draft -> {
+                    val held = if (mode is BuilderMode.Edit) emptyMap() else heldNumbers(account)
+                    change(generation) { it.arrived(account, opening.draft).copy(held = held) }
+                }
+
+                is Opening.Failed -> {
+                    change(generation) { it.copy(account = account, message = opening.message) }
+                }
+            }
+            readTab(generation, SourceKindTab.Libraries)
+        }
+
+        // The numbers other channels hold, with their names: a new channel cannot trade for one, so it steps over them.
+        private suspend fun heldNumbers(account: LibraryAccount): Map<Int, String> =
+            channels
+                .channels(account)
+                .first()
+                .mapNotNull { channel -> channel.number?.let { it to channel.name } }
+                .toMap()
 
         /** Applies [f] to the model of [generation], and publishes. */
         private fun change(
@@ -170,7 +180,7 @@ internal class BuilderViewModel
             previewJob?.cancel()
             val account = m.account
             val draft = m.draft
-            val hasPool = draft.copy(name = PROBE_NAME).problem() != DraftProblem.NoSources
+            val hasPool = draft.hasPool()
             if (account != null && hasPool) {
                 val generation = m.generation
                 previewJob =
@@ -270,7 +280,7 @@ internal class BuilderViewModel
                 val knob = knobOf(focus).takeIf { turning && m.confirm == null }
                 when {
                     knob != null -> {
-                        apply { it.copy(draft = it.draft.turned(knob, by, wrap = false)) }
+                        apply { it.copy(draft = it.draft.turned(knob, by, wrap = false, it.held.keys)) }
                     }
 
                     turning && m.confirm == null && focus == BuilderFocus.NarrowRow(NarrowRowKind.Genres) -> {
@@ -339,7 +349,7 @@ internal class BuilderViewModel
         // Select on a value row goes to the next choice, round to the first after the last.
         private fun turnSelected() {
             val knob = knobOf(model.focus) ?: return
-            apply { it.copy(draft = it.draft.turned(knob, 1, wrap = true)) }
+            apply { it.copy(draft = it.draft.turned(knob, 1, wrap = true, it.held.keys)) }
         }
 
         private fun toggleGenre() {
@@ -359,6 +369,7 @@ internal class BuilderViewModel
             when (row) {
                 PlayRowKind.Order -> turnSelected()
                 PlayRowKind.Kids -> toggleKids()
+                PlayRowKind.Kept -> useBuildersSettings()
                 else -> Unit
             }
         }
@@ -369,6 +380,7 @@ internal class BuilderViewModel
                 SheetRow.NarrowDown -> openPage(row, BuilderStep.Sources, BuilderFocus.Narrow, narrow = true)
                 SheetRow.PlayOrder -> turnSelected()
                 SheetRow.Kids -> toggleKids()
+                SheetRow.Kept -> useBuildersSettings()
                 SheetRow.Number -> openPage(row, BuilderStep.Name, BuilderFocus.NameRow(NameRowKind.Number), false)
                 SheetRow.Save -> save(andWatch = false)
                 SheetRow.Reshuffle -> reshuffle()
@@ -454,10 +466,9 @@ internal class BuilderViewModel
 
         // Confirms
 
-        // A question starts on its keep: the second choice, the one that changes nothing (a Swap starts on its yes).
+        // A question starts on its keep: the second choice, the one that changes nothing.
         private fun ask(confirm: BuilderConfirm) {
-            val start = if (confirm is BuilderConfirm.Swap) 0 else 1
-            apply { it.copy(confirm = confirm, resume = it.focus, focus = BuilderFocus.Choice(start)) }
+            apply { it.copy(confirm = confirm, resume = it.focus, focus = BuilderFocus.Choice(1)) }
         }
 
         private fun closeConfirm() {
@@ -559,7 +570,14 @@ internal class BuilderViewModel
 
         /** Sends the channel a new seed and opens it again with the seed and the preview that go with it. */
         fun reshuffle() {
-            val m = synchronized(lock) { model }
+            val m =
+                synchronized(lock) {
+                    val current = model
+                    // Only what the sheet offers: a Shuffle with nothing unsaved, and one reshuffle at a time.
+                    val offered = SheetRow.Reshuffle in current.sheetRows() && !current.saving
+                    if (offered) apply { it.copy(saving = true, message = null) }
+                    current.takeIf { offered }
+                } ?: return
             val account = m.account
             val mode = m.mode as? BuilderMode.Edit
             if (account == null || mode == null) return
@@ -569,7 +587,7 @@ internal class BuilderViewModel
                     val opening = opening(builder.open(account, mode.id, copy = false)) { it.draft }
                     change(m.generation) { it.reopened(opening) }
                 } else {
-                    change(m.generation) { it.copy(message = messageOf(result)) }
+                    change(m.generation) { it.copy(message = messageOf(result), saving = false) }
                 }
             }
         }
@@ -589,9 +607,11 @@ internal class BuilderViewModel
             scope.launch {
                 val result = builder.delete(account, mode.id)
                 if (result is BuildResult.Done) {
-                    sent.trySend(
-                        BuilderEvent.Closed,
-                    )
+                    // Through the generation guard: a delete that ends after the builder was opened again is dropped.
+                    change(m.generation) {
+                        sent.trySend(BuilderEvent.Closed)
+                        it
+                    }
                 } else {
                     change(m.generation) { it.copy(message = messageOf(result)) }
                 }

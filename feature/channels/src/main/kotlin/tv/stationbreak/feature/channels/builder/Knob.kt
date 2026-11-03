@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
+import tv.stationbreak.core.domain.lineup.builder.DraftChoices
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 
@@ -26,12 +27,13 @@ internal fun ChannelDraft.turned(
     knob: Knob,
     by: Int,
     wrap: Boolean,
+    taken: Set<Int> = emptySet(),
 ): ChannelDraft =
     when (knob) {
         Knob.Order -> copy(order = (order ?: PlayOrder.Shuffle).turnedTo(by, wrap))
         Knob.SeriesCap, Knob.FilmCap -> capsTurned(knob, by)
-        Knob.Number -> copy(number = numbered(by), numberChosen = true)
-        else -> copy(filters = filters.turned(knob, by, wrap))
+        Knob.Number -> copy(number = numbered(by, taken), numberChosen = true)
+        else -> copy(filters = filters.turned(knob, by, wrap, kids))
     }
 
 // Past the last order, a select goes round to the first.
@@ -61,17 +63,24 @@ private fun DraftFilters.turned(
     knob: Knob,
     by: Int,
     wrap: Boolean,
+    kids: Boolean,
 ): DraftFilters =
     when (knob) {
         Knob.Years -> withYears(by, wrap)
         Knob.Runtime -> withRuntime(by, wrap)
         Knob.Only -> withOnly(by, wrap)
-        else -> withRating(by, wrap)
+        else -> withRating(by, wrap, kids)
     }
 
-// A number outside the channel's band (or none) starts at the band's first; inside it, one step, never leaving it.
-private fun ChannelDraft.numbered(by: Int): Int {
-    val band = if (kids) KIDS_NUMBERS else GROWN_UP_NUMBERS
-    val current = number?.takeIf { it in band } ?: return band.first
-    return (current + by).coerceIn(band)
+// A number outside the channel's band (or none) starts at the band's first free number; inside it, one step to the
+// next free number in that direction, never leaving the band (and staying where it is if there is none).
+private fun ChannelDraft.numbered(
+    by: Int,
+    taken: Set<Int>,
+): Int {
+    val band = if (kids) DraftChoices.kidsNumbers else DraftChoices.grownUpNumbers
+    val current = number?.takeIf { it in band } ?: return band.firstOrNull { it !in taken } ?: band.first
+    var to = current + by
+    while (to in band && to in taken) to += by
+    return if (to in band) to else current
 }

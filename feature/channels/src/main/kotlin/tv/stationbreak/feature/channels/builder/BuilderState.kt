@@ -30,7 +30,7 @@ internal sealed interface BuilderMode {
 
 internal enum class NarrowRowKind { Genres, Years, Runtime, Only, Rating, LeaveOut }
 
-internal enum class PlayRowKind { Order, SeriesCap, FilmCap, Kids }
+internal enum class PlayRowKind { Order, SeriesCap, FilmCap, Kids, Kept }
 
 internal enum class NameRowKind { Name, Number, Save }
 
@@ -158,7 +158,12 @@ internal enum class BuilderMessage {
     NoFreeNumber,
     OutOfRange,
     LastOn,
+
+    /** The number is held by another channel and a new channel cannot trade for it: pick another. */
     NumberTaken,
+
+    /** The number is held by a channel an edit cannot trade numbers with. */
+    NumberNotTradable,
     SaveFailed,
     Failed,
     NotEditable,
@@ -208,4 +213,6 @@ internal data class BuilderUi(
     val problem: DraftProblem? = null,
     /** The narrow-down rows while they are open. */
     val narrow: NarrowView? = null,
+    /** The name of the channel that holds the draft's number, when a new channel found it taken. */
+    val numberHolder: String? = null,
 )

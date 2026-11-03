@@ -39,7 +39,7 @@ class BuilderStepsTest {
     private val lib1 = DraftSource.Library("lib1", "Library 1")
 
     @Test
-    fun capsStepBetween1And10() =
+    fun capsStepBetween1And10AndAreHiddenForInOrder() =
         builderTest { rig ->
             rig.picker.libraries = libraries(1)
             rig.openNew()
@@ -51,6 +51,8 @@ class BuilderStepsTest {
             assertEquals(10, rig.ui.draft.seriesCap)
             repeat(12) { rig.press(Left) }
             assertEquals(1, rig.ui.draft.seriesCap)
+            rig.press(Up, Right, Right, Down)
+            assertEquals(BuilderFocus.PlayRow(PlayRowKind.Kids), rig.ui.focus)
         }
 
     @Test
@@ -193,6 +195,7 @@ class BuilderStepsTest {
             rig.advance(1)
             assertEquals(BuilderConfirm.Swap(600, "Other"), rig.ui.confirm)
             assertFalse(rig.ui.saving)
+            assertEquals(BuilderFocus.Choice(1), rig.ui.focus)
             rig.builder.buildResult = null
             rig.press(Left)
             rig.select()
@@ -213,7 +216,7 @@ class BuilderStepsTest {
             rig.vm.save(andWatch = false)
             rig.advance(1)
             assertNull(rig.ui.confirm)
-            assertEquals(BuilderMessage.NumberTaken, rig.ui.message)
+            assertEquals(BuilderMessage.NumberNotTradable, rig.ui.message)
         }
 
     @Test

@@ -209,7 +209,7 @@ data class ChannelDraft(
         get() = kept?.items.orEmpty().filter { inForce(it) }
 
     /** True when the kept order stays: the viewer left [order] alone and the copied channel has one. */
-    internal fun keepsOrder(): Boolean = order == null && kept?.items.orEmpty().any { it is KeptItem.Order }
+    fun keepsOrder(): Boolean = order == null && kept?.items.orEmpty().any { it is KeptItem.Order }
 
     private fun inForce(item: KeptItem): Boolean =
         when (item) {
@@ -225,7 +225,7 @@ data class ChannelDraft(
             (order ?: PlayOrder.Shuffle) == PlayOrder.Shuffle
 
     /** True when the rules written carry caps: a Shuffle or Rotation that is neither a kept order nor uncapped. */
-    internal fun writesCaps(): Boolean {
+    fun writesCaps(): Boolean {
         val caps = (order ?: PlayOrder.Shuffle) != PlayOrder.InOrder
         return caps && !keepsOrder() && !keepsUncapped()
     }

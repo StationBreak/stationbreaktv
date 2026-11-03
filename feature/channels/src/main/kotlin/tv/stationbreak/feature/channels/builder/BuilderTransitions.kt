@@ -78,43 +78,8 @@ internal fun BuilderModel.kidsDone(
         else -> copy(message = BuilderMessage.NoFreeNumber)
     }
 
-/** The save came back: [draft] is now the saved one, or the refusal is shown. */
-internal fun BuilderModel.saved(
-    draft: ChannelDraft,
-    result: BuildResult,
-    holderName: String,
-): BuilderModel {
-    val idle = copy(saving = false)
-    return when (result) {
-        is BuildResult.Done -> idle.copy(opened = draft)
-        is BuildResult.Refused -> idle.refusedWith(result.reason, holderName)
-        else -> idle.copy(message = messageOf(result))
-    }
-}
-
-private fun BuilderModel.refusedWith(
-    reason: BuildRefusal,
-    holderName: String,
-): BuilderModel =
-    when {
-        reason is BuildRefusal.Invalid -> copy(refused = reason.problem)
-        reason is BuildRefusal.NumberTaken && reason.swappable && editing() -> swapAsked(reason.holder, holderName)
-        else -> copy(message = refusalMessage(reason))
-    }
-
-private fun BuilderModel.swapAsked(
-    holder: ChannelId,
-    holderName: String,
-): BuilderModel =
-    copy(
-        confirm = BuilderConfirm.Swap(draft.number ?: 0, holderName),
-        resume = focus,
-        focus = BuilderFocus.Choice(0),
-        swapHolder = holder,
-    )
-
 internal fun BuilderModel.reopened(opening: Opening): BuilderModel =
     when (opening) {
-        is Opening.Draft -> copy(draft = opening.draft, opened = opening.draft)
-        is Opening.Failed -> copy(message = opening.message)
+        is Opening.Draft -> copy(draft = opening.draft, opened = opening.draft, saving = false)
+        is Opening.Failed -> copy(message = opening.message, saving = false)
     }

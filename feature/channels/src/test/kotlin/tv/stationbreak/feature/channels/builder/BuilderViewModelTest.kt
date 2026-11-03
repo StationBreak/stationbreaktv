@@ -103,6 +103,8 @@ class BuilderViewModelTest {
             )
             val rows = (rig.ui.entries as PickerView.Entries).rows
             assertEquals(listOf(true, false), rows.map { it.live })
+            rig.press(Left, Up, Up, Up, Up, Right)
+            assertEquals(true, (rig.ui.entries as PickerView.Entries).rows.single().live)
         }
 
     @Test

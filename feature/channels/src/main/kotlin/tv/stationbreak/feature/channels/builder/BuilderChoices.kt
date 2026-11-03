@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
+import tv.stationbreak.core.domain.lineup.builder.DraftChoices
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
 import tv.stationbreak.core.domain.lineup.builder.OnlyKind
@@ -9,12 +10,6 @@ import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 
 /** The caps the Play page steps between. */
 internal val CAP_RANGE = 1..10
-
-/** The numbers of a grown-up custom channel. */
-internal val GROWN_UP_NUMBERS = 600..899
-
-/** The numbers of a kids channel. */
-internal val KIDS_NUMBERS = 1..99
 
 private const val FIRST_DECADE = 1920
 private const val LAST_DECADE = 2020
@@ -33,16 +28,11 @@ internal val RUNTIME_CHOICES: List<Pair<Int?, Int?>> =
         (SHORT until LONG step RUNTIME_STEP).map { it to it + RUNTIME_STEP } +
         listOf(LONG to null)
 
-/** The ratings a ceiling can be, lowest first. */
-internal val RATING_CHOICES = listOf("G", "PG", "PG-13", "R")
-
-private fun ChannelDraft.keepsAnOrder(): Boolean = order == null && kept?.items.orEmpty().any { it is KeptItem.Order }
-
 /** Whether the Play page lists the caps: not for In order, nor for a kept order. */
-internal fun ChannelDraft.showsCaps(): Boolean = order != PlayOrder.InOrder && !keepsAnOrder()
+internal fun ChannelDraft.showsCaps(): Boolean = order != PlayOrder.InOrder && !keepsOrder()
 
 /** Whether Reshuffle is offered for a draft of an edit: a Shuffle, with nothing unsaved. */
-internal fun ChannelDraft.shuffles(): Boolean = order == PlayOrder.Shuffle || (order == null && !keepsAnOrder())
+internal fun ChannelDraft.shuffles(): Boolean = order == PlayOrder.Shuffle || (order == null && !keepsOrder())
 
 /** The sheet's rows for [draft]: see [BuilderUi.sheetRows]. */
 internal fun sheetRowsOf(
@@ -70,10 +60,14 @@ internal fun sheetRowsOf(
 
 /** The rows of the Play page for [draft], top to bottom. */
 internal fun playRowsOf(draft: ChannelDraft): List<PlayRowKind> =
-    if (draft.showsCaps()) {
-        PlayRowKind.entries
-    } else {
-        listOf(PlayRowKind.Order, PlayRowKind.Kids)
+    buildList {
+        add(PlayRowKind.Order)
+        if (draft.showsCaps()) {
+            add(PlayRowKind.SeriesCap)
+            add(PlayRowKind.FilmCap)
+        }
+        add(PlayRowKind.Kids)
+        if (draft.keptInForce.isNotEmpty()) add(PlayRowKind.Kept)
     }
 
 /** The order after [this] one in the cycle Shuffle, Rotation, In order. */
@@ -103,12 +97,19 @@ internal fun DraftFilters.withRuntime(
     return copy(minMinutes = choice?.first, maxMinutes = choice?.second)
 }
 
+// The ladder's tiers, lowest first, then "no ceiling" above them for a grown-up channel. A stored ceiling is placed
+// by its tier, so a name the list does not spell (TV-Y7-FV) still steps to its neighbours. Left never reaches
+// "no ceiling".
 internal fun DraftFilters.withRating(
     by: Int,
     wrap: Boolean,
+    kids: Boolean,
 ): DraftFilters {
-    val to = steppedIndex(RATING_CHOICES.indexOf(maxRating), by, RATING_CHOICES.size, wrap)
-    return copy(maxRating = RATING_CHOICES.getOrNull(to))
+    val tiers = DraftChoices.ratingCeilings(kids)
+    val last = if (kids) tiers.lastIndex else tiers.size
+    val at = DraftChoices.ratingTier(maxRating)?.coerceAtMost(tiers.lastIndex) ?: tiers.size
+    val to = (at + by).let { if (it > last) (if (wrap) 0 else last) else it.coerceAtLeast(0) }
+    return copy(maxRating = tiers.getOrNull(to))
 }
 
 internal fun DraftFilters.withOnly(
