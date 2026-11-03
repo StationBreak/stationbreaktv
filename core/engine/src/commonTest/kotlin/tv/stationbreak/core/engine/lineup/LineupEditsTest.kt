@@ -376,9 +376,33 @@ class LineupEditsTest {
             2 -> LineupEdit.SetNumber(id, number, swap)
             3 -> LineupEdit.ClearNumber(id, swap)
             4 -> LineupEdit.AddCustom(fresh, newRules, if (gen.chance(50)) null else number, kids = gen.chance(30))
-            5 -> LineupEdit.ReplaceCustom(id, newRules, number, swap)
+            5 -> LineupEdit.ReplaceCustom(id, newRules, number.takeIf { gen.chance(50) }, swap, kids = gen.chance(30))
             6 -> LineupEdit.Reseed(id, newRules.seed)
             else -> LineupEdit.RemoveCustom(id)
+        }
+    }
+
+    // No edit makes a kid channel grown-up but the owner's own: a channel other than the edited one never changes
+    // status; the edited one only by a replace without the kids flag, or by the number edits that already allowed it.
+    private fun assertKidStatusKept(
+        before: Lineup,
+        edit: LineupEdit,
+        after: Lineup,
+    ) {
+        val lost =
+            before.channels.filter { old ->
+                val new = after.channels.firstOrNull { it.id == old.id }
+                new != null && KidStatus.isKidChannel(old) && !KidStatus.isKidChannel(new)
+            }
+        for (old in lost) {
+            val allowed =
+                old.id == edit.id &&
+                    (
+                        edit is LineupEdit.SetNumber ||
+                            edit is LineupEdit.ClearNumber ||
+                            (edit is LineupEdit.ReplaceCustom && !edit.kids)
+                    )
+            assertTrue(allowed, "${old.id} stopped being a kid channel by $edit")
         }
     }
 
@@ -392,6 +416,7 @@ class LineupEditsTest {
         val new = after.channels.firstOrNull { it.id == edit.id }
         val oldRules = (old?.source as? ChannelSource.Custom)?.rules
         val newRules = (new?.source as? ChannelSource.Custom)?.rules
+        assertKidStatusKept(before, edit, after)
         when (edit) {
             is LineupEdit.ReplaceCustom -> {
                 assertEquals(oldRules?.seed, newRules?.seed, "$edit")

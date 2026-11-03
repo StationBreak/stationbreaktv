@@ -258,14 +258,47 @@ class CustomEditsTest {
     }
 
     @Test
-    fun replaceCustomIntoTheKidsBandBySwapSendsTheKidChannelOut() {
+    fun aSwapNeverTakesAKidCustomHolderOutOfTheKidsBand() {
         val kid = ChannelId("custom:kid")
         val lineup = lineupOf(starter("western", 310), custom("kid", 5), custom("mine", 650))
 
-        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kid, kids = true))
+        val edit = LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kid, kids = true)
 
-        assertEquals(5, after.byId(mine).number)
-        assertEquals(650, after.byId(kid).number)
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, edit))
+    }
+
+    @Test
+    fun aSwapMayMoveAKidStarterHolderBecauseItStaysKid() {
+        val kidStarter = starter(StarterCatalog.EVER_KID_SAFE_KEYS.first(), 5)
+        val lineup = lineupOf(starter("western", 310), kidStarter, custom("mine", 650))
+
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kidStarter.id, kids = true))
+
+        assertEquals(650, after.byId(kidStarter.id).number)
+        assertTrue(KidStatus.isKidChannel(after.byId(kidStarter.id)))
+        assertTrue(KidStatus.isKidChannel(after.byId(mine)))
+    }
+
+    @Test
+    fun setNumberNeverTakesAKidCustomHolderOutOfTheKidsBand() {
+        // The kid-safe starter is outside the band (kid by its key); the custom kid channel holds 5.
+        val kidStarter = starter(StarterCatalog.EVER_KID_SAFE_KEYS.first(), 150)
+        val lineup = lineupOf(starter("western", 310), kidStarter, custom("kid", 5))
+
+        val edit = LineupEdit.SetNumber(kidStarter.id, 5, ChannelId("custom:kid"))
+
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, edit))
+    }
+
+    @Test
+    fun replaceCustomWithNoNumberKeepsANumberAlreadyInTheRequestedBand() {
+        val lineup = lineupOf(starter("western", 310), custom("mine", 650), custom("kid", 5))
+
+        val grownUp = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null)).byId(mine)
+        val kid = applied(lineup, LineupEdit.ReplaceCustom(ChannelId("custom:kid"), rulesOf("kid"), null, kids = true))
+
+        assertEquals(650, grownUp.number)
+        assertEquals(5, kid.byId(ChannelId("custom:kid")).number)
     }
 
     @Test

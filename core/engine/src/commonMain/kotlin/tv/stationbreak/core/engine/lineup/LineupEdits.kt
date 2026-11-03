@@ -37,7 +37,8 @@ sealed interface LineupEdit {
     /**
      * Adds a custom channel, switched on. [number] null means "the first free one", worked out inside
      * [LineupEdits.apply] (so inside the caller's lock): from 600 for grown-up, 1..99 when [kids]. A given number
-     * decides alone whether the channel is a kid channel (1..99); [kids] with a number outside that band is refused.
+     * decides alone whether the channel is a kid channel (1..99); [kids] with a number outside that band is refused. A
+     * given number may be one the catalog retired; only the automatic pick skips those.
      */
     data class AddCustom(
         override val id: ChannelId,
@@ -51,7 +52,9 @@ sealed interface LineupEdit {
      * number. The stored seed is kept, whatever seed [rules] has: a reshuffle is [Reseed], never a side effect.
      * The channel itself may move into 1..99 (it becomes a kid channel by number) or out of it; a swap that would send
      * another, grown-up channel into 1..99 is refused. [number] null means the first free one in the Kids band when
-     * [kids], else in the custom band, worked out inside [LineupEdits.apply] like [AddCustom]'s.
+     * [kids], else in the custom band, worked out inside [LineupEdits.apply] like [AddCustom]'s; a channel that already
+     * has a number in the requested side (the Kids band, or anywhere outside it) keeps that number. A swap never
+     * changes the holder's kid status, so one that would take a kid holder out of the band is refused.
      */
     data class ReplaceCustom(
         override val id: ChannelId,
@@ -214,21 +217,42 @@ object LineupEdits {
         nowMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome {
-        val given = edit.number
-        val holder = given?.let { n -> lineup.channels.firstOrNull { it.number == n } }
-        val number = given ?: firstFreeCustom(lineup, edit.kids, catalog)
-        val refusal =
-            when {
-                lineup.channels.any { it.id == edit.id } -> EditRefusal.IdTaken
-                number == null -> EditRefusal.NoFreeNumber
-                number !in MIN_NUMBER..MAX_NUMBER -> EditRefusal.OutOfRange
-                holder != null -> EditRefusal.NumberTaken(holder.id)
-                edit.kids && number !in Band.Kids.numbers -> EditRefusal.KidsBandOnly
-                else -> null
+        val number = edit.number ?: firstFreeCustom(lineup, edit.kids, catalog)
+        return when {
+            lineup.channels.any { it.id == edit.id } -> {
+                refused(EditRefusal.IdTaken)
             }
-        if (refusal != null || number == null) return refused(refusal ?: EditRefusal.NoFreeNumber)
-        val added = LineupChannel(edit.id, null, number, null, ChannelState.On, ChannelSource.Custom(edit.rules), nowMs)
-        return EditOutcome.Applied(lineup.copy(channels = lineup.channels + added))
+
+            number == null -> {
+                refused(EditRefusal.NoFreeNumber)
+            }
+
+            else -> {
+                val refusal = newNumberRefusal(lineup, number, edit.kids)
+                val channel =
+                    LineupChannel(edit.id, null, number, null, ChannelState.On, ChannelSource.Custom(edit.rules), nowMs)
+                if (refusal != null) {
+                    refused(refusal)
+                } else {
+                    EditOutcome.Applied(lineup.copy(channels = lineup.channels + channel))
+                }
+            }
+        }
+    }
+
+    // Why [number] cannot be a new custom channel's: out of range, held, or not a kids number for a kids request.
+    private fun newNumberRefusal(
+        lineup: Lineup,
+        number: Int,
+        kids: Boolean,
+    ): EditRefusal? {
+        val holder = lineup.channels.firstOrNull { it.number == number }
+        return when {
+            number !in MIN_NUMBER..MAX_NUMBER -> EditRefusal.OutOfRange
+            holder != null -> EditRefusal.NumberTaken(holder.id)
+            kids && number !in Band.Kids.numbers -> EditRefusal.KidsBandOnly
+            else -> null
+        }
     }
 
     // The stored seed stays; the number moves by the rules of SetNumber, on a lineup that already has the new rules.
@@ -241,12 +265,24 @@ object LineupEdits {
         val stored = (channel.source as? ChannelSource.Custom) ?: return refused(EditRefusal.NotCustom)
         val rules = edit.rules.copy(seed = stored.rules.seed)
         val changed = channel.copy(source = ChannelSource.Custom(rules))
-        val number = edit.number ?: firstFreeCustom(lineup, edit.kids, catalog)
+        val number = edit.number ?: keptOrFirstFree(lineup, channel, edit.kids, catalog)
         return when {
             number == null -> refused(EditRefusal.NoFreeNumber)
             edit.kids && number !in Band.Kids.numbers -> refused(EditRefusal.KidsBandOnly)
             else -> setNumber(replaced(lineup, changed), changed, number, edit.swapWith, catalog, ownKidsMove = true)
         }
+    }
+
+    // The channel's own number when it is already in the requested band, else the first free one of that band.
+    private fun keptOrFirstFree(
+        lineup: Lineup,
+        channel: LineupChannel,
+        kids: Boolean,
+        catalog: StarterCatalogView,
+    ): Int? {
+        val current = channel.number
+        val inBand = current != null && (current in Band.Kids.numbers) == kids
+        return if (inBand) current else firstFreeCustom(lineup, kids, catalog)
     }
 
     private fun reseed(
@@ -378,10 +414,14 @@ object LineupEdits {
                 }
             }
         val holderNumber = old ?: FreeNumbers.lowest(others, holder, holderIsKid, catalog)
-        return if (holderNumber == null) {
-            refused(EditRefusal.NoFreeNumber)
-        } else {
-            EditOutcome.Applied(replaced(lineup, moved, holder.withNumber(holderNumber)))
+        val taken = holderNumber?.let { holder.withNumber(it) }
+        return when {
+            taken == null -> refused(EditRefusal.NoFreeNumber)
+
+            // A swap never changes the holder's kid status: a kid channel that would leave the band stays put.
+            holderIsKid && !KidStatus.isKidChannel(taken) -> refused(EditRefusal.KidsBandOnly)
+
+            else -> EditOutcome.Applied(replaced(lineup, moved, taken))
         }
     }
 
