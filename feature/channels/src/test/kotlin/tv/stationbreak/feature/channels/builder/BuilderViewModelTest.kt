@@ -274,6 +274,17 @@ class BuilderViewModelTest {
     }
 
     @Test
+    fun aReshuffleThatCannotReopenTheChannelShowsWhyNotSaved() =
+        builderTest { rig ->
+            rig.openEdit(draftOf("Mine", listOf(lib1), seed = Seed(1uL)))
+            rig.advance(400)
+            rig.builder.openResult = OpenResult.Failed
+            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)
+            rig.select()
+            assertEquals(BuilderMessage.OpenFailed, rig.ui.message)
+        }
+
+    @Test
     fun reshuffleReopensTheDraftWithTheNewSeed() =
         builderTest { rig ->
             rig.openEdit(draftOf("Mine", listOf(lib1), seed = Seed(1uL)))
@@ -285,6 +296,7 @@ class BuilderViewModelTest {
             assertEquals(BuilderFocus.Sheet(SheetRow.Reshuffle), rig.ui.focus)
             rig.select()
             assertEquals(Seed(2uL), rig.ui.draft.seed)
+            assertEquals(BuilderMessage.Reshuffled, rig.ui.message)
             assertFalse(rig.ui.dirty)
             assertTrue("reshuffle" in rig.builder.calls)
             rig.advance(400)

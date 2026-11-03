@@ -77,6 +77,10 @@
     <string name="builder_delete">Delete channel</string>
     <string name="builder_edit">Edit</string>
     <string name="builder_saved">Saved</string>
+    <plurals name="builder_sources_count">
+        <item quantity="one">%1$d source</item>
+        <item quantity="other">%1$d sources</item>
+    </plurals>
     <string name="builder_row_name">Name</string>
     <string name="builder_row_sources">Sources</string>
     <string name="builder_row_play_order">Play order</string>

@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getBoundsInRoot
@@ -175,6 +178,11 @@ class EditSheetTest {
     fun theSheetDrawsEveryRowOfSheetRowsInOrder() {
         show()
         val rows = vm.ui.value.sheetRows
+        // Nothing but the rows: no kept lines for a draft that keeps nothing, and the sheet's own header.
+        assertFalse(exists(BuilderTags.SHEET_KEPT_FROM))
+        assertFalse(exists(BuilderTags.kept(0)))
+        compose.onNodeWithTag(BuilderTags.EDIT).assertTextContains("Edit")
+        assertFalse(exists(BuilderTags.step(BuilderStep.Sources)))
         assertEquals(SheetRow.entries - SheetRow.Kept, rows)
         var previous: SheetRow? = null
         rows.forEach { row ->
@@ -186,19 +194,33 @@ class EditSheetTest {
                 assertTrue(row.name, top(above) < top(row))
             }
             previous = row
+            // Whatever is drawn is a row of the list, never an extra one.
+            val tags =
+                compose
+                    .onAllNodes(
+                        SemanticsMatcher("sheet row") {
+                            it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("builder:sheet:") ==
+                                true
+                        },
+                    ).fetchSemanticsNodes()
+                    .map { it.config[SemanticsProperties.TestTag] }
+            assertTrue(tags.toString(), tags.all { tag -> rows.any { BuilderTags.sheetRow(it) == tag } })
         }
     }
 
     @Test
-    fun okOnSourcesOpensThePickerBesideTheSheet() {
+    fun okOnSourcesReplacesTheSheetWithThePickerAndBackReturnsToTheRow() {
         show()
         toRow(SheetRow.Sources)
+        assertTrue(vm.ui.value.onSheet)
         press(Pad.Select)
         until { exists(BuilderTags.entry("lib1")) }
-        assertEquals(BuilderStep.Sources, vm.ui.value.step)
+        assertFalse(vm.ui.value.onSheet)
+        assertFalse(exists(BuilderTags.sheetRow(SheetRow.Name)))
         // Back from the picker returns to the sheet, on the row it came from.
         press(Pad.Back)
         until { exists(BuilderTags.sheetRow(SheetRow.Sources)) }
+        assertTrue(vm.ui.value.onSheet)
         assertEquals(BuilderFocus.Sheet(SheetRow.Sources), vm.ui.value.focus)
     }
 
@@ -279,7 +301,7 @@ class EditSheetTest {
     }
 
     @Test
-    fun theKeptLineAndItsActionShowOnlyForACopy() {
+    fun theKeptLineAndItsActionShowOnlyForAKeptDraft() {
         show()
         assertFalse(SheetRow.Kept in vm.ui.value.sheetRows)
         assertFalse(exists(BuilderTags.sheetRow(SheetRow.Kept)))
@@ -291,6 +313,10 @@ class EditSheetTest {
         compose
             .onNodeWithTag(BuilderTags.sheetRow(SheetRow.Kept))
             .assertTextContains("builder's settings", substring = true)
+        press(Pad.Select)
+        until { SheetRow.Kept !in vm.ui.value.sheetRows }
+        assertFalse(exists(BuilderTags.sheetRow(SheetRow.Kept)))
+        assertFalse(exists(BuilderTags.SHEET_KEPT_FROM))
     }
 
     private companion object {

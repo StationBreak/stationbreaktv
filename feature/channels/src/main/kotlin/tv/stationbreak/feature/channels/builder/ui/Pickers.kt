@@ -231,7 +231,10 @@ private fun narrowText(
         }
 
         NarrowRowKind.Runtime -> {
-            "${stringResource(R.string.builder_filter_runtime)}: ${runtimeText(filters.minMinutes, filters.maxMinutes, any)}"
+            labelled(
+                stringResource(R.string.builder_filter_runtime),
+                runtimeText(filters.minMinutes, filters.maxMinutes, any),
+            )
         }
 
         NarrowRowKind.Only -> {

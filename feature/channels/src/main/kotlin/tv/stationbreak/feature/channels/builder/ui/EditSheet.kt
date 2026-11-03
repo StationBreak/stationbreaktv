@@ -5,22 +5,29 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
+import tv.stationbreak.core.domain.lineup.builder.SkippedPick
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderUi
 import tv.stationbreak.feature.channels.builder.CAP_RANGE
+import tv.stationbreak.feature.channels.builder.PreviewView
 import tv.stationbreak.feature.channels.builder.SheetRow
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
+
+// The longest Sources text a row draws before it says how many instead (two lines of the band).
+private const val SOURCES_FIT_CHARS = 90
+
+private val ACTION_ROWS =
+    setOf(SheetRow.Sources, SheetRow.NarrowDown, SheetRow.Kept, SheetRow.Save, SheetRow.Reshuffle, SheetRow.Delete)
 
 /** What the sheet lists: its rows, with the kept settings listed above the row that drops them. */
 private sealed interface SheetLine {
@@ -30,6 +37,12 @@ private sealed interface SheetLine {
         val row: SheetRow,
     ) : SheetLine {
         override val key = "row:${row.name}"
+    }
+
+    data class Skipped(
+        val picks: List<SkippedPick>,
+    ) : SheetLine {
+        override val key = "skipped"
     }
 
     data class KeptHeader(
@@ -54,6 +67,8 @@ private fun sheetLinesOf(ui: BuilderUi): List<SheetLine> =
                 ui.draft.keptInForce.forEachIndexed { i, item -> add(SheetLine.KeptLine(i, item)) }
             }
             add(SheetLine.Row(row))
+            val skipped = ui.preview.skippedPicks()
+            if (row == SheetRow.Preview && ui.draft.kids && skipped.isNotEmpty()) add(SheetLine.Skipped(skipped))
         }
     }
 
@@ -68,12 +83,19 @@ internal fun EditSheet(
     typing: Typing,
     modifier: Modifier = Modifier,
 ) {
-    val lines = remember(ui.sheetRows, ui.draft.kept, ui.draft.keptInForce) { sheetLinesOf(ui) }
+    val lines =
+        remember(ui.sheetRows, ui.draft.kept, ui.draft.keptInForce, ui.draft.kids, ui.preview) {
+            sheetLinesOf(ui)
+        }
     val focused = lines.indexOfFirst { it is SheetLine.Row && ui.focus == BuilderFocus.Sheet(it.row) }
     FocusedLines(lines, focused, key = { it.key }, modifier = modifier.fillMaxWidth()) { line, isFocused ->
         when (line) {
             is SheetLine.Row -> {
                 SheetRowLine(line.row, ui, typing, isFocused)
+            }
+
+            is SheetLine.Skipped -> {
+                NoteText(skippedText(line.picks), BuilderTags.SKIPPED)
             }
 
             is SheetLine.KeptHeader -> {
@@ -103,7 +125,9 @@ private fun SheetRowLine(
 
         SheetRow.Kids -> {
             val text = labelled(stringResource(R.string.builder_kids), onOff(draft.kids))
-            ToggleLine(text, draft.kids, focused, tag)
+            FocusLine(focused, tag, ticked = draft.kids, role = Role.Switch) {
+                Text(text, style = MaterialTheme.typography.bodyLarge)
+            }
         }
 
         SheetRow.Preview -> {
@@ -111,7 +135,7 @@ private fun SheetRowLine(
         }
 
         else -> {
-            TextLine(sheetText(row, draft), focused, tag)
+            TextLine(sheetText(row, draft), focused, tag, role = Role.Button.takeIf { row in ACTION_ROWS })
         }
     }
 }
@@ -123,10 +147,7 @@ private fun sheetText(
 ): String =
     when (row) {
         SheetRow.Sources -> {
-            labelled(
-                stringResource(R.string.builder_row_sources),
-                joined(draft.sources.map { it.label }, R.string.builder_join),
-            )
+            labelled(stringResource(R.string.builder_row_sources), sourcesText(draft))
         }
 
         SheetRow.NarrowDown -> {
@@ -176,6 +197,15 @@ private fun sheetText(
         }
     }
 
+// The labels, or a count when they would not fit the two lines a row has.
+@Composable
+private fun sourcesText(draft: ChannelDraft): String {
+    val joined = joined(draft.sources.map { it.label }, R.string.builder_join)
+    val count = draft.sources.size
+    if (joined.length <= SOURCES_FIT_CHARS) return joined
+    return pluralStringResource(R.plurals.builder_sources_count, count, count)
+}
+
 // A kept order has no PlayOrder to name: its own words stand in, as on the Play page.
 @Composable
 private fun orderValue(draft: ChannelDraft): String {
@@ -212,16 +242,6 @@ private fun NameLine(
     }
 }
 
-@Composable
-private fun ToggleLine(
-    text: String,
-    on: Boolean,
-    focused: Boolean,
-    tag: String,
-) {
-    FocusLine(focused, tag, ticked = on) { Text(text, style = MaterialTheme.typography.bodyLarge) }
-}
-
 // What the channel would air next, as the steps' footer words it; the row has no action.
 @Composable
 private fun PreviewRow(
@@ -229,8 +249,15 @@ private fun PreviewRow(
     focused: Boolean,
     tag: String,
 ) {
-    val text = previewText(ui.preview).ifEmpty { stringResource(R.string.builder_preview_empty) }
-    FocusLine(focused, tag, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+    // A ready preview with nothing to list yet still has its count; only NothingFits says nothing fits.
+    val preview = ui.preview
+    val text =
+        if (preview is PreviewView.Ready && preview.next.isEmpty()) {
+            stringResource(R.string.builder_bar_count, preview.itemCount)
+        } else {
+            previewText(preview)
+        }
+    FocusLine(focused, tag) {
         Text(
             text,
             style = MaterialTheme.typography.bodyMedium,

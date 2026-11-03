@@ -13,6 +13,9 @@ internal object BuilderTags {
     const val SCREEN = "builder:screen"
     const val TITLE = "builder:title"
 
+    /** The sheet's sub-line, in place of the step strip. */
+    const val EDIT = "builder:edit"
+
     /** The line that says why something did not happen. */
     const val MESSAGE = "builder:message"
 

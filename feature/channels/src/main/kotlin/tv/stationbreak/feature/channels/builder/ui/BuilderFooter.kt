@@ -8,15 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.builder.SkippedPick
 import tv.stationbreak.core.domain.lineup.builder.hasPool
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.R
@@ -47,16 +46,19 @@ private fun PreviewLine(
     preview: PreviewView,
     kids: Boolean,
 ) {
-    val skipped =
-        when (preview) {
-            is PreviewView.Ready -> preview.skipped
-            is PreviewView.NothingFits -> preview.skipped
-            else -> emptyList()
-        }
+    val skipped = preview.skippedPicks()
     val text = previewText(preview)
-    if (text.isNotEmpty()) NoteText(text, BuilderTags.PREVIEW, live = true)
+    if (text.isNotEmpty()) NoteText(text, BuilderTags.PREVIEW)
     if (kids && skipped.isNotEmpty()) NoteText(skippedText(skipped), BuilderTags.SKIPPED)
 }
+
+/** The picks a kids channel left out, when the preview says. */
+internal fun PreviewView.skippedPicks(): List<SkippedPick> =
+    when (this) {
+        is PreviewView.Ready -> skipped
+        is PreviewView.NothingFits -> skipped
+        else -> emptyList()
+    }
 
 /** What the preview says: Working, the next few items, that nothing fits, or that it cannot be worked out. */
 @Composable
@@ -104,12 +106,9 @@ private fun NextButton(ui: BuilderUi) {
 internal fun NoteText(
     text: String,
     tag: String?,
-    live: Boolean = false,
 ) {
     var modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
     if (tag != null) modifier = modifier.testTag(tag)
-    // Said by a screen reader when it changes: the focus is the ViewModel's, so nothing else announces it.
-    if (live) modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite }
     Text(
         text,
         modifier,

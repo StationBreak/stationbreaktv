@@ -63,11 +63,13 @@ internal fun <T> FocusedLines(
 
 /** One focusable line: the shared focus treatment, a tag, and the focus as its selection. */
 @Composable
+@Suppress("LongParameterList") // The line's modifier, state and role, with its content last.
 internal fun FocusLine(
     focused: Boolean,
     tag: String,
     modifier: Modifier = Modifier,
     ticked: Boolean? = null,
+    role: Role? = null,
     content: @Composable () -> Unit,
 ) {
     Box(
@@ -78,10 +80,9 @@ internal fun FocusLine(
             .testTag(tag)
             .semantics(mergeDescendants = true) {
                 selected = focused
-                if (ticked != null) {
-                    toggleableState = ToggleableState(ticked)
-                    role = Role.Checkbox
-                }
+                if (ticked != null) toggleableState = ToggleableState(ticked)
+                val announced = role ?: Role.Checkbox.takeIf { ticked != null }
+                if (announced != null) this.role = announced
             },
     ) {
         content()
@@ -94,8 +95,9 @@ internal fun TextLine(
     focused: Boolean,
     tag: String,
     modifier: Modifier = Modifier,
+    role: Role? = null,
 ) {
-    FocusLine(focused, tag, modifier) {
+    FocusLine(focused, tag, modifier, role = role) {
         Text(text, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }

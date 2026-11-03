@@ -172,17 +172,31 @@ private fun Header(ui: BuilderUi) {
                 ui.draft.name
             }
         Text(title, Modifier.testTag(BuilderTags.TITLE), style = MaterialTheme.typography.titleLarge, maxLines = 1)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            BuilderStep.entries.forEach { step ->
-                val current = step == ui.step
-                Text(
-                    stepName(step),
-                    Modifier.testTag(BuilderTags.step(step)),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
-                    color = if (current) ChannelsPalette.text else ChannelsPalette.secondary,
-                )
-            }
+        if (ui.onSheet) {
+            Text(
+                stringResource(R.string.builder_edit),
+                Modifier.testTag(BuilderTags.EDIT),
+                style = MaterialTheme.typography.labelLarge,
+                color = ChannelsPalette.secondary,
+            )
+        } else {
+            StepStrip(ui)
+        }
+    }
+}
+
+@Composable
+private fun StepStrip(ui: BuilderUi) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        BuilderStep.entries.forEach { step ->
+            val current = step == ui.step
+            Text(
+                stepName(step),
+                Modifier.testTag(BuilderTags.step(step)),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                color = if (current) ChannelsPalette.text else ChannelsPalette.secondary,
+            )
         }
     }
 }
