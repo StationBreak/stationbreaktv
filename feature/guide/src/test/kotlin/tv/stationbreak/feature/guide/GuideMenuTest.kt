@@ -634,6 +634,27 @@ class GuideMenuTest : GuideRig() {
             assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 
+    // #556: a save that only changes the play order, and a reshuffle, move neither a channel nor its number.
+    @Test
+    fun aChangeOfPlayOrderAloneReloadsTheGridWhenManagingCloses() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.toMenu()
+            vm.channelsOpened()
+            runCurrent()
+            val calls = schedule.calls
+
+            lineupList.list.value = lineupList.list.value.map { if (it.id == CH9) it.copy(playKey = 42) else it }
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
+
+            assertTrue("the grid was not read again", schedule.calls > calls)
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+        }
+
     @Test
     fun aLineupThatDidNotChangeLeavesTheGuideAsItWas() =
         guideTest { vm ->

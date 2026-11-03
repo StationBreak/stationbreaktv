@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -14,6 +15,7 @@ import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
+import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.ChannelRules
@@ -113,6 +115,32 @@ class EditCutOverTest {
         val now = checkNotNull(runBlocking { source.onAir(channel, at, 3) }).now
         val program = now.airing as Airing.Program
         return listOf(program.itemId, now.startMs, now.endMs, program.mediaStartMs)
+    }
+
+    // #556: the guide goes by the channel summaries, and a new order or a reshuffle moves neither id nor number.
+    private fun playKey(): Int =
+        runBlocking { service.channels(ACCOUNT).first() }
+            .first { it.id == mine }
+            .playKey
+
+    @Test
+    fun theSummaryShowsAChangeOfPlayOrderAndAReshuffleButNotARename() {
+        twoShows()
+        holding(store, laughs(), custom(rotation()))
+        val rotationKey = playKey()
+
+        val shuffle = twoShowRules(OrderingMode.Shuffle)
+        edit(LineupEdit.ReplaceCustom(mine, shuffle, number = null, kids = false))
+        val shuffleKey = playKey()
+        assertNotEquals(rotationKey, shuffleKey, "a new play order")
+
+        edit(LineupEdit.Reseed(mine, Seed(7uL)))
+        val reseededKey = playKey()
+        assertNotEquals(shuffleKey, reseededKey, "a reshuffle")
+
+        val renamed = shuffle.copy(name = "Renamed", seed = Seed(7uL))
+        edit(LineupEdit.ReplaceCustom(mine, renamed, number = null, kids = false))
+        assertEquals(reseededKey, playKey(), "a rename plays the same")
     }
 
     @Test

@@ -25,7 +25,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
-import tv.stationbreak.core.domain.lineup.onLineup
+import tv.stationbreak.core.domain.lineup.onGuide
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
@@ -113,8 +113,8 @@ internal class GuideViewModel
 
         // The lineup as channel management opened and as it stands, while that screen shows; null when it does not.
         private var lineupWatch: Job? = null
-        private var lineupAtOpen: List<Pair<ChannelId, Int?>>? = null
-        private var lineupNow: List<Pair<ChannelId, Int?>>? = null
+        private var lineupAtOpen: List<Triple<ChannelId, Int?, Int>>? = null
+        private var lineupNow: List<Triple<ChannelId, Int?, Int>>? = null
         private var managing = false
         private var loadJob: Job? = null
         private var loadId = 0
@@ -389,7 +389,7 @@ internal class GuideViewModel
             try {
                 lineup
                     .activeChannels()
-                    .map { it.onLineup() }
+                    .map { it.onGuide() }
                     .distinctUntilChanged()
                     .collect { now ->
                         synchronized(lock) {
