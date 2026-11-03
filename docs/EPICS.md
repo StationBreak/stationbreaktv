@@ -18,13 +18,15 @@ that connects by URL or IP:port, secure credential storage, and a local library 
 F0.5 Server setup & connection test · F0.6 Library sync & cache · F0.7 Channel rules format v1 (spec only)
 
 **Gate (acceptance criteria):**
-- [ ] On the Insignia Fire TV, entering the owner's real reverse-proxied HTTPS URL connects and lists
+- [x] On the Insignia Fire TV, entering the owner's real reverse-proxied HTTPS URL connects and lists
       **all** libraries visible to the user.
-- [ ] The same works with a bare `IP:port` on the LAN.
-- [ ] Subpath base URLs (e.g. `https://media.example.com/jellyfin`) are proven by automated tests (S0.3.1).
-- [ ] Adapter contract tests pass in CI against the **oldest supported and latest Jellyfin 12.x** containers (S0.3.6, ADR-0006).
-- [ ] The app was installed on the Insignia by sideloading a CI-built APK, not by a local build.
-- [ ] CI is green on `main`: build, unit tests, lint, detekt, license header check.
+- [x] The same works with a bare `IP:port` on the LAN (accepted on automated evidence, owner 2026-11-03).
+- [x] Subpath base URLs (e.g. `https://media.example.com/jellyfin`) are proven by automated tests (S0.3.1).
+- [x] Adapter contract tests pass in CI against the **oldest supported and latest Jellyfin 12.x** containers (S0.3.6, ADR-0006).
+- [x] The app was installed on the Insignia by sideloading a CI-built APK, not by a local build.
+- [x] CI is green on `main`: build, unit tests, lint, detekt, license header check.
+
+Evidence and sign-off: [gates/phase-0.md](gates/phase-0.md).
 
 ---
 
@@ -51,6 +53,8 @@ F1.4 Channel flipping & last-channel recall · F1.5 Playback reporting · F1.6 D
 
       Both devices keep being optimised. Only the pass or fail bar moved. Older and budget hardware can never match a newer stick, and people with older devices deserve a good app too, so the floor device must be comfortable to use rather than fast. The thresholds are a starting point and may be adjusted after measurement.
 - [ ] Scheduler golden-vector tests pass in CI.
+
+Status 2026-11-03: not met. Firestick runs in [#392](https://github.com/StationBreak/stationbreaktv/issues/392) reach about 20 of 21 under 2 s; a formal 30-flip run per TV is pending. Phase 2 work started while this gate was open.
 
 Cross-device agreement is **not** a gate ([ADR-0002](adr/0002-determinism-scope.md)). It's observed during
 the Phase 2 dogfood with two devices on the same account.

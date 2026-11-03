@@ -256,9 +256,8 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   `ChannelEditor` (every change a viewer makes, and the reset), `ChannelBuilder`, `CatalogPicker`, `ChannelPreviews`,
   `ScheduleSource`, `ChannelNumbers` (the bands, taken from the engine), `DraftChoices` (what the builder offers) and, for
   the account the builder works for, `LibraryRepository.activeAccount()`.
-- Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
-  channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to
-  land before F1.3.
+- Performance: the double refresh on every launch was fixed in [#309](https://github.com/StationBreak/stationbreaktv/issues/309)
+  (closed 2026-10-21, before F1.3). Later work is in PRs #406, #481 and #484.
 
 ### Playback (spec 13)
 
