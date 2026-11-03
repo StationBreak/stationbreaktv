@@ -24,6 +24,9 @@ object DraftChoices {
         return RatingLadder.tiers.map { it.first() }
     }
 
+    /** The kids choice that holds a channel to what [rating] held it to, never looser (see `KidHold.kidsChoiceFor`). */
+    fun kidsCeilingFor(rating: String?): String = KidHold.kidsChoiceFor(rating)
+
     /**
      * The place in [ratingCeilings] of a stored ceiling, by tier (the hold's kid tier for a kids channel, the ladder's
      * otherwise), so a spelling the list lacks is still placed; null when it is none or not on the ladder.

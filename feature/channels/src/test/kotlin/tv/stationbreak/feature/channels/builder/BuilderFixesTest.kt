@@ -270,9 +270,19 @@ class BuilderFixesTest {
         }
 
     @Test
-    fun switchingKidsOnRewritesACeilingTheHoldReadsAsPg() =
+    fun switchingKidsOnRewritesACeilingToTheKidsChoiceNoLooser() =
         builderTest { rig ->
-            for (stored in listOf("TV-PG", "R", null, "TV-Y7")) {
+            val expected =
+                mapOf(
+                    "TV-PG" to "PG",
+                    "R" to "PG",
+                    "none" to "PG",
+                    "TV-Y7" to "TV-Y7",
+                    "TV-G" to "G",
+                    "TV-Y" to "G",
+                    "Bogus" to "G",
+                )
+            for (stored in listOf("TV-PG", "R", null, "TV-Y7", "TV-G", "TV-Y", "Bogus")) {
                 rig.builder.number = 1
                 rig.builder.openResult =
                     OpenResult.Opened(
@@ -285,7 +295,7 @@ class BuilderFixesTest {
                 rig.press(Down, Down, Down)
                 rig.select()
                 assertTrue(rig.ui.draft.kids)
-                assertEquals(if (stored == "TV-Y7") "TV-Y7" else "PG", rig.ui.draft.filters.maxRating)
+                assertEquals(expected.getValue(stored ?: "none"), rig.ui.draft.filters.maxRating)
             }
         }
 

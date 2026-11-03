@@ -55,12 +55,12 @@ internal fun BuilderModel.cursorAfter(by: Int): Int {
     return (genreCursor + by).coerceIn(0, (size - 1).coerceAtLeast(0))
 }
 
-// A kids channel's ceiling is one of the kids hold's own choices: any other (none, TV-PG, R) is what the hold holds it
-// to, so the draft, the screen and the saved file say the same.
+// A kids channel's ceiling is one of the kids hold's own choices: any other is replaced by the choice that holds it to
+// what it held it to, never looser (TV-G to G, TV-PG, R and none to PG), so the draft, the screen and the file agree.
 internal fun ChannelDraft.kidsCeiling(): ChannelDraft {
     val choices = DraftChoices.ratingCeilings(kids = true)
     if (!kids || maxRating() in choices) return this
-    return copy(filters = filters.copy(maxRating = choices.last()))
+    return copy(filters = filters.copy(maxRating = DraftChoices.kidsCeilingFor(maxRating())))
 }
 
 private fun ChannelDraft.maxRating(): String? = filters.maxRating
