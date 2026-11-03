@@ -53,12 +53,14 @@ object LineupPlanner {
      *
      * Each recipe's pool is evaluated at most once per call.
      *
-     * A first choice can be made around [kept] channels (a reset keeps the viewer's own channels; a lineup not yet
-     * finalised keeps the custom and unusable channels it already holds, so a refresh never drops them). They go into
-     * the lineup as they are. Their numbers count as taken: a catalog channel whose default one is held takes the
-     * first number free in its own band, or goes on the shelf with no number when that band is full. Their switched-on
-     * channels count toward [LineupDefaults.CAP] before any starter is chosen, so the lowest-ranked starters are
-     * left off, never a kept channel. A finalised lineup ignores [kept]: it is planned from its own channels.
+     * A first choice can be made around [kept] channels (a reset keeps the viewer's own channels; the caller picks
+     * them, and for a lineup not yet finalised, whose own channels a first choice replaces, it passes the ones to
+     * keep). They go into the lineup as they are. Their numbers count as taken: a catalog channel whose default one is
+     * held takes the first number free in its own band, or goes on the shelf with no number when that band is full.
+     * Their switched-on channels count toward [LineupDefaults.CAP] before any starter is chosen, so the lowest-ranked
+     * starters are left off, never a kept channel. The leftovers channels are exempt: they are always switched on
+     * (the "Odds and ends" decision), so the lineup can hold more than the cap when the kept channels alone fill it.
+     * A finalised lineup ignores [kept]: it is planned from its own channels.
      */
     @Suppress("LongParameterList")
     fun plan(
@@ -79,8 +81,7 @@ object LineupPlanner {
         }
         return if (current == null || !current.finalised) {
             val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs)
-            val own = current?.channels.orEmpty().filter { it.source.isTheViewers() }
-            firstChoice(planning, userId, withoutCollections, (kept + own).distinctBy { it.id })
+            firstChoice(planning, userId, withoutCollections, kept)
         } else {
             val planning = Planning(serverId, current.utcOffsetMinutes, snapshot, collections, catalog, nowMs)
             refresh(current, planning, withoutCollections)
@@ -96,9 +97,6 @@ object LineupPlanner {
         val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, ordered(kept))
         return if (p.snapshot.collectionsSynced || withoutCollections) chosen(p, unfinalised, kept) else unfinalised
     }
-
-    // What the planner never changes and a reset keeps: the viewer's own channels and ones that need a newer app.
-    private fun ChannelSource.isTheViewers(): Boolean = this is ChannelSource.Custom || this is ChannelSource.Unusable
 
     // The first choice proper, made once the collection pass is in (or not waited for): nothing is on yet below the
     // threshold.

@@ -110,9 +110,40 @@ class LineupServiceResetKeepsCustomTest {
             val fresh = reset()
 
             val on = fresh.channels.filter { it.state == ChannelState.On }
-            assertTrue(on.size <= LineupDefaults.CAP, "on was ${on.size}")
+            assertEquals(LineupDefaults.CAP, on.size, "48 kept and the 2 leftovers fill the cap")
             assertTrue(mine.all { fresh.byId(it.id.value).state == ChannelState.On }, "kept all On")
-            assertTrue(on.count { it.source is ChannelSource.Starter } <= 2)
+            assertEquals(0, on.count { it.source is ChannelSource.Starter })
+        }
+
+    @Test
+    fun resetKeepsTheBestRankedStartersThatFitUnderTheCap() =
+        runBlocking<Unit> {
+            val mine = (0 until 46).map { custom("M$it", 600 + it) }
+            seedStored(lineupOf(*starters(), *mine.toTypedArray()))
+
+            val fresh = reset()
+
+            val on = fresh.channels.filter { it.state == ChannelState.On }
+            assertEquals(LineupDefaults.CAP, on.size)
+            // Every recipe fills equally, so the cut is by key: the first two of the six.
+            val starters = on.filter { it.source is ChannelSource.Starter }.map { it.id }.toSet()
+            assertEquals(setOf(LineupIds.starter("frights"), LineupIds.starter("laughs")), starters)
+        }
+
+    @Test
+    fun anUnfinalisedLineupKeepsTheViewersChannelsWhenItIsPlannedAgain() =
+        runBlocking<Unit> {
+            val bare = CountingLibrary()
+            val early = LineupService(store, bare, clock, { 0 }, {}, TestCatalog)
+            seedStored(lineupOf(custom("Mine", 600)))
+            ChannelManager(early) { LIBRARIES }.reset(ACCOUNT)
+            bare.seed(fillingLibrary())
+
+            early.refresh(ACCOUNT, LIBRARIES)
+
+            val after = checkNotNull(early.lineup(ACCOUNT).value).lineup
+            assertTrue(after.finalised)
+            assertEquals(600, after.byId("custom:Mine").number)
         }
 
     @Test

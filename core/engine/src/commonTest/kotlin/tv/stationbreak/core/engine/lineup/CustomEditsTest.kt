@@ -8,6 +8,7 @@ import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -244,6 +245,18 @@ class CustomEditsTest {
             EditRefusal.KidsBandOnly,
             refusal(lineup, LineupEdit.ReplaceCustom(kid, rulesOf("kid"), 650, mine)),
         )
+    }
+
+    @Test
+    fun canSwapAnswersWhatAReplaceWithASwapWouldDoAndChangesNothing() {
+        val kid = ChannelId("custom:kid")
+        val lineup = lineupOf(starter("western", 310), custom("kid", 5), custom("mine", 650))
+
+        assertTrue(LineupEdits.canSwap(lineup, mine, 310, kids = false))
+        assertFalse(LineupEdits.canSwap(lineup, kid, 650, kids = false), "the grown-up holder would enter the band")
+        assertFalse(LineupEdits.canSwap(lineup, mine, 5, kids = true), "the kid holder would leave the band")
+        assertFalse(LineupEdits.canSwap(lineup, mine, 777, kids = false), "nothing holds it")
+        assertFalse(LineupEdits.canSwap(lineup, western, 650, kids = false), "not a custom channel")
     }
 
     @Test

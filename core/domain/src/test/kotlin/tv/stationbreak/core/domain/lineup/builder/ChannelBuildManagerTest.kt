@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.lineup.starter
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
@@ -31,6 +32,7 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -215,7 +217,8 @@ class ChannelBuildManagerTest {
 
             val result = builder.create(ACCOUNT, draft)
 
-            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("custom:Holder"))), result)
+            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Holder"), swappable = false)
+            assertEquals(BuildResult.Refused(taken), result)
         }
 
     @Test
@@ -317,7 +320,7 @@ class ChannelBuildManagerTest {
 
             val before = stored().channel(id)
             val copied = opened.draft.copy(name = "Westerns (copy)")
-            val copyId = assertIs<BuildResult.Done>(builder.create(ACCOUNT, copied)).id
+            val copyId = assertIs<BuildResult.Done>(builder.create(ACCOUNT, copied, copyOf = id)).id
 
             val order = stored().customRules(copyId).orderingMode
             assertEquals(OrderingMode.RandomInOrder, order, "the kept order carried over")
@@ -333,8 +336,14 @@ class ChannelBuildManagerTest {
 
             assertTrue(opened.draft.kids)
             assertEquals(1, opened.draft.number)
-            val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, opened.draft)).id
+            val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, opened.draft, copyOf = toons)).id
             assertEquals(1, stored().channel(id).number)
+            assertTrue(KidStatus.isKidChannel(stored().channel(id)))
+
+            val grownUp = opened.draft.copy(kids = false, number = builder.numberFor(ACCOUNT, kids = false))
+            val off = assertIs<BuildResult.Done>(builder.create(ACCOUNT, grownUp, copyOf = toons)).id
+            assertEquals(600, stored().channel(off).number)
+            assertFalse(KidStatus.isKidChannel(stored().channel(off)), "turned off, it is a grown-up channel")
         }
 
     @Test
@@ -347,7 +356,8 @@ class ChannelBuildManagerTest {
 
             assertTrue(opened.draft.kids)
             assertNull(opened.draft.number)
-            assertEquals(BuildResult.Refused(BuildRefusal.KidsBandFull), builder.create(ACCOUNT, opened.draft))
+            val result = builder.create(ACCOUNT, opened.draft, copyOf = toons)
+            assertEquals(BuildResult.Refused(BuildRefusal.KidsBandFull), result)
         }
 
     @Test
@@ -401,7 +411,61 @@ class ChannelBuildManagerTest {
 
             val result = builder.save(ACCOUNT, id, draft.copy(number = 620, numberChosen = true))
 
-            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("custom:Other"))), result)
+            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Other"), swappable = true)
+            assertEquals(BuildResult.Refused(taken), result)
+        }
+
+    @Test
+    fun turningKidsOffAndSwappingWithAGrownUpHolderIsKidsBandNotFailed() =
+        runBlocking<Unit> {
+            seed(custom("Kid", 5), custom("Other", 620))
+            val id = ChannelId("custom:Kid")
+            val other = ChannelId("custom:Other")
+            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
+            val off = draft.copy(kids = false, number = 620, numberChosen = true)
+
+            val plain = builder.save(ACCOUNT, id, off)
+            val swap = builder.save(ACCOUNT, id, off, swapWith = other)
+
+            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(other, swappable = false)), plain)
+            assertEquals(BuildResult.Refused(BuildRefusal.KidsBand), swap)
+            assertTrue(LineupEvent.BuildFailed !in events)
+            assertEquals(5, stored().channel(id).number)
+        }
+
+    @Test
+    fun turningKidsOnAndSwappingWithAKidHolderIsKidsBandNotFailed() =
+        runBlocking<Unit> {
+            seed(custom("Mine", 610), custom("KidHolder", 5))
+            val id = ChannelId("custom:Mine")
+            val holder = ChannelId("custom:KidHolder")
+            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
+            val on = draft.copy(kids = true, number = 5, numberChosen = true)
+
+            val plain = builder.save(ACCOUNT, id, on)
+            val swap = builder.save(ACCOUNT, id, on, swapWith = holder)
+
+            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = false)), plain)
+            assertEquals(BuildResult.Refused(BuildRefusal.KidsBand), swap)
+            assertTrue(LineupEvent.BuildFailed !in events)
+        }
+
+    @Test
+    fun aPickedNumberOnTheWrongSideOfTheKidsBandIsADraftProblem() =
+        runBlocking<Unit> {
+            seed()
+            val kids = named(builder.blank(ACCOUNT, kids = true)).copy(number = 700, numberChosen = true)
+            val grownUp = named(builder.blank(ACCOUNT, kids = false)).copy(number = 5, numberChosen = true)
+
+            assertEquals(
+                BuildResult.Refused(BuildRefusal.Invalid(DraftProblem.KidsNumberOutsideBand)),
+                builder.create(ACCOUNT, kids),
+            )
+            assertEquals(
+                BuildResult.Refused(BuildRefusal.Invalid(DraftProblem.GrownUpNumberInKidsBand)),
+                builder.create(ACCOUNT, grownUp),
+            )
+            assertTrue(LineupEvent.BuildFailed !in events)
         }
 
     @Test

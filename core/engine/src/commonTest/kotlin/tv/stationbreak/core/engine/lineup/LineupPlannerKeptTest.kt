@@ -109,18 +109,36 @@ class LineupPlannerKeptTest {
     }
 
     @Test
-    fun keptOnChannelsCountTowardTheCapAndNeverGiveWay() {
+    fun keptOnChannelsCountTowardTheCapAndTheBestRankedStartersStayOn() {
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
         val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
         val mine = (0 until 40).map { kept("m$it", 600 + it) }
+        // The later the key, the more it fills, so the best-ranked starters are the last eight.
+        val fill = keys.mapIndexed { i, k -> k to QUALIFYING_ITEMS + i }.toMap()
 
-        val lineup = plan(mine, many, keys.associateWith { QUALIFYING_ITEMS })
+        val lineup = plan(mine, many, fill)
 
         val on = lineup.channels.filter { it.state == ChannelState.On }
         assertEquals(LineupDefaults.CAP, on.size)
         assertTrue(mine.all { it in lineup.channels && it.state == ChannelState.On })
-        // 2 leftovers + 40 kept leave 8 starters, the best by key (ties broken by key).
-        assertEquals(8, on.count { it.source is ChannelSource.Starter })
+        // 2 leftovers + 40 kept leave room for 8 starters.
+        val starters = on.filter { it.source is ChannelSource.Starter }.map { it.id.value.substringAfter(':') }
+        assertEquals(keys.takeLast(8).toSet(), starters.toSet())
+    }
+
+    @Test
+    fun theLeftoversChannelsAreExemptFromTheCapAndKeptChannelsAreNeverShelved() {
+        val keys = List(60) { "r" + it.toString().padStart(2, '0') }
+        val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
+        val mine = (0 until 50).map { kept("m$it", 600 + it) }
+
+        val lineup = plan(mine, many, keys.associateWith { QUALIFYING_ITEMS })
+
+        assertTrue(mine.all { it in lineup.channels && it.state == ChannelState.On }, "kept all On")
+        assertEquals(0, lineup.channels.count { it.state == ChannelState.On && it.source is ChannelSource.Starter })
+        assertEquals(ChannelState.On, lineup.channel("kids-odds").state)
+        assertEquals(ChannelState.On, lineup.channel("odds").state)
+        assertEquals(LineupDefaults.CAP + 2, lineup.channels.count { it.state == ChannelState.On })
     }
 
     @Test
@@ -143,18 +161,6 @@ class LineupPlannerKeptTest {
 
         assertFalse(lineup.finalised)
         assertEquals(listOf(mine), lineup.channels)
-    }
-
-    @Test
-    fun anUnfinalisedLineupKeepsItsOwnCustomChannelsWhenPlannedAgain() {
-        val mine = kept("mine", 600)
-        val before = plan(listOf(mine), fills = emptyMap())
-
-        val after =
-            LineupPlanner.plan(before, SERVER, USER, 0, libraryOf(fills), NO_NAMES, 2_000L, catalog)
-
-        assertTrue(after.finalised)
-        assertTrue(mine in after.channels)
     }
 
     @Test

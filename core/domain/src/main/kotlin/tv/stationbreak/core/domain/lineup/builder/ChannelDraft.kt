@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
-import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.model.Seed
 
 /** How a channel plays its pool. */
@@ -78,13 +78,11 @@ enum class OnlyKind { Films, Shows }
 
 /**
  * Settings of a copied built-in channel that the builder cannot show or change, as the screen's read-only "Kept from"
- * lines. Structured values only: the screen words them. [sourceId] is the channel they were read from (the built-in
- * channel of a copy, the channel itself for an edit), so that saving carries them over from its stored rules.
+ * lines. Structured values only: the screen words them.
  */
 data class KeptSettings(
     val fromName: String,
     val items: List<KeptItem>,
-    val sourceId: ChannelId? = null,
 )
 
 sealed interface KeptItem {
@@ -131,6 +129,12 @@ enum class DraftProblem {
     YearsReversed,
     MinutesOutOfRange,
     MinutesReversed,
+
+    /** A kids channel with a picked number outside 1 to 99. */
+    KidsNumberOutsideBand,
+
+    /** A grown-up channel with a picked number inside 1 to 99, the kids band. */
+    GrownUpNumberInKidsBand,
 }
 
 /**
@@ -162,7 +166,7 @@ data class ChannelDraft(
             points > MAX_NAME_CODE_POINTS -> DraftProblem.NameTooLong
             sources.isEmpty() && !hasKeptYears() -> DraftProblem.NoSources
             order != PlayOrder.InOrder && (seriesCap !in CAPS || filmCap !in CAPS) -> DraftProblem.CapOutOfRange
-            else -> yearsProblem() ?: minutesProblem()
+            else -> yearsProblem() ?: minutesProblem() ?: numberProblem()
         }
     }
 
@@ -200,6 +204,17 @@ data class ChannelDraft(
             from == null || to == null -> null
             from !in YEARS || to !in YEARS -> DraftProblem.YearsOutOfRange
             from > to -> DraftProblem.YearsReversed
+            else -> null
+        }
+    }
+
+    // A number the viewer picked must be on the side of the band their kids setting says.
+    private fun numberProblem(): DraftProblem? {
+        val picked = number?.takeIf { numberChosen } ?: return null
+        val inKidsBand = picked in Band.Kids.numbers
+        return when {
+            kids && !inKidsBand -> DraftProblem.KidsNumberOutsideBand
+            !kids && inKidsBand -> DraftProblem.GrownUpNumberInKidsBand
             else -> null
         }
     }

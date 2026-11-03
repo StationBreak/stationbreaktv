@@ -24,12 +24,16 @@ sealed interface BuildRefusal {
 
     data object OutOfRange : BuildRefusal
 
+    /** The change would move a channel into or out of the kids band where that is not allowed (the screen explains). */
+    data object KidsBand : BuildRefusal
+
     /** The channel is the only one switched on. */
     data object LastOn : BuildRefusal
 
-    /** Another channel, [holder], has the number. */
+    /** Another channel, [holder], has the number; [swappable] is whether trading numbers with it is allowed. */
     data class NumberTaken(
         val holder: ChannelId,
+        val swappable: Boolean,
     ) : BuildRefusal
 }
 
@@ -92,9 +96,11 @@ interface ChannelBuilder {
         copy: Boolean,
     ): OpenResult
 
+    /** Creates the channel of [draft]; [copyOf] is the built-in channel a copy was opened from (null for a new one). */
     suspend fun create(
         account: LibraryAccount,
         draft: ChannelDraft,
+        copyOf: ChannelId? = null,
     ): BuildResult
 
     /** Saves [draft] over channel [id], keeping its stored seed. With [swapWith], that channel trades numbers. */

@@ -55,24 +55,31 @@ class ChannelBuildManager(
         account: LibraryAccount,
         id: ChannelId,
         copy: Boolean,
+    ): OpenResult =
+        guarded(OpenResult.NotFound) {
+            val lineup = lineupOf(account)
+            val channel = lineup?.channels?.firstOrNull { it.id == id }
+            val rules = channel?.rulesToOpen(copy)
+            when {
+                lineup == null || channel == null -> OpenResult.NotFound
+                rules == null -> OpenResult.NotCustomisable
+                copy -> openedCopy(account, lineup, channel, rules)
+                else -> OpenResult.Opened(draftOf(account, rules, channel.number), null)
+            }
+        }
+
+    private suspend fun openedCopy(
+        account: LibraryAccount,
+        lineup: Lineup,
+        channel: LineupChannel,
+        rules: ChannelRules,
     ): OpenResult {
-        val lineup = lineupOf(account)
-        val channel = lineup?.channels?.firstOrNull { it.id == id }
-        val rules = channel?.rulesToOpen(copy)
-        if (lineup == null || channel == null || rules == null) {
-            return if (channel == null) OpenResult.NotFound else OpenResult.NotCustomisable
-        }
         val name = channel.displayName(service.catalog)
-        return if (copy) {
-            val kids = KidStatus.isKidChannel(channel)
-            val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
-            val draft = draftOf(account, rules.copy(seed = newSeed.next()), number)
-            val kept = draft.kept?.copy(fromName = name, sourceId = id)
-            OpenResult.Opened(draft.copy(name = name, kids = kids, kept = kept), name)
-        } else {
-            val draft = draftOf(account, rules, channel.number)
-            OpenResult.Opened(draft.copy(kept = draft.kept?.copy(sourceId = id)), null)
-        }
+        val kids = KidStatus.isKidChannel(channel)
+        val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
+        val draft = draftOf(account, rules.copy(seed = newSeed.next()), number)
+        val kept = draft.kept?.copy(fromName = name)
+        return OpenResult.Opened(draft.copy(name = name, kids = kids, kept = kept), name)
     }
 
     // A copy is of a built-in channel's rules; an edit is of a custom channel's own.
@@ -97,11 +104,12 @@ class ChannelBuildManager(
     override suspend fun create(
         account: LibraryAccount,
         draft: ChannelDraft,
+        copyOf: ChannelId?,
     ): BuildResult =
         guarded(BuildResult.Failed) {
             val problem = draft.problem()
             val lineup = lineupOf(account)
-            val previous = lineup?.let { keptFrom(it, draft) }
+            val previous = lineup?.let { builtInRules(it, copyOf) }
             when {
                 problem != null -> {
                     refused(BuildRefusal.Invalid(problem))
@@ -119,7 +127,7 @@ class ChannelBuildManager(
                     val id = ChannelId("custom:" + newId())
                     val rules = DraftRules.toRules(draft, lineup.utcOffsetMinutes, previous)
                     val number = draft.number.takeIf { draft.numberChosen }
-                    edited(account, LineupEdit.AddCustom(id, rules, number, draft.kids), draft.kids, id)
+                    edited(account, LineupEdit.AddCustom(id, rules, number, draft.kids), draft.kids, id, null)
                 }
             }
         }
@@ -158,7 +166,7 @@ class ChannelBuildManager(
                     // of a kids switch: worked out in the lock. A swap needs the number it trades.
                     val number = draft.number.takeIf { draft.numberChosen || swapWith != null }
                     val edit = LineupEdit.ReplaceCustom(id, rules, number, swapWith, draft.kids)
-                    edited(account, edit, draft.kids, id)
+                    edited(account, edit, draft.kids, id, draft.number)
                 }
             }
         }
@@ -166,22 +174,33 @@ class ChannelBuildManager(
     override suspend fun reshuffle(
         account: LibraryAccount,
         id: ChannelId,
-    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id) }
+    ): BuildResult =
+        guarded(BuildResult.Failed) {
+            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, null)
+        }
 
     override suspend fun delete(
         account: LibraryAccount,
         id: ChannelId,
-    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id) }
+    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id, null) }
 
     private suspend fun edited(
         account: LibraryAccount,
         edit: LineupEdit,
         kids: Boolean,
         id: ChannelId,
+        number: Int?,
     ): BuildResult =
         service.edit(account, edit).mapped(
             done = { BuildResult.Done(id) },
-            refused = { reason -> reason.toBuildRefusal(kids)?.let(::refused) ?: failed() },
+            refused = { reason ->
+                val holder = (reason as? EditRefusal.NumberTaken)?.holder
+                if (holder != null) {
+                    refused(BuildRefusal.NumberTaken(holder, swappable(account, id, number, kids)))
+                } else {
+                    reason.toBuildRefusal(kids)?.let(::refused) ?: failed()
+                }
+            },
         ) {
             when (it) {
                 Unsaved.NotEditable -> BuildResult.NotEditable
@@ -190,12 +209,23 @@ class ChannelBuildManager(
             }
         }
 
-    // The rules a copied draft's kept settings were read from, in the lineup as it is now.
-    private fun keptFrom(
+    // Whether [id] may trade numbers with the holder of [number], in the lineup as it is now (the one that refused).
+    private suspend fun swappable(
+        account: LibraryAccount,
+        id: ChannelId,
+        number: Int?,
+        kids: Boolean,
+    ): Boolean {
+        val lineup = lineupOf(account)
+        return number != null && lineup != null && LineupEdits.canSwap(lineup, id, number, kids, service.catalog)
+    }
+
+    // The rules of the built-in channel a copy was opened from, in the lineup as it is now.
+    private fun builtInRules(
         lineup: Lineup,
-        draft: ChannelDraft,
+        copyOf: ChannelId?,
     ): ChannelRules? {
-        val from = draft.kept?.sourceId ?: return null
+        val from = copyOf ?: return null
         return when (val source = lineup.channels.firstOrNull { it.id == from }?.source) {
             is ChannelSource.Starter -> source.rules
             is ChannelSource.Custom -> source.rules
@@ -203,7 +233,8 @@ class ChannelBuildManager(
         }
     }
 
-    // The engine's reasons that a build can reach; the others cannot happen from these edits, and are a failure.
+    // The engine's reasons a build can reach; a number taken is worked out by [edited]. The others cannot come from
+    // these edits, and are a failure.
     private fun EditRefusal.toBuildRefusal(kids: Boolean): BuildRefusal? =
         when (this) {
             EditRefusal.UnknownChannel -> BuildRefusal.UnknownChannel
@@ -216,12 +247,13 @@ class ChannelBuildManager(
 
             EditRefusal.LastOn -> BuildRefusal.LastOn
 
-            is EditRefusal.NumberTaken -> BuildRefusal.NumberTaken(holder)
+            is EditRefusal.NumberTaken -> null
+
+            EditRefusal.KidsBandOnly -> BuildRefusal.KidsBand
 
             EditRefusal.NotSwitchable,
             EditRefusal.OptInNotConfirmed,
             EditRefusal.IdTaken,
-            EditRefusal.KidsBandOnly,
             -> null
         }
 

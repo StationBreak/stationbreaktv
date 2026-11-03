@@ -239,6 +239,13 @@ class LineupService internal constructor(
         passActedOn: Long?,
         kept: List<LineupChannel> = emptyList(),
     ): Pair<Lineup, RefreshMeta> {
+        // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
+        val own =
+            current
+                ?.takeIf { !it.finalised }
+                ?.channels
+                .orEmpty()
+                .filter { it.isTheViewers() }
         val planned =
             LineupPlanner.plan(
                 current,
@@ -250,7 +257,7 @@ class LineupService internal constructor(
                 read.now.toEpochMilliseconds(),
                 catalog,
                 withoutCollections = read.giveUp,
-                kept = kept,
+                kept = (kept + own).distinctBy { it.id },
             )
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =

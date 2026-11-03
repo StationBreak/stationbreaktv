@@ -118,7 +118,7 @@ class ChannelManager(
     }
 }
 
-internal fun EditRefusal.toRefusal(): ChangeRefusal =
+private fun EditRefusal.toRefusal(): ChangeRefusal =
     when (this) {
         EditRefusal.UnknownChannel -> ChangeRefusal.UnknownChannel
 
