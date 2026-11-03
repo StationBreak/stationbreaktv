@@ -366,24 +366,7 @@ object LineupEdits {
         ownKidsMove: Boolean = false,
     ): EditOutcome {
         val holder = lineup.channels.firstOrNull { it.id != channel.id && it.number == number }
-        val refusal =
-            when {
-                number !in MIN_NUMBER..MAX_NUMBER -> {
-                    EditRefusal.OutOfRange
-                }
-
-                number in Band.Kids.numbers && !ownKidsMove && !KidStatus.isKidChannel(channel) -> {
-                    EditRefusal.KidsBandOnly
-                }
-
-                holder != null && swapWith != holder.id -> {
-                    EditRefusal.NumberTaken(holder.id)
-                }
-
-                else -> {
-                    null
-                }
-            }
+        val refusal = numberRefusal(channel, number, holder, swapWith, ownKidsMove)
         return when {
             refusal != null -> refused(refusal)
             channel.number == number -> EditOutcome.Applied(lineup)
@@ -391,6 +374,30 @@ object LineupEdits {
             else -> swapped(lineup, channel, holder, number, catalog)
         }
     }
+
+    // Why [channel] cannot take [number], held by [holder] (or free). Kids off is the owner's explicit switch
+    // (ReplaceCustom, [ownKidsMove]), never a renumber, and only a kid channel moves into the Kids band.
+    private fun numberRefusal(
+        channel: LineupChannel,
+        number: Int,
+        holder: LineupChannel?,
+        swapWith: ChannelId?,
+        ownKidsMove: Boolean,
+    ): EditRefusal? =
+        when {
+            number !in MIN_NUMBER..MAX_NUMBER -> EditRefusal.OutOfRange
+            ownKidsMove -> holder?.takeIf { swapWith != it.id }?.let { EditRefusal.NumberTaken(it.id) }
+            number in Band.Kids.numbers && !KidStatus.isKidChannel(channel) -> EditRefusal.KidsBandOnly
+            leavesKids(channel, number) -> EditRefusal.KidsBandOnly
+            holder != null && swapWith != holder.id -> EditRefusal.NumberTaken(holder.id)
+            else -> null
+        }
+
+    // Whether [channel], a kid channel now, would not be one at [number] (a kid key stays kid at any number).
+    private fun leavesKids(
+        channel: LineupChannel,
+        number: Int,
+    ): Boolean = KidStatus.isKidChannel(channel) && !KidStatus.isKidChannel(channel.withNumber(number))
 
     // The holder takes the edited channel's old number, or one of its own bands' free ones if that had none.
     private fun swapped(

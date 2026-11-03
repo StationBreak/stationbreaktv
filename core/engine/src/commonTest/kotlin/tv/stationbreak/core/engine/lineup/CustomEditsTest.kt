@@ -291,6 +291,35 @@ class CustomEditsTest {
     }
 
     @Test
+    fun setNumberCannotTakeAKidCustomChannelOutOfTheKidsBand() {
+        val kid = ChannelId("custom:kid")
+        val lineup = lineupOf(starter("western", 310), custom("kid", 5))
+
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.SetNumber(kid, 700)))
+        // Within the band is fine.
+        assertEquals(6, applied(lineup, LineupEdit.SetNumber(kid, 6)).byId(kid).number)
+    }
+
+    @Test
+    fun clearNumberCannotEndAKidCustomChannelsKidStatus() {
+        val kid = ChannelId("custom:kid")
+        val kidChannel = custom("kid", 5).copy(defaultNumber = 700)
+        val lineup = lineupOf(starter("western", 310), kidChannel)
+
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.ClearNumber(kid)))
+    }
+
+    @Test
+    fun aKidSafeStarterStaysKidAtAnyNumber() {
+        val kidStarter = starter(StarterCatalog.EVER_KID_SAFE_KEYS.first(), 5)
+        val lineup = lineupOf(starter("western", 310), kidStarter)
+
+        val after = applied(lineup, LineupEdit.SetNumber(kidStarter.id, 700)).byId(kidStarter.id)
+
+        assertTrue(KidStatus.isKidChannel(after))
+    }
+
+    @Test
     fun replaceCustomWithNoNumberKeepsANumberAlreadyInTheRequestedBand() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650), custom("kid", 5))
 

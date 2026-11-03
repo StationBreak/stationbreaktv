@@ -382,8 +382,8 @@ class LineupEditsTest {
         }
     }
 
-    // No edit makes a kid channel grown-up but the owner's own: a channel other than the edited one never changes
-    // status; the edited one only by a replace without the kids flag, or by the number edits that already allowed it.
+    // Kids off is only the owner's switch: a channel other than the edited one never stops being a kid channel, and
+    // the edited one only by a replace without the kids flag.
     private fun assertKidStatusKept(
         before: Lineup,
         edit: LineupEdit,
@@ -395,13 +395,7 @@ class LineupEditsTest {
                 new != null && KidStatus.isKidChannel(old) && !KidStatus.isKidChannel(new)
             }
         for (old in lost) {
-            val allowed =
-                old.id == edit.id &&
-                    (
-                        edit is LineupEdit.SetNumber ||
-                            edit is LineupEdit.ClearNumber ||
-                            (edit is LineupEdit.ReplaceCustom && !edit.kids)
-                    )
+            val allowed = old.id == edit.id && edit is LineupEdit.ReplaceCustom && !edit.kids
             assertTrue(allowed, "${old.id} stopped being a kid channel by $edit")
         }
     }
