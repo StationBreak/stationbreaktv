@@ -247,12 +247,50 @@ class CustomEditsTest {
     }
 
     @Test
-    fun aRefusedReplaceChangesNothing() {
+    fun replaceCustomIntoTheKidsBandMakesAKidChannel() {
+        val lineup = lineupOf(starter("western", 310), custom("mine", 650))
+
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 7, kids = true)).byId(mine)
+
+        assertEquals(7, after.number)
+        assertTrue(KidStatus.isKidChannel(after))
+        assertEquals(PoolPolicyKidsOnly, KidStatus.policyOf(after))
+    }
+
+    @Test
+    fun replaceCustomIntoTheKidsBandBySwapSendsTheKidChannelOut() {
+        val kid = ChannelId("custom:kid")
         val lineup = lineupOf(starter("western", 310), custom("kid", 5), custom("mine", 650))
 
-        val outcome = apply(lineup, LineupEdit.ReplaceCustom(ChannelId("custom:kid"), rulesOf("renamed"), 650))
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kid, kids = true))
 
-        assertIs<EditOutcome.Refused>(outcome)
+        assertEquals(5, after.byId(mine).number)
+        assertEquals(650, after.byId(kid).number)
+    }
+
+    @Test
+    fun replaceCustomOutOfTheKidsBandMakesAGrownUpChannel() {
+        val lineup = lineupOf(starter("western", 310), custom("kid", 5))
+        val kid = ChannelId("custom:kid")
+
+        val after = applied(lineup, LineupEdit.ReplaceCustom(kid, rulesOf("kid"), 700)).byId(kid)
+
+        assertEquals(700, after.number)
+        assertTrue(!KidStatus.isKidChannel(after))
+    }
+
+    @Test
+    fun replaceCustomWithNoNumberTakesTheFirstFreeInTheRightBand() {
+        val lineup = lineupOf(starter("western", 310), custom("mine", 650), custom("kid", 1))
+
+        val toKids = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, kids = true)).byId(mine)
+        val toGrownUp = applied(lineup, LineupEdit.ReplaceCustom(ChannelId("custom:kid"), rulesOf("kid"), null))
+
+        assertEquals(2, toKids.number)
+        assertEquals(600, toGrownUp.byId(ChannelId("custom:kid")).number)
+        val full = lineupOf(starter("western", 310), custom("mine", 650), *customsFilling(Band.Kids.numbers))
+        val noRoom = LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, kids = true)
+        assertEquals(EditRefusal.NoFreeNumber, refusal(full, noRoom))
     }
 
     @Test
