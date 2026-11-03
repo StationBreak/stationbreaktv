@@ -878,6 +878,10 @@ Ordering (`180` and `35` minutes, that is `10800000` and `2100000` ms) when the 
       pass(g) = pass(g) + floorDiv(runtime(run) * 6, w(g))        (runtime(run) is the sum of runtimeMs of its items)
       ```
 
+The `clock`, the `last(g)` values, the `pass` values and the sums of runtimes in the walk (including every pass sum above)
+are **signed 64-bit** integers. `key(g)` is an unsigned 64-bit number; `key(g) mod size` and `key(g) mod 5400000` are
+unsigned remainders, so they are small and fit any integer type afterwards.
+
 The order is the emitted runs, in the order they were emitted. Each item of the pool is in exactly one run. When a group is
 the only one live it is chosen each time (it is the only choice, ready or not), so a pool of a single group, or a pool
 shorter than `repeatGapMs`, plays straight through: the walk never stops or leaves a gap for a repeat. The `pass` values
@@ -1169,9 +1173,12 @@ series ID `T` that is in `keeps` and is the series ID of at least one episode of
    episode, undated flag, date, ID), are e[0] ... e[s - 1].
 2. k = the largest j from 1 to s such that runtimeMs(e[0]) + ... + runtimeMs(e[j - 1]) <= cap.
    If even runtimeMs(e[0]) is above cap, k = 1: k is at least one.
-3. If k = s, nothing is removed. Otherwise the pool keeps the k episodes e[(n * k + j) mod s] for j = 0 ... k - 1,
-   with n the day number (a signed 64-bit number) and mod the floorMod of Timing, so the window starts at
-   floorMod(n * k, s) and wraps past e[s - 1] to e[0]. The other s - k episodes are not in the pool of day n.
+3. If k = s, nothing is removed. Otherwise, with n the day number (a signed 64-bit number) and floorMod as in Timing,
+       start = floorMod(floorMod(n, s) * k, s)
+   and the pool keeps the k episodes e[floorMod(start + j, s)] for j = 0 ... k - 1, so the window wraps past e[s - 1] to
+   e[0]. The other s - k episodes are not in the pool of day n. (floorMod(floorMod(n, s) * k, s) equals floorMod(n * k, s),
+   but it is written this way because the product floorMod(n, s) * k is below s * s and cannot overflow, while n * k can.
+   All of s, k, start and the sums of step 2 are signed 64-bit integers.)
 ```
 
 Movies, episodes that have no series ID, and every series that has no entry in `keeps` are untouched, and so is a `keeps`
@@ -1549,8 +1556,9 @@ The anchors for this section are in `docs/rules-format/vectors/`: `epoch-math.js
 `epochStart` and `seed_n`), `key-order.json` (the three orders, the group keys, the in-group order and runs) and
 `lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). Version 2 adds
 `key-order-v2.json` and `lineup-v2.json`, of the same shapes with `caps`, `films` and `runtimeFilter`. Version 3 adds
-`key-order-v3.json` and `lineup-v3.json`, of the same shapes with the franchise map (`franchises`), the weights, the keeps, the
-two tunables (`repeatGapMs` and `pairUpToMs`) and the per-kind runtime windows. They were computed with a reference that was
+`pool-v3.json` (the pool: `studio` sources and exclusions, the version 3 filters and the franchise map), `key-order-v3.json`
+and `lineup-v3.json`, of the same shapes as the version 1 and 2 files with the franchise map (`franchises`), the weights,
+the keeps, the two tunables (`repeatGapMs` and `pairUpToMs`) and the per-kind runtime windows. They were computed with a reference that was
 written from this text alone, not with the code that is tested. Version 1 is final (amended once, on 2026-10-19), so a wrong
 vector now means version 2, and for version 2 now means version 3.
 
