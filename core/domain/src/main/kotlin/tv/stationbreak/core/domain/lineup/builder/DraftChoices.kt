@@ -31,6 +31,3 @@ object DraftChoices {
         return KidHold.kidRank(rating)?.coerceAtMost(KidHold.CEILING_CHOICES.lastIndex)
     }
 }
-
-/** True when the draft draws on something: a source, or a year range a copy keeps (which is a source too). */
-fun ChannelDraft.hasPool(): Boolean = sources.isNotEmpty() || kept?.items.orEmpty().any { it is KeptItem.YearsSource }

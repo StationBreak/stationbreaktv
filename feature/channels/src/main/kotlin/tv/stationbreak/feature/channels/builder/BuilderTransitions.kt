@@ -76,16 +76,15 @@ internal fun ChannelDraft.suggested(): ChannelDraft {
 }
 
 /**
- * The kids switch went [on] or off with the number the builder found and the numbers free in the new band; with no
- * number the switch stays as it was.
+ * The kids switch went [on] or off, with the numbers free in the new band: the first is the draft's; with none the
+ * switch stays as it was.
  */
 internal fun BuilderModel.kidsDone(
     on: Boolean,
-    number: Int?,
     free: List<Int>,
 ): BuilderModel =
     when {
-        number != null -> copy(draft = draft.withKids(on, number), free = free)
+        free.isNotEmpty() -> copy(draft = draft.withKids(on, free.first()), free = free)
         on -> copy(message = BuilderMessage.KidsBandFull)
         else -> copy(message = BuilderMessage.NoFreeNumber)
     }

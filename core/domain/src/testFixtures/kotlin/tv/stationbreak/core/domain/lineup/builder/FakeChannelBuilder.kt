@@ -11,7 +11,7 @@ import tv.stationbreak.core.model.Seed
  * [BuildResult.Done], a blank draft is empty at number 600 and opening finds nothing.
  */
 class FakeChannelBuilder : ChannelBuilder {
-    /** What was asked, in order: `blank`, `open`, `create`, `save`, `reshuffle`, `delete`, `numberFor` and `freeNumbers`. */
+    /** What was asked, in order: `blank`, `open`, `create`, `save`, `reshuffle`, `delete` and `freeNumbers`. */
     val calls = mutableListOf<String>()
 
     /** The drafts passed to [create] and [save]. */
@@ -28,11 +28,11 @@ class FakeChannelBuilder : ChannelBuilder {
     /** What [create], [save], [reshuffle] and [delete] answer next; null is [BuildResult.Done] with the channel's ID. */
     var buildResult: BuildResult? = null
 
-    /** What [numberFor] answers next. */
-    var number: Int? = FIRST_NUMBER
-
     /** What [freeNumbers] answers next; null is the whole of the band asked for. */
     var free: Listed<List<Int>>? = null
+
+    /** The `forChannel` of each [freeNumbers] call, in order. */
+    val freeFor = mutableListOf<ChannelId?>()
 
     override suspend fun blank(
         account: LibraryAccount,
@@ -87,19 +87,13 @@ class FakeChannelBuilder : ChannelBuilder {
         return buildResult ?: BuildResult.Done(id)
     }
 
-    override suspend fun numberFor(
-        account: LibraryAccount,
-        kids: Boolean,
-    ): Int? {
-        calls += "numberFor"
-        return number
-    }
-
     override suspend fun freeNumbers(
         account: LibraryAccount,
         kids: Boolean,
+        forChannel: ChannelId?,
     ): Listed<List<Int>> {
         calls += "freeNumbers"
+        freeFor += forChannel
         return free ?: Listed.Ok((if (kids) ChannelNumbers.kids else ChannelNumbers.custom).toList())
     }
 

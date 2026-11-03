@@ -2,6 +2,7 @@
 package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.ChannelRules
 
@@ -101,6 +102,9 @@ sealed interface EditRefusal {
 
     /** The edit is for a custom channel and this one is not. */
     data object NotCustom : EditRefusal
+
+    /** A reseed is for a channel that plays in a shuffle, and this one does not. */
+    data object NotShuffle : EditRefusal
 
     /** A channel already has the ID of the channel to add. */
     data object IdTaken : EditRefusal
@@ -322,9 +326,16 @@ object LineupEdits {
         channel: LineupChannel,
         seed: Seed,
     ): EditOutcome {
-        val stored = (channel.source as? ChannelSource.Custom) ?: return refused(EditRefusal.NotCustom)
-        return applied(lineup, channel.copy(source = ChannelSource.Custom(stored.rules.copy(seed = seed))))
+        val stored = (channel.source as? ChannelSource.Custom)
+        return when {
+            stored == null -> refused(EditRefusal.NotCustom)
+            !shuffles(stored.rules) -> refused(EditRefusal.NotShuffle)
+            else -> applied(lineup, channel.copy(source = ChannelSource.Custom(stored.rules.copy(seed = seed))))
+        }
     }
+
+    // Only a shuffle takes a new seed to a new order: rotation, in order and a copied built-in's own orders do not.
+    private fun shuffles(rules: ChannelRules): Boolean = rules.orderingMode == OrderingMode.Shuffle
 
     private fun removeCustom(
         lineup: Lineup,

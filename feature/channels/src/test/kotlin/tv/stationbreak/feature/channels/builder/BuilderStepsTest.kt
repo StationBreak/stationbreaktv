@@ -88,7 +88,7 @@ class BuilderStepsTest {
     @Test
     fun kidsOnTakesTheFirstFreeKidsNumber() =
         builderTest { rig ->
-            rig.builder.number = 1
+            rig.builder.free = Listed.Ok(listOf(1))
             rig.toKids()
             rig.select()
             assertTrue(rig.ui.draft.kids)
@@ -98,7 +98,7 @@ class BuilderStepsTest {
     @Test
     fun kidsBandFullLeavesTheSwitchOff() =
         builderTest { rig ->
-            rig.builder.number = null
+            rig.builder.free = Listed.Ok(emptyList())
             rig.toKids()
             rig.select()
             assertFalse(rig.ui.draft.kids)
@@ -108,14 +108,14 @@ class BuilderStepsTest {
     @Test
     fun turningKidsOffAsksFirstAndFocusesKeepItOn() =
         builderTest { rig ->
-            rig.builder.number = 1
+            rig.builder.free = Listed.Ok(listOf(1))
             rig.toKids()
             rig.select()
             rig.select()
             assertEquals(BuilderConfirm.KidsOff, rig.ui.confirm)
             assertEquals(BuilderFocus.Choice(1), rig.ui.focus)
             rig.press(Left)
-            rig.builder.number = 600
+            rig.builder.free = Listed.Ok(listOf(600))
             rig.select()
             assertNull(rig.ui.confirm)
             assertFalse(rig.ui.draft.kids)
@@ -126,7 +126,7 @@ class BuilderStepsTest {
     @Test
     fun keepingItOnChangesNothing() =
         builderTest { rig ->
-            rig.builder.number = 1
+            rig.builder.free = Listed.Ok(listOf(1))
             rig.toKids()
             rig.select()
             rig.select()

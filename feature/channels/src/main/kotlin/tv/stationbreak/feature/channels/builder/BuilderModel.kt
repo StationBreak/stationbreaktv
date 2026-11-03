@@ -9,7 +9,6 @@ import tv.stationbreak.core.domain.lineup.builder.DraftProblem
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
-import tv.stationbreak.core.domain.lineup.builder.hasPool
 import tv.stationbreak.core.model.Seed
 
 internal val NO_DRAFT = ChannelDraft("", emptyList(), emptyList(), DraftFilters(), kids = false, seed = Seed(0uL))

@@ -135,8 +135,10 @@ class BuilderFixesTest {
     @Test
     fun anEditStepsFromItsOwnNumberToo() =
         builderTest { rig ->
-            rig.builder.free = Listed.Ok(listOf(601, 603))
+            // The domain counts the edit's own number (602) among the free ones when it is asked with the channel.
+            rig.builder.free = Listed.Ok(listOf(601, 602, 603))
             rig.openEdit(draftOf("Mine", listOf(lib1), number = 602, origin = CUSTOM))
+            assertEquals(listOf<ChannelId?>(CUSTOM), rig.builder.freeFor)
             rig.press(Down, Down, Down, Down, Down, Down, Down)
             assertEquals(BuilderFocus.Sheet(SheetRow.Number), rig.ui.focus)
             rig.press(Right)
@@ -154,11 +156,13 @@ class BuilderFixesTest {
             rig.openNew()
             rig.tickFirst()
             rig.vm.next()
-            rig.builder.number = 5
             rig.builder.free = Listed.Ok(listOf(5, 7, 8))
             rig.press(Down, Down, Down)
             rig.select()
             assertTrue(rig.ui.draft.kids)
+            assertEquals(5, rig.ui.draft.number)
+            // One read on opening, one for the switch; a new channel asks with no channel of its own.
+            assertEquals(listOf<ChannelId?>(null, null), rig.builder.freeFor)
             rig.vm.next()
             rig.press(Down, Right)
             assertEquals(7, rig.ui.draft.number)
@@ -332,7 +336,7 @@ class BuilderFixesTest {
                     "Bogus" to "G",
                 )
             for (stored in listOf("TV-PG", "R", null, "TV-Y7", "TV-G", "TV-Y", "Bogus")) {
-                rig.builder.number = 1
+                rig.builder.free = Listed.Ok(listOf(1))
                 rig.builder.openResult =
                     OpenResult.Opened(
                         draftOf("Copy", listOf(lib1), origin = BUILT_IN, filters = DraftFilters(maxRating = stored)),

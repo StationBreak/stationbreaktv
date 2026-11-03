@@ -4,6 +4,7 @@ package tv.stationbreak.feature.channels.builder.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
+import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftProblem
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderConfirm
@@ -69,7 +70,11 @@ internal fun problemText(problem: DraftProblem): String {
         }
 
         DraftProblem.CapOutOfRange -> {
-            stringResource(R.string.builder_problem_cap_out_of_range)
+            stringResource(
+                R.string.builder_problem_cap_out_of_range,
+                ChannelDraft.CAP_RANGE.first,
+                ChannelDraft.CAP_RANGE.last,
+            )
         }
 
         DraftProblem.YearsIncomplete -> {

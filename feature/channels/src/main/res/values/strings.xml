@@ -101,7 +101,7 @@
     <string name="builder_working">Working it out</string>
     <string name="builder_preview_empty">Nothing in your libraries fits this channel yet</string>
     <string name="builder_libraries_unavailable">Library names can\'t be read right now</string>
-    <string name="builder_search_hint">Type part of a name</string>
+    <string name="builder_search_hint">Type part of a name (%1$d to %2$d characters)</string>
     <string name="builder_save_failed">Couldn\'t save that. Try again.</string>
     <string name="builder_failed">Something went wrong. Nothing was changed.</string>
     <string name="builder_not_editable">Channels can\'t be changed on this TV until the app is updated.</string>
@@ -168,7 +168,7 @@
     <string name="builder_problem_name_empty">Give the channel a name.</string>
     <string name="builder_problem_name_too_long">That name is too long.</string>
     <string name="builder_problem_no_sources">Tick at least one source.</string>
-    <string name="builder_problem_cap_out_of_range">Choose 1 to 10 in a row.</string>
+    <string name="builder_problem_cap_out_of_range">Choose %1$d to %2$d in a row.</string>
     <string name="builder_problem_years_incomplete">Years need a start and an end.</string>
     <string name="builder_problem_years_out_of_range">Those years are out of range.</string>
     <string name="builder_problem_years_reversed">The years run backwards.</string>

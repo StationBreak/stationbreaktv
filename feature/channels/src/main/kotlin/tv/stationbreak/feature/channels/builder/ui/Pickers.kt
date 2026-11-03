@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.OnlyKind
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.R
@@ -201,7 +202,11 @@ private fun SearchLine(
             TypedField(text, typing.onType, typing.onDone, BuilderTags.SEARCH_INPUT)
         } else if (text.isEmpty()) {
             Text(
-                stringResource(R.string.builder_search_hint),
+                stringResource(
+                    R.string.builder_search_hint,
+                    CatalogPicker.SEARCH_LENGTH.first,
+                    CatalogPicker.SEARCH_LENGTH.last,
+                ),
                 style = MaterialTheme.typography.bodyLarge,
                 color = ChannelsPalette.secondary,
             )

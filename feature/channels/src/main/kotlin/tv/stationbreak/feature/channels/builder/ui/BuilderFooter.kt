@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.builder.SkippedPick
-import tv.stationbreak.core.domain.lineup.builder.hasPool
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus

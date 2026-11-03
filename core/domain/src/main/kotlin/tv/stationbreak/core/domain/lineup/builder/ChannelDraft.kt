@@ -188,18 +188,19 @@ data class ChannelDraft(
         val name = nameProblem()
         return when {
             name != null -> name
-            sources.isEmpty() && !hasKeptYears() -> DraftProblem.NoSources
+            !hasPool() -> DraftProblem.NoSources
             else -> listsProblem() ?: capsProblem() ?: yearsProblem() ?: minutesProblem() ?: numberProblem()
         }
     }
 
     /**
-     * Everything wrong with the draft, in the order of the builder's pages: the pool (sources, years, minutes), then
-     * how it plays (the caps), then the name and number. Empty exactly when [problem] is null.
+     * Everything wrong with the draft, grouped: what it draws on (sources, years, minutes), then how it plays (the
+     * caps), then its identity (name and number); within a group, in the order checked. A screen may lay the groups
+     * out as it likes. Empty exactly when [problem] is null.
      */
     fun problems(): List<DraftProblem> =
         listOfNotNull(
-            DraftProblem.NoSources.takeIf { sources.isEmpty() && !hasKeptYears() },
+            DraftProblem.NoSources.takeIf { !hasPool() },
             listsProblem(),
             yearsProblem(),
             minutesProblem(),
@@ -227,8 +228,8 @@ data class ChannelDraft(
             else -> null
         }
 
-    // A year range the copy keeps is a source of the channel too.
-    private fun hasKeptYears(): Boolean = keptYearRanges() > 0
+    /** True when the draft draws on something: a source, or a year range a copy keeps (which is a source too). */
+    fun hasPool(): Boolean = sources.isNotEmpty() || keptYearRanges() > 0
 
     // The year ranges a copy carries are sources of the rules too, and count toward the format's 256.
     private fun keptYearRanges(): Int = kept?.items.orEmpty().count { it is KeptItem.YearsSource }

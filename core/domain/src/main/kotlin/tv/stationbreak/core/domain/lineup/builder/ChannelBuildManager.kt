@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.Unsaved
@@ -42,21 +43,29 @@ class ChannelBuildManager(
             leaveOut = emptyList(),
             filters = DraftFilters(),
             kids = kids,
-            number = numberFor(account, kids),
+            number = firstFree(account, kids),
             seed = newSeed.next(),
         ).kidsNormalised()
 
-    override suspend fun numberFor(
+    private suspend fun firstFree(
         account: LibraryAccount,
         kids: Boolean,
-    ): Int? = lineupOf(account)?.let { LineupEdits.firstFreeCustom(it, kids, service.catalog) }
+    ): Int? = (freeNumbers(account, kids) as? Listed.Ok)?.value?.firstOrNull()
 
     override suspend fun freeNumbers(
         account: LibraryAccount,
         kids: Boolean,
+        forChannel: ChannelId?,
     ): Listed<List<Int>> {
         val lineup = lineupOf(account) ?: return Listed.Unavailable
-        return Listed.Ok(LineupEdits.freeCustomNumbers(lineup, kids, service.catalog))
+        val free = LineupEdits.freeCustomNumbers(lineup, kids, service.catalog)
+        val band = if (kids) ChannelNumbers.kids else ChannelNumbers.custom
+        val own =
+            lineup.channels
+                .firstOrNull { it.id == forChannel }
+                ?.number
+                ?.takeIf { it in band }
+        return Listed.Ok((free + listOfNotNull(own)).distinct().sorted())
     }
 
     override suspend fun open(
@@ -193,14 +202,7 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            val stored = lineupOf(account)?.channels?.firstOrNull { it.id == id }?.source as? ChannelSource.Custom
-            // Only a custom channel's own rules say whether it shuffles; any other is the engine's to refuse.
-            val draft = stored?.let { DraftRules.fromRules(it.rules, null) { source -> source.label } }
-            if (draft != null && !draft.canReshuffle()) {
-                refused(BuildRefusal.NotShuffle)
-            } else {
-                edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, null)
-            }
+            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, null)
         }
 
     override suspend fun delete(
@@ -264,6 +266,8 @@ class ChannelBuildManager(
             EditRefusal.UnknownChannel -> BuildRefusal.UnknownChannel
 
             EditRefusal.NotCustom -> BuildRefusal.NotCustom
+
+            EditRefusal.NotShuffle -> BuildRefusal.NotShuffle
 
             EditRefusal.NoFreeNumber -> if (kids) BuildRefusal.KidsBandFull else BuildRefusal.NoFreeNumber
 

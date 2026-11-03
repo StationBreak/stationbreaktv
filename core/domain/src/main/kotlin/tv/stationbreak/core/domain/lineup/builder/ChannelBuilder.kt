@@ -125,7 +125,7 @@ interface ChannelBuilder {
 
     /**
      * Sends a new seed and returns Done; the screen then reopens the draft, with the new seed and preview. A channel
-     * that is not a shuffle is refused with [BuildRefusal.NotShuffle].
+     * that does not play in a shuffle is refused with [BuildRefusal.NotShuffle], under the lineup's lock.
      */
     suspend fun reshuffle(
         account: LibraryAccount,
@@ -138,18 +138,14 @@ interface ChannelBuilder {
     ): BuildResult
 
     /**
-     * Every number free for a new channel of the band ([kids] or not), lowest first: the set [numberFor] takes the
-     * first of (no channel has it as its number, its default or an override, and the catalog has not retired it).
-     * [Listed.Unavailable] when the lineup can't be read.
+     * Every number free for a channel of the band ([kids] or not), lowest first: no channel has it as its number, its
+     * default or an override, and the catalog has not retired it. A blank draft and a kids switch take the first.
+     * With [forChannel] (the channel being edited), that channel's own current number counts as free too when it is in
+     * the asked-for band. [Listed.Unavailable] when the lineup can't be read.
      */
     suspend fun freeNumbers(
         account: LibraryAccount,
         kids: Boolean,
+        forChannel: ChannelId? = null,
     ): Listed<List<Int>>
-
-    /** The number a kids switch moves to: first free in 1..99 (on) or from 600 (off). Null when none is free. */
-    suspend fun numberFor(
-        account: LibraryAccount,
-        kids: Boolean,
-    ): Int?
 }

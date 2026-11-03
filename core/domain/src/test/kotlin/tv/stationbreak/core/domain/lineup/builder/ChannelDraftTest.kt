@@ -85,6 +85,14 @@ class ChannelDraftTest {
     }
 
     @Test
+    fun aDraftHasAPoolWithASourceOrAKeptYearRange() {
+        assertTrue(draft().hasPool())
+        assertFalse(draft(sources = emptyList()).hasPool())
+        val years = KeptSettings("Eighties", listOf(KeptItem.YearsSource(1980, 1989)))
+        assertTrue(draft(sources = emptyList(), kept = years).hasPool())
+    }
+
+    @Test
     fun theCapRangeIsOneToTen() {
         assertEquals(1..10, ChannelDraft.CAP_RANGE)
     }

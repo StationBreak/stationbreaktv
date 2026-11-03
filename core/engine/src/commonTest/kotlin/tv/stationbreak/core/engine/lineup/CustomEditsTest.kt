@@ -3,8 +3,10 @@ package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -152,6 +154,15 @@ class CustomEditsTest {
         assertEquals(Seed(11uL), after.seedOf(id))
         val expected = lineup.byId(id).copy(source = ChannelSource.Custom(rulesOf("mine", seed = 11uL)))
         assertEquals(lineup.copy(channels = listOf(lineup.channels[0], expected)), after)
+    }
+
+    @Test
+    fun reseedOfAChannelThatDoesNotShuffleIsRefused() {
+        val inOrder = rulesOf("mine").copy(formatVersion = 2, ordering = Ordering(OrderingMode.InOrder))
+        val channel = custom("mine", 650).copy(source = ChannelSource.Custom(inOrder))
+        val lineup = lineupOf(starter("western", 310), channel)
+
+        assertEquals(EditRefusal.NotShuffle, refusal(lineup, LineupEdit.Reseed(mine, Seed(11uL))))
     }
 
     @Test
