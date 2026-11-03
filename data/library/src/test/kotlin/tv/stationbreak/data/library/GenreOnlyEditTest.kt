@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import tv.stationbreak.core.model.MediaItem
 
@@ -81,14 +82,14 @@ class GenreOnlyEditTest {
         }
 
     @Test
-    fun aNameOnlyEditCreatesNoVersionButIsStored() =
+    fun aNameOnlyEditIsANewVersionHoldingTheOldName() =
         runBlocking {
             start(base)
 
             val write = edit(base.copy(name = "A new name"))
 
             assertEquals(PageWrite(inserted = 0, updated = 1, unchanged = 0), write)
-            assertEquals(emptyList<ItemVersionEntity>(), repository.versions(ALICE))
+            assertEquals(listOf(base.name), repository.versions(ALICE).map { it.name })
             assertEquals(
                 "A new name",
                 repository
@@ -97,7 +98,7 @@ class GenreOnlyEditTest {
                     .item.name,
             )
             val row = repository.currentRows(ALICE).single()
-            assertEquals(row.firstSeenMs, row.seenFromMs)
+            assertNotEquals(row.firstSeenMs, row.seenFromMs)
         }
 
     @Test

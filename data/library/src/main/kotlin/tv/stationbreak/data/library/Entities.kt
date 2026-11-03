@@ -73,11 +73,13 @@ internal data class ItemEntity(
  * An earlier version of an item's schedule fields (spec 09, Unit 2): the item row as it stood until [supersededAtMs].
  * The item row is always the current version, and each item's versions form contiguous, strictly increasing intervals
  * `[seenFromMs, supersededAtMs)` that end where the next one, or the item row's own `seenFromMs`, begins (Vimes H1).
- * Only the fields the scheduler reads are kept (not the name), with [deletedAtMs] too, so a tombstone that was revived
+ * Only the fields the scheduler and the rules read are kept, with [deletedAtMs] too, so a tombstone that was revived
  * stays a tombstone in the version that held it. [genres], [tags] and [studios] are one [VersionCodec] column each
  * (Vimes M1). [studios] (spec 18) defaults to `''`, the empty list, so a version kept before the cache stored studios
- * reads "no studios" and never falls back to the current ones. The foreign key deletes the history with its item:
- * sign-out, unticking a library and the purge of a tombstone (H5).
+ * reads "no studios" and never falls back to the current ones. [name] (spec 23, D8) is the item's name as it stood:
+ * stored text a person typed, never logged. A rename is a new version. It is null only for a row the migration to
+ * version 9 could not fill, which is none of the rows a version 8 file holds. The foreign key deletes the history with
+ * its item: sign-out, unticking a library and the purge of a tombstone (H5).
  */
 @Entity(
     tableName = "item_version",
@@ -114,6 +116,7 @@ internal data class ItemVersionEntity(
     val genres: String,
     val tags: String,
     @ColumnInfo(defaultValue = "") val studios: String,
+    val name: String? = null,
 )
 
 /**
@@ -163,8 +166,8 @@ internal data class SeriesEntity(
 /**
  * An earlier version of a series, with the same rules as [ItemVersionEntity]: the series row as it stood until
  * [supersededAtMs], in contiguous, strictly increasing intervals that end where the next one, or the series row's own
- * `seenFromMs`, begins. Only what a rule reads is kept, with [deletedAtMs]. The foreign key deletes the history with
- * its series.
+ * `seenFromMs`, begins. Only what a rule reads is kept, with [deletedAtMs], and the series [name] as it stood (spec 23,
+ * D8; text a person typed, never logged). The foreign key deletes the history with its series.
  */
 @Entity(
     tableName = "series_version",
@@ -192,6 +195,7 @@ internal data class SeriesVersionEntity(
     val tags: String,
     val deletedAtMs: Long?,
     @ColumnInfo(defaultValue = "") val studios: String,
+    val name: String? = null,
 )
 
 /**
@@ -222,6 +226,8 @@ internal data class CollectionEntity(
  * [supersededAtMs], in contiguous, strictly increasing intervals that end where the next one, or the collection row's
  * own `seenFromMs`, begins. One is written at every stamp, copying the lifecycle it ends, so a tombstone that was
  * revived stays a tombstone in the version that held it. The members are not copied: see [CollectionMemberEntity].
+ * [name] (spec 23, D8, E4) is the collection's name as that lifecycle held it, so a rename is a version too: stored
+ * text a person typed, never logged.
  */
 @Entity(
     tableName = "collection_version",
@@ -244,6 +250,7 @@ internal data class CollectionVersionEntity(
     val seenFromMs: Long,
     val supersededAtMs: Long,
     val deletedAtMs: Long?,
+    val name: String? = null,
 )
 
 /**
@@ -455,14 +462,16 @@ internal fun nextStamp(
 
 /**
  * True when every field of a series that is versioned is equal: the rating, the ordered genres, the ordered tags, the
- * ordered studios (spec 18) and the tombstone. The name and the library are not (Vimes L2).
+ * ordered studios (spec 18), the tombstone and the name (spec 23, D8: a rename is a new version). The library is not
+ * (Vimes L2).
  */
 internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
     officialRating == other.officialRating &&
         genres == other.genres &&
         tags == other.tags &&
         studios == other.studios &&
-        deletedAtMs == other.deletedAtMs
+        deletedAtMs == other.deletedAtMs &&
+        name == other.name
 
 /** This row as an earlier version, ending at [supersededAtMs]. */
 internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
@@ -478,9 +487,13 @@ internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
         tags = tags,
         deletedAtMs = deletedAtMs,
         studios = studios,
+        name = name,
     )
 
-/** True when every field the scheduler reads is equal. The name, the parent, the stamps and the tombstone are not. */
+/**
+ * True when every field the scheduler and the rules read is equal: the name too (spec 23, D8; a rename is a new
+ * version). The parent, the stamps and the tombstone are not.
+ */
 internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =
     libraryId == other.libraryId &&
         kind == other.kind &&
@@ -492,7 +505,8 @@ internal fun ItemEntity.sameScheduleFields(other: ItemEntity): Boolean =
         createdAtMs == other.createdAtMs &&
         premiereDate == other.premiereDate &&
         productionYear == other.productionYear &&
-        officialRating == other.officialRating
+        officialRating == other.officialRating &&
+        name == other.name
 
 /** This row as an earlier version, ending at [supersededAtMs], with the genres, tags and studios it had. */
 internal fun ItemEntity.toVersion(
@@ -521,6 +535,7 @@ internal fun ItemEntity.toVersion(
     genres = VersionCodec.encode(genres),
     tags = VersionCodec.encode(tags),
     studios = VersionCodec.encode(studios),
+    name = name,
 )
 
 /**

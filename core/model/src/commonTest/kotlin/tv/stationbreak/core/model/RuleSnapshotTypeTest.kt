@@ -10,7 +10,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 
-/** Spec 10, Unit 3: the rule-input snapshot is a plain value of the fixed shape (Granny H1), with no names in it. */
+/**
+ * Spec 10, Unit 3: the rule-input snapshot is a plain value of the fixed shape (Granny H1). Its names (spec 23, D8)
+ * are covered by `RuleSnapshotTest`.
+ */
 class RuleSnapshotTypeTest {
     private fun id(n: Int) = CanonicalId.parse(n.toString(16).padStart(32, '0'))
 
@@ -104,23 +107,6 @@ class RuleSnapshotTypeTest {
         assertEquals(setOf(id(20)), snapshot.collections.keys)
         assertEquals(snapshot, snapshot.copy())
         assertNotEquals(snapshot, snapshot.copy(collectionsSynced = false))
-    }
-
-    @Test
-    fun noTypeCarriesAName() {
-        val snapshot =
-            RuleSnapshot(
-                0L,
-                setOf(id(900)),
-                listOf(ruleItem(1)),
-                mapOf(id(10) to RuleSeries(id(10), null, emptyList(), emptyList())),
-                mapOf(id(20) to RuleCollection(id(20), emptySet(), emptySet(), emptySet(), emptySet())),
-                false,
-            )
-
-        // The text of a data class names every property, so a property called name would show here (spec 12 reads
-        // names through its own current-state read, never through the snapshot).
-        assertFalse("name" in snapshot.toString().lowercase(), snapshot.toString())
     }
 
     @Test

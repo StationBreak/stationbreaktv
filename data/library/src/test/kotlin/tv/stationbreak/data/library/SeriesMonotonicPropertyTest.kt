@@ -45,12 +45,14 @@ class SeriesMonotonicPropertyTest {
         }
     }
 
-    // What the model holds of one series: the fields the change test reads, and whether it is a tombstone.
+    // What the model holds of one series: the fields the change test reads (the name too, since spec 23: a rename is a
+    // version), and whether it is a tombstone.
     private data class Model(
         val rating: String?,
         val genres: List<String>,
         val tags: List<String>,
         val deleted: Boolean,
+        val name: String? = null,
     )
 
     @Test
@@ -114,9 +116,10 @@ class SeriesMonotonicPropertyTest {
             }
 
             else -> {
-                val next = edit(gen, held)
+                val name = "Name ${gen.nextInt(NAMES)}"
+                val next = edit(gen, held).copy(name = name)
                 val library = gen.pick(listOf(MOVIES, SHOWS))
-                val info = series(id, next.rating, next.genres, next.tags, name = "Name ${gen.nextInt(NAMES)}")
+                val info = series(id, next.rating, next.genres, next.tags, name = name)
                 repository.putSeries(ALICE, library, info)
                 val changed = held != null && (held.copy(deleted = false) != next || held.deleted)
                 if (changed) expected.merge(id, 1, Int::plus)

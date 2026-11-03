@@ -34,6 +34,7 @@ internal class CollectionNameRow(
 internal class HeldCollection(
     val collectionId: String,
     val members: List<HeldMember>,
+    val name: String? = null,
 )
 
 /** One row of the member part of the as-of read, as Room maps it. */
@@ -46,8 +47,9 @@ internal class MemberRaw(
 /**
  * What one collection write does, worked out by [CollectionDao.planWrite] and written by the caller: the row to
  * [insert] (a new collection) or [update] (a changed one), the [version] that keeps the lifecycle it ends, the members
- * to [add] and the IDs of those to end ([removed]), all at one [stamp]. A plan with no stamp writes nothing, or at most
- * a new name.
+ * to [add] and the IDs of those to end ([removed]), all at one [stamp]. A plan with no stamp writes nothing. A rename
+ * alone is a change (spec 23, E4): it takes a stamp, keeps the old name in the [version] and has no members to add or
+ * end.
  */
 @Suppress("LongParameterList") // One property per part of the write.
 internal class CollectionPlan(
@@ -344,7 +346,10 @@ internal abstract class CollectionDao {
         val result = ArrayList<HeldCollection>()
         for (row in current) {
             val id = row.collectionId
-            if (id in atCutoff || id in atOldest) result += HeldCollection(id, members[id].orEmpty())
+            if (id in atCutoff || id in atOldest) {
+                val name = lifecycleName(row, covering[id], oldest[id], cutoffMs)
+                result += HeldCollection(id, members[id].orEmpty(), name)
+            }
         }
         return result
     }
@@ -362,6 +367,20 @@ internal abstract class CollectionDao {
             covering != null -> covering.deletedAtMs
             oldest != null -> oldest.deletedAtMs
             else -> row.deletedAtMs
+        }
+
+    // The name of the lifecycle held at the cut-off, chosen as lifecycleDeletedAt chooses it (spec 23, E4).
+    private fun lifecycleName(
+        row: CollectionEntity,
+        covering: CollectionVersionEntity?,
+        oldest: CollectionVersionEntity?,
+        cutoffMs: Long,
+    ): String? =
+        when {
+            row.seenFromMs < cutoffMs -> row.name
+            covering != null -> covering.name
+            oldest != null -> oldest.name
+            else -> row.name
         }
 
     private fun addMembers(
@@ -383,8 +402,8 @@ internal abstract class CollectionDao {
      * diffed by ID, and a kind change is a removal plus an addition. A member listed twice counts once, the first
      * listing winning. Any change, or a revival of a tombstoned collection, takes one stamp
      * `max(nowMs, existing.seenFromMs + 1)` for everything the write does; a new collection takes [nowMs] for the row
-     * and its first members. A read that changes nothing takes no stamp (a new name alone is stored, unstamped). This
-     * reads and writes nothing.
+     * and its first members. A new name alone is a change too (spec 23, D8, E4): it takes a stamp and writes the
+     * lifecycle it ends with the old name. A read that changes nothing takes no stamp. This reads and writes nothing.
      */
     @Suppress("LongParameterList") // The account, the collection, what was read, what is stored and the time.
     fun planWrite(
@@ -408,14 +427,15 @@ internal abstract class CollectionDao {
         val add = wanted.values.filter { held[it.memberId]?.memberKind != it.memberKind }
         val removed = held.values.filter { wanted[it.memberId]?.memberKind != it.memberKind }.map { it.memberId }
         val revived = existing.deletedAtMs != null
-        return if (add.isEmpty() && removed.isEmpty() && !revived) {
-            // Nothing changed: no stamp, no version. A new name is stored as it is.
-            val renamed = existing.takeIf { it.name != name }?.copy(name = name)
-            CollectionPlan(null, renamed, null, emptyList(), emptyList(), null, revived = false)
+        val sameMembers = add.isEmpty() && removed.isEmpty()
+        return if (sameMembers && !revived && existing.name == name) {
+            // Nothing changed: no stamp, no version, no write.
+            CollectionPlan(null, null, null, emptyList(), emptyList(), null, revived = false)
         } else {
             val stamp = nextStamp(existing.seenFromMs, nowMs)
             val from = existing.seenFromMs
-            val ended = CollectionVersionEntity(serverId, userId, collectionId, from, stamp, existing.deletedAtMs)
+            val deleted = existing.deletedAtMs
+            val ended = CollectionVersionEntity(serverId, userId, collectionId, from, stamp, deleted, existing.name)
             val began = add.map { it.copy(seenFromMs = stamp, supersededAtMs = null) }
             val row = existing.copy(name = name, deletedAtMs = null, seenFromMs = stamp)
             CollectionPlan(null, row, ended, began, removed, stamp, revived)

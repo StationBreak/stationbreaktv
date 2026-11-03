@@ -343,8 +343,9 @@ internal abstract class CacheTransactionDao(
      * H1, H2, M4). A new collection is inserted only with its first members, at one stamp. A collection that exists is
      * diffed by member (see [CollectionDao.planWrite]): any change takes one stamp, which ends the removed members,
      * begins the added ones, moves the collection row and keeps the lifecycle it ends as a `collection_version`. A
-     * tombstoned collection that is written is revived at that same stamp. A read that changes nothing writes nothing
-     * but a new name. [members] are the whole list, already filtered to the kinds the cache stores.
+     * tombstoned collection that is written is revived at that same stamp. A new name is a change (spec 23, D8): it
+     * takes a stamp and a version with the old name. A read that changes nothing writes nothing. [members] are the
+     * whole list, already filtered to the kinds the cache stores.
      * [betweenCollectionAndMembers] runs after the collection row and its version, before the members (a test seam;
      * null in the app).
      */

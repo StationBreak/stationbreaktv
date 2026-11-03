@@ -242,6 +242,7 @@ internal class CollectionPass(
                     read = summary.read + 1,
                     inserted = summary.inserted + if (write.inserted) 1 else 0,
                     revived = summary.revived + if (write.revived) 1 else 0,
+                    // A rename counts as a change: it versions the collection (spec 23, E4).
                     changed = summary.changed + if (write.stamp != null && !write.inserted && !write.revived) 1 else 0,
                     unchanged = summary.unchanged + if (write.stamp == null) 1 else 0,
                 )
