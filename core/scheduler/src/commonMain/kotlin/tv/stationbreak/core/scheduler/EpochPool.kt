@@ -73,7 +73,7 @@ object EpochPool {
         val deleted = item.deletedAtMs
         return item.createdAtMs < cutoff &&
             (deleted == null || deleted >= cutoff) &&
-            settings.isAirable(item.runtimeMs)
+            settings.isAirable(item.runtimeMs, item.kind)
     }
 
     private fun requireUniqueIds(items: List<ScheduleItem>) {

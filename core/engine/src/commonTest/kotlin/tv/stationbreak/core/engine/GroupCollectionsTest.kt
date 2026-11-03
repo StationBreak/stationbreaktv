@@ -117,4 +117,80 @@ class GroupCollectionsTest {
 
         assertNull(GroupCollections.of(chronological, snap, listOf(film1.item))[film1.item.id])
     }
+
+    private val curated = Ordering(OrderingMode.Curated)
+
+    private fun curatedRules(named: List<CanonicalId> = emptyList()): ChannelRules =
+        rules(listOf(Source.Library(LIB)) + named.map { Source.Collection(it) }, formatVersion = 3, ordering = curated)
+
+    @Test
+    fun curatedMapsEveryCollectionNotOnlyNamedOnes() {
+        val ep = episode(idOf(3), idOf(0x10))
+        val snap =
+            snapshot(
+                items = listOf(film1, film2, ep),
+                collections =
+                    listOf(
+                        collection(large, movies = setOf(film1.item.id)),
+                        collection(small, movies = setOf(film2.item.id), episodes = setOf(ep.item.id)),
+                    ),
+            )
+
+        val map = mapOf(curatedRules(), snap, film1, film2, ep)
+
+        assertEquals(large, map[film1.item.id])
+        assertEquals(small, map[film2.item.id])
+        assertNull(map[ep.item.id])
+    }
+
+    @Test
+    fun curatedTakesTheSmallestCollectionId() {
+        val snap =
+            snapshot(
+                items = listOf(film1),
+                collections =
+                    listOf(
+                        collection(large, movies = setOf(film1.item.id)),
+                        collection(small, movies = setOf(film1.item.id)),
+                    ),
+            )
+
+        // Named or not, the smallest ID of every snapshot collection wins.
+        assertEquals(small, mapOf(curatedRules(listOf(large)), snap, film1)[film1.item.id])
+        assertEquals(small, mapOf(curatedRules(), snap, film1)[film1.item.id])
+    }
+
+    @Test
+    fun curatedMapsOnlyFilmsOfThePool() {
+        val snap =
+            snapshot(
+                items = listOf(film1, film2),
+                collections = listOf(collection(small, movies = setOf(film1.item.id, film2.item.id))),
+            )
+
+        val films = GroupCollections.of(curatedRules(), snap, listOf(film1.item))
+
+        assertEquals(small, films[film1.item.id])
+        assertNull(films[film2.item.id])
+    }
+
+    @Test
+    fun otherModesAreUnchanged() {
+        val snap =
+            snapshot(
+                items = listOf(film1, film2),
+                collections =
+                    listOf(
+                        collection(large, movies = setOf(film1.item.id)),
+                        collection(small, movies = setOf(film2.item.id)),
+                    ),
+            )
+
+        // Rotation maps the named collections only; a mode without caps maps nothing.
+        val rotation = mapOf(rotation(listOf(large)), snap, film1, film2)
+        assertEquals(large, rotation[film1.item.id])
+        assertNull(rotation[film2.item.id])
+        val shuffle = rules(listOf(Source.Collection(small)), ordering = Ordering(OrderingMode.Shuffle))
+        assertNull(mapOf(shuffle, snap, film1, film2)[film2.item.id])
+    }
 }

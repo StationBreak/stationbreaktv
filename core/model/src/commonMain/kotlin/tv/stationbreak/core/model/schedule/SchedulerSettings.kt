@@ -69,12 +69,16 @@ data class SchedulerSettings(
     val graceMs: Long get() = graceHours * MS_PER_HOUR
 
     /**
-     * True when a program of [runtimeMs] can air: `minRuntimeMs <= runtimeMs <= epochMs`, and inside [runtimeFilter]
+     * True when a program of [runtimeMs] and [kind] can air: `minRuntimeMs <= runtimeMs <= epochMs`, and inside
+     * [runtimeFilter]
      * when there is one. A shorter item is not a program, and a longer one can never play without running over its
      * epoch. The one place this rule is written.
      */
-    fun isAirable(runtimeMs: Long): Boolean {
-        val inFilter = runtimeFilter?.admits(runtimeMs) != false
+    fun isAirable(
+        runtimeMs: Long,
+        kind: ScheduleItemKind,
+    ): Boolean {
+        val inFilter = runtimeFilter?.admits(runtimeMs, kind) != false
         return runtimeMs in minRuntimeMs..epochMs && inFilter
     }
 

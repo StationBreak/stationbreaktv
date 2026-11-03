@@ -3,6 +3,7 @@ package tv.stationbreak.core.scheduler
 
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.scheduler.vectors.VectorFiles
 import tv.stationbreak.core.scheduler.vectors.VectorJson
 import tv.stationbreak.core.scheduler.vectors.VectorJson.array
@@ -42,10 +43,10 @@ class EpochMathTest {
     @Test
     fun isAirableIsInclusiveAtBothEnds() {
         val s = testSettings(minRuntimeMs = 60_000L, epochHours = 24)
-        assertTrue(s.isAirable(60_000L))
-        assertTrue(s.isAirable(s.epochMs))
-        assertFalse(s.isAirable(59_999L))
-        assertFalse(s.isAirable(s.epochMs + 1))
+        assertTrue(s.isAirable(60_000L, ScheduleItemKind.Movie))
+        assertTrue(s.isAirable(s.epochMs, ScheduleItemKind.Movie))
+        assertFalse(s.isAirable(59_999L, ScheduleItemKind.Movie))
+        assertFalse(s.isAirable(s.epochMs + 1, ScheduleItemKind.Movie))
     }
 
     @Test

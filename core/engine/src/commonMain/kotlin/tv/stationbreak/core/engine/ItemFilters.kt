@@ -10,22 +10,27 @@ import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Source
 
 /**
- * The `genres`, `years` and `kind` parts of `filters` (docs/rules-format.md, "Filters"): every part given must pass.
- * Genres are matched as `genre` sources are (any of the names, an episode also takes its series' genres), by a
- * [SourceMatcher] over synthetic `genre` entries. The `runtime` part is not here: it is a pool condition of the
- * scheduler. Built once per evaluation; [passes] allocates nothing (no lambdas: ART 7.1 crash, #264).
+ * The `genres`, `tags`, `studios`, `notGenres`, `years` and `kind` parts of `filters` (docs/rules-format.md,
+ * "Filters"): every part given must pass. Genres, tags and studios are matched as `genre`, `tag` and `studio` sources
+ * are (any of the names, an episode also takes its series' names), by a [SourceMatcher] over synthetic entries.
+ * `notGenres` passes an item that matches none of its genres, and fails closed on an episode whose series is missing.
+ * The `runtime` part is not here: it is a pool condition of the scheduler. Built once per evaluation; [passes]
+ * allocates nothing (no lambdas: ART 7.1 crash, #264).
  */
 internal class ItemFilters(
     filters: Filters?,
     snapshot: RuleSnapshot,
 ) {
-    init {
-        // The version 3 parts are matched from Task 6; until then a filter that has one must not pass everything.
-        check(filters == null || !filters.usesVersion3) { "format 3 is scheduled from Task 7" }
-    }
-
     private val genres: SourceMatcher? =
         filters?.genres?.let { names -> SourceMatcher(names.map { Source.Genre(it) }, snapshot) }
+    private val tags: SourceMatcher? =
+        filters?.tags?.let { names -> SourceMatcher(names.map { Source.Tag(it) }, snapshot) }
+    private val studios: SourceMatcher? =
+        filters?.studios?.let { names -> SourceMatcher(names.map { Source.Studio(it) }, snapshot) }
+    private val notGenres: SourceMatcher? =
+        filters?.notGenres?.let { names ->
+            SourceMatcher(names.map { Source.Genre(it) }, snapshot, missingSeriesMatchesNames = true)
+        }
     private val yearFrom: Int? = filters?.yearFrom
     private val yearTo: Int? = filters?.yearTo
     private val kind: FilterKind? = filters?.kind
@@ -33,7 +38,13 @@ internal class ItemFilters(
     fun passes(
         entry: RuleItem,
         series: RuleSeries?,
-    ): Boolean = passesKind(entry) && passesYears(entry) && (genres == null || genres.matches(entry, series))
+    ): Boolean =
+        passesKind(entry) &&
+            passesYears(entry) &&
+            (genres == null || genres.matches(entry, series)) &&
+            (tags == null || tags.matches(entry, series)) &&
+            (studios == null || studios.matches(entry, series)) &&
+            (notGenres == null || !notGenres.matches(entry, series))
 
     private fun passesKind(entry: RuleItem): Boolean {
         val wanted = kind ?: return true

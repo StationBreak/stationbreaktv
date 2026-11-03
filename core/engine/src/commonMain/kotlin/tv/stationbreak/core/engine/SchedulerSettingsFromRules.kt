@@ -32,19 +32,17 @@ fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
     )
 }
 
-private fun runtimeFilterOf(filters: Filters): RuntimeFilter? {
-    // A window for one kind is applied from Task 6; until then it must not be ignored.
-    check(!filters.hasKindRuntime) { "format 3 is scheduled from Task 7" }
-    return generalRuntimeFilter(filters)
-}
-
-private fun generalRuntimeFilter(filters: Filters): RuntimeFilter? =
-    if (filters.minRuntimeMinutes == null && filters.maxRuntimeMinutes == null) {
+private fun runtimeFilterOf(filters: Filters): RuntimeFilter? =
+    if (!filters.hasAnyRuntime) {
         null
     } else {
         RuntimeFilter(
             minMs = filters.minRuntimeMinutes?.let { it * MS_PER_MINUTE },
             maxMs = filters.maxRuntimeMinutes?.let { it * MS_PER_MINUTE },
+            episodeMinMs = filters.episodeMinRuntimeMinutes?.let { it * MS_PER_MINUTE },
+            episodeMaxMs = filters.episodeMaxRuntimeMinutes?.let { it * MS_PER_MINUTE },
+            movieMinMs = filters.movieMinRuntimeMinutes?.let { it * MS_PER_MINUTE },
+            movieMaxMs = filters.movieMaxRuntimeMinutes?.let { it * MS_PER_MINUTE },
         )
     }
 
@@ -80,4 +78,4 @@ private fun minuteOfDay(start: String): Int {
 fun airableRuntimeMs(
     items: List<ScheduleItem>,
     settings: SchedulerSettings,
-): Long = items.sumOf { if (settings.isAirable(it.runtimeMs)) it.runtimeMs else 0L }
+): Long = items.sumOf { if (settings.isAirable(it.runtimeMs, it.kind)) it.runtimeMs else 0L }

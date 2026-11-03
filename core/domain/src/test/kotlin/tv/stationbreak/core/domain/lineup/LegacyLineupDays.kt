@@ -301,6 +301,7 @@ internal fun legacyEpochPool(
     return items
         .filter {
             val deleted = it.deletedAtMs
-            it.createdAtMs < cutoff && (deleted == null || deleted >= cutoff) && settings.isAirable(it.runtimeMs)
+            val airable = settings.isAirable(it.runtimeMs, it.kind)
+            it.createdAtMs < cutoff && (deleted == null || deleted >= cutoff) && airable
         }.sortedBy { it.id.value }
 }

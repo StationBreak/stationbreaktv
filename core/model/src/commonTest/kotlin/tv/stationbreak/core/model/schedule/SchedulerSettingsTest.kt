@@ -178,22 +178,22 @@ class SchedulerSettingsTest {
     @Test
     fun isAirableAppliesTheRuntimeFilter() {
         val s = settings(runtimeFilter = RuntimeFilter(minMs = 30 * 60_000L, maxMs = 60 * 60_000L))
-        assertFalse(s.isAirable(30 * 60_000L - 1))
-        assertTrue(s.isAirable(30 * 60_000L))
-        assertTrue(s.isAirable(60 * 60_000L))
-        assertFalse(s.isAirable(60 * 60_000L + 1))
+        assertFalse(s.isAirable(30 * 60_000L - 1, ScheduleItemKind.Movie))
+        assertTrue(s.isAirable(30 * 60_000L, ScheduleItemKind.Movie))
+        assertTrue(s.isAirable(60 * 60_000L, ScheduleItemKind.Movie))
+        assertFalse(s.isAirable(60 * 60_000L + 1, ScheduleItemKind.Movie))
         val low = settings(minRuntimeMs = 120_000L, runtimeFilter = RuntimeFilter(minMs = null, maxMs = 60 * 60_000L))
-        assertFalse(low.isAirable(119_999L))
-        assertTrue(low.isAirable(120_000L))
+        assertFalse(low.isAirable(119_999L, ScheduleItemKind.Movie))
+        assertTrue(low.isAirable(120_000L, ScheduleItemKind.Movie))
     }
 
     @Test
     fun noFilterLeavesIsAirableAsBefore() {
         val s = settings()
-        assertFalse(s.isAirable(59_999L))
-        assertTrue(s.isAirable(60_000L))
-        assertTrue(s.isAirable(s.epochMs))
-        assertFalse(s.isAirable(s.epochMs + 1))
+        assertFalse(s.isAirable(59_999L, ScheduleItemKind.Movie))
+        assertTrue(s.isAirable(60_000L, ScheduleItemKind.Movie))
+        assertTrue(s.isAirable(s.epochMs, ScheduleItemKind.Movie))
+        assertFalse(s.isAirable(s.epochMs + 1, ScheduleItemKind.Movie))
     }
 
     @Test
@@ -208,5 +208,40 @@ class SchedulerSettingsTest {
         rejects { settings(epochHours = 12, caps = caps) }
         settings(epochHours = 24, caps = caps)
         settings(orderingMode = OrderingMode.Chronological, epochHours = 12, caps = null)
+    }
+
+    @Test
+    fun anEpisodeWindowDoesNotTouchFilms() {
+        val min = 60_000L
+        val s = settings(runtimeFilter = RuntimeFilter(minMs = null, maxMs = null, episodeMaxMs = 30 * min))
+        assertTrue(s.isAirable(30 * min, ScheduleItemKind.Episode))
+        assertFalse(s.isAirable(30 * min + 1, ScheduleItemKind.Episode))
+        assertTrue(s.isAirable(120 * min, ScheduleItemKind.Movie))
+        val films = settings(runtimeFilter = RuntimeFilter(null, null, movieMinMs = 80 * min, movieMaxMs = 150 * min))
+        assertTrue(films.isAirable(10 * min, ScheduleItemKind.Episode))
+        assertFalse(films.isAirable(79 * min, ScheduleItemKind.Movie))
+        assertTrue(films.isAirable(80 * min, ScheduleItemKind.Movie))
+        assertFalse(films.isAirable(151 * min, ScheduleItemKind.Movie))
+    }
+
+    @Test
+    fun theGeneralWindowAndTheKindWindowBothApply() {
+        val min = 60_000L
+        val filter = RuntimeFilter(minMs = null, maxMs = 180 * min, episodeMaxMs = 30 * min, movieMinMs = 80 * min)
+        val s = settings(runtimeFilter = filter)
+        assertTrue(s.isAirable(30 * min, ScheduleItemKind.Episode))
+        assertFalse(s.isAirable(31 * min, ScheduleItemKind.Episode))
+        assertFalse(s.isAirable(79 * min, ScheduleItemKind.Movie))
+        assertTrue(s.isAirable(180 * min, ScheduleItemKind.Movie))
+        assertFalse(s.isAirable(181 * min, ScheduleItemKind.Movie))
+    }
+
+    @Test
+    fun aKindWindowIsValidatedLikeTheGeneralOne() {
+        assertFailsWith<IllegalArgumentException> { RuntimeFilter(null, null) }
+        assertFailsWith<IllegalArgumentException> { RuntimeFilter(null, null, episodeMinMs = 6L, episodeMaxMs = 5L) }
+        assertFailsWith<IllegalArgumentException> { RuntimeFilter(null, null, movieMinMs = 0L) }
+        assertFailsWith<IllegalArgumentException> { RuntimeFilter(null, null, movieMaxMs = 0L) }
+        RuntimeFilter(null, null, movieMaxMs = 1L)
     }
 }

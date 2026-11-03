@@ -33,7 +33,7 @@ internal object StandIn {
         val base = splitmix64(Epochs.seedN(settings.seed, n) + blockStartMs.toULong())
         val ordered =
             pool
-                .filter { it.id !in exclude && settings.isAirable(it.runtimeMs) }
+                .filter { it.id !in exclude && settings.isAirable(it.runtimeMs, it.kind) }
                 .map { splitmix64(base xor fnv1a64(it.id)) to it }
                 .sortedWith(compareBy<Pair<ULong, ScheduleItem>> { it.first }.thenBy { it.second.id.value })
         val picked = ArrayList<ScheduleItem>()
