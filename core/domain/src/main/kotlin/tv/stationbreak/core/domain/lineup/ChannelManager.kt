@@ -131,13 +131,23 @@ class ChannelManager(
 private fun EditRefusal.toRefusal(): ChangeRefusal =
     when (this) {
         EditRefusal.UnknownChannel -> ChangeRefusal.UnknownChannel
+
         EditRefusal.NotSwitchable -> ChangeRefusal.NotSwitchable
+
         EditRefusal.OptInNotConfirmed -> ChangeRefusal.OptInNotConfirmed
+
         EditRefusal.LastOn -> ChangeRefusal.LastOn
+
         EditRefusal.NoFreeNumber -> ChangeRefusal.NoFreeNumber
+
         EditRefusal.OutOfRange -> ChangeRefusal.OutOfRange
+
         EditRefusal.KidsBandOnly -> ChangeRefusal.KidsBandOnly
+
         is EditRefusal.NumberTaken -> ChangeRefusal.NumberTaken(holder)
+
+        // The custom-channel edits are not reachable from a ChannelChange.
+        EditRefusal.NotCustom, EditRefusal.IdTaken -> ChangeRefusal.Invalid
     }
 
 private fun Lineup.hasOn() = channels.any { it.state == ChannelState.On }
