@@ -238,6 +238,17 @@ data class ChannelDraft(
     val keptInForce: List<KeptItem>
         get() = kept?.items.orEmpty().filter { inForce(it) }
 
+    /**
+     * True when a kept setting that is still in force is one the builder has a control for, which "Use the builder's
+     * settings instead" replaces: the kept order, the kept uncapped Shuffle, the day cut shorter than 24 hours. The
+     * other kept items (block length, back-to-back off, filler, other settings, a decade's year range) have no
+     * control: they are information, and stay.
+     */
+    fun keepsReplaceable(): Boolean {
+        val uncapped = KeptItem.NoCaps
+        return keptInForce.any { it is KeptItem.Order || it == uncapped || it is KeptItem.EpochHours }
+    }
+
     /** True when the kept order stays: the viewer left [order] alone and the copied channel has one. */
     internal fun keepsOrder(): Boolean = order == null && kept?.items.orEmpty().any { it is KeptItem.Order }
 

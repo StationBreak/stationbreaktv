@@ -342,6 +342,14 @@ class EditSheetTest {
         assertFalse(exists(BuilderTags.SHEET_KEPT_FROM))
     }
 
+    @Test
+    fun aKeptBlockLengthShowsItsLineAndNoAction() {
+        show(draftOf(kept = KeptSettings("Movies", listOf(KeptItem.BlockLength(4)))))
+        assertFalse(exists(BuilderTags.sheetRow(SheetRow.Kept)))
+        compose.onNodeWithTag(BuilderTags.SHEET_KEPT_FROM).assertTextContains("Kept from Movies")
+        compose.onNodeWithTag(BuilderTags.kept(0)).assertTextContains("4 in a row")
+    }
+
     private companion object {
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540

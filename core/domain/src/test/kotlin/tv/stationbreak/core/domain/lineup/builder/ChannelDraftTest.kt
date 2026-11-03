@@ -93,6 +93,32 @@ class ChannelDraftTest {
     }
 
     @Test
+    fun onlyKeptSettingsTheBuilderHasControlsForCanBeReplaced() {
+        fun kept(vararg items: KeptItem) = KeptSettings("Western", items.toList())
+
+        assertFalse(draft().keepsReplaceable())
+        assertTrue(draft(order = null, kept = kept(KeptItem.Order(KeptOrder.Chronological))).keepsReplaceable())
+        val uncapped = draft(order = null, kept = kept(KeptItem.NoCaps)).copy(seriesCap = null, filmCap = null)
+        assertTrue(uncapped.keepsReplaceable())
+        // The short day matters only where no caps are written (In order here); caps would need 24 hours.
+        assertTrue(draft(order = PlayOrder.InOrder, kept = kept(KeptItem.EpochHours(12))).keepsReplaceable())
+        assertFalse(draft(kept = kept(KeptItem.EpochHours(12))).keepsReplaceable())
+        // No control replaces these: they are information only.
+        val fixed =
+            kept(
+                KeptItem.BlockLength(4),
+                KeptItem.BackToBackOff,
+                KeptItem.Filler,
+                KeptItem.OtherSettings,
+                KeptItem.YearsSource(1980, 1989),
+            )
+        assertFalse(draft(kept = fixed).keepsReplaceable())
+        assertEquals(5, draft(kept = fixed).keptInForce.size)
+        // Once the viewer has chosen an order, the kept order is no longer in force, so nothing is left to replace.
+        assertFalse(draft(kept = kept(KeptItem.Order(KeptOrder.Chronological))).keepsReplaceable())
+    }
+
+    @Test
     fun theCapRangeIsOneToTen() {
         assertEquals(1..10, ChannelDraft.CAP_RANGE)
     }

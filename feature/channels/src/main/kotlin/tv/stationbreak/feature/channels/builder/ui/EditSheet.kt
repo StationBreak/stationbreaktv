@@ -60,9 +60,12 @@ private sealed interface SheetLine {
 
 private fun sheetLinesOf(ui: BuilderUi): List<SheetLine> =
     buildList {
+        // What is kept is listed above the action that replaces it, or above the Preview when nothing is replaceable.
+        val keptAt = if (SheetRow.Kept in ui.sheetRows) SheetRow.Kept else SheetRow.Preview
         ui.sheetRows.forEach { row ->
-            if (row == SheetRow.Kept) {
-                ui.draft.kept?.let { add(SheetLine.KeptHeader(it.fromName)) }
+            if (row == keptAt) {
+                val from = ui.draft.kept?.takeIf { ui.draft.keptInForce.isNotEmpty() }
+                from?.let { add(SheetLine.KeptHeader(it.fromName)) }
                 ui.draft.keptInForce.forEachIndexed { i, item -> add(SheetLine.KeptLine(i, item)) }
             }
             add(SheetLine.Row(row))

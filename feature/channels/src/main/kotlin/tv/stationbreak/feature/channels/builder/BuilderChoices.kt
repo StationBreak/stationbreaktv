@@ -43,7 +43,7 @@ internal fun sheetRowsOf(
         }
         add(SheetRow.Kids)
         add(SheetRow.Number)
-        if (draft.keptInForce.isNotEmpty()) add(SheetRow.Kept)
+        if (draft.keepsReplaceable()) add(SheetRow.Kept)
         add(SheetRow.Preview)
         if (ready) {
             add(SheetRow.Save)
@@ -65,7 +65,7 @@ internal fun playRowsOf(draft: ChannelDraft): List<PlayRowKind> =
             add(PlayRowKind.FilmCap)
         }
         add(PlayRowKind.Kids)
-        if (draft.keptInForce.isNotEmpty()) add(PlayRowKind.Kept)
+        if (draft.keepsReplaceable()) add(PlayRowKind.Kept)
     }
 
 /** The order after [this] one in the cycle Shuffle, Rotation, In order. */

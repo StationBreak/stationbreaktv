@@ -12,6 +12,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.builder.ChannelPreview
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
+import tv.stationbreak.core.domain.lineup.builder.KeptOrder
 import tv.stationbreak.core.domain.lineup.builder.KeptSettings
 import tv.stationbreak.core.domain.lineup.builder.OpenResult
 import tv.stationbreak.core.model.ChannelId
@@ -273,6 +274,32 @@ class BuilderFinalFixesTest {
             rig.settle()
 
             assertTrue(SheetRow.Save !in rig.ui.sheetRows && SheetRow.Delete !in rig.ui.sheetRows)
+        }
+
+    // The kept action
+
+    @Test
+    fun aDraftKeepingOnlyABlockLengthShowsTheKeptLineButNoKeptAction() =
+        builderTest { rig ->
+            val kept = KeptSettings("Movies", listOf(KeptItem.BlockLength(4)))
+            rig.openEdit(draftOf("Mine", listOf(lib1), kept = kept, origin = CUSTOM))
+            assertEquals(listOf<KeptItem>(KeptItem.BlockLength(4)), rig.ui.draft.keptInForce)
+            assertTrue(SheetRow.Kept !in rig.ui.sheetRows)
+            assertTrue(PlayRowKind.Kept !in playRowsOf(rig.ui.draft))
+        }
+
+    @Test
+    fun aDraftKeepingAnOrderShowsTheKeptLineAndTheKeptAction() =
+        builderTest { rig ->
+            val kept = KeptSettings("Movies", listOf(KeptItem.Order(KeptOrder.Chronological), KeptItem.BlockLength(4)))
+            rig.openEdit(draftOf("Mine", listOf(lib1), order = null, kept = kept, origin = CUSTOM))
+            assertEquals(2, rig.ui.draft.keptInForce.size)
+            assertTrue(SheetRow.Kept in rig.ui.sheetRows)
+            assertTrue(PlayRowKind.Kept in playRowsOf(rig.ui.draft))
+            // The action replaces the order; the block length, which no control replaces, stays as information.
+            rig.vm.useBuildersSettings()
+            assertEquals(listOf<KeptItem>(KeptItem.BlockLength(4)), rig.ui.draft.keptInForce)
+            assertTrue(SheetRow.Kept !in rig.ui.sheetRows)
         }
 
     // Closing the screen

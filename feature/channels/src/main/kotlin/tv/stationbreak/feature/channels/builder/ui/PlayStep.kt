@@ -46,13 +46,18 @@ private sealed interface PlayLine {
 
 private fun playLinesOf(draft: ChannelDraft): List<PlayLine> =
     buildList {
-        playRowsOf(draft).forEach { kind ->
-            if (kind == PlayRowKind.Kept) {
-                draft.kept?.let { add(PlayLine.KeptHeader(it.fromName)) }
-                draft.keptInForce.forEachIndexed { i, item -> add(PlayLine.KeptLine(i, item)) }
-            }
+        val rows = playRowsOf(draft)
+
+        // What is kept is listed above the action that replaces it, or after the rows when nothing is replaceable.
+        fun addKept() {
+            draft.kept?.takeIf { draft.keptInForce.isNotEmpty() }?.let { add(PlayLine.KeptHeader(it.fromName)) }
+            draft.keptInForce.forEachIndexed { i, item -> add(PlayLine.KeptLine(i, item)) }
+        }
+        rows.forEach { kind ->
+            if (kind == PlayRowKind.Kept) addKept()
             add(PlayLine.Row(kind))
         }
+        if (PlayRowKind.Kept !in rows) addKept()
     }
 
 @Composable
