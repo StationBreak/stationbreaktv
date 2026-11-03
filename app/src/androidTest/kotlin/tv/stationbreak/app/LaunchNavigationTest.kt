@@ -201,14 +201,14 @@ class LaunchNavigationTest {
         press(keyCode)
     }
 
-    // The builder opens once the lineup is known to be editable; on a timeout say what the screen shows instead.
-    private fun awaitBuilder() {
+    // Waits for [tag]; on a timeout says which of the screen's notes are showing instead.
+    private fun awaitShown(tag: String) {
         try {
-            compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.BUILDER_SOURCES_STEP) > 0 }
+            compose.waitUntil(SHORT_WAIT_MS) { count(tag) > 0 }
         } catch (timeout: ComposeTimeoutException) {
             val notes = listOf(ChannelsTags.GETTING_READY, ChannelsTags.NOT_EDITABLE, ChannelsTags.MESSAGE)
             val shown = notes.filter { count(it) > 0 }
-            throw AssertionError("the builder never opened; the screen shows: $shown", timeout)
+            throw AssertionError("$tag never showed; the screen shows: $shown", timeout)
         }
     }
 
@@ -314,8 +314,10 @@ class LaunchNavigationTest {
         assertBackLeavesTheApp()
     }
 
+    // Here no catalog sync ever completes, so no lineup is published and its access stays Loading (the builder's own
+    // opening is the Channels screen's instrumented tests'): the press on New waits, and says so.
     @Test
-    fun newChannelOpensTheBuilderFromTheGuideAndEachBackWalksOutOneStep() {
+    fun newChannelFromTheGuideWaitsForTheLineupAndBackWalksOut() {
         storeSession()
         Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
         launchApp()
@@ -327,20 +329,18 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(ChannelsTags.TITLE)
 
-        // With nothing playing the list starts on New channel (once the lineup has been read); Select shows the
-        // builder's first step.
+        // With nothing playing the list starts on New channel; Select on it waits for the lineup and says so, well
+        // before the wait gives up.
         awaitSelected(ChannelsTags.NEW_CHANNEL)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitBuilder()
+        awaitShown(ChannelsTags.GETTING_READY)
+        assertEquals("the builder did not open", 0, count(ChannelsTags.BUILDER_SOURCES_STEP))
 
-        // Back leaves the builder for the list, on New channel; the next Back leaves the list for the guide.
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.BUILDER_SOURCES_STEP) == 0 }
-        awaitSelected(ChannelsTags.NEW_CHANNEL)
+        // Back leaves the Channels screen for the guide, on the Channels button; the next Back leaves the app.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.TITLE) == 0 }
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
-        assertFalse("neither Back left the app", compose.activity.isFinishing)
+        assertFalse("the Back did not leave the app", compose.activity.isFinishing)
         assertBackLeavesTheApp()
     }
 
@@ -526,6 +526,9 @@ class LaunchNavigationTest {
 
     private companion object {
         const val TIMEOUT_MS = 10_000L
+
+        // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
+        const val SHORT_WAIT_MS = 3_000L
         const val POLL_MS = 50L
     }
 
