@@ -133,7 +133,7 @@ private fun SheetRowLine(
         }
 
         SheetRow.Preview -> {
-            PreviewRow(ui, focused, tag)
+            PreviewRow(ui, tag)
         }
 
         else -> {
@@ -244,11 +244,10 @@ private fun NameLine(
     }
 }
 
-// What the channel would air next, as the steps' footer words it; the row has no action.
+// What the channel would air next, as the steps' footer words it. It has no action, so the D-pad never stops on it.
 @Composable
 private fun PreviewRow(
     ui: BuilderUi,
-    focused: Boolean,
     tag: String,
 ) {
     // A ready preview with nothing to list yet still has its count; only NothingFits says nothing fits.
@@ -259,7 +258,7 @@ private fun PreviewRow(
         } else {
             previewText(preview)
         }
-    FocusLine(focused, tag) {
+    FocusLine(false, tag) {
         Text(
             text,
             style = MaterialTheme.typography.bodyMedium,

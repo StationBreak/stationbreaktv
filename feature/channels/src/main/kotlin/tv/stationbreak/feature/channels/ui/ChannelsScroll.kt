@@ -29,13 +29,33 @@ internal suspend fun LazyListState.keepVisible(index: Int) {
  * by the clipped amount.
  */
 private suspend fun LazyListState.nudgeIntoView(index: Int) {
-    withFrameNanos { }
-    val info = layoutInfo
-    val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return
-    val below = item.offset + item.size - info.viewportEndOffset
-    val above = info.viewportStartOffset - item.offset
-    when {
-        below > 0 -> scrollBy(below.toFloat())
-        above > 0 -> scrollBy(-above.toFloat())
+    // A few passes: lines taller than the estimate can leave the line wholly off screen (it is not laid out at all),
+    // and then the pass moves half a screen towards it, and the next one places it exactly.
+    repeat(NUDGE_PASSES) {
+        withFrameNanos { }
+        val info = layoutInfo
+        val shown = info.visibleItemsInfo
+        val item = shown.firstOrNull { it.index == index }
+        val half = (info.viewportEndOffset - info.viewportStartOffset) / 2f
+        when {
+            item == null -> {
+                val last = shown.lastOrNull() ?: return
+                if (index > last.index) scrollBy(half) else scrollBy(-half)
+            }
+
+            item.offset + item.size > info.viewportEndOffset -> {
+                scrollBy((item.offset + item.size - info.viewportEndOffset).toFloat())
+            }
+
+            item.offset < info.viewportStartOffset -> {
+                scrollBy((item.offset - info.viewportStartOffset).toFloat())
+            }
+
+            else -> {
+                return
+            }
+        }
     }
 }
+
+private const val NUDGE_PASSES = 6

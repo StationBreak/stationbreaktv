@@ -52,6 +52,12 @@ internal fun sheetRowsOf(
         }
     }
 
+/**
+ * The sheet rows the D-pad can stop on: all but the Next up line, which only shows what the channel would air and has
+ * nothing to do on OK.
+ */
+internal fun focusableSheetRows(rows: List<SheetRow>): List<SheetRow> = rows.filter { it != SheetRow.Preview }
+
 /** The rows of the Name page, top to bottom: an edit's page ends in Done, a new channel's in Save and watch. */
 internal fun nameRowsOf(editPage: Boolean): List<NameRowKind> =
     listOf(NameRowKind.Name, NameRowKind.Number, if (editPage) NameRowKind.Done else NameRowKind.Save)

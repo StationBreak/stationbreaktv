@@ -204,7 +204,7 @@ class BuilderFinalFixesTest {
             rig.press(Down)
             rig.select()
             // Back on the sheet; Save writes, and only that.
-            rig.press(Down, Down)
+            rig.press(Down)
             assertEquals(BuilderFocus.Sheet(SheetRow.Save), rig.ui.focus)
             rig.select()
             assertEquals(1, rig.builder.saved.size)

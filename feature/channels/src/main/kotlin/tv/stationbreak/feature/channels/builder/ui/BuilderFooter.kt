@@ -89,7 +89,7 @@ private fun NextButton(ui: BuilderUi) {
         stringResource(if (ui.donePage) R.string.builder_done else R.string.builder_next),
         Modifier
             .fillMaxWidth()
-            .drawnFocus(ui.focus == BuilderFocus.Next)
+            .drawnFocus(ui.focus == BuilderFocus.Next, scaled = false)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(BuilderTags.NEXT)
             .semantics {

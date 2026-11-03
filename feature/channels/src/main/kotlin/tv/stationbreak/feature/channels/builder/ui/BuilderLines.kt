@@ -75,7 +75,7 @@ internal fun FocusLine(
     Box(
         modifier
             .fillMaxWidth()
-            .drawnFocus(focused)
+            .drawnFocus(focused, scaled = false)
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(tag)
             .semantics(mergeDescendants = true) {

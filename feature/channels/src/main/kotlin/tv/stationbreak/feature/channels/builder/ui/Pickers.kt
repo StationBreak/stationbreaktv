@@ -44,7 +44,7 @@ internal fun SourceTabs(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .drawnFocus(focused)
+                    .drawnFocus(focused, scaled = false)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .testTag(BuilderTags.tab(tab))
                     .semantics { selected = tab == ui.tab },

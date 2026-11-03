@@ -93,7 +93,7 @@ internal fun BuilderModel.nextEnabled(): Boolean =
 
 internal fun BuilderModel.navView(): NavView {
     val nameRows = nameRowsOf(onEditPage())
-    return NavView(step, tab, entryKeys(), narrowOpen, playRowsOf(draft), sheetRows(), nameRows)
+    return NavView(step, tab, entryKeys(), narrowOpen, playRowsOf(draft), focusableSheetRows(sheetRows()), nameRows)
 }
 
 // Keeps the focus on something that exists: an entry that went (a new search) and a sheet row that went.
@@ -104,7 +104,7 @@ internal fun BuilderModel.mended(): BuilderFocus? {
             if (tab == SourceKindTab.Pick) BuilderFocus.Search else BuilderFocus.Tab(tab)
         }
 
-        at is BuilderFocus.Sheet && at.row !in sheetRows() -> {
+        at is BuilderFocus.Sheet && at.row !in focusableSheetRows(sheetRows()) -> {
             BuilderFocus.Sheet(SheetRow.Name)
         }
 

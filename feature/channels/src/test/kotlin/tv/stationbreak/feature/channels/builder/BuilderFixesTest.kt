@@ -372,7 +372,7 @@ class BuilderFixesTest {
             val kids = draftOf("Kids", listOf(lib1), true, origin = CUSTOM, filters = DraftFilters(maxRating = "PG"))
             rig.openEdit(kids)
             rig.builder.openResult = OpenResult.Opened(kids.copy(seed = Seed(2uL)), null)
-            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)
+            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down)
             assertEquals(BuilderFocus.Sheet(SheetRow.Reshuffle), rig.ui.focus)
             rig.select()
             assertEquals(Seed(2uL), rig.ui.draft.seed)
