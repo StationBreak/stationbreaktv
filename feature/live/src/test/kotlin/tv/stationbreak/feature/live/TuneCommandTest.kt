@@ -176,6 +176,42 @@ class TuneCommandTest {
             assertEquals(card(2, overPicture = false), f.r.state)
         }
 
+    // A full-screen screen over the video can take its surface (older devices): until a frame is rendered again no
+    // picture is on screen, though the sitting still says Watching, so a card has snow behind it, not black.
+    @Test
+    fun aGuideTuneAfterTheVideoSurfaceWasLostShowsItsCardOverSnow() =
+        runTest {
+            val f = onNineWithSlowLookups(5_000)
+            f.r.live.surfaceLost()
+
+            f.send(LiveCommand.Tune(CH2))
+
+            assertEquals(card(2, overPicture = false), f.r.state)
+        }
+
+    @Test
+    fun aGuideTuneAfterAFrameWasRenderedAgainShowsItsCardOverThePicture() =
+        runTest {
+            val f = onNineWithSlowLookups(5_000)
+            f.r.live.surfaceLost()
+            f.r.live.frameRendered()
+
+            f.send(LiveCommand.Tune(CH2))
+
+            assertEquals(card(2, overPicture = true), f.r.state)
+        }
+
+    @Test
+    fun aFlipAfterTheVideoSurfaceWasLostShowsItsNumberOverSnow() =
+        runTest {
+            val f = flipping()
+            f.r.live.surfaceLost()
+
+            f.up()
+
+            assertEquals(card(9, overPicture = false), f.r.state)
+        }
+
     @Test
     fun aQuickGuideTuneNeverShowsSnowOverAPlayingPicture() =
         runTest {

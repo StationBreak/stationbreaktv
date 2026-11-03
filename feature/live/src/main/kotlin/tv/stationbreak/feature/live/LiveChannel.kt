@@ -133,6 +133,12 @@ class LiveChannel(
             return screen.nowPlaying?.block?.let { HeldAiring(channel, it) }
         }
 
+    /** The video surface was lost (a screen over it took it): until [frameRendered] no picture is on screen. */
+    fun surfaceLost() = screen.surfaceLost()
+
+    /** The player rendered a frame: a picture is on screen. */
+    fun frameRendered() = screen.frameRendered()
+
     /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
     val flips: List<TuneReport.Flip> get() = flipLog
 

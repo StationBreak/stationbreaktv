@@ -23,6 +23,7 @@ internal class Playing(
  * fading) and never knows about the overlay; while one is up, those writes are kept and not published, and [drop]
  * brings the latest back. One lock covers both sides, since the sitting and the flipping run as separate coroutines.
  */
+@Suppress("TooManyFunctions") // One lock over what the screen shows: each way it changes is a function.
 internal class Screen(
     initial: LiveState,
 ) {
@@ -30,6 +31,9 @@ internal class Screen(
     private var shown = initial
     private var choosing: LiveState.Choosing? = null
     private var committed = false
+
+    // False from the moment the video surface was lost until a frame is rendered on it again.
+    private var frameOnScreen = true
 
     // After a commit the old picture is gone (the tuner stops) until the new sitting writes its first state.
     private var stale = false
@@ -124,8 +128,17 @@ internal class Screen(
         next: LiveInfo,
     ) = infoOut.compareAndSet(expect, next)
 
-    /** True only while the sitting's picture is up: it is Watching, and no commit is waiting on the new sitting. */
-    val pictureUp: Boolean get() = synchronized(this) { !stale && shown is LiveState.Watching }
+    /**
+     * True only while a picture is on screen: the sitting is Watching, no commit is waiting on the new sitting, and the
+     * video surface has not been lost since the last rendered frame.
+     */
+    val pictureUp: Boolean get() = synchronized(this) { !stale && frameOnScreen && shown is LiveState.Watching }
+
+    /** The video surface was destroyed or detached: nothing is on screen until [frameRendered]. */
+    fun surfaceLost() = synchronized(this) { frameOnScreen = false }
+
+    /** The player rendered a first frame (on a new tune or on a new surface): a picture is on screen. */
+    fun frameRendered() = synchronized(this) { frameOnScreen = true }
 
     fun compareAndSet(
         expect: LiveState,
