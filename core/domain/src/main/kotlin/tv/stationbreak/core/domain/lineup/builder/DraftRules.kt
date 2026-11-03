@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.serialization.json.JsonObject
+import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.LineupDefaults
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
@@ -24,6 +25,7 @@ import tv.stationbreak.core.rules.normalised
  * length, a grid layout, filler, and every setting or extra it does not know) is carried over from `previous` while the
  * draft's [KeptSettings] is set. Without it ("Use the builder's settings instead") none of that is written.
  */
+@Suppress("TooManyFunctions") // One step of the draft to rules and back, each.
 internal object DraftRules {
     private const val EPOCH_HOURS = 24
     private val NO_EXTRAS = JsonObject(emptyMap())
@@ -34,6 +36,7 @@ internal object DraftRules {
         utcOffsetMinutes: Int,
         previous: ChannelRules? = null,
     ): ChannelRules {
+        require(draft.kept == null || previous != null) { "Kept settings come from the rules they were read from" }
         val carry = previous.takeIf { draft.kept != null }
         // Version 2 first, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
         // `caps` extra makes room for the real ones).
@@ -53,9 +56,8 @@ internal object DraftRules {
             formatVersion = version,
             name = draft.name.trim().ifEmpty { null },
             seed = draft.seed,
-            sources = withYearRanges(draft.sources.map(::sourceOf), carry?.sources),
-            exclusions =
-                withYearRanges(draft.leaveOut.map(::sourceOf), carry?.exclusions).ifEmpty { null },
+            sources = withYearRanges(draft.sources.map { sourceOf(it, carry?.sources) }, carry?.sources),
+            exclusions = leftOut(draft, carry),
             maxRating = draft.filters.maxRating,
             ordering = ordering,
             timing = timingOf(utcOffsetMinutes, carry, ordering),
@@ -63,6 +65,14 @@ internal object DraftRules {
             filters = filtersOf(draft.filters, carry?.filters),
             extras = carry?.extras ?: NO_EXTRAS,
         )
+    }
+
+    private fun leftOut(
+        draft: ChannelDraft,
+        carry: ChannelRules?,
+    ): List<Source>? {
+        val built = draft.leaveOut.map { sourceOf(it, carry?.exclusions) }
+        return withYearRanges(built, carry?.exclusions).ifEmpty { null }
     }
 
     // The year ranges of the stored list go back at their places: the builder cannot show them.
@@ -153,7 +163,17 @@ internal object DraftRules {
         return built.takeUnless { it.isEmpty && it.extras.isEmpty() }
     }
 
-    private fun sourceOf(source: DraftSource): Source =
+    // The source of [draft], with the unknown fields of the stored source it came from (a copy keeps them).
+    private fun sourceOf(
+        draft: DraftSource,
+        stored: List<Source>?,
+    ): Source {
+        val fresh = bareSourceOf(draft)
+        val extras = stored?.firstOrNull { bare(it) == fresh }?.extras
+        return if (extras == null) fresh else withExtras(fresh, extras)
+    }
+
+    private fun bareSourceOf(source: DraftSource): Source =
         when (source) {
             is DraftSource.Library -> Source.Library(CanonicalId.parse(source.key))
             is DraftSource.Collection -> Source.Collection(CanonicalId.parse(source.key))
@@ -161,6 +181,22 @@ internal object DraftRules {
             is DraftSource.Genre -> Source.Genre(source.key)
             is DraftSource.Show -> Source.Series(CanonicalId.parse(source.key))
             is DraftSource.Pick -> Source.Item(CanonicalId.parse(source.key))
+        }
+
+    private fun bare(source: Source): Source = withExtras(source, NO_EXTRAS)
+
+    private fun withExtras(
+        source: Source,
+        extras: JsonObject,
+    ): Source =
+        when (source) {
+            is Source.Library -> source.copy(extras = extras)
+            is Source.Collection -> source.copy(extras = extras)
+            is Source.Tag -> source.copy(extras = extras)
+            is Source.Genre -> source.copy(extras = extras)
+            is Source.Series -> source.copy(extras = extras)
+            is Source.Item -> source.copy(extras = extras)
+            is Source.YearRange -> source.copy(extras = extras)
         }
 
     /**
@@ -188,7 +224,7 @@ internal object DraftRules {
             order = order,
             seriesCap = caps?.effectiveSeries ?: ChannelDraft.DEFAULT_SERIES_CAP,
             filmCap = caps?.effectiveFilm ?: ChannelDraft.DEFAULT_FILM_CAP,
-            kids = number != null && number in tv.stationbreak.core.engine.lineup.Band.Kids.numbers,
+            kids = number != null && number in Band.Kids.numbers,
             number = number,
             kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name.orEmpty(), it) },
             numberChosen = false,

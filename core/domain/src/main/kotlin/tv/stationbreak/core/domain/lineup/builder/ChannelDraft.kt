@@ -157,10 +157,35 @@ data class ChannelDraft(
         return when {
             points == 0 -> DraftProblem.NameEmpty
             points > MAX_NAME_CODE_POINTS -> DraftProblem.NameTooLong
-            sources.isEmpty() -> DraftProblem.NoSources
+            sources.isEmpty() && !hasKeptYears() -> DraftProblem.NoSources
             order != PlayOrder.InOrder && (seriesCap !in CAPS || filmCap !in CAPS) -> DraftProblem.CapOutOfRange
             else -> yearsProblem() ?: minutesProblem()
         }
+    }
+
+    // A year range the copy keeps is a source of the channel too.
+    private fun hasKeptYears(): Boolean = kept?.items?.any { it is KeptItem.YearsSource } == true
+
+    /**
+     * This draft once the viewer has chosen [order]: a kept order is the builder's now, and so is the lack of caps when
+     * the order is not Shuffle.
+     */
+    fun withOrder(order: PlayOrder): ChannelDraft =
+        copy(order = order).keeping { it is KeptItem.Order || (order != PlayOrder.Shuffle && it == KeptItem.NoCaps) }
+
+    /** This draft once the viewer has set caps: an uncapped shuffle and a short epoch are the builder's now. */
+    fun withCaps(
+        series: Int,
+        film: Int,
+    ): ChannelDraft {
+        val capped = copy(seriesCap = series, filmCap = film)
+        return capped.keeping { it == KeptItem.NoCaps || it is KeptItem.EpochHours }
+    }
+
+    // The draft without the kept items [dropped] says so for; no kept items left is no kept settings.
+    private fun keeping(dropped: (KeptItem) -> Boolean): ChannelDraft {
+        val left = kept?.let { k -> k.copy(items = k.items.filterNot(dropped)) }
+        return copy(kept = left?.takeIf { it.items.isNotEmpty() })
     }
 
     // Both ends or neither; in 1..9999; in order.

@@ -16,6 +16,7 @@ import java.security.SecureRandom
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -123,10 +124,11 @@ class DraftRulesTest {
 
     private val plainShuffle = keptRules.copy(ordering = null, filler = null, extras = JsonObject(emptyMap()))
 
-    private fun withoutNoCaps(draft: ChannelDraft): ChannelDraft {
-        val kept = requireNotNull(draft.kept)
-        return draft.copy(kept = kept.copy(items = kept.items - KeptItem.NoCaps))
-    }
+    private val bareShuffle =
+        plainShuffle.copy(
+            sources = listOf(Source.Genre("Western")),
+            timing = Timing(null, false, null, null, null, null, BroadcastDay(offset, "06:00")),
+        )
 
     @Test
     fun aCopiedShuffleWithNoCapsStaysUncappedAtVersion1() {
@@ -141,7 +143,7 @@ class DraftRulesTest {
     @Test
     fun turningCapsOnOrTakingTheBuildersSettingsAppliesCaps() {
         val draft = fromRules(plainShuffle)
-        val withoutNoCaps = withoutNoCaps(draft)
+        val withoutNoCaps = draft.withCaps(3, 1)
 
         for (capped in listOf(toRules(withoutNoCaps, plainShuffle), toRules(draft.copy(kept = null), plainShuffle))) {
             assertEquals(3, capped.effectiveCaps?.series)
@@ -157,9 +159,85 @@ class DraftRulesTest {
 
         assertTrue(KeptItem.EpochHours(12) in assertNotNull(draft.kept).items)
         assertEquals(short, toRules(draft, short))
-        val capsOn = withoutNoCaps(draft)
+        val capsOn = draft.withCaps(3, 1)
         assertEquals(24, toRules(capsOn, short).timing.epochHours)
         assertEquals(24, toRules(draft.copy(kept = null), short).timing.epochHours)
+    }
+
+    @Test
+    fun aYearOnlyCopyHasASourceAndSaves() {
+        val yearOnly = plainShuffle.copy(sources = listOf(Source.YearRange(1950, 1959)))
+        val draft = fromRules(yearOnly)
+
+        assertTrue(draft.sources.isEmpty())
+        assertNull(draft.problem())
+        assertEquals(yearOnly, toRules(draft, yearOnly))
+        assertEquals(DraftProblem.NoSources, draft.copy(kept = null).problem())
+    }
+
+    @Test
+    fun unknownFieldsOnSourcesAndExclusionsSurviveACopy() {
+        val extra = JsonObject(mapOf("futureSourceField" to kotlinx.serialization.json.JsonPrimitive(true)))
+        val other = JsonObject(mapOf("futureExclusionField" to kotlinx.serialization.json.JsonPrimitive("x")))
+        val old =
+            plainShuffle.copy(
+                sources = listOf(Source.Genre("Drama", extra)),
+                exclusions = listOf(Source.Tag("Skip", other)),
+            )
+
+        val rules = toRules(fromRules(old), old)
+
+        assertEquals(old, rules)
+        assertEquals(extra, rules.sources.single().extras)
+        assertEquals(other, rules.exclusions?.single()?.extras)
+    }
+
+    @Test
+    fun keptSettingsNeedTheirRules() {
+        assertFailsWith<IllegalArgumentException> { toRules(fromRules(keptRules)) }
+    }
+
+    @Test
+    fun choosingAnOrderOrCapsDropsTheMatchingKeptItems() {
+        val short = bareShuffle.copy(timing = bareShuffle.timing.copy(epochHours = 12))
+        val kept = fromRules(short)
+        assertEquals(listOf(KeptItem.NoCaps, KeptItem.EpochHours(12)), kept.kept?.items)
+
+        val capped = kept.withCaps(2, 2)
+        assertTrue(
+            capped.kept
+                ?.items
+                .orEmpty()
+                .none { it == KeptItem.NoCaps || it is KeptItem.EpochHours },
+        )
+        assertEquals(2, capped.seriesCap)
+
+        val chronological = fromRules(keptRules.copy(ordering = Ordering(OrderingMode.Chronological), filler = null))
+        val chosen = chronological.withOrder(PlayOrder.Rotation)
+        assertTrue(
+            chosen.kept
+                ?.items
+                .orEmpty()
+                .none { it is KeptItem.Order },
+        )
+        assertEquals(PlayOrder.Rotation, chosen.order)
+        assertEquals(OrderingMode.Rotation, toRules(chosen, keptRules).orderingMode)
+    }
+
+    @Test
+    fun droppingTheLastKeptItemLeavesNoKeptSettings() {
+        val draft = fromRules(bareShuffle)
+        val only = draft.kept?.items
+        assertEquals(listOf<KeptItem>(KeptItem.NoCaps), only)
+
+        assertNull(draft.withCaps(3, 1).kept)
+    }
+
+    @Test
+    fun twoSecureDrawsDiffer() {
+        val source = NewSeed.secure()
+
+        assertTrue(source.next() != source.next())
     }
 
     @Test
