@@ -442,6 +442,34 @@ class ChannelsViewModelTest {
         }
 
     @Test
+    fun aWantedChannelThatIsNotInTheFirstListLeavesTheFocusOnNew() =
+        channelsTest { rig ->
+            rig.open(this, current = A)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
+    fun aWantedChannelThatArrivesLaterTakesTheFocusFromNew() =
+        channelsTest { rig ->
+            rig.open(this, current = A)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+            rig.repo.list.value = listOf(summary(A, 5), summary(B, 7))
+            runCurrent()
+            assertEquals(ChannelsFocus.Row(A), rig.ui.focus)
+        }
+
+    @Test
+    fun aWantedChannelThatArrivesAfterTheViewerMovedDoesNotTakeTheFocus() =
+        channelsTest { rig ->
+            rig.open(this, current = A)
+            rig.vm.move(false)
+            rig.vm.move(true)
+            rig.repo.list.value = listOf(summary(A, 5), summary(B, 7))
+            runCurrent()
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
     fun theListStartsOnNewChannelWhenOpenedWithoutAChannelAndMovesWithTheKeys() =
         channelsTest(trio) { rig ->
             rig.open(this, current = null)

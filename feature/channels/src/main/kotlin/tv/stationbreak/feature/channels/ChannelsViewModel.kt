@@ -107,6 +107,8 @@ internal class ChannelsViewModel
             val builder: BuilderMode? = null,
             /** A channel the builder just made, to focus when its row arrives. */
             val pendingFocus: ChannelId? = null,
+            /** The first list of this visit has arrived: a wanted channel not in it no longer holds the focus back. */
+            val listed: Boolean = false,
             /** The builder was asked for while the lineup's access was still loading: opened once it is known. */
             val wantBuilder: BuilderMode? = null,
         )
@@ -217,6 +219,10 @@ internal class ChannelsViewModel
                 holder = if (keep) m.holder else null,
                 currentNumber = currentNumber,
                 listsDuringReset = m.listsDuringReset + 1,
+                listed = true,
+                // A wanted channel the first list lacks may still arrive (the lineup is read in steps): it takes the
+                // focus from New when it does, unless the viewer has moved by then.
+                pendingFocus = m.pendingFocus ?: m.wantFocus.takeIf { !m.listed && it !in list.map { c -> c.id } },
                 awaitingList = false,
             )
         }
@@ -386,8 +392,9 @@ internal class ChannelsViewModel
             when {
                 m.wantFocus != null && m.wantFocus in ids -> ChannelsFocus.Row(m.wantFocus)
 
-                // A channel to start on is waited for until the list arrives; with none, the list starts on New.
-                ids.isEmpty() && m.wantFocus != null -> null
+                // A channel to start on is waited for until the first list arrives; after it, or with none, the list
+                // starts on New (a wanted channel that comes later takes the focus: see onList).
+                !m.listed && m.wantFocus != null -> null
 
                 else -> ChannelsFocus.New
             }

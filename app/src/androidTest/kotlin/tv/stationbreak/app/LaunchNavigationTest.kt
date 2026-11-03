@@ -2,6 +2,9 @@
 package tv.stationbreak.app
 
 import android.view.KeyEvent
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
@@ -198,10 +201,20 @@ class LaunchNavigationTest {
         press(keyCode)
     }
 
-    // The screen's focus is set when its lineup arrives, a moment after the screen is up.
+    // The screen's focus is set when its lineup arrives, a moment after the screen is up. A timeout says what was on
+    // screen, so a failure explains itself.
     private fun awaitSelected(tag: String) {
-        compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodes(hasTestTag(tag) and isSelected()).fetchSemanticsNodes().isNotEmpty()
+        try {
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodes(hasTestTag(tag) and isSelected()).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (timeout: ComposeTimeoutException) {
+            val selected =
+                compose.onAllNodes(isSelected()).fetchSemanticsNodes().map {
+                    it.config.getOrNull(SemanticsProperties.TestTag) ?: "(untagged)"
+                }
+            val tagged = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().size
+            throw AssertionError("$tag was never selected: $tagged node(s) with that tag; selected: $selected", timeout)
         }
     }
 
