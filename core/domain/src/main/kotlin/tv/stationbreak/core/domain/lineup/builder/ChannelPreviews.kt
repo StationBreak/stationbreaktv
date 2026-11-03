@@ -184,6 +184,8 @@ class BuiltInChannelPreviews internal constructor(
             days += day
             aired += airedFrom(day.layout, day.ruled.day, if (epoch == n) at.toEpochMilliseconds() else null)
             epoch++
+            // An empty pool today stops it: the next epochs would be read (one uncached) to find the same nothing.
+            if (day.ruled.day.isEmpty()) break
         }
         val shown = aired.take(ChannelPreviews.NEXT)
         val info = if (shown.isEmpty()) emptyMap() else library.programInfo(account, shown.mapTo(HashSet()) { it.id })

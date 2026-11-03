@@ -136,6 +136,8 @@ class EditCutOverTest {
         assertNotEquals(rotationNext, afterEdit, "and not the old rules'")
     }
 
+    // Per-channel reuse of built days (issue #548) is not there yet: an edit rebuilds every channel's day, so this
+    // pins only that the rebuild does no more work than the first build.
     @Test
     fun otherChannelsKeepTheirContentAndTheLibraryIsNotReadAgain() {
         twoShows()

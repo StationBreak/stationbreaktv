@@ -304,6 +304,16 @@ class ChannelPreviewsTest {
     }
 
     @Test
+    fun anEmptyPoolReadsOnlyTodaysSnapshot() {
+        sevenComedies()
+        library.snapshotCutoffs.clear()
+
+        preview(draft(DraftSource.Genre("Nothing Like It", "Nothing Like It")))
+
+        assertTrue(library.snapshotCutoffs.size <= 1, "read ${library.snapshotCutoffs.size} snapshots")
+    }
+
+    @Test
     fun aKidsDraftListsPicksTheHoldLeavesOut() {
         film(1, "Good Film", genres = listOf("Kids"), rating = "G")
         film(2, "Too Strong", genres = listOf("Kids"), rating = "R")
