@@ -1,6 +1,6 @@
 # Channel rules format
 
-> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 (2026-11-02) is a Draft: it adds features to version 1 and leaves version 1 unchanged (see Format version), and the scheduler change that builds it finalises it once its independently computed vectors exist. Once version 2 is final, any later lineup change needs `formatVersion` 3.
+> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged (see Format version). Any later change that alters a lineup needs `formatVersion` 3.
 
 This document defines the file that describes one StationBreak channel. It is written for a developer who has never seen
 this repository and who wants to build another client (Roku, Apple TV, a web tool) that shows the same lineup as the
@@ -99,9 +99,9 @@ holds a secret and never causes a client to fetch a URL.
 
 `formatVersion` is a whole number of 1 or more. This document defines versions `1` and `2`.
 
-**Version 2 is a Draft** until the scheduler change that builds its orders is merged with vectors computed by an independent
-reference; until then it can still change without a new version. The rule that a later lineup change needs `formatVersion` 3
-applies only once version 2 is final.
+**Version 2 is final** (2026-11-02), with its independently computed vectors. The owner accepted the one known cost of its
+layout, that the planned end of a day may be played again at the start of the next (issue #546), rather than change the layout
+after the fact. A later change that alters a lineup needs `formatVersion` 3.
 
 **A writer that creates or edits rules writes the lowest version whose features the rules use.** A file that uses nothing
 from version 2 says `1`. A file that is read and written back unchanged keeps the version it had. The presence of `filters`
