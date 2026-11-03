@@ -27,6 +27,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -505,8 +506,10 @@ class LineupServiceTest {
                     defaultNumber = 10,
                     kid = true,
                     optIn = false,
+                    playKey = toons.playKey,
                 )
             assertEquals(expected, toons)
+            assertNotEquals(0, toons.playKey, "a channel with rules has a play key")
             val odds = summaries.first { it.id == LineupIds.leftovers("odds-and-ends") }
             assertEquals(ChannelKind.Leftovers, odds.kind)
             assertEquals("Odds", odds.name)
