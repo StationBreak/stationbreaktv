@@ -193,6 +193,20 @@ class DraftRulesTest {
     }
 
     @Test
+    fun duplicateSourcesKeepTheirOwnExtras() {
+        fun flag(n: Int) = JsonObject(mapOf("future" to kotlinx.serialization.json.JsonPrimitive(n)))
+        val old =
+            plainShuffle.copy(
+                sources = listOf(Source.Genre("Drama", flag(1)), Source.Tag("x"), Source.Genre("Drama", flag(2))),
+                exclusions = listOf(Source.Tag("Skip", flag(3)), Source.Tag("Skip", flag(4))),
+            )
+
+        val rules = toRules(fromRules(old), old)
+
+        assertEquals(old, rules)
+    }
+
+    @Test
     fun keptSettingsNeedTheirRules() {
         assertFailsWith<IllegalArgumentException> { toRules(fromRules(keptRules)) }
     }

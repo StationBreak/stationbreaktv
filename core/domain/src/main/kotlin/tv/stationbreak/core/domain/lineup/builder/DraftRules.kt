@@ -23,7 +23,9 @@ import tv.stationbreak.core.rules.normalised
  *
  * What the builder cannot show (a built-in's `chronological` or `randomInOrder` order, year-range sources, block
  * length, a grid layout, filler, and every setting or extra it does not know) is carried over from `previous` while the
- * draft's [KeptSettings] is set. Without it ("Use the builder's settings instead") none of that is written.
+ * draft's [KeptSettings] is set. Without it ("Use the builder's settings instead") none of that is written. The
+ * version is always the lowest that holds the rules, so an edited version 2 file that uses only version 1 features is
+ * written as version 1 (by design).
  */
 @Suppress("TooManyFunctions") // One step of the draft to rules and back, each.
 internal object DraftRules {
@@ -56,7 +58,7 @@ internal object DraftRules {
             formatVersion = version,
             name = draft.name.trim().ifEmpty { null },
             seed = draft.seed,
-            sources = withYearRanges(draft.sources.map { sourceOf(it, carry?.sources) }, carry?.sources),
+            sources = withYearRanges(draft.sources.map(consuming(carry?.sources)), carry?.sources),
             exclusions = leftOut(draft, carry),
             maxRating = draft.filters.maxRating,
             ordering = ordering,
@@ -67,11 +69,16 @@ internal object DraftRules {
         )
     }
 
+    private fun consuming(stored: List<Source>?): (DraftSource) -> Source {
+        val remaining = stored?.toMutableList()
+        return { sourceOf(it, remaining) }
+    }
+
     private fun leftOut(
         draft: ChannelDraft,
         carry: ChannelRules?,
     ): List<Source>? {
-        val built = draft.leaveOut.map { sourceOf(it, carry?.exclusions) }
+        val built = draft.leaveOut.map(consuming(carry?.exclusions))
         return withYearRanges(built, carry?.exclusions).ifEmpty { null }
     }
 
@@ -163,14 +170,16 @@ internal object DraftRules {
         return built.takeUnless { it.isEmpty && it.extras.isEmpty() }
     }
 
-    // The source of [draft], with the unknown fields of the stored source it came from (a copy keeps them).
+    // The source of [draft], with the unknown fields of the stored source it came from (a copy keeps them). Each stored
+    // source is used once, in order, so duplicates with different extras keep their own. A source removed and added
+    // again keeps its stored extras, which is intended.
     private fun sourceOf(
         draft: DraftSource,
-        stored: List<Source>?,
+        remaining: MutableList<Source>?,
     ): Source {
         val fresh = bareSourceOf(draft)
-        val extras = stored?.firstOrNull { bare(it) == fresh }?.extras
-        return if (extras == null) fresh else withExtras(fresh, extras)
+        val at = remaining?.indexOfFirst { bare(it) == fresh } ?: -1
+        return if (at < 0) fresh else withExtras(fresh, checkNotNull(remaining).removeAt(at).extras)
     }
 
     private fun bareSourceOf(source: DraftSource): Source =

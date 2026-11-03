@@ -12,6 +12,7 @@ import tv.stationbreak.core.rules.RulesResult
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /** A copy opened from real rules saves back as they were: every starter recipe and every example file. */
@@ -52,8 +53,18 @@ class DraftRulesRealDataTest {
 
         fun jsonIn(dir: File) = dir.listFiles().orEmpty().filter { it.extension == "json" }
         val files = jsonIn(root) + jsonIn(File(root, "v2"))
+        // A file the reader finds valid but this app does not schedule (a filler mode) is not one a channel can hold,
+        // so the builder never opens it. Anything else that is not readable is a failure.
+        val unsupported =
+            setOf("filler-between-every-n.json", "filler-pad-to-grid.json", "filler-tag-source.json", "full.json")
         return files.sortedBy { it.path }.mapNotNull { file ->
-            (RulesReader.read(file.readText()) as? RulesResult.Ok)?.let { file.name to it.rules }
+            val result = RulesReader.read(file.readText())
+            if (file.relativeTo(root).path in unsupported) {
+                assertIs<RulesResult.Unsupported>(result, "${file.name} is unsupported")
+                null
+            } else {
+                file.relativeTo(root).path to assertIs<RulesResult.Ok>(result, "${file.name} reads").rules
+            }
         }
     }
 
