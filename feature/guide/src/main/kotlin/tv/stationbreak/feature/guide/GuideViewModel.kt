@@ -22,8 +22,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
-import tv.stationbreak.core.domain.lineup.HeldAiring
 import tv.stationbreak.core.domain.lineup.PlayKey
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
@@ -102,8 +102,9 @@ internal class GuideViewModel
         private var window: ScheduleWindow? = null
         private var currentChannel: ChannelId? = null
 
-        // What live is playing on [currentChannel], which the schedule's now cell gives way to (#556).
-        private var held: HeldAiring? = null
+        // What live is playing on [currentChannel], which the schedule's now cell gives way to until it ends (#556).
+        // Written under [lock] at the open, read by the builds outside it.
+        @Volatile private var playing: PlayingAiring? = null
         private var loaded = false
         private var tickJob: Job? = null
         private var dwellJob: Job? = null
@@ -131,17 +132,18 @@ internal class GuideViewModel
         private var tickLate = 0L
 
         /**
-         * Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). [held]
-         * is what live is playing on it, shown as its now cell until that ends (#556).
+         * Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). [playing]
+         * is what live is playing on it, shown as its now cell until that ends (#556); one for another channel is not
+         * the playing channel's, and is ignored.
          */
         fun open(
             current: ChannelId?,
-            held: HeldAiring? = null,
+            playing: PlayingAiring? = null,
         ) {
             synchronized(lock) {
                 endSession()
                 currentChannel = current
-                this.held = held
+                this.playing = playing?.takeIf { it.channel == current }
                 val fresh = newSession()
                 startLoad(fresh)
                 startWatch(fresh)
@@ -641,17 +643,16 @@ internal class GuideViewModel
         // the grid does (it lost a race with something that read further) is dropped.
         private fun apply(
             s: CoroutineScope,
-            read: ScheduleWindow,
+            fresh: ScheduleWindow,
             extension: Boolean,
         ) {
-            val fresh = read.holding(synchronized(lock) { held })
             val built = maxOf(nowMs(), shownNowMs())
-            val early = buildGuideModel(fresh, built)
+            val early = modelAt(fresh, built)
             synchronized(lock) {
                 if (session !== s) return
                 val shownNow = shownNowMs()
                 val now = maxOf(built, shownNow)
-                val model = if (now == built) early else buildGuideModel(fresh, now)
+                val model = if (now == built) early else modelAt(fresh, now)
                 val endNow = (shownSnapshot.value.state as? GuideState.Ready)?.model?.endMs
                 if (extension && endNow != null && model.endMs < endNow) return
                 if (extension) applied++
@@ -660,6 +661,12 @@ internal class GuideViewModel
                 if (tickJob == null && !managing) tickJob = s.launch { tickLoop(s) }
             }
         }
+
+        // The grid for [window] at [now]: the playing channel's now cell is what live plays, until that item ends.
+        private fun modelAt(
+            window: ScheduleWindow,
+            now: Long,
+        ): GuideModel = buildGuideModel(window.holding(playing, now), now)
 
         // The moment the grid shows, or the earliest there is when it shows none.
         private fun shownNowMs(): Long = (shownSnapshot.value.state as? GuideState.Ready)?.nowMs ?: Long.MIN_VALUE
@@ -708,7 +715,7 @@ internal class GuideViewModel
             val built = synchronized(lock) { if (session === s) window else null } ?: return due
             val read = nowMs()
             val now = if (due - read in 1..EARLY_WAKE_MS) due else read
-            val model = buildGuideModel(built, now)
+            val model = modelAt(built, now)
             return synchronized(lock) {
                 // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
                 if (session !== s || window !== built || now < shownNowMs()) {

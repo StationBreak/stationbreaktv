@@ -439,7 +439,7 @@ internal class Flipper(
         }
         earlyShown = false
         target = next
-        screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
+        screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.frameShown))
         val again: suspend (Instant, Duration) -> Unit = { at, wait -> settle(steps, next, direction, at, wait) }
         resettle = again
         // A key still down waits for its release (or the fallback); one already up settles now.
@@ -650,7 +650,7 @@ internal class Flipper(
             val known = cached?.byId(channel)?.tag()
             val card =
                 if (known != null) null else scope.launch(start = CoroutineStart.UNDISPATCHED) { showCard(channel) }
-            if (known != null) screen.choose(LiveState.Choosing(known, overPicture = screen.pictureUp))
+            if (known != null) screen.choose(LiveState.Choosing(known, overPicture = screen.frameShown))
             val lookedAt = clock.now()
             val onAir =
                 try {
@@ -699,7 +699,7 @@ internal class Flipper(
             ) {
                 null
             }
-        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = screen.pictureUp))
+        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = screen.frameShown))
     }
 
     /**

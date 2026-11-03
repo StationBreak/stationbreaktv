@@ -9,7 +9,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import tv.stationbreak.core.domain.lineup.HeldAiring
+import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.ui.ChannelsDestination
 import tv.stationbreak.feature.guide.ui.GuideDestination
@@ -100,8 +100,8 @@ internal fun AppNavGraph(
                 onSignedOut = { navController.replaceAll(LaunchRoute) },
                 // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so the
                 // graph hands it over. Live says where its picture is; the guide leaves that hole clear.
-                guide = { current, held, openedAtNanos, pictureHole, onTune ->
-                    GuideWithChannels(current, held, openedAtNanos, pictureHole, onTune)
+                guide = { opening, pictureHole, onTune ->
+                    GuideWithChannels(opening, pictureHole, onTune)
                 },
             )
         }
@@ -114,16 +114,12 @@ internal fun AppNavGraph(
  */
 @Composable
 private fun GuideWithChannels(
-    current: ChannelId?,
-    held: HeldAiring?,
-    openedAtNanos: Long,
+    opening: GuideOpening,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
 ) {
     GuideDestination(
-        current,
-        held,
-        openedAtNanos,
+        opening,
         pictureHole,
         onTune,
         channels = { channel, opened, hole, onDone -> ChannelsDestination(channel, opened, hole, onDone) },

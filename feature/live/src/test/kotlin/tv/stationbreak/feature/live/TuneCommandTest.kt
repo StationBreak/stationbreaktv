@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.HiddenReason
@@ -17,6 +18,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.playback.PlayerEvent
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -167,8 +169,8 @@ class TuneCommandTest {
         runTest {
             val f = flipping()
             f.send(LiveCommand.Tune(CH9))
-            val shown = f.r.state
-            assertTrue("no picture yet: $shown", shown is LiveState.Choosing || shown is LiveState.Tuning)
+            // The committed tune holds the screen on snow (the new channel tuning) until its picture is up.
+            assertEquals(9, assertIs<LiveState.Tuning>(f.r.state).banner.number)
             f.r.schedule.onAirDelayMs = 5_000
 
             f.send(LiveCommand.Tune(CH2))
@@ -182,7 +184,7 @@ class TuneCommandTest {
     fun aGuideTuneAfterTheVideoSurfaceWasLostShowsItsCardOverSnow() =
         runTest {
             val f = onNineWithSlowLookups(5_000)
-            f.r.live.surfaceLost()
+            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
 
             f.send(LiveCommand.Tune(CH2))
 
@@ -193,19 +195,68 @@ class TuneCommandTest {
     fun aGuideTuneAfterAFrameWasRenderedAgainShowsItsCardOverThePicture() =
         runTest {
             val f = onNineWithSlowLookups(5_000)
-            f.r.live.surfaceLost()
-            f.r.live.frameRendered()
+            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
+            f.r.live.onPlayerEvent(PlayerEvent.FirstFrame(0, 1))
 
             f.send(LiveCommand.Tune(CH2))
 
             assertEquals(card(2, overPicture = true), f.r.state)
         }
 
+    // The player's one ordered stream decides: the last of first frame and surface loss is what is on screen.
+    @Test
+    fun aSurfaceLostAfterTheFirstFrameLeavesNoFrameOnScreen() =
+        runTest {
+            val f = onNineWithSlowLookups(5_000)
+            f.r.live.onPlayerEvent(PlayerEvent.FirstFrame(0, 1))
+            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
+
+            f.send(LiveCommand.Tune(CH2))
+
+            assertEquals(card(2, overPicture = false), f.r.state)
+        }
+
+    // Only a card goes by the frame: the banner the OK key asks for goes by the sitting's picture.
+    @Test
+    fun theBannerStillShowsAfterTheSurfaceWasLostWithNoNewFrame() =
+        runTest {
+            val f = flipping()
+            advanceTimeBy(6.seconds)
+            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
+
+            f.send(LiveCommand.ShowBanner)
+
+            assertTrue("the banner is up: ${f.r.state}", (f.r.state as LiveState.Watching).banner?.actions == true)
+        }
+
+    // The guide asks what is playing: between a commit and the new sitting's first state nothing is.
+    @Test
+    fun theGuideOpenedBetweenACommitAndTheNewPictureGetsNothingPlaying() =
+        runTest {
+            val f = onNineWithSlowLookups(100)
+            assertEquals(
+                CH9,
+                f.r.live.playingAiring
+                    ?.channel,
+            )
+
+            f.send(LiveCommand.Tune(CH2))
+            advanceTimeBy(150.milliseconds)
+            runCurrent()
+            assertNull(f.r.live.playingAiring)
+
+            advanceTimeBy(5.seconds)
+            runCurrent()
+            val playing = checkNotNull(f.r.live.playingAiring)
+            assertEquals(CH2, playing.channel)
+            assertEquals(program(0, 600, 2), playing.block)
+        }
+
     @Test
     fun aFlipAfterTheVideoSurfaceWasLostShowsItsNumberOverSnow() =
         runTest {
             val f = flipping()
-            f.r.live.surfaceLost()
+            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
 
             f.up()
 

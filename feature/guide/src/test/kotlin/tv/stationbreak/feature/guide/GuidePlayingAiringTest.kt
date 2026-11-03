@@ -8,7 +8,7 @@ import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelRow
-import tv.stationbreak.core.domain.lineup.HeldAiring
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
@@ -25,7 +25,7 @@ import kotlin.time.Instant
  * anew. The guide's now cell for the playing channel shows what is playing, until it ends; the cells after it are the
  * new schedule's, from the held item's end.
  */
-class GuideHeldAiringTest : GuideRig() {
+class GuidePlayingAiringTest : GuideRig() {
     private fun row(
         channel: ChannelId,
         vararg blocks: AiringBlock,
@@ -45,7 +45,7 @@ class GuideHeldAiringTest : GuideRig() {
     fun theNowCellOfThePlayingChannelIsTheHeldItemAndTheNextStartsAtItsEnd() =
         guideTest { vm ->
             // The new rules say item 102 is on from 60 to 90; the picture plays item 77, from 40 to 100.
-            vm.open(CH7, HeldAiring(CH7, program(40, 100, 77)))
+            vm.open(CH7, PlayingAiring(CH7, program(40, 100, 77)))
             runCurrent()
 
             val cells = vm.cellsOf(CH7)
@@ -61,7 +61,7 @@ class GuideHeldAiringTest : GuideRig() {
     @Test
     fun otherChannelsAreUnchangedByAHeldItem() =
         guideTest { vm ->
-            vm.open(CH7, HeldAiring(CH7, program(40, 100, 77)))
+            vm.open(CH7, PlayingAiring(CH7, program(40, 100, 77)))
             runCurrent()
 
             val other = vm.cellsOf(CH5)
@@ -88,7 +88,7 @@ class GuideHeldAiringTest : GuideRig() {
 
         val blocks =
             window
-                .holding(HeldAiring(CH7, program(40, 100, 77)))
+                .holding(PlayingAiring(CH7, program(40, 100, 77)), T0 + 45 * MIN)
                 .rows
                 .single()
                 .blocks
@@ -103,7 +103,7 @@ class GuideHeldAiringTest : GuideRig() {
 
         val trimmed =
             window
-                .holding(HeldAiring(CH7, program(40, 100, 77)))
+                .holding(PlayingAiring(CH7, program(40, 100, 77)), T0 + 45 * MIN)
                 .rows
                 .single()
                 .blocks
@@ -119,11 +119,44 @@ class GuideHeldAiringTest : GuideRig() {
 
         val blocks =
             window
-                .holding(HeldAiring(CH7, program(40, 100, 77)))
+                .holding(PlayingAiring(CH7, program(40, 100, 77)), T0 + 45 * MIN)
                 .rows
                 .single()
                 .blocks
 
         assertEquals(listOf(T0 + 40 * MIN, T0 + 100 * MIN), blocks.map { it.startMs })
     }
+
+    @Test
+    fun onceTheHeldItemHasEndedTheScheduleIsShownAsItIs() =
+        guideTest { vm ->
+            vm.open(CH7, PlayingAiring(CH7, program(40, 100, 77)))
+            runCurrent()
+
+            // The held item ended at 100; the guide was left open until 105.
+            after(40 * MIN)
+
+            val first = vm.cellsOf(CH7).first()
+            assertEquals(id(103), first.itemId)
+            assertEquals(min(90), first.startMs)
+        }
+
+    @Test
+    fun aWindowIsLeftAloneOnceTheHeldItemHasEnded() {
+        val window = ScheduleWindow(listOf(row(CH7, program(90, 150, 4))), complete = true)
+
+        val held = PlayingAiring(CH7, program(40, 100, 77))
+
+        assertEquals(window, window.holding(held, T0 + 100 * MIN))
+    }
+
+    @Test
+    fun aPlayingItemOfAnotherChannelIsIgnored() =
+        guideTest { vm ->
+            vm.open(CH7, PlayingAiring(CH5, program(40, 100, 77)))
+            runCurrent()
+
+            assertEquals(id(102), vm.cellsOf(CH7).first().itemId)
+            assertEquals(id(201), vm.cellsOf(CH5).first().itemId)
+        }
 }

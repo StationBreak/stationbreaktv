@@ -72,7 +72,18 @@ data class ChannelOnAir(
  * the channel's rules the schedule may lay the day out differently while this item plays on to its end (spec 22,
  * ruling 16), so the guide shows this one until it ends, rather than what the schedule now says is on.
  */
-data class HeldAiring(
+data class PlayingAiring(
     val channel: ChannelId,
     val block: AiringBlock,
+)
+
+/**
+ * One opening of the program guide over live TV: the channel playing ([current], null before the first), what is
+ * playing on it ([playing], null while no picture is up or it is not known), and when it opened ([openedAtNanos], in
+ * `System.nanoTime` units, which keys the guide's session: a new value is a new opening).
+ */
+data class GuideOpening(
+    val current: ChannelId?,
+    val playing: PlayingAiring?,
+    val openedAtNanos: Long,
 )

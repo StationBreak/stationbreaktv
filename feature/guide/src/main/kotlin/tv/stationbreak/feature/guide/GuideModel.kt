@@ -4,7 +4,7 @@ package tv.stationbreak.feature.guide
 import androidx.compose.runtime.Immutable
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
-import tv.stationbreak.core.domain.lineup.HeldAiring
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
@@ -131,10 +131,15 @@ private fun displayTitle(info: ProgramInfo): String {
  * [this] window with the item live TV is playing ([held]) kept as the playing channel's block: the schedule stays
  * stateless, so after an edit it may say another item is on, while the picture plays on to the held item's end (spec
  * 22, ruling 16). The channel's other blocks keep the schedule's, the one before the held block ending where it
- * starts and the one after it starting where it ends. Other channels, and a null [held], are left as they are.
+ * starts and the one after it starting where it ends. Other channels, a null [held], and a [held] that has ended by
+ * [nowMs] are left as they are.
  */
-internal fun ScheduleWindow.holding(held: HeldAiring?): ScheduleWindow {
-    if (held == null) return this
+internal fun ScheduleWindow.holding(
+    held: PlayingAiring?,
+    nowMs: Long,
+): ScheduleWindow {
+    // Once the held item has ended the schedule says what is on, as it does for every other channel.
+    if (held == null || nowMs >= held.block.endMs) return this
     return copy(
         rows =
             rows.map { row ->
@@ -143,7 +148,7 @@ internal fun ScheduleWindow.holding(held: HeldAiring?): ScheduleWindow {
     )
 }
 
-private fun HeldAiring.over(blocks: List<AiringBlock>): List<AiringBlock> {
+private fun PlayingAiring.over(blocks: List<AiringBlock>): List<AiringBlock> {
     val before = blocks.filter { it.startMs < block.startMs }.map { it.copy(endMs = minOf(it.endMs, block.startMs)) }
     val after = blocks.filter { it.endMs > block.endMs }.map { it.startingAt(block.endMs) }
     return before + block + after

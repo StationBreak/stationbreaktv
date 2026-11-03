@@ -379,7 +379,8 @@ class LiveDestinationLifecycleTest {
     ) {
         compose.setContent {
             StationBreakTheme {
-                LiveRoot(vm, {}, guide = { _, _, openedAtNanos, _, _ ->
+                LiveRoot(vm, {}, guide = { opening, _, _ ->
+                    val openedAtNanos = opening.openedAtNanos
                     DisposableEffect(openedAtNanos) {
                         showings += "start@$openedAtNanos"
                         onDispose { showings += "end" }

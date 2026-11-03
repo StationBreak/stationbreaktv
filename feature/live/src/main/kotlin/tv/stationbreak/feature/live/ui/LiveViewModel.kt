@@ -4,7 +4,6 @@ package tv.stationbreak.feature.live.ui
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
-import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,13 +27,12 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
-import tv.stationbreak.core.domain.lineup.HeldAiring
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackResolver
-import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
@@ -158,7 +156,7 @@ internal class LiveViewModel
         val guideChannel: ChannelId? get() = guide.channel
 
         /** The item that was playing on [guideChannel] when the guide last opened, with its real start and end. */
-        val guideHeld: HeldAiring? get() = guide.held
+        val guidePlaying: PlayingAiring? get() = guide.playing
 
         /**
          * When the guide last opened, in `System.nanoTime` units: each opening's own, for the guide's open-time
@@ -301,23 +299,6 @@ internal class LiveViewModel
             }
         }
 
-        // The surface going away (a full-screen screen over it, on devices that take it) leaves no frame on screen.
-        private val lostSurface =
-            object : SurfaceHolder.Callback {
-                override fun surfaceCreated(holder: SurfaceHolder) = Unit
-
-                override fun surfaceChanged(
-                    holder: SurfaceHolder,
-                    format: Int,
-                    width: Int,
-                    height: Int,
-                ) = Unit
-
-                override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    live?.surfaceLost()
-                }
-            }
-
         /** Runs [running]'s live channel until the session ends (true) or it is cancelled, then tears it down. */
         @Suppress("LongParameterList") // The period, its session, the sitting's Android parts and a kept place.
         private suspend fun period(
@@ -334,7 +315,6 @@ internal class LiveViewModel
             var ended = false
             try {
                 player.attach(surface)
-                surface?.holder?.addCallback(lostSurface)
                 val port = tuners.create(player, session).also { tuner = it }
                 // The measurements are numbers and fixed names only (TuneReport), so they may go to logcat.
                 val machine =
@@ -357,16 +337,16 @@ internal class LiveViewModel
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
-                    val frames =
+                    val pictureEvents =
                         launch {
-                            player.events.collect { if (it is PlayerEvent.FirstFrame) machine.frameRendered() }
+                            player.events.collect { machine.onPlayerEvent(it) }
                         }
                     val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
                     val transportMirror = launch { machine.transport.collect { shownTransport.value = it } }
                     machine.run(commands.receiveAsFlow(), resume)
                     // run() returns only when the session ended.
                     mirror.cancel()
-                    frames.cancel()
+                    pictureEvents.cancel()
                     infoMirror.cancel()
                     transportMirror.cancel()
                 }
@@ -377,7 +357,6 @@ internal class LiveViewModel
                 if (live === running.machine) live = null
                 // A sitting started after this one was cancelled may already have taken the slot.
                 if (period === running) period = null
-                surface?.holder?.removeCallback(lostSurface)
                 withContext(NonCancellable) {
                     tuner?.close(session)
                     player.attach(null)

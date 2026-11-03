@@ -6,13 +6,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 
 /** What is playing, for the overlays: the banner of its block (as the picture's banner reads) and the item. */
 internal class Playing(
     val banner: Banner,
     val itemId: CanonicalId?,
-    /** The block as it was tuned: its real start and end, which an edit to the channel's rules does not move. */
-    val block: AiringBlock? = null,
+    /** The channel and the block as they were tuned (the block's real start and end, which an edit does not move). */
+    val channel: ChannelId,
+    val block: AiringBlock,
     /** Names this showing of the program: it survives [Screen.widenNext], and a new tune makes a new one. */
     val token: Any = Any(),
 )
@@ -100,7 +102,7 @@ internal class Screen(
     ) = synchronized(this) {
         val now = playing
         if (now?.token === expect.token) {
-            playing = Playing(now.banner.copy(next = next), now.itemId, now.block, now.token)
+            playing = Playing(now.banner.copy(next = next), now.itemId, now.channel, now.block, now.token)
             val state = shown
             val banner = (state as? LiveState.Watching)?.banner
             if (banner != null && !banner.actions) {
@@ -128,11 +130,18 @@ internal class Screen(
         next: LiveInfo,
     ) = infoOut.compareAndSet(expect, next)
 
+    /** True only while the sitting's picture is up: it is Watching, and no commit is waiting on the new sitting. */
+    val pictureUp: Boolean get() = synchronized(this) { !stale && shown is LiveState.Watching }
+
     /**
-     * True only while a picture is on screen: the sitting is Watching, no commit is waiting on the new sitting, and the
-     * video surface has not been lost since the last rendered frame.
+     * True while a frame is actually on screen: [pictureUp], and the video surface has not been lost since the last
+     * rendered frame. What a card's background goes by (over the picture, or over snow); the overlays that need only
+     * the sitting's picture use [pictureUp].
      */
-    val pictureUp: Boolean get() = synchronized(this) { !stale && frameOnScreen && shown is LiveState.Watching }
+    val frameShown: Boolean get() = synchronized(this) { !stale && frameOnScreen && shown is LiveState.Watching }
+
+    /** What is playing now, as it was tuned; null while no picture is up (tuning, or a commit not yet taken over). */
+    val playingNow: Playing? get() = synchronized(this) { playing.takeIf { !stale && shown is LiveState.Watching } }
 
     /** The video surface was destroyed or detached: nothing is on screen until [frameRendered]. */
     fun surfaceLost() = synchronized(this) { frameOnScreen = false }

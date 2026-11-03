@@ -774,6 +774,8 @@ internal class ChannelsViewModel
                     else -> {
                         // The domain's rule, as cable does: the next higher, else the next lower; never the lowest.
                         val gone = model.currentNumber
+                        // The lowest On is the fallback only when the gone channel's number was never known (it was
+                        // never On while this screen showed): there is no neighbour to name then.
                         if (gone == null) on.firstOrNull()?.id else on.map { it.id to it.number }.neighbourOf(gone)
                     }
                 }

@@ -67,6 +67,7 @@ import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -184,12 +185,10 @@ class GuideScreenTest {
                         if (showing.value) {
                             GuideRoot(
                                 vm,
-                                current,
-                                held = null,
+                                GuideOpening(current, null, openedAt.longValue),
                                 pictureHole = HOLE,
                                 onTune = { tuned += it },
                                 channels = { _, _, _, _ -> },
-                                openedAtNanos = openedAt.longValue,
                                 measure = measure,
                             )
                         }

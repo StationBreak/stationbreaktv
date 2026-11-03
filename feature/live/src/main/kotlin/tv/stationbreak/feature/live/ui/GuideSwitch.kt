@@ -4,7 +4,7 @@ package tv.stationbreak.feature.live.ui
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import tv.stationbreak.core.domain.lineup.HeldAiring
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.model.ChannelId
 
 /**
@@ -36,17 +36,17 @@ internal class GuideSwitch {
 
     /** What was playing on [channel] when the guide last opened, with its real start and end; null when unknown. */
     @Volatile
-    var held: HeldAiring? = null
+    var playing: PlayingAiring? = null
         private set
 
-    /** Opens the guide over [channel] (playing [held]), at [atNanos]. */
+    /** Opens the guide over [channel] (playing [playing]), at [atNanos]. */
     fun open(
         atNanos: Long,
         channel: ChannelId?,
-        held: HeldAiring? = null,
+        playing: PlayingAiring? = null,
     ) {
         this.channel = channel
-        this.held = held
+        this.playing = playing
         opened.value = atNanos
         open.value = true
     }

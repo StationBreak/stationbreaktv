@@ -50,6 +50,7 @@ import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
@@ -116,13 +117,11 @@ class GuideMenuUiTest {
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
                     GuideRoot(
                         vm,
-                        CH5,
-                        held = null,
+                        // One showing of the guide: the value live TV holds for it, the same on every recomposition.
+                        GuideOpening(CH5, null, guideOpenedAt),
                         pictureHole = HOLE,
                         onTune = { tuned += it },
                         channels = { _, openedAt, _, onDone -> Slot(openedAt, onDone) },
-                        // One showing of the guide: the value live TV holds for it, the same on every recomposition.
-                        openedAtNanos = guideOpenedAt,
                     )
                 }
             }
