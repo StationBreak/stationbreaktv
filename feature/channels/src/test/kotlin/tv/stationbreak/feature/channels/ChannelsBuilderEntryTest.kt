@@ -157,4 +157,57 @@ class ChannelsBuilderEntryTest {
             rig.vm.builderSaved(B, andWatch = false)
             assertEquals(ChannelsFocus.Row(B), rig.ui.focus)
         }
+
+    @Test
+    fun newChannelWhileTheAccessLoadsOpensTheBuilderOnceItIsEditable() =
+        channelsTest(trio) { rig ->
+            rig.editor.setAccess(LineupAccess.Loading)
+            rig.open(this)
+            rig.vm.select()
+            assertNull(rig.ui.builder)
+            assertNull(rig.ui.message)
+            rig.editor.setAccess(LineupAccess.Editable)
+            runCurrent()
+            assertEquals(BuilderMode.New, rig.ui.builder)
+        }
+
+    @Test
+    fun newChannelWhileTheAccessLoadsSaysSoOnlyWhenItResolvesToReadOnly() =
+        channelsTest(trio) { rig ->
+            rig.editor.setAccess(LineupAccess.Loading)
+            rig.open(this)
+            rig.vm.select()
+            rig.editor.setAccess(LineupAccess.ReadOnly)
+            runCurrent()
+            assertNull(rig.ui.builder)
+            assertEquals(ChannelsMessage.NotEditable, rig.ui.message)
+        }
+
+    @Test
+    fun aMoveOrBackCancelsTheBuilderWaitingOnTheAccess() =
+        channelsTest(trio) { rig ->
+            for (cancel in listOf({ rig.vm.move(false) }, { rig.vm.dismiss() })) {
+                rig.editor.setAccess(LineupAccess.Loading)
+                rig.open(this)
+                rig.vm.select()
+                cancel()
+                rig.editor.setAccess(LineupAccess.Editable)
+                runCurrent()
+                assertNull(rig.ui.builder)
+            }
+        }
+
+    @Test
+    fun aSavedRowThatNeverArrivesDoesNotStealTheFocusLater() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            rig.vm.select()
+            val made = ChannelId("custom:new")
+            rig.vm.builderSaved(made, andWatch = false)
+            rig.vm.move(false)
+            assertEquals(ChannelsFocus.Row(A), rig.ui.focus)
+            rig.repo.list.value = trio + summary(made, 11, kind = ChannelKind.Custom)
+            runCurrent()
+            assertEquals(ChannelsFocus.Row(A), rig.ui.focus)
+        }
 }

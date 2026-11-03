@@ -130,6 +130,13 @@ class ChannelsChoicesTest {
     }
 
     @Test
+    fun aCustomChannelFromANewerAppOffersNeitherCopyNorEdit() {
+        val kind = ChannelKind.UnusableCustom
+        val choices = actionsOf(row(ChannelGroup.On, kind), LineupAccess.Editable, reasonsRead = true)
+        assertEquals(listOf(Choice.Watch), choices)
+    }
+
+    @Test
     fun aCustomChannelOffersEdit() {
         val choices = actionsOf(row(ChannelGroup.On, ChannelKind.Custom), LineupAccess.Editable, reasonsRead = true)
         assertEquals(listOf(Choice.Watch, Choice.SwitchOff, Choice.Edit, Choice.ChangeNumber), choices)

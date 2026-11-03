@@ -117,6 +117,8 @@ internal class BuilderViewModel
                 session?.cancel()
                 previewJob?.cancel()
                 searchJob?.cancel()
+                // An event of an earlier visit that nobody collected must not end this one.
+                while (sent.tryReceive().isSuccess) Unit
                 val generation = model.generation + 1
                 model = BuilderModel(generation = generation, mode = mode, onSheet = mode is BuilderMode.Edit)
                 shown.value = model.toUi()
@@ -424,6 +426,10 @@ internal class BuilderViewModel
             synchronized(lock) {
                 val m = model
                 when {
+                    m.closing -> {
+                        Unit
+                    }
+
                     m.confirm != null -> {
                         closeConfirm()
                     }
@@ -442,27 +448,31 @@ internal class BuilderViewModel
                         }
                     }
 
-                    m.step == BuilderStep.Name -> {
-                        apply {
-                            it.copy(
-                                step = BuilderStep.Play,
-                                focus = BuilderFocus.PlayRow(PlayRowKind.Order),
-                            )
-                        }
-                    }
-
-                    m.step == BuilderStep.Play -> {
-                        apply { it.copy(step = BuilderStep.Sources, focus = BuilderFocus.Tab(it.tab)) }
-                    }
-
-                    m.dirty() -> {
-                        ask(BuilderConfirm.Leave)
+                    m.step != BuilderStep.Sources -> {
+                        apply { stepBack(it) }
                     }
 
                     else -> {
-                        sent.trySend(BuilderEvent.Closed)
+                        leave(m)
                     }
                 }
+            }
+        }
+
+        private fun stepBack(m: BuilderModel): BuilderModel =
+            if (m.step == BuilderStep.Name) {
+                m.copy(step = BuilderStep.Play, focus = BuilderFocus.PlayRow(PlayRowKind.Order))
+            } else {
+                m.copy(step = BuilderStep.Sources, focus = BuilderFocus.Tab(m.tab))
+            }
+
+        // Back from the first page: asks if there is work to lose, else closes (once).
+        private fun leave(m: BuilderModel) {
+            if (m.dirty()) {
+                ask(BuilderConfirm.Leave)
+            } else {
+                apply { it.copy(closing = true) }
+                sent.trySend(BuilderEvent.Closed)
             }
         }
 

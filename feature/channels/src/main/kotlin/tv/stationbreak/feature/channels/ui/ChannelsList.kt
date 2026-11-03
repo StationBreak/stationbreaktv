@@ -165,7 +165,7 @@ private fun labelsOf(row: ChannelRow): String =
         when (row.kind) {
             ChannelKind.Leftovers -> R.string.channels_label_leftovers
             ChannelKind.Custom -> R.string.channels_label_custom
-            ChannelKind.Unusable -> R.string.channels_label_unusable
+            ChannelKind.Unusable, ChannelKind.UnusableCustom -> R.string.channels_label_unusable
             ChannelKind.Starter -> null
         },
     ).map { stringResource(it) }

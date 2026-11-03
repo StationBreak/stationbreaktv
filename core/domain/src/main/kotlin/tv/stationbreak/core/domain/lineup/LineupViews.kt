@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.KidStatus
@@ -59,8 +62,11 @@ private val ChannelSource.kind: ChannelKind
             is ChannelSource.Starter -> ChannelKind.Starter
             is ChannelSource.Leftovers -> ChannelKind.Leftovers
             is ChannelSource.Custom -> ChannelKind.Custom
-            is ChannelSource.Unusable -> ChannelKind.Unusable
+            is ChannelSource.Unusable -> unusableKind(rawJson)
         }
+
+private fun unusableKind(rawJson: String): ChannelKind =
+    if (kindOf(rawJson) == "custom") ChannelKind.UnusableCustom else ChannelKind.Unusable
 
 private fun recipeName(
     catalog: StarterCatalogView,
@@ -78,3 +84,13 @@ private fun catalogName(
 ): String? =
     catalog.recipes.firstOrNull { LineupIds.starter(it.key) == channel.id }?.name
         ?: catalog.leftovers.firstOrNull { LineupIds.leftovers(it.key) == channel.id }?.name
+
+/** The "kind" a stored channel's raw JSON names ("custom" for the viewer's own), or null when it names none. */
+@Suppress("SwallowedException") // Raw JSON that does not parse is not a custom channel's.
+internal fun kindOf(rawJson: String): String? =
+    try {
+        val kind = (Json.parseToJsonElement(rawJson) as? JsonObject)?.get("kind") as? JsonPrimitive
+        kind?.takeIf { it.isString }?.content
+    } catch (_: IllegalArgumentException) {
+        null
+    }

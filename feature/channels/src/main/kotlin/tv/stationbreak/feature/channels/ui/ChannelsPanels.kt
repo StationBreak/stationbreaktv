@@ -59,7 +59,7 @@ internal fun ChannelsPanelView(
                 }
             }
         Text(text, Modifier.testTag(ChannelsTags.PANEL_TEXT), style = MaterialTheme.typography.titleMedium)
-        if (panel is ChannelsPanel.Actions && kindOf(ui, panel) == ChannelKind.Unusable) {
+        if (panel is ChannelsPanel.Actions && kindOf(ui, panel) == ChannelKind.UnusableCustom) {
             Text(
                 stringResource(R.string.builder_newer_app_channel),
                 Modifier.testTag(ChannelsTags.NEWER_APP),

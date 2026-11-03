@@ -428,4 +428,18 @@ class BuilderStepsTest {
             assertNull(rig.ui.message)
             assertNull(rig.ui.confirm)
         }
+
+    @Test
+    fun aFastDoubleBackClosesOnce() =
+        builderTest { rig ->
+            rig.openNew()
+            rig.vm.back()
+            rig.vm.back()
+            rig.settle()
+            assertEquals(listOf(BuilderEvent.Closed), rig.events)
+            rig.events.clear()
+            rig.openNew()
+            rig.settle()
+            assertTrue(rig.events.isEmpty())
+        }
 }

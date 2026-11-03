@@ -7,8 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -92,11 +94,14 @@ internal fun ChannelsRoot(
     LaunchedEffect(keys, building) { if (!building) keys.requestFocus() }
     val done by rememberUpdatedState(onDone)
     val resources = LocalResources.current
-    val actions =
-        remember(viewModel, builderViewModel, openedAtNanos) {
-            val copyName = { name: String -> resources.getString(R.string.builder_copy_suffix, name) }
-            ChannelsActions(viewModel, { openBuilder(builderViewModel, it, copyName) }) { done(it) }
-        }
+    val actions = remember(viewModel, openedAtNanos) { ChannelsActions(viewModel) { done(it) } }
+    // The builder is made clean for its mode before it is drawn, so it never shows an earlier visit.
+    var opened by remember { mutableStateOf<BuilderMode?>(null) }
+    LaunchedEffect(builderViewModel, ui.builder) {
+        val mode = ui.builder
+        if (mode != null) openBuilder(builderViewModel, mode) { resources.getString(R.string.builder_copy_suffix, it) }
+        opened = mode
+    }
     Box(modifier) {
         ChannelsScreen(
             ui = ui,
@@ -107,7 +112,9 @@ internal fun ChannelsRoot(
                     .onKeyEvent { channelsKey(it, actions::pad) }
                     .focusable(),
         )
-        if (building) BuilderRoot(builderViewModel, pictureHole, onEvent = actions::builderEnded)
+        if (building && opened == ui.builder) {
+            BuilderRoot(builderViewModel, pictureHole, onEvent = actions::builderEnded)
+        }
     }
 }
 
@@ -177,7 +184,6 @@ internal fun padToAct(
  */
 internal class ChannelsActions(
     private val vm: ChannelsViewModel,
-    private val openBuilder: (BuilderMode) -> Unit,
     private val onDone: (ChannelId?) -> Unit,
 ) {
     // The screen is finished once: a key that follows (a fast double Back) is ignored.
@@ -194,9 +200,6 @@ internal class ChannelsActions(
             inPanel -> panel(pad)
             else -> list(pad)
         }
-        // The builder is made clean in the same key press that asked for it, so it never shows an earlier visit.
-        vm.ui.value.builder
-            ?.let(openBuilder)
     }
 
     /** The builder ended: a save (and watch) finishes the screen, anything else shows the list again. */

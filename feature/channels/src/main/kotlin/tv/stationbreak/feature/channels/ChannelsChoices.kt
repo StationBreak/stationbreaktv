@@ -34,7 +34,7 @@ internal fun actionsOf(
         // Until the reasons have been read an On row may be one with nothing to air, so Watch is not offered yet.
         if (on && reasonsRead && row.reason == null) add(Choice.Watch)
         if (access != LineupAccess.Editable) return@buildList
-        if (row.kind == ChannelKind.Unusable) return@buildList
+        if (row.kind.unreadable) return@buildList
         add(if (on) Choice.SwitchOff else Choice.SwitchOn)
         // The builder works on a starter (as a copy) or a custom channel (in place); a leftovers channel has no rules.
         if (row.kind == ChannelKind.Starter) add(Choice.CopyToCustomise)

@@ -706,15 +706,6 @@ private fun LineupChannel.isTheViewers(): Boolean =
         else -> false
     }
 
-@Suppress("SwallowedException") // Raw JSON that does not parse is not a custom channel's.
-private fun kindOf(rawJson: String): String? =
-    try {
-        val kind = (Json.parseToJsonElement(rawJson) as? JsonObject)?.get("kind") as? JsonPrimitive
-        kind?.takeIf { it.isString }?.content
-    } catch (_: IllegalArgumentException) {
-        null
-    }
-
 /** An account in canonical form, as the store keys it, with its IDs for the planner. */
 private class Owner(
     val key: LibraryAccount,

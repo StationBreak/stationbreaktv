@@ -541,6 +541,8 @@ class ChannelsScreenTest {
             )
         builder.openResult = OpenResult.Opened(draft, "Alpha")
         show(ALPHA)
+        // Watch is offered once the reasons are read; until then Copy is one choice earlier.
+        until { exists(ChannelsTags.reason(BRAVO)) }
         // Watch, Switch off, Copy to customise.
         press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
         until { exists(BuilderTags.SCREEN) && !exists(ChannelsTags.PANEL) }
@@ -551,14 +553,24 @@ class ChannelsScreenTest {
     }
 
     @Test
-    fun aChannelFromANewerAppOffersNeitherCopyNorEditAndSaysWhy() {
+    fun aCustomChannelFromANewerAppOffersNeitherCopyNorEditAndSaysWhy() {
         val newer = ChannelId("custom:newer")
-        show(newer, extra = listOf(summary(newer, 5, "Newer", kind = ChannelKind.Unusable)))
+        show(newer, extra = listOf(summary(newer, 5, "Newer", kind = ChannelKind.UnusableCustom)))
         press(Pad.Select)
         until { exists(ChannelsTags.PANEL) }
         compose
             .onNodeWithTag(ChannelsTags.NEWER_APP, useUnmergedTree = true)
             .assertTextContains("newer version of the app", substring = true)
+        listOf(ChannelsTags.ACTION_COPY, ChannelsTags.ACTION_EDIT).forEach { assertTrue(it, !exists(it)) }
+    }
+
+    @Test
+    fun anUnreadableStarterKeepsTheOrdinaryPanel() {
+        val old = ChannelId("starter:old")
+        show(old, extra = listOf(summary(old, 5, "Old", kind = ChannelKind.Unusable)))
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+        assertTrue(!exists(ChannelsTags.NEWER_APP))
         listOf(ChannelsTags.ACTION_COPY, ChannelsTags.ACTION_EDIT).forEach { assertTrue(it, !exists(it)) }
     }
 

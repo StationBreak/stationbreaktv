@@ -107,6 +107,8 @@ internal class ChannelsViewModel
             val builder: BuilderMode? = null,
             /** A channel the builder just made, to focus when its row arrives. */
             val pendingFocus: ChannelId? = null,
+            /** The builder was asked for while the lineup's access was still loading: opened once it is known. */
+            val wantBuilder: BuilderMode? = null,
         )
 
         private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -243,6 +245,7 @@ internal class ChannelsViewModel
                         picker = (next.panel as? ChannelsPanel.Number)?.let { PickerState.of(it.start) },
                     )
             }
+            next = builderWhenKnown(next)
             val ids = next.rows.map { it.id }
             val pending = next.pendingFocus
             next =
@@ -253,6 +256,16 @@ internal class ChannelsViewModel
                 }
             model = next.copy(focus = mended(next, old.rows.map { it.id }, ids))
             if (visible) shown.value = derive(model)
+        }
+
+        // A builder asked for while the access loaded opens when it is Editable, or says so when it is ReadOnly.
+        private fun builderWhenKnown(m: Model): Model {
+            val want = m.wantBuilder ?: return m
+            return when (m.access) {
+                LineupAccess.Editable -> m.copy(builder = want, wantBuilder = null)
+                LineupAccess.ReadOnly -> m.copy(wantBuilder = null, message = ChannelsMessage.NotEditable)
+                LineupAccess.Loading -> m
+            }
         }
 
         /** A D-pad key inside the open panel: the choice moves, or the number picker's digit or position does. */
@@ -430,7 +443,7 @@ internal class ChannelsViewModel
                 val stops = listOf(ChannelsFocus.New) + ids.map { ChannelsFocus.Row(it) } + ChannelsFocus.Reset
                 val at = stops.indexOf(model.focus)
                 val to = if (at < 0) 0 else (if (up) at - 1 else at + 1).coerceIn(0, stops.lastIndex)
-                apply { it.copy(focus = stops[to]) }
+                apply { it.copy(focus = stops[to], wantBuilder = null, pendingFocus = null) }
             }
         }
 
@@ -439,10 +452,23 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 if (model.builder != null) return
                 when (val focus = model.focus) {
-                    is ChannelsFocus.Row -> apply { it.copy(panel = ChannelsPanel.Actions(focus.id), message = null) }
-                    ChannelsFocus.New -> openBuilder(BuilderMode.New)
-                    ChannelsFocus.Reset -> askReset()
-                    null -> Unit
+                    is ChannelsFocus.Row -> {
+                        apply {
+                            it.copy(panel = ChannelsPanel.Actions(focus.id), message = null, pendingFocus = null)
+                        }
+                    }
+
+                    ChannelsFocus.New -> {
+                        openBuilder(BuilderMode.New)
+                    }
+
+                    ChannelsFocus.Reset -> {
+                        askReset()
+                    }
+
+                    null -> {
+                        Unit
+                    }
                 }
             }
         }
@@ -450,14 +476,19 @@ internal class ChannelsViewModel
         // Shows the builder for [mode] when the lineup can be written; the focus stays on what it left from.
         private fun openBuilder(mode: BuilderMode) {
             synchronized(lock) {
+                if (model.access == LineupAccess.Loading) {
+                    // Not known yet whether the lineup can be written: ask again when it is.
+                    apply { it.copy(wantBuilder = mode, panel = null, holder = null, message = null) }
+                    return
+                }
                 if (notEditable()) return
-                apply { it.copy(builder = mode, panel = null, holder = null, message = null) }
+                apply { it.copy(builder = mode, panel = null, holder = null, message = null, pendingFocus = null) }
             }
         }
 
         /** The builder was left without making a channel: the list shows again, on the row or New it left from. */
         fun builderClosed() {
-            synchronized(lock) { apply { it.copy(builder = null) } }
+            synchronized(lock) { apply { it.copy(builder = null, pendingFocus = null) } }
         }
 
         /**
@@ -480,6 +511,7 @@ internal class ChannelsViewModel
                 if (model.builder != null) return
                 apply {
                     when {
+                        it.wantBuilder != null -> it.copy(wantBuilder = null)
                         it.panel != null -> it.copy(panel = null, holder = null)
                         it.confirmingReset -> it.copy(confirmingReset = false)
                         else -> it.copy(message = null)

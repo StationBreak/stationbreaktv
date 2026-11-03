@@ -546,6 +546,22 @@ class LineupServiceTest {
         }
 
     @Test
+    fun anUnreadableCustomChannelIsToldFromOtherUnreadableOnes() =
+        runBlocking<Unit> {
+            val custom = channel("custom:Newer", 600, ChannelState.On, ChannelSource.Unusable("""{"kind":"custom"}"""))
+            val starter = channel("starter:old", 310, ChannelState.On, ChannelSource.Unusable("""{"kind":"starter"}"""))
+            val corrupt = channel("custom:bad", 601, ChannelState.On, ChannelSource.Unusable("not json"))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(custom, starter, corrupt)))
+
+            val summaries = service.channels(ACCOUNT).first { it.isNotEmpty() }
+
+            assertEquals(
+                listOf(ChannelKind.Unusable, ChannelKind.UnusableCustom, ChannelKind.Unusable),
+                summaries.map { it.kind },
+            )
+        }
+
+    @Test
     fun aLineupThatDoesNotRoundTripIsRejectedNotSaved() =
         runBlocking<Unit> {
             val garbling = encodingWith { _, _ -> "{nope".encodeToByteArray() }

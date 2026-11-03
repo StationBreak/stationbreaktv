@@ -55,6 +55,8 @@ internal data class BuilderModel(
     val held: Map<Int, String> = emptyMap(),
     /** A new channel was made: no further save until the builder is opened again. */
     val saved: Boolean = false,
+    /** Closed was sent for this visit: a further Back (a fast double press) sends nothing. */
+    val closing: Boolean = false,
 )
 
 internal fun BuilderModel.editing() = mode is BuilderMode.Edit
