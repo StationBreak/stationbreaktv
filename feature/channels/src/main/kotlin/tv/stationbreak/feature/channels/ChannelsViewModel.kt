@@ -41,6 +41,9 @@ import kotlin.time.Duration.Companion.seconds
 /** How long the lineup stays quiet before the reasons are read again (a burst of edits is read once). */
 internal val REASONS_DEBOUNCE = 1.seconds
 
+/** How long a New, Copy or Edit press waits for the lineup to be known before it says it is not ready. */
+internal val ACCESS_WAIT = 10.seconds
+
 /**
  * Holds channel management (spec 21): the lineup as rows, the focus, the dialog over it, and the changes the viewer
  * makes through the [ChannelEditor]. The ViewModel outlives the screen (it is scoped to live's back-stack entry), so
@@ -117,6 +120,7 @@ internal class ChannelsViewModel
         private val lock = Any()
         private var model = Model()
         private var session: Job? = null
+        private var waiting: Job? = null
 
         /** Between [open] and [close]: nothing is published outside it. */
         private var visible = false
@@ -132,6 +136,7 @@ internal class ChannelsViewModel
             val generation: Int
             synchronized(lock) {
                 session?.cancel()
+                waiting?.cancel()
                 generation = model.generation + 1
                 // New is always drawn, so with no channel to start on the focus is on it at once, without waiting for
                 // an account or a list; a channel to start on is waited for (until the first list, see onList).
@@ -150,6 +155,7 @@ internal class ChannelsViewModel
         fun close() {
             synchronized(lock) {
                 session?.cancel()
+                waiting?.cancel()
                 session = null
                 visible = false
                 shown.value = ChannelsUi.Empty
@@ -418,6 +424,7 @@ internal class ChannelsViewModel
                 picker = m.picker,
                 reasonsRead = m.reasonsRead,
                 builder = m.builder,
+                gettingReady = m.wantBuilder != null,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> =
@@ -487,13 +494,34 @@ internal class ChannelsViewModel
         private fun openBuilder(mode: BuilderMode) {
             synchronized(lock) {
                 if (model.access == LineupAccess.Loading) {
-                    // Not known yet whether the lineup can be written: ask again when it is.
+                    // Not known yet whether the lineup can be written: ask again when it is, but not for ever.
                     apply { it.copy(wantBuilder = mode, panel = null, holder = null, message = null) }
+                    giveUpWaitingLater(model.generation, mode)
                     return
                 }
                 if (notEditable()) return
                 apply { it.copy(builder = mode, panel = null, holder = null, message = null, pendingFocus = null) }
             }
+        }
+
+        // A wait that is still on after ACCESS_WAIT is dropped and says so; one that resolved (or was cancelled by a
+        // key) is left alone, and a newer wait is not cut short by an older timer.
+        private fun giveUpWaitingLater(
+            generation: Int,
+            mode: BuilderMode,
+        ) {
+            waiting?.cancel()
+            waiting =
+                scope.launch {
+                    delay(ACCESS_WAIT)
+                    change(generation) {
+                        if (it.wantBuilder == mode && it.access == LineupAccess.Loading) {
+                            it.copy(wantBuilder = null, message = ChannelsMessage.NotReady)
+                        } else {
+                            it
+                        }
+                    }
+                }
         }
 
         /** The builder was left without making a channel: the list shows again, on the row or New it left from. */

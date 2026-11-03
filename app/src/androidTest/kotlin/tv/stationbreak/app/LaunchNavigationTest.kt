@@ -201,6 +201,17 @@ class LaunchNavigationTest {
         press(keyCode)
     }
 
+    // The builder opens once the lineup is known to be editable; on a timeout say what the screen shows instead.
+    private fun awaitBuilder() {
+        try {
+            compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.BUILDER_SOURCES_STEP) > 0 }
+        } catch (timeout: ComposeTimeoutException) {
+            val notes = listOf(ChannelsTags.GETTING_READY, ChannelsTags.NOT_EDITABLE, ChannelsTags.MESSAGE)
+            val shown = notes.filter { count(it) > 0 }
+            throw AssertionError("the builder never opened; the screen shows: $shown", timeout)
+        }
+    }
+
     // The screen's focus is set when its lineup arrives, a moment after the screen is up. A timeout says what was on
     // screen, so a failure explains itself.
     private fun awaitSelected(tag: String) {
@@ -320,7 +331,7 @@ class LaunchNavigationTest {
         // builder's first step.
         awaitSelected(ChannelsTags.NEW_CHANNEL)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitExists(ChannelsTags.BUILDER_SOURCES_STEP)
+        awaitBuilder()
 
         // Back leaves the builder for the list, on New channel; the next Back leaves the list for the guide.
         press(KeyEvent.KEYCODE_BACK)

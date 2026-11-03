@@ -4,9 +4,12 @@
 package tv.stationbreak.feature.channels
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.LineupAccess
@@ -169,6 +172,60 @@ class ChannelsBuilderEntryTest {
             rig.editor.setAccess(LineupAccess.Editable)
             runCurrent()
             assertEquals(BuilderMode.New, rig.ui.builder)
+        }
+
+    @Test
+    fun aPressWaitingOnTheAccessShowsTheGettingReadyNoteUntilItResolves() =
+        channelsTest(trio) { rig ->
+            rig.editor.setAccess(LineupAccess.Loading)
+            rig.open(this)
+            assertFalse(rig.ui.gettingReady)
+            rig.vm.select()
+            assertTrue(rig.ui.gettingReady)
+            rig.editor.setAccess(LineupAccess.Editable)
+            runCurrent()
+            assertFalse(rig.ui.gettingReady)
+            assertEquals(BuilderMode.New, rig.ui.builder)
+        }
+
+    @Test
+    fun aWaitStillLoadingAfterTenSecondsIsDroppedWithTheNotReadyMessage() =
+        channelsTest(trio) { rig ->
+            rig.editor.setAccess(LineupAccess.Loading)
+            rig.open(this)
+            rig.vm.select()
+            advanceTimeBy(9_999)
+            runCurrent()
+            assertTrue(rig.ui.gettingReady)
+            assertNull(rig.ui.message)
+            advanceTimeBy(2)
+            runCurrent()
+            assertFalse(rig.ui.gettingReady)
+            assertEquals(ChannelsMessage.NotReady, rig.ui.message)
+            assertNull(rig.ui.builder)
+            // The access arriving later does not open a builder nobody is waiting for.
+            rig.editor.setAccess(LineupAccess.Editable)
+            runCurrent()
+            assertNull(rig.ui.builder)
+            // A new press works.
+            rig.vm.select()
+            assertEquals(BuilderMode.New, rig.ui.builder)
+        }
+
+    @Test
+    fun aWaitThatResolvedInTimeIsNotDroppedByAnOlderTimeout() =
+        channelsTest(trio) { rig ->
+            rig.editor.setAccess(LineupAccess.Loading)
+            rig.open(this)
+            rig.vm.select()
+            advanceTimeBy(5_000)
+            rig.editor.setAccess(LineupAccess.Editable)
+            runCurrent()
+            assertEquals(BuilderMode.New, rig.ui.builder)
+            advanceTimeBy(20_000)
+            runCurrent()
+            assertEquals(BuilderMode.New, rig.ui.builder)
+            assertNull(rig.ui.message)
         }
 
     @Test

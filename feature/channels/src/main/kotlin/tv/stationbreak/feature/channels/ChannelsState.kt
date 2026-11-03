@@ -56,6 +56,9 @@ internal enum class ChannelsMessage {
     LastOn,
     NoNumber,
     NotEditable,
+
+    /** A press that waited for the lineup to be known gave up: it did not become known in time. */
+    NotReady,
     NotChosenYet,
     SaveFailed,
     Failed,
@@ -94,6 +97,8 @@ internal data class ChannelsUi(
     val reasonsRead: Boolean = false,
     /** The channel builder is showing over the list, opened for this; the screen's keys are the builder's. */
     val builder: BuilderMode? = null,
+    /** A New, Copy or Edit press is waiting for the lineup to be known (whether it can be changed). */
+    val gettingReady: Boolean = false,
 ) {
     companion object {
         val Empty =

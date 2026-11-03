@@ -25,6 +25,8 @@
     <string name="channels_refused_kids_band">Numbers %1$d to %2$d are for kids channels.</string>
     <string name="channels_refused_last_on">At least one channel stays on.</string>
     <string name="channels_refused_no_number">There is no free number for this channel.</string>
+    <string name="channels_getting_ready">Getting your channels ready</string>
+    <string name="channels_not_ready">Channels can\'t be changed right now.</string>
     <string name="channels_not_editable">Channels can\'t be changed on this TV until the app is updated.</string>
     <string name="channels_save_failed">Couldn\'t save that change. Try again.</string>
     <string name="channels_failed">Something went wrong. Nothing was changed.</string>

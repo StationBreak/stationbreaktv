@@ -20,6 +20,9 @@ object ChannelsTags {
     /** The New channel row above the first group. */
     const val NEW_CHANNEL = "channels:new"
     const val CHOOSING = "channels:choosing"
+
+    /** The note shown while a New, Copy or Edit press waits for the lineup to be known. */
+    const val GETTING_READY = "channels:gettingReady"
     const val PANEL = "channels:panel"
     const val PANEL_TEXT = "channels:panel:text"
 
