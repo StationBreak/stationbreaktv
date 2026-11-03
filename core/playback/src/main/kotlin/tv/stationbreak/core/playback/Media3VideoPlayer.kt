@@ -259,10 +259,19 @@ class Media3VideoPlayer(
     override fun preload(
         key: String,
         source: PlayerSource,
-    ) = onPlayerThread {
+    ) {
+        PreloadLog.line("preload called key=$key")
+        onPlayerThread { startPreload(key, source) }
+    }
+
+    private fun startPreload(
+        key: String,
+        source: PlayerSource,
+    ) {
+        PreloadLog.line("preload running key=$key")
         if (preloads.containsKey(key)) {
             PreloadLog.line("skipped key=$key reason=alreadyPresent")
-            return@onPlayerThread
+            return
         }
         val item = mediaItem(source, PRELOAD_ID + key)
         val rank = nextRank++

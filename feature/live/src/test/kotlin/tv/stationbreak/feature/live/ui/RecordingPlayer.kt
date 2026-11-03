@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.PreloadState
 import tv.stationbreak.core.playback.VideoPlayer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -51,5 +52,18 @@ internal class RecordingPlayer : VideoPlayer {
 
     override fun release() {
         log += "release"
+    }
+
+    override fun preload(
+        key: String,
+        source: PlayerSource,
+    ) {
+        log += "preload:$key"
+    }
+
+    override fun preloadState(key: String): PreloadState? = PreloadState(ageMs = 5, setupMs = 3)
+
+    override fun dropPreload(key: String) {
+        log += "dropPreload:$key"
     }
 }
