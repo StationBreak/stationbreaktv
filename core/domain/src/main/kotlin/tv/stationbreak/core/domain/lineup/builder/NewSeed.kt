@@ -14,8 +14,11 @@ fun interface NewSeed {
         private const val BYTE_MASK = 0xFFuL
         private const val BYTE_BITS = 8
 
-        /** The production source (over a `SecureRandom`): [random]'s next eight bytes as an unsigned number. */
-        fun secure(random: Random = SecureRandom()): NewSeed =
+        /** The production source: a `SecureRandom`'s next eight bytes as an unsigned number. */
+        fun secure(): NewSeed = secure(SecureRandom())
+
+        /** The source over [random], for tests that need a known stream: the production entry point takes none. */
+        internal fun secure(random: Random): NewSeed =
             NewSeed {
                 val bytes = ByteArray(SEED_BYTES)
                 random.nextBytes(bytes)

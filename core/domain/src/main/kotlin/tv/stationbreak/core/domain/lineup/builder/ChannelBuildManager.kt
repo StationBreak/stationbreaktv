@@ -289,7 +289,10 @@ private const val LOW_NIBBLE = 0xF
 private const val NIBBLE_BITS = 4
 
 /** The unique part of a new custom channel's ID: 128 random bits as 32 lower-case hex digits. */
-fun newCustomId(random: Random = SecureRandom()): String {
+fun newCustomId(): String = newCustomId(SecureRandom())
+
+// For tests that need a known stream: the production entry point takes no random source.
+internal fun newCustomId(random: Random): String {
     val bytes = ByteArray(ID_BYTES).also(random::nextBytes)
     val digits = "0123456789abcdef"
     return buildString(ID_BYTES * 2) {

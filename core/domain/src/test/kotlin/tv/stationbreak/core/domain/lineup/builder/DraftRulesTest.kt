@@ -10,6 +10,9 @@ import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filler
 import tv.stationbreak.core.rules.FillerMode
 import tv.stationbreak.core.rules.Ordering
+import tv.stationbreak.core.rules.RulesReader
+import tv.stationbreak.core.rules.RulesResult
+import tv.stationbreak.core.rules.RulesWriter
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.rules.Timing
 import java.security.SecureRandom
@@ -256,6 +259,29 @@ class DraftRulesTest {
         assertEquals(listOf<KeptItem>(KeptItem.NoCaps), draft.kept?.items)
 
         assertEquals(emptyList(), draft.copy(seriesCap = 3, filmCap = 1).keptInForce)
+    }
+
+    @Test
+    fun aDraftAtTheFormatsLimitsWritesRulesThatReadBackUnchanged() {
+        val filters =
+            DraftFilters(
+                genres = List(256) { "Genre $it" },
+                yearFrom = 1,
+                yearTo = 9999,
+                minMinutes = 1,
+                maxMinutes = 1440,
+                only = OnlyKind.Films,
+            )
+        val left = List(256) { DraftSource.Tag("Left $it", "Left $it") }
+        val extreme =
+            draft(sources = List(256) { DraftSource.Genre("Source $it", "Source $it") })
+                .copy(filters = filters, leaveOut = left, seriesCap = 1, filmCap = 10)
+        assertNull(extreme.problem())
+
+        val rules = toRules(extreme)
+        val text = RulesWriter.write(rules)
+
+        assertEquals(rules, (RulesReader.read(text) as RulesResult.Ok).rules)
     }
 
     @Test
