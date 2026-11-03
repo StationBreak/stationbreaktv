@@ -3,6 +3,8 @@ package tv.stationbreak.core.engine
 
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
@@ -11,7 +13,7 @@ import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.rules.Timing
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 
 class SchedulerSettingsFromRulesTest {
     private val base = rules(listOf(Source.Genre("Comedy")))
@@ -53,22 +55,46 @@ class SchedulerSettingsFromRulesTest {
         assertEquals(330, base.copy(timing = timing).toSchedulerSettings().startMinuteOfDay)
     }
 
+    private val v2 = base.copy(formatVersion = 2)
+
     @Test
-    fun aVersion2FeatureIsRefusedBySchedulerSettings() {
-        val v2 = base.copy(formatVersion = 2)
-        val features =
-            listOf(
-                v2.copy(ordering = Ordering(OrderingMode.Rotation)),
-                v2.copy(ordering = Ordering(OrderingMode.InOrder)),
-                v2.copy(sources = listOf(Source.Item(idOf(1)))),
-                v2.copy(exclusions = listOf(Source.Item(idOf(1)))),
-                v2.copy(filters = Filters(null, null, null, null, null, null)),
-                v2.copy(ordering = Ordering(OrderingMode.Shuffle, OrderingCaps(null, null))),
-            )
-        for ((i, rules) in features.withIndex()) {
-            val e = assertFailsWith<IllegalArgumentException>("case $i") { rules.toSchedulerSettings() }
-            assertEquals("Rules format version 2 features are not scheduled yet", e.message)
-        }
+    fun rotationGivesCapsWithDefaults3And1() {
+        val s = v2.copy(ordering = Ordering(OrderingMode.Rotation)).toSchedulerSettings()
+        assertEquals(OrderingMode.Rotation, s.orderingMode)
+        assertEquals(Caps(3, 1), s.caps)
+        val given = v2.copy(ordering = Ordering(OrderingMode.Rotation, OrderingCaps(5, null))).toSchedulerSettings()
+        assertEquals(Caps(5, 1), given.caps)
+    }
+
+    @Test
+    fun inOrderGivesNoCaps() {
+        val s = v2.copy(ordering = Ordering(OrderingMode.InOrder, OrderingCaps(4, 2))).toSchedulerSettings()
+        assertEquals(OrderingMode.InOrder, s.orderingMode)
+        assertNull(s.caps)
+    }
+
+    @Test
+    fun shuffleWithoutCapsGivesNoneAndWithCapsGivesThem() {
+        assertNull(v2.copy(ordering = Ordering(OrderingMode.Shuffle)).toSchedulerSettings().caps)
+        val capped = v2.copy(ordering = Ordering(OrderingMode.Shuffle, OrderingCaps(2, 2))).toSchedulerSettings()
+        assertEquals(Caps(2, 2), capped.caps)
+    }
+
+    @Test
+    fun aRuntimeFilterBecomesMilliseconds() {
+        val both = v2.copy(filters = Filters(null, null, null, 30, 120, null)).toSchedulerSettings()
+        assertEquals(RuntimeFilter(1_800_000L, 7_200_000L), both.runtimeFilter)
+        val minOnly = v2.copy(filters = Filters(null, null, null, 45, null, null)).toSchedulerSettings()
+        assertEquals(RuntimeFilter(2_700_000L, null), minOnly.runtimeFilter)
+        val genresOnly = v2.copy(filters = Filters(listOf("Comedy"), null, null, null, null, null))
+        assertNull(genresOnly.toSchedulerSettings().runtimeFilter)
+    }
+
+    @Test
+    fun v1RulesGiveV1Settings() {
+        val s = base.toSchedulerSettings()
+        assertNull(s.caps)
+        assertNull(s.runtimeFilter)
     }
 
     @Test

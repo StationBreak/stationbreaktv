@@ -37,7 +37,7 @@ class ContinuityTest {
         while (true) {
             val channel = generateAny(gen, oneGridSlotEach)
             val s = channel.settings
-            val cycle = Timeline.cycle(s, EpochPool.build(s, channel.items, 0L), Epochs.seedN(s.seed, 0L))
+            val cycle = Timeline.cycle(s, EpochPool.build(s, channel.items, 0L), Epochs.seedN(s.seed, 0L), noGroups())
             if (cycle.isNotEmpty()) return channel
         }
     }
@@ -100,8 +100,9 @@ class ContinuityTest {
         items: List<ScheduleItem>,
         n: Long,
     ): Position {
-        val day = buildDay(settings, items, n)
-        val cycle = Timeline.cycle(settings, EpochPool.build(settings, items, n), Epochs.seedN(settings.seed, n))
+        val day = buildDay(settings, items, n, noFilms())
+        val pool = EpochPool.build(settings, items, n)
+        val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), noGroups())
         val slots = cycle.map { DayOracle.slot(settings, it) }
         val total = slots.sum()
         val sOnClock = day.startMs + settings.offsetMs

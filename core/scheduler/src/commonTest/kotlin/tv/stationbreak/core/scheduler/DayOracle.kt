@@ -57,7 +57,7 @@ internal object DayOracle {
         settings: SchedulerSettings,
         pool: List<ScheduleItem>,
         seedN: ULong,
-    ): List<Run> = Runs.cycle(settings, pool, seedN).filter { slot(settings, it) <= settings.epochMs }
+    ): List<Run> = Runs.cycle(settings, pool, seedN, noGroups()).filter { slot(settings, it) <= settings.epochMs }
 
     /** Blocks of the runs that fit, and the index of the first run that did not (in the cycle, after wrapping). */
     private class Regular(

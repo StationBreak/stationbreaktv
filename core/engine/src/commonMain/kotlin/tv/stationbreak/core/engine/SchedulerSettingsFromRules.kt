@@ -3,28 +3,48 @@ package tv.stationbreak.core.engine
 
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Timing
 
 private const val MS_PER_SECOND = 1_000L
+private const val MS_PER_MINUTE = 60_000L
 private const val MINUTES_PER_HOUR = 60
 
 /**
  * The scheduler's numbers for a channel: its ordering, seed and timing with the rules-format defaults applied
- * (`effective…`), so the defaults are written once, in `core:rules`. Rules that use a version 2 feature are refused
- * (`IllegalArgumentException`) until the scheduler builds them.
+ * (`effective…`), so the defaults are written once, in `core:rules`. The caps are the caps in force
+ * ([ChannelRules.effectiveCaps]: `rotation`, or a `shuffle` that has them), and the runtime filter is in milliseconds.
  */
-fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
-    require(requiredVersion <= 1) { "Rules format version 2 features are not scheduled yet" }
-    return settingsOf(orderingMode, seed, timing)
-}
+fun ChannelRules.toSchedulerSettings(): SchedulerSettings =
+    settingsOf(
+        orderingMode,
+        seed,
+        timing,
+        caps = effectiveCaps?.let { Caps(it.effectiveSeries, it.effectiveFilm) },
+        runtimeFilter = filters?.let { runtimeFilterOf(it) },
+    )
+
+private fun runtimeFilterOf(filters: Filters): RuntimeFilter? =
+    if (filters.minRuntimeMinutes == null && filters.maxRuntimeMinutes == null) {
+        null
+    } else {
+        RuntimeFilter(
+            minMs = filters.minRuntimeMinutes?.let { it * MS_PER_MINUTE },
+            maxMs = filters.maxRuntimeMinutes?.let { it * MS_PER_MINUTE },
+        )
+    }
 
 internal fun settingsOf(
     orderingMode: OrderingMode,
     seed: Seed,
     timing: Timing,
+    caps: Caps?,
+    runtimeFilter: RuntimeFilter?,
 ): SchedulerSettings =
     SchedulerSettings(
         orderingMode = orderingMode,
@@ -37,6 +57,8 @@ internal fun settingsOf(
         startMinuteOfDay = minuteOfDay(timing.broadcastDay.effectiveStart),
         graceHours = timing.effectiveGraceHours,
         minRuntimeMs = timing.effectiveMinRuntimeSeconds * MS_PER_SECOND,
+        caps = caps,
+        runtimeFilter = runtimeFilter,
     )
 
 // The start is "HH:MM", already checked by BroadcastDay.

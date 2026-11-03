@@ -6,6 +6,7 @@ import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -41,7 +42,8 @@ class BackToBackLayoutTest {
             )
         }
 
-    private fun blocksOf(settings: SchedulerSettings): List<ScheduleBlock> = buildDay(settings, items, 0L).blocks
+    private fun blocksOf(settings: SchedulerSettings): List<ScheduleBlock> =
+        buildDay(settings, items, 0L, FilmCollections.of(emptyMap())).blocks
 
     private fun assertBackToBack(blocks: List<ScheduleBlock>) {
         val slates = blocks.withIndex().filter { it.value.content !is ScheduleContent.Program }

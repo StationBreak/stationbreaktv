@@ -32,6 +32,12 @@ import tv.stationbreak.core.rules.Source
  * ([KidHold.hasChildrensRating]); the ladder applies as usual (ADR-0020). This is the app's narrowing, not
  * rules-format behaviour: rules format v1 knows nothing of it, and [PoolPolicy.Open] is exactly the evaluation above.
  *
+ * **Filters.** The `genres`, `years` and `kind` parts of `rules.filters` apply to what remains after the exclusions and
+ * the policy hold, before the ceiling ([ItemFilters]). The `runtime` part is the scheduler's (`EpochPool`).
+ *
+ * **What a pool depends on.** The snapshot, the sources, the exclusions, the filters, the ceiling and the policy: a
+ * caller that caches a pool keys it on all of them.
+ *
  * **No time filter.** This does not look at creation, deletion or runtime. An item with a deletion time is kept, and
  * which items count for which epoch is `EpochPool`'s decision.
  *
@@ -73,6 +79,7 @@ object PoolEvaluator {
                     collectionsSynced = snapshot.collectionsSynced,
                     heldOut = pass.heldOut,
                     childrensRatingOut = pass.childrensRatingOut,
+                    filteredOut = pass.filteredOut,
                 ),
         )
     }
@@ -92,6 +99,7 @@ object PoolEvaluator {
         val unresolvedExclusions = unresolvedCollections(rules.effectiveExclusions, snapshot)
         private val excludeAll = unresolvedExclusions.isNotEmpty()
         private val maxRating = rules.maxRating
+        private val filters = ItemFilters(rules.filters, snapshot)
 
         // The IDs seen so far, built only once the items stop being in strictly ascending ID order: a snapshot is
         // canonical, so for it every ID is new by construction and no hash set is needed (one set per channel before).
@@ -106,6 +114,7 @@ object PoolEvaluator {
         var unknownSeries = 0
         var heldOut = 0
         var childrensRatingOut = 0
+        var filteredOut = 0
 
         fun visit(entry: RuleItem) {
             val item = entry.item
@@ -140,11 +149,16 @@ object PoolEvaluator {
             }
         }
 
-        // What matched, was not excluded and is not held out: counted, then kept or blocked by the ceiling.
+        // What matched, was not excluded and is not held out: dropped by the filters, or counted, then kept or blocked
+        // by the ceiling.
         private fun admit(
             entry: RuleItem,
             series: RuleSeries?,
         ) {
+            if (!filters.passes(entry, series)) {
+                filteredOut++
+                return
+            }
             val item = entry.item
             if (item.kind == ScheduleItemKind.Episode && item.seriesId != null && series == null) unknownSeries++
             val passes =

@@ -72,7 +72,7 @@ class TombstoneWindowTest {
 
             if (inWindow.isEmpty()) {
                 agreeingDays++
-                assertEquals(buildDay(s, a, base.n).blocks, buildDay(s, b, base.n).blocks)
+                assertEquals(buildDay(s, a, base.n, noFilms()).blocks, buildDay(s, b, base.n, noFilms()).blocks)
             }
         }
         assertTrue(windowCases > 50, "the generator rarely reached a disagreement: $windowCases")
@@ -121,9 +121,11 @@ class TombstoneWindowTest {
         val (atOnceAfter, lateAfter) = pools(cutoff)
         assertEquals(atOnceAfter, lateAfter)
         assertEquals(setOf("1", "2"), atOnceAfter)
+
         // And a disagreement in the pool is a different lineup.
-        val fromA = buildDay(s, items.map { if (it.id == idOf('2')) it.copy(deletedAtMs = cutoff - g) else it }, 0L)
-        val fromB = buildDay(s, items.map { if (it.id == idOf('2')) it.copy(deletedAtMs = cutoff) else it }, 0L)
+        fun deletedAt(at: Long) = items.map { if (it.id == idOf('2')) it.copy(deletedAtMs = at) else it }
+        val fromA = buildDay(s, deletedAt(cutoff - g), 0L, noFilms())
+        val fromB = buildDay(s, deletedAt(cutoff), 0L, noFilms())
         assertNotEquals(fromA.blocks, fromB.blocks)
     }
 }

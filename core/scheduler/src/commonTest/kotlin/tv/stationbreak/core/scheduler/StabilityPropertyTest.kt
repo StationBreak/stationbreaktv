@@ -109,8 +109,8 @@ class StabilityPropertyTest {
                 }
             val changed = mutate(gen, base, cutoff)
             if (changed != base) withChange++
-            val before = buildDay(s, base, case.n)
-            val after = buildDay(s, changed, case.n)
+            val before = buildDay(s, base, case.n, noFilms())
+            val after = buildDay(s, changed, case.n, noFilms())
             assertEquals(before.blocks, after.blocks, "settings $s, n ${case.n}")
         }
         assertTrue(withChange > 600, "only $withChange cases changed anything")
@@ -123,9 +123,9 @@ class StabilityPropertyTest {
         val cutoff = Epochs.epochStart(s, 0L) - s.graceMs
         val base = listOf(movie('1', 20), movie('2', 20))
         val withNew = base + testItem(idOf('3'), runtimeMs = 20 * MS_MINUTE, createdAtMs = cutoff - 1)
-        val control = buildDay(s, base, 0L)
-        assertNotEquals(control.blocks, buildDay(s, withNew, 0L).blocks)
+        val control = buildDay(s, base, 0L, noFilms())
+        assertNotEquals(control.blocks, buildDay(s, withNew, 0L, noFilms()).blocks)
         val atCutoff = base + testItem(idOf('3'), runtimeMs = 20 * MS_MINUTE, createdAtMs = cutoff)
-        assertEquals(control.blocks, buildDay(s, atCutoff, 0L).blocks)
+        assertEquals(control.blocks, buildDay(s, atCutoff, 0L, noFilms()).blocks)
     }
 }

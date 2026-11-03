@@ -79,7 +79,8 @@ data class ChannelRules(
 
     /**
      * These rules at [version], with any extra whose key [version] knows dropped (top level and `ordering`), so a file
-     * that kept `filters` or `caps` as unknown fields can move to version 2 and get real ones.
+     * that kept `filters` or `caps` as unknown fields can move to version 2 and get real ones. That drops data: call it
+     * only on an explicit upgrade, never to normalise a file on the way through.
      */
     fun withVersion(version: Int): ChannelRules =
         copy(

@@ -3,6 +3,10 @@ package tv.stationbreak.core.scheduler
 
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.RuntimeFilter
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 
 internal const val MS_MINUTE = 60_000L
@@ -26,6 +30,8 @@ internal fun testSettings(
     startMinuteOfDay: Int = 360,
     graceHours: Int = 6,
     minRuntimeMs: Long = 60_000L,
+    caps: Caps? = null,
+    runtimeFilter: RuntimeFilter? = null,
 ) = SchedulerSettings(
     orderingMode = orderingMode,
     seed = seed,
@@ -37,4 +43,20 @@ internal fun testSettings(
     startMinuteOfDay = startMinuteOfDay,
     graceHours = graceHours,
     minRuntimeMs = minRuntimeMs,
+    caps = caps,
+    runtimeFilter = runtimeFilter,
 )
+
+/** No film belongs to a collection: the v1 tests' side input. */
+internal fun noFilms() = FilmCollections.of(emptyMap())
+
+/** The v1 tests' group rules: no film is in a collection. */
+internal fun noGroups() = GroupRules(noFilms())
+
+/** Rotation turns with no epoch limit that matters: the items of these tests are far shorter than a day. */
+internal fun rotationTurnsOfADay(
+    pool: List<ScheduleItem>,
+    seed: Seed,
+    caps: Caps,
+    groups: GroupRules,
+) = Orderings.rotationTurns(pool, seed, caps, groups, MS_DAY)

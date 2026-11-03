@@ -112,6 +112,11 @@ class RulesFormatDocTest {
         assertTrue(banner in doc.lines(), "the final banner is missing")
         assertTrue("### Changes to version 1 (2026-10-19)" in doc.lines(), "the amendment section is missing")
         assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
+        assertTrue("**Version 2 is a Draft**" in doc, "the Format version text does not say version 2 is a Draft")
+        assertTrue(
+            "The rule that a later lineup change needs `formatVersion` 3\napplies only once version 2 is final." in doc,
+            "the version 3 rule must apply once version 2 is final",
+        )
         for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
             assertTrue(headings.any { h in it }, "no section heading mentions: $h")
         }

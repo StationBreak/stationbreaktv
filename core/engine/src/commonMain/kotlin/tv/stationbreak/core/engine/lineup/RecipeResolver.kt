@@ -52,7 +52,14 @@ object RecipeResolver {
         recipe: LeftoversRecipe,
         serverId: CanonicalId,
         utcOffsetMinutes: Int,
-    ): SchedulerSettings = settingsOf(OrderingMode.Shuffle, seedOf(serverId, recipe.key), timingAt(utcOffsetMinutes))
+    ): SchedulerSettings =
+        settingsOf(
+            OrderingMode.Shuffle,
+            seedOf(serverId, recipe.key),
+            timingAt(utcOffsetMinutes),
+            caps = null,
+            runtimeFilter = null,
+        )
 
     private fun seedOf(
         serverId: CanonicalId,

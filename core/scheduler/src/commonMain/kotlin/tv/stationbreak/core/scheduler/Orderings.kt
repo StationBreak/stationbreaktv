@@ -5,6 +5,8 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ordering.fnv1a64
 import tv.stationbreak.core.model.ordering.splitmix64
+import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 
 /**
@@ -14,6 +16,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
  *
  * Canonical IDs are 32 lower-case ASCII hex characters, so comparing them as strings is comparing their bytes.
  */
+@Suppress("TooManyFunctions") // The orders of rules format versions 1 and 2 share one set of keys.
 object Orderings {
     /** The `shuffle` key of [id]: `splitmix64(seedN + fnv1a64(idBytes))`, wrapping modulo 2^64. */
     fun shuffleKey(
@@ -93,6 +96,21 @@ object Orderings {
             }
         }
 
+    /**
+     * The order of the films inside a collection group (Rotation): the undated flag (a dated item first), the date, as
+     * text, then the canonical ID bytes.
+     */
+    internal val releaseKey: Comparator<ScheduleItem> =
+        Comparator { a, b ->
+            val dateA = dateOf(a)
+            val dateB = dateOf(b)
+            when {
+                (dateA == null) != (dateB == null) -> if (dateA == null) 1 else -1
+                dateA != null && dateB != null && dateA != dateB -> dateA.compareTo(dateB)
+                else -> a.id.value.compareTo(b.id.value)
+            }
+        }
+
     private fun seasonClass(item: ScheduleItem): Int =
         when (val season = item.seasonNumber) {
             null -> SEASON_CLASS_MISSING
@@ -105,7 +123,10 @@ object Orderings {
         val groupId: CanonicalId,
         /** `splitmix64(seed + fnv1a64(groupIdBytes))`, with the channel seed. */
         val key: ULong,
-        /** The group's items in [inGroupKey] order: the numbering decides. */
+        /**
+         * The group's items in [inGroupKey] order, the numbering deciding; the films of a collection group (Rotation)
+         * in [releaseKey] order.
+         */
         val items: List<ScheduleItem>,
     )
 
@@ -125,11 +146,23 @@ object Orderings {
     fun groups(
         pool: List<ScheduleItem>,
         seed: Seed,
+    ): List<OrderGroup> = groups(pool, seed, GroupRules(FilmCollections.of(emptyMap())))
+
+    /**
+     * The groups of [pool] as [rules] defines them, in the same key order as [groups]. A series keeps [inGroupKey]; a
+     * collection's films are in [releaseKey] order.
+     */
+    internal fun groups(
+        pool: List<ScheduleItem>,
+        seed: Seed,
+        rules: GroupRules,
     ): List<OrderGroup> =
         pool
-            .groupBy { it.groupId }
-            .map { (groupId, items) -> OrderGroup(groupId, groupKey(seed, groupId), items.sortedWith(inGroupKey)) }
-            .sortedWith(compareBy<OrderGroup> { it.key }.thenBy { it.groupId.value })
+            .groupBy { rules.groupId(it) }
+            .map { (groupId, items) ->
+                val inGroup = if (rules.kind(items.first()) == GroupKind.Collection) releaseKey else inGroupKey
+                OrderGroup(groupId, groupKey(seed, groupId), items.sortedWith(inGroup))
+            }.sortedWith(compareBy<OrderGroup> { it.key }.thenBy { it.groupId.value })
 
     /**
      * The `randomInOrder` walk of one cycle, as **turns**. In each round, every group in key order takes up to
@@ -143,15 +176,59 @@ object Orderings {
         blockLength: Int,
     ): List<List<ScheduleItem>> {
         require(blockLength >= 1) { "A run is at least one item" }
-        val groups = groups(pool, seed)
+        return turns(groups(pool, seed), pool.size) { group, from -> minOf(group.items.size, from + blockLength) }
+    }
+
+    /**
+     * The Rotation walk of one cycle: the `randomInOrder` walk with each group's own turn length, [GroupRules.cap] of
+     * [caps], and with the films of a collection as one group. The channel seed keys the groups, so the walk is the
+     * same every day.
+     *
+     * A turn ends before the item that would make its run longer than [epochMs]; the group's next turn continues from
+     * that item, so its place is kept. A turn always holds at least one item.
+     */
+    internal fun rotationTurns(
+        pool: List<ScheduleItem>,
+        seed: Seed,
+        caps: Caps,
+        groups: GroupRules,
+        epochMs: Long,
+    ): List<List<ScheduleItem>> =
+        turns(groups(pool, seed, groups), pool.size) { group, from ->
+            endOfRotationTurn(group.items, from, groups.cap(group.items.first(), caps), epochMs)
+        }
+
+    // The end (exclusive) of the turn that starts at [from]: up to [cap] items that fit in [epochMs], at least one.
+    private fun endOfRotationTurn(
+        items: List<ScheduleItem>,
+        from: Int,
+        cap: Int,
+        epochMs: Long,
+    ): Int {
+        val limit = minOf(items.size, from + cap)
+        var to = from + 1
+        var runtimeMs = items[from].runtimeMs
+        while (to < limit && runtimeMs + items[to].runtimeMs <= epochMs) {
+            runtimeMs += items[to].runtimeMs
+            to++
+        }
+        return to
+    }
+
+    // The walk: in each round every group with items left takes a turn, which ends at [endOfTurn] (exclusive).
+    private fun turns(
+        groups: List<OrderGroup>,
+        size: Int,
+        endOfTurn: (OrderGroup, Int) -> Int,
+    ): List<List<ScheduleItem>> {
         val taken = IntArray(groups.size)
         val turns = ArrayList<List<ScheduleItem>>()
-        var remaining = pool.size
+        var remaining = size
         while (remaining > 0) {
             for ((index, group) in groups.withIndex()) {
                 val from = taken[index]
                 if (from >= group.items.size) continue
-                val to = minOf(group.items.size, from + blockLength)
+                val to = endOfTurn(group, from)
                 turns += group.items.subList(from, to)
                 taken[index] = to
                 remaining -= to - from
@@ -159,6 +236,45 @@ object Orderings {
         }
         return turns
     }
+
+    /**
+     * The `inOrder` order of one cycle: every group (a series, or a film or series-less episode alone; no collections)
+     * played start to finish in [inGroupKey] order, the groups ordered by:
+     * 1. the undated flag (a group with no dated item last);
+     * 2. the date of the group's first *dated* item in its own order, as text;
+     * 3. the group ID bytes.
+     *
+     * It uses no seed and no caps.
+     */
+    fun inOrder(pool: List<ScheduleItem>): List<ScheduleItem> =
+        pool
+            .groupBy { it.groupId }
+            .map { (groupId, items) ->
+                val sorted = items.sortedWith(inGroupKey)
+                InOrderGroup(groupId, sorted.firstNotNullOfOrNull { dateOf(it) }, sorted)
+            }.sortedWith(
+                Comparator { a, b ->
+                    when {
+                        (a.firstDate == null) != (b.firstDate == null) -> {
+                            if (a.firstDate == null) 1 else -1
+                        }
+
+                        a.firstDate != null && b.firstDate != null && a.firstDate != b.firstDate -> {
+                            a.firstDate.compareTo(b.firstDate)
+                        }
+
+                        else -> {
+                            a.groupId.value.compareTo(b.groupId.value)
+                        }
+                    }
+                },
+            ).flatMap { it.items }
+
+    private class InOrderGroup(
+        val groupId: CanonicalId,
+        val firstDate: String?,
+        val items: List<ScheduleItem>,
+    )
 
     /** The `randomInOrder` order of one cycle: the turns of [randomInOrderTurns], one after the other. */
     fun randomInOrder(

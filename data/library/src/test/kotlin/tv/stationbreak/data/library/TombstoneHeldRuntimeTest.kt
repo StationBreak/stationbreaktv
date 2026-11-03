@@ -10,6 +10,7 @@ import org.junit.Test
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -17,6 +18,8 @@ import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+
+private val NO_FILMS = FilmCollections.of(emptyMap())
 
 /**
  * Spec 09 task 2.9 (Vimes H2, H4): a deleted item reaches the scheduler with its frozen runtime and `deletedAt` until
@@ -121,7 +124,8 @@ class TombstoneHeldRuntimeTest {
     fun aDeletionThatLandsAfterTheCutoffDoesNotChangeTheDayBuiltFromIt() =
         runBlocking {
             // Day 0 of this channel starts at S = 6 h with a 6 h grace, so its cut-off S - G is the epoch (0 ms).
-            val settings = SchedulerSettings(OrderingMode.Shuffle, Seed(7uL), 1, true, 30, 24, 0, 360, 6, 60_000L)
+            val settings =
+                SchedulerSettings(OrderingMode.Shuffle, Seed(7uL), 1, true, 30, 24, 0, 360, 6, 60_000L, null, null)
             val cutoff = 0L
             repository.select(ALICE, setOf(MOVIES))
             clock.atMs(cutoff - hour)
@@ -133,8 +137,8 @@ class TombstoneHeldRuntimeTest {
             val held = read(cutoff)
 
             assertEquals("deletedAt = the cut-off is still held", cutoff, held.single().deletedAtMs)
-            val withDeletion = buildDay(settings, held, 0).blocks
-            val withoutDeletion = buildDay(settings, held.map { it.copy(deletedAtMs = null) }, 0).blocks
+            val withDeletion = buildDay(settings, held, 0, NO_FILMS).blocks
+            val withoutDeletion = buildDay(settings, held.map { it.copy(deletedAtMs = null) }, 0, NO_FILMS).blocks
             assertEquals(withoutDeletion, withDeletion)
             assertTrue("the item airs", withDeletion.any { it.content is ScheduleContent.Program })
         }

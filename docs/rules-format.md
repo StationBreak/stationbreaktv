@@ -381,7 +381,7 @@ minus the exclusions (see Items and the pool). An item that fails a filter is ou
 
 | Part | Value | An item passes when |
 | --- | --- | --- |
-| `genres` | List of 1 to 256 names | It has **any** of the names. A name is matched exactly as a `genre` source is (see String matching), and an episode also takes its series' genres, as a `genre` source says. |
+| `genres` | List of 1 to 256 names | It has **any** of the names. A name is matched exactly as a `genre` source is (see String matching), and an episode also takes its series' genres, as a `genre` source says; an episode whose series is not in the snapshot is checked on its own genres alone, and the filter does not fail closed. |
 | `years` | `{ "from", "to" }` | Its **own** production year is from `from` to `to`, both included, as for a `yearRange` source. An item with no production year fails. `from` and `to` are whole numbers from 1 to 9999 and `to` is not below `from`. |
 | `runtime` | `{ "minMinutes", "maxMinutes" }` | Its runtime, as read at the cut-off `S - G` (see The pool of an epoch), is at least `minMinutes` and at most `maxMinutes`, both included, in whole minutes (compared in milliseconds: `minMinutes * 60000` and `maxMinutes * 60000`). Each is a whole number from 1 to 1440; `minMinutes` is not above `maxMinutes`; at least one is given. An item with no runtime is already out of the pool. |
 | `kind` | `"movie"` or `"episode"` | It is of that kind. |
@@ -599,13 +599,23 @@ In version 2, for `rotation` and the capped shuffle, **films of a collection are
   the mode stays fully random, and only the cap is applied.
 - Any other item is a group of one.
 
+A film that is a member of a named collection is grouped however it came into the pool, for example through a library
+source. The map is defined by these rules whatever the ordering mode; only `rotation` and the capped `shuffle` read it, and
+any other mode ignores it, so an implementation may leave it empty there, since nothing reads it. An `item` source that holds the ID of a library, a series
+or a collection matches nothing: it names a movie or an episode.
+
 The map from film to collection ID is worked out for the epoch from the as-of library snapshot (see The pool of an
 epoch) and the rules' `sources`. It is an input to building the day, as the items are; an item has no collection field.
 
 For `inOrder`, **every film is a group of one**: collections do not group films in that mode.
 
-The **cap of a group** is the `series` cap for a series, the `film` cap for a collection group, and `1` for a group of
-one (a cap on one item cannot be exceeded).
+The **cap of a group** is the `series` cap for a series, the `film` cap for a collection group, and `1` for an item that
+is in neither (an ungrouped item: a cap on one item cannot be exceeded). A series with one episode in the pool keeps the
+`series` cap, and a collection with one film keeps the `film` cap: this cannot change an order, but it is the cap the group
+has.
+
+Canonical IDs are unique across items, series and collections, so a group ID is never both a series and a collection, or an
+item and a collection; the walk and the group keys compare group IDs as one set.
 
 ### `rotation`
 
@@ -617,9 +627,14 @@ one (a cap on one item cannot be exceeded).
    sort a collection's films).
 2. Group keys: `splitmix64(seed + fnv1a64(groupIdBytes))` with the **channel seed**, sorted ascending as unsigned numbers,
    ties to the smaller group ID bytes: exactly as `randomInOrder`.
-3. Walk the groups in that order, in rounds. In each round every group takes its next turn of up to its cap items (the
-   `series` cap for a show, the `film` cap for a collection, `1` for a single). A group with fewer items left takes a
-   short turn; a group with none is skipped.
+3. Walk the groups in that order, in rounds. In each round every group takes its next turn: its next items in its own
+   order, up to its cap (the `series` cap for a show, the `film` cap for a collection, `1` for a single). A turn **stops
+   before the item that would make its runtime longer than `epochMs`**: the turn's runtime is the sum of the `runtimeMs` of
+   its items, and an item is added only while that sum stays at or below `epochMs`. A turn always holds at least one item
+   (an item longer than `epochMs` is not in the pool, so one item always fits). The turn's runtime is the plain sum of its
+   items' runtimes as read at the cut-off, not rounded up to the grid. A turn stops at the first item that does not fit
+   and never skips ahead to a shorter later item. The group's next turn continues from the item the turn stopped before,
+   so the group keeps its place. A group with fewer items left takes a short turn; a group with none is skipped.
 4. When every group is used up, start again at the first group with every position back at the first item.
 
 One turn is one run, as in `randomInOrder`; `blockLength` is ignored. Rotation is **continuous playout** (see Where the
@@ -636,11 +651,17 @@ round 3:                    [C3]          (only C is left)
 then it starts again: B1 B2 A1 A2 A3 C1 A4 A5 C2 C3 B1 ...
 ```
 
+Worked example of a long turn. `epochHours` is 24 and the film cap is 3. A collection named in `sources` has four films
+F1, F2, F3, F4 in release order, each 10 hours long, and nothing else is in the pool. The first turn takes F1 and F2
+(20 hours); F3 would make 30 hours, more than 24, so the turn stops before it. The next turn starts at F3 and takes F3
+and F4 (20 hours). The cycle is `[F1 F2] [F3 F4]`, then it starts again. Without the stop, `[F1 F2 F3]` (30 hours) would be
+a run longer than the epoch and would be left out whole (see Left-out runs), taking F1 to F3 out of the schedule.
+
 ### The capped shuffle
 
 The capped shuffle is `shuffle` with `ordering.caps`. It starts from the version 1 shuffle order of the epoch and moves
-items later only as far as the caps need. It is a **total function of (the pool, `seed_n`, the caps and the
-film-to-collection map)**.
+items later to keep the caps and, while one group is tight, to space it. It is a **total function of (the pool,
+`seed_n`, the caps and the film-to-collection map)**.
 
 ```text
 S      = the version 1 shuffle of the pool with seed_n              (unchanged: see shuffle)
@@ -825,8 +846,12 @@ epoch) at a time, and a day is worked out from that day's items alone.
 filled in from the rules first; the scheduler has none of its own.
 
 - mode: `shuffle`, `chronological`, `randomInOrder`, `rotation` or `inOrder`;
-- `caps`: none, or the `series` and `film` caps, each 1 to 10. They are present, and so in force, for `rotation` (with the
-  defaults 3 and 1) and for a capped `shuffle`, and absent for the other modes;
+- `caps`: none, or the `series` and `film` caps, each 1 to 10. A scheduler always gets both values: the rules layer fills
+  in the defaults (3 and 1), the scheduler has none of its own. They are present, and so in force, for `rotation` (which
+  always carries them) and for a capped `shuffle`. The rules layer drops `caps` for the other modes, so a scheduler is not given
+  them there; one that is ignores them in the order and checks them like any caps (so `epochHours` must be 24 below);
+- `runtimeFilter`: none, or a window `minMs` and/or `maxMs` in milliseconds (`minMinutes * 60000`, `maxMinutes * 60000`):
+  a pool condition, see The pool of an epoch;
 - `seed`: the channel seed, an unsigned 64-bit number;
 - `blockLength`: items per run, 1 to 100 (not read by `rotation`);
 - `alignToGrid`: true or false;
@@ -837,8 +862,9 @@ filled in from the rules first; the scheduler has none of its own.
 - `graceHours`: 0 to 48;
 - `minRuntimeSeconds`: 1 to 3600.
 
-With caps in force, `epochHours` must be 24. A scheduler also takes the **film-to-collection map** of the epoch (see Groups
-in version 2) as an input; it is empty unless the mode is `rotation` or a capped `shuffle`.
+With caps in force, `epochHours` must be 24; any other value is an input error at the scheduler. A scheduler also takes the
+**film-to-collection map** of the epoch (see Groups in version 2) as an input; it is empty unless the mode is `rotation` or
+a capped `shuffle`, and every other mode ignores it.
 
 From these: `offsetMs`, `startMs` and `epochMs` as in Timing, and
 
@@ -933,7 +959,7 @@ product is the low 64 bits of `nU * 0x9E3779B97F4A7C15`, so `(2^64 - 1) * gamma`
 seed `1`, `n = -1`: the sum is `1 + (2^64 - gamma) = 0x61C8864680B583EC`, and `seed_n = splitmix64(0x61C8864680B583EC) =
 0x5692161D100B05E5`. The vectors are in `docs/rules-format/vectors/epoch-seed.json`, and include negative `n`.
 
-Only `shuffle` uses `seed_n`. The other two orders do not use it (see Ordering).
+Only `shuffle` (with or without `caps`) uses `seed_n`. `chronological`, `randomInOrder`, `rotation` and `inOrder` do not use it (see Ordering).
 
 ### The pool of an epoch
 
@@ -947,9 +973,11 @@ An item is in the pool of day `n` if and only if **all four** hold:
 4. runtimeMs <= epochMs
 ```
 
-A `runtime` filter (version 2) is applied to the same pool: it compares `runtimeMs` as read at the cut-off `S - G` with its
-bounds, so an item the filter rejects is not in the pool of day `n` either (see Filters). The other filters need no time
-and are applied when the pool is evaluated, as the sources are.
+A `runtime` filter (version 2) is a fifth condition of the same pool, a setting of the scheduler (`runtimeFilter`, see
+Inputs and outputs): it compares `runtimeMs` as read at the cut-off `S - G` with its bounds, both included and in
+milliseconds, `minMs <= runtimeMs` and `runtimeMs <= maxMs`, each only when given. An item the filter rejects is not in the
+pool of day `n` (see Filters). The other filters need no time and are applied when the pool is evaluated, as the sources
+are.
 
 1. **Added before the cut-off.** An item created inside the grace window waits for the next epoch. The server stamps
    `createdAt`, so two devices that have synced the library past `S - G` agree.
@@ -1062,8 +1090,11 @@ A run whose slot is **longer than `epochMs`** can never fit in a day, and it wou
 stall at the same place. So it is **left out**: removed from the list of runs. The list that remains, in order, is the
 **cycle**: runs `0` to `B - 1`, `B` runs in all. Runs are formed from the whole order first, and then removed, so a run
 that remains keeps exactly the items it had. The items of a left-out run are not in the cycle at all; the planned end of the
-day never visits them. The runs on each side of a left-out run become neighbours, so in `rotation` and the capped shuffle two
-turns of one group can end up together (see The planned end of the day, Where a cap can be exceeded).
+day never visits them. The runs on each side of a left-out run become neighbours, so in the capped shuffle two turns of one
+group can end up together (see The planned end of the day, Where a cap can be exceeded).
+
+A `rotation` turn is already cut so that its runtime is at most `epochMs` (see `rotation`), so no `rotation` run is left
+out. The other modes cut runs by `blockLength` alone, and a long run of those is left out as described.
 
 A run whose slot is **equal** to `epochMs` stays in the cycle: it fits only on a day that starts with it.
 
@@ -1148,6 +1179,8 @@ For `chronological`, `randomInOrder`, `rotation` and `inOrder`, with an **unchan
 - Day `n` starts `delta_n` late against the continuous playout, `0 <= delta_n < slot(run j_n)`. So the runs from the first
   run that day `n` did not start, up to but not including the first run of day `n + 1`, **may be skipped**. They are not
   played on day `n` and day `n + 1` has moved past them.
+- Items that the planned end of day `n` placed may air again at the start of day `n + 1`, because day `n + 1` starts its
+  run from the run's beginning (see issue #546).
 - **Nothing is skipped when every slot is the same length and that length divides `epochMs`.** The runs of the day then fill
   it exactly, so the last one ends at `E`, the next day starts at the next run, and `delta` does not matter. Example:
   60-minute slots in a 4-hour epoch with a `:30` start give `delta = 30` minutes, and still skip nothing. Equal slots that
@@ -1219,7 +1252,7 @@ exceeded there.
 - the **planned end** of the day, as above.
 
 A separate consequence of the left-out rule: when a run is left out (see Left-out runs), the runs on each side of it
-become neighbours, and in `rotation` or the capped shuffle that can put two turns of one group together.
+become neighbours, and in the capped shuffle that can put two turns of one group together. (No `rotation` run is left out.)
 
 **Giving way is not an exceed case.** When only one group has items left, it plays on: in the capped shuffle the walk
 gives way to `last`, and in `rotation` the lone group takes its turns one after another, as `randomInOrder` does. That is
@@ -1297,7 +1330,8 @@ only primitives are `splitmix64` and `fnv1a64` (see Primitives).
 
 The anchors for this section are in `docs/rules-format/vectors/`: `epoch-math.json` and `epoch-seed.json` (the epoch number,
 `epochStart` and `seed_n`), `key-order.json` (the three orders, the group keys, the in-group order and runs) and
-`lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). They were computed
+`lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). Version 2 adds
+`key-order-v2.json` and `lineup-v2.json`, of the same shapes with `caps`, `films` and `runtimeFilter`. They were computed
 with a reference that was written from this text alone, not with the code that is tested. Version 1 is final (amended once,
 on 2026-10-19), so a wrong vector now means version 2.
 
@@ -1565,10 +1599,11 @@ A reader will meet files written by newer apps. Three cases must be handled diff
   and must write it back with the same JSON value when it writes the file again (see JSON profile: the value, not the bytes).
   `filters` and `ordering.caps` in a file that says `formatVersion` 1 are unknown fields in this sense: kept and ignored.
   `docs/rules-format/examples/forward-compat-extras.json` has unknown fields at every level.
-- **An unknown kind** (a `type` of a source, an ordering `mode`, a filler `mode` or, in version 2, a `filters.kind` that the
-  reader does not know) is **not** an unknown field. That includes a version 2 `mode` (`rotation`, `inOrder`) or source `type` (`item`) in a file that says
-  `formatVersion` 1: for that file the kind is unknown. The channel is **unsupported**: it is not scheduled, and nothing is dropped silently to make it
-  work. This keeps a channel from playing the wrong thing.
+- **An unknown kind** (a `type` of a source, an ordering `mode`, a filler `mode` or, in version 2, a `filters.kind`
+  that the reader does not know) is **not** an unknown field. That includes a version 2 `mode` (`rotation`,
+  `inOrder`) or source `type` (`item`) in a file that says `formatVersion` 1: for that file the kind is unknown. The
+  channel is **unsupported**: it is not scheduled, and nothing is dropped silently to make it work. This keeps a
+  channel from playing the wrong thing.
 - **A known kind that the reader does not schedule** is treated the same way: **unsupported**. In version 1 this is every
   filler mode except `none` (see Filler).
 
@@ -1650,8 +1685,8 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
 18. **A version 1 file that uses version 2.** A file that says `formatVersion` 1 and uses `rotation` or `inOrder` as its
     `mode`, or an `item` source, is **unsupported** (not scheduled, "update required"). The same file with `filters` or
     `ordering.caps` and only version 1 features is read, and both are kept and ignored. A file that says `formatVersion` 2
-    with `ordering.caps` and `epochHours` 12 is invalid. A version 2 file with a `filters.kind` that is not `movie` or `episode`
-    is unsupported.
+    with `ordering.caps` and `epochHours` 12 is invalid. A version 2 file with a `filters.kind` that is not `movie` or
+    `episode` is unsupported.
 
 ## Files
 
@@ -1684,8 +1719,10 @@ Everything below is in this repository, under `docs/`:
   orders, the group keys, the in-group order and the runs, with the worked examples of Ordering) and `lineup.json` (whole
   days: the rules the scheduler reads, the items, the day number `n`, every block of the day, and queries giving the block
   that is on at a time `T` (its index, and the offset), the next blocks, and times outside the day that are errors),
-  and `pool.json` (the pool: a library snapshot, the sources, the exclusions and the ceiling, and the IDs of the pool,
-  for every row of rule 2, the exclusions with their fail-closed cases, rule 4 and the String matching cases).
+  `key-order-v2.json` and `lineup-v2.json` (the same for the version 2 orders: `rotation`, the capped `shuffle` and
+  `inOrder`, with the caps, the film-to-collection map and the runtime filter), and `pool.json` (the pool: a library snapshot, the sources, the exclusions and the ceiling, and the IDs of the pool,
+  for every row of rule 2, the exclusions with their fail-closed cases, rule 4 and the String matching cases), and `pool-v2.json` (the same shape for version 2: `item` sources and
+  exclusions, the filters and the film-to-collection map).
 
 - `docs/rules-format/vectors/` (version 2): `pool-v2.json` (the pool with `item` sources and exclusions, every filter and
   the film-to-collection map), `key-order-v2.json` (the rotation turns, the capped shuffle and the `inOrder` order) and

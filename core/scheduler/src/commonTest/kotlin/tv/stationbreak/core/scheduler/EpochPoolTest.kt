@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
+import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import kotlin.test.Test
@@ -104,6 +105,45 @@ class EpochPoolTest {
                 testItem(idOf('2'), runtimeMs = 3_600_000L, createdAtMs = LONG_AGO),
             )
         assertEquals(listOf('2'), EpochPool.build(oneHour, longer, 0L).map { it.id.value.first() })
+    }
+
+    @Test
+    fun theRuntimeFilterLeavesOutItemsOutsideTheWindow() {
+        val filtered = testSettings(runtimeFilter = RuntimeFilter(minMs = 30 * MS_MINUTE, maxMs = 60 * MS_MINUTE))
+        val items =
+            listOf(
+                testItem(idOf('1'), runtimeMs = 30 * MS_MINUTE - 1, createdAtMs = LONG_AGO),
+                testItem(idOf('2'), runtimeMs = 30 * MS_MINUTE, createdAtMs = LONG_AGO),
+                testItem(idOf('3'), runtimeMs = 60 * MS_MINUTE, createdAtMs = LONG_AGO),
+                testItem(idOf('4'), runtimeMs = 60 * MS_MINUTE + 1, createdAtMs = LONG_AGO),
+                testItem(idOf('5'), runtimeMs = 59_999L, createdAtMs = LONG_AGO),
+            )
+        assertEquals(listOf('2', '3'), EpochPool.build(filtered, items, 0L).map { it.id.value.first() })
+        // A filter with only a maximum still leaves the 60 s minimum in force below it.
+        val maxOnly = testSettings(runtimeFilter = RuntimeFilter(minMs = null, maxMs = 60 * MS_MINUTE))
+        assertEquals(
+            listOf('1', '2', '3'),
+            EpochPool.build(maxOnly, items, 0L).map { it.id.value.first() },
+        )
+    }
+
+    @Test
+    fun theRuntimeFilterJudgesTheRuntimeItIsGiven() {
+        // The filter never lets in an item the cutoff leaves out, and it judges the runtime on the item it is handed.
+        val filtered =
+            testSettings(
+                utcOffsetMinutes = -300,
+                startMinuteOfDay = 360,
+                graceHours = 6,
+                runtimeFilter = RuntimeFilter(minMs = 30 * MS_MINUTE, maxMs = null),
+            )
+        val items =
+            listOf(
+                testItem(idOf('1'), runtimeMs = 45 * MS_MINUTE, createdAtMs = cutoff - 1),
+                testItem(idOf('2'), runtimeMs = 45 * MS_MINUTE, createdAtMs = cutoff),
+                testItem(idOf('3'), runtimeMs = 20 * MS_MINUTE, createdAtMs = cutoff - 1),
+            )
+        assertEquals(listOf('1'), EpochPool.build(filtered, items, 0L).map { it.id.value.first() })
     }
 
     @Test

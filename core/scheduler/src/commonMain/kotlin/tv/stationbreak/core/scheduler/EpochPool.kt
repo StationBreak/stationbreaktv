@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.scheduler
 
+import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 
@@ -18,6 +19,27 @@ import tv.stationbreak.core.model.schedule.SchedulerSettings
  * devices can disagree on epoch `n` about items deleted in `[S - 2G, S - G)`.
  */
 object EpochPool {
+    /** Every settings field [build] reads: two channels whose inputs are equal have the same pool on every day. */
+    data class EpochPoolInputs(
+        val minRuntimeMs: Long,
+        val epochMs: Long,
+        val startMs: Long,
+        val offsetMs: Long,
+        val graceMs: Long,
+        val runtimeFilter: RuntimeFilter?,
+    )
+
+    /** The runtime window, and the epoch and grace the cutoff `S - G` comes from. */
+    fun inputsOf(settings: SchedulerSettings) =
+        EpochPoolInputs(
+            minRuntimeMs = settings.minRuntimeMs,
+            epochMs = settings.epochMs,
+            startMs = settings.startMs,
+            offsetMs = settings.offsetMs,
+            graceMs = settings.graceMs,
+            runtimeFilter = settings.runtimeFilter,
+        )
+
     /**
      * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes). Throws
      * [IllegalArgumentException] naming the ID when two inputs share one, whether or not either would be kept.

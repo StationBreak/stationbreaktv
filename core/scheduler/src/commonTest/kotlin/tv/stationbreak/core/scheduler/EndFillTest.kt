@@ -66,21 +66,21 @@ class EndFillTest {
 
     @Test
     fun chronologicalDoesNotPlaceA4WhenA3DoesNotFit() {
-        val built = buildDay(settings(OrderingMode.Chronological), seriesA, 0L)
+        val built = buildDay(settings(OrderingMode.Chronological), seriesA, 0L, noFilms())
         assertEquals(listOf("0-20:1", "20-40:2", "40-60:slate"), built.describe())
         assertEquals(2, built.regularRunCount)
     }
 
     @Test
     fun randomInOrderDoesNotPlaceA4WhenA3DoesNotFit() {
-        val built = buildDay(settings(OrderingMode.RandomInOrder), seriesA, 0L)
+        val built = buildDay(settings(OrderingMode.RandomInOrder), seriesA, 0L, noFilms())
         assertEquals(listOf("0-20:1", "20-40:2", "40-60:slate"), built.describe())
     }
 
     @Test
     fun shuffleDoesPlaceA4BecauseItHasNoGroupRule() {
         val s = shuffleSeedFor(settings(OrderingMode.Shuffle), seriesA, "1234")
-        val built = buildDay(s, seriesA, 0L)
+        val built = buildDay(s, seriesA, 0L, noFilms())
         // X3 (30 min) does not fit at minute 40; X4 (10 min) does. The pass then wraps to X1 and X2, which do not fit.
         assertEquals(listOf("0-20:1", "20-40:2", "40-50:4", "50-60:slate"), built.describe())
     }
@@ -91,14 +91,14 @@ class EndFillTest {
     fun chronologicalStopsAtTheCycleEndInsteadOfWrapping() {
         // M4 (50 min) does not fit at minute 30. M1 would fit again, but an earlier item is never replayed after a
         // later one.
-        val built = buildDay(settings(OrderingMode.Chronological), shortThenLong, 0L)
+        val built = buildDay(settings(OrderingMode.Chronological), shortThenLong, 0L, noFilms())
         assertEquals(listOf("0-10:1", "10-20:2", "20-30:3", "30-60:slate"), built.describe())
     }
 
     @Test
     fun shuffleWrapsAndFillsTheRestOfTheDay() {
         val s = shuffleSeedFor(settings(OrderingMode.Shuffle), shortThenLong, "1234")
-        val built = buildDay(s, shortThenLong, 0L)
+        val built = buildDay(s, shortThenLong, 0L, noFilms())
         assertEquals(
             listOf("0-10:1", "10-20:2", "20-30:3", "30-40:1", "40-50:2", "50-60:3"),
             built.describe(),
@@ -111,7 +111,7 @@ class EndFillTest {
         // again.
         val items = listOf(movie('1', 10), movie('2', 10), movie('3', 50))
         val s = shuffleSeedFor(settings(OrderingMode.Shuffle), items, "123")
-        val built = buildDay(s, items, 0L)
+        val built = buildDay(s, items, 0L, noFilms())
         assertEquals(listOf("0-10:1", "10-20:2", "20-30:1", "30-40:2", "40-60:slate"), built.describe())
     }
 
@@ -120,7 +120,7 @@ class EndFillTest {
         // Runs of two: [1 2] = 40 min, [3 4] = 40 min, which does not fit at minute 40. M3 (30) does not fit, M4 (10)
         // does.
         val items = listOf(movie('1', 20), movie('2', 20), movie('3', 30), movie('4', 10))
-        val built = buildDay(settings(OrderingMode.Chronological, blockLength = 2), items, 0L)
+        val built = buildDay(settings(OrderingMode.Chronological, blockLength = 2), items, 0L, noFilms())
         assertEquals(listOf("0-20:1", "20-40:2", "40-50:4", "50-60:slate"), built.describe())
         assertEquals(1, built.regularRunCount)
     }
@@ -129,7 +129,8 @@ class EndFillTest {
     fun theGridGapBeforeAPlacedItemIsASlate() {
         // 30-minute grid. M2 (80 min) would start at 60 and end at 140 > 120. M3 (20 min) fits at 60.
         val items = listOf(movie('1', 50), movie('2', 80), movie('3', 20))
-        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = true, epochHours = 2), items, 0L)
+        val s = settings(OrderingMode.Chronological, alignToGrid = true, epochHours = 2)
+        val built = buildDay(s, items, 0L, noFilms())
         assertEquals(listOf("0-50:1", "50-60:slate", "60-80:3", "80-120:slate"), built.describe())
     }
 
@@ -138,14 +139,14 @@ class EndFillTest {
         // With alignToGrid false (what the app writes for its channels) there is no slate between runs, only the
         // closing one.
         val items = listOf(movie('1', 7), movie('2', 30), movie('3', 20))
-        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = false), items, 0L)
+        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = false), items, 0L, noFilms())
         assertEquals(listOf("0-7:1", "7-37:2", "37-57:3", "57-60:slate"), built.describe())
     }
 
     @Test
     fun withTheGridOnShortRunsAreStillPaddedToTheGridMarks() {
         val items = listOf(movie('1', 7), movie('2', 30), movie('3', 20))
-        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = true), items, 0L)
+        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = true), items, 0L, noFilms())
         assertEquals(listOf("0-7:1", "7-30:slate", "30-60:2"), built.describe())
     }
 
@@ -154,21 +155,23 @@ class EndFillTest {
         // Runs of two: [1 2] = 100 min; [3 4] = 125 min is longer than the 120-minute epoch, so it is left out and its
         // items (M4 is only 10 min) are not visited by the fill.
         val items = listOf(movie('1', 50), movie('2', 50), movie('3', 115), movie('4', 10))
-        val built = buildDay(settings(OrderingMode.Chronological, epochHours = 2, blockLength = 2), items, 0L)
+        val s = settings(OrderingMode.Chronological, epochHours = 2, blockLength = 2)
+        val built = buildDay(s, items, 0L, noFilms())
         assertEquals(listOf("0-50:1", "50-100:2", "100-120:slate"), built.describe())
     }
 
     @Test
     fun aMoviesOnlyPoolLeavesALongSlate() {
         val items = listOf(movie('1', 120), movie('2', 110))
-        val built = buildDay(settings(OrderingMode.Chronological, alignToGrid = true, epochHours = 3), items, 0L)
+        val s = settings(OrderingMode.Chronological, alignToGrid = true, epochHours = 3)
+        val built = buildDay(s, items, 0L, noFilms())
         assertEquals(listOf("0-120:1", "120-180:slate"), built.describe())
     }
 
     @Test
     fun nothingIsCutAndNothingRunsPastTheBoundary() {
         val s = settings(OrderingMode.Chronological, alignToGrid = true, epochHours = 1)
-        val built = buildDay(s, listOf(movie('1', 45)), 0L)
+        val built = buildDay(s, listOf(movie('1', 45)), 0L, noFilms())
         assertEquals(listOf("0-45:1", "45-60:slate"), built.describe())
         assertTrue(built.blocks.all { it.endMs <= built.endMs })
     }
@@ -182,7 +185,7 @@ class EndFillTest {
         forAllCases("end fill against first fit, repeat", 0xE4DF111uL) { gen ->
             val case = generateCase(gen)
             val expected = DayOracle.blocks(case.settings, case.items, case.n)
-            val actual = buildDay(case.settings, case.items, case.n)
+            val actual = buildDay(case.settings, case.items, case.n, noFilms())
             val label = "settings ${case.settings}, n ${case.n}, items ${case.items.map {
                 it.id.value.take(
                     4,
@@ -195,6 +198,7 @@ class EndFillTest {
                     case.settings,
                     EpochPool.build(case.settings, case.items, case.n),
                     Epochs.seedN(case.settings.seed, case.n),
+                    noGroups(),
                 )
             val regularItems =
                 (0 until actual.regularRunCount).sumOf { cycle[(actual.startRunIndex + it) % cycle.size].items.size }

@@ -24,9 +24,11 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.scheduler.Day
@@ -37,8 +39,8 @@ import kotlin.time.TimeSource
 
 /**
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
- * canonical-ID order. With `buildDay(settings, pool, n)` it is the input of the day's schedule. [hidden] is why the day
- * is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
+ * canonical-ID order. With `buildDay(settings, pool, n, films)` it is the input of the day's schedule. [hidden] is why
+ * the day is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
  */
 @Suppress("LongParameterList") // The day's fixed facts, one for one.
 internal class ChannelDay private constructor(
@@ -90,7 +92,9 @@ private fun layoutOf(
 ): Lazy<Day> =
     lazy {
         val began = TimeSource.Monotonic.markNow()
-        buildDay(settings, pool, n).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
+        // Until the channels' collection sources reach the day build (Task 14), no film is in a collection.
+        val films = FilmCollections.of(emptyMap())
+        buildDay(settings, pool, n, films).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
     }
 
 /** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */
@@ -255,7 +259,7 @@ internal class LineupDays(
         for ((cutoff, group) in scheduled.groupBy { it.cutoffMs }) {
             val items = snapshots.getValue(cutoff).items.map { it.item }
             val eligible =
-                group.distinctBy { it.settings.minRuntimeMs to it.settings.epochMs }.flatMapTo(HashSet()) { s ->
+                group.distinctBy { EpochPool.inputsOf(it.settings) }.flatMapTo(HashSet()) { s ->
                     EpochPool.build(s.settings, items, s.n).map { it.id }
                 }
             nowhere += eligible - aired - build.withheld(cutoff) - build.hiddenLeftovers(cutoff)
@@ -305,9 +309,9 @@ internal class LineupDays(
     ) {
         private val withheldBy = HashMap<Long, Set<CanonicalId>>()
 
-        // A pool depends only on the snapshot, the sources, the exclusions and the ceiling, so rules that agree on
-        // those (a recipe as resolved and as the lineup has it, a hidden channel that is an unedited starter) are
-        // evaluated once.
+        // A pool depends on the snapshot, the sources, the exclusions, the filters, the ceiling and the policy
+        // (`PoolEvaluator`, "What a pool depends on"), so rules that agree on all of those (a recipe as resolved and as
+        // the lineup has it, a hidden channel that is an unedited starter) are evaluated once.
         private val evaluations = HashMap<EvaluationKey, Pool>()
 
         private fun evaluate(
@@ -315,7 +319,8 @@ internal class LineupDays(
             cutoff: Long,
             policy: PoolPolicy,
         ): Pool {
-            val key = EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.maxRating, policy)
+            val key =
+                EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.filters, rules.maxRating, policy)
             evaluations[key]?.let { return it }
             evaluated()
             return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff), policy).also { evaluations[key] = it }
@@ -442,13 +447,14 @@ internal class LineupDays(
     )
 
     /**
-     * What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions and ceiling, and
-     * its policy, so channels under different policies with the same rules never share a pool.
+     * What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions, filters and ceiling,
+     * and its policy, so channels under different policies with the same rules never share a pool.
      */
     private data class EvaluationKey(
         val cutoffMs: Long,
         val sources: List<Source>,
         val exclusions: List<Source>,
+        val filters: Filters?,
         val maxRating: String?,
         val policy: PoolPolicy,
     )
