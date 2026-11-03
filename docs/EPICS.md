@@ -20,7 +20,7 @@ F0.5 Server setup & connection test · F0.6 Library sync & cache · F0.7 Channel
 **Gate (acceptance criteria):**
 - [x] On the Insignia Fire TV, entering the owner's real reverse-proxied HTTPS URL connects and lists
       **all** libraries visible to the user.
-- [ ] The same works with a bare `IP:port` on the LAN.
+- [x] The same works with a bare `IP:port` on the LAN (accepted on automated evidence, owner 2026-11-03).
 - [x] Subpath base URLs (e.g. `https://media.example.com/jellyfin`) are proven by automated tests (S0.3.1).
 - [x] Adapter contract tests pass in CI against the **oldest supported and latest Jellyfin 12.x** containers (S0.3.6, ADR-0006).
 - [x] The app was installed on the Insignia by sideloading a CI-built APK, not by a local build.
