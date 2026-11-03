@@ -44,7 +44,8 @@ internal fun refusalMessage(reason: BuildRefusal): BuilderMessage =
     when (reason) {
         is BuildRefusal.Invalid -> BuilderMessage.Failed
         BuildRefusal.UnknownChannel -> BuilderMessage.NotFound
-        BuildRefusal.NotCustom -> BuilderMessage.NotCustomisable
+        BuildRefusal.NotCustom -> BuilderMessage.NotChangeable
+        BuildRefusal.NotShuffle -> BuilderMessage.NotShuffle
         BuildRefusal.NoFreeNumber -> BuilderMessage.NoFreeNumber
         BuildRefusal.KidsBandFull -> BuilderMessage.KidsBandFull
         BuildRefusal.OutOfRange -> BuilderMessage.OutOfRange

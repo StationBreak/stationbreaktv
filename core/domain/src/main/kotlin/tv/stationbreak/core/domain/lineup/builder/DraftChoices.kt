@@ -2,18 +2,10 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import tv.stationbreak.core.engine.KidHold
-import tv.stationbreak.core.engine.lineup.Band
-import tv.stationbreak.core.engine.lineup.LineupDefaults
 import tv.stationbreak.core.rules.RatingLadder
 
 /** What the builder offers to choose from, taken from the lineup and the rating ladder so the two cannot disagree. */
 object DraftChoices {
-    /** The numbers of a grown-up custom channel. */
-    val grownUpNumbers: IntRange = LineupDefaults.CUSTOM_NUMBERS
-
-    /** The numbers of a kids channel. */
-    val kidsNumbers: IntRange = Band.Kids.numbers
-
     /**
      * The rating ceilings a channel can have, lowest first. A grown-up channel's are one name per tier of the rating
      * ladder; a kids channel's are the kids hold's own, which stop at PG (the most a kids channel airs), so each means

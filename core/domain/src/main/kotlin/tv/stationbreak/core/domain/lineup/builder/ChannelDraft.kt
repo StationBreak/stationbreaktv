@@ -167,7 +167,7 @@ enum class DraftProblem {
  * a draft with kept settings whose origin is null or gone cannot be (create refuses with `UnknownChannel`, a preview
  * is `Unavailable`).
  */
-@Suppress("LongParameterList") // The draft's fields, one for one.
+@Suppress("LongParameterList", "TooManyFunctions") // The draft's fields one for one, and its checks.
 data class ChannelDraft(
     val name: String,
     val sources: List<DraftSource>,
@@ -185,18 +185,47 @@ data class ChannelDraft(
 ) {
     /** The first thing wrong with the draft, or null when it can be saved. */
     fun problem(): DraftProblem? {
+        val name = nameProblem()
+        return when {
+            name != null -> name
+            sources.isEmpty() && !hasKeptYears() -> DraftProblem.NoSources
+            else -> listsProblem() ?: capsProblem() ?: yearsProblem() ?: minutesProblem() ?: numberProblem()
+        }
+    }
+
+    /**
+     * Everything wrong with the draft, in the order of the builder's pages: the pool (sources, years, minutes), then
+     * how it plays (the caps), then the name and number. Empty exactly when [problem] is null.
+     */
+    fun problems(): List<DraftProblem> =
+        listOfNotNull(
+            DraftProblem.NoSources.takeIf { sources.isEmpty() && !hasKeptYears() },
+            listsProblem(),
+            yearsProblem(),
+            minutesProblem(),
+            capsProblem(),
+            nameProblem(),
+            numberProblem(),
+        )
+
+    private fun nameProblem(): DraftProblem? {
         val trimmed = name.trim()
         val points = trimmed.codePointCount(0, trimmed.length)
         return when {
             points == 0 -> DraftProblem.NameEmpty
             points > MAX_NAME_CODE_POINTS -> DraftProblem.NameTooLong
-            sources.isEmpty() && !hasKeptYears() -> DraftProblem.NoSources
-            sources.size + keptYearRanges() > MAX_LIST -> DraftProblem.TooManySources
-            leaveOut.size > MAX_LIST -> DraftProblem.TooManyLeftOut
-            (filters.genres.size) > MAX_LIST -> DraftProblem.TooManyGenres
-            else -> capsProblem() ?: yearsProblem() ?: minutesProblem() ?: numberProblem()
+            else -> null
         }
     }
+
+    // More of a list than the rules format holds.
+    private fun listsProblem(): DraftProblem? =
+        when {
+            sources.size + keptYearRanges() > MAX_LIST -> DraftProblem.TooManySources
+            leaveOut.size > MAX_LIST -> DraftProblem.TooManyLeftOut
+            filters.genres.size > MAX_LIST -> DraftProblem.TooManyGenres
+            else -> null
+        }
 
     // A year range the copy keeps is a source of the channel too.
     private fun hasKeptYears(): Boolean = keptYearRanges() > 0
@@ -209,7 +238,7 @@ data class ChannelDraft(
         get() = kept?.items.orEmpty().filter { inForce(it) }
 
     /** True when the kept order stays: the viewer left [order] alone and the copied channel has one. */
-    fun keepsOrder(): Boolean = order == null && kept?.items.orEmpty().any { it is KeptItem.Order }
+    internal fun keepsOrder(): Boolean = order == null && kept?.items.orEmpty().any { it is KeptItem.Order }
 
     private fun inForce(item: KeptItem): Boolean =
         when (item) {
@@ -225,9 +254,31 @@ data class ChannelDraft(
             (order ?: PlayOrder.Shuffle) == PlayOrder.Shuffle
 
     /** True when the rules written carry caps: a Shuffle or Rotation that is neither a kept order nor uncapped. */
-    fun writesCaps(): Boolean {
+    internal fun writesCaps(): Boolean {
         val caps = (order ?: PlayOrder.Shuffle) != PlayOrder.InOrder
         return caps && !keepsOrder() && !keepsUncapped()
+    }
+
+    /** Whether the screen lists the caps: not for In order, nor for a kept order. */
+    fun showsCaps(): Boolean = order != PlayOrder.InOrder && !keepsOrder()
+
+    /** Whether the draft is a Shuffle, the only order a Reshuffle (a new seed) changes. */
+    fun canReshuffle(): Boolean = order == PlayOrder.Shuffle || (order == null && !keepsOrder())
+
+    /**
+     * The draft with the kids switch [on] or off at [number] (a number the builder found, not one the viewer picked).
+     * A kids channel's ceiling is one of the kids hold's own choices: any other is replaced by the choice that holds
+     * it to what it held it to, never looser, so the draft, the screen and the file agree.
+     */
+    fun withKids(
+        on: Boolean,
+        number: Int?,
+    ): ChannelDraft = copy(kids = on, number = number, numberChosen = false).kidsNormalised()
+
+    /** [this] with a kids channel's ceiling made one the kids hold knows; a grown-up draft is returned as it is. */
+    internal fun kidsNormalised(): ChannelDraft {
+        if (!kids || filters.maxRating in DraftChoices.ratingCeilings(kids = true)) return this
+        return copy(filters = filters.copy(maxRating = DraftChoices.kidsCeilingFor(filters.maxRating)))
     }
 
     // Caps matter only where they are written; one given without the other is incomplete.
@@ -236,7 +287,7 @@ data class ChannelDraft(
             !writesCaps() -> null
             (seriesCap == null) != (filmCap == null) -> DraftProblem.CapsIncomplete
             seriesCap == null || filmCap == null -> null
-            seriesCap !in CAPS || filmCap !in CAPS -> DraftProblem.CapOutOfRange
+            seriesCap !in CAP_RANGE || filmCap !in CAP_RANGE -> DraftProblem.CapOutOfRange
             else -> null
         }
 
@@ -278,8 +329,10 @@ data class ChannelDraft(
         const val DEFAULT_SERIES_CAP = 3
         const val DEFAULT_FILM_CAP = 1
         const val MAX_NAME_CODE_POINTS = 100
+
+        /** The caps a channel can have, in a row. */
+        val CAP_RANGE = 1..10
         private const val MAX_LIST = 256
-        private val CAPS = 1..10
         private val YEARS = 1..9999
         private val MINUTES = 1..1440
     }

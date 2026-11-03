@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 
@@ -10,7 +11,7 @@ import tv.stationbreak.core.model.Seed
  * [BuildResult.Done], a blank draft is empty at number 600 and opening finds nothing.
  */
 class FakeChannelBuilder : ChannelBuilder {
-    /** What was asked, in order: `blank`, `open`, `create`, `save`, `reshuffle`, `delete` and `numberFor`. */
+    /** What was asked, in order: `blank`, `open`, `create`, `save`, `reshuffle`, `delete`, `numberFor` and `freeNumbers`. */
     val calls = mutableListOf<String>()
 
     /** The drafts passed to [create] and [save]. */
@@ -29,6 +30,9 @@ class FakeChannelBuilder : ChannelBuilder {
 
     /** What [numberFor] answers next. */
     var number: Int? = FIRST_NUMBER
+
+    /** What [freeNumbers] answers next; null is the whole of the band asked for. */
+    var free: Listed<List<Int>>? = null
 
     override suspend fun blank(
         account: LibraryAccount,
@@ -89,6 +93,14 @@ class FakeChannelBuilder : ChannelBuilder {
     ): Int? {
         calls += "numberFor"
         return number
+    }
+
+    override suspend fun freeNumbers(
+        account: LibraryAccount,
+        kids: Boolean,
+    ): Listed<List<Int>> {
+        calls += "freeNumbers"
+        return free ?: Listed.Ok((if (kids) ChannelNumbers.kids else ChannelNumbers.custom).toList())
     }
 
     private companion object {

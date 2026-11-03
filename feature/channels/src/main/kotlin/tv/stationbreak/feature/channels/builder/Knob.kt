@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.builder
 
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
-import tv.stationbreak.core.domain.lineup.builder.DraftChoices
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 
@@ -27,12 +27,12 @@ internal fun ChannelDraft.turned(
     knob: Knob,
     by: Int,
     wrap: Boolean,
-    taken: Set<Int> = emptySet(),
+    free: List<Int> = emptyList(),
 ): ChannelDraft =
     when (knob) {
         Knob.Order -> copy(order = (order ?: PlayOrder.Shuffle).turnedTo(by, wrap))
         Knob.SeriesCap, Knob.FilmCap -> capsTurned(knob, by)
-        Knob.Number -> copy(number = numbered(by, taken), numberChosen = true)
+        Knob.Number -> copy(number = numbered(by, free), numberChosen = true)
         else -> copy(filters = filters.turned(knob, by, wrap, kids))
     }
 
@@ -53,9 +53,9 @@ private fun ChannelDraft.capsTurned(
     val series = seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP
     val film = filmCap ?: ChannelDraft.DEFAULT_FILM_CAP
     return if (knob == Knob.SeriesCap) {
-        copy(seriesCap = (series + by).coerceIn(CAP_RANGE), filmCap = film)
+        copy(seriesCap = (series + by).coerceIn(ChannelDraft.CAP_RANGE), filmCap = film)
     } else {
-        copy(seriesCap = series, filmCap = (film + by).coerceIn(CAP_RANGE))
+        copy(seriesCap = series, filmCap = (film + by).coerceIn(ChannelDraft.CAP_RANGE))
     }
 }
 
@@ -73,14 +73,14 @@ private fun DraftFilters.turned(
     }
 
 // A number outside the channel's band (or none) starts at the band's first free number; inside it, one step to the
-// next free number in that direction, never leaving the band (and staying where it is if there is none).
+// next free number in that direction (the domain's list of them), staying where it is if there is none.
 private fun ChannelDraft.numbered(
     by: Int,
-    taken: Set<Int>,
+    free: List<Int>,
 ): Int {
-    val band = if (kids) DraftChoices.kidsNumbers else DraftChoices.grownUpNumbers
-    val current = number?.takeIf { it in band } ?: return band.firstOrNull { it !in taken } ?: band.first
-    var to = current + by
-    while (to in band && to in taken) to += by
-    return if (to in band) to else current
+    val band = if (kids) ChannelNumbers.kids else ChannelNumbers.custom
+    val inBand = free.filter { it in band }
+    val current = number?.takeIf { it in band } ?: return inBand.firstOrNull() ?: band.first
+    val to = if (by > 0) inBand.firstOrNull { it > current } else inBand.lastOrNull { it < current }
+    return to ?: current
 }

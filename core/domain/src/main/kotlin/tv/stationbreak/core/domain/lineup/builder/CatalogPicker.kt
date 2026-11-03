@@ -30,6 +30,11 @@ sealed interface Listed<out T> {
  * fails is [Listed.Unavailable], and an empty list is [Listed.Ok] of nothing.
  */
 interface CatalogPicker {
+    companion object {
+        /** How many code points a title search takes, trimmed; text of any other length finds nothing. */
+        val SEARCH_LENGTH: IntRange = 2..64
+    }
+
     /** The server's libraries, by the names the server gives them; [Listed.Unavailable] when it can't be reached. */
     suspend fun libraries(account: LibraryAccount): Listed<List<PickerEntry>>
 
@@ -41,7 +46,7 @@ interface CatalogPicker {
     suspend fun genres(account: LibraryAccount): Listed<List<PickerEntry>>
 
     /**
-     * Shows and films whose name contains [text], from the saved library only, sorted by folded name. [text] is 2 to 64
+     * Shows and films whose name contains [text], from the saved library only, sorted by folded name. [text] is [SEARCH_LENGTH]
      * code points, trimmed; anything else finds nothing.
      */
     suspend fun search(
@@ -85,7 +90,7 @@ class LibraryCatalogPicker(
     ): Listed<List<TitleHit>> {
         val trimmed = text.trim()
         val points = trimmed.codePointCount(0, trimmed.length)
-        if (points !in MIN_SEARCH..MAX_SEARCH) return Listed.Ok(emptyList())
+        if (points !in CatalogPicker.SEARCH_LENGTH) return Listed.Ok(emptyList())
         return guarded {
             repository
                 .searchTitles(account, trimmed, SEARCH_LIMIT)
@@ -110,8 +115,6 @@ class LibraryCatalogPicker(
         sortedWith(compareBy({ foldNameAscii(it.label) }, { it.label }, { it.key }))
 
     private companion object {
-        const val MIN_SEARCH = 2
-        const val MAX_SEARCH = 64
         const val SEARCH_LIMIT = 30
     }
 }

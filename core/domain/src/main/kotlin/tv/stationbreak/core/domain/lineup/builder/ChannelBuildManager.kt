@@ -44,12 +44,20 @@ class ChannelBuildManager(
             kids = kids,
             number = numberFor(account, kids),
             seed = newSeed.next(),
-        )
+        ).kidsNormalised()
 
     override suspend fun numberFor(
         account: LibraryAccount,
         kids: Boolean,
     ): Int? = lineupOf(account)?.let { LineupEdits.firstFreeCustom(it, kids, service.catalog) }
+
+    override suspend fun freeNumbers(
+        account: LibraryAccount,
+        kids: Boolean,
+    ): Listed<List<Int>> {
+        val lineup = lineupOf(account) ?: return Listed.Unavailable
+        return Listed.Ok(LineupEdits.freeCustomNumbers(lineup, kids, service.catalog))
+    }
 
     override suspend fun open(
         account: LibraryAccount,
@@ -65,9 +73,15 @@ class ChannelBuildManager(
                 lineup == null || channel == null -> OpenResult.NotFound
                 rules == null -> OpenResult.NotCustomisable
                 copy -> openedCopy(account, lineup, channel, rules)
-                else -> OpenResult.Opened(draftOf(account, rules, channel.number).copy(origin = id), null)
+                else -> OpenResult.Opened(editDraft(account, rules, channel), null)
             }
         }
+
+    private suspend fun editDraft(
+        account: LibraryAccount,
+        rules: ChannelRules,
+        channel: LineupChannel,
+    ): ChannelDraft = draftOf(account, rules, channel.number).copy(origin = channel.id).kidsNormalised()
 
     private suspend fun openedCopy(
         account: LibraryAccount,
@@ -80,7 +94,8 @@ class ChannelBuildManager(
         val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
         val draft = draftOf(account, rules.copy(seed = newSeed.next()), number)
         val kept = draft.kept?.copy(fromName = name)
-        return OpenResult.Opened(draft.copy(name = name, kids = kids, kept = kept, origin = channel.id), name)
+        val opened = draft.copy(name = name, kids = kids, kept = kept, origin = channel.id).kidsNormalised()
+        return OpenResult.Opened(opened, name)
     }
 
     // A copy is of a built-in channel's rules; an edit is of a custom channel's own.
@@ -107,9 +122,10 @@ class ChannelBuildManager(
         draft: ChannelDraft,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            val problem = draft.problem()
+            val sent = draft.kidsNormalised()
+            val problem = sent.problem()
             val lineup = lineupOf(account)
-            val previous = lineup?.let { originRules(it, draft.origin) }
+            val previous = lineup?.let { originRules(it, sent.origin) }
             when {
                 problem != null -> {
                     refused(BuildRefusal.Invalid(problem))
@@ -119,15 +135,15 @@ class ChannelBuildManager(
                     BuildResult.NotEditable
                 }
 
-                draft.kept != null && previous == null -> {
+                sent.kept != null && previous == null -> {
                     refused(BuildRefusal.UnknownChannel)
                 }
 
                 else -> {
                     val id = ChannelId("custom:" + newId())
-                    val rules = DraftRules.toRules(draft, lineup.utcOffsetMinutes, previous)
-                    val number = draft.number.takeIf { draft.numberChosen }
-                    edited(account, LineupEdit.AddCustom(id, rules, number, draft.kids), draft.kids, id, null)
+                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, previous)
+                    val number = sent.number.takeIf { sent.numberChosen }
+                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids), sent.kids, id, null)
                 }
             }
         }
@@ -139,7 +155,8 @@ class ChannelBuildManager(
         swapWith: ChannelId?,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            val problem = draft.problem()
+            val sent = draft.kidsNormalised()
+            val problem = sent.problem()
             val lineup = lineupOf(account)
             val channel = lineup?.channels?.firstOrNull { it.id == id }
             val stored = (channel?.source as? ChannelSource.Custom)?.rules
@@ -161,12 +178,12 @@ class ChannelBuildManager(
                 }
 
                 else -> {
-                    val rules = DraftRules.toRules(draft, lineup.utcOffsetMinutes, stored)
+                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, stored)
                     // A number the viewer did not pick is the channel's own, or the first free one on the other side
                     // of a kids switch: worked out in the lock. A swap needs the number it trades.
-                    val number = draft.number.takeIf { draft.numberChosen || swapWith != null }
-                    val edit = LineupEdit.ReplaceCustom(id, rules, number, swapWith, draft.kids)
-                    edited(account, edit, draft.kids, id, draft.number)
+                    val number = sent.number.takeIf { sent.numberChosen || swapWith != null }
+                    val edit = LineupEdit.ReplaceCustom(id, rules, number, swapWith, sent.kids)
+                    edited(account, edit, sent.kids, id, sent.number)
                 }
             }
         }
@@ -176,7 +193,14 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, null)
+            val stored = lineupOf(account)?.channels?.firstOrNull { it.id == id }?.source as? ChannelSource.Custom
+            // Only a custom channel's own rules say whether it shuffles; any other is the engine's to refuse.
+            val draft = stored?.let { DraftRules.fromRules(it.rules, null) { source -> source.label } }
+            if (draft != null && !draft.canReshuffle()) {
+                refused(BuildRefusal.NotShuffle)
+            } else {
+                edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, null)
+            }
         }
 
     override suspend fun delete(

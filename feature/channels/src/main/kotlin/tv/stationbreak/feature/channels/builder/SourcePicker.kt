@@ -3,12 +3,10 @@ package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.TitleKind
+import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
-
-/** The fewest code points a title search is made for (the picker's own floor). */
-internal const val MIN_SEARCH_POINTS = 2
 
 /** What the source of [tab] is: the draft's kind of source, for a [key] and [label] the picker lists. */
 internal fun sourceOf(
@@ -64,7 +62,7 @@ internal fun searchViewOf(
 ): PickerView {
     val trimmed = text.trim()
     return when {
-        trimmed.codePointCount(0, trimmed.length) < MIN_SEARCH_POINTS -> {
+        trimmed.codePointCount(0, trimmed.length) !in CatalogPicker.SEARCH_LENGTH -> {
             PickerView.Entries(emptyList())
         }
 

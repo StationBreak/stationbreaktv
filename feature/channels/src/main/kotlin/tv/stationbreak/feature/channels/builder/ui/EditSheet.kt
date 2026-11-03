@@ -18,7 +18,6 @@ import tv.stationbreak.core.domain.lineup.builder.SkippedPick
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderUi
-import tv.stationbreak.feature.channels.builder.CAP_RANGE
 import tv.stationbreak.feature.channels.builder.PreviewView
 import tv.stationbreak.feature.channels.builder.SheetRow
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
@@ -161,14 +160,14 @@ private fun sheetText(
         SheetRow.SeriesCap -> {
             labelled(
                 stringResource(R.string.builder_series_cap),
-                "${(draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP).coerceIn(CAP_RANGE)}",
+                "${(draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP).coerceIn(ChannelDraft.CAP_RANGE)}",
             )
         }
 
         SheetRow.FilmCap -> {
             labelled(
                 stringResource(R.string.builder_film_cap),
-                "${(draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP).coerceIn(CAP_RANGE)}",
+                "${(draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP).coerceIn(ChannelDraft.CAP_RANGE)}",
             )
         }
 

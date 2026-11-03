@@ -6,17 +6,13 @@ import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.ChannelPreview
-import tv.stationbreak.core.domain.lineup.builder.DraftChoices
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.model.ChannelId
 
-// Every draft that is opened, or opened again, comes in through here: it is both the draft and the one to compare with,
-// with a kids channel's ceiling made one the kids hold knows, so opening it changes nothing the viewer sees.
-private fun BuilderModel.opened(draft: ChannelDraft): BuilderModel {
-    val ready = draft.kidsCeiling()
-    return copy(draft = ready, opened = ready)
-}
+// Every draft that is opened, or opened again, comes in through here: it is both the draft and the one to compare with.
+// The builder hands over a kids channel's ceiling as one the kids hold knows, so opening it changes nothing.
+private fun BuilderModel.opened(draft: ChannelDraft): BuilderModel = copy(draft = draft, opened = draft)
 
 /** The builder's draft opened: the model of a visit the draft has arrived in. */
 internal fun BuilderModel.arrived(
@@ -60,16 +56,6 @@ internal fun BuilderModel.cursorAfter(by: Int): Int {
     return (genreCursor + by).coerceIn(0, (size - 1).coerceAtLeast(0))
 }
 
-// A kids channel's ceiling is one of the kids hold's own choices: any other is replaced by the choice that holds it to
-// what it held it to, never looser (TV-G to G, TV-PG, R and none to PG), so the draft, the screen and the file agree.
-internal fun ChannelDraft.kidsCeiling(): ChannelDraft {
-    val choices = DraftChoices.ratingCeilings(kids = true)
-    if (!kids || maxRating() in choices) return this
-    return copy(filters = filters.copy(maxRating = DraftChoices.kidsCeilingFor(maxRating())))
-}
-
-private fun ChannelDraft.maxRating(): String? = filters.maxRating
-
 // A draft without a name gets the first source's label to start from.
 internal fun ChannelDraft.suggested(): ChannelDraft {
     val label =
@@ -83,13 +69,17 @@ internal fun ChannelDraft.suggested(): ChannelDraft {
     return copy(name = label.substring(0, label.offsetByCodePoints(0, points)))
 }
 
-/** The kids switch went [on] or off with the number the builder found; with none the switch stays as it was. */
+/**
+ * The kids switch went [on] or off with the number the builder found and the numbers free in the new band; with no
+ * number the switch stays as it was.
+ */
 internal fun BuilderModel.kidsDone(
     on: Boolean,
     number: Int?,
+    free: List<Int>,
 ): BuilderModel =
     when {
-        number != null -> copy(draft = draft.copy(kids = on, number = number, numberChosen = false).kidsCeiling())
+        number != null -> copy(draft = draft.withKids(on, number), free = free)
         on -> copy(message = BuilderMessage.KidsBandFull)
         else -> copy(message = BuilderMessage.NoFreeNumber)
     }

@@ -32,6 +32,7 @@ internal fun messageText(
         }
     }
 
+@Suppress("CyclomaticComplexMethod") // One line per message, exhaustive so a new one cannot go unworded.
 private fun plainMessage(message: BuilderMessage): Int =
     when (message) {
         BuilderMessage.KidsBandFull -> R.string.builder_kids_band_full
@@ -43,6 +44,8 @@ private fun plainMessage(message: BuilderMessage): Int =
         BuilderMessage.Failed -> R.string.builder_failed
         BuilderMessage.NotEditable -> R.string.builder_not_editable
         BuilderMessage.NotCustomisable -> R.string.builder_not_customisable
+        BuilderMessage.NotChangeable -> R.string.builder_not_changeable
+        BuilderMessage.NotShuffle -> R.string.builder_not_shuffle
         BuilderMessage.NotFound -> R.string.builder_not_found
         BuilderMessage.OpenFailed -> R.string.builder_open_failed
         BuilderMessage.Reshuffled -> R.string.builder_saved

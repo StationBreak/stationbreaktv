@@ -425,6 +425,19 @@ class CustomEditsTest {
     }
 
     @Test
+    fun freeCustomNumbersListsEveryFreeNumberInOrderAndFirstFreeIsItsHead() {
+        // 600 is used (an override), 601 is retired, 603 is used.
+        val lineup = lineupOf(starter("western", 310), custom("mine", 600), custom("other", 603))
+        val free = LineupEdits.freeCustomNumbers(lineup, false, catalog)
+
+        assertEquals(listOf(602, 604, 605), free.take(3))
+        assertEquals(LineupDefaults.CUSTOM_NUMBERS.count() - 3, free.size)
+        assertEquals(free.firstOrNull(), LineupEdits.firstFreeCustom(lineup, false, catalog))
+        val kidsFull = lineupOf(starter("w", 310), *customsFilling(Band.Kids.numbers))
+        assertEquals(emptyList(), LineupEdits.freeCustomNumbers(kidsFull, true, catalog))
+    }
+
+    @Test
     fun firstFreeCustomForKidsIsInTheKidsBand() {
         val lineup = lineupOf(starter("western", 310), custom("a", 1), custom("b", 2))
 

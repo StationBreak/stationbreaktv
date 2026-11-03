@@ -3,6 +3,7 @@ package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.TitleHit
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.DraftProblem
@@ -51,8 +52,10 @@ internal data class BuilderModel(
     val message: BuilderMessage? = null,
     val refused: DraftProblem? = null,
     val saving: Boolean = false,
-    /** Numbers other channels hold, with their names: a new channel steps over them. Empty for an edit. */
+    /** The names of channels found holding a number the draft asked for, by number (for the line that says who). */
     val held: Map<Int, String> = emptyMap(),
+    /** The numbers free for a channel in the draft's band (the domain's list); the number rows step over them. */
+    val free: List<Int> = emptyList(),
     /** A new channel was made: no further save until the builder is opened again. */
     val saved: Boolean = false,
     /** Closed was sent for this visit: a further Back (a fast double press) sends nothing. */
@@ -62,6 +65,12 @@ internal data class BuilderModel(
 internal fun BuilderModel.editing() = mode is BuilderMode.Edit
 
 internal fun BuilderModel.dirty() = draft != opened
+
+// The numbers the number rows step over: the free ones in the draft's band, and an edited channel's own.
+internal fun BuilderModel.numberChoices(): List<Int> {
+    val own = opened.number.takeIf { editing() && it != null && (it in ChannelNumbers.kids) == draft.kids }
+    return (free + listOfNotNull(own)).distinct().sorted()
+}
 
 internal fun BuilderModel.sheetRows() = sheetRowsOf(draft, editing(), dirty())
 

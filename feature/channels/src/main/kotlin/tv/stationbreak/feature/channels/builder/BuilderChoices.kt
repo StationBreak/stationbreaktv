@@ -8,9 +8,6 @@ import tv.stationbreak.core.domain.lineup.builder.KeptItem
 import tv.stationbreak.core.domain.lineup.builder.OnlyKind
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 
-/** The caps the Play page steps between. */
-internal val CAP_RANGE = 1..10
-
 private const val FIRST_DECADE = 1920
 private const val LAST_DECADE = 2020
 private const val DECADE = 10
@@ -27,12 +24,6 @@ internal val RUNTIME_CHOICES: List<Pair<Int?, Int?>> =
     listOf(null to SHORT) +
         (SHORT until LONG step RUNTIME_STEP).map { it to it + RUNTIME_STEP } +
         listOf(LONG to null)
-
-/** Whether the Play page lists the caps: not for In order, nor for a kept order. */
-internal fun ChannelDraft.showsCaps(): Boolean = order != PlayOrder.InOrder && !keepsOrder()
-
-/** Whether Reshuffle is offered for a draft of an edit: a Shuffle, with nothing unsaved. */
-internal fun ChannelDraft.shuffles(): Boolean = order == PlayOrder.Shuffle || (order == null && !keepsOrder())
 
 /** The sheet's rows for [draft]: see [BuilderUi.sheetRows]. */
 internal fun sheetRowsOf(
@@ -54,7 +45,7 @@ internal fun sheetRowsOf(
         if (draft.keptInForce.isNotEmpty()) add(SheetRow.Kept)
         add(SheetRow.Preview)
         add(SheetRow.Save)
-        if (editing && !dirty && draft.shuffles()) add(SheetRow.Reshuffle)
+        if (editing && !dirty && draft.canReshuffle()) add(SheetRow.Reshuffle)
         if (editing) add(SheetRow.Delete)
     }
 

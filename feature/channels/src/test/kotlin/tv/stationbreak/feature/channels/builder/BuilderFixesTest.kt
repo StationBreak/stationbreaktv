@@ -21,6 +21,7 @@ import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
 import tv.stationbreak.core.domain.lineup.builder.KeptOrder
 import tv.stationbreak.core.domain.lineup.builder.KeptSettings
+import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.OpenResult
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 import tv.stationbreak.core.model.ChannelId
@@ -97,8 +98,8 @@ class BuilderFixesTest {
     @Test
     fun newAndCopyStepOnlyOverFreeNumbers() =
         builderTest { rig ->
-            rig.channels.list.value =
-                listOf(summary(ChannelId("a"), 601, name = "A"), summary(ChannelId("b"), 602, name = "B"))
+            // The domain's list: 601 and 602 are held, 605 is retired, 604 is a renumbered channel's default.
+            rig.builder.free = Listed.Ok((600..610).toList() - setOf(601, 602, 604, 605))
             rig.picker.libraries = libraries(1)
             rig.openNew()
             rig.tickFirst()
@@ -106,8 +107,61 @@ class BuilderFixesTest {
             rig.vm.next()
             rig.press(Down, Right)
             assertEquals(603, rig.ui.draft.number)
-            rig.press(Left)
+            rig.press(Right)
+            assertEquals(606, rig.ui.draft.number)
+            rig.press(Left, Left)
             assertEquals(600, rig.ui.draft.number)
+            assertEquals(1, rig.builder.calls.count { it == "freeNumbers" })
+        }
+
+    @Test
+    fun theNumbersAreReadAgainAfterANumberTakenRefusal() =
+        builderTest { rig ->
+            rig.picker.libraries = libraries(1)
+            rig.openNew()
+            rig.tickFirst()
+            rig.vm.next()
+            rig.vm.next()
+            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("a"), swappable = false))
+            rig.channels.list.value = listOf(summary(ChannelId("a"), 600, name = "A"))
+            rig.builder.free = Listed.Ok(listOf(601, 603))
+            rig.vm.save(andWatch = true)
+            rig.advance(1)
+            assertEquals(2, rig.builder.calls.count { it == "freeNumbers" })
+            rig.press(Down, Right)
+            assertEquals(601, rig.ui.draft.number)
+        }
+
+    @Test
+    fun anEditStepsFromItsOwnNumberToo() =
+        builderTest { rig ->
+            rig.builder.free = Listed.Ok(listOf(601, 603))
+            rig.openEdit(draftOf("Mine", listOf(lib1), number = 602, origin = CUSTOM))
+            rig.press(Down, Down, Down, Down, Down, Down, Down)
+            assertEquals(BuilderFocus.Sheet(SheetRow.Number), rig.ui.focus)
+            rig.press(Right)
+            assertEquals(603, rig.ui.draft.number)
+            rig.press(Left)
+            assertEquals(602, rig.ui.draft.number)
+            rig.press(Left)
+            assertEquals(601, rig.ui.draft.number)
+        }
+
+    @Test
+    fun turningKidsOnReadsTheKidsNumbersAndTheNumberRowStepsOverThem() =
+        builderTest { rig ->
+            rig.picker.libraries = libraries(1)
+            rig.openNew()
+            rig.tickFirst()
+            rig.vm.next()
+            rig.builder.number = 5
+            rig.builder.free = Listed.Ok(listOf(5, 7, 8))
+            rig.press(Down, Down, Down)
+            rig.select()
+            assertTrue(rig.ui.draft.kids)
+            rig.vm.next()
+            rig.press(Down, Right)
+            assertEquals(7, rig.ui.draft.number)
         }
 
     @Test
@@ -301,11 +355,11 @@ class BuilderFixesTest {
         }
 
     @Test
-    fun aKidsDraftIsOpenedWithACeilingTheHoldKnows() =
+    fun aKidsDraftIsShownAsTheBuilderOpenedItWithNothingUnsaved() =
         builderTest { rig ->
             rig.builder.openResult =
                 OpenResult.Opened(
-                    draftOf("Kids", listOf(lib1), true, origin = BUILT_IN, filters = DraftFilters(maxRating = "R")),
+                    draftOf("Kids", listOf(lib1), true, origin = BUILT_IN, filters = DraftFilters(maxRating = "PG")),
                     null,
                 )
             rig.vm.openCopy(BUILT_IN) { it }
@@ -315,9 +369,9 @@ class BuilderFixesTest {
         }
 
     @Test
-    fun aReshuffledKidsChannelIsReopenedWithACeilingTheHoldKnows() =
+    fun aReshuffledKidsChannelIsReopenedAsTheBuilderOpenedIt() =
         builderTest { rig ->
-            val kids = draftOf("Kids", listOf(lib1), true, origin = CUSTOM, filters = DraftFilters(maxRating = "R"))
+            val kids = draftOf("Kids", listOf(lib1), true, origin = CUSTOM, filters = DraftFilters(maxRating = "PG"))
             rig.openEdit(kids)
             rig.builder.openResult = OpenResult.Opened(kids.copy(seed = Seed(2uL)), null)
             rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)

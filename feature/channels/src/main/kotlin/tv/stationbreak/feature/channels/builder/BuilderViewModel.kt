@@ -122,20 +122,19 @@ internal class BuilderViewModel
                 val generation = model.generation + 1
                 model = BuilderModel(generation = generation, mode = mode, onSheet = mode is BuilderMode.Edit)
                 shown.value = model.toUi()
-                session = scope.launch { arrive(generation, mode, open) }
+                session = scope.launch { arrive(generation, open) }
             }
         }
 
         private suspend fun arrive(
             generation: Int,
-            mode: BuilderMode,
             open: suspend (LibraryAccount) -> Opening,
         ) {
             val account = library.activeAccount().filterNotNull().first()
             when (val opening = open(account)) {
                 is Opening.Draft -> {
-                    val held = if (mode is BuilderMode.Edit) emptyMap() else heldNumbers(account)
-                    change(generation) { it.arrived(account, opening.draft).copy(held = held) }
+                    val free = freeNumbers(account, opening.draft.kids)
+                    change(generation) { it.arrived(account, opening.draft).copy(free = free) }
                 }
 
                 is Opening.Failed -> {
@@ -145,13 +144,11 @@ internal class BuilderViewModel
             readTab(generation, SourceKindTab.Libraries)
         }
 
-        // The numbers other channels hold, with their names: a new channel cannot trade for one, so it steps over them.
-        private suspend fun heldNumbers(account: LibraryAccount): Map<Int, String> =
-            channels
-                .channels(account)
-                .first()
-                .mapNotNull { channel -> channel.number?.let { it to channel.name } }
-                .toMap()
+        // The numbers the lineup has free in a band, read from the domain; none when it can't be read.
+        private suspend fun freeNumbers(
+            account: LibraryAccount,
+            kids: Boolean,
+        ): List<Int> = (builder.freeNumbers(account, kids) as? Listed.Ok)?.value.orEmpty()
 
         /** Applies [f] to the model of [generation], and publishes. */
         private fun change(
@@ -260,7 +257,7 @@ internal class BuilderViewModel
             val account = model.account ?: return
             val generation = model.generation
             val trimmed = text.trim()
-            val enough = trimmed.codePointCount(0, trimmed.length) >= MIN_SEARCH_POINTS
+            val enough = trimmed.codePointCount(0, trimmed.length) in CatalogPicker.SEARCH_LENGTH
             apply { it.copy(searchText = text, searching = enough, hits = if (enough) it.hits else null) }
             if (!enough) return
             searchJob =
@@ -283,7 +280,7 @@ internal class BuilderViewModel
                 val knob = knobOf(focus).takeIf { turning && m.confirm == null && !m.saving }
                 when {
                     knob != null -> {
-                        apply { it.copy(draft = it.draft.turned(knob, by, wrap = false, it.held.keys)) }
+                        apply { it.copy(draft = it.draft.turned(knob, by, wrap = false, it.numberChoices())) }
                     }
 
                     turning && m.confirm == null && focus == BuilderFocus.NarrowRow(NarrowRowKind.Genres) -> {
@@ -353,7 +350,7 @@ internal class BuilderViewModel
         // Select on a value row goes to the next choice, round to the first after the last.
         private fun turnSelected() {
             val knob = knobOf(model.focus) ?: return
-            apply { it.copy(draft = it.draft.turned(knob, 1, wrap = true, it.held.keys)) }
+            apply { it.copy(draft = it.draft.turned(knob, 1, wrap = true, it.numberChoices())) }
         }
 
         private fun toggleGenre() {
@@ -512,7 +509,8 @@ internal class BuilderViewModel
             val generation = model.generation
             scope.launch {
                 val number = builder.numberFor(account, kids = on)
-                change(generation) { it.kidsDone(on, number) }
+                val free = freeNumbers(account, kids = on)
+                change(generation) { it.kidsDone(on, number, free) }
             }
         }
 
@@ -556,9 +554,11 @@ internal class BuilderViewModel
                 val result = send(account, m, swapWith)
                 val holder = ((result as? BuildResult.Refused)?.reason as? BuildRefusal.NumberTaken)?.holder
                 val holderName = holder?.let { nameOf(account, it) }.orEmpty()
+                // A number was taken, so what was free is no longer: read it again.
+                val free = if (holder != null) freeNumbers(account, m.draft.kids) else null
                 change(m.generation) {
                     if (result is BuildResult.Done) sent.trySend(BuilderEvent.Saved(result.id, andWatch))
-                    it.saved(m.draft, result, holderName)
+                    it.saved(m.draft, result, holderName, free)
                 }
             }
         }

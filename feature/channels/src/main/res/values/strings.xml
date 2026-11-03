@@ -153,10 +153,12 @@
     <string name="builder_number_held">Channel %1$d is %2$s. Pick another number.</string>
     <string name="builder_number_taken_pick">That number is taken. Pick another.</string>
     <string name="builder_number_not_tradable">That number is taken and can\'t be traded.</string>
-    <string name="builder_kids_band">Numbers %1$d to %2$d are for kids channels.</string>
+    <string name="builder_kids_band">Kids channels keep numbers %1$d to %2$d, and other channels can\'t use them.</string>
     <string name="builder_out_of_range">That number isn\'t one a channel can have.</string>
     <string name="builder_last_on">At least one channel stays on.</string>
     <string name="builder_not_customisable">That channel can\'t be copied.</string>
+    <string name="builder_not_changeable">That channel can\'t be changed here.</string>
+    <string name="builder_not_shuffle">Only a shuffle channel can be reshuffled.</string>
     <string name="builder_not_found">That channel is gone.</string>
     <string name="builder_open_failed">Couldn\'t open that channel. Nothing was changed.</string>
     <string name="builder_swap_action">Swap</string>

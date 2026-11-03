@@ -3,24 +3,30 @@ package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.lineup.builder.DraftProblem
 
-// The name comes first among a draft's problems, so a nameless draft is given one to find the others.
-private const val PROBE_NAME = "-"
-
 // A problem shows where it can be put right: on the page it belongs to, and everything on the sheet.
 internal fun BuilderModel.problemShown(): DraftProblem? {
-    val found = if (step == BuilderStep.Name || onSheet) draft.problem() else draft.copy(name = PROBE_NAME).problem()
-    return refused ?: found?.takeIf { onSheet || it.step() == step }
+    val here = draft.problems().firstOrNull { onSheet || it.step() == step }
+    return refused ?: here
 }
 
 internal fun DraftProblem.step(): BuilderStep =
     when (this) {
+        DraftProblem.NoSources,
+        DraftProblem.YearsIncomplete,
+        DraftProblem.YearsOutOfRange,
+        DraftProblem.YearsReversed,
+        DraftProblem.MinutesOutOfRange,
+        DraftProblem.MinutesReversed,
+        DraftProblem.TooManySources,
+        DraftProblem.TooManyLeftOut,
+        DraftProblem.TooManyGenres,
+        -> BuilderStep.Sources
+
+        DraftProblem.CapOutOfRange, DraftProblem.CapsIncomplete -> BuilderStep.Play
+
         DraftProblem.NameEmpty,
         DraftProblem.NameTooLong,
         DraftProblem.KidsNumberOutsideBand,
         DraftProblem.GrownUpNumberInKidsBand,
         -> BuilderStep.Name
-
-        DraftProblem.CapOutOfRange, DraftProblem.CapsIncomplete -> BuilderStep.Play
-
-        else -> BuilderStep.Sources
     }

@@ -200,18 +200,27 @@ object LineupEdits {
         }
 
     /**
-     * The lowest number free for a new custom channel: in the Kids band when [kids], else in
-     * [LineupDefaults.CUSTOM_NUMBERS]. Free means no channel has it as a default or an override and [catalog] has not
-     * retired it. Null when there is none.
+     * The lowest number free for a new custom channel: the head of [freeCustomNumbers]. Null when there is none.
      */
     fun firstFreeCustom(
         lineup: Lineup,
         kids: Boolean,
         catalog: StarterCatalogView = StarterCatalog,
-    ): Int? {
+    ): Int? = freeCustomNumbers(lineup, kids, catalog).firstOrNull()
+
+    /**
+     * Every number free for a new custom channel, lowest first: in the Kids band when [kids], else in
+     * [LineupDefaults.CUSTOM_NUMBERS]. Free means no channel has it as a default or an override and [catalog] has not
+     * retired it.
+     */
+    fun freeCustomNumbers(
+        lineup: Lineup,
+        kids: Boolean,
+        catalog: StarterCatalogView = StarterCatalog,
+    ): List<Int> {
         val used = lineup.channels.flatMapTo(HashSet()) { listOfNotNull(it.defaultNumber, it.numberOverride) }
         val range = if (kids) Band.Kids.numbers else LineupDefaults.CUSTOM_NUMBERS
-        return range.firstOrNull { it !in used && it !in catalog.retiredNumbers }
+        return range.filter { it !in used && it !in catalog.retiredNumbers }
     }
 
     /**

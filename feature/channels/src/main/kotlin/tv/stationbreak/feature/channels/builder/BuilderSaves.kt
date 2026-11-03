@@ -11,8 +11,9 @@ internal fun BuilderModel.saved(
     draft: ChannelDraft,
     result: BuildResult,
     holderName: String,
+    free: List<Int>? = null,
 ): BuilderModel {
-    val idle = copy(saving = false)
+    val idle = copy(saving = false, free = free ?: this.free)
     return when (result) {
         // A new channel is made once: the builder takes no more saves until it is opened again.
         is BuildResult.Done -> idle.copy(opened = draft, saved = !editing())

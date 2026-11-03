@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -29,7 +30,7 @@ class DraftChoicesTest {
 
     @Test
     fun theNumberBandsAreTheLineups() {
-        assertEquals(600..899, DraftChoices.grownUpNumbers)
-        assertEquals(1..99, DraftChoices.kidsNumbers)
+        assertEquals(600..899, ChannelNumbers.custom)
+        assertEquals(1..99, ChannelNumbers.kids)
     }
 }

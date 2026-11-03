@@ -170,6 +170,12 @@ internal enum class BuilderMessage {
     Failed,
     NotEditable,
     NotCustomisable,
+
+    /** The channel is not one the viewer built, so it can't be edited, deleted or reshuffled. */
+    NotChangeable,
+
+    /** The channel does not play in a shuffle, so a new seed would change nothing. */
+    NotShuffle,
     NotFound,
     OpenFailed,
 

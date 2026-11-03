@@ -16,7 +16,6 @@ import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderUi
-import tv.stationbreak.feature.channels.builder.CAP_RANGE
 import tv.stationbreak.feature.channels.builder.PlayRowKind
 import tv.stationbreak.feature.channels.builder.playRowsOf
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
@@ -103,13 +102,13 @@ private fun PlayRow(
         }
 
         PlayRowKind.SeriesCap -> {
-            val cap = draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP
-            TextLine(labelled(stringResource(R.string.builder_series_cap), "${cap.coerceIn(CAP_RANGE)}"), focused, tag)
+            val cap = (draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP).coerceIn(ChannelDraft.CAP_RANGE)
+            TextLine(labelled(stringResource(R.string.builder_series_cap), "$cap"), focused, tag)
         }
 
         PlayRowKind.FilmCap -> {
-            val cap = draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP
-            TextLine(labelled(stringResource(R.string.builder_film_cap), "${cap.coerceIn(CAP_RANGE)}"), focused, tag)
+            val cap = (draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP).coerceIn(ChannelDraft.CAP_RANGE)
+            TextLine(labelled(stringResource(R.string.builder_film_cap), "$cap"), focused, tag)
         }
 
         PlayRowKind.Kids -> {
