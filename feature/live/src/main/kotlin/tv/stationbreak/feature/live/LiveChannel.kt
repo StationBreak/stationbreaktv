@@ -205,7 +205,7 @@ class LiveChannel(
         try {
             coroutineScope {
                 val flipper =
-                    Flipper(schedule, clock, timings, screen, tuned, ::record, this, ::earlyLineup) {
+                    Flipper(schedule, clock, timings, screen, tuned, ::record, this, ::earlyLineup, ::cardLineup) {
                         send(requests, it)
                     }
                 refresher = flipper::refresh
@@ -542,15 +542,20 @@ class LiveChannel(
      */
     private suspend fun earlyLineup(): EarlyLineup? {
         val account = library.activeAccount().filterNotNull().first()
-        val on =
-            channels
-                .channels(account)
-                .map { list -> list.filter { it.state == ChannelStatus.On && it.number != null } }
-                .first { it.isNotEmpty() }
-        val airings = on.map { ChannelAiring(it.id, checkNotNull(it.number), it.name, it.onSince, null) }
+        val airings = onAirings(account)
         val saved = lastChannel.load(account)
         return EarlyLineup(FlipOrder(airings), airings.firstOrNull { it.id == saved })
     }
+
+    /** The lineup list as the channel card of a guide tune can use it: no last-channel read, no day built. */
+    private suspend fun cardLineup(): FlipOrder = FlipOrder(onAirings(library.activeAccount().filterNotNull().first()))
+
+    private suspend fun onAirings(account: LibraryAccount): List<ChannelAiring> =
+        channels
+            .channels(account)
+            .map { list -> list.filter { it.state == ChannelStatus.On && it.number != null } }
+            .first { it.isNotEmpty() }
+            .map { ChannelAiring(it.id, checkNotNull(it.number), it.name, it.onSince, null) }
 
     /** Where a sitting lands: the account, the channel with what is on it, and a kept place to return to on it. */
     private data class Landing(

@@ -126,6 +126,8 @@ class TuneCommandTest {
         runTest {
             val f = onNineWithSlowLookups(5_000)
             f.send(LiveCommand.Tune(CH2))
+            // The card waits for nothing and holds nothing up: a quick lookup lands before it shows, a slow one gets it.
+            assertTrue("no card for a quick tune: ${f.r.state}", f.r.state !is LiveState.Choosing)
             advanceTimeBy(1.seconds)
             val shown = f.r.state
             assertTrue("the card for 2 while the lookup runs: $shown", shown is LiveState.Choosing)

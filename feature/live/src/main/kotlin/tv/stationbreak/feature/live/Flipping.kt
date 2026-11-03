@@ -11,7 +11,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -25,8 +24,8 @@ import kotlin.time.Instant
 /** The tune line's `via` for a channel picked in the guide. */
 private const val VIA_GUIDE = "guide"
 
-// How long a guide tune waits for the lineup list to give the channel card before it goes on without one.
-private val CARD_WAIT = 300.milliseconds
+// How long a guide tune's lookup runs before the channel card comes up: a quick one lands first and shows none.
+private val CARD_AFTER = 250.milliseconds
 
 /** When the viewer last pressed a key for a flip, and how long the settle waited after it (for [TuneReport.Flip]). */
 internal class FlipTiming(
@@ -106,6 +105,7 @@ internal class Flipper(
     private val report: (TuneReport) -> Unit,
     private val scope: CoroutineScope,
     private val earlyLineup: suspend () -> EarlyLineup?,
+    private val cardLineup: suspend () -> FlipOrder,
     private val start: (SitRequest) -> Unit,
 ) {
     // The lineup as of the last refresh, read off the key path (a sitting starting). A press uses it and reads the
@@ -645,18 +645,22 @@ internal class Flipper(
         // From here a commit: it owes a flip line, `superseded` if a newer press replaces it.
         val timing = FlipTiming(clock.now(), 0, via = VIA_GUIDE)
         try {
-            // The lookup can take many seconds (every channel's day is built first): the channel's number and name
-            // are up from the lineup list at once, so the screen is never blank meanwhile.
-            val card = cardOf(channel)
-            if (card != null) screen.choose(LiveState.Choosing(card, overPicture = screen.pictureUp))
+            // The lookup can take many seconds (every channel's day is built first): after a moment the channel's
+            // number and name come up from the lineup list, beside the lookup, which never waits for them.
+            val card = scope.launch { showCard(channel) }
             val lookedAt = clock.now()
-            val onAir = find(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+            val onAir =
+                try {
+                    find(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+                } finally {
+                    card.cancel()
+                }
             // A lookup that ran on past a newer press must not land.
             currentCoroutineContext().ensureActive()
             if (onAir == null) {
                 dropped("tune-off-air")
                 // A number a cancelled flip had put up goes with it, and so does this tune's own card.
-                if (target != null || card != null) screen.drop()
+                screen.drop()
                 order = null
                 target = null
                 return
@@ -678,18 +682,22 @@ internal class Flipper(
         }
     }
 
-    // The number and name of [channel] from the lineup list, which needs no day built; null when it is not there (or
-    // the list does not answer at once), and the tune shows nothing until it lands.
-    private suspend fun cardOf(channel: ChannelId): ChannelTag? =
-        try {
-            withTimeoutOrNull(CARD_WAIT) { earlyLineup()?.order?.byId(channel)?.tag() }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (
-            @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
-        ) {
-            null
-        }
+    // The number and name of [channel] from the lineup list, which needs no day built; nothing is shown when it is not
+    // there. A cancel (the lookup ended) stops it before it shows anything.
+    private suspend fun showCard(channel: ChannelId) {
+        delay(CARD_AFTER)
+        val tag =
+            try {
+                cardLineup().byId(channel)?.tag()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                null
+            }
+        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = screen.pictureUp))
+    }
 
     /**
      * [channel] in the lineup. The guide can show a channel the cached lineup does not have yet (one that came back on
