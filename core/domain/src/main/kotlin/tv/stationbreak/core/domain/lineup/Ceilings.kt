@@ -43,7 +43,7 @@ internal class Ceilings(
         return if (recipe != null) recipe.maxRating else source.maxRating
     }
 
-    internal companion object {
+    private companion object {
         /** The most a kids' channel may air: the Kids band's maximum. */
         const val KIDS_MAX_RATING = "PG"
     }

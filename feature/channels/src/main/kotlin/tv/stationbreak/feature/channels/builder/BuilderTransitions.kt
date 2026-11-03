@@ -6,6 +6,7 @@ import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.ChannelPreview
+import tv.stationbreak.core.domain.lineup.builder.DraftChoices
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.model.ChannelId
@@ -18,8 +19,8 @@ internal fun BuilderModel.arrived(
     copy(
         account = account,
         ready = true,
-        draft = draft,
-        opened = draft,
+        draft = draft.kidsCeiling(),
+        opened = draft.kidsCeiling(),
         focus = if (onSheet) BuilderFocus.Sheet(SheetRow.Name) else BuilderFocus.Tab(SourceKindTab.Libraries),
     )
 
@@ -54,6 +55,16 @@ internal fun BuilderModel.cursorAfter(by: Int): Int {
     return (genreCursor + by).coerceIn(0, (size - 1).coerceAtLeast(0))
 }
 
+// A kids channel's ceiling is one of the kids hold's own choices: any other (none, TV-PG, R) is what the hold holds it
+// to, so the draft, the screen and the saved file say the same.
+internal fun ChannelDraft.kidsCeiling(): ChannelDraft {
+    val choices = DraftChoices.ratingCeilings(kids = true)
+    if (!kids || maxRating() in choices) return this
+    return copy(filters = filters.copy(maxRating = choices.last()))
+}
+
+private fun ChannelDraft.maxRating(): String? = filters.maxRating
+
 // A draft without a name gets the first source's label to start from.
 internal fun ChannelDraft.suggested(): ChannelDraft {
     val label =
@@ -73,7 +84,7 @@ internal fun BuilderModel.kidsDone(
     number: Int?,
 ): BuilderModel =
     when {
-        number != null -> copy(draft = draft.copy(kids = on, number = number, numberChosen = false))
+        number != null -> copy(draft = draft.copy(kids = on, number = number, numberChosen = false).kidsCeiling())
         on -> copy(message = BuilderMessage.KidsBandFull)
         else -> copy(message = BuilderMessage.NoFreeNumber)
     }

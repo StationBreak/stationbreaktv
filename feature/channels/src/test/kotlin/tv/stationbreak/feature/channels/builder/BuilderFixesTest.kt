@@ -268,4 +268,38 @@ class BuilderFixesTest {
             assertEquals(BuilderStep.Sources, rig.ui.problemStep)
             assertTrue(rig.builder.saved.isEmpty())
         }
+
+    @Test
+    fun switchingKidsOnRewritesACeilingTheHoldReadsAsPg() =
+        builderTest { rig ->
+            for (stored in listOf("TV-PG", "R", null, "TV-Y7")) {
+                rig.builder.number = 1
+                rig.builder.openResult =
+                    OpenResult.Opened(
+                        draftOf("Copy", listOf(lib1), origin = BUILT_IN, filters = DraftFilters(maxRating = stored)),
+                        null,
+                    )
+                rig.vm.openCopy(BUILT_IN) { it }
+                rig.settle()
+                rig.vm.next()
+                rig.press(Down, Down, Down)
+                rig.select()
+                assertTrue(rig.ui.draft.kids)
+                assertEquals(if (stored == "TV-Y7") "TV-Y7" else "PG", rig.ui.draft.filters.maxRating)
+            }
+        }
+
+    @Test
+    fun aKidsDraftIsOpenedWithACeilingTheHoldKnows() =
+        builderTest { rig ->
+            rig.builder.openResult =
+                OpenResult.Opened(
+                    draftOf("Kids", listOf(lib1), true, origin = BUILT_IN, filters = DraftFilters(maxRating = "R")),
+                    null,
+                )
+            rig.vm.openCopy(BUILT_IN) { it }
+            rig.settle()
+            assertEquals("PG", rig.ui.draft.filters.maxRating)
+            assertEquals(false, rig.ui.dirty)
+        }
 }
