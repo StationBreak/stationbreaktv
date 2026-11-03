@@ -257,7 +257,7 @@ class ChannelPreviewsTest {
     }
 
     @Test
-    fun aKidsDraftPreviewsAsItsNormalisedCeilingWouldAir() {
+    fun normalisingAKidsCeilingNeverChangesThePreview() {
         film(1, genres = listOf("Animation", "Kids"), rating = "G")
         film(2, genres = listOf("Animation", "Kids"), rating = "PG")
         film(3, genres = listOf("Animation", "Kids"), rating = "R")
