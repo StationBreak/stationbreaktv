@@ -53,32 +53,14 @@ object FocusStyle {
  * The surface treatment for a row whose focus a screen draws itself from its state (the channel screen's model-driven
  * focus, ADR-0008 addendum): the same outline (`primary`, 3 dp) and scale as [FocusStyle.surfaceBorder] and
  * [FocusStyle.surfaceScale], without a Compose focus target.
- *
- * With [scaled] false the row keeps its size and the outline is drawn inside its bounds, always present and clear when
- * the row is not focused. For lines of a scrolling list: nothing is drawn outside the line, so a ring cannot be left
- * behind on screen when the line moves or loses the focus, and the modifiers do not change with the focus.
  */
 @Composable
-fun Modifier.drawnFocus(
-    focused: Boolean,
-    scaled: Boolean = true,
-): Modifier {
+fun Modifier.drawnFocus(focused: Boolean): Modifier {
+    if (!focused) return this
     val ring = MaterialTheme.colorScheme.primary
-    val shape = RoundedCornerShape(FocusStyle.OutlineRadius)
-    return when {
-        !scaled -> {
-            border(FocusStyle.OutlineWidth, if (focused) ring else Color.Transparent, shape)
-        }
-
-        focused -> {
-            graphicsLayer {
-                scaleX = FocusStyle.SURFACE_SCALE
-                scaleY = FocusStyle.SURFACE_SCALE
-            }.border(FocusStyle.OutlineWidth, ring, shape)
-        }
-
-        else -> {
-            this
-        }
-    }
+    return this
+        .graphicsLayer {
+            scaleX = FocusStyle.SURFACE_SCALE
+            scaleY = FocusStyle.SURFACE_SCALE
+        }.border(FocusStyle.OutlineWidth, ring, RoundedCornerShape(FocusStyle.OutlineRadius))
 }
