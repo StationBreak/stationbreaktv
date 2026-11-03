@@ -73,6 +73,14 @@
     <string name="builder_kids_skipped">Skipped for kids: %1$s</string>
     <string name="builder_save_and_watch">Save and watch</string>
     <string name="builder_save">Save</string>
+    <string name="builder_reshuffle">Reshuffle</string>
+    <string name="builder_delete">Delete channel</string>
+    <string name="builder_edit">Edit</string>
+    <string name="builder_saved">Saved</string>
+    <string name="builder_row_name">Name</string>
+    <string name="builder_row_sources">Sources</string>
+    <string name="builder_row_play_order">Play order</string>
+    <string name="builder_row_number">Number</string>
     <string name="builder_delete_confirm">Delete %1$s?</string>
     <string name="builder_delete_action">Delete</string>
     <string name="builder_delete_cancel">Cancel</string>

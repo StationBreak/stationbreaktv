@@ -53,29 +53,33 @@ private fun PreviewLine(
             is PreviewView.NothingFits -> preview.skipped
             else -> emptyList()
         }
-    val text =
-        when (preview) {
-            PreviewView.Working -> {
-                stringResource(R.string.builder_working)
-            }
-
-            is PreviewView.Ready -> {
-                val items = preview.next.take(PREVIEW_ITEMS).map { previewItemText(it) }
-                val line = joined(items, R.string.builder_join_dot)
-                if (items.isEmpty()) "" else stringResource(R.string.builder_preview_next, line)
-            }
-
-            is PreviewView.NothingFits -> {
-                stringResource(R.string.builder_preview_empty)
-            }
-
-            PreviewView.Unavailable -> {
-                stringResource(R.string.builder_preview_unavailable)
-            }
-        }
+    val text = previewText(preview)
     if (text.isNotEmpty()) NoteText(text, BuilderTags.PREVIEW, live = true)
     if (kids && skipped.isNotEmpty()) NoteText(skippedText(skipped), BuilderTags.SKIPPED)
 }
+
+/** What the preview says: Working, the next few items, that nothing fits, or that it cannot be worked out. */
+@Composable
+internal fun previewText(preview: PreviewView): String =
+    when (preview) {
+        PreviewView.Working -> {
+            stringResource(R.string.builder_working)
+        }
+
+        is PreviewView.Ready -> {
+            val items = preview.next.take(PREVIEW_ITEMS).map { previewItemText(it) }
+            val line = joined(items, R.string.builder_join_dot)
+            if (items.isEmpty()) "" else stringResource(R.string.builder_preview_next, line)
+        }
+
+        is PreviewView.NothingFits -> {
+            stringResource(R.string.builder_preview_empty)
+        }
+
+        PreviewView.Unavailable -> {
+            stringResource(R.string.builder_preview_unavailable)
+        }
+    }
 
 @Composable
 private fun NextButton(ui: BuilderUi) {

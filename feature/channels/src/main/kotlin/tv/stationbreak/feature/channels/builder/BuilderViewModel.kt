@@ -593,7 +593,10 @@ internal class BuilderViewModel
                 val result = builder.reshuffle(account, mode.id)
                 if (result is BuildResult.Done) {
                     val opening = opening(builder.open(account, mode.id, copy = false)) { it.draft }
-                    change(m.generation) { it.reopened(opening) }
+                    change(m.generation) {
+                        val reopened = it.reopened(opening)
+                        if (opening is Opening.Draft) reopened.copy(message = BuilderMessage.Reshuffled) else reopened
+                    }
                 } else {
                     change(m.generation) { it.copy(message = messageOf(result), saving = false) }
                 }

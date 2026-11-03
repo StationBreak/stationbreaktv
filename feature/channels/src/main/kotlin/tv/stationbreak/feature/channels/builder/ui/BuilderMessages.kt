@@ -45,6 +45,7 @@ private fun plainMessage(message: BuilderMessage): Int =
         BuilderMessage.NotCustomisable -> R.string.builder_not_customisable
         BuilderMessage.NotFound -> R.string.builder_not_found
         BuilderMessage.OpenFailed -> R.string.builder_open_failed
+        BuilderMessage.Reshuffled -> R.string.builder_saved
         BuilderMessage.KidsBand, BuilderMessage.NumberTaken -> R.string.builder_number_taken_pick
     }
 

@@ -32,6 +32,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -94,7 +95,9 @@ internal fun TextLine(
     tag: String,
     modifier: Modifier = Modifier,
 ) {
-    FocusLine(focused, tag, modifier) { Text(text, style = MaterialTheme.typography.bodyLarge) }
+    FocusLine(focused, tag, modifier) {
+        Text(text, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 /** The editable text, shown only while the viewer types; Done on the keyboard ends it ([onDone]). */

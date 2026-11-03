@@ -235,8 +235,10 @@ private fun Body(
     typing: Typing,
     modifier: Modifier = Modifier,
 ) {
-    // The sheet of an edit is drawn by its own composable (Task 23); the steps below are what its rows open.
-    if (ui.ready && !ui.onSheet) {
+    // The sheet of an edit is drawn by EditSheet; the steps below are what its rows open.
+    if (ui.ready && ui.onSheet) {
+        EditSheet(ui, typing, modifier)
+    } else if (ui.ready) {
         Column(modifier) {
             when (ui.step) {
                 BuilderStep.Sources -> SourcesStep(ui, typing, Modifier.weight(1f))

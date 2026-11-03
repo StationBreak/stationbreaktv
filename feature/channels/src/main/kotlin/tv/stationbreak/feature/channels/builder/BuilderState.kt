@@ -172,6 +172,9 @@ internal enum class BuilderMessage {
     NotCustomisable,
     NotFound,
     OpenFailed,
+
+    /** Not a failure: a Reshuffle saved its new seed. */
+    Reshuffled,
 }
 
 /** One-shot effects, collected by the destination (as the guide's event channel is). */

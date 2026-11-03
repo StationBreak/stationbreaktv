@@ -5,6 +5,7 @@ import tv.stationbreak.feature.channels.builder.BuilderStep
 import tv.stationbreak.feature.channels.builder.NameRowKind
 import tv.stationbreak.feature.channels.builder.NarrowRowKind
 import tv.stationbreak.feature.channels.builder.PlayRowKind
+import tv.stationbreak.feature.channels.builder.SheetRow
 import tv.stationbreak.feature.channels.builder.SourceKindTab
 
 /** Test tags for the channel builder. */
@@ -52,6 +53,11 @@ internal object BuilderTags {
     const val ORDER_HINT = "builder:play:Order:hint"
 
     fun kept(index: Int) = "builder:kept:$index"
+
+    fun sheetRow(row: SheetRow) = "builder:sheet:${row.name}"
+
+    /** The \"Kept from\" line over the Kept row. */
+    const val SHEET_KEPT_FROM = "builder:sheet:keptFrom"
 
     fun nameRow(row: NameRowKind) = "builder:name:${row.name}"
 }
