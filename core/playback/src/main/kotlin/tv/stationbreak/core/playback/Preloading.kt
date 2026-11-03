@@ -35,7 +35,35 @@ object PreloadSettings {
 data class PreloadState(
     val ageMs: Long,
     val setupMs: Long?,
+    val error: String? = null,
 )
+
+/**
+ * The `SBPRELOAD` log lines of the spike: one per event of a neighbour's preload. Numbers, fixed names, the preload key
+ * and a channel number only; an error is its class names and a message with any URL taken out.
+ */
+object PreloadLog {
+    const val TAG = "SBPRELOAD"
+    private const val MAX_CAUSES = 4
+    private const val MAX_MESSAGE = 160
+    private val url = Regex("[a-zA-Z][a-zA-Z0-9+.-]*://\\S*")
+
+    fun line(text: String) {
+        runCatching { Log.i(TAG, text) }
+    }
+
+    /** [error] as `Class>Cause: message` (spaces as `_`), every URL replaced, so a line never carries an address. */
+    fun describe(error: Throwable): String {
+        val names = generateSequence(error) { it.cause }.take(MAX_CAUSES).map { it.javaClass.simpleName }
+        val message =
+            error.message
+                .orEmpty()
+                .replace(url, "<url>")
+                .replace('\n', ' ')
+                .take(MAX_MESSAGE)
+        return "${names.joinToString(">")}: ${message.replace(' ', '_')}"
+    }
+}
 
 /** What a tune that was handed a preloaded source reports: numbers only. */
 data class PreloadUse(

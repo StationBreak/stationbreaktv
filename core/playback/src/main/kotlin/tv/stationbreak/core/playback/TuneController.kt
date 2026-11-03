@@ -297,12 +297,7 @@ class TuneController(
         val resolved = if (closed.get()) null else resolve(session, item, start, null, false).resolved
         // Spike #563: a direct-play neighbour's media is prepared on the player ahead of the flip; the transcode and
         // direct-stream routes are left as they were.
-        val key =
-            if (resolved != null && resolved.route == Route.DIRECT_PLAY && preloadEnabled()) {
-                "p${preloadKeys.incrementAndGet()}".also { player.preload(it, resolved.source) }
-            } else {
-                null
-            }
+        val key = preloadKeyFor(resolved)
         val prepared = resolved?.let { Prepared(item, start, it, key) }
         if (prepared != null) {
             outstanding.add(prepared)
@@ -460,10 +455,42 @@ class TuneController(
         }
     }
 
+    /** Asks the player to preload [resolved] and returns its key; null (and says why in the log) when it does not. */
+    private fun preloadKeyFor(resolved: ResolvedPlayback?): String? {
+        val skip =
+            when {
+                resolved == null -> "notResolved"
+                !preloadEnabled() -> "switchOff"
+                resolved.route != Route.DIRECT_PLAY -> "notDirectPlay route=${resolved.route.name.lowercase()}"
+                else -> null
+            }
+        if (skip != null || resolved == null) {
+            PreloadLog.line("skipped reason=$skip")
+            return null
+        }
+        val key = "p${preloadKeys.incrementAndGet()}"
+        PreloadLog.line("requested key=$key route=direct")
+        player.preload(key, resolved.source)
+        return key
+    }
+
     /** What the player holds of the preload [key], as a tune reports it; "not preloaded" when it holds nothing. */
     private fun preloadUse(key: String): PreloadUse {
-        val state = player.preloadState(key) ?: return PreloadUse(false, -1, -1)
-        return PreloadUse(state.setupMs != null, state.ageMs, state.setupMs ?: -1)
+        val state = player.preloadState(key)
+        if (state == null) {
+            PreloadLog.line("tune key=$key state=missing")
+            return PreloadUse(false, -1, -1)
+        }
+        val name =
+            if (state.error != null) {
+                "error"
+            } else if (state.setupMs != null) {
+                "prepared"
+            } else {
+                "working"
+            }
+        PreloadLog.line("tune key=$key state=$name ageMs=${state.ageMs} setupMs=${state.setupMs ?: -1}")
+        return PreloadUse(state.setupMs != null && state.error == null, state.ageMs, state.setupMs ?: -1)
     }
 
     /**

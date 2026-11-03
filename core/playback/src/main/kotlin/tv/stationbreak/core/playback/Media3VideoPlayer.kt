@@ -124,6 +124,8 @@ class Media3VideoPlayer(
         val startedAt: Long,
     ) {
         @Volatile var completedAt: Long = NOT_DONE
+
+        @Volatile var error: String? = null
     }
 
     /** The preloads held, by key. Written on the player's looper; read from any thread. */
@@ -137,12 +139,18 @@ class Media3VideoPlayer(
         preloadManager.addListener(
             object : PreloadManagerListener {
                 override fun onCompleted(mediaItem: MediaItem) {
-                    preloads[mediaItem.mediaId.removePrefix(PRELOAD_ID)]?.completedAt = clock()
+                    val key = mediaItem.mediaId.removePrefix(PRELOAD_ID)
+                    val entry = preloads[key] ?: return
+                    entry.completedAt = clock()
+                    val setupMs = entry.completedAt - entry.startedAt
+                    PreloadLog.line("prepared key=$key setupMs=$setupMs status=$STATUS_NAME")
                 }
 
                 override fun onError(error: PreloadException) {
                     val key = error.mediaItem.mediaId.removePrefix(PRELOAD_ID)
-                    preloads.remove(key)?.let { preloadStatuses.remove(it.rank) }
+                    // Kept (marked) so the tune can say it failed; play() does not use it.
+                    preloads[key]?.error = PreloadLog.describe(error)
+                    PreloadLog.line("error key=$key ${PreloadLog.describe(error)}")
                 }
             },
         )
@@ -211,7 +219,11 @@ class Media3VideoPlayer(
                     .build()
             playId = generation.toString()
             val preloaded = source.preloadKey?.let { preloads.remove(it) }
-            val prepared = preloaded?.let { preloadManager.getMediaSource(it.item) }
+            val usable = preloaded?.takeIf { it.error == null }
+            val prepared = usable?.let { preloadManager.getMediaSource(it.item) }
+            if (source.preloadKey != null) {
+                PreloadLog.line("handover key=${source.preloadKey} used=${prepared != null} entry=${preloaded != null}")
+            }
             if (prepared != null) {
                 // Spike #563: the prepared source, from where the live schedule is now.
                 exo.setMediaSource(prepared, source.playerStart.inWholeMilliseconds)
@@ -219,6 +231,7 @@ class Media3VideoPlayer(
                 exo.setMediaItem(mediaItem(source, playId), source.playerStart.inWholeMilliseconds)
             }
             releasePlayedPreload()
+            if (preloaded != null && prepared == null) preloadManager.remove(preloaded.item)
             playedPreload = preloaded.takeIf { prepared != null }
             exo.prepare()
             exo.playWhenReady = true
@@ -247,7 +260,10 @@ class Media3VideoPlayer(
         key: String,
         source: PlayerSource,
     ) = onPlayerThread {
-        if (preloads.containsKey(key)) return@onPlayerThread
+        if (preloads.containsKey(key)) {
+            PreloadLog.line("skipped key=$key reason=alreadyPresent")
+            return@onPlayerThread
+        }
         val item = mediaItem(source, PRELOAD_ID + key)
         val rank = nextRank++
         preloadStatuses[rank] =
@@ -260,13 +276,17 @@ class Media3VideoPlayer(
                 )
             }
         preloads[key] = PreloadEntry(item, rank, clock())
+        val startMs = source.playerStart.inWholeMilliseconds
+        PreloadLog.line("queued key=$key rank=$rank status=$STATUS_NAME startMs=$startMs")
         preloadManager.add(item, rank)
+        // add() invalidates already (checked in the 1.11.1 bytecode); once more is harmless.
+        preloadManager.invalidate()
     }
 
     override fun preloadState(key: String): PreloadState? =
         preloads[key]?.let {
             val done = it.completedAt
-            PreloadState(clock() - it.startedAt, if (done == NOT_DONE) null else done - it.startedAt)
+            PreloadState(clock() - it.startedAt, if (done == NOT_DONE) null else done - it.startedAt, it.error)
         }
 
     override fun dropPreload(key: String) =
@@ -274,6 +294,8 @@ class Media3VideoPlayer(
             preloads.remove(key)?.let {
                 preloadStatuses.remove(it.rank)
                 preloadManager.remove(it.item)
+                preloadManager.invalidate()
+                PreloadLog.line("removed key=$key reason=dropped")
             }
         }
 
@@ -282,6 +304,7 @@ class Media3VideoPlayer(
         playedPreload?.let {
             preloadStatuses.remove(it.rank)
             preloadManager.remove(it.item)
+            PreloadLog.line("removed reason=played")
         }
         playedPreload = null
     }
@@ -346,6 +369,7 @@ class Media3VideoPlayer(
             published = Published.NONE
             memory.stop()
             exo.release()
+            if (preloads.isNotEmpty()) PreloadLog.line("removed reason=released n=${preloads.size}")
             preloads.clear()
             preloadManager.release()
         }
@@ -566,6 +590,7 @@ class Media3VideoPlayer(
         const val EVENT_BUFFER = 64
         const val NO_POSITION = -1L
         const val NOT_DONE = -1L
+        val STATUS_NAME = if (PreloadSettings.BUFFER_MS <= 0L) "tracksSelected" else "rangeLoaded"
 
         /** The media id prefix of a preloaded item (not a number: its events fall back to the active play). */
         const val PRELOAD_ID = "pre:"
