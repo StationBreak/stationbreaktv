@@ -540,13 +540,50 @@ class ChannelsViewModelTest {
             assertEquals(C, rig.vm.closing())
         }
 
+    // #557: nothing is higher than the channel that went, so cable goes down, not round to the lowest.
     @Test
-    fun closingWrapsToTheLowestOn() =
+    fun closingAfterTheHighestPlayingChannelWasDeletedTunesTheNextLower() =
+        channelsTest(trio) { rig ->
+            rig.open(this, current = C)
+            rig.repo.list.value = listOf(summary(A, 5), summary(B, 7))
+            runCurrent()
+            assertEquals(B, rig.vm.closing())
+        }
+
+    @Test
+    fun closingAfterAHighestPlayingChannelWentOffTunesTheNextLowerNotTheLowest() =
         channelsTest(trio) { rig ->
             rig.open(this, current = C)
             rig.repo.list.value = listOf(summary(A, 5), summary(B, 7), summary(C, 9, Shelf))
             runCurrent()
-            assertEquals(A, rig.vm.closing())
+            assertEquals(B, rig.vm.closing())
+        }
+
+    @Test
+    fun closingAfterAMiddlePlayingChannelWasDeletedTunesTheNextHigher() =
+        channelsTest(trio) { rig ->
+            rig.open(this, current = B)
+            rig.repo.list.value = listOf(summary(A, 5), summary(C, 9))
+            runCurrent()
+            assertEquals(C, rig.vm.closing())
+        }
+
+    @Test
+    fun closingAfterTheLowestPlayingChannelWasDeletedTunesTheNextHigherNotTheTop() =
+        channelsTest(trio) { rig ->
+            rig.open(this, current = A)
+            rig.repo.list.value = listOf(summary(B, 7), summary(C, 9))
+            runCurrent()
+            assertEquals(B, rig.vm.closing())
+        }
+
+    @Test
+    fun closingWhenNothingIsLeftOnTunesNothing() =
+        channelsTest(trio) { rig ->
+            rig.open(this, current = B)
+            rig.repo.list.value = emptyList()
+            runCurrent()
+            assertNull(rig.vm.closing())
         }
 
     @Test

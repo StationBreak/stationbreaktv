@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -128,8 +129,31 @@ class Media3VideoPlayer(
     /** The Media3 player, for this module's instrumented tests. The app attaches a surface through [attach]. */
     internal val player: Player get() = exo
 
+    // The surface this player shows on, which it watches for being destroyed (looper only).
+    private var attached: SurfaceView? = null
+
+    private val surfaceWatch =
+        object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) = Unit
+
+            override fun surfaceChanged(
+                holder: SurfaceHolder,
+                format: Int,
+                width: Int,
+                height: Int,
+            ) = Unit
+
+            // Called on the main thread; the event goes out on the looper, in order with the first frames.
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                onPlayerThread { emit(PlayerEvent.SurfaceLost(active)) }
+            }
+        }
+
     override fun attach(surface: SurfaceView?) =
         onPlayerThread {
+            attached?.holder?.removeCallback(surfaceWatch)
+            attached = surface
+            surface?.holder?.addCallback(surfaceWatch)
             if (surface == null) exo.clearVideoSurface() else exo.setVideoSurfaceView(surface)
         }
 
@@ -234,6 +258,8 @@ class Media3VideoPlayer(
 
     override fun release() =
         onPlayerThread {
+            attached?.holder?.removeCallback(surfaceWatch)
+            attached = null
             current = null
             active = 0L
             seeking = false

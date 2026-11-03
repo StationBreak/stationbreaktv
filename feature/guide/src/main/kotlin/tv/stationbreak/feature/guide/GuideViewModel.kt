@@ -23,10 +23,10 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.PlayKey
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
-import tv.stationbreak.core.domain.lineup.neighbourOf
 import tv.stationbreak.core.domain.lineup.onGuide
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -101,6 +101,10 @@ internal class GuideViewModel
         private var session: CoroutineScope? = null
         private var window: ScheduleWindow? = null
         private var currentChannel: ChannelId? = null
+
+        // What live is playing on [currentChannel], which the schedule's now cell gives way to until it ends (#556).
+        // Written under [lock] at the open, read by the builds outside it.
+        @Volatile private var playing: PlayingAiring? = null
         private var loaded = false
         private var tickJob: Job? = null
         private var dwellJob: Job? = null
@@ -127,11 +131,19 @@ internal class GuideViewModel
         private var tickLag = 0L
         private var tickLate = 0L
 
-        /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
-        fun open(current: ChannelId?) {
+        /**
+         * Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). [playing]
+         * is what live is playing on it, shown as its now cell until that ends (#556); one for another channel is not
+         * the playing channel's, and is ignored.
+         */
+        fun open(
+            current: ChannelId?,
+            playing: PlayingAiring? = null,
+        ) {
             synchronized(lock) {
                 endSession()
                 currentChannel = current
+                this.playing = playing?.takeIf { it.channel == current }
                 val fresh = newSession()
                 startLoad(fresh)
                 startWatch(fresh)
@@ -417,13 +429,6 @@ internal class GuideViewModel
         fun channelsClosed() {
             synchronized(lock) {
                 managing = false
-                // The channel playing was taken off the lineup (deleted): tune its neighbour, as cable would.
-                // Live closes the guide on that tune, so the grid is not loaded again for it.
-                val neighbour = neighbourOfGonePlaying()
-                if (neighbour != null) {
-                    eventChannel.trySend(GuideEvent.Tune(neighbour))
-                    return
-                }
                 if (lineupAtOpen != null && lineupNow != lineupAtOpen) {
                     reload(menu = GuideMenuEntry.Channels)
                 } else {
@@ -431,16 +436,6 @@ internal class GuideViewModel
                     resumeTick()
                 }
             }
-        }
-
-        // The channel to tune when the one playing is no longer On, by the domain's neighbour rule. Null when it is
-        // still there, was never known, or nothing is left. Under [lock].
-        private fun neighbourOfGonePlaying(): ChannelId? {
-            val playing = currentChannel
-            val now = lineupNow?.map { it.first to it.second }
-            val was = lineupAtOpen?.firstOrNull { it.first == playing }?.second
-            val gone = if (playing != null && now != null && now.none { it.first == playing }) was else null
-            return gone?.let { now?.neighbourOf(it) }
         }
 
         /** Channel management ended with a tune: the guide goes with it. */
@@ -652,12 +647,12 @@ internal class GuideViewModel
             extension: Boolean,
         ) {
             val built = maxOf(nowMs(), shownNowMs())
-            val early = buildGuideModel(fresh, built)
+            val early = modelAt(fresh, built)
             synchronized(lock) {
                 if (session !== s) return
                 val shownNow = shownNowMs()
                 val now = maxOf(built, shownNow)
-                val model = if (now == built) early else buildGuideModel(fresh, now)
+                val model = if (now == built) early else modelAt(fresh, now)
                 val endNow = (shownSnapshot.value.state as? GuideState.Ready)?.model?.endMs
                 if (extension && endNow != null && model.endMs < endNow) return
                 if (extension) applied++
@@ -666,6 +661,12 @@ internal class GuideViewModel
                 if (tickJob == null && !managing) tickJob = s.launch { tickLoop(s) }
             }
         }
+
+        // The grid for [window] at [now]: the playing channel's now cell is what live plays, until that item ends.
+        private fun modelAt(
+            window: ScheduleWindow,
+            now: Long,
+        ): GuideModel = buildGuideModel(window.holding(playing, now), now)
 
         // The moment the grid shows, or the earliest there is when it shows none.
         private fun shownNowMs(): Long = (shownSnapshot.value.state as? GuideState.Ready)?.nowMs ?: Long.MIN_VALUE
@@ -714,7 +715,7 @@ internal class GuideViewModel
             val built = synchronized(lock) { if (session === s) window else null } ?: return due
             val read = nowMs()
             val now = if (due - read in 1..EARLY_WAKE_MS) due else read
-            val model = buildGuideModel(built, now)
+            val model = modelAt(built, now)
             return synchronized(lock) {
                 // A window that was replaced while this one was built has its own newer grid; a later moment is shown.
                 if (session !== s || window !== built || now < shownNowMs()) {

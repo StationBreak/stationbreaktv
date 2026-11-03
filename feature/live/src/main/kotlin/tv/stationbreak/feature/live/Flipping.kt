@@ -439,7 +439,7 @@ internal class Flipper(
         }
         earlyShown = false
         target = next
-        screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.pictureUp))
+        screen.choose(LiveState.Choosing(next.tag(), overPicture = screen.frameShown))
         val again: suspend (Instant, Duration) -> Unit = { at, wait -> settle(steps, next, direction, at, wait) }
         resettle = again
         // A key still down waits for its release (or the fallback); one already up settles now.
@@ -622,7 +622,8 @@ internal class Flipper(
         closeEarlyTail("superseded")
         abandonEarly("superseded")
         tuning?.cancel()
-        tuning = scope.launch { tuneTo(channel) }
+        // Started at once, not queued behind the frame: the card goes up in the step that closed the guide.
+        tuning = scope.launch(start = CoroutineStart.UNDISPATCHED) { tuneTo(channel) }
     }
 
     private suspend fun tuneTo(channel: ChannelId) {
@@ -641,17 +642,21 @@ internal class Flipper(
         // From here a commit: it owes a flip line, `superseded` if a newer press replaces it.
         val timing = FlipTiming(clock.now(), 0, via = VIA_GUIDE)
         try {
-            // The lookup can take many seconds (every channel's day is built first): after a moment the channel's
-            // number and name come up from the lineup list, beside the lookup, which never waits for them.
-            // Cancelled, not joined: it cannot overwrite a tune that has landed only because this machine runs on Main
-            // (one thread), so the cancel below takes effect before the landing below.
-            val card = scope.launch { showCard(channel) }
+            // The lookup can take many seconds (every channel's day is built first), so the channel's number and name
+            // are up over snow from the press, never over plain black: at once when the cached lineup has the channel,
+            // else as soon as the lineup list says (beside the lookup, which never waits for it). Cancelled, not
+            // joined: it cannot overwrite a tune that has landed only because this machine runs on Main (one thread),
+            // so the cancel below takes effect before the landing below.
+            val known = cached?.byId(channel)?.tag()
+            val card =
+                if (known != null) null else scope.launch(start = CoroutineStart.UNDISPATCHED) { showCard(channel) }
+            if (known != null) screen.choose(LiveState.Choosing(known, overPicture = screen.frameShown))
             val lookedAt = clock.now()
             val onAir =
                 try {
                     find(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
                 } finally {
-                    card.cancel()
+                    card?.cancel()
                 }
             // A lookup that ran on past a newer press must not land.
             currentCoroutineContext().ensureActive()
@@ -680,10 +685,10 @@ internal class Flipper(
         }
     }
 
-    // The number and name of [channel] from the lineup list, which needs no day built; nothing is shown when it is not
-    // there. A cancel (the lookup ended) stops it before it shows anything.
+    // The number and name of [channel] from the lineup list, which needs no day built, over snow (the old picture is
+    // going and the new one is not up: a card over nothing is plain black); nothing is shown when it is not there. A
+    // cancel (the lookup ended) stops it before it shows anything.
     private suspend fun showCard(channel: ChannelId) {
-        delay(timings.guideCardAfter)
         val tag =
             try {
                 cardLineup().byId(channel)?.tag()
@@ -694,7 +699,7 @@ internal class Flipper(
             ) {
                 null
             }
-        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = screen.pictureUp))
+        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = screen.frameShown))
     }
 
     /**

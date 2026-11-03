@@ -46,8 +46,6 @@ import kotlin.time.Duration.Companion.seconds
  *   live at the known place. As long as the player's own seek watchdog (`TuneController.PLAYING_TIMEOUT`).
  * @property seekLandingSlack how far from its target a seek's `SeekDone` may land, when its `Seeking` was not seen (the
  *   player folded it into a seek already pending), and still be taken as that seek's (spec 20).
- * @property guideCardAfter how long a guide tune's lookup runs before the channel's number and name come up over it (a
- *   slow lookup, such as a new channel's, is never plain black); a quicker lookup lands first and shows no card.
  * @property holdRearmMin the shortest re-armed wait of the behind play's media-time hold (spec 20): once a wait has
  *   fired short (the media running slower than the clock), the next waits at least this long, so it never spins.
  * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
@@ -74,7 +72,6 @@ data class LiveTimings(
     val goLiveWait: Duration = 20.seconds,
     val seekLandingSlack: Duration = 2.seconds,
     val holdRearmMin: Duration = 250.milliseconds,
-    val guideCardAfter: Duration = 250.milliseconds,
 ) {
     init {
         require(flipReleaseFallback > keyRepeatTimeout) { "flipReleaseFallback must outlast the key-repeat timeout" }
@@ -89,7 +86,6 @@ data class LiveTimings(
         require(goLiveWait > Duration.ZERO) { "goLiveWait must be positive" }
         require(seekLandingSlack >= Duration.ZERO) { "seekLandingSlack must not be negative" }
         require(holdRearmMin > Duration.ZERO) { "holdRearmMin must be positive" }
-        require(guideCardAfter >= Duration.ZERO) { "guideCardAfter must not be negative" }
     }
 
     companion object {

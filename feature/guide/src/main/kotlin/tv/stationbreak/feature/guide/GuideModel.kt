@@ -4,6 +4,7 @@ package tv.stationbreak.feature.guide
 import androidx.compose.runtime.Immutable
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
@@ -124,4 +125,39 @@ private fun cellOf(block: AiringBlock): GuideCell {
 private fun displayTitle(info: ProgramInfo): String {
     val series = info.seriesName
     return if (info.kind == ScheduleItemKind.Episode && series != null) series else info.title
+}
+
+/**
+ * [this] window with the item live TV is playing ([held]) kept as the playing channel's block: the schedule stays
+ * stateless, so after an edit it may say another item is on, while the picture plays on to the held item's end (spec
+ * 22, ruling 16). The channel's other blocks keep the schedule's, the one before the held block ending where it
+ * starts and the one after it starting where it ends. Other channels, a null [held], and a [held] that has ended by
+ * [nowMs] are left as they are.
+ */
+internal fun ScheduleWindow.holding(
+    held: PlayingAiring?,
+    nowMs: Long,
+): ScheduleWindow {
+    // Once the held item has ended the schedule says what is on, as it does for every other channel.
+    if (held == null || nowMs >= held.block.endMs) return this
+    return copy(
+        rows =
+            rows.map { row ->
+                if (row.channel.id == held.channel) row.copy(blocks = held.over(row.blocks)) else row
+            },
+    )
+}
+
+private fun PlayingAiring.over(blocks: List<AiringBlock>): List<AiringBlock> {
+    val before = blocks.filter { it.startMs < block.startMs }.map { it.copy(endMs = minOf(it.endMs, block.startMs)) }
+    val after = blocks.filter { it.endMs > block.endMs }.map { it.startingAt(block.endMs) }
+    return before + block + after
+}
+
+// [this] from [atMs] on: a program that has been playing since its start joins its media where that has reached.
+private fun AiringBlock.startingAt(atMs: Long): AiringBlock {
+    if (startMs >= atMs) return this
+    val was = airing
+    val now = if (was is Airing.Program) was.copy(mediaStartMs = was.mediaStartMs + (atMs - startMs)) else was
+    return copy(startMs = atMs, airing = now)
 }

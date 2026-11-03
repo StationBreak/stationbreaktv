@@ -41,12 +41,14 @@ import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
+import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.onLineup
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.feature.live.report.AiringKey
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import tv.stationbreak.feature.live.report.ReportingConfig
@@ -121,6 +123,25 @@ class LiveChannel(
 
     /** The channel tuned last (the one playing, or being tuned); null before the first. The guide opens on it. */
     val playingChannel: ChannelId? get() = tuned.playing?.id
+
+    /**
+     * What the picture is playing on the channel tuned last, with the block's real start and end; null while it is
+     * tuning or showing no program. The guide shows it as that channel's now cell until it ends (#556).
+     */
+    val playingAiring: PlayingAiring?
+        get() = screen.playingNow?.let { PlayingAiring(it.channel, it.block) }
+
+    /**
+     * One event of the player's ordered stream: a first frame puts a picture on screen, and the loss of the video
+     * surface (a screen over it took it) takes it off until the next first frame.
+     */
+    fun onPlayerEvent(event: PlayerEvent) {
+        when (event) {
+            is PlayerEvent.FirstFrame -> screen.frameRendered()
+            is PlayerEvent.SurfaceLost -> screen.surfaceLost()
+            else -> Unit
+        }
+    }
 
     /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
     val flips: List<TuneReport.Flip> get() = flipLog

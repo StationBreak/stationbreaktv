@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
+import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
@@ -53,18 +54,16 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * button above the grid shows [channels] over the guide (channel management, which `app` hands in); the guide's own
  * keys and Back stand down while it shows.
  */
-@Suppress("LongParameterList") // The destination's own: what is playing, where, how to tune, and the slot.
 @Composable
 fun GuideDestination(
-    current: ChannelId?,
-    openedAtNanos: Long,
+    opening: GuideOpening,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
     channels: ChannelsSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, current, pictureHole, onTune, channels, openedAtNanos, modifier, viewModel.measure)
+    GuideRoot(viewModel, opening, pictureHole, onTune, channels, modifier, viewModel.measure)
 }
 
 /**
@@ -87,18 +86,19 @@ typealias ChannelsSlot =
  * `System.nanoTime()` is evaluated again when this recomposes (once it has read state, Compose re-runs its defaults),
  * which would end the session and open a new one on an ordinary recomposition, such as channel management closing.
  */
-@Suppress("LongParameterList", "LongMethod") // The destination's own six, and one a test leaves at its default.
+@Suppress("LongParameterList", "LongMethod") // The destination's own, and two a test leaves at their defaults.
 @Composable
 internal fun GuideRoot(
     viewModel: GuideViewModel,
-    current: ChannelId?,
+    opening: GuideOpening,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
     channels: ChannelsSlot,
-    openedAtNanos: Long,
     modifier: Modifier = Modifier,
     measure: Boolean = false,
 ) {
+    val current = opening.current
+    val openedAtNanos = opening.openedAtNanos
     // The session's measurement line (Task 9) is written when the session ends, and only when [measure] says this build
     // writes it. The rows and the ticks' lag are read as they stand then.
     val view = LocalView.current
@@ -111,7 +111,7 @@ internal fun GuideRoot(
     DisposableEffect(viewModel, openedAtNanos) {
         val started = GuideMeasurement.start(measure, view, openedAtNanos)
         measurement = started
-        viewModel.open(current)
+        viewModel.open(opening.current, opening.playing)
         onDispose {
             try {
                 val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0

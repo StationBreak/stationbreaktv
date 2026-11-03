@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -42,6 +43,24 @@ class EditCutOverLiveTest {
             assertEquals(itemOf(9), r.tunes.last().item)
             assertEquals(10.minutes, r.tunes.last().start)
             r.assertEveryPreResolveEndsOnce()
+        }
+
+    // #556: the guide shows what is playing, with its real start and end, whatever the schedule says after an edit.
+    @Test
+    fun theAiringItemIsExposedToTheGuideWithItsRealStartAndEndAfterAnEdit() =
+        runTest {
+            val r = Rig(this, startMin = 10)
+            r.schedule.channel(CH7, 7, listOf(program(0, 50, 1), program(50, 120, 2)))
+            assertNull(r.live.playingAiring)
+            r.start()
+
+            r.atMin(10)
+            r.schedule.channel(CH7, 7, listOf(program(0, 40, 8), program(40, 100, 9)))
+            r.atMin(20)
+
+            val held = checkNotNull(r.live.playingAiring)
+            assertEquals(CH7, held.channel)
+            assertEquals(program(0, 50, 1), held.block)
         }
 
     @Test

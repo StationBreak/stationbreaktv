@@ -314,7 +314,7 @@ internal class Sitting(
             }
         if (outcome is TuneOutcome.Dead) {
             heldBlockStartMs = block.startMs
-            showWatching(scope, banner, block.airing.itemId())
+            showWatching(scope, banner, block)
             onSettled(scope)
         }
         return outcome
@@ -546,7 +546,7 @@ internal class Sitting(
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
             heldBlockStartMs = what.block.startMs
-            val playing = showWatching(scope, banner, what.block.airing.itemId())
+            val playing = showWatching(scope, banner, what.block)
             // The banner's "Next" came from the blocks already read; with no program among them, look wider, now that
             // the picture is up and the tune no longer waits for it.
             if (onAir != null && playing.banner.next == null) widenNext(scope, onAir, playing)
@@ -558,13 +558,13 @@ internal class Sitting(
     private fun showWatching(
         scope: CoroutineScope,
         banner: Banner,
-        itemId: CanonicalId?,
+        block: AiringBlock,
     ): Playing {
         lingering?.cancel()
         // Once the picture plays, "Tuning in" becomes "Now" (R22); the joining line stays. Filling in stays as it is.
         val label = if (banner.label == BannerLabel.TuningIn) BannerLabel.Now else banner.label
         val shown = banner.copy(label = label)
-        val playing = Playing(shown, itemId)
+        val playing = Playing(shown, block.airing.itemId(), channel, block)
         state.watching(LiveState.Watching(shown), playing)
         lingering =
             scope.launch {
