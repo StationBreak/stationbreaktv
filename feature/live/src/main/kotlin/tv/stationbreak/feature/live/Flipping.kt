@@ -650,7 +650,7 @@ internal class Flipper(
             val known = cached?.byId(channel)?.tag()
             val card =
                 if (known != null) null else scope.launch(start = CoroutineStart.UNDISPATCHED) { showCard(channel) }
-            if (known != null) screen.choose(LiveState.Choosing(known, overPicture = false))
+            if (known != null) screen.choose(LiveState.Choosing(known, overPicture = screen.pictureUp))
             val lookedAt = clock.now()
             val onAir =
                 try {
@@ -699,7 +699,7 @@ internal class Flipper(
             ) {
                 null
             }
-        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = false))
+        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = screen.pictureUp))
     }
 
     /**
