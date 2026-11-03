@@ -80,10 +80,10 @@ enum class OnlyKind { Films, Shows }
 /**
  * Settings of a copied built-in channel that the builder cannot show or change, as the screen's read-only "Kept from"
  * lines. Structured values only: the screen words them. [fromName] is the built-in channel they were copied from, or
- * empty when that is not known (a saved copy being edited).
+ * null when that is not known (a saved copy being edited).
  */
 data class KeptSettings(
-    val fromName: String,
+    val fromName: String?,
     val items: List<KeptItem>,
 )
 

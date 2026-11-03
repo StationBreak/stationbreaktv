@@ -353,7 +353,7 @@ class ChannelBuildManagerTest {
 
             val kept = assertNotNull(edit.draft.kept)
             assertTrue(KeptItem.Order(KeptOrder.RandomInOrder) in kept.items, "the kept settings are still listed")
-            assertEquals("", kept.fromName, "and the copy is not named as where they came from")
+            assertEquals(null, kept.fromName, "and the copy is not named as where they came from")
         }
 
     @Test

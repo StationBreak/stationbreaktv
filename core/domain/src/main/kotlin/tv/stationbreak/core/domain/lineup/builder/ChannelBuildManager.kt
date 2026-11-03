@@ -93,7 +93,7 @@ class ChannelBuildManager(
     ): ChannelDraft {
         val draft = draftOf(account, rules, channel.number)
         // The rules hold the channel's own name, not the built-in it was copied from, which is not stored: name nobody.
-        val kept = draft.kept?.copy(fromName = "")
+        val kept = draft.kept?.copy(fromName = null)
         return draft.copy(origin = channel.id, kept = kept).kidsNormalised()
     }
 

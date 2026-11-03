@@ -45,7 +45,7 @@ private sealed interface SheetLine {
     }
 
     data class KeptHeader(
-        val from: String,
+        val from: String?,
     ) : SheetLine {
         override val key = "kept:header"
     }

@@ -11,8 +11,8 @@ internal fun capText(cap: Int?): String = cap?.toString() ?: stringResource(R.st
 
 /** "Kept from Name", or a general line when the built-in channel the settings came from is not known. */
 @Composable
-internal fun keptFromText(from: String): String =
-    if (from.isBlank()) {
+internal fun keptFromText(from: String?): String =
+    if (from == null) {
         stringResource(R.string.builder_kept_from_copied)
     } else {
         stringResource(R.string.builder_kept_from, from)

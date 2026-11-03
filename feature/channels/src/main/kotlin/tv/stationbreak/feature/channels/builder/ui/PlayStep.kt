@@ -31,7 +31,7 @@ private sealed interface PlayLine {
     }
 
     data class KeptHeader(
-        val from: String,
+        val from: String?,
     ) : PlayLine {
         override val key = "kept:header"
     }
