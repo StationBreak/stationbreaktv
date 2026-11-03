@@ -48,7 +48,6 @@ import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
-import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.feature.live.report.AiringKey
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import tv.stationbreak.feature.live.report.ReportingConfig
@@ -130,18 +129,6 @@ class LiveChannel(
      */
     val playingAiring: PlayingAiring?
         get() = screen.playingNow?.let { PlayingAiring(it.channel, it.block) }
-
-    /**
-     * One event of the player's ordered stream: a first frame puts a picture on screen, and the loss of the video
-     * surface (a screen over it took it) takes it off until the next first frame.
-     */
-    fun onPlayerEvent(event: PlayerEvent) {
-        when (event) {
-            is PlayerEvent.FirstFrame -> screen.frameRendered()
-            is PlayerEvent.SurfaceLost -> screen.surfaceLost()
-            else -> Unit
-        }
-    }
 
     /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
     val flips: List<TuneReport.Flip> get() = flipLog

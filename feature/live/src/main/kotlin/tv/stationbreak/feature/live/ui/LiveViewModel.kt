@@ -337,16 +337,11 @@ internal class LiveViewModel
                 coroutineScope {
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
-                    val pictureEvents =
-                        launch {
-                            player.events.collect { machine.onPlayerEvent(it) }
-                        }
                     val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
                     val transportMirror = launch { machine.transport.collect { shownTransport.value = it } }
                     machine.run(commands.receiveAsFlow(), resume)
                     // run() returns only when the session ended.
                     mirror.cancel()
-                    pictureEvents.cancel()
                     infoMirror.cancel()
                     transportMirror.cancel()
                 }

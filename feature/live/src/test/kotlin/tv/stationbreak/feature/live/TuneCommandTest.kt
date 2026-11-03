@@ -18,7 +18,6 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
-import tv.stationbreak.core.playback.PlayerEvent
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -178,55 +177,18 @@ class TuneCommandTest {
             assertEquals(card(2, overPicture = false), f.r.state)
         }
 
-    // A full-screen screen over the video can take its surface (older devices): until a frame is rendered again no
-    // picture is on screen, though the sitting still says Watching, so a card has snow behind it, not black.
+    // The picture is up (the old channel still plays under the guide): the card is over it, until the commit.
     @Test
-    fun aGuideTuneAfterTheVideoSurfaceWasLostShowsItsCardOverSnow() =
+    fun aGuideTuneWhileAPictureIsUpShowsItsCardOverThePictureWhileTheLookupRuns() =
         runTest {
             val f = onNineWithSlowLookups(5_000)
-            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
-
-            f.send(LiveCommand.Tune(CH2))
-
-            assertEquals(card(2, overPicture = false), f.r.state)
-        }
-
-    @Test
-    fun aGuideTuneAfterAFrameWasRenderedAgainShowsItsCardOverThePicture() =
-        runTest {
-            val f = onNineWithSlowLookups(5_000)
-            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
-            f.r.live.onPlayerEvent(PlayerEvent.FirstFrame(0, 1))
 
             f.send(LiveCommand.Tune(CH2))
 
             assertEquals(card(2, overPicture = true), f.r.state)
-        }
-
-    // The player's one ordered stream decides: the last of first frame and surface loss is what is on screen.
-    @Test
-    fun aSurfaceLostAfterTheFirstFrameLeavesNoFrameOnScreen() =
-        runTest {
-            val f = onNineWithSlowLookups(5_000)
-            f.r.live.onPlayerEvent(PlayerEvent.FirstFrame(0, 1))
-            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
-
-            f.send(LiveCommand.Tune(CH2))
-
-            assertEquals(card(2, overPicture = false), f.r.state)
-        }
-
-    // Only a card goes by the frame: the banner the OK key asks for goes by the sitting's picture.
-    @Test
-    fun theBannerStillShowsAfterTheSurfaceWasLostWithNoNewFrame() =
-        runTest {
-            val f = flipping()
-            advanceTimeBy(6.seconds)
-            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
-
-            f.send(LiveCommand.ShowBanner)
-
-            assertTrue("the banner is up: ${f.r.state}", (f.r.state as LiveState.Watching).banner?.actions == true)
+            advanceTimeBy(4.seconds)
+            runCurrent()
+            assertEquals(card(2, overPicture = true), f.r.state)
         }
 
     // The guide asks what is playing: between a commit and the new sitting's first state nothing is.
@@ -250,17 +212,6 @@ class TuneCommandTest {
             val playing = checkNotNull(f.r.live.playingAiring)
             assertEquals(CH2, playing.channel)
             assertEquals(program(0, 600, 2), playing.block)
-        }
-
-    @Test
-    fun aFlipAfterTheVideoSurfaceWasLostShowsItsNumberOverSnow() =
-        runTest {
-            val f = flipping()
-            f.r.live.onPlayerEvent(PlayerEvent.SurfaceLost(1))
-
-            f.up()
-
-            assertEquals(card(9, overPicture = false), f.r.state)
         }
 
     @Test

@@ -24,15 +24,6 @@ sealed interface PlayerEvent {
     ) : PlayerEvent
 
     /**
-     * The video surface the player was attached to was destroyed: no frame is on it any more, whatever the play still
-     * says. The next [FirstFrame] is a picture on screen again. It comes on the same ordered stream as [FirstFrame], on
-     * the player's looper; [generation] is the play on the player then (0 for none).
-     */
-    data class SurfaceLost(
-        override val generation: Long,
-    ) : PlayerEvent
-
-    /**
      * The container is parsed: Media3 reported the play's tracks for the first time. Sent once per play. [loads] is
      * what the media loads up to now cost (diagnostics only); null when the player cannot say.
      */
