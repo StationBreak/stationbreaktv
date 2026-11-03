@@ -331,10 +331,10 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 - 🧪 The builder produces rules JSON valid against the `core:rules` schema, at the lowest version its features need. A press on New channel while the lineup is still loading opens the builder once it is editable.
 
 **S2.3.2** As a user, I want a live preview so that I can see the channel before saving.
-- 🧪 The preview shows the item count, total runtime, and the next 12 items, laid out by the real scheduler's own day (`ruledDayOf` and `buildDay`), not an approximation. It says so when it could not be worked out, and does not claim nothing fits then.
+- 🧪 The preview shows how many items fit and their total runtime, and the next three items, laid out by the real scheduler's own day (`ruledDayOf` and `buildDay`), not an approximation. It says so when it could not be worked out, and does not claim nothing fits then.
 
 **S2.3.3** As a user, I want to edit and delete custom channels and reseed shuffle so that I can fix a lineup I don't like.
-- 🧪 One sheet edits a custom channel: name, sources, narrow down, play order, caps, kids, number, then Save, Reshuffle (Shuffle only; disabled while the sheet has unsaved changes) and Delete channel (asks first). Editing the rules or seed regenerates ScheduleBlocks from the current epoch onward. Each TV keeps its own lineup, so an edit reaches only the TV it was made on.
+- 🧪 One sheet edits a custom channel: name, sources, narrow down, play order, caps, kids, number, then Save, Reshuffle (Shuffle only; hidden while the sheet has unsaved changes) and Delete channel (asks first). Sources, Narrow down and Number open the builder's pages, each ended by Done (back to the same row); Save on the sheet is the only write. Editing the rules or seed regenerates ScheduleBlocks from the current epoch onward. Each TV keeps its own lineup, so an edit reaches only the TV it was made on.
 - 🧪 A custom channel written by a newer app can be neither edited nor deleted, and says why. Reset keeps custom channels.
 - 🧪 Seed lifecycle ([rules format](rules-format.md#seed)): a **new custom channel** gets 64 random bits from the platform's secure random source; **reseed** and **duplicate** give a fresh random seed; **import** keeps the seed of the file byte for byte; **editing** an automatic channel makes it a custom channel and keeps its seed; changing the name or any field other than `seed` never changes the seed.
 
