@@ -702,7 +702,7 @@ internal class LineupSeams(
 private fun LineupChannel.isTheViewers(): Boolean =
     when (val source = source) {
         is ChannelSource.Custom -> true
-        is ChannelSource.Unusable -> kindOf(source.rawJson) == "custom"
+        is ChannelSource.Unusable -> kindOf(source.rawJson) == CUSTOM_KIND
         else -> false
     }
 

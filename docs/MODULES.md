@@ -123,9 +123,10 @@ channel has nothing to air today); it never sees an engine type. The channel bui
 `builder` package: `BuilderViewModel` (the draft, the focus as a value, the picker in view, one-shot effects through a
 `Channel<BuilderEvent>`) and its screens, the three steps for a new channel or a copy and one sheet for an edit. The Channels
 screen draws it over its list, so it is not a route either. It adds the ports `ChannelBuilder`, `CatalogPicker` and
-`ChannelPreviews` to the ones above. The channel numbers it shows (`ChannelNumbers`: the whole range,
-the kids band, where a number is first offered) are in `core:domain`, taken from the engine, so the screen keeps no copy of
-the bands. Like the guide it is not a route of its own: the guide hosts it as a slot that `app` fills with
+`ChannelPreviews` to the ones above, and reads the signed-in account from `LibraryRepository.activeAccount()`. What it
+offers to choose from (`DraftChoices`: the rating ceilings and their tiers) and the channel numbers it shows
+(`ChannelNumbers`: the whole range, the kids band, the custom band, where a number is first offered) are in `core:domain`,
+taken from the engine, so the screen keeps no copy of the bands or the rules. Like the guide it is not a route of its own: the guide hosts it as a slot that `app` fills with
 `ChannelsDestination` (a feature may not depend on another), over the picture and around the same hole. It tells its host when
 it is finished with one `onDone(tune)` call. Everything in `feature:channels` is internal except `ChannelsDestination` and
 `ChannelsTags` for `app`'s tests.
@@ -253,7 +254,8 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   schedule source's cache. The preview is cancellable and the screen debounces it.
 - `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` (the rows),
   `ChannelEditor` (every change a viewer makes, and the reset), `ChannelBuilder`, `CatalogPicker`, `ChannelPreviews`,
-  `ScheduleSource` and `ChannelNumbers` (the bands, taken from the engine).
+  `ScheduleSource`, `ChannelNumbers` (the bands, taken from the engine), `DraftChoices` (what the builder offers) and, for
+  the account the builder works for, `LibraryRepository.activeAccount()`.
 - Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
   channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to
   land before F1.3.

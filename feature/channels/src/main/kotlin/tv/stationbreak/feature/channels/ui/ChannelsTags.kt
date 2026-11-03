@@ -23,6 +23,9 @@ object ChannelsTags {
     const val PANEL = "channels:panel"
     const val PANEL_TEXT = "channels:panel:text"
 
+    /** The Sources step of the channel builder, the first thing it shows for a new channel. */
+    const val BUILDER_SOURCES_STEP = "builder:step:Sources"
+
     /** The line in the actions panel of a channel made by a newer version of the app. */
     const val NEWER_APP = "channels:panel:newerApp"
     const val PICKER = "channels:picker"

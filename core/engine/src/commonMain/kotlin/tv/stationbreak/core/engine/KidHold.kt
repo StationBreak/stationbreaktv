@@ -101,8 +101,6 @@ object KidHold {
      */
     val CHILDRENS_RATINGS: Set<String> = setOf("TV-Y", "TV-Y7", "TV-Y7-FV")
 
-    private const val TIER_PG = 2
-
     /**
      * The kids choice that holds a channel to what [rating] held it to, never looser: the highest of
      * [CEILING_CHOICES] whose kid tier is no higher than [rating]'s. No ceiling (null) is PG, as [passesKidCeiling]
@@ -119,6 +117,8 @@ object KidHold {
      * hold does with it.
      */
     val CEILING_CHOICES: List<String> = listOf("G", "TV-Y7", "PG")
+
+    private const val TIER_PG = 2
     private const val TIER_TV_PG = 3
     private const val TIER_ABOVE = 4
 
