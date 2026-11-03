@@ -31,6 +31,13 @@ enum class ChannelKind {
 
     /** A stored channel this app could not read. It is kept as it was and never scheduled. */
     Unusable,
+
+    /** As [Unusable], but the stored source says custom: the viewer's own rules, written by a newer app. */
+    UnusableCustom,
+    ;
+
+    /** The app could not read the channel's rules. */
+    val unreadable: Boolean get() = this == Unusable || this == UnusableCustom
 }
 
 /**

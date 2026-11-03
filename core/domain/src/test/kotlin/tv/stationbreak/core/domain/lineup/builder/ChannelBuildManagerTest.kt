@@ -24,6 +24,7 @@ import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
@@ -97,6 +98,13 @@ class ChannelBuildManagerTest {
         val bytes = checkNotNull(store.inner.peek(ACCOUNT))
         return checkNotNull((LineupCodec.decode(bytes) as? Loaded)?.lineup)
     }
+
+    private suspend fun freeIn(
+        kids: Boolean,
+        forChannel: ChannelId? = null,
+    ): List<Int> = assertIs<Listed.Ok<List<Int>>>(builder.freeNumbers(ACCOUNT, kids, forChannel)).value
+
+    private suspend fun firstFree(kids: Boolean): Int? = freeIn(kids).firstOrNull()
 
     private fun Lineup.channel(id: ChannelId) = channels.first { it.id == id }
 
@@ -219,7 +227,7 @@ class ChannelBuildManagerTest {
 
             val result = builder.create(ACCOUNT, draft)
 
-            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Holder"), swappable = false)
+            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Holder"))
             assertEquals(BuildResult.Refused(taken), result)
         }
 
@@ -342,7 +350,7 @@ class ChannelBuildManagerTest {
             assertEquals(1, stored().channel(id).number)
             assertTrue(KidStatus.isKidChannel(stored().channel(id)))
 
-            val grownUp = opened.draft.copy(kids = false, number = builder.numberFor(ACCOUNT, kids = false))
+            val grownUp = opened.draft.copy(kids = false, number = firstFree(kids = false))
             val off = assertIs<BuildResult.Done>(builder.create(ACCOUNT, grownUp)).id
             assertEquals(600, stored().channel(off).number)
             assertFalse(KidStatus.isKidChannel(stored().channel(off)), "turned off, it is a grown-up channel")
@@ -370,7 +378,7 @@ class ChannelBuildManagerTest {
             val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
             assertTrue(draft.kids)
 
-            val number = builder.numberFor(ACCOUNT, kids = false)
+            val number = firstFree(kids = false)
             val result = builder.save(ACCOUNT, id, draft.copy(kids = false, number = number))
 
             assertEquals(600, number)
@@ -398,7 +406,7 @@ class ChannelBuildManagerTest {
             val id = ChannelId("custom:Mine")
             val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
 
-            assertNull(builder.numberFor(ACCOUNT, kids = true))
+            assertNull(firstFree(kids = true))
             val result = builder.save(ACCOUNT, id, draft.copy(kids = true))
             assertEquals(BuildResult.Refused(BuildRefusal.KidsBandFull), result)
             assertEquals(610, stored().channel(id).number)
@@ -413,43 +421,8 @@ class ChannelBuildManagerTest {
 
             val result = builder.save(ACCOUNT, id, draft.copy(number = 620, numberChosen = true))
 
-            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Other"), swappable = true)
+            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Other"))
             assertEquals(BuildResult.Refused(taken), result)
-        }
-
-    @Test
-    fun turningKidsOffAndSwappingWithAGrownUpHolderIsKidsBandNotFailed() =
-        runBlocking<Unit> {
-            seed(custom("Kid", 5), custom("Other", 620))
-            val id = ChannelId("custom:Kid")
-            val other = ChannelId("custom:Other")
-            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-            val off = draft.copy(kids = false, number = 620, numberChosen = true)
-
-            val plain = builder.save(ACCOUNT, id, off)
-            val swap = builder.save(ACCOUNT, id, off, swapWith = other)
-
-            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(other, swappable = false)), plain)
-            assertEquals(BuildResult.Refused(BuildRefusal.KidsBand), swap)
-            assertTrue(LineupEvent.BuildFailed !in events)
-            assertEquals(5, stored().channel(id).number)
-        }
-
-    @Test
-    fun turningKidsOnAndSwappingWithAKidHolderIsKidsBandNotFailed() =
-        runBlocking<Unit> {
-            seed(custom("Mine", 610), custom("KidHolder", 5))
-            val id = ChannelId("custom:Mine")
-            val holder = ChannelId("custom:KidHolder")
-            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-            val on = draft.copy(kids = true, number = 5, numberChosen = true)
-
-            val plain = builder.save(ACCOUNT, id, on)
-            val swap = builder.save(ACCOUNT, id, on, swapWith = holder)
-
-            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = false)), plain)
-            assertEquals(BuildResult.Refused(BuildRefusal.KidsBand), swap)
-            assertTrue(LineupEvent.BuildFailed !in events)
         }
 
     @Test
@@ -468,21 +441,6 @@ class ChannelBuildManagerTest {
                 builder.create(ACCOUNT, grownUp),
             )
             assertTrue(LineupEvent.BuildFailed !in events)
-        }
-
-    @Test
-    fun saveWithSwapTradesNumbers() =
-        runBlocking<Unit> {
-            seed(custom("Mine", 610), custom("Other", 620))
-            val id = ChannelId("custom:Mine")
-            val other = ChannelId("custom:Other")
-            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-
-            val result = builder.save(ACCOUNT, id, draft.copy(number = 620, numberChosen = true), swapWith = other)
-
-            assertEquals(BuildResult.Done(id), result)
-            assertEquals(620, stored().channel(id).number)
-            assertEquals(610, stored().channel(other).number)
         }
 
     @Test
@@ -587,6 +545,123 @@ class ChannelBuildManagerTest {
             val kept = named(builder.blank(ACCOUNT, kids = false)).copy(kept = settings)
 
             assertEquals(BuildResult.Refused(BuildRefusal.UnknownChannel), builder.create(ACCOUNT, kept))
+        }
+
+    @Test
+    fun freeNumbersAreEveryNumberTheNextCreateCouldTakeInOrder() =
+        runBlocking<Unit> {
+            seed(custom("Mine", 600), custom("Other", 603))
+
+            val free = assertIs<Listed.Ok<List<Int>>>(builder.freeNumbers(ACCOUNT, kids = false)).value
+
+            assertEquals(listOf(601, 602, 604), free.take(3))
+            assertEquals(firstFree(kids = false), free.first())
+        }
+
+    @Test
+    fun freeNumbersSkipARetiredNumberAndARenumberedChannelsDefault() =
+        runBlocking<Unit> {
+            val retiring =
+                object : StarterCatalogView by TestCatalog {
+                    override val retiredNumbers: Set<Int> = setOf(1, 600)
+                }
+            val retired =
+                ChannelBuildManager(
+                    LineupService(store, library, clock, { 0 }, { events += it }, retiring),
+                    { Seed(1uL) },
+                    { "x" },
+                    { _, _ -> emptyMap() },
+                )
+            // Toons default to 10 and have been moved to 20; 601 is a custom channel's.
+            val toons = starter("toons", 10, ChannelState.On, rules("Toons", Source.Genre("Animation")))
+            val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
+            seedLineup(lineupOf(toons.copy(numberOverride = 20), laughs, custom("Mine", 601)))
+
+            val kids = assertIs<Listed.Ok<List<Int>>>(retired.freeNumbers(ACCOUNT, kids = true)).value
+            val grownUp = assertIs<Listed.Ok<List<Int>>>(retired.freeNumbers(ACCOUNT, kids = false)).value
+
+            assertTrue(1 !in kids && 10 !in kids && 20 !in kids, "retired, default and override are skipped")
+            assertEquals(2, kids.first())
+            assertEquals(listOf(602, 603), grownUp.take(2))
+        }
+
+    @Test
+    fun anEditsOwnNumberCountsAsFreeInItsBandOnly() =
+        runBlocking<Unit> {
+            seed(custom("Mine", 603), custom("Other", 605))
+            val mine = ChannelId("custom:Mine")
+
+            val plain = freeIn(kids = false)
+            val own = freeIn(kids = false, forChannel = mine)
+            val kids = freeIn(kids = true, forChannel = mine)
+            val unknown = freeIn(kids = false, forChannel = ChannelId("nope"))
+
+            assertTrue(603 !in plain)
+            assertEquals((plain + 603).sorted(), own)
+            assertEquals(listOf(600, 601, 602, 603, 604), own.take(5))
+            assertTrue(603 !in kids)
+            assertEquals(plain, unknown)
+        }
+
+    @Test
+    fun freeNumbersAreUnavailableWithoutALineup() =
+        runBlocking<Unit> {
+            assertEquals(Listed.Unavailable, builder.freeNumbers(ACCOUNT, kids = false))
+        }
+
+    @Test
+    fun aKidsChannelOpensWithACeilingTheKidsHoldKnows() =
+        runBlocking<Unit> {
+            val loose = rules("Kid", Source.Genre("Comedy"), maxRating = "R")
+            seed(channel("custom:Kid", null, ChannelState.On, ChannelSource.Custom(loose)).copy(numberOverride = 5))
+
+            val opened = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, ChannelId("custom:Kid"), copy = false))
+
+            assertTrue(opened.draft.kids)
+            assertEquals("PG", opened.draft.filters.maxRating)
+        }
+
+    @Test
+    fun createAndSaveHoldAKidsDraftToACeilingTheKidsHoldKnows() =
+        runBlocking<Unit> {
+            seed()
+            val kid = named(builder.blank(ACCOUNT, kids = true)).copy(filters = DraftFilters(maxRating = "R"))
+
+            val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, kid)).id
+            assertEquals("PG", stored().customRules(id).maxRating)
+
+            val again = kid.copy(filters = DraftFilters(maxRating = "TV-14"))
+            assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, again))
+            assertEquals("PG", stored().customRules(id).maxRating)
+        }
+
+    @Test
+    fun reshuffleRefusesARotationAndAKeptOrderToo() =
+        runBlocking<Unit> {
+            for (mode in listOf(OrderingMode.Rotation, OrderingMode.Chronological, OrderingMode.RandomInOrder)) {
+                val rules = rules("Mine", Source.Genre("Comedy")).copy(formatVersion = 2, ordering = Ordering(mode))
+                val mine = channel("custom:Mine", null, ChannelState.On, ChannelSource.Custom(rules))
+                seed(mine.copy(numberOverride = 610))
+
+                val result = builder.reshuffle(ACCOUNT, ChannelId("custom:Mine"))
+
+                assertEquals(BuildResult.Refused(BuildRefusal.NotShuffle), result, "$mode")
+            }
+        }
+
+    @Test
+    fun reshuffleRefusesAChannelThatIsNotAShuffle() =
+        runBlocking<Unit> {
+            val inOrder =
+                rules("Mine", Source.Genre("Comedy")).copy(formatVersion = 2, ordering = Ordering(OrderingMode.InOrder))
+            val mine = channel("custom:Mine", null, ChannelState.On, ChannelSource.Custom(inOrder))
+            seed(mine.copy(numberOverride = 610))
+            val before = store.inner.peek(ACCOUNT)
+
+            val result = builder.reshuffle(ACCOUNT, ChannelId("custom:Mine"))
+
+            assertEquals(BuildResult.Refused(BuildRefusal.NotShuffle), result)
+            assertContentEquals(before, store.inner.peek(ACCOUNT))
         }
 
     @Test

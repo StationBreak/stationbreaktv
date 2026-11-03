@@ -2,6 +2,7 @@
 package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.ChannelRules
 
@@ -102,6 +103,9 @@ sealed interface EditRefusal {
     /** The edit is for a custom channel and this one is not. */
     data object NotCustom : EditRefusal
 
+    /** A reseed is for a channel that plays in a shuffle, and this one does not. */
+    data object NotShuffle : EditRefusal
+
     /** A channel already has the ID of the channel to add. */
     data object IdTaken : EditRefusal
 
@@ -200,38 +204,27 @@ object LineupEdits {
         }
 
     /**
-     * The lowest number free for a new custom channel: in the Kids band when [kids], else in
-     * [LineupDefaults.CUSTOM_NUMBERS]. Free means no channel has it as a default or an override and [catalog] has not
-     * retired it. Null when there is none.
+     * The lowest number free for a new custom channel: the head of [freeCustomNumbers]. Null when there is none.
      */
     fun firstFreeCustom(
         lineup: Lineup,
         kids: Boolean,
         catalog: StarterCatalogView = StarterCatalog,
-    ): Int? {
-        val used = lineup.channels.flatMapTo(HashSet()) { listOfNotNull(it.defaultNumber, it.numberOverride) }
-        val range = if (kids) Band.Kids.numbers else LineupDefaults.CUSTOM_NUMBERS
-        return range.firstOrNull { it !in used && it !in catalog.retiredNumbers }
-    }
+    ): Int? = freeCustomNumbers(lineup, kids, catalog).firstOrNull()
 
     /**
-     * Whether custom channel [id] could take [number] (held by another channel) by trading numbers with its holder, as
-     * a [LineupEdit.ReplaceCustom] with `swapWith` would: the same rules, nothing changed. False when [id] is not a
-     * custom channel or nothing holds [number].
+     * Every number free for a new custom channel, lowest first: in the Kids band when [kids], else in
+     * [LineupDefaults.CUSTOM_NUMBERS]. Free means no channel has it as a default or an override and [catalog] has not
+     * retired it.
      */
-    fun canSwap(
+    fun freeCustomNumbers(
         lineup: Lineup,
-        id: ChannelId,
-        number: Int,
         kids: Boolean,
         catalog: StarterCatalogView = StarterCatalog,
-    ): Boolean {
-        val channel = lineup.channels.firstOrNull { it.id == id }
-        val stored = (channel?.source as? ChannelSource.Custom)?.rules
-        val holder = lineup.channels.firstOrNull { it.id != id && it.number == number }
-        if (channel == null || stored == null || holder == null) return false
-        val swap = LineupEdit.ReplaceCustom(id, stored, number, holder.id, kids)
-        return replaceCustom(lineup, channel, swap, catalog) is EditOutcome.Applied
+    ): List<Int> {
+        val used = lineup.channels.flatMapTo(HashSet()) { listOfNotNull(it.defaultNumber, it.numberOverride) }
+        val range = if (kids) Band.Kids.numbers else LineupDefaults.CUSTOM_NUMBERS
+        return range.filter { it !in used && it !in catalog.retiredNumbers }
     }
 
     private fun addCustom(
@@ -313,9 +306,16 @@ object LineupEdits {
         channel: LineupChannel,
         seed: Seed,
     ): EditOutcome {
-        val stored = (channel.source as? ChannelSource.Custom) ?: return refused(EditRefusal.NotCustom)
-        return applied(lineup, channel.copy(source = ChannelSource.Custom(stored.rules.copy(seed = seed))))
+        val stored = (channel.source as? ChannelSource.Custom)
+        return when {
+            stored == null -> refused(EditRefusal.NotCustom)
+            !shuffles(stored.rules) -> refused(EditRefusal.NotShuffle)
+            else -> applied(lineup, channel.copy(source = ChannelSource.Custom(stored.rules.copy(seed = seed))))
+        }
     }
+
+    // Only a shuffle takes a new seed to a new order: rotation, in order and a copied built-in's own orders do not.
+    private fun shuffles(rules: ChannelRules): Boolean = rules.orderingMode == OrderingMode.Shuffle
 
     private fun removeCustom(
         lineup: Lineup,

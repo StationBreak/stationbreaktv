@@ -2,9 +2,14 @@
 package tv.stationbreak.app
 
 import android.view.KeyEvent
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -196,6 +201,34 @@ class LaunchNavigationTest {
         press(keyCode)
     }
 
+    // Waits for [tag]; on a timeout says which of the screen's notes are showing instead.
+    private fun awaitShown(tag: String) {
+        try {
+            compose.waitUntil(SHORT_WAIT_MS) { count(tag) > 0 }
+        } catch (timeout: ComposeTimeoutException) {
+            val notes = listOf(ChannelsTags.GETTING_READY, ChannelsTags.NOT_EDITABLE, ChannelsTags.MESSAGE)
+            val shown = notes.filter { count(it) > 0 }
+            throw AssertionError("$tag never showed; the screen shows: $shown", timeout)
+        }
+    }
+
+    // The screen's focus is set when its lineup arrives, a moment after the screen is up. A timeout says what was on
+    // screen, so a failure explains itself.
+    private fun awaitSelected(tag: String) {
+        try {
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodes(hasTestTag(tag) and isSelected()).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (timeout: ComposeTimeoutException) {
+            val selected =
+                compose.onAllNodes(isSelected()).fetchSemanticsNodes().map {
+                    it.config.getOrNull(SemanticsProperties.TestTag) ?: "(untagged)"
+                }
+            val tagged = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().size
+            throw AssertionError("$tag was never selected: $tagged node(s) with that tag; selected: $selected", timeout)
+        }
+    }
+
     private fun count(tag: String): Int = compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size
 
     private fun awaitExists(tag: String) {
@@ -278,6 +311,36 @@ class LaunchNavigationTest {
 
         // Nothing is playing on an empty lineup, so there is no playing cell to go back to, and Back on the menu row
         // leaves. (The playing-cell step is GuideMenuUiTest's.)
+        assertBackLeavesTheApp()
+    }
+
+    // Here no catalog sync ever completes, so no lineup is published and its access stays Loading (the builder's own
+    // opening is the Channels screen's instrumented tests'): the press on New waits, and says so.
+    @Test
+    fun newChannelFromTheGuideWaitsForTheLineupAndBackWalksOut() {
+        storeSession()
+        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        launchApp()
+        awaitExists(LiveTags.NO_CHANNELS)
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.EMPTY)
+        press(KeyEvent.KEYCODE_BACK)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitExists(ChannelsTags.TITLE)
+
+        // With nothing playing the list starts on New channel; Select on it waits for the lineup and says so, well
+        // before the wait gives up.
+        awaitSelected(ChannelsTags.NEW_CHANNEL)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitShown(ChannelsTags.GETTING_READY)
+        assertEquals("the builder did not open", 0, count(ChannelsTags.BUILDER_SOURCES_STEP))
+
+        // Back leaves the Channels screen for the guide, on the Channels button; the next Back leaves the app.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.TITLE) == 0 }
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        assertFalse("the Back did not leave the app", compose.activity.isFinishing)
         assertBackLeavesTheApp()
     }
 
@@ -463,6 +526,9 @@ class LaunchNavigationTest {
 
     private companion object {
         const val TIMEOUT_MS = 10_000L
+
+        // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
+        const val SHORT_WAIT_MS = 3_000L
         const val POLL_MS = 50L
     }
 

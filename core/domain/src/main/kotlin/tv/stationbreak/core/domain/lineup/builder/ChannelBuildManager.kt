@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.Unsaved
@@ -42,14 +43,30 @@ class ChannelBuildManager(
             leaveOut = emptyList(),
             filters = DraftFilters(),
             kids = kids,
-            number = numberFor(account, kids),
+            number = firstFree(account, kids),
             seed = newSeed.next(),
-        )
+        ).kidsNormalised()
 
-    override suspend fun numberFor(
+    private suspend fun firstFree(
         account: LibraryAccount,
         kids: Boolean,
-    ): Int? = lineupOf(account)?.let { LineupEdits.firstFreeCustom(it, kids, service.catalog) }
+    ): Int? = (freeNumbers(account, kids) as? Listed.Ok)?.value?.firstOrNull()
+
+    override suspend fun freeNumbers(
+        account: LibraryAccount,
+        kids: Boolean,
+        forChannel: ChannelId?,
+    ): Listed<List<Int>> {
+        val lineup = lineupOf(account) ?: return Listed.Unavailable
+        val free = LineupEdits.freeCustomNumbers(lineup, kids, service.catalog)
+        val band = if (kids) ChannelNumbers.kids else ChannelNumbers.custom
+        val own =
+            lineup.channels
+                .firstOrNull { it.id == forChannel }
+                ?.number
+                ?.takeIf { it in band }
+        return Listed.Ok((free + listOfNotNull(own)).distinct().sorted())
+    }
 
     override suspend fun open(
         account: LibraryAccount,
@@ -65,9 +82,15 @@ class ChannelBuildManager(
                 lineup == null || channel == null -> OpenResult.NotFound
                 rules == null -> OpenResult.NotCustomisable
                 copy -> openedCopy(account, lineup, channel, rules)
-                else -> OpenResult.Opened(draftOf(account, rules, channel.number).copy(origin = id), null)
+                else -> OpenResult.Opened(editDraft(account, rules, channel), null)
             }
         }
+
+    private suspend fun editDraft(
+        account: LibraryAccount,
+        rules: ChannelRules,
+        channel: LineupChannel,
+    ): ChannelDraft = draftOf(account, rules, channel.number).copy(origin = channel.id).kidsNormalised()
 
     private suspend fun openedCopy(
         account: LibraryAccount,
@@ -80,7 +103,8 @@ class ChannelBuildManager(
         val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
         val draft = draftOf(account, rules.copy(seed = newSeed.next()), number)
         val kept = draft.kept?.copy(fromName = name)
-        return OpenResult.Opened(draft.copy(name = name, kids = kids, kept = kept, origin = channel.id), name)
+        val opened = draft.copy(name = name, kids = kids, kept = kept, origin = channel.id).kidsNormalised()
+        return OpenResult.Opened(opened, name)
     }
 
     // A copy is of a built-in channel's rules; an edit is of a custom channel's own.
@@ -107,9 +131,10 @@ class ChannelBuildManager(
         draft: ChannelDraft,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            val problem = draft.problem()
+            val sent = draft.kidsNormalised()
+            val problem = sent.problem()
             val lineup = lineupOf(account)
-            val previous = lineup?.let { originRules(it, draft.origin) }
+            val previous = lineup?.let { originRules(it, sent.origin) }
             when {
                 problem != null -> {
                     refused(BuildRefusal.Invalid(problem))
@@ -119,15 +144,15 @@ class ChannelBuildManager(
                     BuildResult.NotEditable
                 }
 
-                draft.kept != null && previous == null -> {
+                sent.kept != null && previous == null -> {
                     refused(BuildRefusal.UnknownChannel)
                 }
 
                 else -> {
                     val id = ChannelId("custom:" + newId())
-                    val rules = DraftRules.toRules(draft, lineup.utcOffsetMinutes, previous)
-                    val number = draft.number.takeIf { draft.numberChosen }
-                    edited(account, LineupEdit.AddCustom(id, rules, number, draft.kids), draft.kids, id, null)
+                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, previous)
+                    val number = sent.number.takeIf { sent.numberChosen }
+                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids), sent.kids, id)
                 }
             }
         }
@@ -136,10 +161,10 @@ class ChannelBuildManager(
         account: LibraryAccount,
         id: ChannelId,
         draft: ChannelDraft,
-        swapWith: ChannelId?,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            val problem = draft.problem()
+            val sent = draft.kidsNormalised()
+            val problem = sent.problem()
             val lineup = lineupOf(account)
             val channel = lineup?.channels?.firstOrNull { it.id == id }
             val stored = (channel?.source as? ChannelSource.Custom)?.rules
@@ -161,12 +186,11 @@ class ChannelBuildManager(
                 }
 
                 else -> {
-                    val rules = DraftRules.toRules(draft, lineup.utcOffsetMinutes, stored)
+                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, stored)
                     // A number the viewer did not pick is the channel's own, or the first free one on the other side
-                    // of a kids switch: worked out in the lock. A swap needs the number it trades.
-                    val number = draft.number.takeIf { draft.numberChosen || swapWith != null }
-                    val edit = LineupEdit.ReplaceCustom(id, rules, number, swapWith, draft.kids)
-                    edited(account, edit, draft.kids, id, draft.number)
+                    // of a kids switch: worked out in the lock.
+                    val number = sent.number.takeIf { sent.numberChosen }
+                    edited(account, LineupEdit.ReplaceCustom(id, rules, number, kids = sent.kids), sent.kids, id)
                 }
             }
         }
@@ -176,27 +200,26 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, null)
+            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id)
         }
 
     override suspend fun delete(
         account: LibraryAccount,
         id: ChannelId,
-    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id, null) }
+    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id) }
 
     private suspend fun edited(
         account: LibraryAccount,
         edit: LineupEdit,
         kids: Boolean,
         id: ChannelId,
-        number: Int?,
     ): BuildResult =
         service.edit(account, edit).mapped(
             done = { BuildResult.Done(id) },
             refused = { reason ->
                 val holder = (reason as? EditRefusal.NumberTaken)?.holder
                 if (holder != null) {
-                    refused(BuildRefusal.NumberTaken(holder, swappable(account, id, number, kids)))
+                    refused(BuildRefusal.NumberTaken(holder))
                 } else {
                     reason.toBuildRefusal(kids)?.let(::refused) ?: failed()
                 }
@@ -208,17 +231,6 @@ class ChannelBuildManager(
                 Unsaved.Invalid -> BuildResult.Failed
             }
         }
-
-    // Whether [id] may trade numbers with the holder of [number], in the lineup as it is now (the one that refused).
-    private suspend fun swappable(
-        account: LibraryAccount,
-        id: ChannelId,
-        number: Int?,
-        kids: Boolean,
-    ): Boolean {
-        val lineup = lineupOf(account)
-        return number != null && lineup != null && LineupEdits.canSwap(lineup, id, number, kids, service.catalog)
-    }
 
     // The rules of the channel the draft was opened from, in the lineup as it is now.
     private fun originRules(
@@ -240,6 +252,8 @@ class ChannelBuildManager(
             EditRefusal.UnknownChannel -> BuildRefusal.UnknownChannel
 
             EditRefusal.NotCustom -> BuildRefusal.NotCustom
+
+            EditRefusal.NotShuffle -> BuildRefusal.NotShuffle
 
             EditRefusal.NoFreeNumber -> if (kids) BuildRefusal.KidsBandFull else BuildRefusal.NoFreeNumber
 

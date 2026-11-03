@@ -15,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -91,6 +94,7 @@ private fun Header(ui: ChannelsUi) {
             NoteLine(messageText(message), ChannelsTags.MESSAGE)
         }
         if (ui.choosing) NoteLine(stringResource(R.string.channels_choosing), ChannelsTags.CHOOSING)
+        if (ui.gettingReady) NoteLine(stringResource(R.string.channels_getting_ready), ChannelsTags.GETTING_READY)
     }
 }
 
@@ -101,7 +105,7 @@ private fun NoteLine(
 ) {
     Text(
         text,
-        Modifier.testTag(tag),
+        Modifier.testTag(tag).semantics { liveRegion = LiveRegionMode.Polite },
         style = MaterialTheme.typography.bodyMedium,
         color = ChannelsPalette.secondary,
     )
@@ -121,6 +125,7 @@ private fun messageRes(message: ChannelsMessage): Int =
         ChannelsMessage.LastOn -> R.string.channels_refused_last_on
         ChannelsMessage.NoNumber -> R.string.channels_refused_no_number
         ChannelsMessage.NotEditable -> R.string.channels_not_editable
+        ChannelsMessage.NotReady -> R.string.channels_not_ready
         ChannelsMessage.NotChosenYet -> R.string.channels_reset_not_chosen
         ChannelsMessage.SaveFailed -> R.string.channels_save_failed
         ChannelsMessage.Failed -> R.string.channels_failed

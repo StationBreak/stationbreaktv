@@ -15,12 +15,15 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChangeRefusal
 import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
+import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelStatus.On
 import tv.stationbreak.core.domain.lineup.ChannelStatus.Shelf
 import tv.stationbreak.core.domain.lineup.ChannelStatus.UserHidden
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
+import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.channels.builder.BuilderMode
 
 class ChannelsViewModelTest {
     private val trio = listOf(summary(A, 5), summary(B, 7), summary(C, 9))
@@ -311,7 +314,7 @@ class ChannelsViewModelTest {
     @Test
     fun aResultLeavesAnotherChannelsPanelOpen() =
         channelsTest(trio) { rig ->
-            rig.open(this)
+            rig.open(this, current = A)
             rig.gated.changeGate = CompletableDeferred()
             rig.vm.switchOff(A)
             runCurrent()
@@ -439,11 +442,58 @@ class ChannelsViewModelTest {
         }
 
     @Test
-    fun focusStartsOnTheFirstRowWhenCurrentIsUnknownAndMovesWithTheKeys() =
+    fun withNoWantedChannelTheFocusIsOnNewAtOnceBeforeAnyListOrAccount() =
+        channelsTest { rig ->
+            // Nothing has run: no account, no list, no access. New is always drawn, so the focus is already on it.
+            rig.vm.open(null)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
+    fun withAWantedChannelAKeyBeforeTheListPutsTheFocusOnNew() =
+        channelsTest { rig ->
+            rig.vm.open(A)
+            assertEquals(null, rig.ui.focus)
+            rig.vm.move(false)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
+    fun aWantedChannelThatIsNotInTheFirstListLeavesTheFocusOnNew() =
+        channelsTest { rig ->
+            rig.open(this, current = A)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
+    fun aWantedChannelThatArrivesLaterTakesTheFocusFromNew() =
+        channelsTest { rig ->
+            rig.open(this, current = A)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+            rig.repo.list.value = listOf(summary(A, 5), summary(B, 7))
+            runCurrent()
+            assertEquals(ChannelsFocus.Row(A), rig.ui.focus)
+        }
+
+    @Test
+    fun aWantedChannelThatArrivesAfterTheViewerMovedDoesNotTakeTheFocus() =
+        channelsTest { rig ->
+            rig.open(this, current = A)
+            rig.vm.move(false)
+            rig.vm.move(true)
+            rig.repo.list.value = listOf(summary(A, 5), summary(B, 7))
+            runCurrent()
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
+    fun theListStartsOnNewChannelWhenOpenedWithoutAChannelAndMovesWithTheKeys() =
         channelsTest(trio) { rig ->
             rig.open(this, current = null)
-            assertEquals(ChannelsFocus.Row(A), rig.ui.focus)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
             rig.vm.move(true)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+            rig.vm.move(false)
             assertEquals(ChannelsFocus.Row(A), rig.ui.focus)
             rig.vm.move(false)
             rig.vm.move(false)

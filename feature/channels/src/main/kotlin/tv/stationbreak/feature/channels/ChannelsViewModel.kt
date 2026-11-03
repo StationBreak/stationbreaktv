@@ -33,12 +33,16 @@ import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.channels.builder.BuilderMode
 import javax.inject.Inject
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
 /** How long the lineup stays quiet before the reasons are read again (a burst of edits is read once). */
 internal val REASONS_DEBOUNCE = 1.seconds
+
+/** How long a New, Copy or Edit press waits for the lineup to be known before it says it is not ready. */
+internal val ACCESS_WAIT = 10.seconds
 
 /**
  * Holds channel management (spec 21): the lineup as rows, the focus, the dialog over it, and the changes the viewer
@@ -102,12 +106,21 @@ internal class ChannelsViewModel
             val pending: Boolean = false,
             val current: ChannelId? = null,
             val currentNumber: Int? = null,
+            /** The builder is showing; the focus stays where it left from, so Back lands there. */
+            val builder: BuilderMode? = null,
+            /** A channel the builder just made, to focus when its row arrives. */
+            val pendingFocus: ChannelId? = null,
+            /** The first list of this visit has arrived: a wanted channel not in it no longer holds the focus back. */
+            val listed: Boolean = false,
+            /** The builder was asked for while the lineup's access was still loading: opened once it is known. */
+            val wantBuilder: BuilderMode? = null,
         )
 
         private val scope = CoroutineScope(SupervisorJob() + dispatcher)
         private val lock = Any()
         private var model = Model()
         private var session: Job? = null
+        private var waiting: Job? = null
 
         /** Between [open] and [close]: nothing is published outside it. */
         private var visible = false
@@ -123,8 +136,12 @@ internal class ChannelsViewModel
             val generation: Int
             synchronized(lock) {
                 session?.cancel()
+                waiting?.cancel()
                 generation = model.generation + 1
-                model = Model(generation = generation, current = current, wantFocus = current)
+                // New is always drawn, so with no channel to start on the focus is on it at once, without waiting for
+                // an account or a list; a channel to start on is waited for (until the first list, see onList).
+                val start = if (current == null) ChannelsFocus.New else null
+                model = Model(generation = generation, current = current, wantFocus = current, focus = start)
                 visible = true
                 shown.value = derive(model)
             }
@@ -138,6 +155,7 @@ internal class ChannelsViewModel
         fun close() {
             synchronized(lock) {
                 session?.cancel()
+                waiting?.cancel()
                 session = null
                 visible = false
                 shown.value = ChannelsUi.Empty
@@ -210,6 +228,10 @@ internal class ChannelsViewModel
                 holder = if (keep) m.holder else null,
                 currentNumber = currentNumber,
                 listsDuringReset = m.listsDuringReset + 1,
+                listed = true,
+                // A wanted channel the first list lacks may still arrive (the lineup is read in steps): it takes the
+                // focus from New when it does, unless the viewer has moved by then.
+                pendingFocus = m.pendingFocus ?: m.wantFocus.takeIf { !m.listed && it !in list.map { c -> c.id } },
                 awaitingList = false,
             )
         }
@@ -238,13 +260,33 @@ internal class ChannelsViewModel
                         picker = (next.panel as? ChannelsPanel.Number)?.let { PickerState.of(it.start) },
                     )
             }
-            model = next.copy(focus = mended(next, old.rows.map { it.id }, next.rows.map { it.id }))
+            next = builderWhenKnown(next)
+            val ids = next.rows.map { it.id }
+            val pending = next.pendingFocus
+            next =
+                if (pending != null && pending in ids) {
+                    next.copy(focus = ChannelsFocus.Row(pending), pendingFocus = null)
+                } else {
+                    next
+                }
+            model = next.copy(focus = mended(next, old.rows.map { it.id }, ids))
             if (visible) shown.value = derive(model)
+        }
+
+        // A builder asked for while the access loaded opens when it is Editable, or says so when it is ReadOnly.
+        private fun builderWhenKnown(m: Model): Model {
+            val want = m.wantBuilder ?: return m
+            return when (m.access) {
+                LineupAccess.Editable -> m.copy(builder = want, wantBuilder = null)
+                LineupAccess.ReadOnly -> m.copy(wantBuilder = null, message = ChannelsMessage.NotEditable)
+                LineupAccess.Loading -> m
+            }
         }
 
         /** A D-pad key inside the open panel: the choice moves, or the number picker's digit or position does. */
         fun panelMove(move: PanelMove) {
             synchronized(lock) {
+                if (model.builder != null) return
                 val picker = model.picker
                 if (picker != null) {
                     apply {
@@ -273,50 +315,60 @@ internal class ChannelsViewModel
          */
         fun panelSelect(): ChannelId? {
             val ui = synchronized(lock) { derive(model) }
+            if (ui.builder != null) return null
             val panel = ui.panel
             val picker = ui.picker
             val choice = choicesOf(ui).getOrNull(ui.choice)
-            var tune: ChannelId? = null
-            when {
+            return when {
                 picker != null && panel != null -> {
                     if (picker.value > 0) setNumber(panel.id, picker.value)
+                    null
                 }
 
                 choice == Choice.Cancel -> {
                     dismiss()
+                    null
                 }
 
                 choice == Choice.Confirm -> {
                     confirm(panel)
+                    null
                 }
 
                 panel == null || choice == null -> {
-                    Unit
+                    null
                 }
 
-                choice == Choice.Watch -> {
-                    // The panel is closed in the model first, so the screen is finished with nothing open over it.
-                    dismiss()
-                    tune = panel.id
-                }
-
-                choice == Choice.SwitchOn -> {
-                    switchOn(panel.id)
-                }
-
-                choice == Choice.SwitchOff -> {
-                    switchOff(panel.id)
-                }
-
-                choice == Choice.ChangeNumber -> {
-                    startNumber(panel.id)
-                }
-
-                choice == Choice.DefaultNumber -> {
-                    defaultNumber(panel.id)
+                else -> {
+                    choose(choice, panel)
                 }
             }
-            return tune
+        }
+
+        // The choice of an actions panel; the channel to tune for Watch, else null.
+        private fun choose(
+            choice: Choice,
+            panel: ChannelsPanel,
+        ): ChannelId? {
+            when (choice) {
+                // The panel is closed in the model first, so the screen is finished with nothing open over it.
+                Choice.Watch -> dismiss()
+
+                Choice.SwitchOn -> switchOn(panel.id)
+
+                Choice.SwitchOff -> switchOff(panel.id)
+
+                Choice.CopyToCustomise -> openBuilder(BuilderMode.Copy(panel.id))
+
+                Choice.Edit -> openBuilder(BuilderMode.Edit(panel.id))
+
+                Choice.ChangeNumber -> startNumber(panel.id)
+
+                Choice.DefaultNumber -> defaultNumber(panel.id)
+
+                Choice.Confirm, Choice.Cancel -> Unit
+            }
+            return panel.id.takeIf { choice == Choice.Watch }
         }
 
         private fun confirm(panel: ChannelsPanel?) {
@@ -334,7 +386,8 @@ internal class ChannelsViewModel
         ): ChannelsFocus? {
             val focus = m.focus
             return when {
-                focus == null || focus == ChannelsFocus.Reset -> if (focus == null) firstFocus(m, ids) else focus
+                focus == null -> firstFocus(m, ids)
+                focus == ChannelsFocus.Reset || focus == ChannelsFocus.New -> focus
                 focus.id in ids -> focus
                 ids.isEmpty() -> ChannelsFocus.Reset
                 else -> ChannelsFocus.Row(ids[oldIds.indexOf(focus.id).coerceIn(0, ids.lastIndex)])
@@ -346,9 +399,13 @@ internal class ChannelsViewModel
             ids: List<ChannelId>,
         ): ChannelsFocus? =
             when {
-                ids.isEmpty() -> null
-                m.wantFocus in ids -> ChannelsFocus.Row(checkNotNull(m.wantFocus))
-                else -> ChannelsFocus.Row(ids.first())
+                m.wantFocus != null && m.wantFocus in ids -> ChannelsFocus.Row(m.wantFocus)
+
+                // A channel to start on is waited for until the first list arrives; after it, or with none, the list
+                // starts on New (a wanted channel that comes later takes the focus: see onList).
+                !m.listed && m.wantFocus != null -> null
+
+                else -> ChannelsFocus.New
             }
 
         private val ChannelsFocus.id: ChannelId?
@@ -366,6 +423,8 @@ internal class ChannelsViewModel
                 choice = m.choice,
                 picker = m.picker,
                 reasonsRead = m.reasonsRead,
+                builder = m.builder,
+                gettingReady = m.wantBuilder != null,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> =
@@ -393,33 +452,104 @@ internal class ChannelsViewModel
                 ChannelStatus.UserHidden -> ChannelGroup.Off
             }
 
-        /** Focus to the row above or below; Reset is the last stop. */
+        /** Focus to the row above or below; New is the first stop and Reset the last. */
         fun move(up: Boolean) {
             synchronized(lock) {
+                if (model.builder != null) return
                 val ids = model.rows.map { it.id }
-                val stops = ids.map { ChannelsFocus.Row(it) } + ChannelsFocus.Reset
+                val stops = listOf(ChannelsFocus.New) + ids.map { ChannelsFocus.Row(it) } + ChannelsFocus.Reset
                 val at = stops.indexOf(model.focus)
                 val to = if (at < 0) 0 else (if (up) at - 1 else at + 1).coerceIn(0, stops.lastIndex)
-                apply { it.copy(focus = stops[to]) }
+                apply { it.copy(focus = stops[to], wantBuilder = null, pendingFocus = null) }
             }
         }
 
-        /** On a row: opens its actions. On Reset: asks to reset. */
+        /** On New: opens the builder. On a row: opens its actions. On Reset: asks to reset. */
         fun select() {
             synchronized(lock) {
+                if (model.builder != null) return
                 when (val focus = model.focus) {
-                    is ChannelsFocus.Row -> apply { it.copy(panel = ChannelsPanel.Actions(focus.id), message = null) }
-                    ChannelsFocus.Reset -> askReset()
-                    null -> Unit
+                    is ChannelsFocus.Row -> {
+                        apply {
+                            it.copy(panel = ChannelsPanel.Actions(focus.id), message = null, pendingFocus = null)
+                        }
+                    }
+
+                    ChannelsFocus.New -> {
+                        openBuilder(BuilderMode.New)
+                    }
+
+                    ChannelsFocus.Reset -> {
+                        askReset()
+                    }
+
+                    null -> {
+                        Unit
+                    }
                 }
             }
+        }
+
+        // Shows the builder for [mode] when the lineup can be written; the focus stays on what it left from.
+        private fun openBuilder(mode: BuilderMode) {
+            synchronized(lock) {
+                if (model.access == LineupAccess.Loading) {
+                    // Not known yet whether the lineup can be written: ask again when it is, but not for ever.
+                    apply { it.copy(wantBuilder = mode, panel = null, holder = null, message = null) }
+                    giveUpWaitingLater(model.generation, mode)
+                    return
+                }
+                if (notEditable()) return
+                apply { it.copy(builder = mode, panel = null, holder = null, message = null, pendingFocus = null) }
+            }
+        }
+
+        // A wait that is still on after ACCESS_WAIT is dropped and says so; one that resolved (or was cancelled by a
+        // key) is left alone, and a newer wait is not cut short by an older timer.
+        private fun giveUpWaitingLater(
+            generation: Int,
+            mode: BuilderMode,
+        ) {
+            waiting?.cancel()
+            waiting =
+                scope.launch {
+                    delay(ACCESS_WAIT)
+                    change(generation) {
+                        if (it.wantBuilder == mode && it.access == LineupAccess.Loading) {
+                            it.copy(wantBuilder = null, message = ChannelsMessage.NotReady)
+                        } else {
+                            it
+                        }
+                    }
+                }
+        }
+
+        /** The builder was left without making a channel: the list shows again, on the row or New it left from. */
+        fun builderClosed() {
+            synchronized(lock) { apply { it.copy(builder = null, pendingFocus = null) } }
+        }
+
+        /**
+         * The builder made (or changed) the channel [id]. With [andWatch] the screen is finished and the channel to
+         * tune is returned; without it the list shows again, on that channel's row once the row is there.
+         */
+        fun builderSaved(
+            id: ChannelId,
+            andWatch: Boolean,
+        ): ChannelId? {
+            synchronized(lock) {
+                apply { it.copy(builder = null, pendingFocus = if (andWatch) null else id) }
+            }
+            return id.takeIf { andWatch }
         }
 
         /** Closes the panel, else the reset question, else the message. */
         fun dismiss() {
             synchronized(lock) {
+                if (model.builder != null) return
                 apply {
                     when {
+                        it.wantBuilder != null -> it.copy(wantBuilder = null)
                         it.panel != null -> it.copy(panel = null, holder = null)
                         it.confirmingReset -> it.copy(confirmingReset = false)
                         else -> it.copy(message = null)

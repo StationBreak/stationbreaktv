@@ -213,4 +213,9 @@ class CatalogPickerTest {
             assertEquals(id(0x77).value, words.getValue(show))
             assertEquals("not-an-id", words.getValue(notAnId))
         }
+
+    @Test
+    fun theSearchLengthIsTwoToSixtyFourCodePoints() {
+        assertEquals(2..64, CatalogPicker.SEARCH_LENGTH)
+    }
 }

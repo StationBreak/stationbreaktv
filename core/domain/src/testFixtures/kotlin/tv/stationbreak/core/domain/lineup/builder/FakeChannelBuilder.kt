@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 
@@ -10,12 +11,12 @@ import tv.stationbreak.core.model.Seed
  * [BuildResult.Done], a blank draft is empty at number 600 and opening finds nothing.
  */
 class FakeChannelBuilder : ChannelBuilder {
-    /** What was asked, in order: `blank`, `open`, `create`, `save`, `reshuffle`, `delete` and `numberFor`. */
+    /** What was asked, in order: `blank`, `open`, `create`, `save`, `reshuffle`, `delete` and `freeNumbers`. */
     val calls = mutableListOf<String>()
 
     /** The drafts passed to [create] and [save]. */
     val created = mutableListOf<ChannelDraft>()
-    val saved = mutableListOf<Triple<ChannelId, ChannelDraft, ChannelId?>>()
+    val saved = mutableListOf<Pair<ChannelId, ChannelDraft>>()
 
     /** What [blank] answers, with the asked-for kids setting. */
     var blankDraft: ChannelDraft =
@@ -27,8 +28,11 @@ class FakeChannelBuilder : ChannelBuilder {
     /** What [create], [save], [reshuffle] and [delete] answer next; null is [BuildResult.Done] with the channel's ID. */
     var buildResult: BuildResult? = null
 
-    /** What [numberFor] answers next. */
-    var number: Int? = FIRST_NUMBER
+    /** What [freeNumbers] answers next; null is the whole of the band asked for. */
+    var free: Listed<List<Int>>? = null
+
+    /** The `forChannel` of each [freeNumbers] call, in order. */
+    val freeFor = mutableListOf<ChannelId?>()
 
     override suspend fun blank(
         account: LibraryAccount,
@@ -60,10 +64,9 @@ class FakeChannelBuilder : ChannelBuilder {
         account: LibraryAccount,
         id: ChannelId,
         draft: ChannelDraft,
-        swapWith: ChannelId?,
     ): BuildResult {
         calls += "save"
-        saved += Triple(id, draft, swapWith)
+        saved += id to draft
         return buildResult ?: BuildResult.Done(id)
     }
 
@@ -83,12 +86,14 @@ class FakeChannelBuilder : ChannelBuilder {
         return buildResult ?: BuildResult.Done(id)
     }
 
-    override suspend fun numberFor(
+    override suspend fun freeNumbers(
         account: LibraryAccount,
         kids: Boolean,
-    ): Int? {
-        calls += "numberFor"
-        return number
+        forChannel: ChannelId?,
+    ): Listed<List<Int>> {
+        calls += "freeNumbers"
+        freeFor += forChannel
+        return free ?: Listed.Ok((if (kids) ChannelNumbers.kids else ChannelNumbers.custom).toList())
     }
 
     private companion object {

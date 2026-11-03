@@ -2,12 +2,15 @@
 package tv.stationbreak.feature.channels.ui
 
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -17,6 +20,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -24,6 +28,11 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
 import tv.stationbreak.feature.channels.PanelMove
+import tv.stationbreak.feature.channels.R
+import tv.stationbreak.feature.channels.builder.BuilderEvent
+import tv.stationbreak.feature.channels.builder.BuilderMode
+import tv.stationbreak.feature.channels.builder.BuilderViewModel
+import tv.stationbreak.feature.channels.builder.ui.BuilderRoot
 
 /**
  * Channel management (spec 21), drawn by its host (the guide) over live TV's picture while the screen is open: the
@@ -43,6 +52,10 @@ import tv.stationbreak.feature.channels.PanelMove
  *
  * Keys: the screen moves its own focus (model-driven, not Compose focus search) with the D-pad and Select. Back closes
  * a panel, message or question first.
+ *
+ * New channel, Copy to customise and Edit show the channel builder (spec 22) over the list. While it shows, the keys
+ * are the builder's. It ends with a Back (the list shows again, on the row or New it left from), or a save: Save and
+ * watch finishes this screen with the new channel to tune, Save returns to the list on that channel's row.
  */
 @Composable
 fun ChannelsDestination(
@@ -53,14 +66,16 @@ fun ChannelsDestination(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: ChannelsViewModel = hiltViewModel()
-    ChannelsRoot(viewModel, current, openedAtNanos, pictureHole, onDone, modifier)
+    val builderViewModel: BuilderViewModel = hiltViewModel()
+    ChannelsRoot(viewModel, builderViewModel, current, openedAtNanos, pictureHole, onDone, modifier)
 }
 
 /** [ChannelsDestination] without Hilt, so a test can bring its own ViewModel. */
-@Suppress("LongParameterList") // The destination's own five, and the ViewModel a test brings.
+@Suppress("LongParameterList") // The destination's own five, and the ViewModels a test brings.
 @Composable
 internal fun ChannelsRoot(
     viewModel: ChannelsViewModel,
+    builderViewModel: BuilderViewModel,
     current: ChannelId?,
     openedAtNanos: Long,
     pictureHole: DpRect,
@@ -70,22 +85,54 @@ internal fun ChannelsRoot(
     // One session per showing, and per opening: the host can close and reopen the screen between two frames.
     DisposableEffect(viewModel, openedAtNanos) {
         viewModel.open(current)
-        onDispose { viewModel.close() }
+        onDispose {
+            viewModel.close()
+            builderViewModel.close()
+        }
     }
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val keys = remember { FocusRequester() }
-    LaunchedEffect(keys) { keys.requestFocus() }
+    val building = ui.builder != null
+    // The keys are the builder's while it shows, and come back here when it goes.
+    LaunchedEffect(keys, building) { if (!building) keys.requestFocus() }
     val done by rememberUpdatedState(onDone)
+    val resources = LocalResources.current
     val actions = remember(viewModel, openedAtNanos) { ChannelsActions(viewModel) { done(it) } }
-    ChannelsScreen(
-        ui = ui,
-        pictureHole = pictureHole,
-        modifier =
-            modifier
-                .focusRequester(keys)
-                .onKeyEvent { channelsKey(it, actions::pad) }
-                .focusable(),
-    )
+    // The builder is made clean for its mode before it is drawn, so it never shows an earlier visit.
+    var opened by remember { mutableStateOf<BuilderMode?>(null) }
+    val builderMode = ui.builder
+    LaunchedEffect(builderViewModel, builderMode) {
+        val mode = builderMode
+        if (mode != null) openBuilder(builderViewModel, mode) { resources.getString(R.string.builder_copy_suffix, it) }
+        opened = mode
+    }
+    Box(modifier) {
+        ChannelsScreen(
+            ui = ui,
+            pictureHole = pictureHole,
+            modifier =
+                Modifier
+                    .focusRequester(keys)
+                    .onKeyEvent { channelsKey(it, actions::pad) }
+                    .focusable(),
+        )
+        if (building && opened == ui.builder) {
+            BuilderRoot(builderViewModel, pictureHole, onEvent = actions::builderEnded)
+        }
+    }
+}
+
+/** Starts a clean builder visit for [mode]; a copy's name is [copyName] of the built-in's. */
+internal fun openBuilder(
+    builder: BuilderViewModel,
+    mode: BuilderMode,
+    copyName: (String) -> String,
+) {
+    when (mode) {
+        BuilderMode.New -> builder.openNew()
+        is BuilderMode.Copy -> builder.openCopy(mode.from, copyName)
+        is BuilderMode.Edit -> builder.openEdit(mode.id)
+    }
 }
 
 /** A key the screen takes. */
@@ -149,11 +196,22 @@ internal class ChannelsActions(
     fun pad(pad: Pad) {
         if (finished) return
         val ui = vm.ui.value
+        // The builder has the keys while it shows.
+        if (ui.builder != null) return
         val inPanel = ui.panel != null || ui.confirmingReset
         when {
             pad == Pad.Back -> back(ui)
             inPanel -> panel(pad)
             else -> list(pad)
+        }
+    }
+
+    /** The builder ended: a save (and watch) finishes the screen, anything else shows the list again. */
+    fun builderEnded(event: BuilderEvent) {
+        if (finished) return
+        when (event) {
+            is BuilderEvent.Saved -> vm.builderSaved(event.id, event.andWatch)?.let(::finish)
+            BuilderEvent.Closed -> vm.builderClosed()
         }
     }
 

@@ -137,7 +137,7 @@ private fun EditRefusal.toRefusal(): ChangeRefusal =
         is EditRefusal.NumberTaken -> ChangeRefusal.NumberTaken(holder)
 
         // The custom-channel edits are not reachable from a ChannelChange.
-        EditRefusal.NotCustom, EditRefusal.IdTaken -> ChangeRefusal.Invalid
+        EditRefusal.NotCustom, EditRefusal.NotShuffle, EditRefusal.IdTaken -> ChangeRefusal.Invalid
     }
 
 private fun Lineup.hasOn() = channels.any { it.state == ChannelState.On }

@@ -119,9 +119,14 @@ provides, and `GuideTags` for `app`'s tests.
 groups, the focus as a value, the panel over the list, and the changes the viewer makes) and its D-pad-only screen. It depends
 on `core:domain`, `core:model` and `core:ui`, and applies the `hilt` convention plugin. It reaches the lineup only through the
 `core:domain` ports `ChannelRepository` (the rows), `ChannelEditor` (every change and the reset) and `ScheduleSource` (why a
-channel has nothing to air today); it never sees an engine type. The channel numbers it shows (`ChannelNumbers`: the whole range,
-the kids band, where a number is first offered) are in `core:domain`, taken from the engine, so the screen keeps no copy of
-the bands. Like the guide it is not a route of its own: the guide hosts it as a slot that `app` fills with
+channel has nothing to air today); it never sees an engine type. The channel builder (spec 22, F2.3) lives here too, in the
+`builder` package: `BuilderViewModel` (the draft, the focus as a value, the picker in view, one-shot effects through a
+`Channel<BuilderEvent>`) and its screens, the three steps for a new channel or a copy and one sheet for an edit. The Channels
+screen draws it over its list, so it is not a route either. It adds the ports `ChannelBuilder`, `CatalogPicker` and
+`ChannelPreviews` to the ones above, and reads the signed-in account from `LibraryRepository.activeAccount()`. What it
+offers to choose from (`DraftChoices`: the rating ceilings and their tiers) and the channel numbers it shows
+(`ChannelNumbers`: the whole range, the kids band, the custom band, where a number is first offered) are in `core:domain`,
+taken from the engine, so the screen keeps no copy of the bands or the rules. Like the guide it is not a route of its own: the guide hosts it as a slot that `app` fills with
 `ChannelsDestination` (a feature may not depend on another), over the picture and around the same hole. It tells its host when
 it is finished with one `onDone(tune)` call. Everything in `feature:channels` is internal except `ChannelsDestination` and
 `ChannelsTags` for `app`'s tests.
@@ -236,9 +241,21 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   `ScheduleSource.airings` by building each switched-on channel's day with one `ruleSnapshot` per distinct cut-off and no
   `scheduleItems` call (#275), and keeps the built days (in memory, and on disk across processes) under what they depend
   on rather than the lineup revision, so a renumber or a swap that changes no channel's pool builds nothing.
+- **`core:domain` `lineup.builder` package (spec 22)** is how a viewer makes and edits custom channels. `ChannelDraft` is
+  the builder's value: what the viewer chose, plus the settings of a copied built-in channel that the builder has no control
+  for, which it keeps exactly as they were until the viewer replaces them. `DraftRules` turns a draft into `ChannelRules`
+  and back, and writes the lowest format version its features need. `ChannelBuilder` opens a draft (blank, an edit, or a
+  copy), creates, saves, reshuffles and deletes; each is one write under the lineup's lock, through the same edit engine as
+  `ChannelEditor`, so the kids hold and the number rules cannot be weakened from here. `CatalogPicker` lists libraries,
+  collections, tags and genres and searches shows and films, all from the saved library; a read that fails is `Unavailable`,
+  never a throw. `ChannelPreviews` shows what a draft would air with `RuledDay` (`ruledDayOf`), the one path that builds a
+  channel's pool, day and film map, shared with `LineupDays`, so the preview is the schedule's own answer and not an
+  approximation. It evaluates through a plain evaluator call, never the lineup's pool cache, and reads snapshots through the
+  schedule source's cache. The preview is cancellable and the screen debounces it.
 - `app` wires these in `di/LineupModule`; `feature:*` modules see only `ChannelRepository` (the rows),
-  `ChannelEditor` (every change a viewer makes, and the reset), `ScheduleSource` and `ChannelNumbers` (the bands, taken from
-  the engine).
+  `ChannelEditor` (every change a viewer makes, and the reset), `ChannelBuilder`, `CatalogPicker`, `ChannelPreviews`,
+  `ScheduleSource`, `ChannelNumbers` (the bands, taken from the engine), `DraftChoices` (what the builder offers) and, for
+  the account the builder works for, `LibraryRepository.activeAccount()`.
 - Known performance follow-up: on the Insignia (API 25) a lineup refresh takes 7–10 s and `airings` takes 23–25 s for 50
   channels. Both are over the 5 s target; tracked in [#309](https://github.com/StationBreak/stationbreaktv/issues/309), to
   land before F1.3.
@@ -298,6 +315,12 @@ The Android side still gets OkHttp's TLS stack. That's where the self-signed cer
 The Phase 5 XMLTV adapter replaces the scheduler as a `ScheduleSource` but keeps no engine. Keeping them
 separate stops the XMLTV path from dragging in rule evaluation, and it keeps each module's golden
 tests focused.
+
+Rotation and capped Shuffle (rules format version 2) need to know which films share a collection, and the scheduler may not
+read rules or the library. So the engine works it out (`GroupCollections.of`, from the rules, the snapshot and the day's
+items) and hands the scheduler a side map beside the item list: `FilmCollections` in `core:model`, built only by `of`. It is
+taken from the same snapshot as the pool, and it is kept with the built day, on disk too, so a restored day uses the stored
+map. Only Rotation and capped Shuffle read it; the other orders ignore it.
 
 ### Dependency graph (allowed edges)
 
@@ -385,6 +408,11 @@ CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/de
   (F1.1). **There is no PRNG stream and there are no bounded integers**: every order is a hash key and a total sort, and the
   end of the day is a deterministic scan (see "Building the schedule" in the rules format). Their vectors (`epoch-seed.json`,
   `key-order.json`, `lineup.json`) are in `docs/rules-format/vectors/`.
+- **Rules format version 2 (spec 22, [ADR-0022](adr/0022-rules-format-v2.md))** is final. `core:rules` reads versions 1 and 2
+  and writes the lowest version a file's features need, so a channel that uses nothing new stays a version 1 file. Version 2
+  adds the `rotation` and `inOrder` modes, caps, filters, and an `item` source. Its vectors (`key-order-v2.json`,
+  `lineup-v2.json`, `pool-v2.json`) were computed by a reference written apart from the Kotlin and are canonical in
+  `docs/rules-format/vectors/` like the others.
 
 ## Build flavors
 

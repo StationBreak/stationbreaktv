@@ -164,6 +164,19 @@ internal object LineupCodec {
     private val WHOLE = Regex("^-?(0|[1-9][0-9]*)$")
 }
 
+/** The "kind" a stored channel's raw JSON names ([CUSTOM_KIND] for the viewer's own), or null when it names none. */
+@Suppress("SwallowedException") // Raw JSON that does not parse is not a custom channel's.
+internal fun kindOf(rawJson: String): String? =
+    try {
+        val kind = (Json.parseToJsonElement(rawJson) as? JsonObject)?.get("kind") as? JsonPrimitive
+        kind?.takeIf { it.isString }?.content
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+
+/** The `kind` the rules format gives a channel the viewer built. */
+internal const val CUSTOM_KIND = "custom"
+
 /**
  * A channel's `source`. Unknown keys and an unknown `kind` throw [IllegalArgumentException] (the file is
  * unreadable); anything else wrong gives [ChannelSource.Unusable].
@@ -183,7 +196,7 @@ private object SourceCodec {
         mapOf(
             "starter" to setOf(KIND, KEY, EDITED, RULES),
             "leftovers" to setOf(KIND, KEY, MAX_RATING),
-            "custom" to setOf(KIND, RULES),
+            CUSTOM_KIND to setOf(KIND, RULES),
         )
 
     fun encode(source: ChannelSource): JsonElement =
@@ -211,7 +224,7 @@ private object SourceCodec {
 
             is ChannelSource.Custom -> {
                 val rules = JsonPrimitive(RulesWriter.write(source.rules))
-                JsonObject(linkedMapOf(KIND to JsonPrimitive("custom"), RULES to rules))
+                JsonObject(linkedMapOf(KIND to JsonPrimitive(CUSTOM_KIND), RULES to rules))
             }
 
             // Only decode makes one, from JSON it parsed, so this gives back the very element it was made from.

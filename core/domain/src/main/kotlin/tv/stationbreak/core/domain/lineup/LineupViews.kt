@@ -59,8 +59,11 @@ private val ChannelSource.kind: ChannelKind
             is ChannelSource.Starter -> ChannelKind.Starter
             is ChannelSource.Leftovers -> ChannelKind.Leftovers
             is ChannelSource.Custom -> ChannelKind.Custom
-            is ChannelSource.Unusable -> ChannelKind.Unusable
+            is ChannelSource.Unusable -> unusableKind(rawJson)
         }
+
+private fun unusableKind(rawJson: String): ChannelKind =
+    if (kindOf(rawJson) == CUSTOM_KIND) ChannelKind.UnusableCustom else ChannelKind.Unusable
 
 private fun recipeName(
     catalog: StarterCatalogView,

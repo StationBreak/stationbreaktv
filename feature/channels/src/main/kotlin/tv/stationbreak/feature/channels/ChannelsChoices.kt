@@ -6,11 +6,22 @@ import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
 
 /** One thing the viewer can pick in a panel. [Confirm] is the panel's own yes: Switch on, Swap or Reset. */
-internal enum class Choice { Watch, SwitchOn, SwitchOff, ChangeNumber, DefaultNumber, Confirm, Cancel }
+internal enum class Choice {
+    Watch,
+    SwitchOn,
+    SwitchOff,
+    CopyToCustomise,
+    Edit,
+    ChangeNumber,
+    DefaultNumber,
+    Confirm,
+    Cancel,
+}
 
 /**
  * What the actions panel of [row] offers: Watch for a channel that is on, Switch on for one that is not (and can be
- * read), Switch off for one that is on, and the number changes only when the lineup can be written. [reasonsRead]
+ * read), Switch off for one that is on, and the changes (switching, the builder, numbers) only when the lineup can
+ * be written. [reasonsRead]
  * is whether the first read of why channels have nothing to air has landed.
  */
 internal fun actionsOf(
@@ -23,8 +34,11 @@ internal fun actionsOf(
         // Until the reasons have been read an On row may be one with nothing to air, so Watch is not offered yet.
         if (on && reasonsRead && row.reason == null) add(Choice.Watch)
         if (access != LineupAccess.Editable) return@buildList
-        if (row.kind == ChannelKind.Unusable) return@buildList
+        if (row.kind.unreadable) return@buildList
         add(if (on) Choice.SwitchOff else Choice.SwitchOn)
+        // The builder works on a starter (as a copy) or a custom channel (in place); a leftovers channel has no rules.
+        if (row.kind == ChannelKind.Starter) add(Choice.CopyToCustomise)
+        if (row.kind == ChannelKind.Custom) add(Choice.Edit)
         add(Choice.ChangeNumber)
         if (row.hasOverride) add(Choice.DefaultNumber)
     }

@@ -3,8 +3,10 @@ package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -155,6 +157,15 @@ class CustomEditsTest {
     }
 
     @Test
+    fun reseedOfAChannelThatDoesNotShuffleIsRefused() {
+        val inOrder = rulesOf("mine").copy(formatVersion = 2, ordering = Ordering(OrderingMode.InOrder))
+        val channel = custom("mine", 650).copy(source = ChannelSource.Custom(inOrder))
+        val lineup = lineupOf(starter("western", 310), channel)
+
+        assertEquals(EditRefusal.NotShuffle, refusal(lineup, LineupEdit.Reseed(mine, Seed(11uL))))
+    }
+
+    @Test
     fun reseedOfANonCustomOrNoChannelIsRefused() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650))
 
@@ -246,18 +257,6 @@ class CustomEditsTest {
             EditRefusal.KidsBandOnly,
             refusal(lineup, LineupEdit.ReplaceCustom(kid, rulesOf("kid"), 650, mine, kids = false)),
         )
-    }
-
-    @Test
-    fun canSwapAnswersWhatAReplaceWithASwapWouldDoAndChangesNothing() {
-        val kid = ChannelId("custom:kid")
-        val lineup = lineupOf(starter("western", 310), custom("kid", 5), custom("mine", 650))
-
-        assertTrue(LineupEdits.canSwap(lineup, mine, 310, kids = false))
-        assertFalse(LineupEdits.canSwap(lineup, kid, 650, kids = false), "the grown-up holder would enter the band")
-        assertFalse(LineupEdits.canSwap(lineup, mine, 5, kids = true), "the kid holder would leave the band")
-        assertFalse(LineupEdits.canSwap(lineup, mine, 777, kids = false), "nothing holds it")
-        assertFalse(LineupEdits.canSwap(lineup, western, 650, kids = false), "not a custom channel")
     }
 
     @Test
@@ -422,6 +421,19 @@ class CustomEditsTest {
         // 600 is used (default or override), 601 is retired.
         val lineup = lineupOf(starter("western", 310), custom("mine", 600), custom("other", 603))
         assertEquals(602, LineupEdits.firstFreeCustom(lineup, false, catalog))
+    }
+
+    @Test
+    fun freeCustomNumbersListsEveryFreeNumberInOrderAndFirstFreeIsItsHead() {
+        // 600 is used (an override), 601 is retired, 603 is used.
+        val lineup = lineupOf(starter("western", 310), custom("mine", 600), custom("other", 603))
+        val free = LineupEdits.freeCustomNumbers(lineup, false, catalog)
+
+        assertEquals(listOf(602, 604, 605), free.take(3))
+        assertEquals(LineupDefaults.CUSTOM_NUMBERS.count() - 3, free.size)
+        assertEquals(free.firstOrNull(), LineupEdits.firstFreeCustom(lineup, false, catalog))
+        val kidsFull = lineupOf(starter("w", 310), *customsFilling(Band.Kids.numbers))
+        assertEquals(emptyList(), LineupEdits.freeCustomNumbers(kidsFull, true, catalog))
     }
 
     @Test

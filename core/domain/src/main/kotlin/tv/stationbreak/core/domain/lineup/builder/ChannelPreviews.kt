@@ -136,7 +136,8 @@ class BuiltInChannelPreviews(
     ): ChannelPreview =
         withContext(dispatcher) {
             try {
-                previewOf(account, draft, at) ?: ChannelPreview.Unavailable
+                // A kids draft previews under the ceiling create and save would write.
+                previewOf(account, draft.kidsNormalised(), at) ?: ChannelPreview.Unavailable
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {

@@ -257,6 +257,20 @@ class ChannelPreviewsTest {
     }
 
     @Test
+    fun normalisingAKidsCeilingNeverChangesThePreview() {
+        film(1, genres = listOf("Animation", "Kids"), rating = "G")
+        film(2, genres = listOf("Animation", "Kids"), rating = "PG")
+        film(3, genres = listOf("Animation", "Kids"), rating = "R")
+        val kids = DraftSource.Genre("Animation", "Animation")
+        val loose = draft(kids, kids = true, filters = DraftFilters(maxRating = "R"))
+        val normalised = loose.kidsNormalised()
+
+        assertEquals("PG", normalised.filters.maxRating)
+        assertEquals(ids(preview(normalised)), ids(preview(loose)))
+        assertEquals(ids(preview(normalised)), airedAs(normalised), "what create would then air")
+    }
+
+    @Test
     fun aRotationDraftPreviewsFilmsOnePerTurn() {
         (1..4).forEach { film(it, genres = listOf("A")) }
         (5..8).forEach { film(it, genres = listOf("B")) }

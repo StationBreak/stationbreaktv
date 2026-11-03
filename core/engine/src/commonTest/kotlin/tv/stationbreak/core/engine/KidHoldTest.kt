@@ -330,4 +330,61 @@ class KidHoldTest {
         }
         assertTrue(KidHold.isMadeForKids(episodeOf(rating = "TV-PG"), show(rating = "TV-Y")))
     }
+
+    // --- kidsChoiceFor ---
+
+    @Test
+    fun aKidsChoiceNeverLetsThroughWhatTheStoredCeilingHeldBack() {
+        val stored =
+            listOf(
+                "TV-Y",
+                "TV-G",
+                "G",
+                "TV-Y7",
+                "TV-Y7-FV",
+                "PG",
+                "TV-PG",
+                "PG-13",
+                "TV-14",
+                "R",
+                "TV-MA",
+                "NC-17",
+                "TV-X",
+                "Approved",
+                "NR",
+                "Bogus",
+                "",
+                null,
+            )
+        val probes = listOf("TV-Y", "G", "TV-Y7", "PG", "TV-PG", "PG-13", "R", "Approved", "NR")
+        for (s in stored) {
+            val choice = KidHold.kidsChoiceFor(s)
+            assertTrue(choice in KidHold.CEILING_CHOICES, "$s -> $choice")
+            for (p in probes) {
+                if (KidHold.passesKidCeiling(film(p), null, choice)) {
+                    assertTrue(KidHold.passesKidCeiling(film(p), null, s), "$p airs under $choice but not under $s")
+                }
+            }
+        }
+        assertEquals("G", KidHold.kidsChoiceFor("TV-G"))
+        assertEquals("TV-Y7", KidHold.kidsChoiceFor("TV-Y7-FV"))
+        assertEquals("PG", KidHold.kidsChoiceFor("TV-PG"))
+        assertEquals("PG", KidHold.kidsChoiceFor(null))
+        assertEquals("G", KidHold.kidsChoiceFor("Bogus"))
+    }
+
+    // --- ceilingChoices ---
+
+    @Test
+    fun everyCeilingChoiceLetsThroughExactlyTheRatingsUpToIt() {
+        val ratings = listOf("TV-Y", "TV-G", "G", "TV-Y7", "TV-Y7-FV", "PG", "TV-PG", "PG-13", "R", "TV-MA")
+        assertEquals(listOf(0, 1, 2), KidHold.CEILING_CHOICES.map { KidHold.kidRank(it) })
+        for (choice in KidHold.CEILING_CHOICES) {
+            val tier = checkNotNull(KidHold.kidRank(choice))
+            for (r in ratings) {
+                val expected = checkNotNull(KidHold.kidRank(r)) <= tier
+                assertEquals(expected, KidHold.passesKidCeiling(film(r), null, choice), "$r under $choice")
+            }
+        }
+    }
 }

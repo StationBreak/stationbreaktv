@@ -23,9 +23,11 @@ import tv.stationbreak.core.rules.normalised
  *
  * What the builder cannot show (a built-in's `chronological` or `randomInOrder` order, year-range sources, block
  * length, a grid layout, filler, and every setting or extra it does not know) is carried over from `previous` while the
- * draft's [KeptSettings] is set. Without it ("Use the builder's settings instead") none of that is written. The
- * version is always the lowest that holds the rules, so an edited version 2 file that uses only version 1 features is
- * written as version 1 (by design).
+ * draft's [KeptSettings] is set. "Use the builder's settings instead" replaces only what the builder has controls for
+ * (the play order and the caps: a kept order, a kept uncapped Shuffle, a day cut shorter than 24 hours); the rest stays
+ * kept, so it is still carried over (see [ChannelDraft.keepsReplaceable]). A decade copy's year range stays its pool.
+ * Without [KeptSettings] none of it is written. The version is always the lowest that holds the rules, so an edited
+ * version 2 file that uses only version 1 features is written as version 1 (by design).
  */
 @Suppress("TooManyFunctions") // One step of the draft to rules and back, each.
 internal object DraftRules {

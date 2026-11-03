@@ -101,6 +101,23 @@ object KidHold {
      */
     val CHILDRENS_RATINGS: Set<String> = setOf("TV-Y", "TV-Y7", "TV-Y7-FV")
 
+    /**
+     * The kids choice that holds a channel to what [rating] held it to, never looser: the highest of
+     * [CEILING_CHOICES] whose kid tier is no higher than [rating]'s. No ceiling (null) is PG, as [passesKidCeiling]
+     * reads it, and a rating the hold does not recognise has no kid tier, which that function reads as the lowest.
+     */
+    fun kidsChoiceFor(rating: String?): String {
+        val tier = if (rating == null) TIER_PG else kidRank(rating) ?: 0
+        return CEILING_CHOICES[tier.coerceAtMost(CEILING_CHOICES.lastIndex)]
+    }
+
+    /**
+     * The ceilings a kids channel can be given, lowest first: one name per kid tier up to PG, the most a kids channel
+     * airs (a higher ceiling is held at PG). Each name is on the tier [kidRank] gives it, so a choice means what the
+     * hold does with it.
+     */
+    val CEILING_CHOICES: List<String> = listOf("G", "TV-Y7", "PG")
+
     private const val TIER_PG = 2
     private const val TIER_TV_PG = 3
     private const val TIER_ABOVE = 4

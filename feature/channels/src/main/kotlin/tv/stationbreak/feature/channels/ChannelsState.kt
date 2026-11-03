@@ -5,6 +5,7 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.channels.builder.BuilderMode
 
 /** The three lists of the channel screen: switched on, known but not on, and switched off by the viewer. */
 internal enum class ChannelGroup { On, Shelf, Off }
@@ -55,6 +56,9 @@ internal enum class ChannelsMessage {
     LastOn,
     NoNumber,
     NotEditable,
+
+    /** A press that waited for the lineup to be known gave up: it did not become known in time. */
+    NotReady,
     NotChosenYet,
     SaveFailed,
     Failed,
@@ -66,6 +70,9 @@ internal sealed interface ChannelsFocus {
     data class Row(
         val id: ChannelId,
     ) : ChannelsFocus
+
+    /** The New channel row above the first group. */
+    data object New : ChannelsFocus
 
     data object Reset : ChannelsFocus
 }
@@ -88,6 +95,10 @@ internal data class ChannelsUi(
     val picker: PickerState? = null,
     /** The first read of why channels have nothing to air has landed (until then Watch is not offered). */
     val reasonsRead: Boolean = false,
+    /** The channel builder is showing over the list, opened for this; the screen's keys are the builder's. */
+    val builder: BuilderMode? = null,
+    /** A New, Copy or Edit press is waiting for the lineup to be known (whether it can be changed). */
+    val gettingReady: Boolean = false,
 ) {
     companion object {
         val Empty =

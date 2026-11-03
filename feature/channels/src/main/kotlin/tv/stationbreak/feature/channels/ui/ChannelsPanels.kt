@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.ChannelsPanel
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -58,6 +59,14 @@ internal fun ChannelsPanelView(
                 }
             }
         Text(text, Modifier.testTag(ChannelsTags.PANEL_TEXT), style = MaterialTheme.typography.titleMedium)
+        if (panel is ChannelsPanel.Actions && kindOf(ui, panel) == ChannelKind.UnusableCustom) {
+            Text(
+                stringResource(R.string.builder_newer_app_channel),
+                Modifier.testTag(ChannelsTags.NEWER_APP),
+                style = MaterialTheme.typography.bodyMedium,
+                color = ChannelsPalette.secondary,
+            )
+        }
         val picker = ui.picker
         if (panel is ChannelsPanel.Number && picker != null) {
             NumberPicker(picker)
@@ -68,6 +77,11 @@ internal fun ChannelsPanelView(
         }
     }
 }
+
+private fun kindOf(
+    ui: ChannelsUi,
+    panel: ChannelsPanel,
+): ChannelKind? = ui.rows.firstOrNull { it.id == panel.id }?.kind
 
 @Composable
 private fun ChoiceRow(
@@ -106,6 +120,14 @@ private fun labelOf(
                 R.string.channels_action_switch_off
             }
 
+            Choice.CopyToCustomise -> {
+                R.string.builder_copy_to_customise
+            }
+
+            Choice.Edit -> {
+                R.string.builder_edit
+            }
+
             Choice.ChangeNumber -> {
                 R.string.channels_action_change_number
             }
@@ -133,6 +155,8 @@ private fun tagOf(choice: Choice): String =
         Choice.Watch -> ChannelsTags.ACTION_WATCH
         Choice.SwitchOn -> ChannelsTags.ACTION_SWITCH_ON
         Choice.SwitchOff -> ChannelsTags.ACTION_SWITCH_OFF
+        Choice.CopyToCustomise -> ChannelsTags.ACTION_COPY
+        Choice.Edit -> ChannelsTags.ACTION_EDIT
         Choice.ChangeNumber -> ChannelsTags.ACTION_CHANGE_NUMBER
         Choice.DefaultNumber -> ChannelsTags.ACTION_DEFAULT_NUMBER
         Choice.Confirm -> ChannelsTags.ACTION_CONFIRM
