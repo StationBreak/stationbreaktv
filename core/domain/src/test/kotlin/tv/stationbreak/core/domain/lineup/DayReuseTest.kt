@@ -149,8 +149,10 @@ class DayReuseTest {
         val at50 = renumbered(at600, 50)
         val at650 = renumbered(at600, 650)
 
-        assertNotEquals(days.inputsOf(at600), days.inputsOf(at50), "into the Kids band: another policy and ceiling")
-        assertEquals(days.inputsOf(at600), days.inputsOf(at650), "within the grown-up numbers: the same days")
+        val inKids = days.inputsOf(at50, null)
+        val within = days.inputsOf(at650, null)
+        assertNotEquals(days.inputsOf(at600, null), inKids, "into the Kids band: another policy and ceiling")
+        assertEquals(days.inputsOf(at600, null), within, "within the grown-up numbers: the same days")
     }
 
     private fun renumbered(
@@ -203,7 +205,7 @@ class DayReuseTest {
                         },
                 )
             }
-        assertEquals(days.inputsOf(held()), days.inputsOf(renamed))
+        assertEquals(days.inputsOf(held(), null), days.inputsOf(renamed, null))
     }
 
     @Test
@@ -255,7 +257,9 @@ class DayReuseTest {
                             if (it.id == laughs) it.copy(nameOverride = "Giggles") else it
                         },
                 )
-            store.inner.save(ACCOUNT, LineupCodec.encode(renamed, planned.meta))
+            // The session plans without the file, so it lands on the next day start; the file holds the same boundary.
+            val boundary = Instant.parse("2026-10-20T06:00:00Z").toEpochMilliseconds()
+            store.inner.save(ACCOUNT, LineupCodec.encode(renamed, planned.meta.copy(extrasFromMs = boundary)))
             store.inner.failReads = true
             val tv = Process()
             tv.service.refresh(ACCOUNT, LIBRARIES)

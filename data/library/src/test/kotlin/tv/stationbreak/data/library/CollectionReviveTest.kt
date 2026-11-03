@@ -68,7 +68,7 @@ class CollectionReviveTest {
             assertEquals(start, current().firstSeenMs)
             // The version keeps the tombstoned lifecycle, ending at the stamp.
             assertEquals(
-                listOf(CollectionVersionEntity("server-1", "alice", "box01", start, revivedAt, deletedAt)),
+                listOf(CollectionVersionEntity("server-1", "alice", "box01", start, revivedAt, deletedAt, "x")),
                 repository.collectionVersions(ALICE),
             )
             val members = repository.collectionMembers(ALICE).associateBy { it.memberId }

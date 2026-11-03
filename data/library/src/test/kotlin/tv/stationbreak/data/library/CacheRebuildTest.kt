@@ -54,8 +54,8 @@ class CacheRebuildTest {
     }
 
     @Test
-    fun theSchemaIsVersion8WithStudiosAndTheBackfillFlag() {
-        assertEquals(8, LibraryDatabase.VERSION)
+    fun theSchemaIsVersion9WithStudiosNamesAndTheBackfillFlag() {
+        assertEquals(9, LibraryDatabase.VERSION)
         val columns = SchemaFile.columnNames()
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)

@@ -122,13 +122,14 @@ class Migration7To8Test {
 
             val alices = repository.dao.metaRow(alice.first, alice.second)!!
             assertTrue(alices.backfillPending)
-            assertEquals(GENERATION, alices.contentGeneration)
+            // The file opens through every migration to the current version: 8 to 9 moves each generation by one.
+            assertEquals(GENERATION + 1, alices.contentGeneration)
             assertEquals(2, alices.failedPasses)
             // Bob had no row: one is made, seeded as generationSeed seeds one, so the flag is not lost to a later
             // row created with it off.
             val bobs = repository.dao.metaRow(bob.first, bob.second)!!
             assertTrue(bobs.backfillPending)
-            assertEquals(clock.nowMs shl LibraryDao.GENERATION_SHIFT, bobs.contentGeneration)
+            assertEquals((clock.nowMs shl LibraryDao.GENERATION_SHIFT) + 1, bobs.contentGeneration)
             assertEquals(0, bobs.failedPasses)
             assertFalse(bobs.passRunning)
             repository.close()

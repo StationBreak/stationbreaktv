@@ -145,6 +145,120 @@ class FileLineupStoreTest {
             assertFalse(store.forget(one))
         }
 
+    // The upgrade copy: <user>.json.<tag>.bak, written once from the file as it stands, never moved or pruned.
+
+    private val bakName = "$serverA/$userOne.json.v1.bak"
+
+    @Test
+    fun theFirstV2SaveKeepsTheV1Bytes() =
+        runBlocking {
+            store.save(one, bytes)
+
+            assertTrue(store.keepCopy(one, "v1"))
+            store.save(one, byteArrayOf(8, 8))
+
+            assertArrayEquals(bytes, files.held[bakName])
+            assertArrayEquals(byteArrayOf(8, 8), store.load(one).bytesOrNull())
+        }
+
+    @Test
+    fun laterSavesKeepNoMoreBackups() =
+        runBlocking {
+            store.save(one, bytes)
+            store.keepCopy(one, "v1")
+            store.save(one, byteArrayOf(8))
+
+            // The copy exists: a second request changes nothing, even though the file now differs.
+            assertTrue(store.keepCopy(one, "v1"))
+            store.save(one, byteArrayOf(9))
+
+            assertArrayEquals(bytes, files.held[bakName])
+            assertEquals(listOf(bakName), files.held.keys.filter { it.endsWith(".bak") })
+        }
+
+    @Test
+    fun aCrashAfterTheBackupLeavesTheLineupReadable() =
+        runBlocking {
+            store.save(one, bytes)
+            assertTrue(store.keepCopy(one, "v1"))
+            // The new version's write never lands: the old file is whole beside its copy.
+            files.failWrites = true
+            assertFalse(store.save(one, byteArrayOf(8)))
+
+            assertArrayEquals(bytes, store.load(one).bytesOrNull())
+            assertArrayEquals(bytes, files.held[bakName])
+        }
+
+    @Test
+    fun aFailedCopyChangesNothingAndReportsFalse() =
+        runBlocking {
+            store.save(one, bytes)
+            files.failWrites = true
+
+            assertFalse(store.keepCopy(one, "v1"))
+            files.failWrites = false
+
+            assertArrayEquals(bytes, store.load(one).bytesOrNull())
+            assertEquals(listOf("$serverA/$userOne.json"), files.held.keys.toList())
+        }
+
+    @Test
+    fun unreadableSetAsidesNeverPruneTheUpgradeBackup() =
+        runBlocking {
+            store.save(one, bytes)
+            store.keepCopy(one, "v1")
+            for (n in 1..6) {
+                store.save(one, byteArrayOf(n.toByte()))
+                store.setAside(one)
+            }
+
+            assertEquals(3, asideNames().size)
+            assertArrayEquals(bytes, files.held[bakName])
+        }
+
+    @Test
+    fun forgetRemovesTheUpgradeBackups() =
+        runBlocking {
+            store.save(one, bytes)
+            store.keepCopy(one, "v1")
+            store.keepCopy(one, "v2")
+            store.save(two, byteArrayOf(9))
+            store.keepCopy(two, "v1")
+
+            assertTrue(store.forget(one))
+
+            assertEquals(
+                listOf("$serverA/$userTwo.json", "$serverA/$userTwo.json.v1.bak"),
+                files.held.keys.sorted(),
+            )
+        }
+
+    @Test
+    fun forgetAlsoRemovesAStagedUpgradeCopy() =
+        runBlocking {
+            store.save(one, bytes)
+            files.held["$serverA/$userOne.json.v1.bak.new"] = byteArrayOf(1)
+            files.held["$serverA/$userOne.json.v1.bakery"] = byteArrayOf(2)
+
+            assertTrue(store.forget(one))
+
+            assertEquals(listOf("$serverA/$userOne.json.v1.bakery"), files.held.keys.toList())
+        }
+
+    @Test
+    fun noFileMeansNothingToKeepAndABadTagIsRefused() =
+        runBlocking {
+            assertTrue(store.keepCopy(one, "v1"))
+            assertTrue(files.held.isEmpty())
+            store.save(one, bytes)
+
+            assertFalse(store.keepCopy(one, "../v1"))
+            assertFalse(store.keepCopy(one, ""))
+            assertFalse(store.keepCopy(LibraryAccount(ServerId("not-an-id"), UserId(userOne)), "v1"))
+
+            assertEquals(listOf("$serverA/$userOne.json"), files.held.keys.toList())
+        }
+
     private fun asideNames() =
         files.held.keys
             .filter { ".unreadable." in it }

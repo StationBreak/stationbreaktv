@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.StoredBytes
+import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.model.ItemId
@@ -256,8 +257,9 @@ class PersistedDays internal constructor(
     private fun inKeyOrder(scheduled: List<Scheduled>): List<Scheduled> = scheduled.sortedBy { it.channel.id.value }
 
     companion object {
-        /** The holds a kid and a grown-up channel's pools are narrowed by (ADR-0019, ADR-0020). */
-        internal val HOLDS: List<String> = listOf(KidHold.VERSION_NAME, GrownUpHold.VERSION_NAME)
+        /** The holds a kid and a grown-up channel's pools are narrowed by (ADR-0019, ADR-0020), and the extras. */
+        internal val HOLDS: List<String> =
+            listOf(KidHold.VERSION_NAME, GrownUpHold.VERSION_NAME, ExtrasFilter.VERSION_NAME)
 
         /**
          * How many sets of cut-offs are kept per account: today's and the next day's. With one day start that is two

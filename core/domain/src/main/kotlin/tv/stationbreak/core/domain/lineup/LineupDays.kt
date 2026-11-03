@@ -101,14 +101,33 @@ private fun layoutOf(
 /** No film is in a collection: a leftovers channel's side map, and a channel whose ordering does not read one. */
 internal val NO_FILMS: FilmCollections = FilmCollections.of(emptyMap())
 
-/** A switched-on channel that can be scheduled, with the day that holds the moment asked about. */
+/**
+ * A snapshot a day is built from: the cut-off it is read at, and whether the extras filter was applied to it. Two days
+ * of one cut-off can differ in the second (the filter starts at a day start, and days of other timing start elsewhere),
+ * and then they are two snapshots.
+ */
+internal data class Cut(
+    val cutoffMs: Long,
+    val extras: Boolean,
+) : Comparable<Cut> {
+    override fun compareTo(other: Cut): Int = compareValuesBy(this, other, { it.cutoffMs }, { it.extras })
+}
+
+/**
+ * A switched-on channel that can be scheduled, with the day that holds the moment asked about. [extras] is whether the
+ * extras filter applies to the day (its start is at or after the lineup's boundary, [LineupDays.scheduled]).
+ */
 internal class Scheduled(
     val channel: LineupChannel,
     val settings: SchedulerSettings,
     val n: Long,
+    val extras: Boolean = false,
 ) {
     /** The day's cut-off (`S - G`): the library snapshot the day is built from is read at it. */
     val cutoffMs: Long get() = Epochs.cutoff(settings, n)
+
+    /** The snapshot the day is built from. */
+    val cut: Cut get() = Cut(cutoffMs, extras)
 }
 
 /**
@@ -146,16 +165,23 @@ internal class LineupDays(
 ) {
     private val ceilings = Ceilings(catalog)
 
-    /** The channels of [lineup] that are scheduled at [atMs], in number order. Reads nothing. */
+    /**
+     * The channels of [lineup] that are scheduled at [atMs], in number order. Reads nothing. A day is filtered of
+     * extras when its start is at or after [extrasFromMs] (the account's `RefreshMeta.extrasFromMs`; null is never).
+     */
     fun scheduled(
         lineup: Lineup,
         atMs: Long,
+        extrasFromMs: Long?,
     ): List<Scheduled> =
         lineup.channels
             .filter { it.state == ChannelState.On && it.number != null }
             .sortedWith(CHANNEL_ORDER)
             .mapNotNull { channel ->
-                settingsOf(channel, lineup)?.let { Scheduled(channel, it, Epochs.epochNumber(it, atMs)) }
+                settingsOf(channel, lineup)?.let {
+                    val n = Epochs.epochNumber(it, atMs)
+                    Scheduled(channel, it, n, extrasFromMs != null && Epochs.epochStart(it, n) >= extrasFromMs)
+                }
             }
 
     /**
@@ -169,12 +195,17 @@ internal class LineupDays(
      *   ([KidStatus.policyOf]). The last two are where a number counts: the Kids band holds a channel to PG and to
      *   made-for-kids content, so a move into or out of 1-99 that changes either changes the digest;
      * - the order the leftovers channels claim in ([claimOrder]: ceilinged first, then by number), the one other place
-     *   numbers count.
+     *   numbers count;
+     * - [extrasFromMs], when the extras filter starts to apply (the account's `RefreshMeta.extrasFromMs`; every caller
+     *   passes the account's value): it decides, with the day's start, which days are filtered.
      *
      * Numbers and names that change neither are left out: a renumber or a swap on one side of the Kids band keeps every
      * built day. The day's channel and name are read from the current lineup ([rebound]).
      */
-    fun inputsOf(lineup: Lineup): String {
+    fun inputsOf(
+        lineup: Lineup,
+        extrasFromMs: Long?,
+    ): String {
         val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it) }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         val inputs =
@@ -184,6 +215,7 @@ internal class LineupDays(
                     "offset" to JsonPrimitive(lineup.utcOffsetMinutes),
                     "channels" to JsonArray(channels),
                     "claims" to JsonArray(claims),
+                    "extrasFrom" to JsonPrimitive(extrasFromMs),
                 ),
             )
         return sha256Hex(inputs.toString().encodeToByteArray())
@@ -234,17 +266,20 @@ internal class LineupDays(
     }
 
     /**
-     * The days of [scheduled] (from [scheduled] for [lineup]), each from `snapshots[cutoffMs]`. [beforeChannel] is
-     * called before each channel's day is worked out; a caller that has stopped needing the days throws from it.
-     * [evaluated] is called once per `PoolEvaluator.evaluate` run, to count them.
+     * The days of [scheduled] (from [scheduled] for [lineup]), each from `snapshots[cutoffMs]`, or from
+     * `filteredSnapshots[cutoffMs]` (the same snapshot with the extras taken out) for a day with [Scheduled.extras].
+     * [beforeChannel] is called before each channel's day is worked out; a caller that has stopped needing the days
+     * throws from it. [evaluated] is called once per `PoolEvaluator.evaluate` run, to count them.
      */
+    @Suppress("LongParameterList") // The lineup, its days, both kinds of snapshot and the two hooks.
     fun days(
         lineup: Lineup,
         scheduled: List<Scheduled>,
         snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
         beforeChannel: () -> Unit = {},
         evaluated: () -> Unit = {},
-    ): List<ChannelDay> = Build(lineup, snapshots, evaluated).days(scheduled, beforeChannel)
+    ): List<ChannelDay> = Build(lineup, snapshots, filteredSnapshots, evaluated).days(scheduled, beforeChannel)
 
     /**
      * The day of [s] whose day pool is [pool], whose film-to-collection map is [films] and whose empty reason is
@@ -270,17 +305,18 @@ internal class LineupDays(
         lineup: Lineup,
         scheduled: List<Scheduled>,
         snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
     ): Int {
-        val build = Build(lineup, snapshots)
+        val build = Build(lineup, snapshots, filteredSnapshots)
         val aired = build.days(scheduled).flatMapTo(HashSet()) { day -> day.pool.map { it.id } }
         val nowhere = HashSet<CanonicalId>()
-        for ((cutoff, group) in scheduled.groupBy { it.cutoffMs }) {
-            val items = snapshots.getValue(cutoff).items.map { it.item }
+        for ((cut, group) in scheduled.groupBy { it.cut }) {
+            val items = build.snapshotOf(cut).items.map { it.item }
             val eligible =
                 group.distinctBy { EpochPool.inputsOf(it.settings) }.flatMapTo(HashSet()) { s ->
                     EpochPool.build(s.settings, items, s.n).map { it.id }
                 }
-            nowhere += eligible - aired - build.withheld(cutoff) - build.hiddenLeftovers(cutoff)
+            nowhere += eligible - aired - build.withheld(cut) - build.hiddenLeftovers(cut)
         }
         return nowhere.size
     }
@@ -323,25 +359,31 @@ internal class LineupDays(
     private inner class Build(
         private val lineup: Lineup,
         private val snapshots: Map<Long, RuleSnapshot>,
+        private val filteredSnapshots: Map<Long, RuleSnapshot>,
         private val evaluated: () -> Unit = {},
     ) {
-        private val withheldBy = HashMap<Long, Set<CanonicalId>>()
+        private val withheldBy = HashMap<Cut, Set<CanonicalId>>()
 
-        // A pool depends on the snapshot, the sources, the exclusions, the filters, the ceiling and the policy
+        /** The snapshot of [cut]: with the extras taken out for a filtered day. */
+        fun snapshotOf(cut: Cut): RuleSnapshot =
+            if (cut.extras) filteredSnapshots.getValue(cut.cutoffMs) else snapshots.getValue(cut.cutoffMs)
+
+        // A pool depends on the snapshot (its cut-off, and whether the extras are out of it), the sources, the
+        // exclusions, the filters, the ceiling and the policy
         // (`PoolEvaluator`, "What a pool depends on"), so rules that agree on all of those (a recipe as resolved and as
         // the lineup has it, a hidden channel that is an unedited starter) are evaluated once.
         private val evaluations = HashMap<EvaluationKey, Pool>()
 
         private fun evaluate(
             rules: ChannelRules,
-            cutoff: Long,
+            cut: Cut,
             policy: PoolPolicy,
         ): Pool {
             val key =
-                EvaluationKey(cutoff, rules.sources, rules.effectiveExclusions, rules.filters, rules.maxRating, policy)
+                EvaluationKey(cut, rules.sources, rules.effectiveExclusions, rules.filters, rules.maxRating, policy)
             evaluations[key]?.let { return it }
             evaluated()
-            return PoolEvaluator.evaluate(rules, snapshots.getValue(cutoff), policy).also { evaluations[key] = it }
+            return PoolEvaluator.evaluate(rules, snapshotOf(cut), policy).also { evaluations[key] = it }
         }
 
         private val leftovers = claimOrder(lineup)
@@ -362,7 +404,7 @@ internal class LineupDays(
             // claims is walked once per cut-off, not again from the start for every channel. The days go back in the
             // order of [scheduled].
             val claimOrder = leftovers.withIndex().associate { (index, channel) -> channel.id to index }
-            val chains = HashMap<Long, ClaimChain>()
+            val chains = HashMap<Cut, ClaimChain>()
             val leftoversDays = HashMap<Scheduled, ChannelDay>()
             val inClaimOrder =
                 scheduled
@@ -370,7 +412,7 @@ internal class LineupDays(
                     .sortedBy { claimOrder[it.channel.id] ?: leftovers.size }
             for (s in inClaimOrder) {
                 beforeChannel()
-                val chain = chains.getOrPut(s.cutoffMs) { ClaimChain(s.cutoffMs, claimedByOn) }
+                val chain = chains.getOrPut(s.cut) { ClaimChain(s.cut, claimedByOn) }
                 leftoversDays[s] = leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId)
             }
             return scheduled.map { checkNotNull(ruled[it] ?: leftoversDays[it]) }
@@ -378,19 +420,19 @@ internal class LineupDays(
 
         /** What the leftovers channels walked so far have claimed from one cut-off's snapshot, and how far that is. */
         private inner class ClaimChain(
-            val cutoffMs: Long,
+            val cut: Cut,
             claimedByOn: Set<CanonicalId>,
         ) {
-            val claimed: MutableSet<CanonicalId> = HashSet(claimedByOn).apply { addAll(withheld(cutoffMs)) }
+            val claimed: MutableSet<CanonicalId> = HashSet(claimedByOn).apply { addAll(withheld(cut)) }
             var next = 0
         }
 
         private fun ruledDay(s: Scheduled): ChannelDay {
             val rules = checkNotNull(rulesOf(s.channel))
-            val snapshot = snapshots.getValue(s.cutoffMs)
+            val snapshot = snapshotOf(s.cut)
             val ruled =
                 ruledDayOf(ceilings, rules, s.channel, snapshot, s.settings, s.n) { r, policy ->
-                    evaluate(r, s.cutoffMs, policy)
+                    evaluate(r, s.cut, policy)
                 }
             return restore(s, ruled.day, ruled.films, hiddenReason(ruled.pool, ruled.day))
         }
@@ -401,7 +443,7 @@ internal class LineupDays(
             position: Int,
             byId: Map<ChannelId, Scheduled>,
         ): ChannelDay {
-            val snapshot = snapshots.getValue(chain.cutoffMs)
+            val snapshot = snapshotOf(chain.cut)
             // The channels before this one claim in turn, each against what the ones before it took.
             while (chain.next < position) {
                 val before = leftovers[chain.next++]
@@ -415,17 +457,17 @@ internal class LineupDays(
             return restore(s, day, NO_FILMS, hiddenReason(pool, day))
         }
 
-        /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */
-        fun withheld(cutoff: Long): Set<CanonicalId> =
-            withheldBy.getOrPut(cutoff) {
+        /** What no leftovers channel may air from the [cut]'s snapshot: opt-in and hidden channels' pools. */
+        fun withheld(cut: Cut): Set<CanonicalId> =
+            withheldBy.getOrPut(cut) {
                 val rules = optInRules() + hiddenRules()
-                rules.flatMapTo(HashSet()) { (r, policy) -> evaluate(r, cutoff, policy).items.map { it.id } }
+                rules.flatMapTo(HashSet()) { (r, policy) -> evaluate(r, cut, policy).items.map { it.id } }
             }
 
-        /** What the hidden leftovers channels would air from the [cutoff]'s snapshot: held back on purpose too. */
-        fun hiddenLeftovers(cutoff: Long): Set<CanonicalId> {
-            val snapshot = snapshots.getValue(cutoff)
-            val claimed = withheld(cutoff)
+        /** What the hidden leftovers channels would air from the [cut]'s snapshot: held back on purpose too. */
+        fun hiddenLeftovers(cut: Cut): Set<CanonicalId> {
+            val snapshot = snapshotOf(cut)
+            val claimed = withheld(cut)
             return leftovers.filter { it.state == ChannelState.UserHidden }.flatMapTo(HashSet()) { channel ->
                 leftoversPool(channel, snapshot, claimed).items.map { it.id }
             }
@@ -458,11 +500,12 @@ internal class LineupDays(
     }
 
     /**
-     * What a pool depends on, besides the snapshot of [cutoffMs]: the rules' sources, exclusions, filters and ceiling,
-     * and its policy, so channels under different policies with the same rules never share a pool.
+     * What a pool depends on, besides the snapshot of [cut] (its cut-off, and whether the extras are out of it, so a
+     * filtered and an unfiltered day of one cut-off never share a pool): the rules' sources, exclusions, filters and
+     * ceiling, and its policy, so channels under different policies with the same rules never share a pool.
      */
     private data class EvaluationKey(
-        val cutoffMs: Long,
+        val cut: Cut,
         val sources: List<Source>,
         val exclusions: List<Source>,
         val filters: Filters?,

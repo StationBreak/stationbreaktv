@@ -9,7 +9,7 @@ import androidx.room.Transaction
 // The columns the as-of read takes from an item row or a version row, in the order of HeldRow.
 private const val HELD_COLUMNS =
     "itemId, libraryId, kind, seriesId, seasonId, seasonNumber, episodeNumber, runtimeMs, createdAtMs, premiereDate, " +
-        "productionYear, officialRating, deletedAtMs, seenFromMs"
+        "productionYear, officialRating, deletedAtMs, seenFromMs, name"
 
 // The same from an item row, which keeps its genres, tags and studios in side tables: the list columns are null there.
 private const val HELD_COLUMNS_OF_ITEM = "$HELD_COLUMNS, NULL AS genres, NULL AS tags, NULL AS studios"
@@ -23,7 +23,7 @@ private const val HELD_COLUMNS_OF_V =
         "v.seasonId AS seasonId, v.seasonNumber AS seasonNumber, v.episodeNumber AS episodeNumber, " +
         "v.runtimeMs AS runtimeMs, v.createdAtMs AS createdAtMs, v.premiereDate AS premiereDate, " +
         "v.productionYear AS productionYear, v.officialRating AS officialRating, v.deletedAtMs AS deletedAtMs, " +
-        "v.seenFromMs AS seenFromMs, v.genres AS genres, v.tags AS tags, v.studios AS studios"
+        "v.seenFromMs AS seenFromMs, v.name AS name, v.genres AS genres, v.tags AS tags, v.studios AS studios"
 
 /**
  * One row of the as-of read as Room maps it, from an item row or a version row. [genres], [tags] and [studios] are the
@@ -46,10 +46,14 @@ internal class HeldRaw(
     val officialRating: String?,
     val deletedAtMs: Long?,
     val seenFromMs: Long,
+    val name: String?,
     val genres: String?,
     val tags: String?,
     val studios: String?,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "HeldRaw(itemId=$itemId, seenFromMs=$seenFromMs, name=<name>)"
+}
 
 // The genres, tags and studios of the current rows of one chunk, by item.
 private class SideLists {
@@ -150,7 +154,7 @@ internal abstract class ItemHistoryDao {
                     toUpdate += rows.item.copy(seenFromMs = stamp, firstSeenMs = held.firstSeenMs)
                 }
 
-                // Only the name or the parent differs: stored, but it is no new version of the schedule's inputs.
+                // Only the parent (or another unversioned field) differs: stored, but it is no new version.
                 held != kept -> {
                     toUpdate += kept
                 }
@@ -379,6 +383,7 @@ internal abstract class ItemHistoryDao {
         tags = if (tags != null) strings.all(VersionCodec.decode(tags)) else side.tags[itemId].orEmpty(),
         studios = if (studios != null) strings.all(VersionCodec.decode(studios)) else side.studios[itemId].orEmpty(),
         seasonId = seasonId?.let(strings::of),
+        name = name,
     )
 
     // Counts and reads, for the tests and diagnostics.

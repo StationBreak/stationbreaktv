@@ -85,7 +85,9 @@ class LineupServiceTest {
 
             service.refresh(ACCOUNT, LIBRARIES)
 
-            val expected = RefreshMeta(generation, pass.toEpochMilliseconds(), LIBRARIES.map { it.value }.sorted())
+            // A new account's extras filter starts at the beginning of time.
+            val expected =
+                RefreshMeta(generation, pass.toEpochMilliseconds(), LIBRARIES.map { it.value }.sorted(), Long.MIN_VALUE)
             assertEquals(expected, storedMeta())
             assertEquals(expected, service.lineup(ACCOUNT).value?.meta, "and held in memory")
             service.refresh(ACCOUNT, LIBRARIES)
@@ -339,7 +341,7 @@ class LineupServiceTest {
     @Test
     fun newerVersionIsNeverOverwritten() =
         runBlocking<Unit> {
-            val newer = """{"version":2,"whatever":"a newer app wrote"}""".encodeToByteArray()
+            val newer = """{"version":3,"whatever":"a newer app wrote"}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
             store.calls.clear()
 
@@ -621,7 +623,7 @@ class LineupServiceTest {
     @Test
     fun aSessionStartedFromANewerVersionNeverSaves() =
         runBlocking<Unit> {
-            store.inner.save(ACCOUNT, """{"version":2}""".encodeToByteArray())
+            store.inner.save(ACCOUNT, """{"version":3}""".encodeToByteArray())
             store.calls.clear()
 
             service.refresh(ACCOUNT, LIBRARIES)
@@ -706,6 +708,14 @@ internal class RecordingStore(
         return inner.setAside(account)
     }
 
+    override suspend fun keepCopy(
+        account: LibraryAccount,
+        tag: String,
+    ): Boolean {
+        record("keepCopy", account)
+        return inner.keepCopy(account, tag)
+    }
+
     override suspend fun forget(account: LibraryAccount): Boolean {
         record("forget", account)
         return inner.forget(account)
@@ -746,6 +756,11 @@ internal class PeekableStore : LineupStore {
     ): Boolean = delegate.save(account, bytes)
 
     override suspend fun setAside(account: LibraryAccount): Boolean = delegate.setAside(account)
+
+    override suspend fun keepCopy(
+        account: LibraryAccount,
+        tag: String,
+    ): Boolean = delegate.keepCopy(account, tag)
 
     override suspend fun forget(account: LibraryAccount): Boolean = delegate.forget(account)
 }

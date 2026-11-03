@@ -26,7 +26,7 @@ class SnapshotCacheTest {
     @AfterEach
     fun stop() = scope.cancel()
 
-    private fun key(generation: Long) = SnapshotCache.Key(ACCOUNT, LIBRARIES, 0L, generation)
+    private fun key(generation: Long) = SnapshotCache.Key(ACCOUNT, LIBRARIES, 0L, generation, extras = false)
 
     private fun snapshot() = RuleSnapshot(0L, setOf(LIBRARY_ID), emptyList(), emptyMap(), emptyMap(), true)
 

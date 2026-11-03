@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -113,8 +114,10 @@ class BuiltInScheduleSource(
         val libraries: Set<ItemId>,
         val inputs: String,
         val planned: Long?,
-        val cutoffs: List<Long>,
-    )
+        val cuts: List<Cut>,
+    ) {
+        val cutoffs: List<Long> get() = cuts.map { it.cutoffMs }.distinct()
+    }
 
     private val days = LineupDays(service.catalog) { n, ms -> laidOut(n, ms) }
     private val lock = Any()
@@ -140,8 +143,8 @@ class BuiltInScheduleSource(
     // The (account, libraries, cut-offs) this process has already looked for on disk: see [shouldLook].
     private val diskLooked = HashSet<Triple<LibraryAccount, Set<ItemId>, List<Long>>>()
 
-    // The last lineup's day inputs: worked out once per lineup, not on every lookup.
-    private var lastInputs: Pair<Lineup, Inputs>? = null
+    // The last lineup's day inputs: worked out once per lineup and extras boundary, not on every lookup.
+    private var lastInputs: Triple<Lineup, Long?, Inputs>? = null
 
     // How many times an account's days were forgotten: a build that began before the last time keeps nothing.
     private var forgets = 0
@@ -188,12 +191,17 @@ class BuiltInScheduleSource(
         val ms: Long,
     )
 
-    private fun inputsOf(lineup: Lineup): Inputs {
-        synchronized(lock) { lastInputs?.takeIf { it.first === lineup }?.let { return it.second } }
+    private fun inputsOf(
+        lineup: Lineup,
+        extrasFromMs: Long?,
+    ): Inputs {
+        synchronized(lock) {
+            lastInputs?.takeIf { it.first === lineup && it.second == extrasFromMs }?.let { return it.third }
+        }
         val began = TimeSource.Monotonic.markNow()
-        val digest = days.inputsOf(lineup)
+        val digest = days.inputsOf(lineup, extrasFromMs)
         val inputs = Inputs(digest, began.elapsedNow().inWholeMilliseconds)
-        synchronized(lock) { lastInputs = lineup to inputs }
+        synchronized(lock) { lastInputs = Triple(lineup, extrasFromMs, inputs) }
         return inputs
     }
 
@@ -203,9 +211,9 @@ class BuiltInScheduleSource(
         held: Revisioned,
         scheduled: List<Scheduled>,
     ): Lookup {
-        val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
-        val inputs = inputsOf(held.lineup)
-        val key = Key(account, libraries, inputs.digest, held.meta.plannedGeneration, cutoffs)
+        val cuts = scheduled.map { it.cut }.distinct().sorted()
+        val inputs = inputsOf(held.lineup, held.meta.extrasFromMs)
+        val key = Key(account, libraries, inputs.digest, held.meta.plannedGeneration, cuts)
         return Lookup(held, scheduled, key, inputs.ms)
     }
 
@@ -561,7 +569,7 @@ class BuiltInScheduleSource(
         at: Instant,
     ): Lookup? {
         val held = service.loaded(account) ?: return null
-        val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds())
+        val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
         return lookupOf(account, libraries, held, scheduled)
     }
 
@@ -665,7 +673,8 @@ class BuiltInScheduleSource(
             // days() never suspends, so it runs start to end on this one thread: its CPU time is that thread's.
             val threadBefore = probes.threadCpuNanos()
             var evaluations = 0
-            val result = days.days(lineup, scheduled, read, checkpoint) { evaluations++ }
+            val result =
+                days.days(lineup, scheduled, read.plain, read.filtered, checkpoint) { evaluations++ }
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             keep(key, result, epoch)
@@ -712,7 +721,8 @@ class BuiltInScheduleSource(
         atMs: Long,
     ): Long? {
         val held = service.lineup(account).value ?: return null
-        val same = lookupOf(account, key.libraries, held, days.scheduled(held.lineup, atMs)).key == key
+        val scheduled = days.scheduled(held.lineup, atMs, held.meta.extrasFromMs)
+        val same = lookupOf(account, key.libraries, held, scheduled).key == key
         return if (same) held.revision else null
     }
 
@@ -729,7 +739,9 @@ class BuiltInScheduleSource(
     ): Boolean {
         val first = synchronized(lock) { diskLooked.add(Triple(account, key.libraries, key.cutoffs)) }
         return first ||
-            !snapshots.holdsAll(key.cutoffs.map { SnapshotCache.Key(account, key.libraries, it, generation) })
+            !snapshots.holdsAll(
+                key.cuts.map { SnapshotCache.Key(account, key.libraries, it.cutoffMs, generation, it.extras) },
+            )
     }
 
     /**
@@ -805,7 +817,13 @@ class BuiltInScheduleSource(
         )
     }
 
-    /** One snapshot per cut-off of [key], from [snapshots] when the library has not changed since it was read. */
+    /** What a build read: a snapshot per cut-off, and for the days the extras filter applies to, the filtered one. */
+    private class Read(
+        val plain: Map<Long, RuleSnapshot>,
+        val filtered: Map<Long, RuleSnapshot>,
+    )
+
+    /** One snapshot per cut of [key], from [snapshots] when the library has not changed since it was read. */
     @Suppress("LongParameterList") // The build's state, passed down.
     private suspend fun snapshotsFor(
         account: LibraryAccount,
@@ -813,19 +831,22 @@ class BuiltInScheduleSource(
         generation: Long,
         checkpoint: () -> Unit,
         outcomes: MutableList<SnapshotCache.Found>,
-    ): Map<Long, RuleSnapshot> {
-        val read = HashMap<Long, RuleSnapshot>()
-        for (cutoff in key.cutoffs) {
+    ): Read {
+        val plain = HashMap<Long, RuleSnapshot>()
+        val filtered = HashMap<Long, RuleSnapshot>()
+        for (cut in key.cuts) {
             checkpoint()
-            val at = Instant.fromEpochMilliseconds(cutoff)
+            val at = Instant.fromEpochMilliseconds(cut.cutoffMs)
+            val cacheKey = SnapshotCache.Key(account, key.libraries, cut.cutoffMs, generation, cut.extras)
             val got =
-                snapshots.get(SnapshotCache.Key(account, key.libraries, cutoff, generation)) {
-                    library.ruleSnapshot(account, key.libraries, at)
+                snapshots.get(cacheKey) {
+                    val read = library.ruleSnapshot(account, key.libraries, at)
+                    if (cut.extras) ExtrasFilter.filter(read).snapshot else read
                 }
             outcomes += got.found
-            read[cutoff] = got.snapshot
+            (if (cut.extras) filtered else plain)[cut.cutoffMs] = got.snapshot
         }
-        return read
+        return Read(plain, filtered)
     }
 
     internal companion object {
@@ -962,18 +983,23 @@ private fun ScheduleBlock.toAiring(info: Map<CanonicalId, ProgramInfo>): AiringB
         }
     }
 
-/** One `ruleSnapshot` per cut-off in [cutoffs], by cut-off. */
+/**
+ * One `ruleSnapshot` per distinct cut-off of [cuts]: the plain ones by cut-off, and for the cuts the extras filter
+ * applies to, the filtered ones.
+ */
 internal suspend fun snapshotsOf(
     library: LibraryRepository,
     account: LibraryAccount,
     libraries: Set<ItemId>,
-    cutoffs: Collection<Long>,
-): Map<Long, RuleSnapshot> {
-    val read = HashMap<Long, RuleSnapshot>()
-    for (cutoff in cutoffs) {
-        read[cutoff] = library.ruleSnapshot(account, libraries, Instant.fromEpochMilliseconds(cutoff))
+    cuts: Collection<Cut>,
+): Pair<Map<Long, RuleSnapshot>, Map<Long, RuleSnapshot>> {
+    val plain = HashMap<Long, RuleSnapshot>()
+    val filtered = HashMap<Long, RuleSnapshot>()
+    for (cut in cuts) {
+        val read = library.ruleSnapshot(account, libraries, Instant.fromEpochMilliseconds(cut.cutoffMs))
+        if (cut.extras) filtered[cut.cutoffMs] = ExtrasFilter.filter(read).snapshot else plain[cut.cutoffMs] = read
     }
-    return read
+    return plain to filtered
 }
 
 /**

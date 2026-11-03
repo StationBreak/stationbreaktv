@@ -125,12 +125,12 @@ class LineupCodecTest {
 
     @Test
     fun theFileSaysVersionOne() {
-        assertEquals(JsonPrimitive(1), tree()["version"])
+        assertEquals(JsonPrimitive(2), tree()["version"])
     }
 
     @Test
     fun newerVersionDecodesAsNewerVersion() {
-        assertEquals(LineupCodec.Decoded.NewerVersion(2), decode("""{"version":2,"anything":["new"]}"""))
+        assertEquals(LineupCodec.Decoded.NewerVersion(3), decode("""{"version":3,"anything":["new"]}"""))
         // A newer file is newer even when the rest is not what this version expects.
         assertEquals(LineupCodec.Decoded.NewerVersion(7), decode("""{"version":7}"""))
         assertEquals(
@@ -321,6 +321,44 @@ class LineupCodecTest {
                 .source()
         assertEquals(rulesText, written.getValue("rules").jsonPrimitive.content, "the rules text is byte for byte")
         assertEquals(first, second)
+    }
+
+    @Test
+    fun aVersionOneFileReadsWithNoExtrasBoundary() {
+        val meta = RefreshMeta(plannedGeneration = 4L, collectionPassActedOn = 5L, plannedLibraries = listOf("a"))
+        val text = LineupCodec.encode(full, meta).decodeToString()
+        val one = text.replace("\"version\":2", "\"version\":1")
+        assertTrue(one != text, "the fixture is a version-1 file")
+
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(one))
+
+        assertEquals(full, loaded.lineup)
+        assertEquals(meta, loaded.meta)
+        assertEquals(null, loaded.meta.extrasFromMs)
+        assertEquals(1, loaded.fileVersion)
+        val current = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(full)))
+        assertEquals(LineupCodec.VERSION, current.fileVersion)
+    }
+
+    @Test
+    fun aVersionOneFileWithAnExtrasBoundaryIsUnreadable() {
+        val text = LineupCodec.encode(full, RefreshMeta(extrasFromMs = 5L)).decodeToString()
+
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(text.replace("\"version\":2", "\"version\":1")))
+    }
+
+    @Test
+    fun extrasFromRoundTrips() {
+        for (boundary in listOf(Long.MIN_VALUE, 0L, 1_792_000_000_000L)) {
+            val meta = RefreshMeta(plannedGeneration = 1L, extrasFromMs = boundary)
+
+            val back = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(full, meta)))
+
+            assertEquals(boundary, back.meta.extrasFromMs)
+        }
+        val only = RefreshMeta(extrasFromMs = Long.MIN_VALUE)
+        val back = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(full, only)))
+        assertEquals(only, back.meta)
     }
 
     private companion object {

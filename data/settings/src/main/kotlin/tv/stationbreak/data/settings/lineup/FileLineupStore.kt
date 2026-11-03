@@ -21,13 +21,15 @@ import java.io.IOException
  * built only from IDs that are already canonical (32 lower-case hexadecimal characters), so no account can name a
  * path outside its own file; any other ID gets no file and no access. A file over 1 MiB reads as
  * [StoredBytes.Failed]. A set-aside copy is `<name>.unreadable.<epochMillis>`, never replaced; the newest three are
- * kept. Faults never throw: a read fault on an existing file is
- * [StoredBytes.Failed] (only a missing file is [StoredBytes.Absent]), a write fault is `false`, and the store logs
- * nothing.
+ * kept. An upgrade copy is `<name>.<tag>.bak` (`v1`, `v2`): the file's bytes as they stood, written once with the
+ * atomic write, never moved or pruned, and removed only by `forget`. Faults never throw: a read fault on an existing
+ * file is [StoredBytes.Failed] (only a missing file is [StoredBytes.Absent]), a write fault is `false`, and the store
+ * logs nothing.
  *
  * Cancellation behaves as for `FileServerSettings`: a caller cancelled after its file work has begun still completes
  * it, then sees `CancellationException` instead of the result.
  */
+@Suppress("TooManyFunctions") // The port's calls and their file helpers, kept beside the one lock.
 class FileLineupStore internal constructor(
     private val files: LineupFiles,
     private val io: CoroutineDispatcher = Dispatchers.IO,
@@ -73,13 +75,34 @@ class FileLineupStore internal constructor(
         }
     }
 
+    /**
+     * Reads the file again rather than taking the bytes the service already loaded: that is safe because the service
+     * calls it under the account's lock, before any save, and this store's own lock keeps a write from landing between
+     * the read and the copy, so the bytes are the ones the service decoded.
+     */
+    override suspend fun keepCopy(
+        account: LibraryAccount,
+        tag: String,
+    ): Boolean {
+        val name = nameOf(account)
+        if (name == null || !TAG.matches(tag)) return false
+        val copy = "$name.$tag$BACKUP"
+        return locked {
+            attempt {
+                // Nothing to copy, or the copy is already there (the first one is the one worth keeping): done.
+                if (!exists(copy)) files.read(name)?.let { files.write(copy, it) }
+            }
+        }
+    }
+
     override suspend fun forget(account: LibraryAccount): Boolean {
         val name = nameOf(account) ?: return false
-        // The account's set-aside copies go with it: forgetting is the one explicit way to remove them.
+        // The account's set-aside and upgrade copies go with it: forgetting is the one explicit way to remove them.
         return locked {
             attempt {
                 files.delete(name)
                 asideCopies(name).forEach { files.delete(it.first) }
+                upgradeCopies(name).forEach { files.delete(it) }
             }
         }
     }
@@ -97,6 +120,19 @@ class FileLineupStore internal constructor(
                 val stamp = if (file.startsWith(prefix)) file.removePrefix(prefix).toLongOrNull() else null
                 stamp?.let { "$directory/$file" to it }
             }.sortedBy { it.second }
+    }
+
+    // The upgrade copies of [name] (paths): `<name>.v<digits>.bak`.
+    private fun upgradeCopies(name: String): List<String> {
+        val directory = name.substringBeforeLast('/')
+        val pattern = Regex(Regex.escape(name.substringAfterLast('/')) + "\\.v[0-9]+\\.bak(\\.new)?")
+        return files.list(directory).filter { pattern.matches(it) }.map { "$directory/$it" }
+    }
+
+    // Listed rather than read, so a copy too large to read still counts as there.
+    private fun exists(path: String): Boolean {
+        val directory = path.substringBeforeLast('/')
+        return path.substringAfterLast('/') in files.list(directory)
     }
 
     // Keeps the newest MAX_ASIDE copies, so the first copy outlasts a few bad refreshes. Best effort: the move is done.
@@ -134,6 +170,8 @@ class FileLineupStore internal constructor(
         const val DIR_NAME = "lineup"
         const val SUFFIX = ".json"
         const val ASIDE = ".unreadable"
+        const val BACKUP = ".bak"
+        val TAG = Regex("v[0-9]+")
 
         // Copies kept per account; the oldest goes when a further one is made.
         const val MAX_ASIDE = 3

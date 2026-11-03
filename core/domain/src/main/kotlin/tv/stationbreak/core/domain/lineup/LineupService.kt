@@ -27,13 +27,16 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
+import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.EditOutcome
+import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.engine.lineup.LineupPlanner
+import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.CanonicalId
@@ -43,6 +46,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.scheduler.Epochs
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -155,6 +159,8 @@ class LineupService internal constructor(
         val current: Lineup?,
         val meta: RefreshMeta,
         val save: Boolean,
+        // True only when the store held no file and the session held no lineup: a new account, not a lost one.
+        val isNew: Boolean = false,
     )
 
     private val lock = Any()
@@ -192,7 +198,7 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val (planned, meta) = planned(owner, account, libraries, start.current, start.meta.collectionPassActedOn)
+            val (planned, meta) = planned(owner, account, libraries, start)
             if (entry.writable) saveVerified(owner, planned, meta)
             publish(entry, planned, meta)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
@@ -203,17 +209,20 @@ class LineupService internal constructor(
     }
 
     /**
-     * The lineup planned from [current] (null: from nothing) against the library's [libraries] now, and the meta to
-     * record with it: [passActedOn] is kept unless the planning read took in a newer collection pass. Reads as
+     * The lineup planned from [start]'s lineup (null: from nothing) against the library's [libraries] now, and the meta
+     * to record with it: its pass is kept unless the planning read took in a newer collection pass, and its extras
+     * boundary is kept once it has one (see [plannedFrom]). Reads as
      * documented on [refresh]. Call under the account's lock.
      */
     private suspend fun planned(
         owner: Owner,
         account: LibraryAccount,
         libraries: Set<ItemId>,
-        current: Lineup?,
-        passActedOn: Long?,
-    ): Pair<Lineup, RefreshMeta> = plannedFrom(owner, readForPlan(account, libraries), libraries, current, passActedOn)
+        start: Start,
+    ): Pair<Lineup, RefreshMeta> =
+        readForPlan(account, libraries).let { read ->
+            plannedFrom(owner, read, libraries, start.current, start.meta, newAccount = start.isNew)
+        }
 
     /** What the library says at the moment of a plan. */
     private class PlanRead(
@@ -233,7 +242,8 @@ class LineupService internal constructor(
         val generation = library.contentGeneration(account)
         val pass = library.collectionPassCompleted(account).first()
         val now = clock.now()
-        val snapshot = library.ruleSnapshot(account, libraries, now)
+        // The planner always ranks without the extras (spec 23): a clip or an opening is no hours of a channel.
+        val snapshot = ExtrasFilter.filter(library.ruleSnapshot(account, libraries, now)).snapshot
         val names = library.collectionNames(account)
         // Read now, whatever trigger asked: the lineup stops waiting for collections that are not coming.
         val giveUp = library.failedCollectionPasses(account) >= GIVE_UP_AFTER
@@ -246,8 +256,10 @@ class LineupService internal constructor(
         read: PlanRead,
         libraries: Set<ItemId>,
         current: Lineup?,
-        passActedOn: Long?,
+        before: RefreshMeta,
         kept: List<LineupChannel> = emptyList(),
+        basis: Lineup? = current,
+        newAccount: Boolean = false,
     ): Pair<Lineup, RefreshMeta> {
         // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
         val own =
@@ -273,10 +285,44 @@ class LineupService internal constructor(
         val meta =
             RefreshMeta(
                 plannedGeneration = read.generation,
-                collectionPassActedOn = taken ?: passActedOn,
+                collectionPassActedOn = taken ?: before.collectionPassActedOn,
                 plannedLibraries = libraries.map { it.value }.sorted(),
+                extrasFromMs = extrasBoundary(before.extrasFromMs, basis, newAccount, read.now.toEpochMilliseconds()),
             )
         return planned to meta
+    }
+
+    /**
+     * When the extras filter starts. A [stored] boundary stands unless it is more than a day after [nowMs] (a clock
+     * that was wrong when it was set): that is as good as none. With none, a lineup that is already there (or was, and
+     * could not be read) keeps today as it is and starts at the next broadcast-day start; only an account that never
+     * had a lineup ([newAccount]) filters from the start of time.
+     */
+    private fun extrasBoundary(
+        stored: Long?,
+        basis: Lineup?,
+        newAccount: Boolean,
+        nowMs: Long,
+    ): Long =
+        when {
+            stored != null && stored <= nowMs + MS_PER_DAY -> stored
+            newAccount -> Long.MIN_VALUE
+            else -> nextBoundary(basis, nowMs)
+        }
+
+    /**
+     * The next broadcast-day start after [nowMs]: [LineupDefaults.DAY_START] at the offset of [lineup], else the device
+     * zone's standard one, by the same epoch arithmetic the days use. A day that has begun is not the next one.
+     */
+    internal fun nextBoundary(
+        lineup: Lineup?,
+        nowMs: Long,
+    ): Long {
+        val offset = lineup?.utcOffsetMinutes ?: standardOffsetMinutes()
+        val server = lineup?.serverId ?: NO_SERVER
+        val recipe = catalog.leftovers.firstOrNull() ?: LeftoversRecipe(STAND_IN_KEY, STAND_IN_KEY, "", 0, null)
+        val settings = RecipeResolver.leftoversSettings(recipe, server, offset)
+        return Epochs.epochStart(settings, Epochs.epochNumber(settings, nowMs) + 1)
     }
 
     /**
@@ -423,9 +469,14 @@ class LineupService internal constructor(
                     return@withLock Saved.Unavailable
                 }
             // What `edit` reads, so a lineup planned while the file could not be read is never what is kept.
-            val previous = reconciled(entry, start)?.lineup ?: start.current
-            val kept = previous?.channels.orEmpty().filter { it.isTheViewers() }
-            val (fresh, meta) = plannedFrom(owner, read, libraries, null, null, kept)
+            val previous = reconciled(entry, start)
+            val replaced = previous?.lineup ?: start.current
+            val kept = replaced?.channels.orEmpty().filter { it.isTheViewers() }
+            // A reset replaces a lineup that exists: the filter keeps the boundary that lineup had, or starts at the
+            // next day start. With no lineup at all it is a new account's, planned from the start.
+            val before = RefreshMeta(extrasFromMs = (previous?.meta ?: start.meta).extrasFromMs)
+            val never = start.isNew && replaced == null
+            val (fresh, meta) = plannedFrom(owner, read, libraries, null, before, kept, replaced, never)
             withContext(NonCancellable) {
                 if (saveVerified(owner, fresh, meta)) {
                     forgetDerived(owner.key)
@@ -486,10 +537,10 @@ class LineupService internal constructor(
         libraries: Set<ItemId>,
         at: Instant,
     ): Int {
-        val lineup = loaded(account)?.lineup ?: return 0
-        val scheduled = days.scheduled(lineup, at.toEpochMilliseconds())
-        val snapshots = snapshotsOf(library, account, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
-        return days.airingNowhere(lineup, scheduled, snapshots)
+        val held = loaded(account) ?: return 0
+        val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
+        val read = snapshotsOf(library, account, libraries, scheduled.map { it.cut }.distinct().sorted())
+        return days.airingNowhere(held.lineup, scheduled, read.first, read.second)
     }
 
     /**
@@ -590,7 +641,7 @@ class LineupService internal constructor(
         val sessionMeta = held?.meta ?: RefreshMeta()
         return when (val stored = store.load(owner.key)) {
             StoredBytes.Absent -> {
-                Start(session, sessionMeta, save = true)
+                Start(session, sessionMeta, save = true, isNew = session == null)
             }
 
             StoredBytes.Failed -> {
@@ -614,6 +665,7 @@ class LineupService internal constructor(
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
                 if (owner.owns(lineup)) {
+                    keepUpgradeCopy(owner, decoded.fileVersion)
                     Start(lineup, decoded.meta, save = true)
                 } else {
                     setAside(owner, session, sessionMeta)
@@ -629,6 +681,18 @@ class LineupService internal constructor(
                 setAside(owner, session, sessionMeta)
             }
         }
+
+    // The file of an older version is copied once before the first save of this version over it, so a downgrade has
+    // something to go back to. A copy that cannot be written is reported and the save goes on: the lineup in memory
+    // is what the viewer sees, and withholding every edit for the sake of a copy would be worse.
+    private suspend fun keepUpgradeCopy(
+        owner: Owner,
+        fileVersion: Int,
+    ) {
+        if (fileVersion < LineupCodec.VERSION && !store.keepCopy(owner.key, "v$fileVersion")) {
+            report(LineupEvent.BackupFailed)
+        }
+    }
 
     // An unreadable file is moved out of the way before anything is saved; one that won't move is never written over.
     private suspend fun setAside(
@@ -739,6 +803,13 @@ private fun ownerOf(account: LibraryAccount): Owner? {
         null
     }
 }
+
+// The server a boundary is worked out for when there is no lineup: the day start does not depend on it.
+private val NO_SERVER: CanonicalId = CanonicalId.parse("0".repeat(32))
+
+private const val MS_PER_DAY = 86_400_000L
+
+private const val STAND_IN_KEY = "boundary"
 
 private const val PLAY_KEY_REVISIONS = 8
 

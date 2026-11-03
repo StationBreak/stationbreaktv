@@ -15,8 +15,8 @@ import kotlin.time.Clock
  * drops the signed-in account and a first launch with no server would then show no channels. A file of version 6 or
  * older, or of any version newer than the code (an older APK sideloaded), is still dropped and rebuilt. A migration
  * that does not produce exactly the schema Room expects makes the open throw instead of rebuilding, so each one has a
- * test that runs it on a file made from the exported schema (Migration7To8Test, and Migration7To8OnDeviceTest on the
- * platform SQLite). The schema is versioned and exported to `schemas/`, so a change shows in review; when [VERSION]
+ * test that runs it on a file made from the exported schema (Migration7To8Test and Migration8To9Test, and the
+ * OnDevice twins on the platform SQLite). The schema is versioned and exported to `schemas/`, so a change shows in review; when [VERSION]
  * goes up, the exported file of the new version is committed.
  * Version 2 added `active_account` (the signed-in account, which the sync checks before every write). Version 3 added
  * the premiere date and exact runtimes (spec 09 Unit 1, shipped in a debug build). Version 4 added the item history
@@ -27,7 +27,8 @@ import kotlin.time.Clock
  * `collection_member` and `collection_sync` (spec 10 Unit 2); version 5 counts as shipped once Unit 1 merged. Version 7
  * added `sync_meta`, the account's content generation for the lineup refresher (spec 12, #309). Version 8 added
  * `item_studio`, the `studios` columns of `item_version`, `series` and `series_version`, and
- * `sync_meta.backfillPending` (spec 18), through [Migration7To8].
+ * `sync_meta.backfillPending` (spec 18), through [Migration7To8]. Version 9 added `name` to `item_version`,
+ * `series_version` and `collection_version` (spec 23, D8), through [Migration8To9].
  */
 @Database(
     entities = [
@@ -63,7 +64,7 @@ internal abstract class LibraryDatabase : RoomDatabase() {
     abstract fun cacheTransactionDao(): CacheTransactionDao
 
     companion object {
-        const val VERSION = 8
+        const val VERSION = 9
     }
 }
 
@@ -98,7 +99,7 @@ internal object LibraryDatabases {
         // The migrations first: the fallbacks apply only where no migration path exists.
         return base
             .addCallback(SecureDeleteCallback)
-            .addMigrations(Migration7To8(LibraryDao.seedFrom(clock)))
+            .addMigrations(Migration7To8(LibraryDao.seedFrom(clock)), Migration8To9(LibraryDao.seedFrom(clock)))
             .withDestructiveFallbacks()
     }
 

@@ -74,7 +74,7 @@ class EditCutoffPropertyTest {
         }
     }
 
-    /** The fields of an item that the history keeps (the name is left out: it is never a version). */
+    /** The fields of an item that the history keeps, apart from the name, which [State] holds. */
     private data class Fields(
         val library: ItemId,
         val kind: ItemKind,
@@ -95,6 +95,7 @@ class EditCutoffPropertyTest {
         val fields: Fields,
         val seenFromMs: Long,
         var deletedAtMs: Long?,
+        val name: String = FIRST_NAME,
     )
 
     private class Op(
@@ -187,6 +188,9 @@ class EditCutoffPropertyTest {
         episodeNumber = f.episode,
     )
 
+    /** The name an op writes: only a name-only edit changes it. */
+    private fun nameOf(op: Op) = if (op.kind == Op.Kind.NameOnly) RENAMED else FIRST_NAME
+
     /** What one op does to an item that exists: the stamp rule of the spec (Vimes H1) and the change test (H2, H3). */
     private fun step(
         states: MutableList<State>,
@@ -196,18 +200,20 @@ class EditCutoffPropertyTest {
         val last = states.last()
         val stamp = maxOf(op.atMs, last.seenFromMs + 1)
         val revives = last.deletedAtMs != null
+        // A rename is a version too (spec 23, D8): the name is whatever the op wrote, and a revival writes none.
+        val name = if (op.kind == Op.Kind.Revive) last.name else nameOf(op)
         when (op.kind) {
             Op.Kind.Tombstone -> {
                 if (!revives) last.deletedAtMs = op.atMs
             }
 
             Op.Kind.Revive, Op.Kind.NameOnly, Op.Kind.Rewrite -> {
-                if (revives) states += State(last.fields, stamp, null)
+                if (revives || name != last.name) states += State(last.fields, stamp, null, name)
             }
 
             Op.Kind.Edit -> {
                 val fields = requireNotNull(next)
-                if (fields != last.fields || revives) states += State(fields, stamp, null)
+                if (fields != last.fields || name != last.name || revives) states += State(fields, stamp, null, name)
             }
         }
     }
@@ -345,8 +351,7 @@ class EditCutoffPropertyTest {
             when (op.kind) {
                 Op.Kind.Tombstone -> repo.tombstone(ALICE, listOf(ItemId(ids[op.item])))
                 Op.Kind.Revive -> repo.revive(ALICE, listOf(ItemId(ids[op.item])))
-                Op.Kind.NameOnly -> repo.put(ALICE, fields.library, mediaItem(op.item, fields, "renamed"))
-                else -> repo.put(ALICE, fields.library, mediaItem(op.item, fields, "first"))
+                else -> repo.put(ALICE, fields.library, mediaItem(op.item, fields, nameOf(op)))
             }
         }
     }
@@ -428,5 +433,7 @@ class EditCutoffPropertyTest {
         const val BASE_SEED = 0x5EED_0902uL
         const val MAX_OPS = 14
         const val DAY_MS = 86_400_000L
+        const val FIRST_NAME = "first"
+        const val RENAMED = "renamed"
     }
 }

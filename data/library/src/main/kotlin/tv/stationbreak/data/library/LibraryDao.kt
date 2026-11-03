@@ -63,7 +63,12 @@ internal data class ProgramRow(
     val seriesName: String?,
     val seasonNumber: Int?,
     val episodeNumber: Int?,
-)
+) {
+    // The names are text a person typed: they never reach a log.
+    override fun toString(): String =
+        "ProgramRow(itemId=$itemId, kind=$kind, name=<name>, " +
+            "seriesName=${if (seriesName == null) "null" else "<name>"}, seasonNumber=$seasonNumber, episodeNumber=$episodeNumber)"
+}
 
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
 internal data class PageWrite(

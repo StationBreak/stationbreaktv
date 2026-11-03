@@ -30,7 +30,11 @@ internal class HeldSeries(
     val genres: List<String>,
     val tags: List<String>,
     val studios: List<String>,
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "HeldSeries(seriesId=$seriesId, name=<name>)"
+}
 
 /**
  * The SQL of the cached series and their history (spec 10, Unit 1), with the same rules as [ItemHistoryDao]. A series
@@ -235,6 +239,7 @@ internal abstract class SeriesDao {
             strings.all(VersionCodec.decode(genres)),
             strings.all(VersionCodec.decode(tags)),
             strings.all(VersionCodec.decode(studios)),
+            if (version != null) version.name else row.name,
         )
     }
 
@@ -260,10 +265,10 @@ internal abstract class SeriesDao {
 
     /**
      * Works out what writing [incoming] over the rows the database holds ([existing]) does. The change test compares
-     * the rating, the ordered genres, tags and studios, and the tombstone, and nothing else: not the name and not the
-     * library (Vimes L2). A series listed in two ticked libraries keeps one row whose library flips with each write, by
-     * an unversioned update (Vimes L-1; items behave so too). A row that clears a tombstone is a change by the last of
-     * those. The stamp of a changed row is `max(nowMs, old.seenFromMs + 1)`. This reads and writes nothing.
+     * the rating, the ordered genres, tags and studios, the tombstone and the name (spec 23, D8), and nothing else: not
+     * the library (Vimes L2). A series listed in two ticked libraries keeps one row whose library flips with each
+     * write, by an unversioned update (Vimes L-1; items behave so too). A row that clears a tombstone is a change by
+     * the last of those. The stamp of a changed row is `max(nowMs, old.seenFromMs + 1)`. This reads and writes nothing.
      */
     fun planPage(
         incoming: Map<String, SeriesEntity>,
@@ -288,7 +293,7 @@ internal abstract class SeriesDao {
                     toUpdate += row.copy(seenFromMs = stamp, firstSeenMs = old.firstSeenMs)
                 }
 
-                // Only the name or the library differs: stored, but it is no new version.
+                // Only the library differs: stored, but it is no new version.
                 old != kept -> {
                     toUpdate += kept
                 }

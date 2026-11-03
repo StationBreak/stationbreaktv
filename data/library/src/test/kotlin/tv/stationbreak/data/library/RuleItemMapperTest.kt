@@ -11,7 +11,21 @@ import org.junit.Test
  */
 class RuleItemMapperTest {
     private val row =
-        HeldRow(hexId(1), MOVIES.value, "Episode", hexId(2), 1, 1, 1_800_000L, 1_000L, null, null, null, 0L)
+        HeldRow(
+            hexId(1),
+            MOVIES.value,
+            "Episode",
+            hexId(2),
+            1,
+            1,
+            1_800_000L,
+            1_000L,
+            null,
+            null,
+            null,
+            0L,
+            name = null,
+        )
 
     private fun mapped(
         mapper: RuleItemMapper,

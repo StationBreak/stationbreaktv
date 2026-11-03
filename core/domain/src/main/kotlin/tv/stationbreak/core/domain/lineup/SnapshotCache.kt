@@ -37,6 +37,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * the coroutine waiting on the library; a query already running on the library's own thread finishes there and its
  * result is dropped. At most [capacity] snapshots are kept, least recently used out first, and only softly, so a
  * short heap may drop them.
+ *
+ * A snapshot a day reads has the extras filter applied or not (spec 23): the key says which ([Key.extras]), so a
+ * filtered and a plain snapshot of the same cut-off are two entries and never stand in for one another.
  */
 internal class SnapshotCache(
     private val scope: CoroutineScope,
@@ -47,6 +50,7 @@ internal class SnapshotCache(
         val libraries: Set<ItemId>,
         val cutoffMs: Long,
         val generation: Long,
+        val extras: Boolean,
     ) {
         /** The same snapshot of the library at another time of its life. */
         fun sameSnapshotAs(o: Key) = copy(generation = o.generation) == o

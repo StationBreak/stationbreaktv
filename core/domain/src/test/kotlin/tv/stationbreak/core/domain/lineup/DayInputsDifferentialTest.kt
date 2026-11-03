@@ -182,7 +182,7 @@ class DayInputsDifferentialTest {
 
     private fun describe(lineup: Lineup): Map<String, String> {
         val at = NOON.toEpochMilliseconds()
-        val scheduled = days.scheduled(lineup, at)
+        val scheduled = days.scheduled(lineup, at, null)
         val snapshots =
             scheduled.map { it.cutoffMs }.distinct().associateWith {
                 RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), collections, collectionsSynced = true)
@@ -198,7 +198,7 @@ class DayInputsDifferentialTest {
     fun lineupsWithTheSameInputsHaveTheSameDays() {
         val mapped = describe(v2Fixture).values.any { "films=[(" in it }
         assertTrue(mapped, "a day of the fixtures has a map to compare")
-        val groups = reachable().groupBy { days.inputsOf(it) }
+        val groups = reachable().groupBy { days.inputsOf(it, null) }
         var compared = 0
         for ((_, lineups) in groups) {
             val distinct = lineups.distinct()

@@ -45,6 +45,12 @@ enum class LineupEvent {
     /** A reset failed for a reason other than the library (the plan, say). Nothing was changed. */
     ResetFailed,
 
+    /**
+     * The copy of an older lineup file, kept before the first save of the newer version, could not be written. The
+     * lineup is saved all the same; only a downgrade would have wanted the copy.
+     */
+    BackupFailed,
+
     /** A channel build (create, save, reshuffle, delete) failed, not for the lineup's rules. Nothing was changed. */
     BuildFailed,
 }

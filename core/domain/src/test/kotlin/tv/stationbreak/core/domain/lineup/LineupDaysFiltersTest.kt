@@ -44,7 +44,7 @@ class LineupDaysFiltersTest {
         lineup: Lineup,
         vararg items: RuleItem,
     ): Pair<List<Scheduled>, Map<Long, RuleSnapshot>> {
-        val scheduled = days.scheduled(lineup, atMs)
+        val scheduled = days.scheduled(lineup, atMs, null)
         val snapshots =
             scheduled.map { it.cutoffMs }.toSet().associateWith { cutoff ->
                 val sorted = items.sortedBy { it.item.id.value }
@@ -98,7 +98,7 @@ class LineupDaysFiltersTest {
         // The leftovers withhold the hidden channel's pool and the opt-in recipes'; the hidden pool is the shown one.
         fun evaluations(lineup: Lineup): Int {
             var count = 0
-            val scheduledOf = days.scheduled(lineup, atMs)
+            val scheduledOf = days.scheduled(lineup, atMs, null)
             days.days(lineup, scheduledOf, snapshots, evaluated = { count++ })
             return count
         }

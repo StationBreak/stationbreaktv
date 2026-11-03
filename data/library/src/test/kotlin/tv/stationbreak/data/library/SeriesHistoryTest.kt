@@ -121,7 +121,7 @@ class SeriesHistoryTest {
         }
 
     @Test
-    fun aNameOnlyEditMakesNoVersionButIsStored() =
+    fun aNameOnlyEditIsANewVersionHoldingTheOldName() =
         runBlocking {
             open()
             put(series("s1", name = "Old name"))
@@ -130,9 +130,9 @@ class SeriesHistoryTest {
             val write = put(series("s1", name = "New name"))
 
             assertEquals(PageWrite(inserted = 0, updated = 1, unchanged = 0), write)
-            assertEquals(emptyList<SeriesVersionEntity>(), repository.seriesVersions(ALICE))
+            assertEquals(listOf("Old name"), repository.seriesVersions(ALICE).map { it.name })
             assertEquals("New name", current().name)
-            assertEquals(start, current().seenFromMs)
+            assertEquals(start + 1_000, current().seenFromMs)
         }
 
     @Test

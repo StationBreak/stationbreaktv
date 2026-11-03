@@ -48,7 +48,7 @@ class RuleSnapshotSeriesTest {
         genres: List<String> = emptyList(),
         tags: List<String> = emptyList(),
         studios: List<String> = emptyList(),
-    ) = RuleSeries(canon(n), rating, genres, tags, studios)
+    ) = RuleSeries(canon(n), rating, genres, tags, studios, "Series ${hexId(n)}")
 
     @Test
     fun aSeriesEditedAfterTheCutoffIsReturnedAsItWasAndThenAsItIs() =
@@ -186,9 +186,9 @@ class RuleSnapshotSeriesTest {
         runBlocking {
             open()
             episodes(1 to show)
-            repository.putSeries(ALICE, RULE_LIBRARY, series(dashed(hexId(show)), "PG"))
+            repository.putSeries(ALICE, RULE_LIBRARY, series(dashed(hexId(show)), "PG", name = "Show A"))
 
-            assertEquals(mapOf(canon(show) to held(show, "PG")), seriesAt(start + 1))
+            assertEquals(mapOf(canon(show) to held(show, "PG").copy(name = "Show A")), seriesAt(start + 1))
         }
 
     @Test

@@ -15,6 +15,7 @@ import java.util.EnumMap
  * An item as one version of it held its schedule fields (spec 09, Unit 2): a current row or an `item_version` row, read
  * with the same columns so both feed one mapping. It carries the rating exactly as received (null, `""` and `" "` are
  * three values), the ordered genres, tags and studios, and an episode's season (spec 10, Unit 1; studios spec 18).
+ * [name] (spec 23, D8) is the item's name as that version held it: stored text, never folded and never logged.
  */
 internal data class HeldRow(
     val itemId: String,
@@ -34,7 +35,11 @@ internal data class HeldRow(
     val tags: List<String> = emptyList(),
     val seasonId: String? = null,
     val studios: List<String> = emptyList(),
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "HeldRow(itemId=$itemId, seenFromMs=$seenFromMs, name=<name>)"
+}
 
 /**
  * Why the as-of read left an item out, and the check it mirrors (Vimes M3). The reasons for the fields `ScheduleItem`
@@ -248,6 +253,7 @@ internal class RuleItemMapper {
                 genres = row.genres,
                 tags = row.tags,
                 studios = row.studios,
+                name = row.name,
             )
         mapped.primeFolds(folds)
         return mapped
@@ -290,7 +296,7 @@ internal object RuleInputs {
         val result = LinkedHashMap<CanonicalId, RuleSeries>(wanted.size * 2)
         for (id in wanted) {
             val series = byId.getValue(id)
-            val rule = RuleSeries(id, series.officialRating, series.genres, series.tags, series.studios)
+            val rule = RuleSeries(id, series.officialRating, series.genres, series.tags, series.studios, series.name)
             rule.primeFolds(folds)
             result[id] = rule
         }
@@ -303,7 +309,7 @@ internal object RuleInputs {
         val seen = HashSet<CanonicalId>()
         for (collection in held) {
             val id = CanonicalId.parseOrNull(collection.collectionId)
-            if (id != null && seen.add(id)) built += members(id, collection.members)
+            if (id != null && seen.add(id)) built += members(id, collection.members, collection.name)
         }
         built.sortBy { it.id.value }
         val result = LinkedHashMap<CanonicalId, RuleCollection>(built.size * 2)
@@ -314,6 +320,7 @@ internal object RuleInputs {
     private fun members(
         id: CanonicalId,
         held: List<HeldMember>,
+        name: String?,
     ): RuleCollection {
         val movies = ArrayList<CanonicalId>()
         val episodes = ArrayList<CanonicalId>()
@@ -328,7 +335,7 @@ internal object RuleInputs {
                 MemberKinds.SEASON -> seasons += memberId
             }
         }
-        return RuleCollection(id, ordered(movies), ordered(episodes), ordered(series), ordered(seasons))
+        return RuleCollection(id, ordered(movies), ordered(episodes), ordered(series), ordered(seasons), name)
     }
 
     // A set in canonical-ID order, without duplicates: stored spellings may sort differently from canonical ones.

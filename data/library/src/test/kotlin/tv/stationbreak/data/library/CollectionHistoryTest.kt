@@ -94,7 +94,8 @@ class CollectionHistoryTest {
             assertEquals(start + 5_000, current().seenFromMs)
             assertEquals(start, current().firstSeenMs)
             val version = repository.collectionVersions(ALICE).single()
-            assertEquals(CollectionVersionEntity("server-1", "alice", "box01", start, start + 5_000, null), version)
+            val ended = CollectionVersionEntity("server-1", "alice", "box01", start, start + 5_000, null, "Night films")
+            assertEquals(ended, version)
         }
 
     @Test
@@ -141,17 +142,18 @@ class CollectionHistoryTest {
         }
 
     @Test
-    fun aRenameAloneIsStoredAndTakesNoStamp() =
+    fun aRenameAloneTakesAStampAndKeepsTheOldNameInAVersion() =
         runBlocking {
             write(cm("a"))
             clock.stepMs(5_000)
 
             val write = write(cm("a"), name = "Better name")
 
-            assertNull(write.stamp)
+            assertEquals(change(start + 5_000), write)
             assertEquals("Better name", current().name)
-            assertEquals(start, current().seenFromMs)
-            assertEquals(emptyList<CollectionVersionEntity>(), repository.collectionVersions(ALICE))
+            assertEquals(start + 5_000, current().seenFromMs)
+            val ended = CollectionVersionEntity("server-1", "alice", "box01", start, start + 5_000, null, "Night films")
+            assertEquals(listOf(ended), repository.collectionVersions(ALICE))
         }
 
     @Test

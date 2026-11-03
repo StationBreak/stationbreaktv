@@ -10,9 +10,13 @@ package tv.stationbreak.core.domain.lineup
  * - [collectionPassActedOn] is the start, in epoch milliseconds, of the latest collection pass that plan held (the
  *   planning read had its collections), or null if none yet.
  * - [plannedLibraries] is the sorted set of library IDs the plan used.
+ * - [extrasFromMs] is when the extras filter (spec 23) starts to apply, in epoch milliseconds: a day whose start is at
+ *   or after it airs no extras. [Long.MIN_VALUE] filters from the start (a new account); null is a file from before
+ *   the filter, which the next plan gives the next day start.
  */
 internal data class RefreshMeta(
     val plannedGeneration: Long? = null,
     val collectionPassActedOn: Long? = null,
     val plannedLibraries: List<String>? = null,
+    val extrasFromMs: Long? = null,
 )

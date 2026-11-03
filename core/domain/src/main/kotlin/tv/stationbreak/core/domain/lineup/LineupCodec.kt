@@ -22,7 +22,9 @@ import tv.stationbreak.core.rules.RulesResult
 import tv.stationbreak.core.rules.RulesWriter
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 1`. Only `core:domain` reads or writes it.
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 2` ([VERSION]). Only `core:domain` reads or
+ * writes it. A version-1 file is read as it is (its meta has no `extrasFromMs`, which reads as null); it is written
+ * back as version 2, and the service keeps a copy of the old bytes first (`LineupStore.keepCopy`).
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a version-1 file with an
@@ -41,21 +43,26 @@ import tv.stationbreak.core.rules.RulesWriter
  * kept: a source that deep is not one this app or an older one wrote).
  *
  * Beside the lineup the file may hold a `meta` object, the refresher's bookkeeping about the lineup ([RefreshMeta]).
- * Version 1 gained it before any release shipped, so it is an optional key of version 1 and not a new version: a file
- * without it loads with an empty [RefreshMeta], and an unknown key inside it is [Decoded.Unreadable] like any other.
+ * Version 1 gained it before any release shipped, so it is an optional key and not a new version: a file without it
+ * loads with an empty [RefreshMeta], and an unknown key inside it is [Decoded.Unreadable] like any other. Version 2
+ * added the meta field `extrasFromMs`.
  *
  * Decoding never throws.
  */
 internal object LineupCodec {
     /** The schema version this app reads and writes. */
-    const val VERSION = 1
+    const val VERSION = 2
 
     /** What [decode] found. */
     sealed interface Decoded {
-        /** A version-[VERSION] lineup, perhaps with [ChannelSource.Unusable] channels, and its [meta]. */
+        /**
+         * A lineup of [fileVersion] (1 up to [VERSION]), perhaps with [ChannelSource.Unusable] channels, and its
+         * [meta]. A [fileVersion] below [VERSION] is an upgrade: the caller keeps the old bytes before it saves.
+         */
         data class Loaded(
             val lineup: Lineup,
             val meta: RefreshMeta = RefreshMeta(),
+            val fileVersion: Int = VERSION,
         ) : Decoded
 
         /** Not a lineup this version can read. The caller sets it aside before writing another. */
@@ -95,7 +102,7 @@ internal object LineupCodec {
             val root = json.parseToJsonElement(bytes.decodeToString(throwOnInvalidSequence = true))
             when (val version = versionOf(root)) {
                 null -> Decoded.Unreadable
-                VERSION -> lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root))
+                in 1..VERSION -> lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version)
                 else -> Decoded.NewerVersion(version)
             }
         } catch (_: IllegalArgumentException) {
@@ -120,14 +127,19 @@ internal object LineupCodec {
         return value.takeIf { it >= 1 }
     }
 
-    private fun lineupOf(file: FileV1): Decoded {
+    private fun lineupOf(
+        file: FileV1,
+        fileVersion: Int,
+    ): Decoded {
         val server = CanonicalId.parseCanonicalOrNull(file.serverId)
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
         if (server == null || user == null || !validOffset(file.utcOffsetMinutes)) return Decoded.Unreadable
         val channels = file.channels.map(::channelOf)
         val lineup = Lineup.ofOrNull(server, user, file.catalogVersion, file.utcOffsetMinutes, file.finalised, channels)
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
-        return if (lineup != null) Decoded.Loaded(lineup, meta) else Decoded.Unreadable
+        // Version 1 is strict: the field belongs to version 2, so a version-1 file with it was not written by this app.
+        val strayField = fileVersion < 2 && meta.extrasFromMs != null
+        return if (lineup != null && !strayField) Decoded.Loaded(lineup, meta, fileVersion) else Decoded.Unreadable
     }
 
     private fun validOffset(minutes: Int): Boolean =
@@ -318,8 +330,9 @@ private class MetaV1(
     val plannedGeneration: Long? = null,
     val collectionPassActedOn: Long? = null,
     val plannedLibraries: List<String>? = null,
+    val extrasFromMs: Long? = null,
 ) {
-    val refreshMeta get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries)
+    val refreshMeta get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries, extrasFromMs)
 
     companion object {
         /** Null for an empty [meta], so a file with nothing to say holds no `meta` key. */
@@ -327,7 +340,7 @@ private class MetaV1(
             if (meta == RefreshMeta()) {
                 null
             } else {
-                MetaV1(meta.plannedGeneration, meta.collectionPassActedOn, meta.plannedLibraries)
+                MetaV1(meta.plannedGeneration, meta.collectionPassActedOn, meta.plannedLibraries, meta.extrasFromMs)
             }
     }
 }

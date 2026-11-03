@@ -58,6 +58,7 @@ class RuleSnapshotCollectionsTest {
                     setOf(canon(3)),
                     setOf(canon(4)),
                     setOf(canon(5)),
+                    "Name of 1000",
                 )
             assertEquals(mapOf(canon(1000) to expected), collection)
         }

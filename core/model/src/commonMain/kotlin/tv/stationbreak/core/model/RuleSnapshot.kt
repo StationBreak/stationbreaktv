@@ -14,9 +14,11 @@ import kotlin.concurrent.Volatile
  *   day it is building (the cut-off must equal that day's `S - G`) and for the libraries it asked for;
  * - [collectionsSynced] lets a reader tell a collection that was deleted from one this TV has not listed yet.
  *
- * It holds no names: series and collection names are not rule inputs, and spec 12 reads them through its own
- * current-state read. Values are kept exactly as stored and nothing is compared here; that is the evaluator's job. It
- * does carry match-ready derived data: [RuleItem.foldedGenres] and its like are the stored names through the ASCII fold
+ * It holds names (spec 23, D8): the name of an item, a series and a collection as this TV held it before the
+ * cut-off, so a rename is a change of the day's input. A name is stored text a person typed: it is never folded into
+ * [NameFolds], never logged, and null when this TV did not hold one (a row from before the cache kept names in its
+ * history). Values are kept exactly as stored and nothing is compared here; that is the evaluator's job. It does carry
+ * match-ready derived data: [RuleItem.foldedGenres] and its like are the stored names through the ASCII fold
  * of docs/rules-format.md, "String matching", shared across the snapshot (see [NameFolds]), so a pass does not fold.
  *
  * @property cutoffMs the cut-off the snapshot was taken at, in milliseconds since 1970-01-01T00:00:00Z: the cut-off
@@ -44,7 +46,7 @@ data class RuleSnapshot(
  * One item of a [RuleSnapshot]: the scheduler's [item], composed rather than copied so it is built once, through
  * `ScheduleItem`'s own checks, with what the rules read beside it. [officialRating] is as stored: null, `""` and `" "`
  * are three values. [genres], [tags] and [studios] keep the server's order; [studios] is empty until the library
- * holds them.
+ * holds them. [name] is the item's name as stored, never folded.
  */
 data class RuleItem(
     val item: ScheduleItem,
@@ -54,7 +56,15 @@ data class RuleItem(
     val genres: List<String>,
     val tags: List<String>,
     val studios: List<String> = emptyList(),
+    val name: String? = null,
 ) {
+    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log.
+    override fun toString(): String =
+        "RuleItem(item=$item, libraryId=$libraryId, seasonId=$seasonId, " +
+            "officialRating=$officialRating, genres=$genres, tags=$tags, " +
+            "studios=$studios, " +
+            "name=${if (name == null) "null" else "<name>"})"
+
     @Volatile private var foldedGenresCache: List<String>? = null
 
     @Volatile private var foldedTagsCache: List<String>? = null
@@ -81,14 +91,24 @@ data class RuleItem(
     }
 }
 
-/** A series as held before the cut-off, with the fields a rule reads. [officialRating] is as stored. */
+/**
+ * A series as held before the cut-off, with the fields a rule reads. [officialRating] is as stored. [name] is the
+ * series name as stored, never folded.
+ */
 data class RuleSeries(
     val id: CanonicalId,
     val officialRating: String?,
     val genres: List<String>,
     val tags: List<String>,
     val studios: List<String> = emptyList(),
+    val name: String? = null,
 ) {
+    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log.
+    override fun toString(): String =
+        "RuleSeries(id=$id, officialRating=$officialRating, genres=$genres, tags=$tags, " +
+            "studios=$studios, " +
+            "name=${if (name == null) "null" else "<name>"})"
+
     @Volatile private var foldedGenresCache: List<String>? = null
 
     @Volatile private var foldedTagsCache: List<String>? = null
@@ -117,7 +137,7 @@ data class RuleSeries(
 
 /**
  * A collection as held before the cut-off: its members by kind. A member is an ID and may be outside the selected
- * libraries. The sets carry no order meaning.
+ * libraries. The sets carry no order meaning. [name] is the collection name as stored, never folded.
  */
 data class RuleCollection(
     val id: CanonicalId,
@@ -125,4 +145,10 @@ data class RuleCollection(
     val episodes: Set<CanonicalId>,
     val series: Set<CanonicalId>,
     val seasons: Set<CanonicalId>,
-)
+    val name: String? = null,
+) {
+    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log.
+    override fun toString(): String =
+        "RuleCollection(id=$id, movies=$movies, episodes=$episodes, series=$series, seasons=$seasons, " +
+            "name=${if (name == null) "null" else "<name>"})"
+}

@@ -84,7 +84,7 @@ class ItemHistoryDaoSplitTest {
         }
 
     @Test
-    fun theChangeTestVersionsAScheduleFieldAndNothingElse() =
+    fun theChangeTestVersionsAScheduleFieldAndTheNameAndNothingElse() =
         runBlocking {
             repository.select(ALICE, setOf(MOVIES))
             repository.put(ALICE, MOVIES, sitem(1))
@@ -94,6 +94,8 @@ class ItemHistoryDaoSplitTest {
             val renamed = old.copy(name = "A new name")
             val nameOnly =
                 plan(old, rows(renamed), t0 + 1)
+            val moved = old.copy(parentId = "another-parent")
+            val parentOnly = plan(old, rows(moved), t0 + 1)
             val longer = old.copy(runtimeMs = 1)
             val edited =
                 plan(old, rows(longer), t0 + 1)
@@ -101,8 +103,12 @@ class ItemHistoryDaoSplitTest {
                 plan(old, rows(old, listOf("Drama")), t0 + 1)
 
             assertEquals(1, same.unchanged)
-            assertEquals(emptyList<ItemVersionEntity>(), nameOnly.versions)
-            assertEquals(listOf(renamed.copy(seenFromMs = old.seenFromMs)), nameOnly.toUpdate)
+            // A rename is a new version, holding the name it ends (spec 23, D8).
+            assertEquals(listOf(old.name), nameOnly.versions.map { it.name })
+            assertEquals(listOf(renamed.copy(seenFromMs = t0 + 1)), nameOnly.toUpdate)
+            // The parent is still stored without a version.
+            assertEquals(emptyList<ItemVersionEntity>(), parentOnly.versions)
+            assertEquals(listOf(moved.copy(seenFromMs = old.seenFromMs)), parentOnly.toUpdate)
             assertEquals(1, edited.versions.size)
             assertEquals(1, withGenre.versions.size)
         }
