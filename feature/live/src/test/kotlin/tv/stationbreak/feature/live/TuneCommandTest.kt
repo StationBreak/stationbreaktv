@@ -120,35 +120,48 @@ class TuneCommandTest {
 
     private fun Flipping.tunedItems(before: Int) = r.tunes.drop(before).map { it.item }
 
-    // #558: Save and watch is a guide tune, and its lookup can take many seconds; the screen is never plain black.
+    // #558: Save and watch is a guide tune, and its lookup can take many seconds; the screen is never plain black: the
+    // channel's card is up over snow from the press, and the picture follows when the lookup is done.
     @Test
-    fun aGuideTuneShowsTheChannelCardWhileItLooksUp() =
+    fun aGuideTuneShowsTheChannelCardOverSnowFromThePress() =
         runTest {
             val f = onNineWithSlowLookups(5_000)
             val lookups = f.r.schedule.onAirCalls.size
             val at = currentTime
             f.send(LiveCommand.Tune(CH2))
-            // The card holds nothing up: the lookup starts at once, at the moment of the tune, before any card.
+            // The lookup starts at once, at the moment of the tune, and the card is up with it: snow, not the old picture.
             assertEquals(lookups + 1, f.r.schedule.onAirCalls.size)
             assertEquals(at, currentTime)
-            assertTrue("no card yet: ${f.r.state}", f.r.state !is LiveState.Choosing)
+            assertEquals(LiveState.Choosing(ChannelTag(2, "Test Channel 2"), overPicture = false), f.r.state)
             advanceTimeBy(1.seconds)
-            val shown = f.r.state
-            assertTrue("the card for 2 while the lookup runs: $shown", shown is LiveState.Choosing)
-            assertEquals(2, (shown as LiveState.Choosing).target.number)
+            assertEquals(LiveState.Choosing(ChannelTag(2, "Test Channel 2"), overPicture = false), f.r.state)
             advanceTimeBy(15.seconds)
             runCurrent()
             assertTrue(f.r.state is LiveState.Watching)
         }
 
+    // A channel the cached lineup does not have yet (one just built): its card comes from the lineup list, at once.
     @Test
-    fun aQuickGuideTuneNeverShowsTheCard() =
+    fun aGuideTuneToANewChannelShowsItsCardOverSnowFromThePress() =
+        runTest {
+            val f = onNineWithSlowLookups(5_000)
+            f.r.schedule.channel(CH7, 7, listOf(program(0, 600, 7)))
+            f.r.channels.publish(CH2 to 2, CH5 to 5, CH7 to 7, CH9 to 9)
+            runCurrent()
+            val at = currentTime
+
+            f.send(LiveCommand.Tune(CH7))
+
+            assertEquals(at, currentTime)
+            assertEquals(LiveState.Choosing(ChannelTag(7, "Test Channel 7"), overPicture = false), f.r.state)
+        }
+
+    @Test
+    fun aQuickGuideTuneLandsOnThePictureAfterItsCard() =
         runTest {
             val f = onNineWithSlowLookups(100)
             f.send(LiveCommand.Tune(CH2))
-            // Past the lookup's end but before the card's moment: the card never comes up for it.
-            advanceTimeBy(200.milliseconds)
-            assertTrue("no card for a quick tune: ${f.r.state}", f.r.state !is LiveState.Choosing)
+            assertEquals(LiveState.Choosing(ChannelTag(2, "Test Channel 2"), overPicture = false), f.r.state)
             advanceTimeBy(1.seconds)
             runCurrent()
             assertTrue(f.r.state is LiveState.Watching)
