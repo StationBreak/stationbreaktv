@@ -31,7 +31,7 @@ internal suspend fun LazyListState.keepVisible(index: Int) {
 private suspend fun LazyListState.nudgeIntoView(index: Int) {
     // A few passes: lines taller than the estimate can leave the line wholly off screen (it is not laid out at all),
     // and then the pass moves half a screen towards it, and the next one places it exactly.
-    repeat(NUDGE_PASSES) {
+    repeat(NUDGE_PASSES) { _ ->
         withFrameNanos { }
         val info = layoutInfo
         val shown = info.visibleItemsInfo

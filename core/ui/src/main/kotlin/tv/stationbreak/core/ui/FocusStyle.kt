@@ -65,11 +65,20 @@ fun Modifier.drawnFocus(
 ): Modifier {
     val ring = MaterialTheme.colorScheme.primary
     val shape = RoundedCornerShape(FocusStyle.OutlineRadius)
-    if (!scaled) return border(FocusStyle.OutlineWidth, if (focused) ring else Color.Transparent, shape)
-    if (!focused) return this
-    return this
-        .graphicsLayer {
-            scaleX = FocusStyle.SURFACE_SCALE
-            scaleY = FocusStyle.SURFACE_SCALE
-        }.border(FocusStyle.OutlineWidth, ring, shape)
+    return when {
+        !scaled -> {
+            border(FocusStyle.OutlineWidth, if (focused) ring else Color.Transparent, shape)
+        }
+
+        focused -> {
+            graphicsLayer {
+                scaleX = FocusStyle.SURFACE_SCALE
+                scaleY = FocusStyle.SURFACE_SCALE
+            }.border(FocusStyle.OutlineWidth, ring, shape)
+        }
+
+        else -> {
+            this
+        }
+    }
 }

@@ -341,11 +341,13 @@ class ChannelBuildManagerTest {
     @Test
     fun editingASavedCopyDoesNotNameTheCopyAsWhereItsSettingsWereKeptFrom() =
         runBlocking<Unit> {
-            val ordered = rules("Westerns", Source.Genre("Western")).copy(ordering = Ordering(OrderingMode.RandomInOrder))
+            val inOrder = Ordering(OrderingMode.RandomInOrder)
+            val ordered = rules("Westerns", Source.Genre("Western")).copy(ordering = inOrder)
             seed(starter("westerns", 220, ChannelState.On, ordered))
             val copy = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, LineupIds.starter("westerns"), copy = true))
             assertEquals("Westerns", assertNotNull(copy.draft.kept).fromName, "a copy names the built-in")
-            val copyId = assertIs<BuildResult.Done>(builder.create(ACCOUNT, copy.draft.copy(name = "Westerns (copy)"))).id
+            val named = copy.draft.copy(name = "Westerns (copy)")
+            val copyId = assertIs<BuildResult.Done>(builder.create(ACCOUNT, named)).id
 
             val edit = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, copyId, copy = false))
 

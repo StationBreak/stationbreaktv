@@ -107,11 +107,13 @@ private fun PlayRow(
         }
 
         PlayRowKind.SeriesCap -> {
-            TextLine(labelled(stringResource(R.string.builder_series_cap), capText(draft.shownSeriesCap())), focused, tag)
+            val text = labelled(stringResource(R.string.builder_series_cap), capText(draft.shownSeriesCap()))
+            TextLine(text, focused, tag)
         }
 
         PlayRowKind.FilmCap -> {
-            TextLine(labelled(stringResource(R.string.builder_film_cap), capText(draft.shownFilmCap())), focused, tag)
+            val text = labelled(stringResource(R.string.builder_film_cap), capText(draft.shownFilmCap()))
+            TextLine(text, focused, tag)
         }
 
         PlayRowKind.Kids -> {

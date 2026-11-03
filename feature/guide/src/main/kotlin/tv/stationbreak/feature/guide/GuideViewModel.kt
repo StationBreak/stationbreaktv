@@ -430,13 +430,14 @@ internal class GuideViewModel
         // The channel to tune when the one playing is no longer On: the next higher number, else the next lower, never
         // the top of the list. Null when it is still there, was never known, or nothing is left. Under [lock].
         private fun neighbourOfGonePlaying(): ChannelId? {
-            val playing = currentChannel ?: return null
-            val now = lineupNow ?: return null
+            val playing = currentChannel
+            val now = lineupNow
             val was = lineupAtOpen?.firstOrNull { it.first == playing }?.second
-            if (was == null || now.any { it.first == playing }) return null
-            val numbered = now.mapNotNull { (id, number) -> number?.let { id to it } }
-            val next = numbered.filter { it.second > was }.minByOrNull { it.second }
-            return (next ?: numbered.filter { it.second < was }.maxByOrNull { it.second })?.first
+            val gone = if (playing != null && now != null && now.none { it.first == playing }) was else null
+            if (gone == null) return null
+            val numbered = now.orEmpty().mapNotNull { (id, number) -> number?.let { id to it } }
+            val next = numbered.filter { it.second > gone }.minByOrNull { it.second }
+            return (next ?: numbered.filter { it.second < gone }.maxByOrNull { it.second })?.first
         }
 
         /** Channel management ended with a tune: the guide goes with it. */

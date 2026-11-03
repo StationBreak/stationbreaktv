@@ -275,7 +275,7 @@ data class ChannelDraft(
     /** The episodes in a row the screen shows: null (no limit) while a kept uncapped Shuffle is in force. */
     fun shownSeriesCap(): Int? = if (keepsUncapped()) null else (seriesCap ?: DEFAULT_SERIES_CAP).coerceIn(CAP_RANGE)
 
-    /** The films of a collection in a row the screen shows: null (no limit) while a kept uncapped Shuffle is in force. */
+    /** The films of a collection in a row the screen shows: null (no limit) while a kept uncapped Shuffle holds. */
     fun shownFilmCap(): Int? = if (keepsUncapped()) null else (filmCap ?: DEFAULT_FILM_CAP).coerceIn(CAP_RANGE)
 
     /** Whether the screen lists the caps: not for In order, nor for a kept order. */
