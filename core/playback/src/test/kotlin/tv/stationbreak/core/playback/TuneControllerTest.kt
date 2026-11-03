@@ -115,6 +115,26 @@ internal class FakeVideoPlayer : VideoPlayer {
     override fun attach(surface: SurfaceView?) = Unit
 
     override fun release() = Unit
+
+    /** The preloads asked for (key to source), and the keys dropped; [preloadReady] answers [preloadState]. */
+    val preloads = mutableMapOf<String, PlayerSource>()
+    val dropped = mutableListOf<String>()
+    var preloadReady = true
+
+    override fun preload(
+        key: String,
+        source: PlayerSource,
+    ) {
+        preloads[key] = source
+    }
+
+    override fun preloadState(key: String): PreloadState? =
+        if (key in preloads) PreloadState(ageMs = 700, setupMs = if (preloadReady) 300 else null) else null
+
+    override fun dropPreload(key: String) {
+        dropped += key
+        preloads.remove(key)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

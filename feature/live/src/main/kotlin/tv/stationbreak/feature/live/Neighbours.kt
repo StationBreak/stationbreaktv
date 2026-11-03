@@ -15,6 +15,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.PreloadSettings
 import kotlin.time.Clock
 
 /** A handle resolved for the block of [item] that starts at [blockStartMs] on one channel. */
@@ -23,6 +24,7 @@ private class Resolved(
     val item: CanonicalId,
     val blockStartMs: Long,
     val blockEndMs: Long,
+    val madeAtMs: Long,
 ) {
     /** True when [program] in [block] is the very block this handle was resolved for. */
     fun isFor(
@@ -43,6 +45,7 @@ internal class Neighbours(
     private val tuner: TunePort,
     private val schedule: ScheduleSource,
     private val clock: Clock,
+    private val maxAgeMs: Long = PreloadSettings.MAX_AGE_MS,
 ) {
     private val held = linkedMapOf<ChannelId, Resolved>()
 
@@ -75,7 +78,7 @@ internal class Neighbours(
     ) {
         while (true) {
             if (idle()) prepareAround(current, lineup())
-            val endMs = held.values.minOfOrNull { it.blockEndMs }
+            val endMs = held.values.minOfOrNull { minOf(it.blockEndMs, it.madeAtMs + maxAgeMs) }
             val wait = if (idle()) endMs?.minus(clock.now().toEpochMilliseconds()) else BUSY_RETRY_MS
             if (wait == null) return
             delay(maxOf(wait, MIN_WAIT_MS))
@@ -88,12 +91,12 @@ internal class Neighbours(
         val block = schedule.onAir(channel, now, 0)?.now
         val program = (block?.airing as? Airing.Program)?.takeIf { it.info != null }
         val kept = held[channel]
-        if (kept != null && kept.isFor(program, block)) return
+        if (kept != null && kept.isFor(program, block) && now.toEpochMilliseconds() - kept.madeAtMs < maxAgeMs) return
         held.remove(channel)?.let { discard(it) }
         val start = block?.positionAt(now.toEpochMilliseconds())
         if (program != null && start != null) {
             tuner.preResolve(session, ItemId(program.itemId.value), start)?.let {
-                held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs)
+                held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs, now.toEpochMilliseconds())
             }
         }
     }

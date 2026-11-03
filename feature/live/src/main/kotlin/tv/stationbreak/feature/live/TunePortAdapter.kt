@@ -79,6 +79,7 @@ class TunePortAdapter(
             skippedFrames = skippedFrames,
             loads = loads,
             av = av,
+            preload = preload,
         )
 
     private fun Route.label() =

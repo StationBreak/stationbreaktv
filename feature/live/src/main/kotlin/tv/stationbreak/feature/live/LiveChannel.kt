@@ -180,7 +180,7 @@ class LiveChannel(
             screen.value = LiveState.SignedOut
             return
         }
-        val neighbours = Neighbours(session, tuner, schedule, clock)
+        val neighbours = Neighbours(session, tuner, schedule, clock, timings.preloadMaxAge.inWholeMilliseconds)
         val requests = Channel<SitRequest>(Channel.CONFLATED)
         requests.trySend(SitRequest(null, null, resume?.place))
         // Its own scope and job, so it outlives every sitting (a flip cancels them) and run's own cancel: the final

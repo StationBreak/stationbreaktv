@@ -292,14 +292,15 @@ class LiveChannelFlipTest {
         val line = TuneReport.Flip(null, 900, 400, 900, "playing", "transcode", "loadFailed:CODE", "direct").line()
         assertEquals(
             "flip toFirstFrameMs=-1 toPlayingMs=900 settleMs=400 elapsedMs=900 outcome=playing from=direct " +
-                "route=transcode fallback=loadFailed:CODE lookupMs=-1 handoverMs=-1",
+                "route=transcode fallback=loadFailed:CODE lookupMs=-1 handoverMs=-1 " +
+                "preloaded=false preloadAgeMs=-1 preloadSetupMs=-1",
             line,
         )
         assertTrue(
             TuneReport
                 .Flip(null, 900, 400, 900, "playing", "transcode", null, "direct", lookupMs = 120, handoverMs = 310)
                 .line()
-                .endsWith(" lookupMs=120 handoverMs=310"),
+                .contains(" lookupMs=120 handoverMs=310 preloaded=false"),
         )
     }
 
@@ -316,7 +317,7 @@ class LiveChannelFlipTest {
             assertEquals("playing", flip.outcome)
             assertEquals(120L, flip.lookupMs)
             assertTrue("the hand-over includes the save: ${flip.handoverMs}", flip.handoverMs >= 300L)
-            assertTrue(flip.line().endsWith("lookupMs=120 handoverMs=${flip.handoverMs}"))
+            assertTrue(flip.line().contains("lookupMs=120 handoverMs=${flip.handoverMs} preloaded=false"))
         }
 
     @Test

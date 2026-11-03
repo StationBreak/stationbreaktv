@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import tv.stationbreak.core.playback.PreloadSettings
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -50,6 +51,8 @@ import kotlin.time.Duration.Companion.seconds
  *   slow lookup, such as a new channel's, is never plain black); a quicker lookup lands first and shows no card.
  * @property holdRearmMin the shortest re-armed wait of the behind play's media-time hold (spec 20): once a wait has
  *   fired short (the media running slower than the clock), the next waits at least this long, so it never spins.
+ * @property preloadMaxAge how old a neighbour's prepared handle (and the media preloaded for it, spike #563) may get
+ *   before it is dropped and made again: the neighbour's position has moved on.
  * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  */
 data class LiveTimings(
@@ -66,6 +69,7 @@ data class LiveTimings(
     val flipRepeatEvery: Duration = 250.milliseconds,
     val flipReleaseFallback: Duration = 1.seconds,
     val flipLogSize: Int = 50,
+    val preloadMaxAge: Duration = PreloadSettings.MAX_AGE_MS.milliseconds,
     val keyRepeatTimeout: Duration = DEFAULT_KEY_REPEAT_TIMEOUT,
     val pauseReportMax: Duration = DEFAULT_PAUSE_REPORT_MAX,
     val stepBack: Duration = 10.seconds,
