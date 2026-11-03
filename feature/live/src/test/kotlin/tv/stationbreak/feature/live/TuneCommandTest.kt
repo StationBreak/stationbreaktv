@@ -120,6 +120,36 @@ class TuneCommandTest {
 
     private fun Flipping.tunedItems(before: Int) = r.tunes.drop(before).map { it.item }
 
+    // #558: Save and watch is a guide tune, and its lookup can take many seconds; the screen is never plain black.
+    @Test
+    fun aGuideTuneShowsTheChannelCardWhileItLooksUp() =
+        runTest {
+            val f = onNineWithSlowLookups(5_000)
+            f.send(LiveCommand.Tune(CH2))
+            advanceTimeBy(1.seconds)
+            val shown = f.r.state
+            assertTrue("the card for 2 while the lookup runs: $shown", shown is LiveState.Choosing)
+            assertEquals(2, (shown as LiveState.Choosing).target.number)
+            advanceTimeBy(15.seconds)
+            runCurrent()
+            assertTrue(f.r.state is LiveState.Watching)
+        }
+
+    @Test
+    fun aGuideTuneThatFindsNothingOnTheAirTakesTheCardDown() =
+        runTest {
+            val f = flipping()
+            val shownBefore = f.r.state
+            f.r.schedule.channels
+                .getValue(CH9)
+                .hidden = HiddenReason.CollectionsNotSynced
+            f.send(LiveCommand.Tune(CH9))
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertEquals(shownBefore, f.r.state)
+            assertTrue(f.r.reports.any { it is TuneReport.PressDropped && it.reason == "tune-off-air" })
+        }
+
     @Test
     fun menuReplacesAGuideTuneStillLookingUp() =
         runTest {

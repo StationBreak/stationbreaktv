@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -18,10 +19,14 @@ import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /** The tune line's `via` for a channel picked in the guide. */
 private const val VIA_GUIDE = "guide"
+
+// How long a guide tune waits for the lineup list to give the channel card before it goes on without one.
+private val CARD_WAIT = 300.milliseconds
 
 /** When the viewer last pressed a key for a flip, and how long the settle waited after it (for [TuneReport.Flip]). */
 internal class FlipTiming(
@@ -640,14 +645,18 @@ internal class Flipper(
         // From here a commit: it owes a flip line, `superseded` if a newer press replaces it.
         val timing = FlipTiming(clock.now(), 0, via = VIA_GUIDE)
         try {
+            // The lookup can take many seconds (every channel's day is built first): the channel's number and name
+            // are up from the lineup list at once, so the screen is never blank meanwhile.
+            val card = cardOf(channel)
+            if (card != null) screen.choose(LiveState.Choosing(card, overPicture = screen.pictureUp))
             val lookedAt = clock.now()
             val onAir = find(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
             // A lookup that ran on past a newer press must not land.
             currentCoroutineContext().ensureActive()
             if (onAir == null) {
                 dropped("tune-off-air")
-                // A number a cancelled flip had put up goes with it.
-                if (target != null) screen.drop()
+                // A number a cancelled flip had put up goes with it, and so does this tune's own card.
+                if (target != null || card != null) screen.drop()
                 order = null
                 target = null
                 return
@@ -668,6 +677,19 @@ internal class Flipper(
             }
         }
     }
+
+    // The number and name of [channel] from the lineup list, which needs no day built; null when it is not there (or
+    // the list does not answer at once), and the tune shows nothing until it lands.
+    private suspend fun cardOf(channel: ChannelId): ChannelTag? =
+        try {
+            withTimeoutOrNull(CARD_WAIT) { earlyLineup()?.order?.byId(channel)?.tag() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+        ) {
+            null
+        }
 
     /**
      * [channel] in the lineup. The guide can show a channel the cached lineup does not have yet (one that came back on
