@@ -377,10 +377,11 @@ class LineupService internal constructor(
 
     /**
      * Replaces [account]'s lineup with a fresh first choice from the [libraries], under the account's lock, keeping the
-     * viewer's own channels (spec 22, rulings 18, 23, 24): those of the lineup `edit` would read ([reconciled]), none
-     * when the stored file was unreadable and set aside. They are given to the planner, which plans the starters
-     * around them. Like
-     * [refresh] it may set an unreadable or foreign file aside first. The old lineup stays until the new one is
+     * viewer's own channels (spec 22, rulings 18, 23, 24): those of the lineup `edit` would read ([reconciled]).
+     * That is the session's own lineup when it holds a writable one (its channels survive a stored file that has
+     * become unreadable and is set aside), else the stored one; none when nothing is held and the file was set
+     * aside. They are given to the planner, which plans the starters around them. Like [refresh] it may set an
+     * unreadable or foreign file aside first. The old lineup stays until the new one is
      * planned and saved; the save, the forgetting of what was built from the old one and the publishing then finish
      * even if the caller is cancelled, so the lineup is never left forgotten or half replaced. [Saved.Failed]: the
      * save failed or was rejected, and nothing changed. [Saved.Unavailable]: the library could not be read, and nothing

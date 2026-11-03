@@ -94,7 +94,33 @@ class LineupPlannerKeptTest {
         assertEquals(ChannelState.Shelf, alpha.state)
         assertNull(alpha.number)
         assertTrue(band.all { it in lineup.channels })
-        assertEquals(ChannelState.Shelf, lineup.channel("odds").state, "a leftovers channel gives way the same way")
+        // A leftovers channel is always on: it takes any free number it may use, never the shelf.
+        val odds = lineup.channel("odds")
+        assertEquals(ChannelState.On, odds.state)
+        assertEquals(200, odds.number)
+    }
+
+    @Test
+    fun theKidsLeftoversChannelStaysInTheKidsBandWhenItsDefaultIsHeld() {
+        val taken = kept("mine", 99)
+
+        val lineup = plan(listOf(taken))
+
+        val kidsOdds = lineup.channel("kids-odds")
+        assertEquals(ChannelState.On, kidsOdds.state)
+        val number = checkNotNull(kidsOdds.number)
+        assertTrue(number in Band.Kids.numbers && number != 99 && number != 10, "number was $number")
+    }
+
+    @Test
+    fun aKidsLeftoversChannelWithTheKidsBandFullHasNoNumberToTake() {
+        val band = Band.Kids.numbers.map { kept("k$it", it) }
+
+        val lineup = plan(band)
+
+        val kidsOdds = lineup.channel("kids-odds")
+        assertNull(kidsOdds.number)
+        assertEquals(ChannelState.Shelf, kidsOdds.state)
     }
 
     @Test

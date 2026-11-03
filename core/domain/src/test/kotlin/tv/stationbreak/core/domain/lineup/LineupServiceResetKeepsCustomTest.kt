@@ -199,6 +199,21 @@ class LineupServiceResetKeepsCustomTest {
         }
 
     @Test
+    fun resetAfterTheStoredFileBecameUnreadableKeepsTheSessionsCustomChannels() =
+        runBlocking<Unit> {
+            seedStored(lineupOf(*starters(), custom("Mine", 600)))
+            service.loaded(ACCOUNT)
+            // Another writer, or a fault, leaves the file unreadable after this session has loaded it.
+            store.inner.save(ACCOUNT, "not a lineup".encodeToByteArray())
+
+            val fresh = reset()
+
+            val mine = fresh.byId("custom:Mine")
+            assertEquals(custom("Mine", 600), mine, "the session's channel is kept, as an edit would")
+            assertNotNull(store.inner.setAsideCopy(ACCOUNT), "and the unreadable file was set aside, not lost")
+        }
+
+    @Test
     fun resetKeepsAnUnusableCustomChannelByteForByte() =
         runBlocking<Unit> {
             val newer = """{"formatVersion":3,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""

@@ -44,7 +44,7 @@ sealed interface LineupEdit {
         override val id: ChannelId,
         val rules: ChannelRules,
         val number: Int?,
-        val kids: Boolean = false,
+        val kids: Boolean,
     ) : LineupEdit
 
     /**
@@ -61,7 +61,7 @@ sealed interface LineupEdit {
         val rules: ChannelRules,
         val number: Int?,
         val swapWith: ChannelId? = null,
-        val kids: Boolean = false,
+        val kids: Boolean,
     ) : LineupEdit
 
     /** Changes only the stored seed of a custom channel (Reshuffle). */
@@ -70,7 +70,10 @@ sealed interface LineupEdit {
         val seed: Seed,
     ) : LineupEdit
 
-    /** Removes a custom channel. */
+    /**
+     * Removes a custom channel. A custom channel this app cannot read (its rules need a newer app, stored as
+     * [ChannelSource.Unusable]) is refused as [EditRefusal.NotCustom]: data this app cannot read is not deleted by it.
+     */
     data class RemoveCustom(
         override val id: ChannelId,
     ) : LineupEdit

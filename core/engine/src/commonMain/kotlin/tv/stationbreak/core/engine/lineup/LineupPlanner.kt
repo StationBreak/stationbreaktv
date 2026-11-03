@@ -56,7 +56,10 @@ object LineupPlanner {
      * A first choice can be made around [kept] channels (a reset keeps the viewer's own channels; the caller picks
      * them, and for a lineup not yet finalised, whose own channels a first choice replaces, it passes the ones to
      * keep). They go into the lineup as they are. Their numbers count as taken: a catalog channel whose default one is
-     * held takes the first number free in its own band, or goes on the shelf with no number when that band is full.
+     * held takes the first number free in its own band, or (a starter) goes on the shelf with no number when that band
+     * is full. A leftovers channel is always on, so it never goes on the shelf for that: it takes any free number it
+     * may use, its own band first and then, for the grown-up one, the other bands up to 599 (the kids one stays in the
+     * Kids band, being a kid channel; only if that band is full too has it no number).
      * Their switched-on channels count toward [LineupDefaults.CAP] before any starter is chosen, so the lowest-ranked
      * starters are left off, never a kept channel. The leftovers channels are exempt: they are always switched on
      * (the "Odds and ends" decision), so the lineup can hold more than the cap when the kept channels alone fill it.
@@ -271,8 +274,9 @@ internal class Planning(
 
     /**
      * The number each catalog channel takes in a first choice around [kept]: its default, unless a kept channel holds
-     * it (as a default or an override); then the first number in its own band that nothing holds and no catalog
-     * channel has as its default, in catalog order, or null when there is none.
+     * it (as a default or an override); then the first number that nothing holds and no catalog channel has as its
+     * default, in catalog order: in its own band for a starter, and for a leftovers channel in its own band and then
+     * the grown-up ones below the custom band. Null when there is none.
      */
     fun numbersAround(
         kept: List<LineupChannel>,
@@ -281,15 +285,22 @@ internal class Planning(
     ): Map<ChannelId, Int?> {
         val held = kept.flatMapTo(HashSet()) { listOfNotNull(it.defaultNumber, it.numberOverride) }
         val defaults =
-            recipes.map { Triple(LineupIds.starter(it.key), it.number, it.band) } +
-                leftovers.map { Triple(LineupIds.leftovers(it.key), it.number, Band.of(it.number)) }
+            recipes.map { Triple(LineupIds.starter(it.key), it.number, listOf(it.band.numbers)) } +
+                leftovers.map { Triple(LineupIds.leftovers(it.key), it.number, leftoversRanges(it.number)) }
         val reserved = HashSet(held)
         reserved += defaults.map { it.second }
         reserved += catalog.retiredNumbers
-        return defaults.associate { (id, number, band) ->
-            val free = band?.numbers?.firstOrNull { it !in reserved }
+        return defaults.associate { (id, number, ranges) ->
+            val free = ranges.asSequence().flatMap { it.asSequence() }.firstOrNull { it !in reserved }
             id to if (number !in held) number else free?.also(reserved::add)
         }
+    }
+
+    // Where a leftovers channel whose default is held may go: its band, and (not the kids one) the grown-up bands.
+    private fun leftoversRanges(number: Int): List<IntRange> {
+        val own = Band.of(number)?.numbers ?: return emptyList()
+        val grownUp = Band.General.numbers.first..Band.Premium.numbers.last
+        return if (own == Band.Kids.numbers) listOf(own) else listOf(own, grownUp)
     }
 
     /** The [candidates] that fill, by airable runtime (most first), ties by key. Each pool is evaluated once. */
