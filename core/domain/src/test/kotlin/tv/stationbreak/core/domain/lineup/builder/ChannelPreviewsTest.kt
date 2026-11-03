@@ -15,27 +15,40 @@ import tv.stationbreak.core.domain.lineup.LIBRARY_ID
 import tv.stationbreak.core.domain.lineup.LineupCodec
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.NOON
+import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.RecordingStore
 import tv.stationbreak.core.domain.lineup.TWO_HOURS_MS
 import tv.stationbreak.core.domain.lineup.TestCatalog
+import tv.stationbreak.core.domain.lineup.channel
 import tv.stationbreak.core.domain.lineup.id
 import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.domain.lineup.rules
 import tv.stationbreak.core.domain.lineup.starter
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.rules.BroadcastDay
+import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.Source
+import tv.stationbreak.core.rules.Timing
+import tv.stationbreak.core.scheduler.Epochs
+import tv.stationbreak.core.scheduler.buildDay
 import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -73,14 +86,19 @@ class ChannelPreviewsTest {
         store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(laughs, *extra)))
     }
 
+    private fun movieItem(
+        n: Int,
+        runtimeMs: Long = TWO_HOURS_MS,
+        createdAtMs: Long = ADDED_MS,
+    ) = ScheduleItem(id(n), ScheduleItemKind.Movie, runtimeMs, createdAtMs, null, null, 2000, null, null, null)
+
     private fun film(
         n: Int,
         name: String = "Film $n",
         genres: List<String> = listOf("Comedy"),
         rating: String? = "R",
-        runtimeMs: Long = TWO_HOURS_MS,
+        item: ScheduleItem = movieItem(n),
     ) {
-        val item = ScheduleItem(id(n), ScheduleItemKind.Movie, runtimeMs, ADDED_MS, null, null, 2000, null, null, null)
         library.delegate.seedRule(ACCOUNT, RuleItem(item, LIBRARY_ID, null, rating, genres, emptyList()))
         library.delegate.seed(ACCOUNT, libraryItem, MediaItem(ItemId(id(n).value), name, ItemKind.Movie, null, null))
     }
@@ -157,13 +175,22 @@ class ChannelPreviewsTest {
     private fun airedAs(
         draft: ChannelDraft,
         at: Instant = NOON,
+        copyOf: ChannelId? = null,
     ): List<CanonicalId> =
         runBlocking {
             service.refresh(ACCOUNT, LIBRARIES)
-            val built = (builder.create(ACCOUNT, draft) as BuildResult.Done).id
-            val onAir = checkNotNull(source.onAir(built, at, ChannelPreviews.NEXT - 1))
-            (listOf(onAir.now) + onAir.next).mapNotNull { (it.airing as? Airing.Program)?.itemId }
+            val built = (builder.create(ACCOUNT, draft, copyOf) as BuildResult.Done).id
+            airs(built, at)
         }
+
+    // What the real source airs on [channel] from [at]: the block on air and the 11 after it.
+    private suspend fun airs(
+        channel: ChannelId,
+        at: Instant = NOON,
+    ): List<CanonicalId> {
+        val onAir = checkNotNull(source.onAir(channel, at, ChannelPreviews.NEXT - 1))
+        return (listOf(onAir.now) + onAir.next).mapNotNull { (it.airing as? Airing.Program)?.itemId }
+    }
 
     private fun sevenComedies() = (1..7).forEach { film(it) }
 
@@ -349,16 +376,20 @@ class ChannelPreviewsTest {
     @Test
     fun previewNeverRunsOnTheCallersThread() {
         sevenComedies()
-        var readOn: String? = null
+        val seen = mutableMapOf<String, String>()
         val watching =
             object : LibraryRepository by library {
-                override suspend fun ruleSnapshot(
+                override suspend fun contentGeneration(account: LibraryAccount): Long {
+                    seen["contentGeneration"] = Thread.currentThread().name
+                    return library.contentGeneration(account)
+                }
+
+                override suspend fun programInfo(
                     account: LibraryAccount,
-                    libraries: Set<ItemId>,
-                    cutoff: Instant,
-                ): RuleSnapshot {
-                    readOn = Thread.currentThread().name
-                    return library.ruleSnapshot(account, libraries, cutoff)
+                    ids: Set<CanonicalId>,
+                ): Map<CanonicalId, ProgramInfo> {
+                    seen["programInfo"] = Thread.currentThread().name
+                    return library.programInfo(account, ids)
                 }
             }
         val executor = Executors.newSingleThreadExecutor { Thread(it, "preview-thread") }
@@ -370,23 +401,163 @@ class ChannelPreviewsTest {
 
         executor.shutdown()
         assertTrue(shown.next.isNotEmpty())
-        assertNotEquals(Thread.currentThread().name, readOn)
-        assertTrue(readOn?.startsWith("DefaultDispatcher") == true || readOn == "preview-thread", "read on $readOn")
+        // The coroutine debugger may append " @coroutine#n" to the thread's name.
+        assertEquals(setOf("contentGeneration", "programInfo"), seen.keys)
+        assertTrue(seen.values.all { it.startsWith("preview-thread") }, "ran on $seen")
     }
 
     @Test
-    fun aKeptDraftWithoutItsSourceIsAnEmptyPreview() {
+    fun aDraftThatCannotBeReadIsUnavailableNotNothingFits() {
         sevenComedies()
         val kept = KeptSettings("Laughs", listOf(KeptItem.NoCaps))
+        val noLibraries = BuiltInChannelPreviews(service, library, source) { null }
+        val failing =
+            object : LibraryRepository by library {
+                override suspend fun contentGeneration(account: LibraryAccount): Long = error("the library is gone")
+            }
+        val broken = BuiltInChannelPreviews(service, failing, source) { LIBRARIES }
 
-        val shown = preview(draft().copy(kept = kept))
+        val withoutSource = preview(draft().copy(kept = kept))
+        val withoutLibraries = runBlocking { noLibraries.preview(ACCOUNT, draft(), NOON) }
+        val unreadable = runBlocking { broken.preview(ACCOUNT, draft(), NOON) }
 
-        assertTrue(shown.nothingFits)
+        listOf(withoutSource, withoutLibraries, unreadable).forEach {
+            assertTrue(it.unavailable && !it.nothingFits && it.next.isEmpty(), "$it")
+        }
+        assertTrue(!preview(draft()).unavailable)
+    }
+
+    private fun dramas() {
+        show(0x51, "Show One")
+        show(0x52, "Show Two")
+        (1..4).forEach { episode(0x60 + it, 0x51, 1, it, "2000-01-0$it") }
+        (1..4).forEach { episode(0x70 + it, 0x52, 1, it, "2010-01-0$it") }
+    }
+
+    private fun dramaRules() =
+        rules("Dramas", Source.Series(id(0x51)), Source.Series(id(0x52)))
+            .copy(ordering = Ordering(OrderingMode.RandomInOrder))
+
+    @Test
+    fun aCopyOfAStarterWithKeptSettingsPreviewsWhatCreateThenAirs() {
+        dramas()
+        val dramas = starter("dramas", 230, ChannelState.On, dramaRules())
+        runBlocking { holding(dramas) }
+        val opened = runBlocking { builder.open(ACCOUNT, dramas.id, copy = true) } as OpenResult.Opened
+        val copy = opened.draft.copy(name = "Dramas (copy)")
+        assertTrue(copy.kept?.items?.contains(KeptItem.Order(KeptOrder.RandomInOrder)) == true)
+
+        val shown = runBlocking { previews.preview(ACCOUNT, copy, NOON, dramas.id) }
+        val dropped = runBlocking { previews.preview(ACCOUNT, copy.copy(kept = null), NOON, dramas.id) }
+
+        assertEquals(ids(shown), airedAs(copy, copyOf = dramas.id))
+        assertNotEquals(ids(shown), ids(dropped), "the kept order is not the builder's Shuffle")
+    }
+
+    @Test
+    fun anEditOfACustomChannelPreviewsWhatSaveThenAirs() {
+        dramas()
+        val mine = channel("custom:mine", 620, ChannelState.On, ChannelSource.Custom(dramaRules()))
+        runBlocking { holding(mine) }
+        val opened = runBlocking { builder.open(ACCOUNT, mine.id, copy = false) } as OpenResult.Opened
+        val edited = opened.draft.copy(name = "Renamed")
+
+        val shown = runBlocking { previews.preview(ACCOUNT, edited, NOON, mine.id) }
+        val aired =
+            runBlocking {
+                assertEquals(BuildResult.Done(mine.id), builder.save(ACCOUNT, mine.id, edited))
+                airs(mine.id)
+            }
+
+        assertEquals(ids(shown), aired)
+        assertEquals(ChannelPreviews.NEXT, shown.next.size)
+    }
+
+    @Test
+    fun aNextEpochItemTakesItsRuntimeFromThatEpochsDay() {
+        sevenComedies()
+        // Added after today's cut-off and before tomorrow's: in tomorrow's pool only, and not as long as the others.
+        val between = Instant.parse("2026-10-19T14:00:00Z").toEpochMilliseconds()
+        (20..24).forEach { film(it, item = movieItem(it, runtimeMs = 3 * TWO_HOURS_MS / 2, createdAtMs = between)) }
+        val late = Instant.parse("2026-10-20T05:50:00Z")
+
+        val shown = preview(draft(seed = 4uL), late)
+
+        val added = shown.next.filter { it.id.value >= id(20).value }
+        assertTrue(added.isNotEmpty(), "some of tomorrow's own items are listed")
+        assertTrue(added.all { it.minutes == 180 }, "$added")
+        assertEquals(7, shown.itemCount, "the count is of the epoch the time is in")
+    }
+
+    @Test
+    fun aShortEpochDoesNotTouchTheLineupsSnapshots() {
+        sevenComedies()
+        val oddTiming = Timing(null, false, 12, null, null, null, BroadcastDay(0, "06:00"))
+        val oddRules = rules("Odd", Source.Genre("Comedy")).copy(timing = oddTiming)
+        val odd = starter("odd", 330, ChannelState.UserHidden, oddRules)
+        runBlocking { holding(odd) }
+        val opened = runBlocking { builder.open(ACCOUNT, odd.id, copy = true) } as OpenResult.Opened
+        assertTrue(
+            opened.draft.kept
+                ?.items
+                ?.contains(KeptItem.EpochHours(12)) == true,
+        )
+        preview(draft())
+        val reads = source.snapshots.reads
+
+        val shown = runBlocking { previews.preview(ACCOUNT, opened.draft, NOON, odd.id) }
+
+        assertTrue(shown.next.isNotEmpty() && !shown.unavailable)
+        assertEquals(reads, source.snapshots.reads, "its own cut-offs were read, not kept")
+    }
+
+    @Test
+    fun aCappedShuffleOfFilmsInACollectionPreviewsWhatItAirs() {
+        (1..8).forEach { film(it, genres = listOf("A")) }
+        library.delegate.seedCollection(
+            ACCOUNT,
+            RuleCollection(id(0xC1), (1..4).map { id(it) }.toSet(), emptySet(), emptySet(), emptySet()),
+        )
+        library.delegate.setCollectionsSynced(ACCOUNT, true)
+        val mine = draft(DraftSource.Genre("A", "A"), DraftSource.Collection(id(0xC1).value, "Box Set"), seed = 9uL)
+
+        assertEquals(ids(preview(mine)), airedAs(mine))
+    }
+
+    @Test
+    fun aCappedShuffleOfEpisodesPreviewsWhatItAirs() {
+        show(0x51, "Show One")
+        show(0x52, "Show Two")
+        (1..6).forEach { episode(0x60 + it, 0x51, 1, it, "2000-01-0$it") }
+        (1..6).forEach { episode(0x70 + it, 0x52, 1, it, "2010-01-0$it") }
+        val mine = draft(DraftSource.Show(id(0x51).value, "One"), DraftSource.Show(id(0x52).value, "Two"), seed = 6uL)
+
+        assertEquals(ids(preview(mine)), airedAs(mine))
+    }
+
+    @Test
+    fun aDayIsListedFromTheTimeAndAnOutsideTimeIsHandled() {
+        sevenComedies()
+        val settings = rules("X", Source.Genre("Comedy")).toSchedulerSettings()
+        val n = Epochs.epochNumber(settings, NOON.toEpochMilliseconds())
+        val items = (1..3).map { movieItem(it) }
+        val layout = buildDay(settings, items, n, FilmCollections.of(emptyMap()))
+
+        val all = airedFrom(layout, items, null)
+        val middle = layout.blocks[2]
+        val fromMiddle = airedFrom(layout, items, middle.startMs + 1)
+
+        assertEquals(layout.blocks.size, all.size)
+        assertEquals((middle.content as ScheduleContent.Program).itemId, fromMiddle.first().id)
+        assertEquals(all.drop(2), fromMiddle)
+        assertEquals(all, airedFrom(layout, items, layout.startMs - 1), "before the day: all of it")
+        assertTrue(airedFrom(layout, items, layout.endMs).isEmpty(), "at its end: nothing, the next epoch is next")
+        assertTrue(airedFrom(layout, items, layout.endMs + 1).isEmpty())
     }
 
     @Test
     fun aMinuteIsAMinute() {
-        film(1, runtimeMs = 90.minutes.inWholeMilliseconds)
+        film(1, item = movieItem(1, runtimeMs = 90.minutes.inWholeMilliseconds))
 
         assertEquals(90, preview(draft()).next.first().minutes)
     }

@@ -9,6 +9,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.Ceilings
+import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.RuledDay
@@ -31,11 +32,12 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
-import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
+import tv.stationbreak.core.scheduler.Day
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.Instant
@@ -61,7 +63,9 @@ data class SkippedPick(
 
 /**
  * What a draft would air: [itemCount] and [totalRuntimeMinutes] of the epoch's pool, the [next] items in the order
- * the scheduler lays them out, the [skipped] picks, and [nothingFits] when the pool is empty.
+ * the scheduler lays them out, the [skipped] picks, and [nothingFits] when the pool is empty. [unavailable] is true
+ * when the preview could not be worked out at all (no lineup, no chosen library, a failed read): that is not "nothing
+ * fits", and the screen says something else.
  */
 data class ChannelPreview(
     val itemCount: Int,
@@ -69,6 +73,7 @@ data class ChannelPreview(
     val next: List<PreviewItem>,
     val skipped: List<SkippedPick>,
     val nothingFits: Boolean,
+    val unavailable: Boolean = false,
 )
 
 /** Shows what a channel being built would air, from the real scheduler (spec 22). */
@@ -115,7 +120,7 @@ class BuiltInChannelPreviews internal constructor(
 
     private val ceilings = Ceilings(service.catalog)
 
-    // Any failure other than cancellation (a draft the scheduler refuses, a library read) is an empty preview.
+    // Any failure other than cancellation (a draft the scheduler refuses, a library read) is an unavailable preview.
     @Suppress("TooGenericExceptionCaught")
     override suspend fun preview(
         account: LibraryAccount,
@@ -125,11 +130,11 @@ class BuiltInChannelPreviews internal constructor(
     ): ChannelPreview =
         withContext(dispatcher) {
             try {
-                previewOf(account, draft, at, source) ?: NOTHING
+                previewOf(account, draft, at, source) ?: UNAVAILABLE
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                NOTHING
+                UNAVAILABLE
             }
         }
 
@@ -169,21 +174,21 @@ class BuiltInChannelPreviews internal constructor(
         val channel = syntheticChannel(lineup, draft, rules, at)
         val settings = rules.toSchedulerSettings()
         val n = Epochs.epochNumber(settings, at.toEpochMilliseconds())
-        val reading = Reading(account, chosen, channel, rules, settings)
-        val today = reading.dayOf(n)
-        val blocks = ArrayList(reading.blocksFrom(today, at.toEpochMilliseconds()))
-        if (blocks.size < ChannelPreviews.NEXT) {
-            blocks += reading.blocksFrom(reading.dayOf(n + 1), null).take(ChannelPreviews.NEXT - blocks.size)
+        val reading = Reading(account, chosen, channel, rules, settings, sharedCutoffs(lineup, at))
+        val days = ArrayList<Today>()
+        val aired = ArrayList<Aired>()
+        var epoch = n
+        // The epoch that holds `at`, and the next ones until there are enough programs (not blocks: a slate is none).
+        while (aired.size < ChannelPreviews.NEXT && days.size < MAX_EPOCHS) {
+            val day = reading.dayOf(epoch)
+            days += day
+            aired += airedFrom(day.layout, day.ruled.day, if (epoch == n) at.toEpochMilliseconds() else null)
+            epoch++
         }
-        val items = (today.ruled.day).associateBy { it.id }
-        val ids = blocks.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }.distinct()
-        val info = if (ids.isEmpty()) emptyMap() else library.programInfo(account, ids.toSet())
-        val next =
-            blocks.take(ChannelPreviews.NEXT).mapNotNull { block ->
-                val id = (block.content as? ScheduleContent.Program)?.itemId
-                val named = id?.let { info[it] }
-                named?.let { itemOf(it, items[id]?.runtimeMs) }
-            }
+        val shown = aired.take(ChannelPreviews.NEXT)
+        val info = if (shown.isEmpty()) emptyMap() else library.programInfo(account, shown.mapTo(HashSet()) { it.id })
+        val next = shown.mapNotNull { program -> info[program.id]?.let { itemOf(it, program.runtimeMs) } }
+        val today = days.first()
         val pool = today.ruled.day
         return ChannelPreview(
             itemCount = pool.size,
@@ -192,6 +197,17 @@ class BuiltInChannelPreviews internal constructor(
             skipped = if (KidStatus.isKidChannel(channel)) reading.skipped(draft, today.snapshot) else emptyList(),
             nothingFits = pool.isEmpty(),
         )
+    }
+
+    // The cut-offs the lineup's own days read (today's and the following day's): only these go through the shared
+    // cache, so a draft with an odd epoch (a kept short one) cannot push the lineup's snapshots out of it.
+    private fun sharedCutoffs(
+        lineup: Lineup,
+        at: Instant,
+    ): Set<Long> {
+        val days = LineupDays(service.catalog)
+        val atMs = at.toEpochMilliseconds()
+        return (days.scheduled(lineup, atMs) + days.scheduled(lineup, atMs + DAY_MS)).mapTo(HashSet()) { it.cutoffMs }
     }
 
     // The rules a copy or an edit was opened from; null for a new channel, or one that is gone.
@@ -233,16 +249,16 @@ class BuiltInChannelPreviews internal constructor(
 
     private fun itemOf(
         info: ProgramInfo,
-        runtimeMs: Long?,
+        runtimeMs: Long,
     ) = PreviewItem(info.id, info.title, info.seriesName, info.seasonNumber, info.episodeNumber, minutes(runtimeMs))
 
-    private fun minutes(runtimeMs: Long?): Int = ((runtimeMs ?: 0L) / MS_PER_MINUTE).toInt().coerceAtLeast(1)
+    private fun minutes(runtimeMs: Long): Int = (runtimeMs / MS_PER_MINUTE).toInt().coerceAtLeast(1)
 
     // The day of the draft for one epoch, with the snapshot it was built from.
     private class Today(
         val ruled: RuledDay,
         val snapshot: RuleSnapshot,
-        val layout: tv.stationbreak.core.scheduler.Day,
+        val layout: Day,
     )
 
     private inner class Reading(
@@ -251,31 +267,24 @@ class BuiltInChannelPreviews internal constructor(
         val channel: LineupChannel,
         val rules: ChannelRules,
         val settings: SchedulerSettings,
+        val shared: Set<Long>,
     ) {
         suspend fun dayOf(n: Long): Today {
             val cutoff = Epochs.cutoff(settings, n)
-            // The generation is read before the snapshot, as the schedule source does, so the key is the same.
-            val generation = library.contentGeneration(account)
-            val key = SnapshotCache.Key(account, chosen, cutoff, generation)
             val at = Instant.fromEpochMilliseconds(cutoff)
-            val snapshot = snapshots.get(key) { library.ruleSnapshot(account, chosen, at) }.snapshot
+            val snapshot =
+                if (cutoff in shared) {
+                    // The generation is read before the snapshot, as the schedule source does, so the key is the same.
+                    val key = SnapshotCache.Key(account, chosen, cutoff, library.contentGeneration(account))
+                    snapshots.get(key) { library.ruleSnapshot(account, chosen, at) }.snapshot
+                } else {
+                    library.ruleSnapshot(account, chosen, at)
+                }
             val ruled =
                 ruledDayOf(ceilings, rules, channel, snapshot, settings, n) { r, policy ->
                     PoolEvaluator.evaluate(r, snapshot, policy)
                 }
             return Today(ruled, snapshot, buildDay(settings, ruled.day, n, ruled.films))
-        }
-
-        // The blocks of [today] from [atMs] (the start of the day when null), the one on air first.
-        fun blocksFrom(
-            today: Today,
-            atMs: Long?,
-        ): List<ScheduleBlock> {
-            val layout = today.layout
-            if (layout.blocks.isEmpty()) return emptyList()
-            val from = atMs?.takeIf { it >= layout.startMs && it < layout.endMs } ?: layout.startMs
-            val now = layout.whatsOn(from, ChannelPreviews.NEXT)
-            return listOf(now.block) + now.next
         }
 
         // Picks the kids hold leaves out: a show or film source that has items under no policy and none under the hold.
@@ -320,8 +329,36 @@ class BuiltInChannelPreviews internal constructor(
     }
 
     private companion object {
-        val NOTHING = ChannelPreview(0, 0L, emptyList(), emptyList(), nothingFits = true)
+        val UNAVAILABLE = ChannelPreview(0, 0L, emptyList(), emptyList(), nothingFits = false, unavailable = true)
         val PREVIEW_ID = ChannelId("preview")
         const val MS_PER_MINUTE = 60_000L
+        const val DAY_MS = 86_400_000L
+
+        /** The most epochs a preview reads to find its programs: a day with nothing to air must not loop. */
+        const val MAX_EPOCHS = 3
+    }
+}
+
+/** A program a layout airs: the item and its runtime, as the very day it is in holds it. */
+internal data class Aired(
+    val id: CanonicalId,
+    val runtimeMs: Long,
+)
+
+/**
+ * The programs of [layout] (built from [items]) from [atMs] on, the one on air first: slates are not programs. When
+ * [atMs] is null the day is listed from its start; one at or after the day's end lists nothing (the caller goes on to
+ * the next epoch), one before its start lists it all.
+ */
+internal fun airedFrom(
+    layout: Day,
+    items: List<ScheduleItem>,
+    atMs: Long?,
+): List<Aired> {
+    val runtimes = items.associate { it.id to it.runtimeMs }
+    val from = atMs ?: layout.startMs
+    return layout.blocks.filter { it.endMs > from }.mapNotNull { block ->
+        val id = (block.content as? ScheduleContent.Program)?.itemId
+        id?.let { runtimes[it] }?.let { Aired(id, it) }
     }
 }
