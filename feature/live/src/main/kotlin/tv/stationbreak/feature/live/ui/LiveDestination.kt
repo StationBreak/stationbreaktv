@@ -126,7 +126,9 @@ internal fun LiveRoot(
         transport = transport,
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
-        guide = { pictureHole, onTune -> guide(viewModel.guideChannel, viewModel.guideHeld, guideOpenedAt, pictureHole, onTune) },
+        guide = { pictureHole, onTune ->
+            guide(viewModel.guideChannel, viewModel.guideHeld, guideOpenedAt, pictureHole, onTune)
+        },
         // The machine's own clock, which the transport view's times are in.
         nowMs = viewModel::nowMs,
     ) { AndroidView(factory = { surface }) }

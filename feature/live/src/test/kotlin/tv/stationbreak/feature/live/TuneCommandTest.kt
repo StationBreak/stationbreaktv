@@ -129,7 +129,7 @@ class TuneCommandTest {
             val lookups = f.r.schedule.onAirCalls.size
             val at = currentTime
             f.send(LiveCommand.Tune(CH2))
-            // The lookup starts at once, at the moment of the tune, and the card is up with it: snow, not the old picture.
+            // The lookup starts at once, at the moment of the tune, and the card is up with it: over snow.
             assertEquals(lookups + 1, f.r.schedule.onAirCalls.size)
             assertEquals(at, currentTime)
             assertEquals(LiveState.Choosing(ChannelTag(2, "Test Channel 2"), overPicture = false), f.r.state)

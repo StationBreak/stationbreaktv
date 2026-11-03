@@ -648,7 +648,8 @@ internal class Flipper(
             // joined: it cannot overwrite a tune that has landed only because this machine runs on Main (one thread),
             // so the cancel below takes effect before the landing below.
             val known = cached?.byId(channel)?.tag()
-            val card = if (known != null) null else scope.launch(start = CoroutineStart.UNDISPATCHED) { showCard(channel) }
+            val card =
+                if (known != null) null else scope.launch(start = CoroutineStart.UNDISPATCHED) { showCard(channel) }
             if (known != null) screen.choose(LiveState.Choosing(known, overPicture = false))
             val lookedAt = clock.now()
             val onAir =
@@ -684,9 +685,9 @@ internal class Flipper(
         }
     }
 
-    // The number and name of [channel] from the lineup list, which needs no day built, over snow (the old picture is going
-    // and the new one is not up: a card over nothing is plain black); nothing is shown when it is not there. A cancel
-    // (the lookup ended) stops it before it shows anything.
+    // The number and name of [channel] from the lineup list, which needs no day built, over snow (the old picture is
+    // going and the new one is not up: a card over nothing is plain black); nothing is shown when it is not there. A
+    // cancel (the lookup ended) stops it before it shows anything.
     private suspend fun showCard(channel: ChannelId) {
         val tag =
             try {

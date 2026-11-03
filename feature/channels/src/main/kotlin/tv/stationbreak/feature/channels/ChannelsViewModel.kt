@@ -772,7 +772,7 @@ internal class ChannelsViewModel
                     }
 
                     else -> {
-                        // The domain's rule, as cable does: the next higher, else the next lower; never round to the lowest.
+                        // The domain's rule, as cable does: the next higher, else the next lower; never the lowest.
                         val gone = model.currentNumber
                         if (gone == null) on.firstOrNull()?.id else on.map { it.id to it.number }.neighbourOf(gone)
                     }
