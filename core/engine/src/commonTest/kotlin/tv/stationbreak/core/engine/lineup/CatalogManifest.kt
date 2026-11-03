@@ -122,6 +122,7 @@ private fun canonicalOf(source: Source): String {
             is Source.Library -> "library(${source.id.value})"
             is Source.Series -> "series(${source.id.value})"
             is Source.Item -> "item(${source.id.value})"
+            is Source.Studio -> "studio" + text(source.name)
         }
     return "$body;"
 }

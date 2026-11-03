@@ -1,0 +1,30 @@
+{
+  "formatVersion": 3,
+  "name": "Short Shows, Mid-Length Films",
+  "seed": "43",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filters": {
+    "runtime": {
+      "maxMinutes": 180,
+      "episode": {
+        "maxMinutes": 30
+      },
+      "movie": {
+        "minMinutes": 80,
+        "maxMinutes": 150
+      }
+    }
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

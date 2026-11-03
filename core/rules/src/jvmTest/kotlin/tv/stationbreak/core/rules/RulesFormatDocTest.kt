@@ -107,15 +107,16 @@ class RulesFormatDocTest {
         val banner =
             "> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). " +
                 "Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged " +
-                "(see Format version). Any later change that alters a lineup needs `formatVersion` 3."
+                "(see Format version). Version 3 (2026-11-03): it adds features to version 2 and leaves versions 1 " +
+                "and 2 unchanged. Any later change that alters a lineup needs `formatVersion` 4."
         assertTrue(banner in doc.lines(), "the final banner is missing")
         assertTrue("### Changes to version 1 (2026-10-19)" in doc.lines(), "the amendment section is missing")
         assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
         assertTrue("**Version 2 is final**" in doc, "the Format version text does not say version 2 is final")
         assertTrue("**Version 2 is a Draft**" !in doc, "the Format version text still calls version 2 a Draft")
         assertTrue(
-            "A later change that alters a lineup needs `formatVersion` 3." in doc,
-            "the version 3 rule must apply now that version 2 is final",
+            "A later change that alters a lineup needs `formatVersion` 4." in doc,
+            "the version 4 rule must apply now that version 3 is defined",
         )
         for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
             assertTrue(headings.any { h in it }, "no section heading mentions: $h")
@@ -220,7 +221,7 @@ class RulesFormatDocTest {
     }
 
     @Test
-    fun theVerifyListRejectsVersionThree() {
+    fun theVerifyListRejectsVersionFour() {
         val start = doc.lines().indexOfFirst { it.startsWith("## Verify your client") }
         assertTrue(start >= 0, "no Verify your client section")
         val section =
@@ -229,8 +230,50 @@ class RulesFormatDocTest {
                 .drop(start + 1)
                 .takeWhile { !it.startsWith("## ") }
                 .joinToString("\n")
-        assertTrue("`formatVersion` 3 is not scheduled" in section, "item 9 must reject version 3")
-        assertTrue("`formatVersion` 2 is not scheduled" !in section, "item 9 still rejects version 2")
+        assertTrue("`formatVersion` 4 is not scheduled" in section, "item 9 must reject version 4")
+        assertTrue("`formatVersion` 3 is not scheduled" !in section, "item 9 still rejects version 3")
+    }
+
+    @Test
+    fun theDocNamesFormatVersionThree() {
+        val needles =
+            listOf(
+                "This document defines versions `1`, `2` and `3`",
+                "\"type\": \"studio\"",
+                "`curated`",
+                "`repeatGapMinutes`",
+                "`pairUpToMinutes`",
+                "`notGenres`",
+                "`studios`",
+                "`tags`",
+                "`episode`",
+                "`movie`",
+                "keeps",
+                "floorMod(n * k, s)",
+                "studio fold",
+                "180",
+                "35",
+            )
+        for (needle in needles) assertTrue(needle in doc, "version 3 feature missing from the document: $needle")
+        assertTrue(headings.any { "curated" in it } || doc.lines().any { it == "### `curated`" }, "no curated section")
+    }
+
+    @Test
+    fun theDocStatesTheCuratedDefaultsAndRanges() {
+        val flat = doc.replace(Regex("\\s+"), " ")
+        assertTrue("`repeatGapMinutes` (0 to 1440, default `180`)" in flat, "repeatGapMinutes: range and default")
+        assertTrue("`pairUpToMinutes` (1 to 1440, default `35`)" in flat, "pairUpToMinutes: range and default")
+        assertTrue("restarts at the start of each day" in flat, "the repeat gap restarts each day")
+    }
+
+    @Test
+    fun everyVersion3ExampleIsMentionedInTheDocument() {
+        val files = RulesFormatFiles.validV3.keys
+        assertTrue(files.isNotEmpty(), "no files in examples/v3/")
+        val missing = files.filter { "examples/v3/$it" !in doc }
+        assertTrue(missing.isEmpty(), "version 3 examples not mentioned in the document: $missing")
+        assertTrue("examples/invalid/v3-feature-in-v2.json" in doc, "the invalid version 3 example is not mentioned")
+        assertTrue("channel-rules.v3.schema.json" in doc, "the version 3 schema is not mentioned")
     }
 
     @Test

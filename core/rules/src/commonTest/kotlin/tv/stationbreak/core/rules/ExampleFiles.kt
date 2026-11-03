@@ -1132,6 +1132,27 @@ internal object ExampleFiles {
                   }
                 }
                 """.trimIndent() + "\n",
+            "v3-feature-in-v2.json" to
+                """
+                {
+                  "formatVersion": 2,
+                  "name": "Version 2 Studio",
+                  "seed": "46",
+                  "sources": [
+                    {
+                      "type": "studio",
+                      "name": "Studio A"
+                    }
+                  ],
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
         )
 
     val validV2: Map<String, String> =
@@ -1612,6 +1633,190 @@ internal object ExampleFiles {
                   ],
                   "filters": {
                     "kind": "season"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+        )
+
+    val validV3: Map<String, String> =
+        mapOf(
+            "studio.json" to
+                """
+                {
+                  "formatVersion": 3,
+                  "name": "Studio A Night",
+                  "seed": "40",
+                  "sources": [
+                    {
+                      "type": "studio",
+                      "name": "Studio A"
+                    }
+                  ],
+                  "exclusions": [
+                    {
+                      "type": "studio",
+                      "name": "Studio B"
+                    }
+                  ],
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "filters-tags-studios.json" to
+                """
+                {
+                  "formatVersion": 3,
+                  "name": "Tagged And Produced",
+                  "seed": "41",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "tags": [
+                      "Tag A",
+                      "Tag B"
+                    ],
+                    "studios": [
+                      "Studio A",
+                      "Studio C"
+                    ]
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "not-genres.json" to
+                """
+                {
+                  "formatVersion": 3,
+                  "name": "Comedy Without The Dark Side",
+                  "seed": "42",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "genres": [
+                      "Comedy"
+                    ],
+                    "notGenres": [
+                      "Horror",
+                      "Thriller"
+                    ]
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "runtime-per-kind.json" to
+                """
+                {
+                  "formatVersion": 3,
+                  "name": "Short Shows, Mid-Length Films",
+                  "seed": "43",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "runtime": {
+                      "maxMinutes": 180,
+                      "episode": {
+                        "maxMinutes": 30
+                      },
+                      "movie": {
+                        "minMinutes": 80,
+                        "maxMinutes": 150
+                      }
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "curated.json" to
+                """
+                {
+                  "formatVersion": 3,
+                  "name": "Programmed",
+                  "seed": "44",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "curated"
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
+            "curated-tuned.json" to
+                """
+                {
+                  "formatVersion": 3,
+                  "name": "Programmed And Tuned",
+                  "seed": "45",
+                  "sources": [
+                    {
+                      "type": "studio",
+                      "name": "Studio A"
+                    },
+                    {
+                      "type": "collection",
+                      "id": "22222222222222222222222222222222"
+                    }
+                  ],
+                  "ordering": {
+                    "mode": "curated",
+                    "repeatGapMinutes": 120,
+                    "pairUpToMinutes": 25
+                  },
+                  "filters": {
+                    "notGenres": [
+                      "Horror"
+                    ]
                   },
                   "timing": {
                     "epochHours": 24,

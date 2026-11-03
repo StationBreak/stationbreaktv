@@ -19,6 +19,11 @@ internal class ItemFilters(
     filters: Filters?,
     snapshot: RuleSnapshot,
 ) {
+    init {
+        // The version 3 parts are matched from Task 6; until then a filter that has one must not pass everything.
+        check(filters == null || !filters.usesVersion3) { "format 3 is scheduled from Task 7" }
+    }
+
     private val genres: SourceMatcher? =
         filters?.genres?.let { names -> SourceMatcher(names.map { Source.Genre(it) }, snapshot) }
     private val yearFrom: Int? = filters?.yearFrom

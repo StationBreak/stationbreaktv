@@ -77,6 +77,10 @@ internal class SourceMatcher(
                     items.add(source.id.value, index)
                 }
 
+                is Source.Studio -> {
+                    error("format 3 is scheduled from Task 7")
+                }
+
                 is Source.Genre -> {
                     genreNames.add(source.name)
                     genreSources.add(index)

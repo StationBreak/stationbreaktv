@@ -32,6 +32,7 @@ import tv.stationbreak.core.rules.normalised
 @Suppress("TooManyFunctions") // One step of the draft to rules and back, each.
 internal object DraftRules {
     private const val EPOCH_HOURS = 24
+    private const val FORMAT_3 = 3
     private val NO_EXTRAS = JsonObject(emptyMap())
 
     /** The rules of [draft], under the lineup's [utcOffsetMinutes]. [previous] is the stored rules of an edit. */
@@ -110,11 +111,11 @@ internal object DraftRules {
             }
 
             uncapped && carry != null -> {
-                carry.ordering?.let { Ordering(OrderingMode.Shuffle, null, it.extras) }
+                carry.ordering?.let { Ordering(OrderingMode.Shuffle, extras = it.extras) }
             }
 
             order == PlayOrder.InOrder -> {
-                Ordering(OrderingMode.InOrder, null, extras)
+                Ordering(OrderingMode.InOrder, extras = extras)
             }
 
             else -> {
@@ -122,7 +123,7 @@ internal object DraftRules {
                 val capExtras = carry?.ordering?.caps?.extras ?: NO_EXTRAS
                 val series = draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP
                 val film = draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP
-                Ordering(mode, OrderingCaps(series, film, capExtras), extras)
+                Ordering(mode, OrderingCaps(series, film, capExtras), extras = extras)
             }
         }
     }
@@ -210,6 +211,7 @@ internal object DraftRules {
             is Source.Genre -> source.copy(extras = extras)
             is Source.Series -> source.copy(extras = extras)
             is Source.Item -> source.copy(extras = extras)
+            is Source.Studio -> source.copy(extras = extras)
             is Source.YearRange -> source.copy(extras = extras)
         }
 
@@ -222,6 +224,8 @@ internal object DraftRules {
         number: Int?,
         labels: (DraftSource) -> String,
     ): ChannelDraft {
+        // The builder shows format 3 from Task 9; until then it must not drop a part it cannot show.
+        check(rules.requiredVersion < FORMAT_3) { "format 3 is built from Task 9" }
         val caps = rules.effectiveCaps
         val kept = KeptReader.itemsOf(rules)
         // What the builder cannot show stays in force until the viewer chooses: no order, or no caps, says so.
@@ -280,6 +284,7 @@ internal object DraftRules {
                 is Source.Genre -> DraftSource.Genre(source.name, "")
                 is Source.Series -> DraftSource.Show(source.id.value, "")
                 is Source.Item -> DraftSource.Pick(source.id.value, "")
+                is Source.Studio -> error("format 3 is built from Task 9")
                 is Source.YearRange -> null
             }
         return plain?.let { it.withLabel(labels(it)) }
@@ -292,6 +297,7 @@ internal object DraftRules {
             when (rules.orderingMode) {
                 OrderingMode.Chronological -> items += KeptItem.Order(KeptOrder.Chronological)
                 OrderingMode.RandomInOrder -> items += KeptItem.Order(KeptOrder.RandomInOrder)
+                OrderingMode.Curated -> error("format 3 is built from Task 9")
                 else -> Unit
             }
             rules.sources.filterIsInstance<Source.YearRange>().forEach { items += KeptItem.YearsSource(it.from, it.to) }

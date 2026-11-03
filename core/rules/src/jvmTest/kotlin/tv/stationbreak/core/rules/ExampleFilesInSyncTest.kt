@@ -22,6 +22,12 @@ class ExampleFilesInSyncTest {
     }
 
     @Test
+    fun v3CopiesEqualTheFiles() {
+        assertTrue(RulesFormatFiles.validV3.isNotEmpty(), "no files in examples/v3/")
+        assertEquals(RulesFormatFiles.validV3, ExampleFiles.validV3)
+    }
+
+    @Test
     fun invalidCopiesEqualTheFiles() {
         assertTrue(RulesFormatFiles.invalid.isNotEmpty(), "no files in examples/invalid/")
         assertEquals(RulesFormatFiles.invalid, ExampleFiles.invalid)

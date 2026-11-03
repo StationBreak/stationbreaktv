@@ -1,6 +1,6 @@
 # Channel rules format
 
-> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged (see Format version). Any later change that alters a lineup needs `formatVersion` 3.
+> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged (see Format version). Version 3 (2026-11-03): it adds features to version 2 and leaves versions 1 and 2 unchanged. Any later change that alters a lineup needs `formatVersion` 4.
 
 This document defines the file that describes one StationBreak channel. It is written for a developer who has never seen
 this repository and who wants to build another client (Roku, Apple TV, a web tool) that shows the same lineup as the
@@ -50,14 +50,14 @@ The top-level fields:
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `formatVersion` | yes, no default | Whole number, 1 or more. The version of this format: `1` or `2` (see Format version). |
+| `formatVersion` | yes, no default | Whole number, 1 or more. The version of this format: `1`, `2` or `3` (see Format version). |
 | `name` | no | The channel's display name. |
 | `seed` | yes, no default | The channel's random seed, as a decimal string. |
 | `sources` | yes, no default | List of sources: what can air. At least 1. |
 | `exclusions` | no | List of sources that must not air. Default: none. |
 | `maxRating` | no | A rating ceiling. Default: no ceiling. |
-| `filters` | no | Version 2 only. Object that narrows the pool further (see Filters). Default: none. |
-| `ordering` | no | Object with the ordering `mode` and, in version 2, `caps`. Default: `shuffle`. |
+| `filters` | no | Version 2 and later. Object that narrows the pool further (see Filters). Default: none. |
+| `ordering` | no | Object with the ordering `mode` and, in version 2, `caps` and, in version 3, `repeatGapMinutes` and `pairUpToMinutes`. Default: `shuffle`. |
 | `timing` | yes | Object with `blockLength`, `alignToGrid`, `epochHours` and `broadcastDay`. |
 | `timing.broadcastDay` | yes | Object with `utcOffsetMinutes` and `start`. |
 | `timing.broadcastDay.utcOffsetMinutes` | yes, no default | The channel's fixed UTC offset, in minutes. |
@@ -76,7 +76,7 @@ holds a secret and never causes a client to fetch a URL.
 
 - **Item**: one movie or one episode that can air.
 - **Pool**: the set of items a channel may air, worked out from the sources, the exclusions, the rating ceiling and (in
-  version 2) the filters.
+  version 2 and later) the filters. The pool of one epoch is cut further by the time rules of The pool of an epoch.
 - **Library snapshot**: the cached set of items, with their fields, that the signed-in account can see when a schedule is
   worked out (see Items and the pool). It also holds each series that an episode's `SeriesId` points to, with that
   series' rating, genres and tags.
@@ -91,24 +91,43 @@ holds a secret and never causes a client to fetch a URL.
   `shuffle` order has a seed of its own for each epoch; the other orders do not (see Ordering).
 - **Cycle**: the runs of one epoch's pool in order, once through, without the runs that are left out (see Left-out runs). It
   repeats when it runs out.
+- **Title**: a series, for an episode that has a series ID, and the item itself for every other item. A title is named by
+  its canonical ID. Version 3 weights and trims titles (see `curated` and The pool of an epoch).
+- **Side input**: something the schedule is built from that is not in the rules file and not an item: the film-to-collection
+  map, and in version 3 the weights and the keeps. Two clients give the same lineup only when they give the same side
+  inputs; a rules file read on its own gives a weight of 1 to every title, keeps everything, and (for `curated`) uses the
+  franchise map of the library.
 - **Grid mark**, **slot**, **continuous playout**: see Building the schedule.
 - **Broadcast day**: the daily start of the first epoch, on the channel's own fixed-offset clock.
 - **Canonical ID**: an item ID as 32 lower-case hex characters (see Item IDs).
 
 ## Format version
 
-`formatVersion` is a whole number of 1 or more. This document defines versions `1` and `2`.
+`formatVersion` is a whole number of 1 or more. This document defines versions `1`, `2` and `3`.
 
 **Version 2 is final** (2026-11-02), with its independently computed vectors. The owner accepted the one known cost of its
 layout, that the planned end of a day may be played again at the start of the next (issue #546), rather than change the layout
-after the fact. A later change that alters a lineup needs `formatVersion` 3.
+after the fact.
+
+**Version 3** (2026-11-03) is a strict superset of version 2. It adds, and changes nothing in version 1 or 2: the source
+and exclusion `studio`; the filters `tags`, `studios` and `notGenres`; a runtime window for each kind of item
+(`filters.runtime.episode` and `filters.runtime.movie`); the ordering mode `curated` with its two tunables
+`ordering.repeatGapMinutes` and `ordering.pairUpToMinutes`; and, for the building of a day, two side inputs and one pool
+rule, the trim window (see The pool of an epoch). The trim window and the weights act only when a client gives the
+scheduler a non-empty `keeps` or `weights`, which no version 1 or version 2 client does, so a version 1 or 2 lineup is the
+same in a version 3 client. A later change that alters a lineup needs `formatVersion` 4.
 
 **A writer that creates or edits rules writes the lowest version whose features the rules use.** A file that uses nothing
-from version 2 says `1`. A file that is read and written back unchanged keeps the version it had. The presence of `filters`
-(even `{}`) or of `ordering.caps` (even beside a mode that ignores them) counts as using version 2.
-**A reader that supports version 2 reads a version 1 file unchanged.** Version 2 adds, and changes nothing in version 1:
-the orders `rotation` and `inOrder`, `ordering.caps`, the `item` source and exclusion, and `filters`. Version 1 and
-version 2 coexist, and no file is migrated.
+from version 2 or 3 says `1`. A file that is read and written back unchanged keeps the version it had. The presence of `filters`
+(even `{}`) or of `ordering.caps` (even beside a mode that ignores them) counts as using version 2. Any one of these counts
+as using version 3: a `studio` source or exclusion; a `tags`, `studios` or `notGenres` filter; a `runtime.episode` or
+`runtime.movie` window; the mode `curated`; an `ordering.repeatGapMinutes` or `ordering.pairUpToMinutes` (even beside a
+mode that ignores them). A builder that edits a file moves it to version 3 when it adds one of these, and back down to the
+lowest version the rules need when it removes the last one.
+**A reader that supports version 2 reads a version 1 file unchanged, and a reader that supports version 3 reads version 1
+and version 2 files unchanged.** Version 2 adds, and changes nothing in version 1:
+the orders `rotation` and `inOrder`, `ordering.caps`, the `item` source and exclusion, and `filters`. Versions 1, 2 and 3
+coexist, and no file is migrated.
 
 **Version 2 features are read only in a file that says `formatVersion` 2.** In a file that says `1`:
 
@@ -116,11 +135,20 @@ version 2 coexist, and no file is migrated.
   **unsupported** (see Unknown fields and unsupported kinds);
 - `filters` and `ordering.caps` are unknown fields: they are kept and ignored.
 
+**Version 3 features are read only in a file that says `formatVersion` 3.** In a file that says `1` or `2`:
+
+- the source and exclusion `type` `studio` and the ordering `mode` `curated` are unknown kinds, so the channel is
+  **unsupported** (see Unknown fields and unsupported kinds);
+- `filters.tags`, `filters.studios`, `filters.notGenres`, `filters.runtime.episode`, `filters.runtime.movie`,
+  `ordering.repeatGapMinutes` and `ordering.pairUpToMinutes` are unknown fields: they are kept and ignored. (So a version 2
+  `runtime` that holds only `episode` or `movie` has no bound of its own and is invalid, as a `runtime` with neither bound
+  is.)
+
 **A reader must read `formatVersion` first, before anything else in the file.** It must be able to do this even when the
 rest of the file is unreadable. The only things checked before it are the input limits (see Limits) and the JSON profile
 (see JSON profile): a file over a limit, or one that breaks the profile, is invalid even when its `formatVersion` is newer.
 
-- If `formatVersion` is higher than the highest version the reader supports (3 or more, for a reader of this document),
+- If `formatVersion` is higher than the highest version the reader supports (4 or more, for a reader of this document),
   the reader must **not** schedule the
   channel, must not try to read the rest, and should tell the user that an update is required. It must never play a
   best-effort lineup from a newer file.
@@ -193,7 +221,7 @@ JSON value, not as the same bytes: an escape may be written differently, and a n
 `100.0`. Writing the shipped examples gives back the same bytes.
 
 **A writer that creates or edits rules must write the lowest `formatVersion` whose features they use.** Rules that only use
-version 1 features say `1`, even when the writer also knows version 2. That keeps older apps working for as long as
+version 1 features say `1`, even when the writer also knows version 2 or 3. That keeps older apps working for as long as
 possible. (A file read and written back unchanged keeps its version.)
 
 **A change needs a new `formatVersion` when it could change which items air, or in what order.** That includes:
@@ -228,7 +256,10 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
      mostly on the series and the movie, not on each episode, so without this rule a genre channel made of TV shows would
      be empty;
    - `yearRange`: if the item's **own** production year is in the range. An item with no production year is **not**
-     included. A client must not guess a year from the series.
+     included. A client must not guess a year from the series;
+   - `studio` (version 3): if the item has a studio whose name equals the source's `name` under the **studio fold** (see
+     String matching), **or if it is an episode and its series has one**. Jellyfin keeps studios on the series, so an
+     episode takes its series' studios as it takes its series' genres and tags.
 3. **Union, then exclusions.** The pool starts as every item that matches **any** source. An item that matches several
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
    matches **any** exclusion (with the same matching rules) is removed. Exclusions **fail closed**, in the two cases below.
@@ -239,8 +270,10 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
      library snapshot, whatever the episode's own genres and tags are. An episode with no series ID, and a movie, are
      checked on their own genres and tags alone;
    - `library`, `series` and `item` exclusions are decided by the IDs alone and are not changed. A `genre` or `tag` **source**
-     is not changed either: for an episode whose series is missing it uses the episode's own names only.
-   After the exclusions, a version 2 file's `filters` narrow the pool further (see Filters).
+     is not changed either: for an episode whose series is missing it uses the episode's own names only. A `studio`
+     source or exclusion (version 3) is not changed either: for an episode whose series is missing it uses the episode's
+     own studios only, and does not fail closed.
+   After the exclusions, the `filters` of a version 2 or 3 file narrow the pool further (see Filters).
 4. **Rating ceiling.** If `maxRating` is present, an item stays only if it passes the rating rule (see Maximum rating
    and the rating ladder). A **movie** passes only if its own rating passes. An **episode** passes only if **both** of
    these hold:
@@ -258,7 +291,7 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    closed, and the cure is to fix the episode's rating on the server.
 5. **The library snapshot.** The pool is worked out from the *library snapshot*: the cached set of items, and their
    genres, tags, years, ratings, dates, season and episode numbers, that the signed-in account can see. It also holds each
-   series that an episode's `SeriesId` points to, with that series' rating, genres and tags. Rules 1 to 4 pick the items
+   series that an episode's `SeriesId` points to, with that series' rating, genres, tags and studios. Rules 1 to 4 pick the items
    from it. Which of those items count for which epoch (the creation time, the deletion time and the runtime) is decided by
    The pool of an epoch, in Building the schedule. The format only says what is looked up in the snapshot.
 
@@ -279,6 +312,11 @@ The scheduler's item fields (see Building the schedule, Inputs and outputs) come
   season number **must** be `ParentIndexNumber` and the episode number **must** be `IndexNumber`.
 - The rating of a movie, an episode and a series **must** be that item's own `OfficialRating`, as the server sends it. It
   must never be `CustomRating`, and never a value the client has inherited from another item itself.
+- The `genres` and `tags` of an item or a series are the server's `Genres` and `Tags`, as sent. The `studios` of an item or a
+  series are the `Name` of each entry of the server's `Studios`, in the server's order: an entry whose name is missing, or
+  is longer than 256 UTF-16 code units, is dropped; every other name is cleaned as the studio fold says (see String
+  matching) and is dropped if nothing is left; and only the first 16 names that remain are kept. A client **must** follow
+  this, because a `studio` source and the `studios` filter compare against exactly these names.
 - A collection's members **must** be read as rule 2 says (member movies, member episodes, episodes of member series and
   episodes of member seasons, with no recursion into nested collections).
 
@@ -287,7 +325,7 @@ The scheduler's item fields (see Building the schedule, Inputs and outputs) come
 ## Sources
 
 `sources` is a list of up to 256 objects. Each has a `type` that says what kind of source it is. Every source is an
-object that is open to extra fields. The kind `item` is read only in a version 2 file.
+object that is open to extra fields. The kind `item` is read only in a file of version 2 or 3, and the kind `studio` only in a version 3 file.
 
 | `type` | Other fields | Matches |
 | --- | --- | --- |
@@ -298,6 +336,7 @@ object that is open to extra fields. The kind `item` is read only in a version 2
 | `yearRange` | `from`, `to` | Every item whose production year is from `from` to `to`, both included. |
 | `series` | `id` | A specific series: every episode of the series with that ID. |
 | `item` | `id` | Version 2. One movie or one episode: the item with that ID. |
+| `studio` | `name` | Version 3. Every item that has a studio with that name under the studio fold, and every episode whose series has one. |
 
 The exact matching is in Items and the pool. A `series` source already selects a whole show; to leave one episode out of
 it, use the exclusions list, which accepts `item` too (see Exclusions).
@@ -311,7 +350,9 @@ series, a collection, a library), or that is not in the library snapshot, matche
 to the union. As an exclusion it removes it, and it is decided by the ID alone: it does not fail closed.
 
 - `id` is an item ID in the canonical form (see Item IDs).
-- `name` is 1 to 256 Unicode code points and is matched as described in String matching.
+- `name` is 1 to 256 Unicode code points and is matched as described in String matching. (For a `studio` it is matched
+  under the **studio fold**, which is stricter about what it ignores: see Studio names in String matching. A `studio`
+  name that is empty once cleaned matches nothing.)
 - `from` and `to` are whole numbers from 1 to 9999. `to` must not be lower than `from`. A reader treats a file where it
   is lower as invalid. (The JSON Schema cannot express this; the reader checks it.)
 
@@ -323,6 +364,14 @@ Each kind has its own example file:
 - `docs/rules-format/examples/tag.json` selects a tag.
 - `docs/rules-format/examples/year-range.json` selects the years 1990 to 1999.
 - `docs/rules-format/examples/series.json` selects one series.
+
+`studio` (version 3) matches an item that has a studio whose name equals `name` under the studio fold, and an episode whose
+series has one. It is a source and an exclusion like `genre` and `tag`. `docs/rules-format/examples/v3/studio.json` has a
+`studio` source and a `studio` exclusion:
+
+```jsonc
+{ "type": "studio", "name": "Studio A" }
+```
 
 For example, the whole of `genre-with-max-rating.json`:
 
@@ -344,7 +393,8 @@ rules file that names a library, collection or series by ID only makes sense on 
 ## Exclusions
 
 `exclusions` is an optional list of up to 256 objects. It uses **the same kinds as sources**, with the same fields. That
-includes `item` in a version 2 file, which removes one movie or one episode.
+includes `item` in a file of version 2 or 3, which removes one movie or one episode, and `studio` in a version 3 file, which
+removes every item of that studio and every episode of a series of that studio.
 
 How they combine: first take the union of all `sources`. Then remove every item that matches **any** exclusion. An item
 that is excluded cannot be brought back by any source. The rating ceiling is applied on top: an item has to pass both.
@@ -374,26 +424,41 @@ range and series). Its `sources` and `exclusions` are:
 
 ## Filters
 
-`filters` is an optional object, **read only in a version 2 file** (in a version 1 file it is an unknown field: kept and
-ignored). It narrows the pool. Every part it holds must pass, and so must the rating ceiling: all given parts are
+`filters` is an optional object, **read only in a file of version 2 or 3** (in a version 1 file it is an unknown field: kept
+and ignored). It narrows the pool. Every part it holds must pass, and so must the rating ceiling: all given parts are
 **AND-combined** with each other and with `maxRating`. Filters are applied to the items that remain after the sources
 minus the exclusions (see Items and the pool). An item that fails a filter is out of the pool, and nothing brings it back.
 
 | Part | Value | An item passes when |
 | --- | --- | --- |
 | `genres` | List of 1 to 256 names | It has **any** of the names. A name is matched exactly as a `genre` source is (see String matching), and an episode also takes its series' genres, as a `genre` source says; an episode whose series is not in the snapshot is checked on its own genres alone, and the filter does not fail closed. |
+| `notGenres` | Version 3. List of 1 to 256 names | It has **none** of the names. A name is matched as in `genres`, and an episode also takes its series' genres, so an episode of a series that has a listed genre fails. It **fails closed**: an episode whose series ID is present but whose series is not in the snapshot fails, whatever its own genres are, because its series' genres cannot be checked. A movie, and an episode with no series ID, are checked on their own genres alone. |
+| `tags` | Version 3. List of 1 to 256 names | It has **any** of the names. A name is matched as a `tag` source is, and an episode also takes its series' tags; an episode whose series is not in the snapshot is checked on its own tags alone, and the filter does not fail closed. |
+| `studios` | Version 3. List of 1 to 256 names | It has **any** of the studios, under the studio fold (see String matching), and an episode also takes its series' studios; an episode whose series is not in the snapshot is checked on its own studios alone, and the filter does not fail closed. |
 | `years` | `{ "from", "to" }` | Its **own** production year is from `from` to `to`, both included, as for a `yearRange` source. An item with no production year fails. `from` and `to` are whole numbers from 1 to 9999 and `to` is not below `from`. |
-| `runtime` | `{ "minMinutes", "maxMinutes" }` | Its runtime, as read at the cut-off `S - G` (see The pool of an epoch), is at least `minMinutes` and at most `maxMinutes`, both included, in whole minutes (compared in milliseconds: `minMinutes * 60000` and `maxMinutes * 60000`). Each is a whole number from 1 to 1440; `minMinutes` is not above `maxMinutes`; at least one is given. An item with no runtime is already out of the pool. |
+| `runtime` | `{ "minMinutes", "maxMinutes" }`, and in version 3 also `"episode"` and `"movie"` | Its runtime, as read at the cut-off `S - G` (see The pool of an epoch), is at least `minMinutes` and at most `maxMinutes`, both included, in whole minutes (compared in milliseconds: `minMinutes * 60000` and `maxMinutes * 60000`). Each is a whole number from 1 to 1440; `minMinutes` is not above `maxMinutes`. An item with no runtime is already out of the pool. The version 3 parts are described below. In version 2, at least one of `minMinutes` and `maxMinutes` is given. In version 3, at least one of the four parts is given. |
 | `kind` | `"movie"` or `"episode"` | It is of that kind. |
+
+**The per-kind runtime windows** (version 3). `runtime.episode` and `runtime.movie` are each an object
+`{ "minMinutes", "maxMinutes" }` with the same ranges as the general window (whole minutes from 1 to 1440, `minMinutes`
+not above `maxMinutes`) and with at least one bound given. The `episode` window applies to episodes only and the `movie`
+window to movies only; the other kind is not touched by it. An item passes the `runtime` part when it passes the general
+window (if there is one) **and** the window of its own kind (if there is one). All of them compare the runtime as read at the
+cut-off `S - G`, in milliseconds, both bounds included, and are applied where the epoch's pool is cut (see The pool of an
+epoch). For example `{ "maxMinutes": 180, "episode": { "maxMinutes": 30 }, "movie": { "minMinutes": 80, "maxMinutes": 150 } }`
+keeps an episode of up to 30 minutes and a movie of 80 to 150 minutes, and nothing longer than 180 minutes. A `runtime`
+object that has only an `episode` window is valid in version 3: films are then not limited by it.
 
 An unknown `kind` value (not `"movie"` or `"episode"`) is an unknown kind, not a bad value: the file is **unsupported**, as
 for an unknown source type (see Unknown fields and unsupported kinds). The other parts are still checked first, so a file with
 an unknown `kind` and a bad `genres` list is invalid. An empty `filters` object is valid and changes nothing. A part that is not on this list is an unknown field. A filter
 with a bad value (an empty `genres` list, `years` with `to` below `from`, `minMinutes` above `maxMinutes`, a `runtime`
-with neither bound, a `kind` of the wrong type) makes the file invalid.
+with no bound, a `kind` of the wrong type, or in version 3 an empty `tags`, `studios` or `notGenres` list, or a per-kind
+window with no bound) makes the file invalid. In a file that says `2`, the version 3 parts are unknown fields and are not
+checked.
 
-`filters` change which items air, so they are a version 2 feature. They do not change the rating ceiling: an item still
-needs to pass `maxRating` (and its fail-closed rules) as well.
+`filters` change which items air, so they are a version 2 feature, and the parts listed as version 3 above need version 3.
+They do not change the rating ceiling: an item still needs to pass `maxRating` (and its fail-closed rules) as well.
 
 ```jsonc
 {
@@ -408,11 +473,16 @@ needs to pass `maxRating` (and its fail-closed rules) as well.
 
 (This fragment is part of a version 2 file, `docs/rules-format/examples/v2/filters.json`.)
 
+The version 3 parts each have a file: `docs/rules-format/examples/v3/filters-tags-studios.json` (`tags` and `studios`),
+`docs/rules-format/examples/v3/not-genres.json` (`genres` with `notGenres`) and
+`docs/rules-format/examples/v3/runtime-per-kind.json` (a general window and a window for each kind).
+
 ## Ordering
 
-`ordering` is an object with the field `mode` and, in version 2, the field `caps`. `mode` is one of five exact names in
-lowerCamelCase: `shuffle`, `chronological`, `randomInOrder`, `rotation` or `inOrder`. `rotation` and `inOrder` are read
-only in a version 2 file. If `ordering` is absent, the mode is `shuffle`.
+`ordering` is an object with the field `mode` and, in version 2, the field `caps` and, in version 3, the fields
+`repeatGapMinutes` and `pairUpToMinutes`. `mode` is one of six exact names in lowerCamelCase: `shuffle`, `chronological`,
+`randomInOrder`, `rotation`, `inOrder` or `curated`. `rotation` and `inOrder` are read only in a file of version 2 or 3, and
+`curated` only in a version 3 file. If `ordering` is absent, the mode is `shuffle`.
 
 **`ordering.caps`** (version 2, optional) is an object `{ "series", "film" }`. Each is a whole number from **1 to 10**, and
 each is optional: the default for `series` is `3` and the default for `film` is `1`. A cap is the longest stretch of one
@@ -428,8 +498,17 @@ the mode: a value outside 1 to 10 makes the file invalid.
   the other modes, so a `caps` object next to those modes is valid with any `epochHours`, and so is a version 1 file with
   `caps` and a short epoch, because the caps are unknown fields there and are ignored.
 - `timing.blockLength` is ignored by `rotation`: its turns are set by the caps.
+- `curated` has no caps: a version 3 file whose `ordering` has `mode` `curated` and a `caps` object is invalid.
+  `timing.blockLength` is ignored by `curated` too: its runs are set by `pairUpToMinutes`.
 
-All five modes work in **epochs** (see Timing), and the pool of each epoch is worked out on its own (see Building the
+**`ordering.repeatGapMinutes`** (version 3, optional) is a whole number of minutes from **0 to 1440**. **`ordering.pairUpToMinutes`**
+(version 3, optional) is a whole number of minutes from **1 to 1440**. They are read by `curated` (see `curated`) and
+**ignored by the other five modes**, but they are validated whatever the mode: a value outside its range, or of the wrong
+type, makes the file invalid. In a file that says `1` or `2` they are unknown fields. When a file does not give them, a reader
+uses the defaults: `repeatGapMinutes` (0 to 1440, default `180`) and `pairUpToMinutes` (1 to 1440, default `35`). A writer may
+write a default or leave it out, as for every default.
+
+All six modes work in **epochs** (see Timing), and the pool of each epoch is worked out on its own (see Building the
 schedule). This section defines the **order of one epoch's pool**, as a list. Which seed each mode uses:
 
 | Mode | Seed used for the order |
@@ -439,6 +518,7 @@ schedule). This section defines the **order of one epoch's pool**, as a list. Wh
 | `randomInOrder` | The channel `seed` itself, **not** `seed_n`. The order of the groups is the same on every day. |
 | `rotation` | The channel `seed` itself, as `randomInOrder`. |
 | `inOrder` | None. The order is a sort by a key. |
+| `curated` | `seed_n`, the seed of the epoch, so each day has its own order. |
 
 Where in this order a day starts, and how the order is cut into runs and laid out on the clock, is in Building the
 schedule.
@@ -606,6 +686,8 @@ or a collection matches nothing: it names a movie or an episode.
 
 The map from film to collection ID is worked out for the epoch from the as-of library snapshot (see The pool of an
 epoch) and the rules' `sources`. It is an input to building the day, as the items are; an item has no collection field.
+(`curated` reads a different map, the franchise map, which is not limited to the collections named in `sources`: see
+`curated`.)
 
 For `inOrder`, **every film is a group of one**: collections do not group films in that mode.
 
@@ -741,6 +823,94 @@ Worked example. Show `Y` has episodes Y1, Y2, and Y1 premiered on 2000-03-01; th
 has episodes X1, X2, and X1 premiered on 2001-01-01. The groups sort by their first dated item: Y (2000-03-01), then F
 (2000-06-01), then X (2001-01-01). The order is Y1 Y2 F X1 X2, whatever the channel seed.
 
+### `curated`
+
+(Version 3.) `curated` plays every title in turn, in a day-by-day order that spreads titles and franchises apart, gives
+short episodes in pairs, and lets a heavier title come round a little more often. Like `shuffle`, it works from the seed of
+the day, so each day has its own order, and a day starts at its first run. Its inputs are the pool of the day (after the
+trim window of The pool of an epoch), `seed_n`, the two tunables, the grid (`alignToGrid` and `gridMinutes`) and two side
+inputs. Everything below is in whole numbers; there is no random stream.
+
+**The tunables.** `repeatGapMs = repeatGapMinutes * 60000` and `pairUpToMs = pairUpToMinutes * 60000`, with the defaults of
+Ordering (`180` and `35` minutes, that is `10800000` and `2100000` ms) when the file does not give them.
+
+**The side inputs.**
+
+- **The franchise map.** Every collection in the library snapshot is a candidate (not only the collections named in
+  `sources`); a collection that is not in the snapshot groups nothing. A film (a movie of the pool) that is a **member
+  movie** of at least one such collection is mapped to the collection with the **smallest canonical ID** (compared as the
+  32 ASCII bytes, unsigned) among those it is a member of. Episodes are never mapped. The map is worked out from the as-of
+  library snapshot (see The pool of an epoch).
+- **The weights.** A map from a title ID to a whole number from 1 to 3. A title that is not in it has weight 1. A rules file
+  read on its own gives every title weight 1.
+
+**The walk.** `curated` is the order of the walk below, cut into runs as the walk emits them.
+
+1. **Groups.** An episode that has a series ID is in the **series group** whose group ID is that series ID. A film that is in
+   the franchise map is in the **franchise group** whose group ID is the collection ID the map gives. Every other item (a
+   film that is in no collection, an episode with no series ID) is a group of one, with its own ID as group ID.
+2. **The queue of a group.** The members of a group are first put in order: a series group by the in-group key of
+   `randomInOrder`; a franchise group by release order (the key of `rotation`'s collection groups: undated flag, date,
+   canonical ID, where the date is the premiere date or else the production year as `YYYY-01-01`); a group of one is its item.
+   Let `size` be the number of members and `key(g)` be the **group key** `splitmix64(seed_n + fnv1a64(groupIdBytes))`, with
+   the seed `seed_n` of this day and `groupIdBytes` the 32 ASCII bytes of the group ID; keys are compared as unsigned numbers.
+   The queue is the members from member number `key(g) mod size` (unsigned remainder, counting from 0) to the last, then
+   from the first to the member before it. Each member is in the queue once.
+3. **The weight of a group.** `w(g)` is the largest weight, over the members of the group, of the member's title (the
+   series ID of an episode that has one, else the item's own ID; weight 1 when the title is not in the weights).
+4. **Start.** `clock = 0`. For every group, `last(g)` is none, and its **pass** starts at
+   `floorDiv((key(g) mod 5400000) * 6, w(g))`, where `key(g) mod 5400000` is the unsigned remainder.
+5. **Repeat** until every queue is empty:
+   1. The **live** groups are those whose queue is not empty. A live group is **ready** when `last(g)` is none or
+      `clock - last(g) >= repeatGapMs`.
+   2. If at least one live group is ready, choose among the ready groups the one with the smallest `pass`; ties go to the
+      smaller `key(g)` (unsigned), then to the smaller group ID bytes (unsigned). If none is ready, choose among all live
+      groups the one with the smallest `last(g)` (the one that aired longest ago), with the same ties after it: the smaller
+      `pass`, then the smaller `key(g)`, then the smaller group ID bytes.
+   3. Let `x` be the first member in the chosen group's queue. The **run** is `[x]`, except that it is `[x, y]` when the
+      chosen group is a series group, at least two members are left in its queue, `y` is the second of them, and both
+      `runtimeMs(x)` and `runtimeMs(y)` are at most `pairUpToMs`. (A film, a franchise group and a group of one never pair.)
+   4. Remove the run's items from the queue and emit the run. Then, with `slot(run)` as defined in Grid marks and slots:
+
+      ```text
+      last(g) = clock
+      clock   = clock + slot(run)
+      pass(g) = pass(g) + floorDiv(runtime(run) * 6, w(g))        (runtime(run) is the sum of runtimeMs of its items)
+      ```
+
+The order is the emitted runs, in the order they were emitted. Each item of the pool is in exactly one run. When a group is
+the only one live it is chosen each time (it is the only choice, ready or not), so a pool of a single group, or a pool
+shorter than `repeatGapMs`, plays straight through: the walk never stops or leaves a gap for a repeat. The `pass` values
+make a title with weight 2 or 3 come back about two or three times as often as a title with weight 1 for the same
+airtime; the part of the pass that comes from the key is a jitter of at most 90 minutes of airtime. With
+`repeatGapMinutes` `0` every group is always ready.
+
+The repeat gap is measured on the walk's own `clock`, which starts at `0` at the start of the walk, and the walk is made
+afresh for each day: the gap restarts at the start of each day, and two titles that end one day and start the next can
+air close together. Runs that can never fit a day are left out as for every mode (see Left-out runs), after the walk.
+
+Worked example. `alignToGrid` is true on a 30-minute grid, both tunables are the defaults, every weight is 1, and every
+epoch is long enough. Series `A` has four 22-minute episodes a1 to a4 (in queue order), series `B` has two 45-minute episodes
+b1 and b2, the franchise `C` has two 100-minute films c1 and c2, and `D` is a single 90-minute film. Suppose `key(g) mod 5400000`
+is `0`, `100`, `200` and `300` for `A`, `B`, `C` and `D`, so the starting passes are `0`, `600`, `1200` and `1800`. Times are in
+milliseconds in the trace, with `1 min = 60000`.
+
+```text
+step clock       ready groups     chosen   run        slot      last(g) pass after
+ 1   0           A B C D          A        [a1 a2]    60 min    0       0 + 2640000*6 = 15840000
+ 2   3600000     B C D            B        [b1]       60 min    3600000 600 + 2700000*6 = 16200600
+ 3   7200000     C D              C        [c1]       120 min   7200000 1200 + 6000000*6 = 36001200
+ 4   14400000    A B D            D        [d]        90 min    14400000 1800 + 5400000*6 = 32401800
+ 5   19800000    A B C            A        [a3 a4]    60 min    19800000 15840000 + 15840000 = 31680000
+ 6   23400000    B C              B        [b2]       60 min    23400000 (b has one left: no pair)
+ 7   27000000    C                C        [c2]       120 min   27000000
+```
+
+At step 2 `A` is not ready (`3600000 < 10800000`); at step 4 `B` is ready at exactly `14400000 - 3600000 = 10800000` (the test is
+`>=`) and `A` is ready, but `D` has never aired and has the smallest pass, `1800`, so `D` goes first. The cycle is
+`[a1 a2] [b1] [c1] [d] [a3 a4] [b2] [c2]`. `docs/rules-format/examples/v3/curated.json` selects it with the defaults and
+`docs/rules-format/examples/v3/curated-tuned.json` sets both tunables.
+
 ## Timing
 
 `timing` is an object, and it is **required** because it holds the broadcast-day offset, which has no default. Its other
@@ -748,7 +918,7 @@ fields are optional.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `blockLength` | `1` | Items per run: the number of consecutive items (for example 2 episodes of one series) that play together, back to back, as one run (see Runs). A whole number from 1 to 100. Ignored by `rotation`. |
+| `blockLength` | `1` | Items per run: the number of consecutive items (for example 2 episodes of one series) that play together, back to back, as one run (see Runs). A whole number from 1 to 100. Ignored by `rotation` and `curated`. |
 | `alignToGrid` | `true` | Runs start on the grid marks (every `gridMinutes`, see that row) of the clock described below. If `false`, a run starts when the previous one ends. |
 | `epochHours` | `24` | The length of an epoch, in hours. One of 1, 2, 3, 4, 6, 8, 12 or 24 (a whole number of hours that divides 24, so that the day repeats). With caps in force it must be 24 (see Ordering). |
 | `graceHours` | `6` | The grace window G, in hours: an item joins epoch `n` only if it was added before `epochStart(n)` minus G, so that every device has had time to sync it (see The pool of an epoch). A whole number from 0 to 48. |
@@ -845,13 +1015,16 @@ epoch) at a time, and a day is worked out from that day's items alone.
 **Settings.** The numbers the scheduler reads from the rules (see Timing and Ordering). Defaults for absent fields are
 filled in from the rules first; the scheduler has none of its own.
 
-- mode: `shuffle`, `chronological`, `randomInOrder`, `rotation` or `inOrder`;
+- mode: `shuffle`, `chronological`, `randomInOrder`, `rotation`, `inOrder` or `curated`;
 - `caps`: none, or the `series` and `film` caps, each 1 to 10. A scheduler always gets both values: the rules layer fills
   in the defaults (3 and 1), the scheduler has none of its own. They are present, and so in force, for `rotation` (which
   always carries them) and for a capped `shuffle`. The rules layer drops `caps` for the other modes, so a scheduler is not given
   them there; one that is ignores them in the order and checks them like any caps (so `epochHours` must be 24 below);
-- `runtimeFilter`: none, or a window `minMs` and/or `maxMs` in milliseconds (`minMinutes * 60000`, `maxMinutes * 60000`):
-  a pool condition, see The pool of an epoch;
+- `runtimeFilter`: none, or a window `minMs` and/or `maxMs` in milliseconds (`minMinutes * 60000`, `maxMinutes * 60000`)
+  and, in version 3, a window `episodeMinMs`/`episodeMaxMs` for episodes and a window `movieMinMs`/`movieMaxMs` for movies,
+  each part given or not: a pool condition, see The pool of an epoch;
+- `repeatGapMs` and `pairUpToMs`: `repeatGapMinutes * 60000` and `pairUpToMinutes * 60000`, with the defaults `10800000` and
+  `2100000` filled in by the rules layer. A scheduler always gets both; only `curated` reads them;
 - `seed`: the channel seed, an unsigned 64-bit number;
 - `blockLength`: items per run, 1 to 100 (not read by `rotation`);
 - `alignToGrid`: true or false;
@@ -864,7 +1037,12 @@ filled in from the rules first; the scheduler has none of its own.
 
 With caps in force, `epochHours` must be 24; any other value is an input error at the scheduler. A scheduler also takes the
 **film-to-collection map** of the epoch (see Groups in version 2) as an input; it is empty unless the mode is `rotation` or
-a capped `shuffle`, and every other mode ignores it.
+a capped `shuffle`, or `curated` (which reads the franchise map of `curated` instead: every film of the pool that is a member
+movie of any collection of the library snapshot, mapped to the smallest such collection ID), and every other mode ignores it.
+A scheduler also takes two more **side inputs** (version 3): the **weights**, a map from a title ID to a whole number from 1 to
+3 (only `curated` reads them; a title that is absent has weight 1), and the **keeps**, a map from a series ID to a cap in
+whole milliseconds, 1 or more (every mode applies them; see the trim window in The pool of an epoch). An empty map and an absent
+map are the same, and a scheduler that is given none of them gives the same day as a version 2 scheduler.
 
 From these: `offsetMs`, `startMs` and `epochMs` as in Timing, and
 
@@ -959,7 +1137,7 @@ product is the low 64 bits of `nU * 0x9E3779B97F4A7C15`, so `(2^64 - 1) * gamma`
 seed `1`, `n = -1`: the sum is `1 + (2^64 - gamma) = 0x61C8864680B583EC`, and `seed_n = splitmix64(0x61C8864680B583EC) =
 0x5692161D100B05E5`. The vectors are in `docs/rules-format/vectors/epoch-seed.json`, and include negative `n`.
 
-Only `shuffle` (with or without `caps`) uses `seed_n`. `chronological`, `randomInOrder`, `rotation` and `inOrder` do not use it (see Ordering).
+Only `shuffle` (with or without `caps`) and `curated` use `seed_n`. `chronological`, `randomInOrder`, `rotation` and `inOrder` do not use it (see Ordering).
 
 ### The pool of an epoch
 
@@ -975,9 +1153,38 @@ An item is in the pool of day `n` if and only if **all four** hold:
 
 A `runtime` filter (version 2) is a fifth condition of the same pool, a setting of the scheduler (`runtimeFilter`, see
 Inputs and outputs): it compares `runtimeMs` as read at the cut-off `S - G` with its bounds, both included and in
-milliseconds, `minMs <= runtimeMs` and `runtimeMs <= maxMs`, each only when given. An item the filter rejects is not in the
-pool of day `n` (see Filters). The other filters need no time and are applied when the pool is evaluated, as the sources
-are.
+milliseconds, `minMs <= runtimeMs` and `runtimeMs <= maxMs`, each only when given. In version 3 an episode must also satisfy the
+bounds `episodeMinMs` and `episodeMaxMs` that are given, and a movie the bounds `movieMinMs` and `movieMaxMs` that are given,
+in the same way and at the same cut-off; the window of the other kind never touches an item. An item the filter rejects is not
+in the pool of day `n` (see Filters). The other filters need no time and are applied when the pool is evaluated, as the
+sources are.
+
+**The trim window** (version 3). After the pool of day `n` is cut by the conditions above (the four conditions and the
+runtime filter), the side input `keeps` (a map from a series ID, a title ID, to a cap in whole milliseconds, 1 or more; absent
+or empty means none) trims some series. This happens in every mode, and it is the last step of the pool of day `n`. For each
+series ID `T` that is in `keeps` and is the series ID of at least one episode of the pool, with `cap` its cap:
+
+```text
+1. The s episodes of the pool whose series ID is T, in the in-group key order of randomInOrder (season class, season,
+   episode, undated flag, date, ID), are e[0] ... e[s - 1].
+2. k = the largest j from 1 to s such that runtimeMs(e[0]) + ... + runtimeMs(e[j - 1]) <= cap.
+   If even runtimeMs(e[0]) is above cap, k = 1: k is at least one.
+3. If k = s, nothing is removed. Otherwise the pool keeps the k episodes e[(n * k + j) mod s] for j = 0 ... k - 1,
+   with n the day number (a signed 64-bit number) and mod the floorMod of Timing, so the window starts at
+   floorMod(n * k, s) and wraps past e[s - 1] to e[0]. The other s - k episodes are not in the pool of day n.
+```
+
+Movies, episodes that have no series ID, and every series that has no entry in `keeps` are untouched, and so is a `keeps`
+entry whose ID is not the series ID of any episode of the pool. The count `k` is worked out from the episodes that are in the pool
+(the runtimes at the cut-off, every other condition already applied), so it can change from day to day; the window moves
+with `n`, so over `ceil(s / k)` days with the same pool every episode of the series is kept at least once. The day number
+`n` makes two consecutive days keep adjacent windows. The pool is a set: the order its items are listed in plays no part.
+
+Worked example. A series has four episodes in the in-group order, of 22, 22, 44 and 22 minutes, and `keeps` caps it at 60
+minutes (3600000 ms). The prefix sums are 22, 44 and 88 minutes, so `k = 2` (the largest prefix at or under 60). On day
+`n = 0` the pool keeps `e[0]` and `e[1]`; on day 1 it keeps `e[2]` and `e[3]`; on day 2, `e[0]` and `e[1]` again; on day
+`-1`, `floorMod(-2, 4) = 2`, so `e[2]` and `e[3]`. With a cap of 20 minutes even the first episode is over the cap, so `k = 1`
+and one episode is kept each day, `e[floorMod(n, 4)]`.
 
 1. **Added before the cut-off.** An item created inside the grace window waits for the next epoch. The server stamps
    `createdAt`, so two devices that have synced the library past `S - G` agree.
@@ -1037,6 +1244,8 @@ The pool is put in order by the rules of Ordering, for the mode of the channel:
 - `rotation`: as `randomInOrder` with the groups of Groups in version 2 and turns set by the caps.
 - `shuffle` with `caps`: the capped shuffle, with `seed_n` of this day, the caps and the film-to-collection map.
 - `inOrder`: groups by the key of `inOrder`, each played start to finish.
+- `curated`: the walk of `curated`, with `seed_n` of this day, the tunables, the franchise map and the weights; its order is
+  already cut into runs.
 
 The result is the **order** of day `n`. Those sections are the definition; this section only uses them.
 
@@ -1051,6 +1260,8 @@ A **run** is a group of items that play back to back. The order is cut into runs
 - For `randomInOrder`: one **turn** is one run. (The turns of Ordering already hold up to `blockLength` items, and a short
   turn is a short run.)
 - For `rotation`: one **turn** is one run. (A turn holds up to the group's cap of items; `blockLength` plays no part.)
+- For `curated`: one **step of the walk** is one run: a pair of episodes is one run of two items, and anything else is a run
+  of one. `blockLength` plays no part.
 
 Worked example: seven items 1 to 7 in order, with `blockLength` 3, are the runs `[1 2 3] [4 5 6] [7]`. When the order
 runs out it starts again with `[1 2 3]`, not with `[7 1 2]`. With `blockLength` 100 the whole order is one run.
@@ -1094,7 +1305,10 @@ day never visits them. The runs on each side of a left-out run become neighbours
 group can end up together (see The planned end of the day, Where a cap can be exceeded).
 
 A `rotation` turn is already cut so that its runtime is at most `epochMs` (see `rotation`), so no `rotation` run is left
-out. The other modes cut runs by `blockLength` alone, and a long run of those is left out as described.
+out. The other modes cut runs by `blockLength` alone, and a long run of those is left out as described. A `curated` run
+(a pair of episodes or a single item) can have a slot longer than `epochMs`, for example a pair of 35-minute episodes in a
+one-hour epoch, or a single item whose runtime rounded up to the grid passes `epochMs`: such a run is left out as described,
+after the walk, and the runs on each side of it become neighbours.
 
 A run whose slot is **equal** to `epochMs` stays in the cycle: it fits only on a day that starts with it.
 
@@ -1125,8 +1339,10 @@ closing slate (see The planned end of the day).
 
 ### Where the day starts
 
-**`shuffle`, with or without caps:** the start run is run `0` of the day's own order. Each day has its own seed, so each day
-has its own order, and nothing carries over: `j = 0`. The capped shuffle starts at run `0` each day too.
+**`shuffle`, with or without caps, and `curated`:** the start run is run `0` of the day's own order. Each day has its own
+seed, so each day has its own order, and nothing carries over: `j = 0`. The capped shuffle starts at run `0` each day too,
+and so does `curated`, whose walk begins afresh at the start of the day, with its own clock at `0`: no repeat gap is carried
+from the day before.
 
 **`chronological`, `randomInOrder`, `rotation` and `inOrder`:** the start run is the run of the channel's **continuous playout** that contains
 `S`. Nothing is replayed from earlier days; `j` is worked out directly.
@@ -1212,8 +1428,8 @@ be the end of the last block placed (it is `S` if none). Number the items of the
 and items in order inside each run. Here `i` is the index of the run that did not fit, taken modulo `B` (the regular layout may have gone round the cycle
 more than once). Let `f` be the number of items in runs `0` to `i - 1`: `L[f]` is the first item of run `i`.
 
-1. **Visit order.** Starting at `L[f]`, visit items in order. For `shuffle` (also with caps), wrap from `L[N - 1]` to `L[0]`
-   and visit exactly `N` items (so every item once). For `chronological`, `randomInOrder`, `rotation` and `inOrder`, **do
+1. **Visit order.** Starting at `L[f]`, visit items in order. For `shuffle` (also with caps) and `curated`, wrap from `L[N - 1]`
+   to `L[0]` and visit exactly `N` items (so every item once). For `chronological`, `randomInOrder`, `rotation` and `inOrder`, **do
    not wrap**: stop after `L[N - 1]` (that is `N - f` visits). So an earlier episode is never replayed after a later one.
 2. **Each visit.** For the visited item `x`, with the cursor `c`:
    1. (`chronological`, `randomInOrder`, `rotation` and `inOrder` only.) If an earlier visit of this fill **passed over** an
@@ -1226,19 +1442,20 @@ more than once). Let `f` be the number of items in runs `0` to `i - 1`: `L[f]` i
    3. If `s + runtimeMs(x) <= E`, **place** it. Its **actual runtime** is used, not a slot. If `s > c`, put a slate
       `[c, s)` first. Put the program block `[s, s + runtimeMs(x))`. Set `c` to its end.
    4. Otherwise `x` is **passed over**. (`chronological`, `randomInOrder`, `rotation` and `inOrder`: remember that its group
-      was passed over. For `shuffle`, with or without caps, nothing: any later item may still fit.)
+      was passed over. For `shuffle`, with or without caps, and for `curated`, nothing: any later item may still fit.)
 3. **Close.** If `c < E`, put one slate `[c, E)`. A grid gap that has no item after it, and any time too short for any
    item, are all part of this one slate.
 
 Every item placed here is a **block of its own** and takes no part in run grouping: `blockLength` plays no role in the
 planned end. Nothing is cut and nothing runs past `E`. The work is one pass over at most `N` items. An item placed may
-already have aired earlier that day (when the cycle is shorter than the day, or for `shuffle`'s wrap): the planned end does
-not check.
+already have aired earlier that day (when the cycle is shorter than the day, or for the wrap of `shuffle` and `curated`): the
+planned end does not check.
 
 Why the group rule: without it, when episode 3 of a series does not fit but episode 4 does, episode 4 would air before
 episode 3 has aired. So once an item of a group is passed over, no later item of that group is eligible. `shuffle` has no
 such limit, because its order has no series order to keep (the capped shuffle keeps episodes shuffled, so it has none
-either, and wraps as `shuffle` does).
+either, and wraps as `shuffle` does). `curated` is placed like `shuffle` here: it also wraps, and it has no group rule, so the
+planned end of a curated day may place an episode before an earlier episode of its series and does not keep a pair together.
 
 **Caps are not enforced in the planned end.** The planned end places items one by one by their fit, so a cap can be
 exceeded there.
@@ -1331,9 +1548,11 @@ only primitives are `splitmix64` and `fnv1a64` (see Primitives).
 The anchors for this section are in `docs/rules-format/vectors/`: `epoch-math.json` and `epoch-seed.json` (the epoch number,
 `epochStart` and `seed_n`), `key-order.json` (the three orders, the group keys, the in-group order and runs) and
 `lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). Version 2 adds
-`key-order-v2.json` and `lineup-v2.json`, of the same shapes with `caps`, `films` and `runtimeFilter`. They were computed
-with a reference that was written from this text alone, not with the code that is tested. Version 1 is final (amended once,
-on 2026-10-19), so a wrong vector now means version 2.
+`key-order-v2.json` and `lineup-v2.json`, of the same shapes with `caps`, `films` and `runtimeFilter`. Version 3 adds
+`key-order-v3.json` and `lineup-v3.json`, of the same shapes with the franchise map (`franchises`), the weights, the keeps, the
+two tunables (`repeatGapMs` and `pairUpToMs`) and the per-kind runtime windows. They were computed with a reference that was
+written from this text alone, not with the code that is tested. Version 1 is final (amended once, on 2026-10-19), so a wrong
+vector now means version 2, and for version 2 now means version 3.
 
 ## Filler
 
@@ -1589,19 +1808,48 @@ Genre, tag and other names in the rules are matched against the server's names w
 Lengths of names are counted in Unicode code points (see Name). Names are never used to sort or to hash. Only canonical
 IDs are.
 
+### Studio names
+
+(Version 3.) A `studio` source or exclusion and the `studios` filter match a studio name under the **studio fold**, which
+is applied to the name in the rules **and** to each studio name of the item or series, and then the two results are compared
+as exact sequences of Unicode code points. The studio fold is **clean**, then fold:
+
+1. **Clean.** Go through the name by code point and write a new name:
+   1. a surrogate that is not half of a pair is dropped;
+   2. U+0009, U+000A, U+000D, U+2028 and U+2029 are written as one U+0020 (space);
+   3. a code point in the **dropped set** is dropped. The dropped set is U+0000 to U+001F (the controls not named in step 2),
+      U+007F to U+009F, U+00AD, U+0600 to U+0605, U+061C, U+06DD, U+070F, U+0890 to U+0891, U+08E2, U+180E, U+200B, U+200E to
+      U+200F, U+202A to U+202E, U+2060 to U+2064, U+2066 to U+206F, U+FEFF, U+FFF9 to U+FFFB, U+110BD, U+110CD, U+13430 to
+      U+1343F, U+1BCA0 to U+1BCA3, U+1D173 to U+1D17A, U+E0001 and U+E0020 to U+E007F. (U+200C and U+200D are **not** in it:
+      they are kept.) The set is fixed by this list, never by a platform's idea of a control or format character;
+   4. every other code point is written as it is.
+   Then remove, from both ends of the result and repeatedly, any code point of the **space set**: U+0020, U+00A0, U+1680,
+   U+2000 to U+200A, U+202F, U+205F and U+3000. Nothing else is trimmed or collapsed (spaces inside the name stay as they
+   are, and two spaces are not one). A name that is empty after this is **dropped**: an item has no such studio, and a rules
+   name that is empty after this matches nothing.
+2. **Fold.** The ASCII letters `A` to `Z` become `a` to `z`, as in the rest of this section, and nothing else changes: no
+   Unicode normalisation, no locale.
+
+So the rules name `Studio A` matches the studios `STUDIO A`, `studio a` and `Studio A` followed by a no-break space (U+00A0),
+and does not match `Studio  A` (two spaces) or `Studiö A`. A client **must not** use a platform's `trim`, whitespace test or
+case function for this: they differ between platforms.
+
 ## Unknown fields and unsupported kinds
 
 A reader will meet files written by newer apps. Three cases must be handled differently:
 
 - **An unknown field** (a key the reader does not know, in any object: the top level, a source, `ordering`, `timing`,
   `broadcastDay`, `filler`, a filler source, and in version 2 `ordering.caps`, `filters`, `filters.years` and
-  `filters.runtime`) is **kept and ignored**. The reader must not use it, must not fail on it,
+  `filters.runtime`, and in version 3 `filters.runtime.episode` and `filters.runtime.movie`) is **kept and ignored**. The reader must not use it, must not fail on it,
   and must write it back with the same JSON value when it writes the file again (see JSON profile: the value, not the bytes).
-  `filters` and `ordering.caps` in a file that says `formatVersion` 1 are unknown fields in this sense: kept and ignored.
+  `filters` and `ordering.caps` in a file that says `formatVersion` 1 are unknown fields in this sense: kept and ignored, and so
+  are the version 3 fields (`filters.tags`, `studios`, `notGenres`, `runtime.episode`, `runtime.movie`, `ordering.repeatGapMinutes`
+  and `ordering.pairUpToMinutes`) in a file that says `formatVersion` 2 or 1.
   `docs/rules-format/examples/forward-compat-extras.json` has unknown fields at every level.
 - **An unknown kind** (a `type` of a source, an ordering `mode`, a filler `mode` or, in version 2, a `filters.kind`
   that the reader does not know) is **not** an unknown field. That includes a version 2 `mode` (`rotation`,
-  `inOrder`) or source `type` (`item`) in a file that says `formatVersion` 1: for that file the kind is unknown. The
+  `inOrder`) or source `type` (`item`) in a file that says `formatVersion` 1, and a version 3 `mode` (`curated`) or
+  source `type` (`studio`) in a file that says `formatVersion` 1 or 2: for that file the kind is unknown. The
   channel is **unsupported**: it is not scheduled, and nothing is dropped silently to make it work. This keeps a
   channel from playing the wrong thing.
 - **A known kind that the reader does not schedule** is treated the same way: **unsupported**. In version 1 this is every
@@ -1610,8 +1858,9 @@ A reader will meet files written by newer apps. Three cases must be handled diff
 Unknown fields are data, not instructions. A reader never executes or fetches anything in them.
 
 The version 1 JSON Schema describes version 1 only, so it rejects an unknown kind. The version 2 schema describes
-version 2, and it also rejects a version 2 mode or source in a file that says `formatVersion` 1. Readers rely on the rules
-above, not on the schemas.
+version 2, and it also rejects a version 2 mode or source in a file that says `formatVersion` 1. The version 3 schema
+describes version 3, and it also rejects a version 3 mode or source in a file that says `formatVersion` 1 or 2 and a
+version 2 mode or source in a file that says `formatVersion` 1. Readers rely on the rules above, not on the schemas.
 
 ## Limits
 
@@ -1624,7 +1873,7 @@ A rules file can come from an export or from another app, so a reader must treat
 | Nesting depth of objects and lists | 16 |
 | Sources in one list, and exclusions in one list | 256 each |
 | Length of a source `name` | 256 code points |
-| Names in `filters.genres` | 256, each 256 code points at most |
+| Names in each of `filters.genres`, `filters.notGenres`, `filters.tags` and `filters.studios` | 256 each, each name 256 code points at most |
 | Length of the channel `name` | 100 code points |
 
 A reader that is given a stream or a file must not read more than 256 KiB plus one byte into memory before it checks the
@@ -1652,7 +1901,7 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
    allowed.
 8. **Names.** A `name` of 100 emoji is accepted, and one of 101 is rejected (`name-100-code-points.json` and
    `invalid/name-101-code-points.json`).
-9. **Version gate.** A file with `formatVersion` 3 is not scheduled, even when the rest of it is unreadable.
+9. **Version gate.** A file with `formatVersion` 4 is not scheduled, even when the rest of it is unreadable.
 10. **JSON profile.** A repeated member name (also in an unknown field), a byte-order mark, `01`, `1.0` or `1e2` where a whole
     number is expected, and `NaN` are all rejected.
 11. **Automatic seed.** For server ID `11111111111111111111111111111111` and the library
@@ -1687,12 +1936,31 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
     `ordering.caps` and only version 1 features is read, and both are kept and ignored. A file that says `formatVersion` 2
     with `ordering.caps` and `epochHours` 12 is invalid. A version 2 file with a `filters.kind` that is not `movie` or
     `episode` is unsupported.
+19. **A version 2 file that uses version 3.** A file that says `formatVersion` 2 and has a `studio` source or exclusion, or the
+    `ordering.mode` `curated`, is **unsupported** (`docs/rules-format/examples/invalid/v3-feature-in-v2.json`). The same file
+    with `tags`, `studios` or `notGenres` in `filters`, a `runtime.episode` or `runtime.movie` window, or
+    `ordering.repeatGapMinutes` or `pairUpToMinutes`, and only version 2 features otherwise, is read, and those fields are kept
+    and ignored. A file that says `3` with `mode` `curated` and an `ordering.caps` is invalid; with `repeatGapMinutes` 1441 or
+    `pairUpToMinutes` 0 it is invalid.
+20. **The studio fold.** The rules name `Studio A` matches an item whose studio is `STUDIO A`, or `Studio A` followed by U+00A0
+    (trimmed), or `Stu` + U+200B + `dio A` (the zero-width space is dropped); it does not match `Studio  A` (two spaces) or
+    `Studiö A`.
+21. **The trim window.** A series with four episodes of 22, 22, 44 and 22 minutes in the in-group order, and a `keeps` cap of
+    3600000 ms, has `k = 2`: day 0 keeps the first two episodes, day 1 the last two, day 2 the first two, and day -1 the last two.
+22. **`curated`.** The worked example in `curated` gives the cycle `[a1 a2] [b1] [c1] [d] [a3 a4] [b2] [c2]`, with the starting
+    passes `0`, `600`, `1200` and `1800`. A `curated` day starts at its first run, each day, and its repeat gap restarts at the
+    start of each day.
 
 ## Files
 
 Everything below is in this repository, under `docs/`:
 
 - `docs/rules-format.md`: this document.
+- `docs/rules-format/channel-rules.v3.schema.json`: a JSON Schema (draft 2020-12) for version 3. Like the earlier schemas, it
+  checks shape, leaves every object open to extra fields, and is for tests and tools. It also rejects a version 3 mode or
+  source (and the version 3 filter and ordering fields' ranges) in a file that says `formatVersion` 1 or 2, and a version 2 mode
+  or source in a file that says `formatVersion` 1. It does not check the cross-field rules that the version 2 schema leaves to
+  a reader, nor that a name is not empty once cleaned.
 - `docs/rules-format/channel-rules.v2.schema.json`: a JSON Schema (draft 2020-12) for version 2. Like the version 1 schema,
   it checks shape, leaves every object open to extra fields, and is for tests and tools. It also rejects a version 2 mode
   or source type in a file that says `formatVersion` 1. It does not check the cross-field rules (`to` not below `from`,
@@ -1706,6 +1974,10 @@ Everything below is in this repository, under `docs/`:
   `filters`, an `item` source, and a file that uses all of them), each of which validates against the version 2 schema, and
   `docs/rules-format/examples/v2/invalid/`, files a reader must reject (the schema rejects those it can); a file there
   whose kind is unknown (a version 1 file that uses version 2, or an unknown `filters.kind`) is rejected as unsupported.
+- `docs/rules-format/examples/v3/`: one worked example per version 3 feature (`studio.json`, `filters-tags-studios.json`,
+  `not-genres.json`, `runtime-per-kind.json`, `curated.json` and `curated-tuned.json`), each of which validates against the
+  version 3 schema; and `docs/rules-format/examples/invalid/v3-feature-in-v2.json`, a file that says `formatVersion` 2 and
+  uses a `studio` source, which the version 3 schema rejects and a reader reads as unsupported.
 - `docs/rules-format/examples/invalid/`: files the schema must reject (wrong type, missing `formatVersion`,
   `formatVersion` 0, a missing or malformed seed, a hyphenated or upper-case ID, a rating off the ladder, an unknown
   source kind, no sources, a missing `timing` or offset, an offset that is not a multiple of 15, an `epochHours` not on
@@ -1728,6 +2000,12 @@ Everything below is in this repository, under `docs/`:
   the film-to-collection map), `key-order-v2.json` (the rotation turns, the capped shuffle and the `inOrder` order) and
   `lineup-v2.json` (whole days for the new orders). They are computed with an independent reference. The version 1 vectors
   are unchanged.
+
+- `docs/rules-format/vectors/` (version 3): `pool-v3.json` (the pool with `studio` sources and exclusions, the filters
+  `tags`, `studios` and `notGenres`, and the franchise map), `key-order-v3.json` (the `curated` walk: pairs, the gap, the
+  weights, a franchise and the tunables) and `lineup-v3.json` (whole days for `curated`, the per-kind runtime windows and the
+  trim window). They are computed with an independent reference that was written from this document alone, and are added to
+  the folder with that reference. The version 1 and version 2 vectors are unchanged.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 
@@ -1754,3 +2032,9 @@ Examples in `docs/rules-format/examples/`, with what they show:
 | `docs/rules-format/examples/filler-between-every-n.json` | Filler mode `betweenEveryN` with a collection. |
 | `docs/rules-format/examples/full.json` | Every section together. |
 | `docs/rules-format/examples/forward-compat-extras.json` | Unknown fields at every level. |
+| `docs/rules-format/examples/v3/studio.json` | A `studio` source and a `studio` exclusion (version 3). |
+| `docs/rules-format/examples/v3/filters-tags-studios.json` | The `tags` and `studios` filters. |
+| `docs/rules-format/examples/v3/not-genres.json` | `genres` with `notGenres`. |
+| `docs/rules-format/examples/v3/runtime-per-kind.json` | A general runtime window and a window for each kind. |
+| `docs/rules-format/examples/v3/curated.json` | `curated` with the default tunables. |
+| `docs/rules-format/examples/v3/curated-tuned.json` | `curated` with both tunables, a `studio` source and `notGenres`. |

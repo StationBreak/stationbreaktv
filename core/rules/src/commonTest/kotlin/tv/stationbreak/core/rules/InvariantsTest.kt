@@ -21,7 +21,7 @@ class InvariantsTest {
 
     @Test
     fun rulesNeedTheSupportedVersionAndAtLeastOneSource() {
-        rejects { base.copy(formatVersion = 3) }
+        rejects { base.copy(formatVersion = 4) }
         rejects { base.copy(formatVersion = 0) }
         rejects { base.copy(sources = emptyList()) }
         rejects { base.copy(sources = List(257) { Source.Library(id) }) }

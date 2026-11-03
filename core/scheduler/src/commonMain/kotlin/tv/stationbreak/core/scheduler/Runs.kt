@@ -66,5 +66,9 @@ object Runs {
             OrderingMode.InOrder -> {
                 form(Orderings.inOrder(pool), settings.blockLength)
             }
+
+            OrderingMode.Curated -> {
+                error("format 3 is scheduled from Task 7")
+            }
         }
 }

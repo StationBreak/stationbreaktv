@@ -1,0 +1,32 @@
+{
+  "formatVersion": 3,
+  "name": "Programmed And Tuned",
+  "seed": "45",
+  "sources": [
+    {
+      "type": "studio",
+      "name": "Studio A"
+    },
+    {
+      "type": "collection",
+      "id": "22222222222222222222222222222222"
+    }
+  ],
+  "ordering": {
+    "mode": "curated",
+    "repeatGapMinutes": 120,
+    "pairUpToMinutes": 25
+  },
+  "filters": {
+    "notGenres": [
+      "Horror"
+    ]
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

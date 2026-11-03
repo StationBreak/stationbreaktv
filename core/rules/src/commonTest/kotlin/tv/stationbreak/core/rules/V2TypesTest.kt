@@ -64,9 +64,9 @@ class V2TypesTest {
     }
 
     @Test
-    fun aFormatVersionOutsideOneToTwoCannotBeHeld() {
+    fun aFormatVersionOutsideOneToThreeCannotBeHeld() {
         assertFailsWith<IllegalArgumentException> { rules(version = 0) }
-        assertFailsWith<IllegalArgumentException> { rules(version = 3) }
+        assertFailsWith<IllegalArgumentException> { rules(version = 4) }
     }
 
     @Test

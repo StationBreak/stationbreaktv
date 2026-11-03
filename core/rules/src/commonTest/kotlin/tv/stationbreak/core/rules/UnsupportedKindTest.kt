@@ -91,7 +91,12 @@ class UnsupportedKindTest {
     @Test
     fun theInvalidExamplesAreRejectedAsTheDocumentSays() {
         val unsupportedKinds =
-            setOf("unknown-source-kind.json", "ordering-mode-upper-case.json", "filler-mode-kebab-case.json")
+            setOf(
+                "unknown-source-kind.json",
+                "ordering-mode-upper-case.json",
+                "filler-mode-kebab-case.json",
+                "v3-feature-in-v2.json",
+            )
         for ((name, text) in ExampleFiles.invalid) {
             val result = RulesReader.read(text)
             if (name in unsupportedKinds) {

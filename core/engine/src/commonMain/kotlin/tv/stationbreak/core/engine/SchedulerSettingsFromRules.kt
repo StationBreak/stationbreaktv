@@ -20,16 +20,25 @@ private const val MINUTES_PER_HOUR = 60
  * (`effective…`), so the defaults are written once, in `core:rules`. The caps are the caps in force
  * ([ChannelRules.effectiveCaps]: `rotation`, or a `shuffle` that has them), and the runtime filter is in milliseconds.
  */
-fun ChannelRules.toSchedulerSettings(): SchedulerSettings =
-    settingsOf(
+fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
+    // Format 3 is read and written here but not yet scheduled (spec 23, Task 7 removes this).
+    require(orderingMode != OrderingMode.Curated) { "format 3 is scheduled from Task 7" }
+    return settingsOf(
         orderingMode,
         seed,
         timing,
         caps = effectiveCaps?.let { Caps(it.effectiveSeries, it.effectiveFilm) },
         runtimeFilter = filters?.let { runtimeFilterOf(it) },
     )
+}
 
-private fun runtimeFilterOf(filters: Filters): RuntimeFilter? =
+private fun runtimeFilterOf(filters: Filters): RuntimeFilter? {
+    // A window for one kind is applied from Task 6; until then it must not be ignored.
+    check(!filters.hasKindRuntime) { "format 3 is scheduled from Task 7" }
+    return generalRuntimeFilter(filters)
+}
+
+private fun generalRuntimeFilter(filters: Filters): RuntimeFilter? =
     if (filters.minRuntimeMinutes == null && filters.maxRuntimeMinutes == null) {
         null
     } else {

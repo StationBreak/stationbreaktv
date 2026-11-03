@@ -245,7 +245,7 @@ class LineupCodecTest {
 
     @Test
     fun rulesThatNeedANewerAppAreUnusableNotUnreadable() {
-        val newer = """{"formatVersion":3,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
+        val newer = """{"formatVersion":4,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
         val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(newer))) }
         val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
         assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
@@ -300,7 +300,7 @@ class LineupCodecTest {
     @Test
     fun unusableRoundTripsVerbatim() {
         // Odd spacing, a duplicate key and a newer format: the rules text must come back exactly as it was.
-        val rulesText = "{ \"formatVersion\" : 3,\n  \"x\": [1,  2], \"x\": \"é\" }"
+        val rulesText = "{ \"formatVersion\" : 4,\n  \"x\": [1,  2], \"x\": \"é\" }"
         val file =
             tree().withChannel(0) {
                 val source = it.source().with("rules", JsonPrimitive(rulesText)).with("edited", JsonPrimitive(false))
