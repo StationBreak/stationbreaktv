@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -196,6 +197,9 @@ class LaunchNavigationTest {
         press(keyCode)
     }
 
+    // A string of a feature module by its key, so the test follows the copy and does not repeat it.
+    private fun idOf(key: String) = compose.activity.run { resources.getIdentifier(key, "string", packageName) }
+
     private fun count(tag: String): Int = compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size
 
     private fun awaitExists(tag: String) {
@@ -278,6 +282,36 @@ class LaunchNavigationTest {
 
         // Nothing is playing on an empty lineup, so there is no playing cell to go back to, and Back on the menu row
         // leaves. (The playing-cell step is GuideMenuUiTest's.)
+        assertBackLeavesTheApp()
+    }
+
+    @Test
+    fun newChannelOpensTheBuilderFromTheGuideAndEachBackWalksOutOneStep() {
+        storeSession()
+        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        launchApp()
+        awaitExists(LiveTags.NO_CHANNELS)
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.EMPTY)
+        press(KeyEvent.KEYCODE_BACK)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitExists(ChannelsTags.TITLE)
+
+        // With nothing playing the list starts on New channel; Select shows the builder's first step.
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        val sources = compose.activity.getString(idOf("builder_step_sources"))
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) { compose.onAllNodesWithText(sources).fetchSemanticsNodes().isNotEmpty() }
+
+        // Back leaves the builder for the list, on New channel; the next Back leaves the list for the guide.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { compose.onAllNodesWithText(sources).fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.TITLE) == 0 }
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        assertFalse("neither Back left the app", compose.activity.isFinishing)
         assertBackLeavesTheApp()
     }
 

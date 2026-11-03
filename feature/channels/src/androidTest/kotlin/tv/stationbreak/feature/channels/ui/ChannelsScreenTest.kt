@@ -51,7 +51,15 @@ import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
+import tv.stationbreak.core.domain.lineup.builder.DraftFilters
+import tv.stationbreak.core.domain.lineup.builder.DraftSource
+import tv.stationbreak.core.domain.lineup.builder.FakeCatalogPicker
+import tv.stationbreak.core.domain.lineup.builder.FakeChannelBuilder
+import tv.stationbreak.core.domain.lineup.builder.FakeChannelPreviews
+import tv.stationbreak.core.domain.lineup.builder.OpenResult
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
@@ -59,6 +67,8 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
+import tv.stationbreak.feature.channels.builder.BuilderViewModel
+import tv.stationbreak.feature.channels.builder.ui.BuilderTags
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -71,15 +81,17 @@ private val CHARLIE = ChannelId("ch-charlie")
 private val DELTA = ChannelId("ch-delta")
 private val NIGHT = ChannelId("ch-night")
 
+@Suppress("LongParameterList") // A test builder: every field has a default.
 private fun summary(
     id: ChannelId,
     number: Int,
     name: String,
     state: ChannelStatus = ChannelStatus.On,
     optIn: Boolean = false,
+    kind: ChannelKind = ChannelKind.Starter,
 ): ChannelSummary {
     val since = Instant.fromEpochMilliseconds(T0)
-    return ChannelSummary(id, number, name, state, ChannelKind.Starter, since, number, kid = false, optIn = optIn)
+    return ChannelSummary(id, number, name, state, kind, since, number, kid = false, optIn = optIn)
 }
 
 /** A lineup that follows the edits made to it, as the real one does. */
@@ -165,6 +177,7 @@ class ChannelsScreenTest {
     private val showing = mutableStateOf(true)
     private val openedAt = mutableLongStateOf(1L)
     private val currentNow = mutableStateOf<ChannelId?>(null)
+    private val builder = FakeChannelBuilder()
     private lateinit var vm: ChannelsViewModel
     private lateinit var lineup: Lineup
 
@@ -173,32 +186,36 @@ class ChannelsScreenTest {
             override fun now() = Instant.fromEpochMilliseconds(T0)
         }
 
-    private fun lineup() =
-        listOf(
-            summary(ALPHA, 6, "Alpha"),
-            summary(BRAVO, 7, "Bravo"),
-            summary(CHARLIE, 9, "Charlie", ChannelStatus.Shelf),
-            summary(DELTA, 12, "Delta", ChannelStatus.UserHidden),
-            summary(NIGHT, 30, "Night", ChannelStatus.Shelf, optIn = true),
-        )
+    private fun lineup(extra: List<ChannelSummary> = emptyList()) =
+        extra +
+            listOf(
+                summary(ALPHA, 6, "Alpha"),
+                summary(BRAVO, 7, "Bravo"),
+                summary(CHARLIE, 9, "Charlie", ChannelStatus.Shelf),
+                summary(DELTA, 12, "Delta", ChannelStatus.UserHidden),
+                summary(NIGHT, 30, "Night", ChannelStatus.Shelf, optIn = true),
+            )
 
     private fun show(
         current: ChannelId?,
         access: LineupAccess = LineupAccess.Editable,
         bravoHidden: HiddenReason = HiddenReason.NoMatches,
+        extra: List<ChannelSummary> = emptyList(),
     ) {
         schedule.channel(ALPHA, 6, emptyList())
         schedule.channel(BRAVO, 7, emptyList(), hidden = bravoHidden)
-        lineup = Lineup(lineup(), access)
+        lineup = Lineup(lineup(extra), access)
         currentNow.value = current
         runBlocking { library.useAccount(account) }
         vm = ChannelsViewModel(library, lineup, lineup, schedule, clock, work)
+        val builderVm =
+            BuilderViewModel(library, builder, FakeCatalogPicker(), FakeChannelPreviews(), lineup, clock, work)
         compose.setContent {
             StationBreakTheme {
                 // As in the app: live TV's root is focusable and the screen takes the focus from it.
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
                     if (showing.value) {
-                        ChannelsRoot(vm, currentNow.value, openedAt.longValue, HOLE, onDone = { tune ->
+                        ChannelsRoot(vm, builderVm, currentNow.value, openedAt.longValue, HOLE, onDone = { tune ->
                             if (tune == null) closed++ else tuned += tune
                         })
                     }
@@ -282,6 +299,8 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.PANEL) }
         listOf(ChannelsTags.ACTION_WATCH, ChannelsTags.ACTION_SWITCH_OFF, ChannelsTags.ACTION_CHANGE_NUMBER)
             .forEach { assertTrue(it, exists(it)) }
+        assertTrue(exists(ChannelsTags.ACTION_COPY))
+        assertTrue(!exists(ChannelsTags.ACTION_EDIT))
         assertTrue(!exists(ChannelsTags.ACTION_SWITCH_ON))
         assertTrue(!exists(ChannelsTags.ACTION_DEFAULT_NUMBER))
         compose.onNodeWithTag(ChannelsTags.ACTION_WATCH).assertIsSelected()
@@ -292,7 +311,7 @@ class ChannelsScreenTest {
     @Test
     fun numberPickerSetsANumberWithTheDPad() {
         show(ALPHA)
-        press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
+        press(Pad.Select, Pad.Down, Pad.Down, Pad.Down, Pad.Select)
         until { exists(ChannelsTags.PICKER) }
         digitText(0).assertTextEquals("0")
         digitText(2).assertTextEquals("6")
@@ -308,7 +327,7 @@ class ChannelsScreenTest {
     @Test
     fun takenNumberAsksToSwap() {
         show(ALPHA)
-        press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
+        press(Pad.Select, Pad.Down, Pad.Down, Pad.Down, Pad.Select)
         until { exists(ChannelsTags.PICKER) }
         // 006 to 007: Bravo has it.
         press(Pad.Right, Pad.Right, Pad.Up, Pad.Select)
@@ -413,6 +432,8 @@ class ChannelsScreenTest {
         listOf(
             ChannelsTags.ACTION_SWITCH_OFF,
             ChannelsTags.ACTION_SWITCH_ON,
+            ChannelsTags.ACTION_COPY,
+            ChannelsTags.ACTION_EDIT,
             ChannelsTags.ACTION_CHANGE_NUMBER,
             ChannelsTags.ACTION_DEFAULT_NUMBER,
         ).forEach { assertTrue(it, !exists(it)) }
@@ -455,7 +476,7 @@ class ChannelsScreenTest {
     @Test
     fun selectOnZeroZeroZeroStaysInThePicker() {
         show(ALPHA)
-        press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
+        press(Pad.Select, Pad.Down, Pad.Down, Pad.Down, Pad.Select)
         until { exists(ChannelsTags.PICKER) }
         // 006 to 000.
         press(Pad.Right, Pad.Right)
@@ -487,6 +508,58 @@ class ChannelsScreenTest {
         pressTogether(Pad.Select, Pad.Select, Pad.Select)
         assertEquals(listOf(ALPHA), tuned.toList())
         assertEquals(0, closed)
+    }
+
+    @Test
+    fun newChannelRowOpensTheStepsAndBackReturns() {
+        show(null)
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        press(Pad.Select)
+        until { exists(BuilderTags.SCREEN) }
+        compose.onNodeWithTag(BuilderTags.TITLE).assertTextContains("New channel")
+        press(Pad.Back)
+        until { !exists(BuilderTags.SCREEN) }
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        assertEquals("the builder's Back did not leave the screen", 0, closed)
+        // The screen has its keys back.
+        press(Pad.Down, Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+    }
+
+    @Test
+    fun copyToCustomiseOpensTheBuilderWithTheCopyNameFromTheSuffixResource() {
+        val draft =
+            ChannelDraft(
+                "Alpha",
+                listOf(DraftSource.Library("lib1", "Library 1")),
+                emptyList(),
+                DraftFilters(),
+                kids = false,
+                number = 600,
+                origin = ALPHA,
+                seed = Seed(1uL),
+            )
+        builder.openResult = OpenResult.Opened(draft, "Alpha")
+        show(ALPHA)
+        // Watch, Switch off, Copy to customise.
+        press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
+        until { exists(BuilderTags.SCREEN) && !exists(ChannelsTags.PANEL) }
+        until { runCatching { compose.onNodeWithTag(BuilderTags.TITLE).assertTextContains("Alpha (copy)") }.isSuccess }
+        press(Pad.Back)
+        until { !exists(BuilderTags.SCREEN) }
+        compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
+    }
+
+    @Test
+    fun aChannelFromANewerAppOffersNeitherCopyNorEditAndSaysWhy() {
+        val newer = ChannelId("custom:newer")
+        show(newer, extra = listOf(summary(newer, 5, "Newer", kind = ChannelKind.Unusable)))
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+        compose
+            .onNodeWithTag(ChannelsTags.NEWER_APP, useUnmergedTree = true)
+            .assertTextContains("newer version of the app", substring = true)
+        listOf(ChannelsTags.ACTION_COPY, ChannelsTags.ACTION_EDIT).forEach { assertTrue(it, !exists(it)) }
     }
 
     private companion object {

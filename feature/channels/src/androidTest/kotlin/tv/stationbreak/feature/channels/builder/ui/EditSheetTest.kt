@@ -127,7 +127,7 @@ class EditSheetTest {
         compose.setContent {
             StationBreakTheme {
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
-                    BuilderRoot(vm, HOLE, onExit = { exits += it })
+                    BuilderRoot(vm, HOLE, onEvent = { exits += it.tune() })
                 }
             }
         }
@@ -253,6 +253,17 @@ class EditSheetTest {
         until { exists(BuilderTags.MESSAGE) }
         compose.onNodeWithTag(BuilderTags.MESSAGE).assertTextContains("Saved")
         assertTrue("reshuffle" in builder.calls)
+    }
+
+    @Test
+    fun aClearedNameStillHeadsTheSheetWithTheStoredName() {
+        show()
+        vm.type("")
+        until {
+            vm.ui.value.draft.name
+                .isEmpty()
+        }
+        compose.onNodeWithTag(BuilderTags.TITLE).assertTextContains("Mine")
     }
 
     @Test

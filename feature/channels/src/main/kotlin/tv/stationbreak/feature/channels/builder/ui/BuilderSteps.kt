@@ -66,14 +66,14 @@ private val PanelGap = 16.dp
  * Compose's focus search; one focusable root takes the D-pad and sends it to the ViewModel. The title search and the
  * name are real text fields only while the viewer types into them.
  *
- * The host opens the builder (`openNew`, `openCopy` or `openEdit`) before it shows this. [onExit] is called once: with
- * the new channel for Save and watch, and with null for a Back that leaves, or a save that does not watch.
+ * The host opens the builder (`openNew`, `openCopy` or `openEdit`) before it shows this. [onEvent] is called once, with
+ * how the builder ended: Saved (and whether to watch) or Closed (a Back that leaves).
  */
 @Composable
 internal fun BuilderRoot(
     viewModel: BuilderViewModel,
     pictureHole: DpRect,
-    onExit: (tune: ChannelId?) -> Unit,
+    onEvent: (BuilderEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
@@ -86,17 +86,14 @@ internal fun BuilderRoot(
             keys.requestFocus()
         }
     }
-    val exit by rememberUpdatedState(onExit)
+    val exit by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
         // The builder is left once: an event that follows (a fast double Back) is ignored.
         var finished = false
         viewModel.events.collect { event ->
             if (finished) return@collect
             finished = true
-            when (event) {
-                is BuilderEvent.Saved -> exit(event.id.takeIf { event.andWatch })
-                BuilderEvent.Closed -> exit(null)
-            }
+            exit(event)
         }
     }
     val actions = remember(viewModel) { BuilderActions(viewModel) { typing = true } }
@@ -164,12 +161,13 @@ internal fun BuilderScreen(
 private fun Header(ui: BuilderUi) {
     Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         val title =
-            if (ui.mode is BuilderMode.New ||
-                ui.draft.name.isBlank()
-            ) {
+            if (ui.mode is BuilderMode.New) {
                 stringResource(R.string.builder_new_channel)
             } else {
+                // A name cleared to blank on the sheet still heads it with the channel's stored name.
                 ui.draft.name
+                    .ifBlank { ui.storedName }
+                    .ifBlank { stringResource(R.string.builder_new_channel) }
             }
         Text(title, Modifier.testTag(BuilderTags.TITLE), style = MaterialTheme.typography.titleLarge, maxLines = 1)
         if (ui.onSheet) {

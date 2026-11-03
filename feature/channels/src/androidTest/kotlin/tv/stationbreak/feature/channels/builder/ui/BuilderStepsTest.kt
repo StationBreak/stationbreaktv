@@ -135,7 +135,7 @@ class BuilderStepsTest {
         compose.setContent {
             StationBreakTheme {
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
-                    BuilderRoot(vm, HOLE, onExit = { exits += it })
+                    BuilderRoot(vm, HOLE, onEvent = { exits += it.tune() })
                 }
             }
         }

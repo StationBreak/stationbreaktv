@@ -16,14 +16,22 @@ object ChannelsTags {
     /** The line under the title for a refusal or a failure. */
     const val MESSAGE = "channels:message"
     const val RESET = "channels:reset"
+
+    /** The New channel row above the first group. */
+    const val NEW_CHANNEL = "channels:new"
     const val CHOOSING = "channels:choosing"
     const val PANEL = "channels:panel"
     const val PANEL_TEXT = "channels:panel:text"
+
+    /** The line in the actions panel of a channel made by a newer version of the app. */
+    const val NEWER_APP = "channels:panel:newerApp"
     const val PICKER = "channels:picker"
 
     const val ACTION_WATCH = "channels:action:watch"
     const val ACTION_SWITCH_ON = "channels:action:switchOn"
     const val ACTION_SWITCH_OFF = "channels:action:switchOff"
+    const val ACTION_COPY = "channels:action:copy"
+    const val ACTION_EDIT = "channels:action:edit"
     const val ACTION_CHANGE_NUMBER = "channels:action:changeNumber"
     const val ACTION_DEFAULT_NUMBER = "channels:action:defaultNumber"
     const val ACTION_CANCEL = "channels:action:cancel"

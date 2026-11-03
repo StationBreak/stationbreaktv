@@ -5,6 +5,7 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.channels.builder.BuilderMode
 
 /** The three lists of the channel screen: switched on, known but not on, and switched off by the viewer. */
 internal enum class ChannelGroup { On, Shelf, Off }
@@ -67,6 +68,9 @@ internal sealed interface ChannelsFocus {
         val id: ChannelId,
     ) : ChannelsFocus
 
+    /** The New channel row above the first group. */
+    data object New : ChannelsFocus
+
     data object Reset : ChannelsFocus
 }
 
@@ -88,6 +92,8 @@ internal data class ChannelsUi(
     val picker: PickerState? = null,
     /** The first read of why channels have nothing to air has landed (until then Watch is not offered). */
     val reasonsRead: Boolean = false,
+    /** The channel builder is showing over the list, opened for this; the screen's keys are the builder's. */
+    val builder: BuilderMode? = null,
 ) {
     companion object {
         val Empty =

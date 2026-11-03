@@ -93,6 +93,7 @@
     <string name="builder_leave_keep_building">Keep building</string>
     <string name="builder_leave_keep_editing">Keep editing</string>
     <string name="builder_copy_to_customise">Copy to customise</string>
+    <string name="builder_newer_app_channel">Made by a newer version of the app. Update the app to edit or delete it.</string>
     <string name="builder_copy_suffix">%1$s (copy)</string>
     <string name="builder_kept_from">Kept from %1$s</string>
     <string name="builder_use_builder_settings">Use the builder\'s settings instead</string>

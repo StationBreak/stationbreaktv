@@ -28,8 +28,10 @@ import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
 
-/** One line of the list: a group's heading, a channel, or the Reset row after the last group. */
+/** One line of the list: the New channel row, a group's heading, a channel, or the Reset row after the last group. */
 private sealed interface Line {
+    data object New : Line
+
     data class Heading(
         val group: ChannelGroup,
     ) : Line
@@ -43,6 +45,7 @@ private sealed interface Line {
 
 private fun linesOf(rows: List<ChannelRow>): List<Line> =
     buildList {
+        add(Line.New)
         ChannelGroup.entries.forEach { group ->
             val inGroup = rows.filter { it.group == group }
             if (inGroup.isEmpty()) return@forEach
@@ -69,6 +72,7 @@ internal fun ChannelList(
     ) {
         items(lines.size, key = { lines[it].key() }) { i ->
             when (val line = lines[i]) {
+                Line.New -> NewLine(focused = i == focused)
                 is Line.Heading -> HeadingLine(line.group)
                 is Line.Channel -> RowLine(line.row, focused = i == focused)
                 Line.Reset -> ResetLine(focused = i == focused)
@@ -79,6 +83,7 @@ internal fun ChannelList(
 
 private fun Line.isFocus(focus: ChannelsFocus?): Boolean =
     when (this) {
+        Line.New -> focus == ChannelsFocus.New
         is Line.Channel -> focus == ChannelsFocus.Row(row.id)
         Line.Reset -> focus == ChannelsFocus.Reset
         is Line.Heading -> false
@@ -86,6 +91,7 @@ private fun Line.isFocus(focus: ChannelsFocus?): Boolean =
 
 private fun Line.key(): String =
     when (this) {
+        Line.New -> "new"
         is Line.Heading -> "heading:$group"
         is Line.Channel -> "row:${row.id.value}"
         Line.Reset -> "reset"
@@ -177,17 +183,3 @@ private fun reasonText(reason: HiddenReason): Int =
         HiddenReason.AllBlockedByCeiling -> R.string.channels_reason_ceiling
         HiddenReason.EmptyToday -> R.string.channels_reason_empty_today
     }
-
-@Composable
-private fun ResetLine(focused: Boolean) {
-    Text(
-        stringResource(R.string.channels_reset),
-        Modifier
-            .fillMaxWidth()
-            .drawnFocus(focused)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .testTag(ChannelsTags.RESET)
-            .semantics { selected = focused },
-        style = MaterialTheme.typography.bodyLarge,
-    )
-}

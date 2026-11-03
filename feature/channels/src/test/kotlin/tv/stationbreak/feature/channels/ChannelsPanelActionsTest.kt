@@ -24,10 +24,10 @@ class ChannelsPanelActionsTest {
             rig.vm.select()
             assertEquals(0, rig.ui.choice)
             repeat(5) { rig.vm.panelMove(PanelMove.Down) }
-            // Watch, Switch off, Change number.
-            assertEquals(2, rig.ui.choice)
+            // Watch, Switch off, Copy to customise, Change number.
+            assertEquals(3, rig.ui.choice)
             rig.vm.panelMove(PanelMove.Up)
-            assertEquals(1, rig.ui.choice)
+            assertEquals(2, rig.ui.choice)
             repeat(5) { rig.vm.panelMove(PanelMove.Up) }
             assertEquals(0, rig.ui.choice)
         }
@@ -98,7 +98,7 @@ class ChannelsPanelActionsTest {
     private suspend fun kotlinx.coroutines.test.TestScope.pickerOn(rig: ChannelsRig) {
         rig.open(this, current = A)
         rig.vm.select()
-        repeat(2) { rig.vm.panelMove(PanelMove.Down) }
+        repeat(3) { rig.vm.panelMove(PanelMove.Down) }
         rig.vm.panelSelect()
     }
 

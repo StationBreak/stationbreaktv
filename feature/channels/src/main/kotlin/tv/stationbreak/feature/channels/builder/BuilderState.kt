@@ -224,4 +224,6 @@ internal data class BuilderUi(
     val saved: Boolean = false,
     /** The step the shown [problem] belongs to, so a Save refused on another page can say where to fix it. */
     val problemStep: BuilderStep? = null,
+    /** The name the draft was opened with (blank for a new channel): what heads the sheet while the name is cleared. */
+    val storedName: String = "",
 )

@@ -136,6 +136,16 @@ class BuilderViewModelTest {
         }
 
     @Test
+    fun theStoredNameStaysWhileTheNameIsCleared() =
+        builderTest { rig ->
+            rig.openEdit(draftOf("Mine", listOf(lib1)))
+            assertEquals("Mine", rig.ui.storedName)
+            rig.vm.type("")
+            assertEquals("", rig.ui.draft.name)
+            assertEquals("Mine", rig.ui.storedName)
+        }
+
+    @Test
     fun theSheetOfACopyListsTheKeptSettingsAndANewOneHasNoDelete() =
         builderTest { rig ->
             val kept = KeptSettings("Movies", listOf(KeptItem.Order(KeptOrder.Chronological)))

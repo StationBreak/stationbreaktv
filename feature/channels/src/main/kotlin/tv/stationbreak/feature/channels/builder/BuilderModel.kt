@@ -143,5 +143,6 @@ internal fun BuilderModel.toUi(): BuilderUi {
         numberHolder = draft.number?.let { held[it] },
         saved = saved,
         problemStep = problemShown()?.step(),
+        storedName = opened.name,
     )
 }
