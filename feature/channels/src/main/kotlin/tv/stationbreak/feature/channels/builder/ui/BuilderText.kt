@@ -3,8 +3,6 @@ package tv.stationbreak.feature.channels.builder.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
-import tv.stationbreak.core.domain.lineup.ChannelNumbers
-import tv.stationbreak.core.domain.lineup.builder.DraftProblem
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
 import tv.stationbreak.core.domain.lineup.builder.KeptOrder
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
@@ -12,9 +10,6 @@ import tv.stationbreak.core.domain.lineup.builder.PreviewItem
 import tv.stationbreak.core.domain.lineup.builder.SkipReason
 import tv.stationbreak.core.domain.lineup.builder.SkippedPick
 import tv.stationbreak.feature.channels.R
-import tv.stationbreak.feature.channels.builder.BuilderConfirm
-import tv.stationbreak.feature.channels.builder.BuilderMessage
-import tv.stationbreak.feature.channels.builder.BuilderMode
 import tv.stationbreak.feature.channels.builder.BuilderStep
 import tv.stationbreak.feature.channels.builder.SourceKindTab
 
@@ -128,5 +123,24 @@ internal fun skippedText(skipped: List<SkippedPick>): String {
             val why = stringResource(if (own) R.string.builder_skip_not_kids else R.string.builder_skip_rating)
             stringResource(R.string.builder_skipped_pick, it.label, why)
         }
-    return stringResource(R.string.builder_kids_skipped, picks.joinToString(", "))
+    val shown = joined(picks.take(SKIPPED_SHOWN), R.string.builder_join)
+    val more = picks.size - SKIPPED_SHOWN
+    val list = if (more > 0) stringResource(R.string.builder_skipped_more, shown, more) else shown
+    return stringResource(R.string.builder_kids_skipped, list)
 }
+
+private const val SKIPPED_SHOWN = 2
+
+/** "label: value", worded by one resource so the design partner can reorder it. */
+@Composable
+internal fun labelled(
+    label: String,
+    value: String,
+): String = stringResource(R.string.builder_labelled, label, value)
+
+/** [items] joined by the separator resource [join] (which takes the text so far, then the next). */
+@Composable
+internal fun joined(
+    items: List<String>,
+    join: Int,
+): String = items.reduceOrNull { so, next -> stringResource(join, so, next) }.orEmpty()

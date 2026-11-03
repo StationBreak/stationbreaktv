@@ -32,10 +32,11 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -44,13 +45,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
-import tv.stationbreak.core.domain.lineup.builder.KeptItem
-import tv.stationbreak.core.domain.lineup.builder.PlayOrder
-import tv.stationbreak.core.domain.lineup.builder.hasPool
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ScreenLayout
-import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderConfirm
 import tv.stationbreak.feature.channels.builder.BuilderEvent
@@ -59,11 +55,6 @@ import tv.stationbreak.feature.channels.builder.BuilderMode
 import tv.stationbreak.feature.channels.builder.BuilderStep
 import tv.stationbreak.feature.channels.builder.BuilderUi
 import tv.stationbreak.feature.channels.builder.BuilderViewModel
-import tv.stationbreak.feature.channels.builder.CAP_RANGE
-import tv.stationbreak.feature.channels.builder.NameRowKind
-import tv.stationbreak.feature.channels.builder.PlayRowKind
-import tv.stationbreak.feature.channels.builder.PreviewView
-import tv.stationbreak.feature.channels.builder.playRowsOf
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
 import tv.stationbreak.feature.channels.ui.channelsKey
 
@@ -227,9 +218,14 @@ private fun NoticeLine(
 ) {
     Text(
         text,
-        Modifier.padding(horizontal = 12.dp, vertical = 2.dp).testTag(tag),
+        Modifier
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .testTag(tag)
+            .semantics { liveRegion = LiveRegionMode.Polite },
         style = MaterialTheme.typography.bodyMedium,
         color = ChannelsPalette.secondary,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -273,7 +269,7 @@ private fun ConfirmPanel(
     Column(modifier.testTag(BuilderTags.CONFIRM).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             confirmText(confirm),
-            Modifier.testTag(BuilderTags.CONFIRM_TEXT),
+            Modifier.testTag(BuilderTags.CONFIRM_TEXT).semantics { liveRegion = LiveRegionMode.Assertive },
             style = MaterialTheme.typography.titleMedium,
         )
         val (action, keep) = confirmChoices(confirm, ui.mode)

@@ -3,11 +3,8 @@ package tv.stationbreak.feature.channels.builder.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
@@ -26,8 +23,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -38,15 +35,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import tv.stationbreak.core.domain.lineup.builder.OnlyKind
 import tv.stationbreak.core.ui.drawnFocus
-import tv.stationbreak.feature.channels.R
-import tv.stationbreak.feature.channels.builder.BuilderFocus
-import tv.stationbreak.feature.channels.builder.BuilderUi
-import tv.stationbreak.feature.channels.builder.NarrowRowKind
-import tv.stationbreak.feature.channels.builder.PickerRow
-import tv.stationbreak.feature.channels.builder.PickerView
-import tv.stationbreak.feature.channels.builder.SourceKindTab
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
 import tv.stationbreak.feature.channels.ui.keepVisible
 
@@ -88,7 +77,10 @@ internal fun FocusLine(
             .testTag(tag)
             .semantics(mergeDescendants = true) {
                 selected = focused
-                if (ticked != null) toggleableState = ToggleableState(ticked)
+                if (ticked != null) {
+                    toggleableState = ToggleableState(ticked)
+                    role = Role.Checkbox
+                }
             },
     ) {
         content()
@@ -115,7 +107,9 @@ internal fun TypedField(
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
-    if (value != text.text) text = TextFieldValue(value, TextRange(value.length))
+    // The cursor goes to the end only when the ViewModel's value changed (not on every recomposition), so a
+    // ViewModel that later normalises the text does not drop the keyboard's composition while the viewer types.
+    LaunchedEffect(value) { if (value != text.text) text = TextFieldValue(value, TextRange(value.length)) }
     val inner = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     var focusedOnce by remember { mutableStateOf(false) }

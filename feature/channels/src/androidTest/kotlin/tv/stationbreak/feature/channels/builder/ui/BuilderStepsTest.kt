@@ -15,6 +15,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
@@ -37,6 +38,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.ChannelPreview
 import tv.stationbreak.core.domain.lineup.builder.ChannelPreviews
@@ -58,6 +60,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderStep
 import tv.stationbreak.feature.channels.builder.BuilderViewModel
 import tv.stationbreak.feature.channels.builder.NameRowKind
@@ -330,6 +333,96 @@ class BuilderStepsTest {
         compose.onNodeWithTag(BuilderTags.NAME_INPUT).performTextReplacement("Mine")
         compose.waitForIdle()
         assertEquals("Mine", vm.ui.value.draft.name)
+    }
+
+    @Test
+    fun doneOnTheKeyboardReturnsTheDPad() {
+        show()
+        toName()
+        press(Pad.Select)
+        until { exists(BuilderTags.NAME_INPUT) }
+        compose.onNodeWithTag(BuilderTags.NAME_INPUT).performImeAction()
+        until { !exists(BuilderTags.NAME_INPUT) }
+        press(Pad.Down)
+        assertEquals(BuilderFocus.NameRow(NameRowKind.Number), vm.ui.value.focus)
+    }
+
+    @Test
+    fun backWhileTypingKeepsTheBuilder() {
+        show()
+        toName()
+        press(Pad.Select)
+        until { exists(BuilderTags.NAME_INPUT) }
+        press(Pad.Back)
+        until { !exists(BuilderTags.NAME_INPUT) }
+        assertTrue(!exists(BuilderTags.CONFIRM))
+        assertTrue(exits.isEmpty())
+        assertEquals(BuilderStep.Name, vm.ui.value.step)
+        press(Pad.Down)
+        assertEquals(BuilderFocus.NameRow(NameRowKind.Number), vm.ui.value.focus)
+    }
+
+    @Test
+    fun theKeyboardTextReachesTheSearch() {
+        show()
+        press(Pad.Down, Pad.Down, Pad.Down, Pad.Down, Pad.Right, Pad.Select)
+        until { exists(BuilderTags.SEARCH_INPUT) }
+        compose.onNodeWithTag(BuilderTags.SEARCH_INPUT).performTextReplacement("Show")
+        compose.waitForIdle()
+        assertEquals("Show", vm.ui.value.searchText)
+    }
+
+    @Test
+    fun aRefusedSaveShowsItsMessage() {
+        builder.buildResult = BuildResult.SaveFailed
+        show()
+        toName()
+        press(Pad.Down, Pad.Down, Pad.Select)
+        until { exists(BuilderTags.MESSAGE) }
+        compose.onNodeWithTag(BuilderTags.MESSAGE).assertTextContains("save that", substring = true)
+    }
+
+    @Test
+    fun aProblemWithTheDraftIsShownOnItsPage() {
+        show()
+        toName()
+        press(Pad.Select)
+        until { exists(BuilderTags.NAME_INPUT) }
+        compose.onNodeWithTag(BuilderTags.NAME_INPUT).performTextReplacement("")
+        until { exists(BuilderTags.PROBLEM) }
+        compose.onNodeWithTag(BuilderTags.PROBLEM).assertTextContains("name", substring = true)
+    }
+
+    @Test
+    fun turningTheKidsSwitchOffAsksFirst() {
+        show()
+        toPlay()
+        press(Pad.Down, Pad.Down, Pad.Down, Pad.Select)
+        until { vm.ui.value.draft.kids }
+        press(Pad.Select)
+        until { exists(BuilderTags.CONFIRM) }
+        compose.onNodeWithTag(BuilderTags.CONFIRM_TEXT).assertTextContains("no longer be held", substring = true)
+        compose.onNodeWithTag(BuilderTags.CONFIRM_NO).assertTextContains("Keep it on")
+    }
+
+    @Test
+    fun aPreviewThatCannotBeWorkedOutSaysSo() {
+        val previews = GatedPreviews(ChannelPreview.Unavailable)
+        previews.gate.complete(Unit)
+        show(previews)
+        press(Pad.Right, Pad.Select)
+        until { vm.ui.value.preview is PreviewView.Unavailable }
+        compose.onNodeWithTag(BuilderTags.PREVIEW).assertTextContains("not available", substring = true)
+    }
+
+    @Test
+    fun aPoolWithNothingInItSaysSo() {
+        val previews = GatedPreviews(ChannelPreview.NothingFits(emptyList()))
+        previews.gate.complete(Unit)
+        show(previews)
+        press(Pad.Right, Pad.Select)
+        until { vm.ui.value.preview is PreviewView.NothingFits }
+        compose.onNodeWithTag(BuilderTags.PREVIEW).assertTextContains("Nothing in your libraries", substring = true)
     }
 
     private fun hint() = compose.onNodeWithTag(BuilderTags.ORDER_HINT, useUnmergedTree = true)

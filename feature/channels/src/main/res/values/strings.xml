@@ -49,7 +49,6 @@
     <string name="builder_step_play">How it plays</string>
     <string name="builder_step_name">Name and number</string>
     <string name="builder_next">Next</string>
-    <string name="builder_back">Back</string>
     <string name="builder_source_libraries">Libraries</string>
     <string name="builder_source_collections">Collections</string>
     <string name="builder_source_tags">Tags</string>
@@ -117,7 +116,6 @@
     <string name="builder_on">On</string>
     <string name="builder_off">Off</string>
     <string name="builder_any">Any</string>
-    <string name="builder_none">None</string>
     <string name="builder_field_name">Name</string>
     <string name="builder_field_number">Number</string>
     <string name="builder_list_empty">Nothing here yet</string>
@@ -132,6 +130,12 @@
     <string name="builder_skipped_pick">%1$s (%2$s)</string>
     <string name="builder_summary_sources">From %1$s</string>
     <string name="builder_summary_play">%1$s, %2$s</string>
+    <string name="builder_summary">%1$s. %2$s</string>
+    <string name="builder_labelled">%1$s: %2$s</string>
+    <string name="builder_labelled_on">%1$s (%2$s)</string>
+    <string name="builder_join">%1$s, %2$s</string>
+    <string name="builder_join_dot">%1$s  \u00B7  %2$s</string>
+    <string name="builder_skipped_more">%1$s and %2$d more</string>
     <string name="builder_problem_on_step">%1$s (%2$s)</string>
     <string name="builder_number_held">Channel %1$d is %2$s. Pick another number.</string>
     <string name="builder_number_taken_pick">That number is taken. Pick another.</string>

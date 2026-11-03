@@ -1,40 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.builder.ui
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.toggleableState
-import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -48,7 +28,6 @@ import tv.stationbreak.feature.channels.builder.PickerRow
 import tv.stationbreak.feature.channels.builder.PickerView
 import tv.stationbreak.feature.channels.builder.SourceKindTab
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
-import tv.stationbreak.feature.channels.ui.keepVisible
 
 private val TabsWidth = 168.dp
 
@@ -248,7 +227,7 @@ private fun narrowText(
             val from = filters.yearFrom
             val to = filters.yearTo
             val value = if (from != null && to != null) stringResource(R.string.builder_years_range, from, to) else any
-            "${stringResource(R.string.builder_filter_years)}: $value"
+            labelled(stringResource(R.string.builder_filter_years), value)
         }
 
         NarrowRowKind.Runtime -> {
@@ -262,15 +241,15 @@ private fun narrowText(
                     OnlyKind.Shows -> stringResource(R.string.builder_only_shows)
                     null -> any
                 }
-            "${stringResource(R.string.builder_filter_only)}: $value"
+            labelled(stringResource(R.string.builder_filter_only), value)
         }
 
         NarrowRowKind.Rating -> {
-            "${stringResource(R.string.builder_filter_rating)}: ${filters.maxRating ?: any}"
+            labelled(stringResource(R.string.builder_filter_rating), filters.maxRating ?: any)
         }
 
         NarrowRowKind.LeaveOut -> {
-            "${stringResource(R.string.builder_leave_out)}: ${onOff(ui.narrow?.leavingOut == true)}"
+            labelled(stringResource(R.string.builder_leave_out), onOff(ui.narrow?.leavingOut == true))
         }
     }
 }
@@ -296,9 +275,9 @@ private fun genresText(ui: BuilderUi): String {
     val rows = (view as? PickerView.Entries)?.rows.orEmpty()
     val at = rows.getOrNull(ui.narrow?.genreCursor ?: 0)
     return when {
-        at != null -> "$label: ${at.label} (${onOff(at.ticked)})"
-        view == PickerView.Loading -> "$label: ${stringResource(R.string.builder_working)}"
-        view == PickerView.Unavailable -> "$label: ${stringResource(R.string.builder_list_unavailable)}"
-        else -> "$label: ${stringResource(R.string.builder_list_empty)}"
+        at != null -> labelled(label, stringResource(R.string.builder_labelled_on, at.label, onOff(at.ticked)))
+        view == PickerView.Loading -> labelled(label, stringResource(R.string.builder_working))
+        view == PickerView.Unavailable -> labelled(label, stringResource(R.string.builder_list_unavailable))
+        else -> labelled(label, stringResource(R.string.builder_list_empty))
     }
 }
