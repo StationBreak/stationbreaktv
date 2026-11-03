@@ -25,7 +25,7 @@ internal fun LineupChannel.displayName(catalog: StarterCatalogView): String =
 
 internal fun LineupChannel.summary(
     catalog: StarterCatalogView,
-    days: LineupDays,
+    playKey: PlayKey,
 ) = ChannelSummary(
     id = id,
     number = number,
@@ -36,7 +36,7 @@ internal fun LineupChannel.summary(
     defaultNumber = defaultNumber,
     kid = KidStatus.isKidChannel(this),
     optIn = isOptIn(catalog),
-    playKey = days.playKeyOf(this),
+    playKey = playKey,
 )
 
 private fun LineupChannel.isOptIn(catalog: StarterCatalogView): Boolean {

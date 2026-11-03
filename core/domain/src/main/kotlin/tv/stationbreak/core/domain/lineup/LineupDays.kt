@@ -202,8 +202,9 @@ internal class LineupDays(
         )
 
     /**
-     * [channel]'s part of [inputsOf], as a digest: it changes exactly when the days built for the channel would (a new
-     * play order, a reshuffle, other sources or filters; never a name or a number that changes no pool).
+     * [channel]'s part of [inputsOf], as a digest: it changes whenever this channel's own inputs to the days change (a
+     * new play order, a reshuffle, other sources or filters; never a name or a number that changes no pool). A
+     * leftovers channel's days also depend on other channels, so the guide compares the whole list of keys.
      */
     fun playKeyOf(channel: LineupChannel): PlayKey {
         val inputs = channelInputs(channel).toString()

@@ -243,7 +243,7 @@ internal object DraftRules {
             filmCap = if (uncapped) null else caps?.effectiveFilm ?: ChannelDraft.DEFAULT_FILM_CAP,
             kids = number != null && number in Band.Kids.numbers,
             number = number,
-            kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name.orEmpty(), it) },
+            kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name, it) },
             numberChosen = false,
             seed = rules.seed,
         )
