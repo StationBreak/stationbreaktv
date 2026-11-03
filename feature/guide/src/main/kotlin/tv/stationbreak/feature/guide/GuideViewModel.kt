@@ -415,6 +415,9 @@ internal class GuideViewModel
         fun channelsClosed() {
             synchronized(lock) {
                 managing = false
+                // The channel playing was taken off the lineup (deleted): tune its neighbour, as cable would. The grid
+                // loads as usual meanwhile, for a tune that does not leave the guide.
+                neighbourOfGonePlaying()?.let { eventChannel.trySend(GuideEvent.Tune(it)) }
                 if (lineupAtOpen != null && lineupNow != lineupAtOpen) {
                     reload(menu = GuideMenuEntry.Channels)
                 } else {
@@ -422,6 +425,18 @@ internal class GuideViewModel
                     resumeTick()
                 }
             }
+        }
+
+        // The channel to tune when the one playing is no longer On: the next higher number, else the next lower, never
+        // the top of the list. Null when it is still there, was never known, or nothing is left. Under [lock].
+        private fun neighbourOfGonePlaying(): ChannelId? {
+            val playing = currentChannel ?: return null
+            val now = lineupNow ?: return null
+            val was = lineupAtOpen?.firstOrNull { it.first == playing }?.second
+            if (was == null || now.any { it.first == playing }) return null
+            val numbered = now.mapNotNull { (id, number) -> number?.let { id to it } }
+            val next = numbered.filter { it.second > was }.minByOrNull { it.second }
+            return (next ?: numbered.filter { it.second < was }.maxByOrNull { it.second })?.first
         }
 
         /** Channel management ended with a tune: the guide goes with it. */
