@@ -4,7 +4,6 @@ package tv.stationbreak.feature.channels.builder
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
-import tv.stationbreak.core.model.ChannelId
 
 /** The save came back: [draft] is now the saved one, or the refusal is shown. */
 internal fun BuilderModel.saved(
@@ -32,34 +31,16 @@ private fun BuilderModel.refusedWith(
 ): BuilderModel =
     when {
         reason is BuildRefusal.Invalid -> copy(refused = reason.problem)
-        reason is BuildRefusal.NumberTaken -> numberTaken(draft, reason, holderName)
+        reason is BuildRefusal.NumberTaken -> numberTaken(draft, holderName)
         else -> copy(message = refusalMessage(reason))
     }
 
-// An edit may trade numbers (Swap) where the domain allows it; a new channel cannot, so it learns who has the number.
+// The builder never trades numbers (Change number on the Channels screen does): a number taken in the meantime says
+// who has it, and the viewer picks another.
 private fun BuilderModel.numberTaken(
     draft: ChannelDraft,
-    reason: BuildRefusal.NumberTaken,
     holderName: String,
-): BuilderModel =
-    when {
-        editing() && reason.swappable -> swapAsked(draft, draft.number ?: 0, reason.holder, holderName)
-        editing() -> copy(message = BuilderMessage.NumberNotTradable)
-        else -> copy(message = BuilderMessage.NumberTaken, held = held + heldBy(draft, holderName))
-    }
-
-private fun BuilderModel.swapAsked(
-    draft: ChannelDraft,
-    number: Int,
-    holder: ChannelId,
-    holderName: String,
-): BuilderModel =
-    copy(
-        confirm = BuilderConfirm.Swap(number, holderName, draft),
-        resume = focus,
-        focus = BuilderFocus.Choice(1),
-        swapHolder = holder,
-    )
+): BuilderModel = copy(message = BuilderMessage.NumberTaken, held = held + heldBy(draft, holderName))
 
 // The number the draft asked for, with the name of the channel that has it.
 private fun heldBy(

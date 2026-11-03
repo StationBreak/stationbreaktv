@@ -527,11 +527,10 @@ internal class BuilderViewModel
             val yes = (focus as? BuilderFocus.Choice)?.index == 0
             closeConfirm()
             if (!yes) return
-            when (val confirm = m.confirm) {
+            when (m.confirm) {
                 BuilderConfirm.Leave -> closeNow()
                 BuilderConfirm.KidsOff -> setKids(on = false)
                 is BuilderConfirm.Delete -> deleteNow()
-                is BuilderConfirm.Swap -> submit(m.andWatch, m.swapHolder, confirm.draft)
                 null -> Unit
             }
         }
@@ -569,17 +568,10 @@ internal class BuilderViewModel
         // Saving
 
         /** Saves the draft; the result is a message, a refusal or a [BuilderEvent.Saved]. */
-        fun save(andWatch: Boolean) = submit(andWatch, swapWith = null)
-
-        // [sending] is the draft a Swap was asked about; otherwise the draft as it is now.
-        private fun submit(
-            andWatch: Boolean,
-            swapWith: ChannelId?,
-            sending: ChannelDraft? = null,
-        ) {
+        fun save(andWatch: Boolean) {
             val m =
                 synchronized(lock) {
-                    val current = model.copy(draft = sending ?: model.draft)
+                    val current = model
                     val problem = current.draft.problem()
                     // A channel made is made once; a draft that cannot be saved says why, whichever page this is.
                     val open = current.ready && !current.saving && !current.saved
@@ -590,7 +582,7 @@ internal class BuilderViewModel
                 } ?: return
             val account = checkNotNull(m.account)
             scope.launch {
-                val result = send(account, m, swapWith)
+                val result = send(account, m)
                 val holder = ((result as? BuildResult.Refused)?.reason as? BuildRefusal.NumberTaken)?.holder
                 val holderName = holder?.let { nameOf(account, it) }.orEmpty()
                 // A number was taken, so what was free is no longer: read it again.
@@ -605,10 +597,9 @@ internal class BuilderViewModel
         private suspend fun send(
             account: LibraryAccount,
             m: BuilderModel,
-            swapWith: ChannelId?,
         ): BuildResult =
             when (val mode = m.mode) {
-                is BuilderMode.Edit -> builder.save(account, mode.id, m.draft, swapWith)
+                is BuilderMode.Edit -> builder.save(account, mode.id, m.draft)
                 else -> builder.create(account, m.draft)
             }
 

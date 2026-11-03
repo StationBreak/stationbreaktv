@@ -145,13 +145,6 @@ internal sealed interface BuilderConfirm {
     data class Delete(
         val name: String,
     ) : BuilderConfirm
-
-    /** [draft] is the one that was refused: confirming sends that one, whatever happened since. */
-    data class Swap(
-        val number: Int,
-        val holderName: String,
-        val draft: ChannelDraft,
-    ) : BuilderConfirm
 }
 
 /** A line the screen shows after something did not happen. An invalid draft is [BuilderUi.problem], not a message. */
@@ -162,11 +155,8 @@ internal enum class BuilderMessage {
     OutOfRange,
     LastOn,
 
-    /** The number is held by another channel and a new channel cannot trade for it: pick another. */
+    /** The number is held by another channel (the builder never trades): pick another. */
     NumberTaken,
-
-    /** The number is held by a channel an edit cannot trade numbers with. */
-    NumberNotTradable,
     SaveFailed,
     Failed,
     NotEditable,

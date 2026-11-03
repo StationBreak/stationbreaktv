@@ -185,38 +185,24 @@ class BuilderStepsTest {
         }
 
     @Test
-    fun aTakenNumberOpensSwap() =
+    fun aTakenNumberAtSaveOfAnEditSaysPickAnotherAndReadsTheFreeNumbersAgain() =
         builderTest { rig ->
             val holder = ChannelId("custom:other")
-            rig.channels.list.value = listOf(summary(holder, 650, name = "Other"))
+            rig.channels.list.value = listOf(summary(holder, 600, name = "Other"))
             rig.openEdit()
             rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = true))
-            rig.vm.save(andWatch = false)
-            rig.advance(1)
-            assertEquals(BuilderConfirm.Swap(600, "Other", rig.ui.draft), rig.ui.confirm)
-            assertFalse(rig.ui.saving)
-            assertEquals(BuilderFocus.Choice(1), rig.ui.focus)
-            rig.builder.buildResult = null
-            rig.press(Left)
-            rig.select()
-            assertEquals(
-                holder,
-                rig.builder.saved
-                    .last()
-                    .third,
-            )
-            assertEquals(listOf(BuilderEvent.Saved(CUSTOM, false)), rig.events)
-        }
-
-    @Test
-    fun aTakenNumberThatCannotBeTradedSaysSo() =
-        builderTest { rig ->
-            rig.openEdit()
-            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("starter:x"), false))
+            rig.builder.free = Listed.Ok(listOf(601, 602))
             rig.vm.save(andWatch = false)
             rig.advance(1)
             assertNull(rig.ui.confirm)
-            assertEquals(BuilderMessage.NumberNotTradable, rig.ui.message)
+            assertFalse(rig.ui.saving)
+            assertEquals(BuilderMessage.NumberTaken, rig.ui.message)
+            assertEquals("Other", rig.ui.numberHolder)
+            assertEquals(2, rig.builder.calls.count { it == "freeNumbers" })
+            assertEquals(listOf(null), rig.builder.saved.map { it.third })
+            // The number rows now step over what is free.
+            rig.press(Down, Down, Down, Down, Down, Down, Down, Right)
+            assertEquals(601, rig.ui.draft.number)
         }
 
     @Test

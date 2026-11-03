@@ -39,7 +39,6 @@ private fun plainMessage(message: BuilderMessage): Int =
         BuilderMessage.NoFreeNumber -> R.string.builder_no_free_number
         BuilderMessage.OutOfRange -> R.string.builder_out_of_range
         BuilderMessage.LastOn -> R.string.builder_last_on
-        BuilderMessage.NumberNotTradable -> R.string.builder_number_not_tradable
         BuilderMessage.SaveFailed -> R.string.builder_save_failed
         BuilderMessage.Failed -> R.string.builder_failed
         BuilderMessage.NotEditable -> R.string.builder_not_editable
@@ -126,7 +125,6 @@ internal fun confirmText(confirm: BuilderConfirm): String =
         BuilderConfirm.Leave -> stringResource(R.string.builder_leave_confirm)
         BuilderConfirm.KidsOff -> stringResource(R.string.builder_kids_off_confirm)
         is BuilderConfirm.Delete -> stringResource(R.string.builder_delete_confirm, confirm.name)
-        is BuilderConfirm.Swap -> stringResource(R.string.builder_number_taken, confirm.number, confirm.holderName)
     }
 
 /** The two choices of a confirm: the action, then the keep. */
@@ -148,9 +146,5 @@ internal fun confirmChoices(
 
         is BuilderConfirm.Delete -> {
             stringResource(R.string.builder_delete_action) to stringResource(R.string.builder_delete_cancel)
-        }
-
-        is BuilderConfirm.Swap -> {
-            stringResource(R.string.builder_swap_action) to stringResource(R.string.builder_swap_cancel)
         }
     }

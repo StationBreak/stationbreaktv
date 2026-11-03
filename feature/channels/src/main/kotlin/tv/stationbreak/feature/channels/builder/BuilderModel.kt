@@ -10,7 +10,6 @@ import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
 import tv.stationbreak.core.domain.lineup.builder.hasPool
-import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 
 internal val NO_DRAFT = ChannelDraft("", emptyList(), emptyList(), DraftFilters(), kids = false, seed = Seed(0uL))
@@ -46,8 +45,7 @@ internal data class BuilderModel(
     val preview: PreviewView = PreviewView.NothingFits(emptyList()),
     val barCount: Int? = null,
     val confirm: BuilderConfirm? = null,
-    /** The channel a Swap trades numbers with, and whether the save it belongs to goes on to watch. */
-    val swapHolder: ChannelId? = null,
+    /** Whether the save in flight goes on to watch. */
     val andWatch: Boolean = false,
     val message: BuilderMessage? = null,
     val refused: DraftProblem? = null,

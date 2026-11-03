@@ -280,7 +280,7 @@ class BuilderFixesTest {
         }
 
     @Test
-    fun theSwapConfirmSendsTheDraftThatWasRefusedAndInputWaitsWhileSaving() =
+    fun inputWaitsWhileASaveIsOut() =
         builderTest { rig ->
             val holder = ChannelId("custom:other")
             rig.channels.list.value = listOf(summary(holder, 600, name = "Other"))
@@ -296,17 +296,6 @@ class BuilderFixesTest {
             assertEquals(refused.number, rig.ui.draft.number)
             rig.advance(1)
             assertEquals(refused.number, rig.ui.draft.number)
-            // The confirm carries the draft it asked about.
-            assertEquals(refused, (rig.ui.confirm as BuilderConfirm.Swap).draft)
-            rig.builder.buildResult = null
-            rig.press(Left)
-            rig.select()
-            assertEquals(
-                refused,
-                rig.builder.saved
-                    .last()
-                    .second,
-            )
         }
 
     @Test

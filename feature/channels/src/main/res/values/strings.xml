@@ -102,7 +102,6 @@
     <string name="builder_preview_empty">Nothing in your libraries fits this channel yet</string>
     <string name="builder_libraries_unavailable">Library names can\'t be read right now</string>
     <string name="builder_search_hint">Type part of a name</string>
-    <string name="builder_number_taken">Channel %1$d is %2$s. Swap numbers?</string>
     <string name="builder_save_failed">Couldn\'t save that. Try again.</string>
     <string name="builder_failed">Something went wrong. Nothing was changed.</string>
     <string name="builder_not_editable">Channels can\'t be changed on this TV until the app is updated.</string>
@@ -156,7 +155,6 @@
     <string name="builder_problem_on_step">%1$s (%2$s)</string>
     <string name="builder_number_held">Channel %1$d is %2$s. Pick another number.</string>
     <string name="builder_number_taken_pick">That number is taken. Pick another.</string>
-    <string name="builder_number_not_tradable">That number is taken and can\'t be traded.</string>
     <string name="builder_kids_band">Kids channels keep numbers %1$d to %2$d, and other channels can\'t use them.</string>
     <string name="builder_out_of_range">That number isn\'t one a channel can have.</string>
     <string name="builder_last_on">At least one channel stays on.</string>
@@ -165,8 +163,6 @@
     <string name="builder_not_shuffle">Only a shuffle channel can be reshuffled.</string>
     <string name="builder_not_found">That channel is gone.</string>
     <string name="builder_open_failed">Couldn\'t open that channel. Nothing was changed.</string>
-    <string name="builder_swap_action">Swap</string>
-    <string name="builder_swap_cancel">Cancel</string>
     <string name="builder_kept_no_caps">No limit on episodes in a row</string>
     <string name="builder_kept_epoch_hours">Day cut into %1$d-hour blocks</string>
     <string name="builder_problem_name_empty">Give the channel a name.</string>
