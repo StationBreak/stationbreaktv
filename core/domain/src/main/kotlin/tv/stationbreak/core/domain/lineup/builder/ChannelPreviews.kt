@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.lineup.SharedSnapshots
 import tv.stationbreak.core.domain.lineup.SnapshotCache
 import tv.stationbreak.core.domain.lineup.policyRules
 import tv.stationbreak.core.domain.lineup.ruledDayOf
+import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
@@ -208,6 +209,8 @@ class BuiltInChannelPreviews(
         }
     }
 
+    private fun withoutExtras(snapshot: RuleSnapshot): RuleSnapshot = ExtrasFilter.filter(snapshot).snapshot
+
     // The cut-offs the lineup's own days read (today's and the following day's): only these go through the shared
     // cache, so a draft with an odd epoch (a kept short one) cannot push the lineup's snapshots out of it.
     private fun sharedCutoffs(
@@ -216,7 +219,8 @@ class BuiltInChannelPreviews(
     ): Set<Long> {
         val days = LineupDays(service.catalog)
         val atMs = at.toEpochMilliseconds()
-        return (days.scheduled(lineup, atMs) + days.scheduled(lineup, atMs + DAY_MS)).mapTo(HashSet()) { it.cutoffMs }
+        val cuts = days.scheduled(lineup, atMs, null) + days.scheduled(lineup, atMs + DAY_MS, null)
+        return cuts.mapTo(HashSet()) { it.cutoffMs }
     }
 
     // The rules the draft was opened from; null for a new channel, or when its origin is gone.
@@ -281,13 +285,15 @@ class BuiltInChannelPreviews(
         suspend fun dayOf(n: Long): Today {
             val cutoff = Epochs.cutoff(settings, n)
             val at = Instant.fromEpochMilliseconds(cutoff)
+            // A preview always leaves the extras out (spec 23), whatever the lineup's boundary says of its own days.
             val snapshot =
                 if (cutoff in shared) {
                     // The generation is read before the snapshot, as the schedule source does, so the key is the same.
-                    val key = SnapshotCache.Key(account, chosen, cutoff, library.contentGeneration(account))
-                    snapshots.get(key) { library.ruleSnapshot(account, chosen, at) }.snapshot
+                    val generation = library.contentGeneration(account)
+                    val key = SnapshotCache.Key(account, chosen, cutoff, generation, extras = true)
+                    snapshots.get(key) { withoutExtras(library.ruleSnapshot(account, chosen, at)) }.snapshot
                 } else {
-                    library.ruleSnapshot(account, chosen, at)
+                    withoutExtras(library.ruleSnapshot(account, chosen, at))
                 }
             val ruled =
                 ruledDayOf(ceilings, rules, channel, snapshot, settings, n) { r, policy ->

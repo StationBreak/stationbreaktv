@@ -98,7 +98,7 @@ class DayBuildEquivalenceTest {
         atMs: Long,
         items: List<RuleItem>,
     ): Pair<List<Scheduled>, Map<Long, RuleSnapshot>> {
-        val scheduled = days.scheduled(lineup, atMs)
+        val scheduled = days.scheduled(lineup, atMs, null)
         // A distinct, smaller library per cut-off, so the claim chains of two cut-offs differ.
         val cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted()
         val snapshots =
@@ -143,7 +143,7 @@ class DayBuildEquivalenceTest {
         var shift = 0L
         // Leftovers in different epochs (every other one a day on), so their cut-offs and snapshots differ.
         val scheduled =
-            days.scheduled(lineup, NOON.toEpochMilliseconds()).map { s ->
+            days.scheduled(lineup, NOON.toEpochMilliseconds(), null).map { s ->
                 val onLeftovers = s.channel.source is ChannelSource.Leftovers
                 if (onLeftovers) Scheduled(s.channel, s.settings, s.n + shift++ % 2) else s
             }
@@ -298,7 +298,7 @@ class DayBuildEquivalenceTest {
                 emptyMap(),
                 collectionsSynced = true,
             )
-        val scheduled = days.scheduled(lineup, NOON.toEpochMilliseconds())
+        val scheduled = days.scheduled(lineup, NOON.toEpochMilliseconds(), null)
         val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { snapshot.copy(cutoffMs = it) }
         val built = days.days(lineup, scheduled, snapshots)
         for (day in built) {

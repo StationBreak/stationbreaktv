@@ -78,7 +78,7 @@ class PersistedDaysSizeTest {
     @Test
     fun theFileOfAFiftyChannelDayIsSmallAndCheapToRead() {
         val items = library(ITEMS)
-        val scheduled = lineupDays.scheduled(lineup, NOON.toEpochMilliseconds())
+        val scheduled = lineupDays.scheduled(lineup, NOON.toEpochMilliseconds(), null)
         assertTrue(scheduled.size >= FIFTY, "about 50 channels: ${scheduled.size}")
         val snapshots =
             scheduled.map { it.cutoffMs }.distinct().associateWith {
@@ -88,7 +88,7 @@ class PersistedDaysSizeTest {
         repeat(2) { lineupDays.days(lineup, scheduled, snapshots) }
         val store = MemoryDayStore()
         val persisted = PersistedDays(store, "1:1")
-        val inputs = lineupDays.inputsOf(lineup)
+        val inputs = lineupDays.inputsOf(lineup, null)
         val offset = lineup.utcOffsetMinutes
         val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1, offset, inputs, TestCatalog.version, scheduled)
         val built = lineupDays.days(lineup, scheduled, snapshots)

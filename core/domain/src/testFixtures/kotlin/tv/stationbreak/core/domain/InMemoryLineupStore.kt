@@ -5,6 +5,7 @@ package tv.stationbreak.core.domain
 class InMemoryLineupStore : LineupStore {
     private val held = mutableMapOf<LibraryAccount, ByteArray>()
     private val aside = mutableMapOf<LibraryAccount, ByteArray>()
+    private val copies = mutableMapOf<Pair<LibraryAccount, String>, ByteArray>()
 
     var failWrites = false
 
@@ -13,6 +14,12 @@ class InMemoryLineupStore : LineupStore {
 
     /** The set-aside copy for [account], if any. */
     fun setAsideCopy(account: LibraryAccount): ByteArray? = aside[account]
+
+    /** The upgrade copy kept for [account] under [tag], if any. */
+    fun keptCopy(
+        account: LibraryAccount,
+        tag: String,
+    ): ByteArray? = copies[account to tag]
 
     override suspend fun load(account: LibraryAccount): StoredBytes {
         val bytes = held[account] ?: return StoredBytes.Absent
@@ -36,9 +43,26 @@ class InMemoryLineupStore : LineupStore {
         return true
     }
 
+    override suspend fun keepCopy(
+        account: LibraryAccount,
+        tag: String,
+    ): Boolean {
+        if (!TAG.matches(tag)) return false
+        val bytes = held[account] ?: return true
+        if (account to tag in copies) return true
+        if (failWrites) return false
+        copies[account to tag] = bytes.copyOf()
+        return true
+    }
+
     override suspend fun forget(account: LibraryAccount): Boolean {
         if (failWrites) return false
         held.remove(account)
+        copies.keys.removeAll { it.first == account }
         return true
+    }
+
+    private companion object {
+        val TAG = Regex("v[0-9]+")
     }
 }

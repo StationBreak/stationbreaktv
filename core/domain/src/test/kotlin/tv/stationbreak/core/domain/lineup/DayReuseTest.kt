@@ -149,8 +149,10 @@ class DayReuseTest {
         val at50 = renumbered(at600, 50)
         val at650 = renumbered(at600, 650)
 
-        assertNotEquals(days.inputsOf(at600), days.inputsOf(at50), "into the Kids band: another policy and ceiling")
-        assertEquals(days.inputsOf(at600), days.inputsOf(at650), "within the grown-up numbers: the same days")
+        val inKids = days.inputsOf(at50, null)
+        val within = days.inputsOf(at650, null)
+        assertNotEquals(days.inputsOf(at600, null), inKids, "into the Kids band: another policy and ceiling")
+        assertEquals(days.inputsOf(at600, null), within, "within the grown-up numbers: the same days")
     }
 
     private fun renumbered(
@@ -203,7 +205,7 @@ class DayReuseTest {
                         },
                 )
             }
-        assertEquals(days.inputsOf(held()), days.inputsOf(renamed))
+        assertEquals(days.inputsOf(held(), null), days.inputsOf(renamed, null))
     }
 
     @Test

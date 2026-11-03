@@ -49,6 +49,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         val genres: List<String> = emptyList(),
         val tags: List<String> = emptyList(),
         val studios: List<String> = emptyList(),
+        val name: String? = null,
     )
 
     // One item the as-of read returns, with the library it was held in.
@@ -133,7 +134,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         vararg items: RuleItem,
     ) {
         items.forEach {
-            val extras = Extras(it.seasonId, it.officialRating, it.genres, it.tags, it.studios)
+            val extras = Extras(it.seasonId, it.officialRating, it.genres, it.tags, it.studios, it.name)
             held += HeldRow(account, ItemId(it.libraryId.value), it.item, extras)
         }
         noteContentChange(account)
@@ -292,6 +293,7 @@ class InMemoryLibraryRepository : LibraryRepository {
                     extras.genres,
                     extras.tags,
                     extras.studios,
+                    extras.name,
                 )
         }
         val wanted = items.mapNotNullTo(HashSet()) { it.item.seriesId }
@@ -342,7 +344,7 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     private fun MediaItem.extras(): Extras {
         val season = seasonId?.let { CanonicalId.parseOrNull(it.value) }
-        return Extras(season, officialRating, genres, tags, studios)
+        return Extras(season, officialRating, genres, tags, studios, name)
     }
 
     private fun MediaItem.toScheduleItemOrNull(): ScheduleItem? {

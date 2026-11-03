@@ -95,7 +95,7 @@ class PersistedDaysTest {
     private fun scheduledAt(
         atMs: Long,
         of: Lineup = lineup,
-    ) = lineupDays.scheduled(of, atMs)
+    ) = lineupDays.scheduled(of, atMs, null)
 
     private fun built(scheduled: List<Scheduled>): List<ChannelDay> {
         val snapshots =
@@ -114,7 +114,15 @@ class PersistedDaysTest {
         generation: Long = GENERATION,
         of: Lineup = lineup,
         catalog: Int = TestCatalog.version,
-    ) = days.keyOf(account, libraries, generation, of.utcOffsetMinutes, lineupDays.inputsOf(of), catalog, scheduled)
+    ) = days.keyOf(
+        account,
+        libraries,
+        generation,
+        of.utcOffsetMinutes,
+        lineupDays.inputsOf(of, null),
+        catalog,
+        scheduled,
+    )
 
     private fun save(
         days: PersistedDays = persisted(),

@@ -97,7 +97,7 @@ class DayCollectionsTest {
         }
 
     private fun built(of: Lineup = lineup): List<ChannelDay> {
-        val scheduled = days.scheduled(of, atMs)
+        val scheduled = days.scheduled(of, atMs, null)
         return days.days(of, scheduled, snapshotsOf(scheduled))
     }
 
@@ -114,11 +114,19 @@ class DayCollectionsTest {
         persisted: PersistedDays,
         of: Lineup,
         scheduled: List<Scheduled>,
-    ) = persisted.keyOf(ACCOUNT, LIBRARIES, 7L, of.utcOffsetMinutes, days.inputsOf(of), TestCatalog.version, scheduled)
+    ) = persisted.keyOf(
+        ACCOUNT,
+        LIBRARIES,
+        7L,
+        of.utcOffsetMinutes,
+        days.inputsOf(of, null),
+        TestCatalog.version,
+        scheduled,
+    )
 
     private fun save(): DayKey {
         val persisted = persisted()
-        val scheduled = days.scheduled(lineup, atMs)
+        val scheduled = days.scheduled(lineup, atMs, null)
         val key = keyOf(persisted, scheduled)
         assertTrue(runBlocking { persisted.save(ACCOUNT, key, built()) })
         return key
@@ -126,7 +134,7 @@ class DayCollectionsTest {
 
     private fun load(key: DayKey? = null): List<ChannelDay>? {
         val persisted = persisted()
-        val scheduled = days.scheduled(lineup, atMs)
+        val scheduled = days.scheduled(lineup, atMs, null)
         return runBlocking { persisted.load(ACCOUNT, key ?: keyOf(persisted, scheduled), scheduled, days::restore) }
     }
 
@@ -213,7 +221,7 @@ class DayCollectionsTest {
         // The lineup without the rotation channel: only v1 channels.
         val v1 = lineupOf(starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy"))))
         val persisted = persisted()
-        val scheduled = days.scheduled(v1, atMs)
+        val scheduled = days.scheduled(v1, atMs, null)
         val key = keyOf(persisted, v1, scheduled)
         assertTrue(runBlocking { persisted.save(ACCOUNT, key, days.days(v1, scheduled, snapshotsOf(scheduled))) })
 
@@ -226,7 +234,7 @@ class DayCollectionsTest {
 
     @Test
     fun theDayKeyChangesWhenARuleChanges() {
-        fun digest(rules: ChannelRules) = days.inputsOf(lineupOf(custom(600, rules)))
+        fun digest(rules: ChannelRules) = days.inputsOf(lineupOf(custom(600, rules)), null)
         val base = rotation(Source.Collection(boxSet), Source.Genre("Comedy"))
         val capped = base.copy(ordering = Ordering(OrderingMode.Rotation, OrderingCaps(series = 2, film = 2)))
         val filtered = base.copy(filters = Filters(null, 1990, 2010, null, null, null))
