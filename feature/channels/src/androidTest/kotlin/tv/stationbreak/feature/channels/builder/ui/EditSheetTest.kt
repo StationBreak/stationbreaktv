@@ -45,6 +45,7 @@ import tv.stationbreak.core.domain.lineup.builder.FakeCatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.FakeChannelBuilder
 import tv.stationbreak.core.domain.lineup.builder.FakeChannelPreviews
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
+import tv.stationbreak.core.domain.lineup.builder.KeptOrder
 import tv.stationbreak.core.domain.lineup.builder.KeptSettings
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.OpenResult
@@ -166,9 +167,18 @@ class EditSheetTest {
     private fun exists(tag: String): Boolean =
         compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()
 
-    // Down the sheet until the D-pad is on [row].
+    // Down or up the sheet until the D-pad is on [row], whichever side of it the D-pad is on.
     private fun toRow(row: SheetRow) {
-        repeat(MAX_ROWS) { if (vm.ui.value.focus != BuilderFocus.Sheet(row)) press(Pad.Down) }
+        repeat(MAX_ROWS) {
+            val rows = vm.ui.value.sheetRows
+            val at = rows.indexOf((vm.ui.value.focus as? BuilderFocus.Sheet)?.row)
+            val to = rows.indexOf(row)
+            if (at < to) {
+                press(Pad.Down)
+            } else if (at > to) {
+                press(Pad.Up)
+            }
+        }
         assertEquals(BuilderFocus.Sheet(row), vm.ui.value.focus)
     }
 
@@ -317,10 +327,12 @@ class EditSheetTest {
         assertFalse(SheetRow.Kept in vm.ui.value.sheetRows)
         assertFalse(exists(BuilderTags.sheetRow(SheetRow.Kept)))
         assertFalse(exists(BuilderTags.SHEET_KEPT_FROM))
-        reopen(draftOf(kept = KeptSettings("Movies", listOf(KeptItem.BlockLength(4)))))
+        // A kept order is replaced by the builder's own (a kept block length is not: no control replaces it).
+        val kept = KeptSettings("Movies", listOf(KeptItem.Order(KeptOrder.Chronological)))
+        reopen(draftOf(order = null, kept = kept))
         toRow(SheetRow.Kept)
         compose.onNodeWithTag(BuilderTags.SHEET_KEPT_FROM).assertTextContains("Kept from Movies")
-        compose.onNodeWithTag(BuilderTags.kept(0)).assertTextContains("4 in a row")
+        compose.onNodeWithTag(BuilderTags.kept(0)).assertTextContains("by air date", substring = true)
         compose
             .onNodeWithTag(BuilderTags.sheetRow(SheetRow.Kept))
             .assertTextContains("builder's settings", substring = true)

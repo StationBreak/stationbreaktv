@@ -4,7 +4,9 @@ package tv.stationbreak.app
 import android.view.KeyEvent
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -196,6 +198,13 @@ class LaunchNavigationTest {
         press(keyCode)
     }
 
+    // The screen's focus is set when its lineup arrives, a moment after the screen is up.
+    private fun awaitSelected(tag: String) {
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodes(hasTestTag(tag) and isSelected()).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     private fun count(tag: String): Int = compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size
 
     private fun awaitExists(tag: String) {
@@ -294,15 +303,16 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(ChannelsTags.TITLE)
 
-        // With nothing playing the list starts on New channel; Select shows the builder's first step.
-        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        // With nothing playing the list starts on New channel (once the lineup has been read); Select shows the
+        // builder's first step.
+        awaitSelected(ChannelsTags.NEW_CHANNEL)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(ChannelsTags.BUILDER_SOURCES_STEP)
 
         // Back leaves the builder for the list, on New channel; the next Back leaves the list for the guide.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.BUILDER_SOURCES_STEP) == 0 }
-        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        awaitSelected(ChannelsTags.NEW_CHANNEL)
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.TITLE) == 0 }
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
