@@ -260,18 +260,6 @@ class CustomEditsTest {
     }
 
     @Test
-    fun canSwapAnswersWhatAReplaceWithASwapWouldDoAndChangesNothing() {
-        val kid = ChannelId("custom:kid")
-        val lineup = lineupOf(starter("western", 310), custom("kid", 5), custom("mine", 650))
-
-        assertTrue(LineupEdits.canSwap(lineup, mine, 310, kids = false))
-        assertFalse(LineupEdits.canSwap(lineup, kid, 650, kids = false), "the grown-up holder would enter the band")
-        assertFalse(LineupEdits.canSwap(lineup, mine, 5, kids = true), "the kid holder would leave the band")
-        assertFalse(LineupEdits.canSwap(lineup, mine, 777, kids = false), "nothing holds it")
-        assertFalse(LineupEdits.canSwap(lineup, western, 650, kids = false), "not a custom channel")
-    }
-
-    @Test
     fun replaceCustomIntoTheKidsBandMakesAKidChannel() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650))
 

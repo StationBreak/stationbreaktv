@@ -33,10 +33,9 @@ sealed interface BuildRefusal {
     /** The channel is the only one switched on. */
     data object LastOn : BuildRefusal
 
-    /** Another channel, [holder], has the number; [swappable] is whether trading numbers with it is allowed. */
+    /** Another channel, [holder], has the number. The builder never trades numbers: that is the Channels screen's. */
     data class NumberTaken(
         val holder: ChannelId,
-        val swappable: Boolean,
     ) : BuildRefusal
 }
 
@@ -113,14 +112,13 @@ interface ChannelBuilder {
     ): BuildResult
 
     /**
-     * Saves [draft] over channel [id], keeping its stored seed. With [swapWith], that channel trades numbers. [id]
+     * Saves [draft] over channel [id], keeping its stored seed. [id]
      * wins over [ChannelDraft.origin]: the kept settings are read from the stored rules of [id].
      */
     suspend fun save(
         account: LibraryAccount,
         id: ChannelId,
         draft: ChannelDraft,
-        swapWith: ChannelId? = null,
     ): BuildResult
 
     /**

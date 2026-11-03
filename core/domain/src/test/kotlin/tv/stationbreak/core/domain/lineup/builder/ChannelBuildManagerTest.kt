@@ -227,7 +227,7 @@ class ChannelBuildManagerTest {
 
             val result = builder.create(ACCOUNT, draft)
 
-            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Holder"), swappable = false)
+            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Holder"))
             assertEquals(BuildResult.Refused(taken), result)
         }
 
@@ -421,43 +421,8 @@ class ChannelBuildManagerTest {
 
             val result = builder.save(ACCOUNT, id, draft.copy(number = 620, numberChosen = true))
 
-            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Other"), swappable = true)
+            val taken = BuildRefusal.NumberTaken(ChannelId("custom:Other"))
             assertEquals(BuildResult.Refused(taken), result)
-        }
-
-    @Test
-    fun turningKidsOffAndSwappingWithAGrownUpHolderIsKidsBandNotFailed() =
-        runBlocking<Unit> {
-            seed(custom("Kid", 5), custom("Other", 620))
-            val id = ChannelId("custom:Kid")
-            val other = ChannelId("custom:Other")
-            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-            val off = draft.copy(kids = false, number = 620, numberChosen = true)
-
-            val plain = builder.save(ACCOUNT, id, off)
-            val swap = builder.save(ACCOUNT, id, off, swapWith = other)
-
-            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(other, swappable = false)), plain)
-            assertEquals(BuildResult.Refused(BuildRefusal.KidsBand), swap)
-            assertTrue(LineupEvent.BuildFailed !in events)
-            assertEquals(5, stored().channel(id).number)
-        }
-
-    @Test
-    fun turningKidsOnAndSwappingWithAKidHolderIsKidsBandNotFailed() =
-        runBlocking<Unit> {
-            seed(custom("Mine", 610), custom("KidHolder", 5))
-            val id = ChannelId("custom:Mine")
-            val holder = ChannelId("custom:KidHolder")
-            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-            val on = draft.copy(kids = true, number = 5, numberChosen = true)
-
-            val plain = builder.save(ACCOUNT, id, on)
-            val swap = builder.save(ACCOUNT, id, on, swapWith = holder)
-
-            assertEquals(BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = false)), plain)
-            assertEquals(BuildResult.Refused(BuildRefusal.KidsBand), swap)
-            assertTrue(LineupEvent.BuildFailed !in events)
         }
 
     @Test
@@ -476,21 +441,6 @@ class ChannelBuildManagerTest {
                 builder.create(ACCOUNT, grownUp),
             )
             assertTrue(LineupEvent.BuildFailed !in events)
-        }
-
-    @Test
-    fun saveWithSwapTradesNumbers() =
-        runBlocking<Unit> {
-            seed(custom("Mine", 610), custom("Other", 620))
-            val id = ChannelId("custom:Mine")
-            val other = ChannelId("custom:Other")
-            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-
-            val result = builder.save(ACCOUNT, id, draft.copy(number = 620, numberChosen = true), swapWith = other)
-
-            assertEquals(BuildResult.Done(id), result)
-            assertEquals(620, stored().channel(id).number)
-            assertEquals(610, stored().channel(other).number)
         }
 
     @Test

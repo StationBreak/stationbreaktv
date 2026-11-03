@@ -152,7 +152,7 @@ class ChannelBuildManager(
                     val id = ChannelId("custom:" + newId())
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, previous)
                     val number = sent.number.takeIf { sent.numberChosen }
-                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids), sent.kids, id, null)
+                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids), sent.kids, id)
                 }
             }
         }
@@ -161,7 +161,6 @@ class ChannelBuildManager(
         account: LibraryAccount,
         id: ChannelId,
         draft: ChannelDraft,
-        swapWith: ChannelId?,
     ): BuildResult =
         guarded(BuildResult.Failed) {
             val sent = draft.kidsNormalised()
@@ -189,10 +188,9 @@ class ChannelBuildManager(
                 else -> {
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, stored)
                     // A number the viewer did not pick is the channel's own, or the first free one on the other side
-                    // of a kids switch: worked out in the lock. A swap needs the number it trades.
-                    val number = sent.number.takeIf { sent.numberChosen || swapWith != null }
-                    val edit = LineupEdit.ReplaceCustom(id, rules, number, swapWith, sent.kids)
-                    edited(account, edit, sent.kids, id, sent.number)
+                    // of a kids switch: worked out in the lock.
+                    val number = sent.number.takeIf { sent.numberChosen }
+                    edited(account, LineupEdit.ReplaceCustom(id, rules, number, kids = sent.kids), sent.kids, id)
                 }
             }
         }
@@ -202,27 +200,26 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, null)
+            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id)
         }
 
     override suspend fun delete(
         account: LibraryAccount,
         id: ChannelId,
-    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id, null) }
+    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id) }
 
     private suspend fun edited(
         account: LibraryAccount,
         edit: LineupEdit,
         kids: Boolean,
         id: ChannelId,
-        number: Int?,
     ): BuildResult =
         service.edit(account, edit).mapped(
             done = { BuildResult.Done(id) },
             refused = { reason ->
                 val holder = (reason as? EditRefusal.NumberTaken)?.holder
                 if (holder != null) {
-                    refused(BuildRefusal.NumberTaken(holder, swappable(account, id, number, kids)))
+                    refused(BuildRefusal.NumberTaken(holder))
                 } else {
                     reason.toBuildRefusal(kids)?.let(::refused) ?: failed()
                 }
@@ -234,17 +231,6 @@ class ChannelBuildManager(
                 Unsaved.Invalid -> BuildResult.Failed
             }
         }
-
-    // Whether [id] may trade numbers with the holder of [number], in the lineup as it is now (the one that refused).
-    private suspend fun swappable(
-        account: LibraryAccount,
-        id: ChannelId,
-        number: Int?,
-        kids: Boolean,
-    ): Boolean {
-        val lineup = lineupOf(account)
-        return number != null && lineup != null && LineupEdits.canSwap(lineup, id, number, kids, service.catalog)
-    }
 
     // The rules of the channel the draft was opened from, in the lineup as it is now.
     private fun originRules(

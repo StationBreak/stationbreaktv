@@ -16,7 +16,7 @@ class FakeChannelBuilder : ChannelBuilder {
 
     /** The drafts passed to [create] and [save]. */
     val created = mutableListOf<ChannelDraft>()
-    val saved = mutableListOf<Triple<ChannelId, ChannelDraft, ChannelId?>>()
+    val saved = mutableListOf<Pair<ChannelId, ChannelDraft>>()
 
     /** What [blank] answers, with the asked-for kids setting. */
     var blankDraft: ChannelDraft =
@@ -64,10 +64,9 @@ class FakeChannelBuilder : ChannelBuilder {
         account: LibraryAccount,
         id: ChannelId,
         draft: ChannelDraft,
-        swapWith: ChannelId?,
     ): BuildResult {
         calls += "save"
-        saved += Triple(id, draft, swapWith)
+        saved += id to draft
         return buildResult ?: BuildResult.Done(id)
     }
 

@@ -227,26 +227,6 @@ object LineupEdits {
         return range.filter { it !in used && it !in catalog.retiredNumbers }
     }
 
-    /**
-     * Whether custom channel [id] could take [number] (held by another channel) by trading numbers with its holder, as
-     * a [LineupEdit.ReplaceCustom] with `swapWith` would: the same rules, nothing changed. False when [id] is not a
-     * custom channel or nothing holds [number].
-     */
-    fun canSwap(
-        lineup: Lineup,
-        id: ChannelId,
-        number: Int,
-        kids: Boolean,
-        catalog: StarterCatalogView = StarterCatalog,
-    ): Boolean {
-        val channel = lineup.channels.firstOrNull { it.id == id }
-        val stored = (channel?.source as? ChannelSource.Custom)?.rules
-        val holder = lineup.channels.firstOrNull { it.id != id && it.number == number }
-        if (channel == null || stored == null || holder == null) return false
-        val swap = LineupEdit.ReplaceCustom(id, stored, number, holder.id, kids)
-        return replaceCustom(lineup, channel, swap, catalog) is EditOutcome.Applied
-    }
-
     private fun addCustom(
         lineup: Lineup,
         edit: LineupEdit.AddCustom,

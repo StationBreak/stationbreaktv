@@ -122,7 +122,7 @@ class BuilderFixesTest {
             rig.tickFirst()
             rig.vm.next()
             rig.vm.next()
-            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("a"), swappable = false))
+            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("a")))
             rig.channels.list.value = listOf(summary(ChannelId("a"), 600, name = "A"))
             rig.builder.free = Listed.Ok(listOf(601, 603))
             rig.vm.save(andWatch = true)
@@ -176,7 +176,7 @@ class BuilderFixesTest {
             rig.tickFirst()
             rig.vm.next()
             rig.vm.next()
-            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("a"), swappable = false))
+            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(ChannelId("a")))
             rig.channels.list.value = listOf(summary(ChannelId("a"), 600, name = "A"))
             rig.vm.save(andWatch = true)
             rig.advance(1)
@@ -291,7 +291,7 @@ class BuilderFixesTest {
             rig.openEdit()
             rig.press(Down, Down, Down, Down, Down, Down, Down)
             assertEquals(BuilderFocus.Sheet(SheetRow.Number), rig.ui.focus)
-            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = true))
+            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder))
             val refused = rig.ui.draft
             rig.vm.save(andWatch = false)
             // The save is still out (nothing has run): turning the number is ignored.

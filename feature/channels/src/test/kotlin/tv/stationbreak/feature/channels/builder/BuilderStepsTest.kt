@@ -190,7 +190,7 @@ class BuilderStepsTest {
             val holder = ChannelId("custom:other")
             rig.channels.list.value = listOf(summary(holder, 600, name = "Other"))
             rig.openEdit()
-            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = true))
+            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder))
             rig.builder.free = Listed.Ok(listOf(601, 602))
             rig.vm.save(andWatch = false)
             rig.advance(1)
@@ -199,7 +199,6 @@ class BuilderStepsTest {
             assertEquals(BuilderMessage.NumberTaken, rig.ui.message)
             assertEquals("Other", rig.ui.numberHolder)
             assertEquals(2, rig.builder.calls.count { it == "freeNumbers" })
-            assertEquals(listOf(null), rig.builder.saved.map { it.third })
             // The number rows now step over what is free.
             rig.press(Down, Down, Down, Down, Down, Down, Down, Right)
             assertEquals(601, rig.ui.draft.number)
