@@ -123,6 +123,7 @@ class LineupService internal constructor(
     ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(timed = timed, derived = derived))
 
     internal val catalog: StarterCatalogView get() = seams.catalog
+    private val days = LineupDays(seams.catalog)
 
     private class Entry {
         val mutex = Mutex()
@@ -563,7 +564,7 @@ class LineupService internal constructor(
                 ?.channels
                 .orEmpty()
                 .sortedWith(CHANNEL_ORDER)
-                .map { it.summary(catalog) }
+                .map { it.summary(catalog, days) }
         }.distinctUntilChanged()
     }
 

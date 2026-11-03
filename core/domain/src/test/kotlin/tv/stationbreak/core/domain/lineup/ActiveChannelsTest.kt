@@ -64,6 +64,7 @@ class ActiveChannelsTest {
             number,
             kid = false,
             optIn = false,
+            playKey = PlayKey("test"),
         )
 
         val list =

@@ -118,7 +118,7 @@ class EditCutOverTest {
     }
 
     // #556: the guide goes by the channel summaries, and a new order or a reshuffle moves neither id nor number.
-    private fun playKey(): Int =
+    private fun playKey(): PlayKey =
         runBlocking { service.channels(ACCOUNT).first() }
             .first { it.id == mine }
             .playKey

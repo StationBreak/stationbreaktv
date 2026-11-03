@@ -23,27 +23,21 @@ internal fun LineupChannel.displayName(catalog: StarterCatalogView): String =
         is ChannelSource.Unusable -> catalogName(catalog, this) ?: id.value
     }
 
-internal fun LineupChannel.summary(catalog: StarterCatalogView) =
-    ChannelSummary(
-        id = id,
-        number = number,
-        name = displayName(catalog),
-        state = state.domain,
-        kind = source.kind,
-        onSince = Instant.fromEpochMilliseconds(onSinceMs),
-        defaultNumber = defaultNumber,
-        kid = KidStatus.isKidChannel(this),
-        optIn = isOptIn(catalog),
-        playKey = source.playKey(),
-    )
-
-// The rules without their name: what the schedule is built from. Not a channel without rules.
-private fun ChannelSource.playKey(): Int =
-    when (this) {
-        is ChannelSource.Starter -> rules.copy(name = null).hashCode()
-        is ChannelSource.Custom -> rules.copy(name = null).hashCode()
-        else -> 0
-    }
+internal fun LineupChannel.summary(
+    catalog: StarterCatalogView,
+    days: LineupDays,
+) = ChannelSummary(
+    id = id,
+    number = number,
+    name = displayName(catalog),
+    state = state.domain,
+    kind = source.kind,
+    onSince = Instant.fromEpochMilliseconds(onSinceMs),
+    defaultNumber = defaultNumber,
+    kid = KidStatus.isKidChannel(this),
+    optIn = isOptIn(catalog),
+    playKey = days.playKeyOf(this),
+)
 
 private fun LineupChannel.isOptIn(catalog: StarterCatalogView): Boolean {
     val starter = source as? ChannelSource.Starter ?: return false

@@ -30,6 +30,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.model.AccessToken
@@ -393,6 +394,7 @@ class FakeChannels : ChannelRepository {
                     defaultNumber = number,
                     kid = false,
                     optIn = false,
+                    playKey = PlayKey("test"),
                 )
             }
     }

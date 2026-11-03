@@ -58,7 +58,16 @@ data class ChannelSummary(
     val defaultNumber: Int?,
     val kid: Boolean,
     val optIn: Boolean,
-    val playKey: Int = 0,
+    val playKey: PlayKey,
+)
+
+/**
+ * What a channel's built days depend on, as an opaque digest (the channel's part of the days' key, `LineupDays.inputsOf`,
+ * name excluded). Two summaries of a channel with equal keys have the same days; compare, never read.
+ */
+@JvmInline
+value class PlayKey(
+    internal val digest: String,
 )
 
 /** The lineup as features see it (spec 12). */
@@ -87,10 +96,12 @@ fun List<ChannelSummary>.onLineup(): List<Pair<ChannelId, Int?>> {
 }
 
 /**
- * What the guide goes by: [onLineup] with each channel's [ChannelSummary.playKey], so a change to how a channel plays
- * (a new play order, a reshuffle) shows as a change although no channel or number moved.
+ * What the guide goes by: [onLineup] with each channel's [ChannelSummary.playKey]. The guide shows the days, so a
+ * change to how a channel plays (a new play order, a reshuffle) must reload it though no channel or number moved. Live
+ * TV and flipping go by [onLineup]: they follow which channels exist and where, and a channel's order reaches them
+ * through the schedule they read on the next block, so they need no key.
  */
-fun List<ChannelSummary>.onGuide(): List<Triple<ChannelId, Int?, Int>> {
+fun List<ChannelSummary>.onGuide(): List<Triple<ChannelId, Int?, PlayKey>> {
     val on = filter { it.state == ChannelStatus.On }
     return on.map { Triple(it.id, it.number, it.playKey) }
 }

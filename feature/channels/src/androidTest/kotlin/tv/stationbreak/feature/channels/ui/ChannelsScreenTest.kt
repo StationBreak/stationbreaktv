@@ -49,6 +49,7 @@ import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
@@ -91,7 +92,7 @@ private fun summary(
     kind: ChannelKind = ChannelKind.Starter,
 ): ChannelSummary {
     val since = Instant.fromEpochMilliseconds(T0)
-    return ChannelSummary(id, number, name, state, kind, since, number, kid = false, optIn = optIn)
+    return ChannelSummary(id, number, name, state, kind, since, number, kid = false, optIn = optIn, playKey = PlayKey("test"))
 }
 
 /** A lineup that follows the edits made to it, as the real one does. */

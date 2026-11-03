@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
@@ -113,8 +114,8 @@ internal class GuideViewModel
 
         // The lineup as channel management opened and as it stands, while that screen shows; null when it does not.
         private var lineupWatch: Job? = null
-        private var lineupAtOpen: List<Triple<ChannelId, Int?, Int>>? = null
-        private var lineupNow: List<Triple<ChannelId, Int?, Int>>? = null
+        private var lineupAtOpen: List<Triple<ChannelId, Int?, PlayKey>>? = null
+        private var lineupNow: List<Triple<ChannelId, Int?, PlayKey>>? = null
         private var managing = false
         private var loadJob: Job? = null
         private var loadId = 0

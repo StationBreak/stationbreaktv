@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -10,10 +11,13 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
@@ -39,6 +43,7 @@ class GuideLineupChangeTest : GuideRig() {
         number,
         kid = false,
         optIn = false,
+        playKey = PlayKey("test"),
     )
 
     // #556: a save that only changes the play order, and a reshuffle, move neither a channel nor its number.
@@ -53,13 +58,52 @@ class GuideLineupChangeTest : GuideRig() {
             runCurrent()
             val calls = schedule.calls
 
-            lineupList.list.value = lineupList.list.value.map { if (it.id == CH9) it.copy(playKey = 42) else it }
+            lineupList.list.value = lineupList.list.value.map { if (it.id == CH9) it.copy(playKey = PlayKey("changed")) else it }
             runCurrent()
             vm.channelsClosed()
             runCurrent()
 
             assertTrue("the grid was not read again", schedule.calls > calls)
             assertEquals(GuideMenuEntry.Channels, vm.snapshot.value.menu)
+        }
+
+    // The day rebuild after a save can finish after the guide reloaded: the grid ends on the new order.
+    @Test
+    fun aReloadWhileTheDaysAreRebuiltEndsOnTheNewOrder() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            vm.channelsOpened()
+            runCurrent()
+            val rebuilt = CompletableDeferred<Unit>()
+            // The new order's days are not built yet: nothing kept for them, and a read that builds waits for it.
+            schedule.cachedAnswer = ScheduleWindow(emptyList(), complete = false)
+            schedule.asNeededGate = rebuilt
+
+            lineupList.list.value = lineupList.list.value.map { if (it.id == CH9) it.copy(playKey = PlayKey("new")) else it }
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
+            schedule.cachedAnswer = null
+            fake.channel(CH9, 9, (0L until 600L step 30L).map { program(it, it + 30, 900 + (it / 30).toInt()) })
+            rebuilt.complete(Unit)
+            runCurrent()
+
+            val first =
+                vm
+                    .ready()
+                    .model.rows
+                    .first { it.channel == CH9 }
+                    .cells
+                    .first()
+            assertTrue(
+                "the old order is still shown: ${first.itemId}",
+                first.itemId
+                    ?.value
+                    ?.toInt(HEX)
+                    ?.let { it >= 900 } == true,
+            )
         }
 
     // #557: the playing channel is deleted while Channels shows; cable tunes the next one up, or down from the top.
@@ -114,4 +158,8 @@ class GuideLineupChangeTest : GuideRig() {
             runCurrent()
             assertTrue(got.isEmpty())
         }
+
+    private companion object {
+        const val HEX = 16
+    }
 }
