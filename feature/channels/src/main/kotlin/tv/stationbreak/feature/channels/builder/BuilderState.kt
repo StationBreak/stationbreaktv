@@ -145,9 +145,11 @@ internal sealed interface BuilderConfirm {
         val name: String,
     ) : BuilderConfirm
 
+    /** [draft] is the one that was refused: confirming sends that one, whatever happened since. */
     data class Swap(
         val number: Int,
         val holderName: String,
+        val draft: ChannelDraft,
     ) : BuilderConfirm
 }
 
@@ -215,4 +217,8 @@ internal data class BuilderUi(
     val narrow: NarrowView? = null,
     /** The name of the channel that holds the draft's number, when a new channel found it taken. */
     val numberHolder: String? = null,
+    /** A new channel was made; the builder takes no more saves until it is opened again. */
+    val saved: Boolean = false,
+    /** The step the shown [problem] belongs to, so a Save refused on another page can say where to fix it. */
+    val problemStep: BuilderStep? = null,
 )

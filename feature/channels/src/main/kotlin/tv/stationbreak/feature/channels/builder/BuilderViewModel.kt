@@ -235,6 +235,7 @@ internal class BuilderViewModel
         /** The keyboard's text: the search when that has the focus, else the name. */
         fun type(text: String) {
             synchronized(lock) {
+                if (model.saving) return
                 when (model.focus) {
                     BuilderFocus.Search -> {
                         searchFor(text)
@@ -277,7 +278,7 @@ internal class BuilderViewModel
                 val focus = m.focus ?: return
                 val by = if (move == PanelMove.Left) -1 else 1
                 val turning = move == PanelMove.Left || move == PanelMove.Right
-                val knob = knobOf(focus).takeIf { turning && m.confirm == null }
+                val knob = knobOf(focus).takeIf { turning && m.confirm == null && !m.saving }
                 when {
                     knob != null -> {
                         apply { it.copy(draft = it.draft.turned(knob, by, wrap = false, it.held.keys)) }
@@ -306,6 +307,7 @@ internal class BuilderViewModel
             synchronized(lock) {
                 val m = model
                 val focus = m.focus ?: return
+                if (m.saving) return
                 apply { it.copy(message = null) }
                 when {
                     m.confirm != null -> answer(focus)
@@ -480,11 +482,11 @@ internal class BuilderViewModel
             val yes = (focus as? BuilderFocus.Choice)?.index == 0
             closeConfirm()
             if (!yes) return
-            when (m.confirm) {
+            when (val confirm = m.confirm) {
                 BuilderConfirm.Leave -> sent.trySend(BuilderEvent.Closed)
                 BuilderConfirm.KidsOff -> setKids(on = false)
                 is BuilderConfirm.Delete -> deleteNow()
-                is BuilderConfirm.Swap -> submit(m.andWatch, m.swapHolder)
+                is BuilderConfirm.Swap -> submit(m.andWatch, m.swapHolder, confirm.draft)
                 null -> Unit
             }
         }
@@ -522,16 +524,22 @@ internal class BuilderViewModel
         /** Saves the draft; the result is a message, a refusal or a [BuilderEvent.Saved]. */
         fun save(andWatch: Boolean) = submit(andWatch, swapWith = null)
 
+        // [sending] is the draft a Swap was asked about; otherwise the draft as it is now.
         private fun submit(
             andWatch: Boolean,
             swapWith: ChannelId?,
+            sending: ChannelDraft? = null,
         ) {
             val m =
                 synchronized(lock) {
-                    val current = model
-                    val sending = current.account != null && !current.saving && current.draft.problem() == null
-                    if (sending) apply { it.copy(saving = true, message = null, refused = null, andWatch = andWatch) }
-                    current.takeIf { sending }
+                    val current = model.copy(draft = sending ?: model.draft)
+                    val problem = current.draft.problem()
+                    // A channel made is made once; a draft that cannot be saved says why, whichever page this is.
+                    val open = current.account != null && !current.saving && !current.saved
+                    if (open && problem != null) apply { it.copy(refused = problem, message = null) }
+                    val ready = open && problem == null
+                    if (ready) apply { it.copy(saving = true, message = null, refused = null, andWatch = andWatch) }
+                    current.takeIf { ready }
                 } ?: return
             val account = checkNotNull(m.account)
             scope.launch {

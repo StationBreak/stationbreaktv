@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
-import tv.stationbreak.core.domain.lineup.Ceilings
+import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.LineupDefaults
 import tv.stationbreak.core.rules.RatingLadder
@@ -15,18 +15,26 @@ object DraftChoices {
     val kidsNumbers: IntRange = Band.Kids.numbers
 
     /**
-     * The rating ceilings a channel can have, lowest first, one name per tier of the ladder. A kids channel's list
-     * stops at the tier of the kids hold's own ceiling: it never airs above it, so a higher choice would mean nothing.
-     * "No ceiling" is not in the list; a screen offers it above the top.
+     * The rating ceilings a channel can have, lowest first. A grown-up channel's are one name per tier of the rating
+     * ladder; a kids channel's are the kids hold's own, which stop at PG (the most a kids channel airs), so each means
+     * what the hold does with it. "No ceiling" is not in the list; a screen offers it above a grown-up's top.
      */
     fun ratingCeilings(kids: Boolean): List<String> {
-        val kidsTop = checkNotNull(RatingLadder.rankOf(Ceilings.KIDS_MAX_RATING))
-        val top = if (kids) kidsTop else RatingLadder.tiers.lastIndex
-        return RatingLadder.tiers.take(top + 1).map { it.first() }
+        if (kids) return KidHold.CEILING_CHOICES
+        return RatingLadder.tiers.map { it.first() }
     }
 
-    /** The tier (0 is the lowest) of a stored ceiling, or null when it is none or not on the ladder. */
-    fun ratingTier(rating: String?): Int? = RatingLadder.rankOf(rating)
+    /**
+     * The place in [ratingCeilings] of a stored ceiling, by tier (the hold's kid tier for a kids channel, the ladder's
+     * otherwise), so a spelling the list lacks is still placed; null when it is none or not on the ladder.
+     */
+    fun ratingTier(
+        rating: String?,
+        kids: Boolean,
+    ): Int? {
+        if (!kids) return RatingLadder.rankOf(rating)
+        return KidHold.kidRank(rating)?.coerceAtMost(KidHold.CEILING_CHOICES.lastIndex)
+    }
 }
 
 /** True when the draft draws on something: a source, or a year range a copy keeps (which is a source too). */

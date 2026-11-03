@@ -14,8 +14,8 @@ internal fun BuilderModel.saved(
 ): BuilderModel {
     val idle = copy(saving = false)
     return when (result) {
-        // A new channel that was made is now a channel being edited: another Save saves it, it does not make a second.
-        is BuildResult.Done -> idle.copy(opened = draft, mode = if (editing()) mode else BuilderMode.Edit(result.id))
+        // A new channel is made once: the builder takes no more saves until it is opened again.
+        is BuildResult.Done -> idle.copy(opened = draft, saved = !editing())
 
         is BuildResult.Refused -> idle.refusedWith(draft, result.reason, holderName)
 
@@ -42,18 +42,19 @@ private fun BuilderModel.numberTaken(
     holderName: String,
 ): BuilderModel =
     when {
-        editing() && reason.swappable -> swapAsked(draft.number ?: 0, reason.holder, holderName)
+        editing() && reason.swappable -> swapAsked(draft, draft.number ?: 0, reason.holder, holderName)
         editing() -> copy(message = BuilderMessage.NumberNotTradable)
         else -> copy(message = BuilderMessage.NumberTaken, held = held + heldBy(draft, holderName))
     }
 
 private fun BuilderModel.swapAsked(
+    draft: ChannelDraft,
     number: Int,
     holder: ChannelId,
     holderName: String,
 ): BuilderModel =
     copy(
-        confirm = BuilderConfirm.Swap(number, holderName),
+        confirm = BuilderConfirm.Swap(number, holderName, draft),
         resume = focus,
         focus = BuilderFocus.Choice(1),
         swapHolder = holder,

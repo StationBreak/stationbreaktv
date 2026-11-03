@@ -193,7 +193,7 @@ class BuilderStepsTest {
             rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = true))
             rig.vm.save(andWatch = false)
             rig.advance(1)
-            assertEquals(BuilderConfirm.Swap(600, "Other"), rig.ui.confirm)
+            assertEquals(BuilderConfirm.Swap(600, "Other", rig.ui.draft), rig.ui.confirm)
             assertFalse(rig.ui.saving)
             assertEquals(BuilderFocus.Choice(1), rig.ui.focus)
             rig.builder.buildResult = null

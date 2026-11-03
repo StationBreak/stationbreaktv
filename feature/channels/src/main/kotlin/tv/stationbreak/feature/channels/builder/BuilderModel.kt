@@ -53,6 +53,8 @@ internal data class BuilderModel(
     val saving: Boolean = false,
     /** Numbers other channels hold, with their names: a new channel steps over them. Empty for an edit. */
     val held: Map<Int, String> = emptyMap(),
+    /** A new channel was made: no further save until the builder is opened again. */
+    val saved: Boolean = false,
 )
 
 internal fun BuilderModel.editing() = mode is BuilderMode.Edit
@@ -139,5 +141,7 @@ internal fun BuilderModel.toUi(): BuilderUi {
         problem = problemShown(),
         narrow = narrow,
         numberHolder = draft.number?.let { held[it] },
+        saved = saved,
+        problemStep = problemShown()?.step(),
     )
 }

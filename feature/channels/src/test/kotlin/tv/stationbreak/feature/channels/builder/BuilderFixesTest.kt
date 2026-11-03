@@ -81,13 +81,16 @@ class BuilderFixesTest {
         }
 
     @Test
-    fun aKidsCeilingStopsAtTheKidsHoldAndHasNoAny() =
+    fun aKidsCeilingStopsAtPgAndKeepsAStoredPg() =
         builderTest { rig ->
-            rig.ratingRow(DraftFilters(maxRating = "TV-PG"), kids = true)
+            rig.ratingRow(DraftFilters(maxRating = "PG"), kids = true)
             rig.press(Right, Right)
-            assertEquals("TV-PG", rig.ui.draft.filters.maxRating)
+            assertEquals("PG", rig.ui.draft.filters.maxRating)
+            rig.press(Left)
+            assertEquals("TV-Y7", rig.ui.draft.filters.maxRating)
+            rig.press(Right, Right)
             rig.select()
-            assertEquals("TV-Y", rig.ui.draft.filters.maxRating)
+            assertEquals("G", rig.ui.draft.filters.maxRating)
         }
 
     @Test
@@ -178,7 +181,7 @@ class BuilderFixesTest {
         }
 
     @Test
-    fun aSecondSaveOfANewChannelSavesInsteadOfCreatingAgain() =
+    fun aSecondSaveOfANewChannelMakesNoSecondOne() =
         builderTest { rig ->
             rig.picker.libraries = libraries(1)
             rig.openNew()
@@ -190,7 +193,9 @@ class BuilderFixesTest {
             rig.vm.save(andWatch = false)
             rig.advance(1)
             assertEquals(1, rig.builder.created.size)
-            assertEquals(1, rig.builder.saved.size)
+            assertEquals(0, rig.builder.saved.size)
+            assertTrue(rig.ui.saved)
+            assertEquals(BuilderMode.New, rig.ui.mode)
         }
 
     @Test
@@ -217,5 +222,50 @@ class BuilderFixesTest {
             rig.select()
             rig.advance(5000)
             assertEquals(2, rig.ui.barCount)
+        }
+
+    @Test
+    fun theSwapConfirmSendsTheDraftThatWasRefusedAndInputWaitsWhileSaving() =
+        builderTest { rig ->
+            val holder = ChannelId("custom:other")
+            rig.channels.list.value = listOf(summary(holder, 600, name = "Other"))
+            rig.openEdit()
+            rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = true))
+            val refused = rig.ui.draft
+            rig.vm.save(andWatch = false)
+            // Input is ignored while the save is out.
+            rig.press(Down, Down, Down, Down, Down, Down, Down)
+            rig.press(Right)
+            rig.advance(1)
+            assertEquals(refused.number, rig.ui.draft.number)
+            // The confirm carries the draft it asked about.
+            assertEquals(refused, (rig.ui.confirm as BuilderConfirm.Swap).draft)
+            rig.builder.buildResult = null
+            rig.press(Left)
+            rig.select()
+            assertEquals(
+                refused,
+                rig.builder.saved
+                    .last()
+                    .second,
+            )
+        }
+
+    @Test
+    fun aSaveBlockedByAnotherStepsProblemSaysWhichStep() =
+        builderTest { rig ->
+            rig.openEdit(draftOf("Mine", listOf(lib1), filters = DraftFilters(yearFrom = 2000)))
+            rig.press(Down, Down, Down, Down, Down, Down, Down)
+            assertEquals(BuilderFocus.Sheet(SheetRow.Number), rig.ui.focus)
+            rig.select()
+            assertEquals(BuilderStep.Name, rig.ui.step)
+            assertNull(rig.ui.problem)
+            rig.press(Down)
+            rig.press(Down)
+            assertEquals(BuilderFocus.NameRow(NameRowKind.Save), rig.ui.focus)
+            rig.select()
+            assertEquals(DraftProblem.YearsIncomplete, rig.ui.problem)
+            assertEquals(BuilderStep.Sources, rig.ui.problemStep)
+            assertTrue(rig.builder.saved.isEmpty())
         }
 }

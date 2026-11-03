@@ -12,7 +12,7 @@ internal fun BuilderModel.problemShown(): DraftProblem? {
     return refused ?: found?.takeIf { onSheet || it.step() == step }
 }
 
-private fun DraftProblem.step(): BuilderStep =
+internal fun DraftProblem.step(): BuilderStep =
     when (this) {
         DraftProblem.NameEmpty,
         DraftProblem.NameTooLong,

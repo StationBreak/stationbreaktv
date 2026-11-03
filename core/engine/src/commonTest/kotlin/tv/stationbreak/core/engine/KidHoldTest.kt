@@ -330,4 +330,19 @@ class KidHoldTest {
         }
         assertTrue(KidHold.isMadeForKids(episodeOf(rating = "TV-PG"), show(rating = "TV-Y")))
     }
+
+    // --- ceilingChoices ---
+
+    @Test
+    fun everyCeilingChoiceLetsThroughExactlyTheRatingsUpToIt() {
+        val ratings = listOf("TV-Y", "TV-G", "G", "TV-Y7", "TV-Y7-FV", "PG", "TV-PG", "PG-13", "R", "TV-MA")
+        assertEquals(listOf(0, 1, 2), KidHold.CEILING_CHOICES.map { KidHold.kidRank(it) })
+        for (choice in KidHold.CEILING_CHOICES) {
+            val tier = checkNotNull(KidHold.kidRank(choice))
+            for (r in ratings) {
+                val expected = checkNotNull(KidHold.kidRank(r)) <= tier
+                assertEquals(expected, KidHold.passesKidCeiling(film(r), null, choice), "$r under $choice")
+            }
+        }
+    }
 }

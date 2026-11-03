@@ -102,6 +102,13 @@ object KidHold {
     val CHILDRENS_RATINGS: Set<String> = setOf("TV-Y", "TV-Y7", "TV-Y7-FV")
 
     private const val TIER_PG = 2
+
+    /**
+     * The ceilings a kids channel can be given, lowest first: one name per kid tier up to PG, the most a kids channel
+     * airs (a higher ceiling is held at PG). Each name is on the tier [kidRank] gives it, so a choice means what the
+     * hold does with it.
+     */
+    val CEILING_CHOICES: List<String> = listOf("G", "TV-Y7", "PG")
     private const val TIER_TV_PG = 3
     private const val TIER_ABOVE = 4
 

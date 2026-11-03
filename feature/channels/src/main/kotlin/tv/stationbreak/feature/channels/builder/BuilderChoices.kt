@@ -107,7 +107,7 @@ internal fun DraftFilters.withRating(
 ): DraftFilters {
     val tiers = DraftChoices.ratingCeilings(kids)
     val last = if (kids) tiers.lastIndex else tiers.size
-    val at = DraftChoices.ratingTier(maxRating)?.coerceAtMost(tiers.lastIndex) ?: tiers.size
+    val at = DraftChoices.ratingTier(maxRating, kids)?.coerceAtMost(tiers.lastIndex) ?: tiers.size
     val to = (at + by).let { if (it > last) (if (wrap) 0 else last) else it.coerceAtLeast(0) }
     return copy(maxRating = tiers.getOrNull(to))
 }

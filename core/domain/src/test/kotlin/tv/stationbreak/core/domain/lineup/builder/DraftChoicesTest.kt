@@ -15,14 +15,16 @@ class DraftChoicesTest {
 
     @Test
     fun kidsCeilingsStopAtTheKidsHold() {
-        assertEquals(listOf("TV-Y", "TV-Y7", "TV-PG"), DraftChoices.ratingCeilings(kids = true))
+        assertEquals(listOf("G", "TV-Y7", "PG"), DraftChoices.ratingCeilings(kids = true))
     }
 
     @Test
     fun aStoredNameFindsItsTierWhateverItsSpelling() {
-        assertEquals(1, DraftChoices.ratingTier("TV-Y7-FV"))
-        assertEquals(2, DraftChoices.ratingTier("PG"))
-        assertEquals(null, DraftChoices.ratingTier(null))
+        assertEquals(1, DraftChoices.ratingTier("TV-Y7-FV", kids = false))
+        assertEquals(2, DraftChoices.ratingTier("PG", kids = false))
+        assertEquals(null, DraftChoices.ratingTier(null, kids = false))
+        assertEquals(2, DraftChoices.ratingTier("PG", kids = true))
+        assertEquals(2, DraftChoices.ratingTier("TV-PG", kids = true))
     }
 
     @Test
