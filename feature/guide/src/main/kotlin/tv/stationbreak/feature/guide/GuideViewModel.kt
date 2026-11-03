@@ -26,7 +26,6 @@ import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
-import tv.stationbreak.core.domain.lineup.neighbourOf
 import tv.stationbreak.core.domain.lineup.onGuide
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -417,13 +416,6 @@ internal class GuideViewModel
         fun channelsClosed() {
             synchronized(lock) {
                 managing = false
-                // The channel playing was taken off the lineup (deleted): tune its neighbour, as cable would.
-                // Live closes the guide on that tune, so the grid is not loaded again for it.
-                val neighbour = neighbourOfGonePlaying()
-                if (neighbour != null) {
-                    eventChannel.trySend(GuideEvent.Tune(neighbour))
-                    return
-                }
                 if (lineupAtOpen != null && lineupNow != lineupAtOpen) {
                     reload(menu = GuideMenuEntry.Channels)
                 } else {
@@ -431,16 +423,6 @@ internal class GuideViewModel
                     resumeTick()
                 }
             }
-        }
-
-        // The channel to tune when the one playing is no longer On, by the domain's neighbour rule. Null when it is
-        // still there, was never known, or nothing is left. Under [lock].
-        private fun neighbourOfGonePlaying(): ChannelId? {
-            val playing = currentChannel
-            val now = lineupNow?.map { it.first to it.second }
-            val was = lineupAtOpen?.firstOrNull { it.first == playing }?.second
-            val gone = if (playing != null && now != null && now.none { it.first == playing }) was else null
-            return gone?.let { now?.neighbourOf(it) }
         }
 
         /** Channel management ended with a tune: the guide goes with it. */

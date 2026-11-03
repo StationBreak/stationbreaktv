@@ -32,6 +32,7 @@ import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.neighbourOf
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.builder.BuilderMode
 import javax.inject.Inject
@@ -771,8 +772,9 @@ internal class ChannelsViewModel
                     }
 
                     else -> {
-                        val after = model.currentNumber ?: Int.MIN_VALUE
-                        (on.firstOrNull { checkNotNull(it.number) > after } ?: on.firstOrNull())?.id
+                        // The domain's rule, as cable does: the next higher, else the next lower; never round to the lowest.
+                        val gone = model.currentNumber
+                        if (gone == null) on.firstOrNull()?.id else on.map { it.id to it.number }.neighbourOf(gone)
                     }
                 }
             }
