@@ -289,7 +289,7 @@ class BuilderViewModelTest {
             rig.openEdit(draftOf("Mine", listOf(lib1), seed = Seed(1uL)))
             rig.advance(400)
             rig.builder.openResult = OpenResult.Failed
-            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)
+            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down)
             rig.select()
             assertEquals(BuilderMessage.Reshuffled, rig.ui.message)
             assertEquals(listOf<BuilderEvent>(BuilderEvent.Closed), rig.events)
@@ -303,7 +303,7 @@ class BuilderViewModelTest {
             val before = rig.previews.drafts.size
             val fresh = draftOf("Mine", listOf(lib1), seed = Seed(2uL))
             rig.builder.openResult = OpenResult.Opened(fresh, null)
-            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)
+            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down)
             assertEquals(BuilderFocus.Sheet(SheetRow.Reshuffle), rig.ui.focus)
             rig.select()
             assertEquals(Seed(2uL), rig.ui.draft.seed)

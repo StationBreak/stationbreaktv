@@ -37,6 +37,7 @@ import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
@@ -123,6 +124,15 @@ class LineupService internal constructor(
     ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(timed = timed, derived = derived))
 
     internal val catalog: StarterCatalogView get() = seams.catalog
+    private val days = LineupDays(seams.catalog)
+
+    // The play keys of the last few revisions, so a list is not hashed again for each emission of the same revision.
+    private val playKeys = PlayKeyCache()
+
+    private fun playKeysOf(held: Revisioned): Map<ChannelId, PlayKey> =
+        synchronized(playKeys) {
+            playKeys.getOrPut(held.revision) { held.lineup.channels.associate { it.id to days.playKeyOf(it) } }
+        }
 
     private class Entry {
         val mutex = Mutex()
@@ -477,7 +487,6 @@ class LineupService internal constructor(
         at: Instant,
     ): Int {
         val lineup = loaded(account)?.lineup ?: return 0
-        val days = LineupDays(catalog)
         val scheduled = days.scheduled(lineup, at.toEpochMilliseconds())
         val snapshots = snapshotsOf(library, account, libraries, scheduled.map { it.cutoffMs }.distinct().sorted())
         return days.airingNowhere(lineup, scheduled, snapshots)
@@ -558,12 +567,13 @@ class LineupService internal constructor(
             loaded(account)
             emitAll(entryOf(owner).state)
         }.map { held ->
+            val keys = held?.let(::playKeysOf).orEmpty()
             held
                 ?.lineup
                 ?.channels
                 .orEmpty()
                 .sortedWith(CHANNEL_ORDER)
-                .map { it.summary(catalog) }
+                .map { it.summary(catalog, keys.getValue(it.id)) }
         }.distinctUntilChanged()
     }
 
@@ -728,4 +738,15 @@ private fun ownerOf(account: LibraryAccount): Owner? {
     } else {
         null
     }
+}
+
+private const val PLAY_KEY_REVISIONS = 8
+
+private typealias PlayKeys = Map<ChannelId, PlayKey>
+
+private const val PLAY_KEY_LOAD = 0.75f
+
+// Most recently used last; the oldest goes when there are more than [PLAY_KEY_REVISIONS].
+private class PlayKeyCache : LinkedHashMap<Long, PlayKeys>(PLAY_KEY_REVISIONS, PLAY_KEY_LOAD, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, PlayKeys>): Boolean = size > PLAY_KEY_REVISIONS
 }

@@ -22,6 +22,7 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeChannelEditor
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.model.ChannelId
@@ -45,7 +46,18 @@ internal fun summary(
     default: Int? = number,
     kid: Boolean = false,
     optIn: Boolean = false,
-) = ChannelSummary(id, number, name, state, kind, Instant.fromEpochMilliseconds(T0), default, kid, optIn)
+) = ChannelSummary(
+    id,
+    number,
+    name,
+    state,
+    kind,
+    Instant.fromEpochMilliseconds(T0),
+    default,
+    kid,
+    optIn,
+    PlayKey("test"),
+)
 
 internal class FakeChannels(
     initial: List<ChannelSummary> = emptyList(),

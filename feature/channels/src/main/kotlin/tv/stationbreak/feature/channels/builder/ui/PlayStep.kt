@@ -31,7 +31,7 @@ private sealed interface PlayLine {
     }
 
     data class KeptHeader(
-        val from: String,
+        val from: String?,
     ) : PlayLine {
         override val key = "kept:header"
     }
@@ -71,7 +71,7 @@ internal fun PlayStep(
     FocusedLines(lines, focused, key = { it.key }, modifier = modifier.fillMaxWidth()) { line, isFocused ->
         when (line) {
             is PlayLine.Row -> PlayRow(line.kind, ui, isFocused)
-            is PlayLine.KeptHeader -> NoteText(stringResource(R.string.builder_kept_from, line.from), null)
+            is PlayLine.KeptHeader -> NoteText(keptFromText(line.from), null)
             is PlayLine.KeptLine -> NoteText(keptText(line.item), BuilderTags.kept(line.index))
         }
     }
@@ -107,13 +107,13 @@ private fun PlayRow(
         }
 
         PlayRowKind.SeriesCap -> {
-            val cap = (draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP).coerceIn(ChannelDraft.CAP_RANGE)
-            TextLine(labelled(stringResource(R.string.builder_series_cap), "$cap"), focused, tag)
+            val text = labelled(stringResource(R.string.builder_series_cap), capText(draft.shownSeriesCap()))
+            TextLine(text, focused, tag)
         }
 
         PlayRowKind.FilmCap -> {
-            val cap = (draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP).coerceIn(ChannelDraft.CAP_RANGE)
-            TextLine(labelled(stringResource(R.string.builder_film_cap), "$cap"), focused, tag)
+            val text = labelled(stringResource(R.string.builder_film_cap), capText(draft.shownFilmCap()))
+            TextLine(text, focused, tag)
         }
 
         PlayRowKind.Kids -> {

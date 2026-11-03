@@ -101,6 +101,7 @@ internal class Flipper(
     private val report: (TuneReport) -> Unit,
     private val scope: CoroutineScope,
     private val earlyLineup: suspend () -> EarlyLineup?,
+    private val cardLineup: suspend () -> FlipOrder,
     private val start: (SitRequest) -> Unit,
 ) {
     // The lineup as of the last refresh, read off the key path (a sitting starting). A press uses it and reads the
@@ -640,14 +641,24 @@ internal class Flipper(
         // From here a commit: it owes a flip line, `superseded` if a newer press replaces it.
         val timing = FlipTiming(clock.now(), 0, via = VIA_GUIDE)
         try {
+            // The lookup can take many seconds (every channel's day is built first): after a moment the channel's
+            // number and name come up from the lineup list, beside the lookup, which never waits for them.
+            // Cancelled, not joined: it cannot overwrite a tune that has landed only because this machine runs on Main
+            // (one thread), so the cancel below takes effect before the landing below.
+            val card = scope.launch { showCard(channel) }
             val lookedAt = clock.now()
-            val onAir = find(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+            val onAir =
+                try {
+                    find(channel)?.let { schedule.onAir(it.id, lookedAt, Sitting.WINDOW) }
+                } finally {
+                    card.cancel()
+                }
             // A lookup that ran on past a newer press must not land.
             currentCoroutineContext().ensureActive()
             if (onAir == null) {
                 dropped("tune-off-air")
-                // A number a cancelled flip had put up goes with it.
-                if (target != null) screen.drop()
+                // A number a cancelled flip had put up goes with it, and so does this tune's own card.
+                screen.drop()
                 order = null
                 target = null
                 return
@@ -667,6 +678,23 @@ internal class Flipper(
                 unresolved(timing)
             }
         }
+    }
+
+    // The number and name of [channel] from the lineup list, which needs no day built; nothing is shown when it is not
+    // there. A cancel (the lookup ended) stops it before it shows anything.
+    private suspend fun showCard(channel: ChannelId) {
+        delay(timings.guideCardAfter)
+        val tag =
+            try {
+                cardLineup().byId(channel)?.tag()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                null
+            }
+        if (tag != null) screen.choose(LiveState.Choosing(tag, overPicture = screen.pictureUp))
     }
 
     /**

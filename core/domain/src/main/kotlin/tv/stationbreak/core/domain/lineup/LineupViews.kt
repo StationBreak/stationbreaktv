@@ -23,18 +23,21 @@ internal fun LineupChannel.displayName(catalog: StarterCatalogView): String =
         is ChannelSource.Unusable -> catalogName(catalog, this) ?: id.value
     }
 
-internal fun LineupChannel.summary(catalog: StarterCatalogView) =
-    ChannelSummary(
-        id = id,
-        number = number,
-        name = displayName(catalog),
-        state = state.domain,
-        kind = source.kind,
-        onSince = Instant.fromEpochMilliseconds(onSinceMs),
-        defaultNumber = defaultNumber,
-        kid = KidStatus.isKidChannel(this),
-        optIn = isOptIn(catalog),
-    )
+internal fun LineupChannel.summary(
+    catalog: StarterCatalogView,
+    playKey: PlayKey,
+) = ChannelSummary(
+    id = id,
+    number = number,
+    name = displayName(catalog),
+    state = state.domain,
+    kind = source.kind,
+    onSince = Instant.fromEpochMilliseconds(onSinceMs),
+    defaultNumber = defaultNumber,
+    kid = KidStatus.isKidChannel(this),
+    optIn = isOptIn(catalog),
+    playKey = playKey,
+)
 
 private fun LineupChannel.isOptIn(catalog: StarterCatalogView): Boolean {
     val starter = source as? ChannelSource.Starter ?: return false

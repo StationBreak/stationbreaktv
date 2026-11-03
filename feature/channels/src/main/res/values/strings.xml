@@ -67,6 +67,7 @@
     <string name="builder_order_in_order">In order</string>
     <string name="builder_order_in_order_hint">One show start to finish, then the next, oldest first.</string>
     <string name="builder_series_cap">Episodes in a row</string>
+    <string name="builder_cap_no_limit">No limit</string>
     <string name="builder_film_cap">Films of a collection in a row</string>
     <string name="builder_kids">Kids channel</string>
     <string name="builder_kids_off_confirm">This channel will no longer be held to kids content</string>
@@ -99,6 +100,7 @@
     <string name="builder_newer_app_channel">Made by a newer version of the app. Update the app to edit or delete it.</string>
     <string name="builder_copy_suffix">%1$s (copy)</string>
     <string name="builder_kept_from">Kept from %1$s</string>
+    <string name="builder_kept_from_copied">Kept from the channel this was copied from</string>
     <string name="builder_use_builder_settings">Use the builder\'s settings instead</string>
     <string name="builder_working">Working it out</string>
     <string name="builder_preview_empty">Nothing in your libraries fits this channel yet</string>

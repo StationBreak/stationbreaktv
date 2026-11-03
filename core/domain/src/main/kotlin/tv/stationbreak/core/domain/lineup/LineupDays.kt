@@ -175,18 +175,7 @@ internal class LineupDays(
      * built day. The day's channel and name are read from the current lineup ([rebound]).
      */
     fun inputsOf(lineup: Lineup): String {
-        val channels =
-            lineup.channels.sortedBy { it.id.value }.map { channel ->
-                JsonObject(
-                    linkedMapOf(
-                        "id" to JsonPrimitive(channel.id.value),
-                        "state" to JsonPrimitive(channel.state.name),
-                        "ceiling" to JsonPrimitive(ceilings.of(channel)),
-                        "policy" to JsonPrimitive(nameOf(policyOf(channel))),
-                        "source" to LineupCodec.sourceOf(unnamed(channel.source)),
-                    ),
-                )
-            }
+        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it) }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         val inputs =
             JsonObject(
@@ -198,6 +187,28 @@ internal class LineupDays(
                 ),
             )
         return sha256Hex(inputs.toString().encodeToByteArray())
+    }
+
+    // What one channel contributes to [inputsOf]: the one definition of "its days would change".
+    private fun channelInputs(channel: LineupChannel): JsonObject =
+        JsonObject(
+            linkedMapOf(
+                "id" to JsonPrimitive(channel.id.value),
+                "state" to JsonPrimitive(channel.state.name),
+                "ceiling" to JsonPrimitive(ceilings.of(channel)),
+                "policy" to JsonPrimitive(nameOf(policyOf(channel))),
+                "source" to LineupCodec.sourceOf(unnamed(channel.source)),
+            ),
+        )
+
+    /**
+     * [channel]'s part of [inputsOf], as a digest: it changes whenever this channel's own inputs to the days change (a
+     * new play order, a reshuffle, other sources or filters; never a name or a number that changes no pool). A
+     * leftovers channel's days also depend on other channels, so the guide compares the whole list of keys.
+     */
+    fun playKeyOf(channel: LineupChannel): PlayKey {
+        val inputs = channelInputs(channel).toString()
+        return PlayKey(sha256Hex(inputs.encodeToByteArray()))
     }
 
     /** Whether [built] are already [scheduled]'s days as its lineup shows them: its very channels, in its order. */

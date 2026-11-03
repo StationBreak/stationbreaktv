@@ -195,7 +195,9 @@ class EditSheetTest {
         assertFalse(exists(BuilderTags.step(BuilderStep.Sources)))
         assertEquals(SheetRow.entries - SheetRow.Kept, rows)
         var previous: SheetRow? = null
+        // The Next up line is listed but the D-pad never stops on it.
         rows.forEach { row ->
+            if (row == SheetRow.Preview) return@forEach
             toRow(row)
             assertTrue(row.name, exists(BuilderTags.sheetRow(row)))
             // The list scrolls, so the row above may have gone; when it is still drawn it is above this one.
@@ -348,6 +350,38 @@ class EditSheetTest {
         assertFalse(exists(BuilderTags.sheetRow(SheetRow.Kept)))
         compose.onNodeWithTag(BuilderTags.SHEET_KEPT_FROM).assertTextContains("Kept from Movies")
         compose.onNodeWithTag(BuilderTags.kept(0)).assertTextContains("4 in a row")
+    }
+
+    // #559: a sheet made tall by its kept lines must still bring Delete channel on screen when the D-pad reaches it.
+    @Test
+    fun deleteIsScrolledIntoViewOnASheetTallWithKeptLines() {
+        val kept =
+            KeptSettings(
+                "Movies",
+                listOf(
+                    KeptItem.BlockLength(4),
+                    KeptItem.BackToBackOff,
+                    KeptItem.Filler,
+                    KeptItem.OtherSettings,
+                    KeptItem.YearsSource(1980, 1989),
+                    KeptItem.EpochHours(12),
+                ),
+            )
+        show(draftOf(kept = kept).copy(kids = true, number = 5))
+        toRow(SheetRow.Delete)
+        val screen = compose.onRoot().getBoundsInRoot()
+        val bounds = compose.onNodeWithTag(BuilderTags.sheetRow(SheetRow.Delete)).getBoundsInRoot()
+        assertTrue("Delete channel is below the screen", bounds.bottom <= screen.bottom)
+        assertTrue("Delete channel is above the screen", bounds.top >= screen.top)
+    }
+
+    @Test
+    fun theNextUpLineIsShownButTheDpadNeverStopsOnIt() {
+        show()
+        assertTrue(exists(BuilderTags.sheetRow(SheetRow.Preview)))
+        toRow(SheetRow.Number)
+        press(Pad.Down)
+        assertEquals(BuilderFocus.Sheet(SheetRow.Save), vm.ui.value.focus)
     }
 
     private companion object {

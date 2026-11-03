@@ -505,6 +505,7 @@ class LineupServiceTest {
                     defaultNumber = 10,
                     kid = true,
                     optIn = false,
+                    playKey = toons.playKey,
                 )
             assertEquals(expected, toons)
             val odds = summaries.first { it.id == LineupIds.leftovers("odds-and-ends") }

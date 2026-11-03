@@ -44,6 +44,11 @@ private fun fromTab(
     move: PanelMove,
 ): BuilderFocus =
     when {
+        // Down off the last tab goes to Next, so the page can be left without crossing to the other column.
+        move == PanelMove.Down && focus.tab.ordinal == SourceKindTab.entries.lastIndex -> {
+            BuilderFocus.Next
+        }
+
         move.vertical -> {
             BuilderFocus.Tab(
                 SourceKindTab.entries[(focus.tab.ordinal + move.step).coerceIn(0, SourceKindTab.entries.lastIndex)],

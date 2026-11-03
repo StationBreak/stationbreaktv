@@ -45,7 +45,8 @@ enum class ChannelKind {
  * one. [onSince] is when it was last switched on (for a channel never on, when it joined the lineup). [defaultNumber]
  * is the number the channel has by default, so a feature can tell a number the user chose; [kid] is a channel made for
  * kids (the 1 to 99 numbers are theirs alone); [optIn] is a starter whose recipe needs a deliberate confirmation to
- * switch on.
+ * switch on. [playKey] stands for what the channel's rules do to its schedule (its order, seed, sources and the rest,
+ * but not its name): it differs when the days built from the rules would, though the channel and its number do not.
  */
 data class ChannelSummary(
     val id: ChannelId,
@@ -57,6 +58,17 @@ data class ChannelSummary(
     val defaultNumber: Int?,
     val kid: Boolean,
     val optIn: Boolean,
+    val playKey: PlayKey,
+)
+
+/**
+ * What a channel's built days depend on, as an opaque digest (the channel's part of the days' key,
+ * `LineupDays.inputsOf`,
+ * name excluded). Two summaries of a channel with equal keys have the same days; compare, never read.
+ */
+@JvmInline
+value class PlayKey(
+    internal val digest: String,
 )
 
 /** The lineup as features see it (spec 12). */
@@ -82,4 +94,25 @@ interface ChannelRepository {
 fun List<ChannelSummary>.onLineup(): List<Pair<ChannelId, Int?>> {
     val on = filter { it.state == ChannelStatus.On }
     return on.map { it.id to it.number }
+}
+
+/**
+ * The channel to tune when the one numbered [number] has left an [onLineup] list (deleted, switched off or hidden):
+ * the next higher number, else the next lower, as cable does; null when no numbered channel is left.
+ */
+fun List<Pair<ChannelId, Int?>>.neighbourOf(number: Int): ChannelId? {
+    val numbered = mapNotNull { (id, at) -> at?.let { id to it } }
+    val next = numbered.filter { it.second > number }.minByOrNull { it.second }
+    return (next ?: numbered.filter { it.second < number }.maxByOrNull { it.second })?.first
+}
+
+/**
+ * What the guide goes by: [onLineup] with each channel's [ChannelSummary.playKey]. The guide shows the days, so a
+ * change to how a channel plays (a new play order, a reshuffle) must reload it though no channel or number moved. Live
+ * TV and flipping go by [onLineup]: they follow which channels exist and where, and a channel's order reaches them
+ * through the schedule they read on the next block, so they need no key.
+ */
+fun List<ChannelSummary>.onGuide(): List<Triple<ChannelId, Int?, PlayKey>> {
+    val on = filter { it.state == ChannelStatus.On }
+    return on.map { Triple(it.id, it.number, it.playKey) }
 }

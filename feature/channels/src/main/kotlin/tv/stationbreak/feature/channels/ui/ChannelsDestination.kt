@@ -108,7 +108,7 @@ internal fun ChannelsRoot(
     }
     Box(modifier) {
         ChannelsScreen(
-            ui = ui,
+            ui = ui.beneathBuilder(),
             pictureHole = pictureHole,
             modifier =
                 Modifier
@@ -248,3 +248,10 @@ internal class ChannelsActions(
         }
     }
 }
+
+/**
+ * The list as it is drawn while the builder shows over it: without its focus. The list stays composed under the
+ * builder, and its focus (the row the builder was opened from) is a second ring beside the builder's own, which shows
+ * past the builder's edges. The focus itself is kept in [ChannelsUi] for when the builder goes.
+ */
+internal fun ChannelsUi.beneathBuilder(): ChannelsUi = if (builder != null) copy(focus = null) else this

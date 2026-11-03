@@ -79,10 +79,11 @@ enum class OnlyKind { Films, Shows }
 
 /**
  * Settings of a copied built-in channel that the builder cannot show or change, as the screen's read-only "Kept from"
- * lines. Structured values only: the screen words them.
+ * lines. Structured values only: the screen words them. [fromName] is the built-in channel they were copied from, or
+ * null when that is not known (a saved copy being edited).
  */
 data class KeptSettings(
-    val fromName: String,
+    val fromName: String?,
     val items: List<KeptItem>,
 )
 
@@ -270,6 +271,12 @@ data class ChannelDraft(
         val caps = (order ?: PlayOrder.Shuffle) != PlayOrder.InOrder
         return caps && !keepsOrder() && !keepsUncapped()
     }
+
+    /** The episodes in a row the screen shows: null (no limit) while a kept uncapped Shuffle is in force. */
+    fun shownSeriesCap(): Int? = if (keepsUncapped()) null else (seriesCap ?: DEFAULT_SERIES_CAP).coerceIn(CAP_RANGE)
+
+    /** The films of a collection in a row the screen shows: null (no limit) while a kept uncapped Shuffle holds. */
+    fun shownFilmCap(): Int? = if (keepsUncapped()) null else (filmCap ?: DEFAULT_FILM_CAP).coerceIn(CAP_RANGE)
 
     /** Whether the screen lists the caps: not for In order, nor for a kept order. */
     fun showsCaps(): Boolean = order != PlayOrder.InOrder && !keepsOrder()

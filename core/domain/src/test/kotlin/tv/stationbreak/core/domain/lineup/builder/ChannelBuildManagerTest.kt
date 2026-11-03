@@ -337,6 +337,25 @@ class ChannelBuildManagerTest {
             assertEquals(before, stored().channel(id), "the built-in is untouched")
         }
 
+    // #560: the stored rules of a copy carry the copy's own name, never the original's, so an edit names nobody.
+    @Test
+    fun editingASavedCopyDoesNotNameTheCopyAsWhereItsSettingsWereKeptFrom() =
+        runBlocking<Unit> {
+            val inOrder = Ordering(OrderingMode.RandomInOrder)
+            val ordered = rules("Westerns", Source.Genre("Western")).copy(ordering = inOrder)
+            seed(starter("westerns", 220, ChannelState.On, ordered))
+            val copy = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, LineupIds.starter("westerns"), copy = true))
+            assertEquals("Westerns", assertNotNull(copy.draft.kept).fromName, "a copy names the built-in")
+            val named = copy.draft.copy(name = "Westerns (copy)")
+            val copyId = assertIs<BuildResult.Done>(builder.create(ACCOUNT, named)).id
+
+            val edit = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, copyId, copy = false))
+
+            val kept = assertNotNull(edit.draft.kept)
+            assertTrue(KeptItem.Order(KeptOrder.RandomInOrder) in kept.items, "the kept settings are still listed")
+            assertEquals(null, kept.fromName, "and the copy is not named as where they came from")
+        }
+
     @Test
     fun aCopyOfAKidsStarterIsKidsUntilTurnedOff() =
         runBlocking<Unit> {
