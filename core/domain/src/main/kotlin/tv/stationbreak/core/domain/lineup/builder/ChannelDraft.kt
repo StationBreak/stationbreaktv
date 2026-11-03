@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 
 /** How a channel plays its pool. */
@@ -77,11 +78,13 @@ enum class OnlyKind { Films, Shows }
 
 /**
  * Settings of a copied built-in channel that the builder cannot show or change, as the screen's read-only "Kept from"
- * lines. Structured values only: the screen words them.
+ * lines. Structured values only: the screen words them. [sourceId] is the channel they were read from (the built-in
+ * channel of a copy, the channel itself for an edit), so that saving carries them over from its stored rules.
  */
 data class KeptSettings(
     val fromName: String,
     val items: List<KeptItem>,
+    val sourceId: ChannelId? = null,
 )
 
 sealed interface KeptItem {

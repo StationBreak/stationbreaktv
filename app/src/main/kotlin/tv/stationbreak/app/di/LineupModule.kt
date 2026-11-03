@@ -36,7 +36,13 @@ import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SyncActivity
+import tv.stationbreak.core.domain.lineup.builder.ChannelBuildManager
+import tv.stationbreak.core.domain.lineup.builder.ChannelBuilder
+import tv.stationbreak.core.domain.lineup.builder.DraftSource
+import tv.stationbreak.core.domain.lineup.builder.NewSeed
+import tv.stationbreak.core.domain.lineup.builder.newCustomId
 import tv.stationbreak.core.domain.lineup.eitherWriting
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.settings.lineup.FileDayStore
@@ -54,6 +60,7 @@ private const val TAG = "Lineup"
  */
 @Module
 @InstallIn(SingletonComponent::class)
+@Suppress("TooManyFunctions") // One provider for each thing the lineup is made of.
 internal object LineupModule {
     @Provides
     @Singleton
@@ -124,6 +131,30 @@ internal object LineupModule {
         service: LineupService,
         settings: ServerSettings,
     ): ChannelEditor = ChannelManager(service) { settings.loadLibraries() }
+
+    /** The draw of a new channel's or a reshuffle's seed: 64 bits from the platform's secure random source. */
+    @Provides
+    @Singleton
+    fun newSeed(): NewSeed = NewSeed.secure()
+
+    /**
+     * How features build channels (spec 22): through the service's lock. A source's words are the collection's name
+     * where the library knows it, else its key.
+     */
+    @Provides
+    @Singleton
+    fun channelBuilder(
+        service: LineupService,
+        newSeed: NewSeed,
+        library: LibraryRepository,
+    ): ChannelBuilder =
+        ChannelBuildManager(service, newSeed, { newCustomId() }) { account, sources ->
+            val names = library.collectionNames(account)
+            sources.associateWith { source ->
+                val id = (source as? DraftSource.Collection)?.let { CanonicalId.parseOrNull(it.key) }
+                id?.let { names[it] } ?: source.key
+            }
+        }
 
     @Provides
     @Singleton

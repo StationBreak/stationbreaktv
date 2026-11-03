@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.airableRuntimeMs
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.ChannelRules
@@ -51,6 +52,13 @@ object LineupPlanner {
      * lineup's changes nothing.
      *
      * Each recipe's pool is evaluated at most once per call.
+     *
+     * A first choice can be made around [kept] channels (a reset keeps the viewer's own channels; a lineup not yet
+     * finalised keeps the custom and unusable channels it already holds, so a refresh never drops them). They go into
+     * the lineup as they are. Their numbers count as taken: a catalog channel whose default one is held takes the
+     * first number free in its own band, or goes on the shelf with no number when that band is full. Their switched-on
+     * channels count toward [LineupDefaults.CAP] before any starter is chosen, so the lowest-ranked starters are
+     * left off, never a kept channel. A finalised lineup ignores [kept]: it is planned from its own channels.
      */
     @Suppress("LongParameterList")
     fun plan(
@@ -63,6 +71,7 @@ object LineupPlanner {
         nowMs: Long,
         catalog: StarterCatalogView = StarterCatalog,
         withoutCollections: Boolean = false,
+        kept: List<LineupChannel> = emptyList(),
     ): Lineup {
         if (current != null) {
             require(current.serverId == serverId && current.userId == userId) { "The lineup is another account's" }
@@ -70,7 +79,8 @@ object LineupPlanner {
         }
         return if (current == null || !current.finalised) {
             val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs)
-            firstChoice(planning, userId, withoutCollections)
+            val own = current?.channels.orEmpty().filter { it.source.isTheViewers() }
+            firstChoice(planning, userId, withoutCollections, (kept + own).distinctBy { it.id })
         } else {
             val planning = Planning(serverId, current.utcOffsetMinutes, snapshot, collections, catalog, nowMs)
             refresh(current, planning, withoutCollections)
@@ -81,33 +91,49 @@ object LineupPlanner {
         p: Planning,
         userId: CanonicalId,
         withoutCollections: Boolean,
+        kept: List<LineupChannel>,
     ): Lineup {
-        val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, emptyList())
-        return if (p.snapshot.collectionsSynced || withoutCollections) chosen(p, unfinalised) else unfinalised
+        val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, ordered(kept))
+        return if (p.snapshot.collectionsSynced || withoutCollections) chosen(p, unfinalised, kept) else unfinalised
     }
+
+    // What the planner never changes and a reset keeps: the viewer's own channels and ones that need a newer app.
+    private fun ChannelSource.isTheViewers(): Boolean = this is ChannelSource.Custom || this is ChannelSource.Unusable
 
     // The first choice proper, made once the collection pass is in (or not waited for): nothing is on yet below the
     // threshold.
     private fun chosen(
         p: Planning,
         unfinalised: Lineup,
+        kept: List<LineupChannel>,
     ): Lineup {
-        val rules = p.catalog.recipes.associate { it.key to p.resolve(it) }
+        val keptIds = kept.mapTo(HashSet()) { it.id }
+        // A kept channel with a catalog channel's ID (a starter whose recipe left, say) is the one in the lineup.
+        val recipes = p.catalog.recipes.filter { LineupIds.starter(it.key) !in keptIds }
+        val leftoversRecipes = p.catalog.leftovers.filter { LineupIds.leftovers(it.key) !in keptIds }
+        val numbers = p.numbersAround(kept, recipes, leftoversRecipes)
+        val rules = recipes.associate { it.key to p.resolve(it) }
         val ranked =
             p.ranked(
-                p.catalog.recipes
-                    .filter { !it.optIn }
+                recipes
+                    .filter { !it.optIn && numbers.getValue(LineupIds.starter(it.key)) != null }
                     .map { it to rules.getValue(it.key) },
             )
         if (ranked.size < LineupDefaults.FINALISE_THRESHOLD) return unfinalised
-        val leftovers = p.catalog.leftovers.map { p.leftoversChannel(it, it.number, ChannelState.On) }
-        val on = ranked.take((LineupDefaults.CAP - leftovers.size).coerceAtLeast(0)).mapTo(HashSet()) { it.key }
-        val starters =
-            p.catalog.recipes.map {
-                val state = if (it.key in on) ChannelState.On else ChannelState.Shelf
-                p.starterChannel(it, it.number, state, rules.getValue(it.key))
+        val leftovers =
+            leftoversRecipes.map {
+                val number = numbers.getValue(LineupIds.leftovers(it.key))
+                p.leftoversChannel(it, number, if (number != null) ChannelState.On else ChannelState.Shelf)
             }
-        return unfinalised.copy(finalised = true, channels = ordered(leftovers + starters))
+        val taken = kept.count { it.state == ChannelState.On } + leftovers.count { it.state == ChannelState.On }
+        val room = LineupDefaults.CAP - taken
+        val on = ranked.take(room.coerceAtLeast(0)).mapTo(HashSet()) { it.key }
+        val starters =
+            recipes.map {
+                val state = if (it.key in on) ChannelState.On else ChannelState.Shelf
+                p.starterChannel(it, numbers.getValue(LineupIds.starter(it.key)), state, rules.getValue(it.key))
+            }
+        return unfinalised.copy(finalised = true, channels = ordered(kept + leftovers + starters))
     }
 
     private fun refresh(
@@ -244,6 +270,29 @@ internal class Planning(
     fun recipe(key: String): Recipe? = recipes[key]
 
     fun resolve(recipe: Recipe): ChannelRules = RecipeResolver.resolve(recipe, serverId, offset, collections)
+
+    /**
+     * The number each catalog channel takes in a first choice around [kept]: its default, unless a kept channel holds
+     * it (as a default or an override); then the first number in its own band that nothing holds and no catalog
+     * channel has as its default, in catalog order, or null when there is none.
+     */
+    fun numbersAround(
+        kept: List<LineupChannel>,
+        recipes: List<Recipe>,
+        leftovers: List<LeftoversRecipe>,
+    ): Map<ChannelId, Int?> {
+        val held = kept.flatMapTo(HashSet()) { listOfNotNull(it.defaultNumber, it.numberOverride) }
+        val defaults =
+            recipes.map { Triple(LineupIds.starter(it.key), it.number, it.band) } +
+                leftovers.map { Triple(LineupIds.leftovers(it.key), it.number, Band.of(it.number)) }
+        val reserved = HashSet(held)
+        reserved += defaults.map { it.second }
+        reserved += catalog.retiredNumbers
+        return defaults.associate { (id, number, band) ->
+            val free = band?.numbers?.firstOrNull { it !in reserved }
+            id to if (number !in held) number else free?.also(reserved::add)
+        }
+    }
 
     /** The [candidates] that fill, by airable runtime (most first), ties by key. Each pool is evaluated once. */
     fun ranked(candidates: List<Pair<Recipe, ChannelRules>>): List<Recipe> =
