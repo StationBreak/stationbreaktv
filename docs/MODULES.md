@@ -111,7 +111,7 @@ on now) goes back through the slot; live closes the guide and tunes it through t
 so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). The guide also hosts
 channel management (spec 21) as a second slot, `ChannelsSlot`, behind the Channels entry of its menu row (Channels and Exit, reached by Back); `app` fills it with
 `feature:channels`' `ChannelsDestination`. The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
-`onLineup()`) to see the lineup change under it while that screen shows and just after. Everything in
+`onGuide()`: `onLineup()` plus each channel's `PlayKey`, the days-input digest) to see the lineup change under it while that screen shows and just after. It needs the key because it shows the days: a new play order or a reshuffle moves no channel or number, yet must reload the grid. Live TV and flipping follow `onLineup()` only (which channels exist, and where); a channel's order reaches them through the schedule they read at the next block. When the channel playing is gone from the lineup, the guide tunes the neighbour by `neighbourOf` (the next higher number, else the next lower). Everything in
 `feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` type, the `GuideMeasured` qualifier `app`
 provides, and `GuideTags` for `app`'s tests.
 
