@@ -75,6 +75,11 @@ class FileLineupStore internal constructor(
         }
     }
 
+    /**
+     * Reads the file again rather than taking the bytes the service already loaded: that is safe because the service
+     * calls it under the account's lock, before any save, and this store's own lock keeps a write from landing between
+     * the read and the copy, so the bytes are the ones the service decoded.
+     */
     override suspend fun keepCopy(
         account: LibraryAccount,
         tag: String,
@@ -120,7 +125,7 @@ class FileLineupStore internal constructor(
     // The upgrade copies of [name] (paths): `<name>.v<digits>.bak`.
     private fun upgradeCopies(name: String): List<String> {
         val directory = name.substringBeforeLast('/')
-        val pattern = Regex(Regex.escape(name.substringAfterLast('/')) + "\\.v[0-9]+\\.bak")
+        val pattern = Regex(Regex.escape(name.substringAfterLast('/')) + "\\.v[0-9]+\\.bak(\\.new)?")
         return files.list(directory).filter { pattern.matches(it) }.map { "$directory/$it" }
     }
 

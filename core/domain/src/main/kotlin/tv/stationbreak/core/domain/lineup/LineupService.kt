@@ -159,6 +159,8 @@ class LineupService internal constructor(
         val current: Lineup?,
         val meta: RefreshMeta,
         val save: Boolean,
+        // True only when the store held no file and the session held no lineup: a new account, not a lost one.
+        val isNew: Boolean = false,
     )
 
     private val lock = Any()
@@ -196,7 +198,7 @@ class LineupService internal constructor(
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val (planned, meta) = planned(owner, account, libraries, start.current, start.meta)
+            val (planned, meta) = planned(owner, account, libraries, start)
             if (entry.writable) saveVerified(owner, planned, meta)
             publish(entry, planned, meta)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
@@ -207,8 +209,8 @@ class LineupService internal constructor(
     }
 
     /**
-     * The lineup planned from [current] (null: from nothing) against the library's [libraries] now, and the meta to
-     * record with it: [before]'s pass is kept unless the planning read took in a newer collection pass, and its extras
+     * The lineup planned from [start]'s lineup (null: from nothing) against the library's [libraries] now, and the meta
+     * to record with it: its pass is kept unless the planning read took in a newer collection pass, and its extras
      * boundary is kept once it has one (see [plannedFrom]). Reads as
      * documented on [refresh]. Call under the account's lock.
      */
@@ -216,9 +218,11 @@ class LineupService internal constructor(
         owner: Owner,
         account: LibraryAccount,
         libraries: Set<ItemId>,
-        current: Lineup?,
-        before: RefreshMeta,
-    ): Pair<Lineup, RefreshMeta> = plannedFrom(owner, readForPlan(account, libraries), libraries, current, before)
+        start: Start,
+    ): Pair<Lineup, RefreshMeta> =
+        readForPlan(account, libraries).let { read ->
+            plannedFrom(owner, read, libraries, start.current, start.meta, newAccount = start.isNew)
+        }
 
     /** What the library says at the moment of a plan. */
     private class PlanRead(
@@ -254,6 +258,8 @@ class LineupService internal constructor(
         current: Lineup?,
         before: RefreshMeta,
         kept: List<LineupChannel> = emptyList(),
+        basis: Lineup? = current,
+        newAccount: Boolean = false,
     ): Pair<Lineup, RefreshMeta> {
         // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
         val own =
@@ -281,20 +287,28 @@ class LineupService internal constructor(
                 plannedGeneration = read.generation,
                 collectionPassActedOn = taken ?: before.collectionPassActedOn,
                 plannedLibraries = libraries.map { it.value }.sorted(),
-                extrasFromMs = before.extrasFromMs ?: extrasBoundary(current, read.now.toEpochMilliseconds()),
+                extrasFromMs = extrasBoundary(before.extrasFromMs, basis, newAccount, read.now.toEpochMilliseconds()),
             )
         return planned to meta
     }
 
     /**
-     * When the extras filter starts for a lineup planned for the first time since the filter exists: the next
-     * broadcast-day start when a lineup is already there (today is left as it is), and the start of time for an account
-     * with none (a new account filters from the start).
+     * When the extras filter starts. A [stored] boundary stands unless it is more than a day after [nowMs] (a clock
+     * that was wrong when it was set): that is as good as none. With none, a lineup that is already there (or was, and
+     * could not be read) keeps today as it is and starts at the next broadcast-day start; only an account that never
+     * had a lineup ([newAccount]) filters from the start of time.
      */
     private fun extrasBoundary(
-        current: Lineup?,
+        stored: Long?,
+        basis: Lineup?,
+        newAccount: Boolean,
         nowMs: Long,
-    ): Long = if (current == null) Long.MIN_VALUE else nextBoundary(current, nowMs)
+    ): Long =
+        when {
+            stored != null && stored <= nowMs + MS_PER_DAY -> stored
+            newAccount -> Long.MIN_VALUE
+            else -> nextBoundary(basis, nowMs)
+        }
 
     /**
      * The next broadcast-day start after [nowMs]: [LineupDefaults.DAY_START] at the offset of [lineup], else the device
@@ -460,9 +474,9 @@ class LineupService internal constructor(
             val kept = replaced?.channels.orEmpty().filter { it.isTheViewers() }
             // A reset replaces a lineup that exists: the filter keeps the boundary that lineup had, or starts at the
             // next day start. With no lineup at all it is a new account's, planned from the start.
-            val prior = (previous?.meta ?: start.meta).extrasFromMs
-            val boundary = prior ?: replaced?.let { nextBoundary(it, read.now.toEpochMilliseconds()) }
-            val (fresh, meta) = plannedFrom(owner, read, libraries, null, RefreshMeta(extrasFromMs = boundary), kept)
+            val before = RefreshMeta(extrasFromMs = (previous?.meta ?: start.meta).extrasFromMs)
+            val never = start.isNew && replaced == null
+            val (fresh, meta) = plannedFrom(owner, read, libraries, null, before, kept, replaced, never)
             withContext(NonCancellable) {
                 if (saveVerified(owner, fresh, meta)) {
                     forgetDerived(owner.key)
@@ -627,7 +641,7 @@ class LineupService internal constructor(
         val sessionMeta = held?.meta ?: RefreshMeta()
         return when (val stored = store.load(owner.key)) {
             StoredBytes.Absent -> {
-                Start(session, sessionMeta, save = true)
+                Start(session, sessionMeta, save = true, isNew = session == null)
             }
 
             StoredBytes.Failed -> {
@@ -792,6 +806,8 @@ private fun ownerOf(account: LibraryAccount): Owner? {
 
 // The server a boundary is worked out for when there is no lineup: the day start does not depend on it.
 private val NO_SERVER: CanonicalId = CanonicalId.parse("0".repeat(32))
+
+private const val MS_PER_DAY = 86_400_000L
 
 private const val STAND_IN_KEY = "boundary"
 

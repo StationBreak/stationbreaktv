@@ -341,6 +341,13 @@ class LineupCodecTest {
     }
 
     @Test
+    fun aVersionOneFileWithAnExtrasBoundaryIsUnreadable() {
+        val text = LineupCodec.encode(full, RefreshMeta(extrasFromMs = 5L)).decodeToString()
+
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(text.replace("\"version\":2", "\"version\":1")))
+    }
+
+    @Test
     fun extrasFromRoundTrips() {
         for (boundary in listOf(Long.MIN_VALUE, 0L, 1_792_000_000_000L)) {
             val meta = RefreshMeta(plannedGeneration = 1L, extrasFromMs = boundary)

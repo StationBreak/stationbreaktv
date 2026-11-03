@@ -234,6 +234,18 @@ class FileLineupStoreTest {
         }
 
     @Test
+    fun forgetAlsoRemovesAStagedUpgradeCopy() =
+        runBlocking {
+            store.save(one, bytes)
+            files.held["$serverA/$userOne.json.v1.bak.new"] = byteArrayOf(1)
+            files.held["$serverA/$userOne.json.v1.bakery"] = byteArrayOf(2)
+
+            assertTrue(store.forget(one))
+
+            assertEquals(listOf("$serverA/$userOne.json.v1.bakery"), files.held.keys.toList())
+        }
+
+    @Test
     fun noFileMeansNothingToKeepAndABadTagIsRefused() =
         runBlocking {
             assertTrue(store.keepCopy(one, "v1"))

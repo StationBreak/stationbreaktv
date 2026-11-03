@@ -137,7 +137,9 @@ internal object LineupCodec {
         val channels = file.channels.map(::channelOf)
         val lineup = Lineup.ofOrNull(server, user, file.catalogVersion, file.utcOffsetMinutes, file.finalised, channels)
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
-        return if (lineup != null) Decoded.Loaded(lineup, meta, fileVersion) else Decoded.Unreadable
+        // Version 1 is strict: the field belongs to version 2, so a version-1 file with it was not written by this app.
+        val strayField = fileVersion < 2 && meta.extrasFromMs != null
+        return if (lineup != null && !strayField) Decoded.Loaded(lineup, meta, fileVersion) else Decoded.Unreadable
     }
 
     private fun validOffset(minutes: Int): Boolean =

@@ -161,6 +161,48 @@ class ExtrasWiringTest {
             assertEquals(first, meta().extrasFromMs, "set once, at the first plan")
         }
 
+    private val nextSix = Instant.parse("2026-10-20T06:00:00Z").toEpochMilliseconds()
+
+    @Test
+    fun aStoredBoundaryFarInTheFutureIsRecomputed() =
+        runBlocking<Unit> {
+            save(RefreshMeta(extrasFromMs = FOURTEEN.toEpochMilliseconds() + 400L * 86_400_000L))
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(nextSix, meta().extrasFromMs)
+        }
+
+    @Test
+    fun aNormalStoredBoundaryIsKept() =
+        runBlocking<Unit> {
+            val soon = nextSix
+            save(RefreshMeta(extrasFromMs = soon))
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(soon, meta().extrasFromMs)
+        }
+
+    @Test
+    fun aResetRecomputesAFarFutureBoundary() =
+        runBlocking<Unit> {
+            save(RefreshMeta(extrasFromMs = FOURTEEN.toEpochMilliseconds() + 400L * 86_400_000L))
+
+            service.reset(ACCOUNT, LIBRARIES)
+
+            assertEquals(nextSix, meta().extrasFromMs)
+        }
+
+    @Test
+    fun anUnreadableFileSetAsideIsNotANewAccount() =
+        runBlocking<Unit> {
+            store.inner.save(ACCOUNT, "not a lineup".encodeToByteArray())
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertNotNull(store.inner.setAsideCopy(ACCOUNT), "the file was set aside")
+            assertEquals(nextSix, meta().extrasFromMs, "a lineup was lost, not never made: today stays")
+        }
+
     @Test
     fun thePlanRanksWithoutExtras() =
         runBlocking<Unit> {

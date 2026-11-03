@@ -257,7 +257,9 @@ class DayReuseTest {
                             if (it.id == laughs) it.copy(nameOverride = "Giggles") else it
                         },
                 )
-            store.inner.save(ACCOUNT, LineupCodec.encode(renamed, planned.meta))
+            // The session plans without the file, so it lands on the next day start; the file holds the same boundary.
+            val boundary = Instant.parse("2026-10-20T06:00:00Z").toEpochMilliseconds()
+            store.inner.save(ACCOUNT, LineupCodec.encode(renamed, planned.meta.copy(extrasFromMs = boundary)))
             store.inner.failReads = true
             val tv = Process()
             tv.service.refresh(ACCOUNT, LIBRARIES)
