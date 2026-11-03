@@ -37,7 +37,7 @@ class ScheduleInputFilterTest {
     private val id = hexId(1)
     private val series = hexId(2)
     private val ok =
-        HeldRow(id, MOVIES.value, "Movie", null, null, null, 5_400_000L, 1_000L, null, null, null, 0L)
+        HeldRow(id, MOVIES.value, "Movie", null, null, null, 5_400_000L, 1_000L, null, null, null, 0L, name = null)
     private val episode = ok.copy(kind = "Episode", seriesId = series, seasonNumber = 1, episodeNumber = 2)
     private val beyond = (1L shl 52) + 1
 

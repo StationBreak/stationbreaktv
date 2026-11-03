@@ -67,7 +67,10 @@ internal data class ItemEntity(
     val deletedAtMs: Long?,
     val seenFromMs: Long,
     val firstSeenMs: Long,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "ItemEntity(serverId=$serverId, userId=$userId, itemId=$itemId, name=<name>)"
+}
 
 /**
  * An earlier version of an item's schedule fields (spec 09, Unit 2): the item row as it stood until [supersededAtMs].
@@ -116,8 +119,12 @@ internal data class ItemVersionEntity(
     val genres: String,
     val tags: String,
     @ColumnInfo(defaultValue = "") val studios: String,
-    val name: String? = null,
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String =
+        "ItemVersionEntity(serverId=$serverId, userId=$userId, itemId=$itemId, seenFromMs=$seenFromMs, name=<name>)"
+}
 
 /**
  * A series of a selected library (spec 10, Unit 1): the fields a rule reads that its episodes do not carry. [genres],
@@ -161,7 +168,10 @@ internal data class SeriesEntity(
     val seenFromMs: Long,
     val firstSeenMs: Long,
     @ColumnInfo(defaultValue = "") val studios: String,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "SeriesEntity(serverId=$serverId, userId=$userId, seriesId=$seriesId, name=<name>)"
+}
 
 /**
  * An earlier version of a series, with the same rules as [ItemVersionEntity]: the series row as it stood until
@@ -195,8 +205,12 @@ internal data class SeriesVersionEntity(
     val tags: String,
     val deletedAtMs: Long?,
     @ColumnInfo(defaultValue = "") val studios: String,
-    val name: String? = null,
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String =
+        "SeriesVersionEntity(serverId=$serverId, userId=$userId, seriesId=$seriesId, seenFromMs=$seenFromMs, name=<name>)"
+}
 
 /**
  * A collection (a Jellyfin BoxSet) the account can see (spec 10, Unit 2). It belongs to no library, so it has no
@@ -219,7 +233,10 @@ internal data class CollectionEntity(
     val deletedAtMs: Long?,
     val seenFromMs: Long,
     val firstSeenMs: Long,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "CollectionEntity(serverId=$serverId, userId=$userId, collectionId=$collectionId, name=<name>)"
+}
 
 /**
  * An earlier lifecycle of a collection, with the rules of [ItemVersionEntity]: the collection row as it stood until
@@ -250,8 +267,12 @@ internal data class CollectionVersionEntity(
     val seenFromMs: Long,
     val supersededAtMs: Long,
     val deletedAtMs: Long?,
-    val name: String? = null,
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String =
+        "CollectionVersionEntity(serverId=$serverId, userId=$userId, collectionId=$collectionId, seenFromMs=$seenFromMs, name=<name>)"
+}
 
 /**
  * One member of a collection over the time it was held: the interval `[seenFromMs, supersededAtMs)`, open while

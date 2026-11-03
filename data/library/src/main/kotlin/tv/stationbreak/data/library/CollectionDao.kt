@@ -28,14 +28,20 @@ internal class HeldMember(
 internal class CollectionNameRow(
     val collectionId: String,
     val name: String,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "CollectionNameRow(collectionId=$collectionId, name=<name>)"
+}
 
 /** One collection as this TV held it before a cut-off, with its members in member-ID order. */
 internal class HeldCollection(
     val collectionId: String,
     val members: List<HeldMember>,
-    val name: String? = null,
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "HeldCollection(collectionId=$collectionId, name=<name>)"
+}
 
 /** One row of the member part of the as-of read, as Room maps it. */
 internal class MemberRaw(

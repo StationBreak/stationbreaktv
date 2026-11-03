@@ -35,8 +35,11 @@ internal data class HeldRow(
     val tags: List<String> = emptyList(),
     val seasonId: String? = null,
     val studios: List<String> = emptyList(),
-    val name: String? = null,
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "HeldRow(itemId=$itemId, seenFromMs=$seenFromMs, name=<name>)"
+}
 
 /**
  * Why the as-of read left an item out, and the check it mirrors (Vimes M3). The reasons for the fields `ScheduleItem`

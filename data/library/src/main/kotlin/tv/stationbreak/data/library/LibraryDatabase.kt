@@ -99,7 +99,7 @@ internal object LibraryDatabases {
         // The migrations first: the fallbacks apply only where no migration path exists.
         return base
             .addCallback(SecureDeleteCallback)
-            .addMigrations(Migration7To8(LibraryDao.seedFrom(clock)), Migration8To9())
+            .addMigrations(Migration7To8(LibraryDao.seedFrom(clock)), Migration8To9(LibraryDao.seedFrom(clock)))
             .withDestructiveFallbacks()
     }
 

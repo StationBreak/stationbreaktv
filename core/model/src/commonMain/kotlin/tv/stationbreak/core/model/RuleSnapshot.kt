@@ -58,6 +58,13 @@ data class RuleItem(
     val studios: List<String> = emptyList(),
     val name: String? = null,
 ) {
+    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log.
+    override fun toString(): String =
+        "RuleItem(item=$item, libraryId=$libraryId, seasonId=$seasonId, " +
+            "officialRating=$officialRating, genres=$genres, tags=$tags, " +
+            "studios=$studios, " +
+            "name=${if (name == null) "null" else "<name>"})"
+
     @Volatile private var foldedGenresCache: List<String>? = null
 
     @Volatile private var foldedTagsCache: List<String>? = null
@@ -96,6 +103,12 @@ data class RuleSeries(
     val studios: List<String> = emptyList(),
     val name: String? = null,
 ) {
+    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log.
+    override fun toString(): String =
+        "RuleSeries(id=$id, officialRating=$officialRating, genres=$genres, tags=$tags, " +
+            "studios=$studios, " +
+            "name=${if (name == null) "null" else "<name>"})"
+
     @Volatile private var foldedGenresCache: List<String>? = null
 
     @Volatile private var foldedTagsCache: List<String>? = null
@@ -133,4 +146,9 @@ data class RuleCollection(
     val series: Set<CanonicalId>,
     val seasons: Set<CanonicalId>,
     val name: String? = null,
-)
+) {
+    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log.
+    override fun toString(): String =
+        "RuleCollection(id=$id, movies=$movies, episodes=$episodes, series=$series, seasons=$seasons, " +
+            "name=${if (name == null) "null" else "<name>"})"
+}

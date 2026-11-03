@@ -240,6 +240,30 @@ class Migration8To9Test {
         }
 
     @Test
+    fun anAccountWithNoMetaRowGetsOneAboveEveryOldGeneration() =
+        runBlocking {
+            val file = File(folder.root, "nometa.db")
+            SchemaFile.create(file, 8) {
+                it.fillAccounts(studios = true)
+                it.execSQL("DELETE FROM sync_meta WHERE userId = 'bob'")
+            }
+
+            val repository = migrated(file)
+
+            // Bob had an account_state row and no sync_meta row, so a persisted day of his was keyed on generation 0
+            // (an absent row reads 0). A row is made, seeded as generationSeed seeds one, and moved like the others.
+            val bobs = repository.dao.metaRow("server-1", "bob")!!
+            val seeded = (clock.nowMs shl LibraryDao.GENERATION_SHIFT) + 1
+            assertEquals(seeded, bobs.contentGeneration)
+            assertTrue(bobs.contentGeneration > maxOf(GENERATION_A, GENERATION_B) + 1)
+            assertTrue(bobs.contentGeneration > 0L)
+            assertFalse(bobs.backfillPending)
+            assertEquals(0, bobs.failedPasses)
+            assertEquals(GENERATION_A + 1, repository.contentGeneration(ALICE))
+            repository.close()
+        }
+
+    @Test
     fun theSchemaMatchesTheExportedNine() =
         runBlocking {
             val file = File(folder.root, "schema.db")

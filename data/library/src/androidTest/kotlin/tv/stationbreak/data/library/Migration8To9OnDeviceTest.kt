@@ -120,7 +120,7 @@ class Migration8To9OnDeviceTest {
             close()
         }
 
-        val migrated = helper.runMigrationsAndValidate(name, 9, true, Migration8To9())
+        val migrated = helper.runMigrationsAndValidate(name, 9, true, Migration8To9 { SEED })
 
         migrated.assertNames()
         migrated.close()
@@ -133,7 +133,7 @@ class Migration8To9OnDeviceTest {
             close()
         }
 
-        val migrated = helper.runMigrationsAndValidate(name, 9, true, Migration8To9())
+        val migrated = helper.runMigrationsAndValidate(name, 9, true, Migration8To9 { SEED })
 
         val generations = migrated.longs("SELECT contentGeneration FROM sync_meta ORDER BY userId")
         assertEquals(listOf(GENERATION + 1, GENERATION + 101), generations)
@@ -150,7 +150,7 @@ class Migration8To9OnDeviceTest {
         }
 
         val seed = now.toEpochMilliseconds() shl LibraryDao.GENERATION_SHIFT
-        val migrated = helper.runMigrationsAndValidate(name, 9, true, Migration7To8 { seed }, Migration8To9())
+        val migrated = helper.runMigrationsAndValidate(name, 9, true, Migration7To8 { seed }, Migration8To9 { seed })
 
         migrated.assertNames()
         val generations = migrated.longs("SELECT contentGeneration FROM sync_meta ORDER BY userId")
@@ -166,7 +166,7 @@ class Migration8To9OnDeviceTest {
             close()
         }
         // runMigrationsAndValidate compares the migrated schema with 9.json, unknown tables and columns included.
-        helper.runMigrationsAndValidate(name, 9, true, Migration8To9()).close()
+        helper.runMigrationsAndValidate(name, 9, true, Migration8To9 { SEED }).close()
 
         val repository = RoomLibraryRepository.create(context, clock)
         runBlocking {
@@ -178,5 +178,6 @@ class Migration8To9OnDeviceTest {
 
     private companion object {
         const val GENERATION = 4_242L
+        val SEED = 1L shl LibraryDao.GENERATION_SHIFT
     }
 }

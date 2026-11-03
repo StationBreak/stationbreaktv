@@ -14,13 +14,19 @@ internal class TitleRow(
     val id: String,
     val name: String,
     val year: Int?,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "TitleRow(id=$id, name=<name>)"
+}
 
 /** A stored ID and the name it has. */
 internal class NameRow(
     val id: String,
     val name: String,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "NameRow(id=$id, name=<name>)"
+}
 
 /**
  * The `LIKE` pattern for a name that contains [text]: `\` is escaped first, then `%` and `_`, so none of them is a

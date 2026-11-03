@@ -50,7 +50,10 @@ internal class HeldRaw(
     val genres: String?,
     val tags: String?,
     val studios: String?,
-)
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "HeldRaw(itemId=$itemId, seenFromMs=$seenFromMs, name=<name>)"
+}
 
 // The genres, tags and studios of the current rows of one chunk, by item.
 private class SideLists {

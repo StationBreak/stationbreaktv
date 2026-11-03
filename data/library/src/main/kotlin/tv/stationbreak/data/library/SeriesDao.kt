@@ -30,8 +30,11 @@ internal class HeldSeries(
     val genres: List<String>,
     val tags: List<String>,
     val studios: List<String>,
-    val name: String? = null,
-)
+    val name: String?,
+) {
+    // A name is text a person typed: it never reaches a log.
+    override fun toString(): String = "HeldSeries(seriesId=$seriesId, name=<name>)"
+}
 
 /**
  * The SQL of the cached series and their history (spec 10, Unit 1), with the same rules as [ItemHistoryDao]. A series
