@@ -249,6 +249,32 @@ interface LibraryRepository : AccountCache {
     ): Map<CanonicalId, ProgramInfo>
 
     /**
+     * The genres of [account]'s live items and series (the channel builder's picker), exact spelling, sorted by folded
+     * name and then name. No row cap: the screen lists them lazily. Current state, never for building a day.
+     */
+    suspend fun distinctGenres(account: LibraryAccount): List<String>
+
+    /** The tags of [account]'s live items and series, as [distinctGenres]. They span every library it has saved. */
+    suspend fun distinctTags(account: LibraryAccount): List<String>
+
+    /**
+     * Up to [limit] live shows and films of [account] whose name contains [text] (ASCII case-insensitive; `%`, `_` and
+     * `\` match themselves), by name and then ID. Episodes are never hits. It reads the saved library only and never
+     * asks the server. The caller bounds [text]'s length; empty text finds nothing.
+     */
+    suspend fun searchTitles(
+        account: LibraryAccount,
+        text: String,
+        limit: Int,
+    ): List<TitleHit>
+
+    /** The names of the live shows and films among [ids], for the words of a channel's sources. */
+    suspend fun titleNames(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+    ): Map<CanonicalId, String>
+
+    /**
      * Which of [ids] have a current row (not deleted) for [account], whatever their kind: a liveness check with no
      * names read. An id with no current row (deleted, a tombstone, another account's, or unknown) is absent. Like
      * [programInfo] it reads the current state, so it is never for building a day.
@@ -321,6 +347,17 @@ interface LibraryRepository : AccountCache {
     /** The chosen libraries that have not been fully fetched yet. */
     suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId>
 }
+
+/** Whether a [TitleHit] is a show or a film. */
+enum class TitleKind { Show, Film }
+
+/** A show or film found by name; [year] is the film's production year, null for a show or when unknown. */
+data class TitleHit(
+    val id: CanonicalId,
+    val name: String,
+    val kind: TitleKind,
+    val year: Int?,
+)
 
 /**
  * Brings the saved library in line with the libraries the user ticked, as `ServerSettings` stores them. Returns the

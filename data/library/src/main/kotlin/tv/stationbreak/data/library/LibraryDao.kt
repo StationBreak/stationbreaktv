@@ -213,6 +213,49 @@ internal abstract class LibraryDao {
         ids: List<String>,
     ): List<String>
 
+    // The picker's reads (the builder, spec 22): the current state, never for building a day. No schema change.
+    @Query(
+        "SELECT DISTINCT g.name FROM item_genre g JOIN item i ON i.serverId = g.serverId AND i.userId = g.userId " +
+            "AND i.itemId = g.itemId WHERE g.serverId = :serverId AND g.userId = :userId AND i.deletedAtMs IS NULL",
+    )
+    abstract suspend fun liveGenreNames(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    @Query(
+        "SELECT DISTINCT t.name FROM item_tag t JOIN item i ON i.serverId = t.serverId AND i.userId = t.userId " +
+            "AND i.itemId = t.itemId WHERE t.serverId = :serverId AND t.userId = :userId AND i.deletedAtMs IS NULL",
+    )
+    abstract suspend fun liveTagNames(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    // [pattern] is bound, never joined into the text; likePattern escapes it for the ESCAPE clause.
+    @Query(
+        "SELECT itemId AS id, name AS name, productionYear AS year FROM item WHERE serverId = :serverId " +
+            "AND userId = :userId AND deletedAtMs IS NULL AND kind = 'Movie' AND name LIKE :pattern ESCAPE '\\' " +
+            "ORDER BY name, itemId LIMIT :limit",
+    )
+    abstract suspend fun searchMovies(
+        serverId: String,
+        userId: String,
+        pattern: String,
+        limit: Int,
+    ): List<TitleRow>
+
+    // The names of the live movies among [ids] (at most MAX_VARIABLES of them).
+    @Query(
+        "SELECT itemId AS id, name AS name FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NULL AND kind = 'Movie' AND itemId IN (:ids)",
+    )
+    abstract suspend fun movieNames(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<NameRow>
+
     // Every row the account has, live or tombstoned, in any library: the primary key's own prefix.
     @Query("SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId")
     abstract suspend fun allItemIds(

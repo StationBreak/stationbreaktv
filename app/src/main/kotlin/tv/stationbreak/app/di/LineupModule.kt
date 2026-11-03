@@ -22,9 +22,13 @@ import tv.stationbreak.app.daySnapshotLine
 import tv.stationbreak.app.lineupTimingProbeFor
 import tv.stationbreak.app.standardOffsetMinutes
 import tv.stationbreak.core.domain.DayStore
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
@@ -36,13 +40,15 @@ import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SyncActivity
+import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.ChannelBuildManager
 import tv.stationbreak.core.domain.lineup.builder.ChannelBuilder
-import tv.stationbreak.core.domain.lineup.builder.DraftSource
+import tv.stationbreak.core.domain.lineup.builder.LibraryCatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.NewSeed
+import tv.stationbreak.core.domain.lineup.builder.SourceLabels
 import tv.stationbreak.core.domain.lineup.builder.newCustomId
 import tv.stationbreak.core.domain.lineup.eitherWriting
-import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.settings.lineup.FileDayStore
@@ -138,23 +144,46 @@ internal object LineupModule {
     fun newSeed(): NewSeed = NewSeed.secure()
 
     /**
-     * How features build channels (spec 22): through the service's lock. A source's words are the collection's name
-     * where the library knows it, else its key.
+     * The server's libraries for [account], by the names the server gives them: the one existing current-state read
+     * (ruling 13), through the signed-in session, and only when that session is [account]'s. Null when there is none
+     * or the server can't be reached.
      */
+    private suspend fun serverLibraries(
+        sessions: SessionRepository,
+        server: MediaServer,
+        account: LibraryAccount,
+    ): List<Library>? {
+        val session = sessions.current.value ?: return null
+        val ours = session.server.id == account.server && session.userId == account.user
+        return if (ours) server.libraries(session).getOrNull() else null
+    }
+
+    /** What the builder's source pickers read (spec 22): the saved library, and the server's library names. */
+    @Provides
+    @Singleton
+    fun catalogPicker(
+        library: LibraryRepository,
+        sessions: SessionRepository,
+        server: MediaServer,
+        settings: ServerSettings,
+    ): CatalogPicker {
+        val libraries: suspend (LibraryAccount) -> List<Library>? = { serverLibraries(sessions, server, it) }
+        return LibraryCatalogPicker(library, libraries) { settings.loadLibraries() }
+    }
+
+    /** How features build channels (spec 22): through the service's lock, with the sources' words from the pickers. */
     @Provides
     @Singleton
     fun channelBuilder(
         service: LineupService,
         newSeed: NewSeed,
         library: LibraryRepository,
-    ): ChannelBuilder =
-        ChannelBuildManager(service, newSeed, { newCustomId() }) { account, sources ->
-            val names = library.collectionNames(account)
-            sources.associateWith { source ->
-                val id = (source as? DraftSource.Collection)?.let { CanonicalId.parseOrNull(it.key) }
-                id?.let { names[it] } ?: source.key
-            }
-        }
+        sessions: SessionRepository,
+        server: MediaServer,
+    ): ChannelBuilder {
+        val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
+        return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke)
+    }
 
     @Provides
     @Singleton
