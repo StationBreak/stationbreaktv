@@ -151,22 +151,20 @@ object ExtrasFilter {
 
     /**
      * Whether [name] is a creditless opening or ending, trailer or featurette by its words: folded, split on every
-     * character outside `a-z0-9`, and a word is `ncop`, `nced`, `creditless`, `opening`, `ending`, `trailer`,
-     * `featurette`, `ncop` or `nced` (with digits or without), or `op` or `ed` followed by digits; `nc` then `op` or
-     * `ed` with digits. `op` and `ed` alone never match. A null name matches nothing.
+     * character outside `a-z0-9`, and a word is `creditless`, `opening`, `ending`, `trailer`,
+     * `featurette`, `ncop` or `nced` (with digits or without), or `op` or `ed` followed by digits. "nc op1" matches
+     * through its `op1` word. `op` and `ed` alone never match. A null name matches nothing.
      */
     internal fun isNamedExtra(name: String?): Boolean {
         val text = if (name == null) "" else foldNameAscii(name)
         var found = false
-        var previousIsNc = false
         var start = -1
         var i = 0
         while (i <= text.length && !found) {
             if (i < text.length && isWordChar(text[i])) {
                 if (start < 0) start = i
             } else if (start >= 0) {
-                found = wordMatches(text, start, i, previousIsNc)
-                previousIsNc = i - start == 2 && text[start] == 'n' && text[start + 1] == 'c'
+                found = wordMatches(text, start, i)
                 start = -1
             }
             i++
@@ -180,14 +178,12 @@ object ExtrasFilter {
         text: String,
         start: Int,
         end: Int,
-        afterNc: Boolean,
     ): Boolean =
         isWholeWord(text, start, end) ||
             isNumbered(text, start, end, "ncop", digitsOptional = true) ||
             isNumbered(text, start, end, "nced", digitsOptional = true) ||
             isNumbered(text, start, end, "op", digitsOptional = false) ||
-            isNumbered(text, start, end, "ed", digitsOptional = false) ||
-            (afterNc && (isNumbered(text, start, end, "op", false) || isNumbered(text, start, end, "ed", false)))
+            isNumbered(text, start, end, "ed", digitsOptional = false)
 
     private fun isWholeWord(
         text: String,
