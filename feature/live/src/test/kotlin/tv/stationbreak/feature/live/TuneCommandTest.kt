@@ -125,14 +125,31 @@ class TuneCommandTest {
     fun aGuideTuneShowsTheChannelCardWhileItLooksUp() =
         runTest {
             val f = onNineWithSlowLookups(5_000)
+            val lookups = f.r.schedule.onAirCalls.size
+            val at = currentTime
             f.send(LiveCommand.Tune(CH2))
-            // The card waits for nothing and holds nothing up: a quick lookup lands first, a slow one gets it.
-            assertTrue("no card for a quick tune: ${f.r.state}", f.r.state !is LiveState.Choosing)
+            // The card holds nothing up: the lookup starts at once, at the moment of the tune, before any card.
+            assertEquals(lookups + 1, f.r.schedule.onAirCalls.size)
+            assertEquals(at, currentTime)
+            assertTrue("no card yet: ${f.r.state}", f.r.state !is LiveState.Choosing)
             advanceTimeBy(1.seconds)
             val shown = f.r.state
             assertTrue("the card for 2 while the lookup runs: $shown", shown is LiveState.Choosing)
             assertEquals(2, (shown as LiveState.Choosing).target.number)
             advanceTimeBy(15.seconds)
+            runCurrent()
+            assertTrue(f.r.state is LiveState.Watching)
+        }
+
+    @Test
+    fun aQuickGuideTuneNeverShowsTheCard() =
+        runTest {
+            val f = onNineWithSlowLookups(100)
+            f.send(LiveCommand.Tune(CH2))
+            // Past the lookup's end but before the card's moment: the card never comes up for it.
+            advanceTimeBy(200.milliseconds)
+            assertTrue("no card for a quick tune: ${f.r.state}", f.r.state !is LiveState.Choosing)
+            advanceTimeBy(1.seconds)
             runCurrent()
             assertTrue(f.r.state is LiveState.Watching)
         }

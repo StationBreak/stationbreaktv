@@ -18,14 +18,10 @@ import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /** The tune line's `via` for a channel picked in the guide. */
 private const val VIA_GUIDE = "guide"
-
-// How long a guide tune's lookup runs before the channel card comes up: a quick one lands first and shows none.
-private val CARD_AFTER = 250.milliseconds
 
 /** When the viewer last pressed a key for a flip, and how long the settle waited after it (for [TuneReport.Flip]). */
 internal class FlipTiming(
@@ -647,6 +643,8 @@ internal class Flipper(
         try {
             // The lookup can take many seconds (every channel's day is built first): after a moment the channel's
             // number and name come up from the lineup list, beside the lookup, which never waits for them.
+            // Cancelled, not joined: it cannot overwrite a tune that has landed only because this machine runs on Main
+            // (one thread), so the cancel below takes effect before the landing below.
             val card = scope.launch { showCard(channel) }
             val lookedAt = clock.now()
             val onAir =
@@ -685,7 +683,7 @@ internal class Flipper(
     // The number and name of [channel] from the lineup list, which needs no day built; nothing is shown when it is not
     // there. A cancel (the lookup ended) stops it before it shows anything.
     private suspend fun showCard(channel: ChannelId) {
-        delay(CARD_AFTER)
+        delay(timings.guideCardAfter)
         val tag =
             try {
                 cardLineup().byId(channel)?.tag()
