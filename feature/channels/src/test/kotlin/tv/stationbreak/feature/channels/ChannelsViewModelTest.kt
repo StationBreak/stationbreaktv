@@ -442,6 +442,23 @@ class ChannelsViewModelTest {
         }
 
     @Test
+    fun withNoWantedChannelTheFocusIsOnNewAtOnceBeforeAnyListOrAccount() =
+        channelsTest { rig ->
+            // Nothing has run: no account, no list, no access. New is always drawn, so the focus is already on it.
+            rig.vm.open(null)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
+    fun withAWantedChannelAKeyBeforeTheListPutsTheFocusOnNew() =
+        channelsTest { rig ->
+            rig.vm.open(A)
+            assertEquals(null, rig.ui.focus)
+            rig.vm.move(false)
+            assertEquals(ChannelsFocus.New, rig.ui.focus)
+        }
+
+    @Test
     fun aWantedChannelThatIsNotInTheFirstListLeavesTheFocusOnNew() =
         channelsTest { rig ->
             rig.open(this, current = A)

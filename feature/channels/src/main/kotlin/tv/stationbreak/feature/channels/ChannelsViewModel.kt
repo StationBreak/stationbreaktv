@@ -133,7 +133,10 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 session?.cancel()
                 generation = model.generation + 1
-                model = Model(generation = generation, current = current, wantFocus = current)
+                // New is always drawn, so with no channel to start on the focus is on it at once, without waiting for
+                // an account or a list; a channel to start on is waited for (until the first list, see onList).
+                val start = if (current == null) ChannelsFocus.New else null
+                model = Model(generation = generation, current = current, wantFocus = current, focus = start)
                 visible = true
                 shown.value = derive(model)
             }
