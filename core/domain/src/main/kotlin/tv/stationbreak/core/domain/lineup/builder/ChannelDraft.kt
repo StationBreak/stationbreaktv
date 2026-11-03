@@ -98,6 +98,14 @@ sealed interface KeptItem {
         val n: Int,
     ) : KeptItem
 
+    /** A shuffle with no caps: it stays uncapped until the viewer turns caps on or takes the builder's settings. */
+    data object NoCaps : KeptItem
+
+    /** The day is cut into epochs shorter than 24 hours; caps would need 24. */
+    data class EpochHours(
+        val hours: Int,
+    ) : KeptItem
+
     /** The channel is laid out on the grid (the builder's channels play back to back). */
     data object BackToBackOff : KeptItem
 
@@ -110,7 +118,17 @@ sealed interface KeptItem {
 enum class KeptOrder { Chronological, RandomInOrder }
 
 /** Why a draft cannot be saved yet. */
-enum class DraftProblem { NameEmpty, NameTooLong, NoSources, CapOutOfRange, YearsReversed, MinutesReversed }
+enum class DraftProblem {
+    NameEmpty,
+    NameTooLong,
+    NoSources,
+    CapOutOfRange,
+    YearsIncomplete,
+    YearsOutOfRange,
+    YearsReversed,
+    MinutesOutOfRange,
+    MinutesReversed,
+}
 
 /**
  * A channel as the builder holds it. [numberChosen] is true only when the viewer picked [number]; otherwise creating
@@ -141,24 +159,31 @@ data class ChannelDraft(
             points > MAX_NAME_CODE_POINTS -> DraftProblem.NameTooLong
             sources.isEmpty() -> DraftProblem.NoSources
             order != PlayOrder.InOrder && (seriesCap !in CAPS || filmCap !in CAPS) -> DraftProblem.CapOutOfRange
-            yearsProblem() -> DraftProblem.YearsReversed
-            minutesProblem() -> DraftProblem.MinutesReversed
+            else -> yearsProblem() ?: minutesProblem()
+        }
+    }
+
+    // Both ends or neither; in 1..9999; in order.
+    private fun yearsProblem(): DraftProblem? {
+        val from = filters.yearFrom
+        val to = filters.yearTo
+        return when {
+            (from == null) != (to == null) -> DraftProblem.YearsIncomplete
+            from == null || to == null -> null
+            from !in YEARS || to !in YEARS -> DraftProblem.YearsOutOfRange
+            from > to -> DraftProblem.YearsReversed
             else -> null
         }
     }
 
-    // Both ends set, in 1..9999 and in order; a lone end narrows nothing.
-    private fun yearsProblem(): Boolean {
-        val from = filters.yearFrom
-        val to = filters.yearTo
-        return from != null && to != null && (from !in YEARS || to !in YEARS || from > to)
-    }
-
-    private fun minutesProblem(): Boolean {
+    private fun minutesProblem(): DraftProblem? {
         val min = filters.minMinutes
         val max = filters.maxMinutes
-        val outOfRange = listOfNotNull(min, max).any { it !in MINUTES }
-        return outOfRange || (min != null && max != null && min > max)
+        return when {
+            listOfNotNull(min, max).any { it !in MINUTES } -> DraftProblem.MinutesOutOfRange
+            min != null && max != null && min > max -> DraftProblem.MinutesReversed
+            else -> null
+        }
     }
 
     companion object {

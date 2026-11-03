@@ -121,15 +121,62 @@ class DraftRulesTest {
         assertEquals("Funny Films", toRules(draft(name = "  Funny Films ")).name)
     }
 
+    private val plainShuffle = keptRules.copy(ordering = null, filler = null, extras = JsonObject(emptyMap()))
+
+    private fun withoutNoCaps(draft: ChannelDraft): ChannelDraft {
+        val kept = requireNotNull(draft.kept)
+        return draft.copy(kept = kept.copy(items = kept.items - KeptItem.NoCaps))
+    }
+
+    @Test
+    fun aCopiedShuffleWithNoCapsStaysUncappedAtVersion1() {
+        val draft = fromRules(plainShuffle)
+
+        assertTrue(KeptItem.NoCaps in assertNotNull(draft.kept).items)
+        val rules = toRules(draft, plainShuffle)
+        assertEquals(1, rules.formatVersion)
+        assertEquals(plainShuffle, rules)
+    }
+
+    @Test
+    fun turningCapsOnOrTakingTheBuildersSettingsAppliesCaps() {
+        val draft = fromRules(plainShuffle)
+        val withoutNoCaps = withoutNoCaps(draft)
+
+        for (capped in listOf(toRules(withoutNoCaps, plainShuffle), toRules(draft.copy(kept = null), plainShuffle))) {
+            assertEquals(3, capped.effectiveCaps?.series)
+            assertEquals(1, capped.effectiveCaps?.film)
+            assertEquals(2, capped.formatVersion)
+        }
+    }
+
+    @Test
+    fun anEpochBelow24IsKeptUntilCapsAreOnOrTheBuildersSettingsAreTaken() {
+        val short = plainShuffle.copy(timing = plainShuffle.timing.copy(epochHours = 12))
+        val draft = fromRules(short)
+
+        assertTrue(KeptItem.EpochHours(12) in assertNotNull(draft.kept).items)
+        assertEquals(short, toRules(draft, short))
+        val capsOn = withoutNoCaps(draft)
+        assertEquals(24, toRules(capsOn, short).timing.epochHours)
+        assertEquals(24, toRules(draft.copy(kept = null), short).timing.epochHours)
+    }
+
     @Test
     fun otherProblemsAreNamed() {
         assertEquals(DraftProblem.NoSources, draft(sources = emptyList()).problem())
         assertEquals(DraftProblem.CapOutOfRange, draft().copy(seriesCap = 11).problem())
         assertNull(draft(order = PlayOrder.InOrder).copy(seriesCap = 11).problem())
-        val years = DraftFilters(yearFrom = 2000, yearTo = 1990)
-        assertEquals(DraftProblem.YearsReversed, draft().copy(filters = years).problem())
-        val minutes = DraftFilters(minMinutes = 90, maxMinutes = 60)
-        assertEquals(DraftProblem.MinutesReversed, draft().copy(filters = minutes).problem())
+
+        fun problemOf(filters: DraftFilters) = draft().copy(filters = filters).problem()
+        assertEquals(DraftProblem.YearsReversed, problemOf(DraftFilters(yearFrom = 2000, yearTo = 1990)))
+        assertEquals(DraftProblem.YearsIncomplete, problemOf(DraftFilters(yearFrom = 2000)))
+        assertEquals(DraftProblem.YearsIncomplete, problemOf(DraftFilters(yearTo = 2000)))
+        assertEquals(DraftProblem.YearsOutOfRange, problemOf(DraftFilters(yearFrom = 0, yearTo = 2000)))
+        assertEquals(DraftProblem.YearsOutOfRange, problemOf(DraftFilters(yearFrom = 2000, yearTo = 10000)))
+        assertEquals(DraftProblem.MinutesReversed, problemOf(DraftFilters(minMinutes = 90, maxMinutes = 60)))
+        assertEquals(DraftProblem.MinutesOutOfRange, problemOf(DraftFilters(minMinutes = 0)))
+        assertEquals(DraftProblem.MinutesOutOfRange, problemOf(DraftFilters(maxMinutes = 1441)))
     }
 
     @Test

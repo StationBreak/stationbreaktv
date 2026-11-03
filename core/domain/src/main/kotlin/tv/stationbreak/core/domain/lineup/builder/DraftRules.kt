@@ -82,10 +82,15 @@ internal object DraftRules {
         carry: ChannelRules?,
     ): Ordering? {
         val keepsOrder = draft.kept?.items?.any { it is KeptItem.Order } == true
+        val uncapped = draft.kept?.items?.contains(KeptItem.NoCaps) == true && draft.order == PlayOrder.Shuffle
         val extras = carry?.ordering?.extras ?: NO_EXTRAS
         return when {
             keepsOrder && carry != null -> {
                 carry.ordering
+            }
+
+            uncapped && carry != null -> {
+                carry.ordering?.let { Ordering(OrderingMode.Shuffle, null, it.extras) }
             }
 
             draft.order == PlayOrder.InOrder -> {
@@ -116,7 +121,7 @@ internal object DraftRules {
                 broadcastDay = BroadcastDay(utcOffsetMinutes, LineupDefaults.DAY_START),
             )
         }
-        // Caps need a 24-hour epoch; a shorter carried one gives way to them.
+        // Caps need a 24-hour epoch; a shorter carried one gives way when caps are written.
         val capped = ordering?.caps != null
         val shortEpoch = carry.timing.effectiveEpochHours < EPOCH_HOURS
         return if (capped && shortEpoch) carry.timing.copy(epochHours = EPOCH_HOURS) else carry.timing
@@ -237,6 +242,9 @@ internal object DraftRules {
                 else -> Unit
             }
             rules.sources.filterIsInstance<Source.YearRange>().forEach { items += KeptItem.YearsSource(it.from, it.to) }
+            if (rules.orderingMode == OrderingMode.Shuffle && rules.effectiveCaps == null) items += KeptItem.NoCaps
+            val epoch = rules.timing.effectiveEpochHours
+            if (epoch != EPOCH_HOURS) items += KeptItem.EpochHours(epoch)
             if (rules.timing.effectiveBlockLength != 1) items += KeptItem.BlockLength(rules.timing.effectiveBlockLength)
             if (rules.timing.effectiveAlignToGrid) items += KeptItem.BackToBackOff
             if (rules.fillerMode != FillerMode.None) items += KeptItem.Filler
@@ -268,7 +276,6 @@ internal object DraftRules {
             timing.graceHours != null ||
                 timing.gridMinutes != null ||
                 timing.minRuntimeSeconds != null ||
-                timing.effectiveEpochHours != EPOCH_HOURS ||
                 timing.broadcastDay.effectiveStart != LineupDefaults.DAY_START
     }
 }
