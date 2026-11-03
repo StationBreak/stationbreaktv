@@ -148,4 +148,16 @@ class CatalogPickerTest {
 
             assertEquals(movies.id.value, SourceLabels(repository) { server }(ACCOUNT, listOf(source)).getValue(source))
         }
+
+    @Test
+    fun aShowOrFilmTheLibraryDoesNotKnowFallsBackToItsKey() =
+        runBlocking<Unit> {
+            val show = DraftSource.Show(id(0x77).value, "")
+            val notAnId = DraftSource.Show("not-an-id", "")
+
+            val words = SourceLabels(repository) { server }(ACCOUNT, listOf(show, notAnId))
+
+            assertEquals(id(0x77).value, words.getValue(show))
+            assertEquals("not-an-id", words.getValue(notAnId))
+        }
 }

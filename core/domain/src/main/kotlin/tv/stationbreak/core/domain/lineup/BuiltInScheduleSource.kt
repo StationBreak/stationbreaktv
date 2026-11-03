@@ -131,7 +131,7 @@ class BuiltInScheduleSource(
     private val buildScope = CoroutineScope(SupervisorJob() + dispatcher)
 
     // Snapshots outlive the lineup revision they were first read for: see [SnapshotCache].
-    private val snapshots = SnapshotCache(buildScope)
+    internal val snapshots = SnapshotCache(buildScope)
 
     // The writes of built days to disk still running; each removes itself when done.
     private val saves = HashSet<Job>()

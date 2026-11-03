@@ -40,9 +40,11 @@ import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SyncActivity
+import tv.stationbreak.core.domain.lineup.builder.BuiltInChannelPreviews
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.ChannelBuildManager
 import tv.stationbreak.core.domain.lineup.builder.ChannelBuilder
+import tv.stationbreak.core.domain.lineup.builder.ChannelPreviews
 import tv.stationbreak.core.domain.lineup.builder.LibraryCatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.NewSeed
 import tv.stationbreak.core.domain.lineup.builder.SourceLabels
@@ -184,6 +186,16 @@ internal object LineupModule {
         val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
         return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke)
     }
+
+    /** What a channel being built would air (spec 22): the real scheduler over the schedule source's own snapshots. */
+    @Provides
+    @Singleton
+    fun channelPreviews(
+        service: LineupService,
+        library: LibraryRepository,
+        schedule: BuiltInScheduleSource,
+        settings: ServerSettings,
+    ): ChannelPreviews = BuiltInChannelPreviews(service, library, schedule) { settings.loadLibraries() }
 
     @Provides
     @Singleton
