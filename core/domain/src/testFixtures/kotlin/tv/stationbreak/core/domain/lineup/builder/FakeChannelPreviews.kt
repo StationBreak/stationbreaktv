@@ -2,13 +2,12 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import tv.stationbreak.core.domain.LibraryAccount
-import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
 /** A [ChannelPreviews] for feature tests: it answers as told and records the drafts it was asked about. */
 class FakeChannelPreviews : ChannelPreviews {
     /** What [preview] answers next. */
-    var answer: ChannelPreview = ChannelPreview(0, 0L, emptyList(), emptyList(), nothingFits = true)
+    var answer: ChannelPreview = ChannelPreview.NothingFits(emptyList())
 
     /** The drafts previewed, in order. */
     val drafts = mutableListOf<ChannelDraft>()
@@ -17,7 +16,6 @@ class FakeChannelPreviews : ChannelPreviews {
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
-        source: ChannelId?,
     ): ChannelPreview {
         drafts += draft
         return answer

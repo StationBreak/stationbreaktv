@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
@@ -17,6 +22,7 @@ import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.NOON
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.RecordingStore
+import tv.stationbreak.core.domain.lineup.SharedSnapshots
 import tv.stationbreak.core.domain.lineup.TWO_HOURS_MS
 import tv.stationbreak.core.domain.lineup.TestCatalog
 import tv.stationbreak.core.domain.lineup.channel
@@ -67,8 +73,9 @@ class ChannelPreviewsTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library) { LIBRARIES }
-    private val previews = BuiltInChannelPreviews(service, library, source) { LIBRARIES }
+    private val shared = SharedSnapshots(CoroutineScope(SupervisorJob()))
+    private val source = BuiltInScheduleSource(service, library, shared = shared) { LIBRARIES }
+    private val previews = BuiltInChannelPreviews(service, library, shared) { LIBRARIES }
     private val keyLabels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String> =
         { _, sources -> sources.associateWith { it.key } }
     private val builder = ChannelBuildManager(service, { Seed(1uL) }, { "built" }, keyLabels)
@@ -169,17 +176,32 @@ class ChannelPreviewsTest {
         at: Instant = NOON,
     ) = runBlocking { previews.preview(ACCOUNT, draft, at) }
 
+    private val ChannelPreview.next: List<PreviewItem>
+        get() = (this as? ChannelPreview.Ready)?.next.orEmpty()
+    private val ChannelPreview.itemCount: Int
+        get() = (this as? ChannelPreview.Ready)?.itemCount ?: 0
+    private val ChannelPreview.totalRuntimeMinutes: Long
+        get() = (this as? ChannelPreview.Ready)?.totalRuntimeMinutes ?: 0L
+    private val ChannelPreview.skipped: List<SkippedPick>
+        get() =
+            when (this) {
+                is ChannelPreview.Ready -> skipped
+                is ChannelPreview.NothingFits -> skipped
+                ChannelPreview.Unavailable -> emptyList()
+            }
+    private val ChannelPreview.nothingFits: Boolean get() = this is ChannelPreview.NothingFits
+    private val ChannelPreview.unavailable: Boolean get() = this === ChannelPreview.Unavailable
+
     private fun ids(preview: ChannelPreview): List<CanonicalId> = preview.next.map { it.id }
 
     // Builds [draft] into the lineup through the builder and reads what the real source airs from [at].
     private fun airedAs(
         draft: ChannelDraft,
         at: Instant = NOON,
-        copyOf: ChannelId? = null,
     ): List<CanonicalId> =
         runBlocking {
             service.refresh(ACCOUNT, LIBRARIES)
-            val built = (builder.create(ACCOUNT, draft, copyOf) as BuildResult.Done).id
+            val built = (builder.create(ACCOUNT, draft) as BuildResult.Done).id
             airs(built, at)
         }
 
@@ -376,11 +398,11 @@ class ChannelPreviewsTest {
     fun aBurstOfPreviewsReadsTheSnapshotOnce() {
         sevenComedies()
         preview(draft())
-        val after = source.snapshots.reads
+        val after = shared.cache.reads
 
         repeat(5) { preview(draft(seed = it.toULong())) }
 
-        assertEquals(after, source.snapshots.reads)
+        assertEquals(after, shared.cache.reads)
     }
 
     @Test
@@ -403,9 +425,9 @@ class ChannelPreviewsTest {
                 }
             }
         val executor = Executors.newSingleThreadExecutor { Thread(it, "preview-thread") }
-        val own = BuiltInScheduleSource(service, watching) { LIBRARIES }
+        val ownShared = SharedSnapshots(CoroutineScope(SupervisorJob()))
         val dispatcher = executor.asCoroutineDispatcher()
-        val elsewhere = BuiltInChannelPreviews(service, watching, own.snapshots, { LIBRARIES }, dispatcher)
+        val elsewhere = BuiltInChannelPreviews(service, watching, ownShared, dispatcher) { LIBRARIES }
 
         val shown = runBlocking { elsewhere.preview(ACCOUNT, draft(), NOON) }
 
@@ -420,12 +442,12 @@ class ChannelPreviewsTest {
     fun aDraftThatCannotBeReadIsUnavailableNotNothingFits() {
         sevenComedies()
         val kept = KeptSettings("Laughs", listOf(KeptItem.NoCaps))
-        val noLibraries = BuiltInChannelPreviews(service, library, source) { null }
+        val noLibraries = BuiltInChannelPreviews(service, library, shared) { null }
         val failing =
             object : LibraryRepository by library {
                 override suspend fun contentGeneration(account: LibraryAccount): Long = error("the library is gone")
             }
-        val broken = BuiltInChannelPreviews(service, failing, source) { LIBRARIES }
+        val broken = BuiltInChannelPreviews(service, failing, shared) { LIBRARIES }
 
         val withoutSource = preview(draft().copy(kept = kept))
         val withoutLibraries = runBlocking { noLibraries.preview(ACCOUNT, draft(), NOON) }
@@ -457,10 +479,10 @@ class ChannelPreviewsTest {
         val copy = opened.draft.copy(name = "Dramas (copy)")
         assertTrue(copy.kept?.items?.contains(KeptItem.Order(KeptOrder.RandomInOrder)) == true)
 
-        val shown = runBlocking { previews.preview(ACCOUNT, copy, NOON, dramas.id) }
-        val dropped = runBlocking { previews.preview(ACCOUNT, copy.copy(kept = null), NOON, dramas.id) }
+        val shown = runBlocking { previews.preview(ACCOUNT, copy, NOON) }
+        val dropped = runBlocking { previews.preview(ACCOUNT, copy.copy(kept = null), NOON) }
 
-        assertEquals(ids(shown), airedAs(copy, copyOf = dramas.id))
+        assertEquals(ids(shown), airedAs(copy))
         assertNotEquals(ids(shown), ids(dropped), "the kept order is not the builder's Shuffle")
     }
 
@@ -472,7 +494,7 @@ class ChannelPreviewsTest {
         val opened = runBlocking { builder.open(ACCOUNT, mine.id, copy = false) } as OpenResult.Opened
         val edited = opened.draft.copy(name = "Renamed")
 
-        val shown = runBlocking { previews.preview(ACCOUNT, edited, NOON, mine.id) }
+        val shown = runBlocking { previews.preview(ACCOUNT, edited, NOON) }
         val aired =
             runBlocking {
                 assertEquals(BuildResult.Done(mine.id), builder.save(ACCOUNT, mine.id, edited))
@@ -513,12 +535,12 @@ class ChannelPreviewsTest {
                 ?.contains(KeptItem.EpochHours(12)) == true,
         )
         preview(draft())
-        val reads = source.snapshots.reads
+        val reads = shared.cache.reads
 
-        val shown = runBlocking { previews.preview(ACCOUNT, opened.draft, NOON, odd.id) }
+        val shown = runBlocking { previews.preview(ACCOUNT, opened.draft, NOON) }
 
         assertTrue(shown.next.isNotEmpty() && !shown.unavailable)
-        assertEquals(reads, source.snapshots.reads, "its own cut-offs were read, not kept")
+        assertEquals(reads, shared.cache.reads, "its own cut-offs were read, not kept")
     }
 
     @Test
@@ -570,5 +592,41 @@ class ChannelPreviewsTest {
         film(1, item = movieItem(1, runtimeMs = 90.minutes.inWholeMilliseconds))
 
         assertEquals(90, preview(draft()).next.first().minutes)
+    }
+
+    @Test
+    fun aCancelledPreviewStopsBeforeTheNextEpoch() {
+        sevenComedies()
+        preview(draft())
+        var generations = 0
+        lateinit var preview: Job
+        val watching =
+            object : LibraryRepository by library {
+                override suspend fun contentGeneration(account: LibraryAccount): Long {
+                    // The first epoch is being read: the viewer has moved on.
+                    if (++generations == 1) preview.cancel()
+                    return library.contentGeneration(account)
+                }
+            }
+        val cancellable = BuiltInChannelPreviews(service, watching, shared) { LIBRARIES }
+
+        runBlocking {
+            preview = launch(start = CoroutineStart.LAZY) { cancellable.preview(ACCOUNT, draft(), NOON) }
+            preview.start()
+            preview.join()
+        }
+
+        assertTrue(preview.isCancelled)
+        assertEquals(1, generations, "the next epoch was not read")
+    }
+
+    @Test
+    fun theSealedAnswersAreTheRightKinds() {
+        sevenComedies()
+
+        assertTrue(preview(draft()) is ChannelPreview.Ready)
+        assertTrue(preview(draft(DraftSource.Genre("Nothing Like It", "x"))) is ChannelPreview.NothingFits)
+        val orphan = draft().copy(kept = KeptSettings("x", listOf(KeptItem.NoCaps)))
+        assertEquals(ChannelPreview.Unavailable, preview(orphan))
     }
 }

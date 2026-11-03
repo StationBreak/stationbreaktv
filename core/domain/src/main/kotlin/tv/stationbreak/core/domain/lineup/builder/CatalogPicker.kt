@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.TitleHit
@@ -24,60 +25,84 @@ sealed interface Listed<out T> {
     data object Unavailable : Listed<Nothing>
 }
 
-/** What the channel builder's source pickers read (spec 22). Nothing here throws, but for cancellation. */
+/**
+ * What the channel builder's source pickers read (spec 22). Nothing here throws, but for cancellation: a read that
+ * fails is [Listed.Unavailable], and an empty list is [Listed.Ok] of nothing.
+ */
 interface CatalogPicker {
     /** The server's libraries, by the names the server gives them; [Listed.Unavailable] when it can't be reached. */
     suspend fun libraries(account: LibraryAccount): Listed<List<PickerEntry>>
 
     /** The account's collections, sorted by folded name. */
-    suspend fun collections(account: LibraryAccount): List<PickerEntry>
+    suspend fun collections(account: LibraryAccount): Listed<List<PickerEntry>>
 
-    suspend fun tags(account: LibraryAccount): List<PickerEntry>
+    suspend fun tags(account: LibraryAccount): Listed<List<PickerEntry>>
 
-    suspend fun genres(account: LibraryAccount): List<PickerEntry>
+    suspend fun genres(account: LibraryAccount): Listed<List<PickerEntry>>
 
-    /** Shows and films whose name contains [text], from the saved library only (2 to 64 code points, trimmed). */
+    /**
+     * Shows and films whose name contains [text], from the saved library only, sorted by folded name. [text] is 2 to 64
+     * code points, trimmed; anything else finds nothing.
+     */
     suspend fun search(
         account: LibraryAccount,
         text: String,
-    ): List<TitleHit>
+    ): Listed<List<TitleHit>>
 }
 
 /**
  * The pickers over the saved library ([repository]) and the server's libraries. [serverLibraries] gives the server's
  * libraries for the account, or null when they can't be read (no session, the server unreachable); [chosen] gives the
- * libraries the viewer chose to sync, or null when none is stored, which filters nothing.
+ * libraries the viewer chose to sync, or null when none is stored, which filters nothing. A read that throws is
+ * [Listed.Unavailable].
  */
 class LibraryCatalogPicker(
     private val repository: LibraryRepository,
     private val serverLibraries: suspend (LibraryAccount) -> List<Library>?,
     private val chosen: suspend () -> Set<ItemId>? = { null },
 ) : CatalogPicker {
-    override suspend fun libraries(account: LibraryAccount): Listed<List<PickerEntry>> {
-        val all = serverLibraries(account) ?: return Listed.Unavailable
-        val only = chosen()
-        val shown = all.filter { only == null || it.id in only }
-        return Listed.Ok(shown.map { PickerEntry(it.id.value, it.name) }.sortedByName())
-    }
+    override suspend fun libraries(account: LibraryAccount): Listed<List<PickerEntry>> =
+        guarded {
+            val all = serverLibraries(account)
+            val only = chosen()
+            all?.filter { only == null || it.id in only }?.map { PickerEntry(it.id.value, it.name) }?.sortedByName()
+        }
 
-    override suspend fun collections(account: LibraryAccount): List<PickerEntry> {
-        val names = repository.collectionNames(account)
-        return names.ids.mapNotNull { id -> names[id]?.let { PickerEntry(id.value, it) } }.sortedByName()
-    }
+    override suspend fun collections(account: LibraryAccount): Listed<List<PickerEntry>> =
+        guarded {
+            val names = repository.collectionNames(account)
+            names.ids.mapNotNull { id -> names[id]?.let { PickerEntry(id.value, it) } }.sortedByName()
+        }
 
-    override suspend fun tags(account: LibraryAccount) = repository.distinctTags(account).asEntries()
+    override suspend fun tags(account: LibraryAccount) = guarded { repository.distinctTags(account).asEntries() }
 
-    override suspend fun genres(account: LibraryAccount) = repository.distinctGenres(account).asEntries()
+    override suspend fun genres(account: LibraryAccount): Listed<List<PickerEntry>> =
+        guarded { repository.distinctGenres(account).asEntries() }
 
     override suspend fun search(
         account: LibraryAccount,
         text: String,
-    ): List<TitleHit> {
+    ): Listed<List<TitleHit>> {
         val trimmed = text.trim()
         val points = trimmed.codePointCount(0, trimmed.length)
-        if (points !in MIN_SEARCH..MAX_SEARCH) return emptyList()
-        return repository.searchTitles(account, trimmed, SEARCH_LIMIT)
+        if (points !in MIN_SEARCH..MAX_SEARCH) return Listed.Ok(emptyList())
+        return guarded {
+            repository
+                .searchTitles(account, trimmed, SEARCH_LIMIT)
+                .sortedWith(compareBy({ foldNameAscii(it.name) }, { it.name }, { it.id.value }))
+        }
     }
+
+    // A null is nothing to show right now (the server is out of reach); a throw is the same, but for cancellation.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun <T> guarded(read: suspend () -> T?): Listed<T> =
+        try {
+            read()?.let { Listed.Ok(it) } ?: Listed.Unavailable
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            Listed.Unavailable
+        }
 
     private fun List<String>.asEntries(): List<PickerEntry> = map { PickerEntry(it, it) }
 

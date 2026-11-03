@@ -143,7 +143,7 @@ class DraftRulesTest {
     @Test
     fun turningCapsOnOrTakingTheBuildersSettingsAppliesCaps() {
         val draft = fromRules(plainShuffle)
-        val withoutNoCaps = draft.withCaps(3, 1)
+        val withoutNoCaps = draft.copy(seriesCap = 3, filmCap = 1)
 
         for (capped in listOf(toRules(withoutNoCaps, plainShuffle), toRules(draft.copy(kept = null), plainShuffle))) {
             assertEquals(3, capped.effectiveCaps?.series)
@@ -159,7 +159,7 @@ class DraftRulesTest {
 
         assertTrue(KeptItem.EpochHours(12) in assertNotNull(draft.kept).items)
         assertEquals(short, toRules(draft, short))
-        val capsOn = draft.withCaps(3, 1)
+        val capsOn = draft.copy(seriesCap = 3, filmCap = 1)
         assertEquals(24, toRules(capsOn, short).timing.epochHours)
         assertEquals(24, toRules(draft.copy(kept = null), short).timing.epochHours)
     }
@@ -212,39 +212,67 @@ class DraftRulesTest {
     }
 
     @Test
-    fun choosingAnOrderOrCapsDropsTheMatchingKeptItems() {
+    fun choosingAnOrderOrCapsTakesTheKeptItemsPlace() {
         val short = bareShuffle.copy(timing = bareShuffle.timing.copy(epochHours = 12))
         val kept = fromRules(short)
-        assertEquals(listOf(KeptItem.NoCaps, KeptItem.EpochHours(12)), kept.kept?.items)
+        assertEquals(listOf(KeptItem.NoCaps, KeptItem.EpochHours(12)), kept.keptInForce)
+        assertTrue(kept.seriesCap == null && kept.filmCap == null)
 
-        val capped = kept.withCaps(2, 2)
-        assertTrue(
-            capped.kept
-                ?.items
-                .orEmpty()
-                .none { it == KeptItem.NoCaps || it is KeptItem.EpochHours },
-        )
-        assertEquals(2, capped.seriesCap)
+        val capped = kept.copy(seriesCap = 2, filmCap = 2)
+        assertTrue(capped.keptInForce.none { it == KeptItem.NoCaps || it is KeptItem.EpochHours })
+        assertEquals(2, toRules(capped, short).effectiveCaps?.series)
 
         val chronological = fromRules(keptRules.copy(ordering = Ordering(OrderingMode.Chronological), filler = null))
-        val chosen = chronological.withOrder(PlayOrder.Rotation)
-        assertTrue(
-            chosen.kept
-                ?.items
-                .orEmpty()
-                .none { it is KeptItem.Order },
-        )
-        assertEquals(PlayOrder.Rotation, chosen.order)
+        assertNull(chronological.order)
+        val keptOrders = chronological.keptInForce.filterIsInstance<KeptItem.Order>()
+        assertEquals(listOf(KeptItem.Order(KeptOrder.Chronological)), keptOrders)
+        val chosen = chronological.copy(order = PlayOrder.Rotation)
+        assertTrue(chosen.keptInForce.none { it is KeptItem.Order })
         assertEquals(OrderingMode.Rotation, toRules(chosen, keptRules).orderingMode)
     }
 
     @Test
-    fun droppingTheLastKeptItemLeavesNoKeptSettings() {
-        val draft = fromRules(bareShuffle)
-        val only = draft.kept?.items
-        assertEquals(listOf<KeptItem>(KeptItem.NoCaps), only)
+    fun changingTheOrderOfADraftWithAKeptOrderSavesTheNewOrder() {
+        val stored = keptRules.copy(ordering = Ordering(OrderingMode.Chronological), filler = null)
+        val chronological = fromRules(stored)
 
-        assertNull(draft.withCaps(3, 1).kept)
+        // Any copy(...) that gives the order a value is the viewer's choice; the kept order cannot win by mistake.
+        for (order in PlayOrder.entries) {
+            val expected =
+                when (order) {
+                    PlayOrder.Shuffle -> OrderingMode.Shuffle
+                    PlayOrder.Rotation -> OrderingMode.Rotation
+                    PlayOrder.InOrder -> OrderingMode.InOrder
+                }
+            assertEquals(expected, toRules(chronological.copy(order = order), stored).orderingMode, "$order")
+        }
+        assertEquals(OrderingMode.Chronological, toRules(chronological, stored).orderingMode, "left alone, it stays")
+        assertEquals(OrderingMode.Chronological, toRules(chronological.copy(name = "Other"), stored).orderingMode)
+    }
+
+    @Test
+    fun droppingTheLastKeptItemLeavesNothingInForce() {
+        val draft = fromRules(bareShuffle)
+        assertEquals(listOf<KeptItem>(KeptItem.NoCaps), draft.kept?.items)
+
+        assertEquals(emptyList(), draft.copy(seriesCap = 3, filmCap = 1).keptInForce)
+    }
+
+    @Test
+    fun capsGivenForOneOfSeriesAndFilmsAreIncomplete() {
+        assertEquals(DraftProblem.CapsIncomplete, draft().copy(seriesCap = null).problem())
+        assertNull(draft(order = PlayOrder.InOrder).copy(seriesCap = null).problem())
+    }
+
+    @Test
+    fun theFormatsListLimitsAreProblems() {
+        val many = List(257) { DraftSource.Genre("G$it", "G$it") }
+        assertEquals(DraftProblem.TooManySources, draft(sources = many).problem())
+        assertNull(draft(sources = many.take(256)).problem())
+        assertEquals(DraftProblem.TooManyLeftOut, draft().copy(leaveOut = many).problem())
+        val genres = DraftFilters(genres = List(257) { "G$it" })
+        assertEquals(DraftProblem.TooManyGenres, draft().copy(filters = genres).problem())
+        assertNull(draft().copy(filters = DraftFilters(genres = List(256) { "G$it" })).problem())
     }
 
     @Test
@@ -327,7 +355,7 @@ class DraftRulesTest {
         assertTrue(KeptItem.BlockLength(3) in kept.items)
         assertTrue(KeptItem.YearsSource(1960, 1969) in kept.items)
         assertTrue(KeptItem.Filler in kept.items)
-        assertEquals(PlayOrder.Shuffle, draft.order)
+        assertNull(draft.order, "a kept order is no order of the builder's")
         assertEquals(listOf<DraftSource>(DraftSource.Genre("Western", "Western")), draft.sources)
         assertEquals(keptRules, toRules(draft, keptRules))
     }

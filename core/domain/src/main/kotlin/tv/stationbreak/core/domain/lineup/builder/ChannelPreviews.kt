@@ -4,6 +4,8 @@ package tv.stationbreak.core.domain.lineup.builder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
@@ -13,6 +15,7 @@ import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.RuledDay
+import tv.stationbreak.core.domain.lineup.SharedSnapshots
 import tv.stationbreak.core.domain.lineup.SnapshotCache
 import tv.stationbreak.core.domain.lineup.policyRules
 import tv.stationbreak.core.domain.lineup.ruledDayOf
@@ -61,34 +64,43 @@ data class SkippedPick(
     val reason: SkipReason,
 )
 
-/**
- * What a draft would air: [itemCount] and [totalRuntimeMinutes] of the epoch's pool, the [next] items in the order
- * the scheduler lays them out, the [skipped] picks, and [nothingFits] when the pool is empty. [unavailable] is true
- * when the preview could not be worked out at all (no lineup, no chosen library, a failed read): that is not "nothing
- * fits", and the screen says something else.
- */
-data class ChannelPreview(
-    val itemCount: Int,
-    val totalRuntimeMinutes: Long,
-    val next: List<PreviewItem>,
-    val skipped: List<SkippedPick>,
-    val nothingFits: Boolean,
-    val unavailable: Boolean = false,
-)
+/** What a draft would air. */
+sealed interface ChannelPreview {
+    /**
+     * [itemCount] and [totalRuntimeMinutes] of the epoch's pool, the [next] items in the order the scheduler lays them
+     * out, and the [skipped] picks.
+     */
+    data class Ready(
+        val itemCount: Int,
+        val totalRuntimeMinutes: Long,
+        val next: List<PreviewItem>,
+        val skipped: List<SkippedPick>,
+    ) : ChannelPreview
+
+    /** The pool is empty: nothing in the library fits the draft. */
+    data class NothingFits(
+        val skipped: List<SkippedPick>,
+    ) : ChannelPreview
+
+    /**
+     * The preview could not be worked out (no lineup, no chosen library, a failed read, kept settings whose origin is
+     * gone): that is not "nothing fits", and the screen says something else.
+     */
+    data object Unavailable : ChannelPreview
+}
 
 /** Shows what a channel being built would air, from the real scheduler (spec 22). */
 interface ChannelPreviews {
     /**
      * The channel [draft] would air from [at]: the next [NEXT] items laid out by the same `buildDay`, the pool's size
-     * and runtime, and the picks the kids hold leaves out. [source] is the channel the draft was opened from (a
-     * built-in for a copy, the channel itself for an edit): where its kept settings are read from. Main-safe; the
-     * caller debounces. Nothing is saved.
+     * and runtime, and the picks the kids hold leaves out. A draft with kept settings reads them from the rules of its
+     * [ChannelDraft.origin]; with none, or one that is gone, the preview is [ChannelPreview.Unavailable]. Main-safe and
+     * cancellable; the caller debounces. Nothing is saved.
      */
     suspend fun preview(
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
-        source: ChannelId? = null,
     ): ChannelPreview
 
     companion object {
@@ -100,23 +112,18 @@ interface ChannelPreviews {
 /**
  * The preview over the same functions the lineup's days use: [ruledDayOf] for the pool, the ceiling and the policy,
  * and `buildDay` for the layout, on a synthetic channel built from the draft with the draft's own seed. The snapshots
- * are read through [snapshots], the schedule source's own cache, under the same key, so a preview does not read the
+ * are read through [shared], the schedule source's own cache, under the same key, so a preview does not read the
  * library again for a cut-off the lineup has read. Its pool provider is a plain evaluator call, not the lineup's
  * cache: a draft is not a lineup channel and must not pollute it. Runs on [dispatcher].
  */
-class BuiltInChannelPreviews internal constructor(
+class BuiltInChannelPreviews(
     private val service: LineupService,
     private val library: LibraryRepository,
-    private val snapshots: SnapshotCache,
-    private val libraries: suspend () -> Set<ItemId>?,
+    shared: SharedSnapshots,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val libraries: suspend () -> Set<ItemId>?,
 ) : ChannelPreviews {
-    constructor(
-        service: LineupService,
-        library: LibraryRepository,
-        schedule: BuiltInScheduleSource,
-        libraries: suspend () -> Set<ItemId>?,
-    ) : this(service, library, schedule.snapshots, libraries)
+    private val snapshots = shared.cache
 
     private val ceilings = Ceilings(service.catalog)
 
@@ -126,15 +133,14 @@ class BuiltInChannelPreviews internal constructor(
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
-        source: ChannelId?,
     ): ChannelPreview =
         withContext(dispatcher) {
             try {
-                previewOf(account, draft, at, source) ?: UNAVAILABLE
+                previewOf(account, draft, at) ?: ChannelPreview.Unavailable
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                UNAVAILABLE
+                ChannelPreview.Unavailable
             }
         }
 
@@ -142,11 +148,10 @@ class BuiltInChannelPreviews internal constructor(
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
-        source: ChannelId?,
     ): ChannelPreview? {
         val lineup = service.loaded(account)?.lineup
         val chosen = libraries()?.takeIf { it.isNotEmpty() }
-        val previous = lineup?.let { previousRules(it, draft, source) }
+        val previous = lineup?.let { previousRules(it, draft) }
         // Kept settings come from the rules they were read from: without them the draft cannot be previewed.
         val keptReadable = draft.kept == null || previous != null
         return if (lineup == null || chosen == null || !keptReadable) {
@@ -180,6 +185,8 @@ class BuiltInChannelPreviews internal constructor(
         var epoch = n
         // The epoch that holds `at`, and the next ones until there are enough programs (not blocks: a slate is none).
         while (aired.size < ChannelPreviews.NEXT && days.size < MAX_EPOCHS) {
+            // A preview nobody waits for any more stops here, before it reads and lays out another epoch.
+            currentCoroutineContext().ensureActive()
             val day = reading.dayOf(epoch)
             days += day
             aired += airedFrom(day.layout, day.ruled.day, if (epoch == n) at.toEpochMilliseconds() else null)
@@ -192,13 +199,12 @@ class BuiltInChannelPreviews internal constructor(
         val next = shown.mapNotNull { program -> info[program.id]?.let { itemOf(it, program.runtimeMs) } }
         val today = days.first()
         val pool = today.ruled.day
-        return ChannelPreview(
-            itemCount = pool.size,
-            totalRuntimeMinutes = pool.sumOf { it.runtimeMs } / MS_PER_MINUTE,
-            next = next,
-            skipped = if (KidStatus.isKidChannel(channel)) reading.skipped(draft, today.snapshot) else emptyList(),
-            nothingFits = pool.isEmpty(),
-        )
+        val skipped = if (KidStatus.isKidChannel(channel)) reading.skipped(draft, today.snapshot) else emptyList()
+        return if (pool.isEmpty()) {
+            ChannelPreview.NothingFits(skipped)
+        } else {
+            ChannelPreview.Ready(pool.size, pool.sumOf { it.runtimeMs } / MS_PER_MINUTE, next, skipped)
+        }
     }
 
     // The cut-offs the lineup's own days read (today's and the following day's): only these go through the shared
@@ -212,14 +218,14 @@ class BuiltInChannelPreviews internal constructor(
         return (days.scheduled(lineup, atMs) + days.scheduled(lineup, atMs + DAY_MS)).mapTo(HashSet()) { it.cutoffMs }
     }
 
-    // The rules a copy or an edit was opened from; null for a new channel, or one that is gone.
+    // The rules the draft was opened from; null for a new channel, or when its origin is gone.
     private fun previousRules(
         lineup: Lineup,
         draft: ChannelDraft,
-        source: ChannelId?,
     ): ChannelRules? {
-        if (draft.kept == null || source == null) return null
-        return when (val held = lineup.channels.firstOrNull { it.id == source }?.source) {
+        val origin = draft.origin
+        if (draft.kept == null || origin == null) return null
+        return when (val held = lineup.channels.firstOrNull { it.id == origin }?.source) {
             is ChannelSource.Starter -> held.rules
             is ChannelSource.Custom -> held.rules
             else -> null
@@ -290,18 +296,34 @@ class BuiltInChannelPreviews internal constructor(
         }
 
         // Picks the kids hold leaves out: a show or film source that has items under no policy and none under the hold.
-        fun skipped(
+        // Both pools are evaluated once, over all the picks, and split by source.
+        suspend fun skipped(
             draft: ChannelDraft,
             snapshot: RuleSnapshot,
-        ): List<SkippedPick> =
-            draft.sources.mapNotNull { pick ->
-                val source = pickSource(pick) ?: return@mapNotNull null
-                val own = rules.copy(sources = listOf(source), maxRating = null)
-                val open = PoolEvaluator.evaluate(own, snapshot, PoolPolicy.Open).items
-                val (held, policy) = ceilings.policyRules(own, channel)
-                val kept = PoolEvaluator.evaluate(held, snapshot, policy).items
-                val refused = open.isNotEmpty() && kept.isEmpty()
-                if (refused) SkippedPick(pick.label, reasonOf(open.map { it.id }, snapshot)) else null
+        ): List<SkippedPick> {
+            val picks = draft.sources.mapNotNull { pick -> pickSource(pick)?.let { pick to it } }
+            if (picks.isEmpty()) return emptyList()
+            currentCoroutineContext().ensureActive()
+            val all = rules.copy(sources = picks.map { it.second }, maxRating = null)
+            val open = PoolEvaluator.evaluate(all, snapshot, PoolPolicy.Open).items
+            currentCoroutineContext().ensureActive()
+            val (held, policy) = ceilings.policyRules(all, channel)
+            val keptIds = PoolEvaluator.evaluate(held, snapshot, policy).items.mapTo(HashSet()) { it.id }
+            return picks.mapNotNull { (pick, source) ->
+                val own = open.filter { belongs(source, it) }
+                val refused = own.isNotEmpty() && own.none { it.id in keptIds }
+                if (refused) SkippedPick(pick.label, reasonOf(own.map { it.id }, snapshot)) else null
+            }
+        }
+
+        private fun belongs(
+            source: Source,
+            item: ScheduleItem,
+        ): Boolean =
+            when (source) {
+                is Source.Series -> item.seriesId == source.id
+                is Source.Item -> item.id == source.id
+                else -> false
             }
 
         // Not made for kids when none of the source's items is; otherwise it is the rating that holds it back.
@@ -331,7 +353,6 @@ class BuiltInChannelPreviews internal constructor(
     }
 
     private companion object {
-        val UNAVAILABLE = ChannelPreview(0, 0L, emptyList(), emptyList(), nothingFits = false, unavailable = true)
         val PREVIEW_ID = ChannelId("preview")
         const val MS_PER_MINUTE = 60_000L
         const val DAY_MS = 86_400_000L

@@ -56,15 +56,16 @@ class ChannelBuildManager(
         id: ChannelId,
         copy: Boolean,
     ): OpenResult =
-        guarded(OpenResult.NotFound) {
-            val lineup = lineupOf(account)
+        guarded(OpenResult.Failed) {
+            // Read here, not through lineupOf: a read that fails is Failed, not a channel that is not there.
+            val lineup = service.loaded(account)?.lineup
             val channel = lineup?.channels?.firstOrNull { it.id == id }
             val rules = channel?.rulesToOpen(copy)
             when {
                 lineup == null || channel == null -> OpenResult.NotFound
                 rules == null -> OpenResult.NotCustomisable
                 copy -> openedCopy(account, lineup, channel, rules)
-                else -> OpenResult.Opened(draftOf(account, rules, channel.number), null)
+                else -> OpenResult.Opened(draftOf(account, rules, channel.number).copy(origin = id), null)
             }
         }
 
@@ -79,7 +80,7 @@ class ChannelBuildManager(
         val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
         val draft = draftOf(account, rules.copy(seed = newSeed.next()), number)
         val kept = draft.kept?.copy(fromName = name)
-        return OpenResult.Opened(draft.copy(name = name, kids = kids, kept = kept), name)
+        return OpenResult.Opened(draft.copy(name = name, kids = kids, kept = kept, origin = channel.id), name)
     }
 
     // A copy is of a built-in channel's rules; an edit is of a custom channel's own.
@@ -104,12 +105,11 @@ class ChannelBuildManager(
     override suspend fun create(
         account: LibraryAccount,
         draft: ChannelDraft,
-        copyOf: ChannelId?,
     ): BuildResult =
         guarded(BuildResult.Failed) {
             val problem = draft.problem()
             val lineup = lineupOf(account)
-            val previous = lineup?.let { builtInRules(it, copyOf) }
+            val previous = lineup?.let { originRules(it, draft.origin) }
             when {
                 problem != null -> {
                     refused(BuildRefusal.Invalid(problem))
@@ -220,12 +220,12 @@ class ChannelBuildManager(
         return number != null && lineup != null && LineupEdits.canSwap(lineup, id, number, kids, service.catalog)
     }
 
-    // The rules of the built-in channel a copy was opened from, in the lineup as it is now.
-    private fun builtInRules(
+    // The rules of the channel the draft was opened from, in the lineup as it is now.
+    private fun originRules(
         lineup: Lineup,
-        copyOf: ChannelId?,
+        origin: ChannelId?,
     ): ChannelRules? {
-        val from = copyOf ?: return null
+        val from = origin ?: return null
         return when (val source = lineup.channels.firstOrNull { it.id == from }?.source) {
             is ChannelSource.Starter -> source.rules
             is ChannelSource.Custom -> source.rules

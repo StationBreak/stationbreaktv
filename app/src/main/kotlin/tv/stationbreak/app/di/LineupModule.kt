@@ -39,6 +39,7 @@ import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
+import tv.stationbreak.core.domain.lineup.SharedSnapshots
 import tv.stationbreak.core.domain.lineup.SyncActivity
 import tv.stationbreak.core.domain.lineup.builder.BuiltInChannelPreviews
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
@@ -187,15 +188,24 @@ internal object LineupModule {
         return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke)
     }
 
-    /** What a channel being built would air (spec 22): the real scheduler over the schedule source's own snapshots. */
+    /**
+     * The library snapshots the schedule source and the channel preview share (spec 22): a preview of a draft reads no
+     * cut-off again that the lineup's days have read. Reads run in a scope of their own, not in a caller.
+     */
+    @Provides
+    @Singleton
+    @Suppress("InjectDispatcher") // A root scope for the snapshot reads, with nothing to inject a dispatcher into.
+    fun sharedSnapshots(): SharedSnapshots = SharedSnapshots(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+
+    /** What a channel being built would air (spec 22): the real scheduler over the shared snapshots. */
     @Provides
     @Singleton
     fun channelPreviews(
         service: LineupService,
         library: LibraryRepository,
-        schedule: BuiltInScheduleSource,
+        shared: SharedSnapshots,
         settings: ServerSettings,
-    ): ChannelPreviews = BuiltInChannelPreviews(service, library, schedule) { settings.loadLibraries() }
+    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared) { settings.loadLibraries() }
 
     @Provides
     @Singleton
@@ -204,6 +214,7 @@ internal object LineupModule {
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
+        shared: SharedSnapshots,
     ): BuiltInScheduleSource =
         // The timings are numbers only: day index, milliseconds and counts, never an ID or a title.
         BuiltInScheduleSource(
@@ -231,6 +242,7 @@ internal object LineupModule {
                     allocatedBytes = { runtimeStat("art.gc.bytes-allocated") },
                 ),
             persisted = persisted,
+            shared = shared,
         ) { settings.loadLibraries() }
 
     @Provides

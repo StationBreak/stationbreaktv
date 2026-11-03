@@ -98,8 +98,9 @@ internal object DraftRules {
         draft: ChannelDraft,
         carry: ChannelRules?,
     ): Ordering? {
-        val keepsOrder = draft.kept?.items?.any { it is KeptItem.Order } == true
-        val uncapped = draft.kept?.items?.contains(KeptItem.NoCaps) == true && draft.order == PlayOrder.Shuffle
+        val keepsOrder = draft.keepsOrder()
+        val uncapped = draft.keepsUncapped()
+        val order = draft.order ?: PlayOrder.Shuffle
         val extras = carry?.ordering?.extras ?: NO_EXTRAS
         return when {
             keepsOrder && carry != null -> {
@@ -110,14 +111,16 @@ internal object DraftRules {
                 carry.ordering?.let { Ordering(OrderingMode.Shuffle, null, it.extras) }
             }
 
-            draft.order == PlayOrder.InOrder -> {
+            order == PlayOrder.InOrder -> {
                 Ordering(OrderingMode.InOrder, null, extras)
             }
 
             else -> {
-                val mode = if (draft.order == PlayOrder.Rotation) OrderingMode.Rotation else OrderingMode.Shuffle
+                val mode = if (order == PlayOrder.Rotation) OrderingMode.Rotation else OrderingMode.Shuffle
                 val capExtras = carry?.ordering?.caps?.extras ?: NO_EXTRAS
-                Ordering(mode, OrderingCaps(draft.seriesCap, draft.filmCap, capExtras), extras)
+                val series = draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP
+                val film = draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP
+                Ordering(mode, OrderingCaps(series, film, capExtras), extras)
             }
         }
     }
@@ -218,21 +221,24 @@ internal object DraftRules {
         labels: (DraftSource) -> String,
     ): ChannelDraft {
         val caps = rules.effectiveCaps
+        val kept = KeptReader.itemsOf(rules)
+        // What the builder cannot show stays in force until the viewer chooses: no order, or no caps, says so.
         val order =
-            when (rules.orderingMode) {
-                OrderingMode.Rotation -> PlayOrder.Rotation
-                OrderingMode.InOrder -> PlayOrder.InOrder
+            when {
+                kept.any { it is KeptItem.Order } -> null
+                rules.orderingMode == OrderingMode.Rotation -> PlayOrder.Rotation
+                rules.orderingMode == OrderingMode.InOrder -> PlayOrder.InOrder
                 else -> PlayOrder.Shuffle
             }
-        val kept = KeptReader.itemsOf(rules)
+        val uncapped = KeptItem.NoCaps in kept
         return ChannelDraft(
             name = rules.name.orEmpty(),
             sources = rules.sources.mapNotNull { draftSourceOf(it, labels) },
             leaveOut = rules.effectiveExclusions.mapNotNull { draftSourceOf(it, labels) },
             filters = draftFiltersOf(rules),
             order = order,
-            seriesCap = caps?.effectiveSeries ?: ChannelDraft.DEFAULT_SERIES_CAP,
-            filmCap = caps?.effectiveFilm ?: ChannelDraft.DEFAULT_FILM_CAP,
+            seriesCap = if (uncapped) null else caps?.effectiveSeries ?: ChannelDraft.DEFAULT_SERIES_CAP,
+            filmCap = if (uncapped) null else caps?.effectiveFilm ?: ChannelDraft.DEFAULT_FILM_CAP,
             kids = number != null && number in Band.Kids.numbers,
             number = number,
             kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name.orEmpty(), it) },

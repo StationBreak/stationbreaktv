@@ -7,12 +7,12 @@ import tv.stationbreak.core.domain.TitleHit
 /** A [CatalogPicker] for feature tests: it answers as told and records the searches it got. */
 class FakeCatalogPicker : CatalogPicker {
     var libraries: Listed<List<PickerEntry>> = Listed.Ok(emptyList())
-    var collections: List<PickerEntry> = emptyList()
-    var tags: List<PickerEntry> = emptyList()
-    var genres: List<PickerEntry> = emptyList()
+    var collections: Listed<List<PickerEntry>> = Listed.Ok(emptyList())
+    var tags: Listed<List<PickerEntry>> = Listed.Ok(emptyList())
+    var genres: Listed<List<PickerEntry>> = Listed.Ok(emptyList())
 
     /** What [search] answers; every search gets all of them. */
-    var hits: List<TitleHit> = emptyList()
+    var hits: Listed<List<TitleHit>> = Listed.Ok(emptyList())
 
     /** The texts searched for, in order. */
     val searches = mutableListOf<String>()
@@ -28,7 +28,7 @@ class FakeCatalogPicker : CatalogPicker {
     override suspend fun search(
         account: LibraryAccount,
         text: String,
-    ): List<TitleHit> {
+    ): Listed<List<TitleHit>> {
         searches += text
         return hits
     }

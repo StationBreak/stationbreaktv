@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.TitleKind
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.LIBRARY_ID
 import tv.stationbreak.core.domain.lineup.id
+import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.Library
@@ -15,6 +20,7 @@ import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.RuleSeries
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
@@ -52,6 +58,8 @@ class CatalogPickerTest {
             assertEquals(Listed.Ok(listOf(PickerEntry(movies.id.value, "Test Movies"))), picker.libraries(ACCOUNT))
         }
 
+    private fun <T> Listed<T>.value(): T = (this as Listed.Ok<T>).value
+
     @Test
     fun librariesAreUnavailableWhenTheServerIsUnreachable() =
         runBlocking<Unit> {
@@ -60,19 +68,47 @@ class CatalogPickerTest {
             repository.seedCollectionName(ACCOUNT, id(0xC1), "Box Set 1")
 
             assertEquals(Listed.Unavailable, picker.libraries(ACCOUNT))
-            assertEquals(listOf(PickerEntry("Comedy", "Comedy")), picker.genres(ACCOUNT))
-            assertEquals(1, picker.collections(ACCOUNT).size)
+            assertEquals(Listed.Ok(listOf(PickerEntry("Comedy", "Comedy"))), picker.genres(ACCOUNT))
+            assertEquals(1, picker.collections(ACCOUNT).value().size)
         }
 
     @Test
     fun emptyPickersAreEmptyLists() =
         runBlocking<Unit> {
-            assertTrue(picker.collections(ACCOUNT).isEmpty())
-            assertTrue(picker.tags(ACCOUNT).isEmpty())
-            assertTrue(picker.genres(ACCOUNT).isEmpty())
-            assertTrue(picker.search(ACCOUNT, "anything").isEmpty())
+            assertEquals(Listed.Ok(emptyList()), picker.collections(ACCOUNT))
+            assertEquals(Listed.Ok(emptyList()), picker.tags(ACCOUNT))
+            assertEquals(Listed.Ok(emptyList()), picker.genres(ACCOUNT))
+            assertEquals(Listed.Ok(emptyList()), picker.search(ACCOUNT, "anything"))
             server = emptyList()
             assertEquals(Listed.Ok(emptyList()), picker.libraries(ACCOUNT))
+        }
+
+    @Test
+    fun everyReadThatThrowsIsUnavailableAndCancellationGoesThrough() =
+        runBlocking<Unit> {
+            val broken =
+                object : LibraryRepository by repository {
+                    override suspend fun collectionNames(account: LibraryAccount): CollectionNames = error("gone")
+
+                    override suspend fun distinctTags(account: LibraryAccount): List<String> = error("gone")
+
+                    override suspend fun distinctGenres(account: LibraryAccount): List<String> = error("gone")
+
+                    override suspend fun searchTitles(
+                        account: LibraryAccount,
+                        text: String,
+                        limit: Int,
+                    ): List<TitleHit> = error("gone")
+                }
+            val failing = LibraryCatalogPicker(broken, { error("gone") })
+
+            assertEquals(Listed.Unavailable, failing.libraries(ACCOUNT))
+            assertEquals(Listed.Unavailable, failing.collections(ACCOUNT))
+            assertEquals(Listed.Unavailable, failing.tags(ACCOUNT))
+            assertEquals(Listed.Unavailable, failing.genres(ACCOUNT))
+            assertEquals(Listed.Unavailable, failing.search(ACCOUNT, "anything"))
+            val cancelling = LibraryCatalogPicker(repository, { throw CancellationException("stop") })
+            assertFailsWith<CancellationException> { cancelling.libraries(ACCOUNT) }
         }
 
     @Test
@@ -81,8 +117,8 @@ class CatalogPickerTest {
             repository.seed(ACCOUNT, movies.id, film(1, "Film 1", listOf("Drama")))
             repository.seedSeries(ACCOUNT, RuleSeries(id(0x51), null, listOf("Comedy"), listOf("kept")))
 
-            assertEquals(listOf("Comedy", "Drama"), picker.genres(ACCOUNT).map { it.key })
-            assertEquals(listOf(PickerEntry("kept", "kept")), picker.tags(ACCOUNT))
+            assertEquals(listOf("Comedy", "Drama"), picker.genres(ACCOUNT).value().map { it.key })
+            assertEquals(Listed.Ok(listOf(PickerEntry("kept", "kept"))), picker.tags(ACCOUNT))
         }
 
     @Test
@@ -92,27 +128,44 @@ class CatalogPickerTest {
             repository.seedCollectionName(ACCOUNT, id(0xC2), "Alpha Set")
             repository.seedCollectionName(ACCOUNT, id(0xC3), "Gamma Set")
 
-            assertEquals(
-                listOf("Alpha Set", "beta Set", "Gamma Set"),
-                picker.collections(ACCOUNT).map { it.label },
-            )
-            assertEquals(id(0xC2).value, picker.collections(ACCOUNT).first().key)
+            val listed = picker.collections(ACCOUNT).value()
+
+            assertEquals(listOf("Alpha Set", "beta Set", "Gamma Set"), listed.map { it.label })
+            assertEquals(id(0xC2).value, listed.first().key)
         }
 
     @Test
     fun searchRefusesTooShortAndTooLongText() =
         runBlocking<Unit> {
             repository.seed(ACCOUNT, movies.id, film(1, "Film One"))
+            val none = Listed.Ok(emptyList<TitleHit>())
 
-            assertTrue(picker.search(ACCOUNT, "F").isEmpty())
-            assertTrue(picker.search(ACCOUNT, "  F  ").isEmpty())
-            assertTrue(picker.search(ACCOUNT, "x".repeat(65)).isEmpty())
-            assertEquals(listOf("Film One"), picker.search(ACCOUNT, "  fi ").map { it.name })
-            assertEquals(TitleKind.Film, picker.search(ACCOUNT, "Film").single().kind)
+            assertEquals(none, picker.search(ACCOUNT, "F"))
+            assertEquals(none, picker.search(ACCOUNT, "  F  "))
+            assertEquals(none, picker.search(ACCOUNT, "x".repeat(65)))
+            assertEquals(listOf("Film One"), picker.search(ACCOUNT, "  fi ").value().map { it.name })
+            assertEquals(
+                TitleKind.Film,
+                picker
+                    .search(ACCOUNT, "Film")
+                    .value()
+                    .single()
+                    .kind,
+            )
             // 64 code points of two UTF-16 units each are within the bound; 65 are not.
-            val astral = "😀"
-            assertTrue(picker.search(ACCOUNT, astral.repeat(65)).isEmpty())
-            assertTrue(picker.search(ACCOUNT, astral.repeat(64)).isEmpty(), "within the bound, but nothing matches")
+            val astral = "\uD83D\uDE00"
+            assertEquals(none, picker.search(ACCOUNT, astral.repeat(65)))
+            assertEquals(none, picker.search(ACCOUNT, astral.repeat(64)))
+        }
+
+    @Test
+    fun searchResultsAreSortedByFoldedName() =
+        runBlocking<Unit> {
+            repository.seed(ACCOUNT, movies.id, film(1, "beta Film"), film(2, "Alpha Film"), film(3, "Gamma Film"))
+
+            val names = picker.search(ACCOUNT, "Film").value().map { it.name }
+
+            assertEquals(listOf("Alpha Film", "beta Film", "Gamma Film"), names)
         }
 
     @Test

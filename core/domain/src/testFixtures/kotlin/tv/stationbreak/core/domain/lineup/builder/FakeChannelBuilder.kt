@@ -50,7 +50,6 @@ class FakeChannelBuilder : ChannelBuilder {
     override suspend fun create(
         account: LibraryAccount,
         draft: ChannelDraft,
-        copyOf: ChannelId?,
     ): BuildResult {
         calls += "create"
         created += draft

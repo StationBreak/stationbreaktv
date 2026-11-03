@@ -103,6 +103,7 @@ class BuiltInScheduleSource(
     private val probes: BuildProbes = BuildProbes(),
     private val persisted: PersistedDays? = null,
     private val saveDispatcher: CoroutineDispatcher = BackgroundSaves.dispatcher,
+    shared: SharedSnapshots? = null,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
     // What a set of built days depends on (see the class comment): never the revision, nor any number or name that
@@ -131,7 +132,7 @@ class BuiltInScheduleSource(
     private val buildScope = CoroutineScope(SupervisorJob() + dispatcher)
 
     // Snapshots outlive the lineup revision they were first read for: see [SnapshotCache].
-    internal val snapshots = SnapshotCache(buildScope)
+    private val snapshots = shared?.cache ?: SnapshotCache(buildScope)
 
     // The writes of built days to disk still running; each removes itself when done.
     private val saves = HashSet<Job>()

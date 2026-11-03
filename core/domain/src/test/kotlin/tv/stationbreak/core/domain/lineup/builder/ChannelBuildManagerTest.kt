@@ -188,6 +188,8 @@ class ChannelBuildManagerTest {
             val copy = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, laughs, copy = true))
             val edit = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, ChannelId("custom:Mine"), copy = false))
 
+            assertEquals(laughs, copy.draft.origin, "a copy is of the built-in channel")
+            assertEquals(ChannelId("custom:Mine"), edit.draft.origin, "an edit is of the channel itself")
             assertEquals(Seed(1_000uL), copy.draft.seed, "a copy draws a fresh seed")
             assertEquals(Seed(77uL), edit.draft.seed, "an edit keeps the channel's own")
             assertEquals(610, edit.draft.number)
@@ -320,7 +322,7 @@ class ChannelBuildManagerTest {
 
             val before = stored().channel(id)
             val copied = opened.draft.copy(name = "Westerns (copy)")
-            val copyId = assertIs<BuildResult.Done>(builder.create(ACCOUNT, copied, copyOf = id)).id
+            val copyId = assertIs<BuildResult.Done>(builder.create(ACCOUNT, copied)).id
 
             val order = stored().customRules(copyId).orderingMode
             assertEquals(OrderingMode.RandomInOrder, order, "the kept order carried over")
@@ -336,12 +338,12 @@ class ChannelBuildManagerTest {
 
             assertTrue(opened.draft.kids)
             assertEquals(1, opened.draft.number)
-            val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, opened.draft, copyOf = toons)).id
+            val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, opened.draft)).id
             assertEquals(1, stored().channel(id).number)
             assertTrue(KidStatus.isKidChannel(stored().channel(id)))
 
             val grownUp = opened.draft.copy(kids = false, number = builder.numberFor(ACCOUNT, kids = false))
-            val off = assertIs<BuildResult.Done>(builder.create(ACCOUNT, grownUp, copyOf = toons)).id
+            val off = assertIs<BuildResult.Done>(builder.create(ACCOUNT, grownUp)).id
             assertEquals(600, stored().channel(off).number)
             assertFalse(KidStatus.isKidChannel(stored().channel(off)), "turned off, it is a grown-up channel")
         }
@@ -356,7 +358,7 @@ class ChannelBuildManagerTest {
 
             assertTrue(opened.draft.kids)
             assertNull(opened.draft.number)
-            val result = builder.create(ACCOUNT, opened.draft, copyOf = toons)
+            val result = builder.create(ACCOUNT, opened.draft)
             assertEquals(BuildResult.Refused(BuildRefusal.KidsBandFull), result)
         }
 
@@ -553,6 +555,38 @@ class ChannelBuildManagerTest {
 
             assertEquals(BuildResult.Failed, result)
             assertTrue(LineupEvent.BuildFailed in events)
+        }
+
+    @Test
+    fun anOpenThatCannotReadTheLineupIsFailedNotNotFound() =
+        runBlocking<Unit> {
+            val broken =
+                LineupService(
+                    object : tv.stationbreak.core.domain.LineupStore by store {
+                        override suspend fun load(account: tv.stationbreak.core.domain.LibraryAccount) = error("boom")
+                    },
+                    library,
+                    clock,
+                    { 0 },
+                    { events += it },
+                    TestCatalog,
+                )
+            val failing = ChannelBuildManager(broken, { Seed(1uL) }, { "x" }) { _, _ -> emptyMap() }
+
+            assertEquals(OpenResult.Failed, failing.open(ACCOUNT, laughs, copy = true))
+            seed()
+            val missing = builder.open(ACCOUNT, ChannelId("custom:none"), copy = false)
+            assertEquals(OpenResult.NotFound, missing)
+        }
+
+    @Test
+    fun aKeptDraftWithoutItsOriginIsRefused() =
+        runBlocking<Unit> {
+            seed()
+            val settings = KeptSettings("Laughs", listOf(KeptItem.NoCaps))
+            val kept = named(builder.blank(ACCOUNT, kids = false)).copy(kept = settings)
+
+            assertEquals(BuildResult.Refused(BuildRefusal.UnknownChannel), builder.create(ACCOUNT, kept))
         }
 
     @Test

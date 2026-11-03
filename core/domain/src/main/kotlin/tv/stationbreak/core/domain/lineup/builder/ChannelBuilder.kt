@@ -73,6 +73,9 @@ sealed interface OpenResult {
     data object NotCustomisable : OpenResult
 
     data object NotFound : OpenResult
+
+    /** The lineup could not be read; the channel may well be there. */
+    data object Failed : OpenResult
 }
 
 /** How features build channels (spec 22). None of it throws, but for cancellation. */
@@ -96,11 +99,13 @@ interface ChannelBuilder {
         copy: Boolean,
     ): OpenResult
 
-    /** Creates the channel of [draft]; [copyOf] is the built-in channel a copy was opened from (null for a new one). */
+    /**
+     * Creates the channel of [draft]. A draft with kept settings reads them from the rules of its
+     * [ChannelDraft.origin]; with none, or one that is gone, it is refused with [BuildRefusal.UnknownChannel].
+     */
     suspend fun create(
         account: LibraryAccount,
         draft: ChannelDraft,
-        copyOf: ChannelId? = null,
     ): BuildResult
 
     /** Saves [draft] over channel [id], keeping its stored seed. With [swapWith], that channel trades numbers. */
