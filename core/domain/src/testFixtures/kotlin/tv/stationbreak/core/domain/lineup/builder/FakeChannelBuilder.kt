@@ -19,7 +19,7 @@ class FakeChannelBuilder : ChannelBuilder {
 
     /** What [blank] answers, with the asked-for kids setting. */
     var blankDraft: ChannelDraft =
-        ChannelDraft("", emptyList(), emptyList(), DraftFilters(), number = FIRST_NUMBER, seed = Seed(1uL))
+        ChannelDraft("", emptyList(), emptyList(), DraftFilters(), kids = false, number = FIRST_NUMBER, seed = Seed(1uL))
 
     /** What [open] answers next. */
     var openResult: OpenResult = OpenResult.NotFound

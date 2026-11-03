@@ -160,7 +160,7 @@ enum class DraftProblem {
  * and [filmCap] together are the kept uncapped Shuffle. Giving [order] or the caps a value is the viewer's choice and
  * takes the kept item's place; no other change to the draft can lose or keep one by mistake. [keptInForce] is what
  * is still kept. A null order without a kept order is Shuffle; null caps without a kept uncapped Shuffle are the
- * defaults.
+ * defaults. A screen shows [keptInForce], never [kept]: [kept] still lists items the viewer has replaced.
  *
  * [origin] is the channel the draft was opened from: the built-in channel of a copy, the custom channel of an edit,
  * null for a new channel. The kept settings are read from its rules when the draft is created, saved or previewed, so
@@ -176,7 +176,7 @@ data class ChannelDraft(
     val order: PlayOrder? = PlayOrder.Shuffle,
     val seriesCap: Int? = DEFAULT_SERIES_CAP,
     val filmCap: Int? = DEFAULT_FILM_CAP,
-    val kids: Boolean = false,
+    val kids: Boolean,
     val number: Int? = null,
     val kept: KeptSettings? = null,
     val numberChosen: Boolean = false,
@@ -191,7 +191,7 @@ data class ChannelDraft(
             points == 0 -> DraftProblem.NameEmpty
             points > MAX_NAME_CODE_POINTS -> DraftProblem.NameTooLong
             sources.isEmpty() && !hasKeptYears() -> DraftProblem.NoSources
-            sources.size > MAX_LIST -> DraftProblem.TooManySources
+            sources.size + keptYearRanges() > MAX_LIST -> DraftProblem.TooManySources
             leaveOut.size > MAX_LIST -> DraftProblem.TooManyLeftOut
             (filters.genres.size) > MAX_LIST -> DraftProblem.TooManyGenres
             else -> capsProblem() ?: yearsProblem() ?: minutesProblem() ?: numberProblem()
@@ -199,7 +199,10 @@ data class ChannelDraft(
     }
 
     // A year range the copy keeps is a source of the channel too.
-    private fun hasKeptYears(): Boolean = kept?.items?.any { it is KeptItem.YearsSource } == true
+    private fun hasKeptYears(): Boolean = keptYearRanges() > 0
+
+    // The year ranges a copy carries are sources of the rules too, and count toward the format's 256.
+    private fun keptYearRanges(): Int = kept?.items.orEmpty().count { it is KeptItem.YearsSource }
 
     /** The kept items that are still in force: the viewer has not chosen an order or caps that replace them. */
     val keptInForce: List<KeptItem>
@@ -221,8 +224,11 @@ data class ChannelDraft(
         KeptItem.NoCaps in kept?.items.orEmpty() && seriesCap == null && filmCap == null &&
             (order ?: PlayOrder.Shuffle) == PlayOrder.Shuffle
 
-    /** True when the rules written carry caps: a Shuffle or Rotation that is not the kept uncapped one. */
-    internal fun writesCaps(): Boolean = order != null && order != PlayOrder.InOrder && !keepsUncapped()
+    /** True when the rules written carry caps: a Shuffle or Rotation that is neither a kept order nor uncapped. */
+    internal fun writesCaps(): Boolean {
+        val caps = (order ?: PlayOrder.Shuffle) != PlayOrder.InOrder
+        return caps && !keepsOrder() && !keepsUncapped()
+    }
 
     // Caps matter only where they are written; one given without the other is incomplete.
     private fun capsProblem(): DraftProblem? =

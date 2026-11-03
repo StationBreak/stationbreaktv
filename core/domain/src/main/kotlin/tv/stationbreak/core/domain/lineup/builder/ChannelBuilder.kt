@@ -108,7 +108,10 @@ interface ChannelBuilder {
         draft: ChannelDraft,
     ): BuildResult
 
-    /** Saves [draft] over channel [id], keeping its stored seed. With [swapWith], that channel trades numbers. */
+    /**
+     * Saves [draft] over channel [id], keeping its stored seed. With [swapWith], that channel trades numbers. [id]
+     * wins over [ChannelDraft.origin]: the kept settings are read from the stored rules of [id].
+     */
     suspend fun save(
         account: LibraryAccount,
         id: ChannelId,

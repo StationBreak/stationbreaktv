@@ -34,7 +34,7 @@ class DraftRulesTest {
         name: String = "Funny Films",
         sources: List<DraftSource> = listOf(comedy),
         order: PlayOrder = PlayOrder.Shuffle,
-    ) = ChannelDraft(name, sources, emptyList(), DraftFilters(), order = order, seed = seed)
+    ) = ChannelDraft(name, sources, emptyList(), DraftFilters(), order = order, kids = false, seed = seed)
 
     private fun toRules(
         draft: ChannelDraft,
@@ -291,6 +291,33 @@ class DraftRulesTest {
     }
 
     @Test
+    fun anInOrderDraftAndAKeptOrderDraftWriteNoCaps() {
+        assertTrue(!draft(order = PlayOrder.InOrder).writesCaps())
+        assertNull(toRules(draft(order = PlayOrder.InOrder)).ordering?.caps)
+
+        val stored = keptRules.copy(ordering = Ordering(OrderingMode.Chronological), filler = null)
+        val kept = fromRules(stored)
+        assertTrue(!kept.writesCaps())
+        assertNull(toRules(kept, stored).ordering?.caps)
+        assertNull(kept.copy(seriesCap = 11).problem(), "caps nobody writes are not checked")
+
+        // An order left null without a kept order is Shuffle, and Shuffle writes caps.
+        val plain = draft().copy(order = null)
+        assertTrue(plain.writesCaps())
+        assertEquals(DraftProblem.CapOutOfRange, plain.copy(seriesCap = 11).problem())
+        assertEquals(3, toRules(plain).effectiveCaps?.series)
+    }
+
+    @Test
+    fun keptYearRangesCountTowardTheSourceLimit() {
+        val years = KeptSettings("x", listOf(KeptItem.YearsSource(1950, 1959)))
+        val full = List(256) { DraftSource.Genre("G$it", "G$it") }
+
+        assertEquals(DraftProblem.TooManySources, draft(sources = full).copy(kept = years).problem())
+        assertNull(draft(sources = full.take(255)).copy(kept = years).problem())
+    }
+
+    @Test
     fun theFormatsListLimitsAreProblems() {
         val many = List(257) { DraftSource.Genre("G$it", "G$it") }
         assertEquals(DraftProblem.TooManySources, draft(sources = many).problem())
@@ -365,6 +392,7 @@ class DraftRulesTest {
                     maxRating = listOf(null, "G", "PG").random(random),
                 ),
             order = PlayOrder.entries.random(random),
+            kids = false,
             seriesCap = random.nextInt(1, 11),
             filmCap = random.nextInt(1, 11),
             seed = Seed(random.nextLong().toULong()),

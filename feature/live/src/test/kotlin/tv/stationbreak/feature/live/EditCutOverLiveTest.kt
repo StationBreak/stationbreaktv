@@ -54,7 +54,8 @@ class EditCutOverLiveTest {
             // Resolved ahead for the old next block (the first block ends at clock minute 50, virtual minute 40),
             // then the edit arrives.
             r.at(40 * MIN - 45_000)
-            assertTrue("resolved for the old next block", r.tune.calls.any { it is Call.PreResolve && it.item == itemOf(2) })
+            val resolved = r.tune.calls.any { it is Call.PreResolve && it.item == itemOf(2) }
+            assertTrue("resolved for the old next block", resolved)
             r.schedule.channel(CH7, 7, listOf(program(0, 50, 1), program(50, 120, 3)))
             r.atMin(40)
 
