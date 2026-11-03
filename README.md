@@ -4,10 +4,11 @@
 
 Turn your Jellyfin library into always-on, flip-through broadcast channels on Fire TV and Android TV.
 
-> **Status:** Phase 0 (Foundations). The module skeleton (convention plugins, the Kotlin Multiplatform shared core
-> and the day-one modules) builds and is checked in CI (GitHub Actions). The Jellyfin adapter (server address, sign-in,
-> Quick Connect, libraries, items, playback info and reporting) is built and tested against real servers in Docker, and
-> bound in the app with Hilt; no screen uses it yet.
+> **Status:** the Phase 0 (Foundations) gate passed on 2026-10-18. Phase 1 (live channels) is built: the scheduler,
+> the starter lineup, the player, offset playback, channel flipping and playback reporting. Its gate is still open on
+> the Firestick flip speed ([#392](https://github.com/StationBreak/stationbreaktv/issues/392)). Phase 2 work is under
+> way: the guide and banner, kid channels, pause and seek, channel management and the channel builder are built.
+> Device checks for some of these are still pending.
 
 ## Docs
 
