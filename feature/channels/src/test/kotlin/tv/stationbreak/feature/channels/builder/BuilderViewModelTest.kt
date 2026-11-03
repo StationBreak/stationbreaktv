@@ -284,14 +284,15 @@ class BuilderViewModelTest {
     }
 
     @Test
-    fun aReshuffleThatCannotReopenTheChannelShowsWhyNotSaved() =
+    fun aReshuffleThatCannotReopenTheChannelSaysSavedAndCloses() =
         builderTest { rig ->
             rig.openEdit(draftOf("Mine", listOf(lib1), seed = Seed(1uL)))
             rig.advance(400)
             rig.builder.openResult = OpenResult.Failed
             rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)
             rig.select()
-            assertEquals(BuilderMessage.OpenFailed, rig.ui.message)
+            assertEquals(BuilderMessage.Reshuffled, rig.ui.message)
+            assertEquals(listOf<BuilderEvent>(BuilderEvent.Closed), rig.events)
         }
 
     @Test

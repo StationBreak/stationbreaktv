@@ -25,11 +25,12 @@ internal val RUNTIME_CHOICES: List<Pair<Int?, Int?>> =
         (SHORT until LONG step RUNTIME_STEP).map { it to it + RUNTIME_STEP } +
         listOf(LONG to null)
 
-/** The sheet's rows for [draft]: see [BuilderUi.sheetRows]. */
+/** The sheet's rows for [draft]: see [BuilderUi.sheetRows]. The actions are listed only once the channel is [ready]. */
 internal fun sheetRowsOf(
     draft: ChannelDraft,
     editing: Boolean,
     dirty: Boolean,
+    ready: Boolean,
 ): List<SheetRow> =
     buildList {
         add(SheetRow.Name)
@@ -44,10 +45,16 @@ internal fun sheetRowsOf(
         add(SheetRow.Number)
         if (draft.keptInForce.isNotEmpty()) add(SheetRow.Kept)
         add(SheetRow.Preview)
-        add(SheetRow.Save)
-        if (editing && !dirty && draft.canReshuffle()) add(SheetRow.Reshuffle)
-        if (editing) add(SheetRow.Delete)
+        if (ready) {
+            add(SheetRow.Save)
+            if (editing && !dirty && draft.canReshuffle()) add(SheetRow.Reshuffle)
+            if (editing) add(SheetRow.Delete)
+        }
     }
+
+/** The rows of the Name page, top to bottom: an edit's page ends in Done, a new channel's in Save and watch. */
+internal fun nameRowsOf(editPage: Boolean): List<NameRowKind> =
+    listOf(NameRowKind.Name, NameRowKind.Number, if (editPage) NameRowKind.Done else NameRowKind.Save)
 
 /** The rows of the Play page for [draft], top to bottom. */
 internal fun playRowsOf(draft: ChannelDraft): List<PlayRowKind> =

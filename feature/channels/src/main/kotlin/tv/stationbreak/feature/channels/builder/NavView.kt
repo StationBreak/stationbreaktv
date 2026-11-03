@@ -4,6 +4,7 @@ package tv.stationbreak.feature.channels.builder
 import tv.stationbreak.feature.channels.PanelMove
 
 /** What a D-pad key needs to know of the builder to pick the next focus. Nothing here is Android. */
+@Suppress("LongParameterList") // The pieces of the builder a key reads, one for one.
 internal class NavView(
     val step: BuilderStep,
     val tab: SourceKindTab,
@@ -11,6 +12,7 @@ internal class NavView(
     val narrowOpen: Boolean,
     val playRows: List<PlayRowKind>,
     val sheetRows: List<SheetRow>,
+    val nameRows: List<NameRowKind>,
 )
 
 private val PanelMove.step: Int get() = if (this == PanelMove.Up || this == PanelMove.Left) -1 else 1
@@ -31,7 +33,7 @@ internal fun navigate(
         is BuilderFocus.NarrowRow -> fromNarrowRow(focus, move)
         BuilderFocus.Next -> fromNext(view, move)
         is BuilderFocus.PlayRow -> inList(view.playRows, focus.row, move, BuilderFocus::PlayRow) ?: onNext(focus, move)
-        is BuilderFocus.NameRow -> inList(NameRowKind.entries, focus.row, move, BuilderFocus::NameRow) ?: focus
+        is BuilderFocus.NameRow -> inList(view.nameRows, focus.row, move, BuilderFocus::NameRow) ?: focus
         is BuilderFocus.Sheet -> inList(view.sheetRows, focus.row, move, BuilderFocus::Sheet) ?: focus
         is BuilderFocus.Choice -> BuilderFocus.Choice((focus.index + move.step).coerceIn(0, 1))
     }

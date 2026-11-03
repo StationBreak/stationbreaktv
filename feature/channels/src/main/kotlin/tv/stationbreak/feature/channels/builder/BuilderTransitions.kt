@@ -22,6 +22,12 @@ internal fun BuilderModel.arrived(
     opened(draft).copy(
         account = account,
         ready = true,
+        // Whatever was open before the draft arrived is put away: a visit starts on the first tab.
+        tab = SourceKindTab.Libraries,
+        narrowOpen = false,
+        leavingOut = false,
+        genreCursor = 0,
+        searchText = "",
         focus = if (onSheet) BuilderFocus.Sheet(SheetRow.Name) else BuilderFocus.Tab(SourceKindTab.Libraries),
     )
 

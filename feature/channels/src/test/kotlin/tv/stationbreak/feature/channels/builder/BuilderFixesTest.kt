@@ -285,12 +285,15 @@ class BuilderFixesTest {
             val holder = ChannelId("custom:other")
             rig.channels.list.value = listOf(summary(holder, 600, name = "Other"))
             rig.openEdit()
+            rig.press(Down, Down, Down, Down, Down, Down, Down)
+            assertEquals(BuilderFocus.Sheet(SheetRow.Number), rig.ui.focus)
             rig.builder.buildResult = BuildResult.Refused(BuildRefusal.NumberTaken(holder, swappable = true))
             val refused = rig.ui.draft
             rig.vm.save(andWatch = false)
-            // Input is ignored while the save is out.
-            rig.press(Down, Down, Down, Down, Down, Down, Down)
-            rig.press(Right)
+            // The save is still out (nothing has run): turning the number is ignored.
+            rig.vm.move(Right)
+            rig.vm.move(Right)
+            assertEquals(refused.number, rig.ui.draft.number)
             rig.advance(1)
             assertEquals(refused.number, rig.ui.draft.number)
             // The confirm carries the draft it asked about.
@@ -309,10 +312,12 @@ class BuilderFixesTest {
     @Test
     fun aSaveBlockedByAnotherStepsProblemSaysWhichStep() =
         builderTest { rig ->
-            rig.openEdit(draftOf("Mine", listOf(lib1), filters = DraftFilters(yearFrom = 2000)))
-            rig.press(Down, Down, Down, Down, Down, Down, Down)
-            assertEquals(BuilderFocus.Sheet(SheetRow.Number), rig.ui.focus)
-            rig.select()
+            rig.builder.blankDraft = draftOf("", emptyList(), filters = DraftFilters(yearFrom = 2000))
+            rig.picker.libraries = libraries(1)
+            rig.openNew()
+            rig.tickFirst()
+            rig.vm.next()
+            rig.vm.next()
             assertEquals(BuilderStep.Name, rig.ui.step)
             assertNull(rig.ui.problem)
             rig.press(Down)
@@ -321,7 +326,7 @@ class BuilderFixesTest {
             rig.select()
             assertEquals(DraftProblem.YearsIncomplete, rig.ui.problem)
             assertEquals(BuilderStep.Sources, rig.ui.problemStep)
-            assertTrue(rig.builder.saved.isEmpty())
+            assertTrue(rig.builder.created.isEmpty())
         }
 
     @Test

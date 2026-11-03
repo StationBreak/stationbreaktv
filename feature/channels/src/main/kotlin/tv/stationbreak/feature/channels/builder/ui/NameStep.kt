@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
+import tv.stationbreak.feature.channels.builder.BuilderMessage
 import tv.stationbreak.feature.channels.builder.BuilderUi
 import tv.stationbreak.feature.channels.builder.NameRowKind
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
@@ -48,14 +49,14 @@ internal fun NameStep(
         )
         val holder = ui.numberHolder
         val held = draft.number
-        if (holder != null && held != null) {
+        // After a refusal the notice line above already says who has the number: not twice.
+        if (holder != null && held != null && ui.message != BuilderMessage.NumberTaken) {
             NoteText(stringResource(R.string.builder_number_held, held, holder), BuilderTags.NUMBER_HELD)
         }
-        TextLine(
-            stringResource(R.string.builder_save_and_watch),
-            ui.focus == BuilderFocus.NameRow(NameRowKind.Save),
-            BuilderTags.nameRow(NameRowKind.Save),
-        )
+        // An edit's page ends in Done (back to the sheet, whose Save is the one write); a new channel's in Save.
+        val last = if (ui.donePage) NameRowKind.Done else NameRowKind.Save
+        val lastText = if (ui.donePage) R.string.builder_done else R.string.builder_save_and_watch
+        TextLine(stringResource(lastText), ui.focus == BuilderFocus.NameRow(last), BuilderTags.nameRow(last))
         NoteText(summaryOf(draft), BuilderTags.SUMMARY)
     }
 }

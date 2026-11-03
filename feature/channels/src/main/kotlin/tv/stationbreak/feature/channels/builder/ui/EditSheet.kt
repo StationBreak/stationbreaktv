@@ -252,7 +252,7 @@ private fun PreviewRow(
     val preview = ui.preview
     val text =
         if (preview is PreviewView.Ready && preview.next.isEmpty()) {
-            stringResource(R.string.builder_bar_count, preview.itemCount)
+            barCountText(preview.itemCount, preview)
         } else {
             previewText(preview)
         }

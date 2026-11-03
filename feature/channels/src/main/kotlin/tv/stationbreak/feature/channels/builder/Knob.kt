@@ -84,3 +84,9 @@ private fun ChannelDraft.numbered(
     val to = if (by > 0) inBand.firstOrNull { it > current } else inBand.lastOrNull { it < current }
     return to ?: current
 }
+
+// The numbers the number rows step over: the free ones in the draft's band, and an edited channel's own.
+internal fun BuilderModel.numberChoices(): List<Int> {
+    val own = opened.number.takeIf { editing() && it != null && (it in ChannelNumbers.kids) == draft.kids }
+    return (free + listOfNotNull(own)).distinct().sorted()
+}

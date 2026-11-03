@@ -34,7 +34,7 @@ internal fun Footer(ui: BuilderUi) {
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         if (ui.draft.hasPool()) {
             val count = ui.barCount
-            if (count != null) NoteText(stringResource(R.string.builder_bar_count, count), BuilderTags.BAR)
+            if (count != null) NoteText(barCountText(count, ui.preview), BuilderTags.BAR)
             PreviewLine(ui.preview, ui.draft.kids)
         }
         if (ui.step != BuilderStep.Name) NextButton(ui)
@@ -87,7 +87,7 @@ internal fun previewText(preview: PreviewView): String =
 private fun NextButton(ui: BuilderUi) {
     val enabled = ui.nextEnabled
     Text(
-        stringResource(R.string.builder_next),
+        stringResource(if (ui.donePage) R.string.builder_done else R.string.builder_next),
         Modifier
             .fillMaxWidth()
             .drawnFocus(ui.focus == BuilderFocus.Next)
@@ -118,3 +118,27 @@ internal fun NoteText(
         overflow = TextOverflow.Ellipsis,
     )
 }
+
+/** How many fit, and (once the preview is worked out) how long they run in all. */
+@Composable
+internal fun barCountText(
+    count: Int,
+    preview: PreviewView,
+): String {
+    if (preview !is PreviewView.Ready || preview.minutes <= 0L) return stringResource(R.string.builder_bar_count, count)
+    return stringResource(R.string.builder_bar_count_runtime, count, runtimeOf(preview.minutes))
+}
+
+// Whole hours and the minutes over, or just the minutes under an hour.
+@Composable
+private fun runtimeOf(minutes: Long): String {
+    val hours = (minutes / MINUTES_PER_HOUR).toInt()
+    val rest = (minutes % MINUTES_PER_HOUR).toInt()
+    return if (hours > 0) {
+        stringResource(R.string.builder_runtime_hours, hours, rest)
+    } else {
+        stringResource(R.string.builder_runtime_minutes, rest)
+    }
+}
+
+private const val MINUTES_PER_HOUR = 60

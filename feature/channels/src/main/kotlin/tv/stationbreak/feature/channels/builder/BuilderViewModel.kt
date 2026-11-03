@@ -93,6 +93,18 @@ internal class BuilderViewModel
             scope.cancel()
         }
 
+        /**
+         * The screen went: the preview, the search and the opening stop (a preview is a day's build). A save or a
+         * delete already out runs to its end, as it would with the screen still up.
+         */
+        fun close() {
+            synchronized(lock) {
+                session?.cancel()
+                previewJob?.cancel()
+                searchJob?.cancel()
+            }
+        }
+
         fun openNew() = begin(BuilderMode.New) { account -> Opening.Draft(builder.blank(account, kids = false)) }
 
         fun openEdit(id: ChannelId) =
@@ -135,13 +147,13 @@ internal class BuilderViewModel
                 is Opening.Draft -> {
                     val free = freeNumbers(account, opening.draft.kids)
                     change(generation) { it.arrived(account, opening.draft).copy(free = free) }
+                    readTab(generation, SourceKindTab.Libraries)
                 }
 
                 is Opening.Failed -> {
                     change(generation) { it.copy(account = account, message = opening.message) }
                 }
             }
-            readTab(generation, SourceKindTab.Libraries)
         }
 
         // The numbers the lineup has free in a band, read from the domain; none when it can't be read.
@@ -234,7 +246,7 @@ internal class BuilderViewModel
         /** The keyboard's text: the search when that has the focus, else the name. */
         fun type(text: String) {
             synchronized(lock) {
-                if (model.saving) return
+                if (!model.ready || model.saving) return
                 when (model.focus) {
                     BuilderFocus.Search -> {
                         searchFor(text)
@@ -275,6 +287,8 @@ internal class BuilderViewModel
             synchronized(lock) {
                 val m = model
                 val focus = m.focus ?: return
+                // Until the channel is open there is nothing to move on; only Back is live.
+                if (!m.ready) return
                 val by = if (move == PanelMove.Left) -1 else 1
                 val turning = move == PanelMove.Left || move == PanelMove.Right
                 val knob = knobOf(focus).takeIf { turning && m.confirm == null && !m.saving }
@@ -306,19 +320,26 @@ internal class BuilderViewModel
             synchronized(lock) {
                 val m = model
                 val focus = m.focus ?: return
-                if (m.saving) return
+                if (!m.ready || m.saving) return
                 apply { it.copy(message = null) }
-                when {
-                    m.confirm != null -> answer(focus)
-                    focus is BuilderFocus.Tab -> focusTo(navigate(m.navView(), focus, PanelMove.Right))
-                    focus is BuilderFocus.Entry -> tick(focus.key)
-                    focus is BuilderFocus.Narrow -> toggleNarrow()
-                    focus is BuilderFocus.NarrowRow -> selectNarrow(focus.row)
-                    focus is BuilderFocus.Next -> next()
-                    focus is BuilderFocus.PlayRow -> selectPlay(focus.row)
-                    focus is BuilderFocus.NameRow -> if (focus.row == NameRowKind.Save) save(andWatch = true)
-                    focus is BuilderFocus.Sheet -> selectSheet(focus.row)
-                }
+                if (m.confirm != null) answer(focus) else selectFocused(m, focus)
+            }
+        }
+
+        private fun selectFocused(
+            m: BuilderModel,
+            focus: BuilderFocus,
+        ) {
+            when (focus) {
+                is BuilderFocus.Tab -> focusTo(navigate(m.navView(), focus, PanelMove.Right))
+                is BuilderFocus.Entry -> tick(focus.key)
+                BuilderFocus.Narrow -> toggleNarrow()
+                is BuilderFocus.NarrowRow -> selectNarrow(focus.row)
+                BuilderFocus.Next -> if (m.onEditPage()) toSheet() else next()
+                is BuilderFocus.PlayRow -> selectPlay(focus.row)
+                is BuilderFocus.NameRow -> selectName(focus.row)
+                is BuilderFocus.Sheet -> selectSheet(focus.row)
+                BuilderFocus.Search, is BuilderFocus.Choice -> Unit
             }
         }
 
@@ -337,6 +358,20 @@ internal class BuilderViewModel
         private fun toggleNarrow() {
             apply { it.copy(narrowOpen = !it.narrowOpen) }
             if (model.narrowOpen) readTab(model.generation, SourceKindTab.Genres)
+        }
+
+        // Save and watch is a new channel's; an edit page's last row is Done, and only the sheet's Save writes.
+        private fun selectName(row: NameRowKind) {
+            when (row) {
+                NameRowKind.Save -> save(andWatch = true)
+                NameRowKind.Done -> toSheet()
+                else -> Unit
+            }
+        }
+
+        // Back to the sheet an edit page was opened from, on the row that opened it.
+        private fun toSheet() {
+            apply { it.copy(onSheet = true, narrowOpen = false, focus = BuilderFocus.Sheet(it.sheetRow)) }
         }
 
         private fun selectNarrow(row: NarrowRowKind) {
@@ -403,11 +438,14 @@ internal class BuilderViewModel
 
         // Steps
 
+        // Next walks a new channel's pages; an edit's are left by Done or Back, and nothing moves before it opens.
+        private fun steppable(m: BuilderModel) = m.ready && m.confirm == null && !m.onSheet && !m.editing()
+
         /** On to the next page: Sources needs a source; Play moves on with a name suggested from the first source. */
         fun next() {
             synchronized(lock) {
                 val m = model
-                if (m.confirm != null || m.onSheet) return
+                if (!steppable(m)) return
                 if (m.step == BuilderStep.Sources && m.nextEnabled()) {
                     val order = BuilderFocus.PlayRow(PlayRowKind.Order)
                     apply { it.copy(step = BuilderStep.Play, focus = order, narrowOpen = false) }
@@ -423,7 +461,8 @@ internal class BuilderViewModel
             synchronized(lock) {
                 val m = model
                 when {
-                    m.closing -> {
+                    // A closing builder takes no more; a save that is out settles first, as every other input waits.
+                    m.closing || m.saving -> {
                         Unit
                     }
 
@@ -435,14 +474,8 @@ internal class BuilderViewModel
                         apply { it.copy(narrowOpen = false, focus = BuilderFocus.Narrow) }
                     }
 
-                    m.editing() && !m.onSheet -> {
-                        apply {
-                            it.copy(
-                                onSheet = true,
-                                narrowOpen = false,
-                                focus = BuilderFocus.Sheet(it.sheetRow),
-                            )
-                        }
+                    m.onEditPage() -> {
+                        toSheet()
                     }
 
                     m.step != BuilderStep.Sources -> {
@@ -468,9 +501,14 @@ internal class BuilderViewModel
             if (m.dirty()) {
                 ask(BuilderConfirm.Leave)
             } else {
-                apply { it.copy(closing = true) }
-                sent.trySend(BuilderEvent.Closed)
+                closeNow()
             }
+        }
+
+        // The builder ends once: Closed is sent here only, and what follows (a fast second Back) finds it closing.
+        private fun closeNow() {
+            apply { it.copy(closing = true) }
+            sent.trySend(BuilderEvent.Closed)
         }
 
         // Confirms
@@ -490,7 +528,7 @@ internal class BuilderViewModel
             closeConfirm()
             if (!yes) return
             when (val confirm = m.confirm) {
-                BuilderConfirm.Leave -> sent.trySend(BuilderEvent.Closed)
+                BuilderConfirm.Leave -> closeNow()
                 BuilderConfirm.KidsOff -> setKids(on = false)
                 is BuilderConfirm.Delete -> deleteNow()
                 is BuilderConfirm.Swap -> submit(m.andWatch, m.swapHolder, confirm.draft)
@@ -517,6 +555,7 @@ internal class BuilderViewModel
         /** Switches the draft to the builder's own order and caps, in place of any the copied channel keeps. */
         fun useBuildersSettings() {
             synchronized(lock) {
+                if (!model.ready) return
                 val fresh =
                     model.draft.copy(
                         order = PlayOrder.Shuffle,
@@ -543,7 +582,7 @@ internal class BuilderViewModel
                     val current = model.copy(draft = sending ?: model.draft)
                     val problem = current.draft.problem()
                     // A channel made is made once; a draft that cannot be saved says why, whichever page this is.
-                    val open = current.account != null && !current.saving && !current.saved
+                    val open = current.ready && !current.saving && !current.saved
                     if (open && problem != null) apply { it.copy(refused = problem, message = null) }
                     val ready = open && problem == null
                     if (ready) apply { it.copy(saving = true, message = null, refused = null, andWatch = andWatch) }
@@ -588,27 +627,44 @@ internal class BuilderViewModel
 
         /** Sends the channel a new seed and opens it again with the seed and the preview that go with it. */
         fun reshuffle() {
-            val m =
+            val started =
                 synchronized(lock) {
                     val current = model
+                    val account = current.account
+                    val mode = current.mode as? BuilderMode.Edit
                     // Only what the sheet offers: a Shuffle with nothing unsaved, and one reshuffle at a time.
                     val offered = SheetRow.Reshuffle in current.sheetRows() && !current.saving
-                    if (offered) apply { it.copy(saving = true, message = null) }
-                    current.takeIf { offered }
-                } ?: return
-            val account = m.account
-            val mode = m.mode as? BuilderMode.Edit
-            if (account == null || mode == null) return
-            scope.launch {
-                val result = builder.reshuffle(account, mode.id)
-                if (result is BuildResult.Done) {
-                    val opening = opening(builder.open(account, mode.id, copy = false)) { it.draft }
-                    change(m.generation) {
-                        val reopened = it.reopened(opening)
-                        if (opening is Opening.Draft) reopened.copy(message = BuilderMessage.Reshuffled) else reopened
+                    if (offered && account != null && mode != null) {
+                        apply { it.copy(saving = true, message = null) }
+                        Triple(current.generation, account, mode.id)
+                    } else {
+                        null
                     }
+                } ?: return
+            val (generation, account, id) = started
+            scope.launch {
+                val result = builder.reshuffle(account, id)
+                if (result is BuildResult.Done) {
+                    val opening = opening(builder.open(account, id, copy = false)) { it.draft }
+                    reshuffled(generation, opening)
                 } else {
-                    change(m.generation) { it.copy(message = messageOf(result), saving = false) }
+                    change(generation) { it.copy(message = messageOf(result), saving = false) }
+                }
+            }
+        }
+
+        // The new seed is saved. If the channel then can't be opened again the draft here would hold the old seed,
+        // and a Save would undo the reshuffle: say it was saved and close instead.
+        private fun reshuffled(
+            generation: Int,
+            opening: Opening,
+        ) {
+            change(generation) {
+                if (opening is Opening.Draft) {
+                    it.reopened(opening).copy(message = BuilderMessage.Reshuffled)
+                } else {
+                    sent.trySend(BuilderEvent.Closed)
+                    it.copy(message = BuilderMessage.Reshuffled, saving = false, closing = true)
                 }
             }
         }
@@ -616,7 +672,8 @@ internal class BuilderViewModel
         /** Asks whether to delete the channel being edited. */
         fun delete() {
             synchronized(lock) {
-                if (model.editing() && model.confirm == null) ask(BuilderConfirm.Delete(model.draft.name))
+                val m = model
+                if (m.ready && m.editing() && m.confirm == null) ask(BuilderConfirm.Delete(m.draft.name))
             }
         }
 
@@ -631,7 +688,7 @@ internal class BuilderViewModel
                     // Through the generation guard: a delete that ends after the builder was opened again is dropped.
                     change(m.generation) {
                         sent.trySend(BuilderEvent.Closed)
-                        it
+                        it.copy(closing = true)
                     }
                 } else {
                     change(m.generation) { it.copy(message = messageOf(result)) }

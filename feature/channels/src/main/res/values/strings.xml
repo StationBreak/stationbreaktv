@@ -49,6 +49,7 @@
     <string name="builder_step_play">How it plays</string>
     <string name="builder_step_name">Name and number</string>
     <string name="builder_next">Next</string>
+    <string name="builder_done">Done</string>
     <string name="builder_source_libraries">Libraries</string>
     <string name="builder_source_collections">Collections</string>
     <string name="builder_source_tags">Tags</string>
@@ -138,6 +139,9 @@
     <string name="builder_runtime_range">%1$d to %2$d</string>
     <string name="builder_runtime_from">%1$d or more</string>
     <string name="builder_bar_count">%1$d fit so far</string>
+    <string name="builder_bar_count_runtime">%1$d fit, %2$s of programmes</string>
+    <string name="builder_runtime_hours">%1$d h %2$d min</string>
+    <string name="builder_runtime_minutes">%1$d min</string>
     <string name="builder_preview_unavailable">Preview not available right now</string>
     <string name="builder_preview_next">Next up: %1$s</string>
     <string name="builder_skipped_pick">%1$s (%2$s)</string>

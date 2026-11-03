@@ -3,13 +3,13 @@ package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.TitleHit
-import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.DraftProblem
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
+import tv.stationbreak.core.domain.lineup.builder.hasPool
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 
@@ -66,13 +66,10 @@ internal fun BuilderModel.editing() = mode is BuilderMode.Edit
 
 internal fun BuilderModel.dirty() = draft != opened
 
-// The numbers the number rows step over: the free ones in the draft's band, and an edited channel's own.
-internal fun BuilderModel.numberChoices(): List<Int> {
-    val own = opened.number.takeIf { editing() && it != null && (it in ChannelNumbers.kids) == draft.kids }
-    return (free + listOfNotNull(own)).distinct().sorted()
-}
+internal fun BuilderModel.sheetRows() = sheetRowsOf(draft, editing(), dirty(), ready)
 
-internal fun BuilderModel.sheetRows() = sheetRowsOf(draft, editing(), dirty())
+// A page opened from an edit's sheet: it is left by Done (or Back), never by Next, and never writes.
+internal fun BuilderModel.onEditPage() = editing() && !onSheet
 
 private fun BuilderModel.ticks(): List<DraftSource> = if (leavingOut) draft.leaveOut else draft.sources
 
@@ -90,13 +87,17 @@ private fun BuilderModel.view(): PickerView {
 internal fun BuilderModel.entryKeys(): List<String> = (view() as? PickerView.Entries)?.rows.orEmpty().map { it.key }
 
 internal fun BuilderModel.nextEnabled(): Boolean =
-    when (step) {
-        BuilderStep.Sources -> draft.sources.isNotEmpty()
-        BuilderStep.Play -> true
-        BuilderStep.Name -> draft.problem() == null
+    when {
+        editing() -> true
+        step == BuilderStep.Sources -> draft.hasPool()
+        step == BuilderStep.Play -> true
+        else -> draft.problem() == null
     }
 
-internal fun BuilderModel.navView() = NavView(step, tab, entryKeys(), narrowOpen, playRowsOf(draft), sheetRows())
+internal fun BuilderModel.navView(): NavView {
+    val nameRows = nameRowsOf(onEditPage())
+    return NavView(step, tab, entryKeys(), narrowOpen, playRowsOf(draft), sheetRows(), nameRows)
+}
 
 // Keeps the focus on something that exists: an entry that went (a new search) and a sheet row that went.
 internal fun BuilderModel.mended(): BuilderFocus? {
@@ -149,6 +150,7 @@ internal fun BuilderModel.toUi(): BuilderUi {
         nextEnabled = nextEnabled(),
         ready = ready,
         onSheet = onSheet,
+        donePage = onEditPage(),
         problem = problemShown(),
         narrow = narrow,
         numberHolder = draft.number?.let { held[it] },

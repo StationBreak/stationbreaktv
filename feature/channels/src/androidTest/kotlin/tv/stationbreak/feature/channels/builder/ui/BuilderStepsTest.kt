@@ -286,6 +286,8 @@ class BuilderStepsTest {
         previews.gate.complete(Unit)
         until { vm.ui.value.preview is PreviewView.Ready }
         compose.onNodeWithTag(BuilderTags.PREVIEW).assertTextContains("Film (95 min)", substring = true)
+        // The count carries the total runtime of the pool.
+        compose.onNodeWithTag(BuilderTags.BAR).assertTextContains("1 fit, 1 h 35 min of programmes")
     }
 
     @Test

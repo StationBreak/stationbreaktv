@@ -32,7 +32,8 @@ internal enum class NarrowRowKind { Genres, Years, Runtime, Only, Rating, LeaveO
 
 internal enum class PlayRowKind { Order, SeriesCap, FilmCap, Kids, Kept }
 
-internal enum class NameRowKind { Name, Number, Save }
+/** The rows of the Name page; an edit's page ends in Done, a new channel's in Save and watch. */
+internal enum class NameRowKind { Name, Number, Save, Done }
 
 /** The rows of the edit sheet, in the order they are listed. */
 internal enum class SheetRow {
@@ -220,6 +221,8 @@ internal data class BuilderUi(
     val ready: Boolean = false,
     /** An edit shows the sheet; its rows open the pages and Back returns to it. */
     val onSheet: Boolean = false,
+    /** A page opened from an edit's sheet: its one action is Done, back to the sheet; it never writes. */
+    val donePage: Boolean = false,
     /** Why the draft cannot be saved yet, or null. */
     val problem: DraftProblem? = null,
     /** The narrow-down rows while they are open. */
