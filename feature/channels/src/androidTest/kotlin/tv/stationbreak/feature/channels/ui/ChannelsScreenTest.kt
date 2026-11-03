@@ -92,7 +92,18 @@ private fun summary(
     kind: ChannelKind = ChannelKind.Starter,
 ): ChannelSummary {
     val since = Instant.fromEpochMilliseconds(T0)
-    return ChannelSummary(id, number, name, state, kind, since, number, kid = false, optIn = optIn, playKey = PlayKey("test"))
+    return ChannelSummary(
+        id,
+        number,
+        name,
+        state,
+        kind,
+        since,
+        number,
+        kid = false,
+        optIn = optIn,
+        playKey = PlayKey("test"),
+    )
 }
 
 /** A lineup that follows the edits made to it, as the real one does. */

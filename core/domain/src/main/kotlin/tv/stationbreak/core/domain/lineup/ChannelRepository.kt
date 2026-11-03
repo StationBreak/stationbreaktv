@@ -62,7 +62,8 @@ data class ChannelSummary(
 )
 
 /**
- * What a channel's built days depend on, as an opaque digest (the channel's part of the days' key, `LineupDays.inputsOf`,
+ * What a channel's built days depend on, as an opaque digest (the channel's part of the days' key,
+ * `LineupDays.inputsOf`,
  * name excluded). Two summaries of a channel with equal keys have the same days; compare, never read.
  */
 @JvmInline

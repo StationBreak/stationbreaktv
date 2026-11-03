@@ -46,7 +46,18 @@ internal fun summary(
     default: Int? = number,
     kid: Boolean = false,
     optIn: Boolean = false,
-) = ChannelSummary(id, number, name, state, kind, Instant.fromEpochMilliseconds(T0), default, kid, optIn, PlayKey("test"))
+) = ChannelSummary(
+    id,
+    number,
+    name,
+    state,
+    kind,
+    Instant.fromEpochMilliseconds(T0),
+    default,
+    kid,
+    optIn,
+    PlayKey("test"),
+)
 
 internal class FakeChannels(
     initial: List<ChannelSummary> = emptyList(),

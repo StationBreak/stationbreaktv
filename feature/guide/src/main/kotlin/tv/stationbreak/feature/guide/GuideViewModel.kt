@@ -417,8 +417,8 @@ internal class GuideViewModel
         fun channelsClosed() {
             synchronized(lock) {
                 managing = false
-                // The channel playing was taken off the lineup (deleted): tune its neighbour, as cable would. Live closes
-                // the guide on that tune, so the grid is not loaded again for it.
+                // The channel playing was taken off the lineup (deleted): tune its neighbour, as cable would.
+                // Live closes the guide on that tune, so the grid is not loaded again for it.
                 val neighbour = neighbourOfGonePlaying()
                 if (neighbour != null) {
                     eventChannel.trySend(GuideEvent.Tune(neighbour))

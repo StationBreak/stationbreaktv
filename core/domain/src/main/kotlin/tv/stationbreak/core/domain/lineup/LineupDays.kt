@@ -205,7 +205,10 @@ internal class LineupDays(
      * [channel]'s part of [inputsOf], as a digest: it changes exactly when the days built for the channel would (a new
      * play order, a reshuffle, other sources or filters; never a name or a number that changes no pool).
      */
-    fun playKeyOf(channel: LineupChannel): PlayKey = PlayKey(sha256Hex(channelInputs(channel).toString().encodeToByteArray()))
+    fun playKeyOf(channel: LineupChannel): PlayKey {
+        val inputs = channelInputs(channel).toString()
+        return PlayKey(sha256Hex(inputs.encodeToByteArray()))
+    }
 
     /** Whether [built] are already [scheduled]'s days as its lineup shows them: its very channels, in its order. */
     fun isShownAs(

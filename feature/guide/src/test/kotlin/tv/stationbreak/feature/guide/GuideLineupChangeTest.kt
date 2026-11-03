@@ -30,6 +30,11 @@ class GuideLineupChangeTest : GuideRig() {
     private fun TestScope.eventsOf(vm: GuideViewModel): MutableList<GuideEvent> =
         mutableListOf<GuideEvent>().also { got -> backgroundScope.launch { vm.events.collect { got += it } } }
 
+    private fun withNewOrderOn(
+        id: ChannelId,
+        key: String,
+    ) = lineupList.list.value.map { if (it.id == id) it.copy(playKey = PlayKey(key)) else it }
+
     private fun summary(
         id: ChannelId,
         number: Int,
@@ -58,7 +63,7 @@ class GuideLineupChangeTest : GuideRig() {
             runCurrent()
             val calls = schedule.calls
 
-            lineupList.list.value = lineupList.list.value.map { if (it.id == CH9) it.copy(playKey = PlayKey("changed")) else it }
+            lineupList.list.value = withNewOrderOn(CH9, "changed")
             runCurrent()
             vm.channelsClosed()
             runCurrent()
@@ -81,7 +86,7 @@ class GuideLineupChangeTest : GuideRig() {
             schedule.cachedAnswer = ScheduleWindow(emptyList(), complete = false)
             schedule.asNeededGate = rebuilt
 
-            lineupList.list.value = lineupList.list.value.map { if (it.id == CH9) it.copy(playKey = PlayKey("new")) else it }
+            lineupList.list.value = withNewOrderOn(CH9, "new")
             runCurrent()
             vm.channelsClosed()
             runCurrent()
