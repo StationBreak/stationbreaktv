@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.HeldAiring
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -100,6 +101,9 @@ internal class GuideViewModel
         private var session: CoroutineScope? = null
         private var window: ScheduleWindow? = null
         private var currentChannel: ChannelId? = null
+
+        // What live is playing on [currentChannel], which the schedule's now cell gives way to (#556).
+        private var held: HeldAiring? = null
         private var loaded = false
         private var tickJob: Job? = null
         private var dwellJob: Job? = null
@@ -126,11 +130,18 @@ internal class GuideViewModel
         private var tickLag = 0L
         private var tickLate = 0L
 
-        /** Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). */
-        fun open(current: ChannelId?) {
+        /**
+         * Opens the guide with the cell on air now on [current] focused (or the first channel's, when unknown). [held]
+         * is what live is playing on it, shown as its now cell until that ends (#556).
+         */
+        fun open(
+            current: ChannelId?,
+            held: HeldAiring? = null,
+        ) {
             synchronized(lock) {
                 endSession()
                 currentChannel = current
+                this.held = held
                 val fresh = newSession()
                 startLoad(fresh)
                 startWatch(fresh)
@@ -630,9 +641,10 @@ internal class GuideViewModel
         // the grid does (it lost a race with something that read further) is dropped.
         private fun apply(
             s: CoroutineScope,
-            fresh: ScheduleWindow,
+            read: ScheduleWindow,
             extension: Boolean,
         ) {
+            val fresh = read.holding(synchronized(lock) { held })
             val built = maxOf(nowMs(), shownNowMs())
             val early = buildGuideModel(fresh, built)
             synchronized(lock) {

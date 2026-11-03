@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
+import tv.stationbreak.core.domain.lineup.HeldAiring
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
@@ -57,6 +58,7 @@ import tv.stationbreak.feature.guide.GuideViewModel
 @Composable
 fun GuideDestination(
     current: ChannelId?,
+    held: HeldAiring?,
     openedAtNanos: Long,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
@@ -64,7 +66,7 @@ fun GuideDestination(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, current, pictureHole, onTune, channels, openedAtNanos, modifier, viewModel.measure)
+    GuideRoot(viewModel, current, held, pictureHole, onTune, channels, openedAtNanos, modifier, viewModel.measure)
 }
 
 /**
@@ -92,6 +94,7 @@ typealias ChannelsSlot =
 internal fun GuideRoot(
     viewModel: GuideViewModel,
     current: ChannelId?,
+    held: HeldAiring?,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
     channels: ChannelsSlot,
@@ -111,7 +114,7 @@ internal fun GuideRoot(
     DisposableEffect(viewModel, openedAtNanos) {
         val started = GuideMeasurement.start(measure, view, openedAtNanos)
         measurement = started
-        viewModel.open(current)
+        viewModel.open(current, held)
         onDispose {
             try {
                 val rows = (viewModel.snapshot.value.state as? GuideState.Ready)?.model?.rows?.size ?: 0

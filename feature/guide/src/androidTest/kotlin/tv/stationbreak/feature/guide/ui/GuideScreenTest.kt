@@ -185,6 +185,7 @@ class GuideScreenTest {
                             GuideRoot(
                                 vm,
                                 current,
+                                held = null,
                                 pictureHole = HOLE,
                                 onTune = { tuned += it },
                                 channels = { _, _, _, _ -> },

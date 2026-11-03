@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import tv.stationbreak.core.domain.lineup.HeldAiring
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
@@ -43,13 +44,15 @@ import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.TransportView
 
 /**
- * The program guide as live TV draws it: the channel playing, when it opened, the hole live laid its picture in (screen
+ * The program guide as live TV draws it: the channel playing and the item it is playing (so the guide's now cell
+ * agrees with the picture after an edit), when it opened, the hole live laid its picture in (screen
  * dp: the guide's top-right corner, `ScreenLayout.pictureRect`) and what to call to tune a channel, which live tunes
  * and closes the guide for. A new opening time is a new opening, even when the guide never left the screen between the
  * two (closed and opened again before a frame).
  */
 typealias GuideSlot = @Composable (
     current: ChannelId?,
+    held: HeldAiring?,
     openedAtNanos: Long,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
@@ -82,7 +85,7 @@ internal fun LiveRoot(
     viewModel: LiveViewModel,
     onSignedOut: () -> Unit,
     onCommand: (LiveCommand) -> Unit = viewModel::send,
-    guide: GuideSlot = { _, _, _, _ -> },
+    guide: GuideSlot = { _, _, _, _, _ -> },
     tuners: TunerFactory? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -123,7 +126,7 @@ internal fun LiveRoot(
         transport = transport,
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
-        guide = { pictureHole, onTune -> guide(viewModel.guideChannel, guideOpenedAt, pictureHole, onTune) },
+        guide = { pictureHole, onTune -> guide(viewModel.guideChannel, viewModel.guideHeld, guideOpenedAt, pictureHole, onTune) },
         // The machine's own clock, which the transport view's times are in.
         nowMs = viewModel::nowMs,
     ) { AndroidView(factory = { surface }) }

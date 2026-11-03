@@ -117,6 +117,7 @@ class GuideMenuUiTest {
                     GuideRoot(
                         vm,
                         CH5,
+                        held = null,
                         pictureHole = HOLE,
                         onTune = { tuned += it },
                         channels = { _, openedAt, _, onDone -> Slot(openedAt, onDone) },

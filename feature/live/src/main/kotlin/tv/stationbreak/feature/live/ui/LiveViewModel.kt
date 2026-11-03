@@ -27,6 +27,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.HeldAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
@@ -154,6 +155,9 @@ internal class LiveViewModel
         /** The channel that was playing when the guide last opened: the guide opens with focus on it. */
         val guideChannel: ChannelId? get() = guide.channel
 
+        /** The item that was playing on [guideChannel] when the guide last opened, with its real start and end. */
+        val guideHeld: HeldAiring? get() = guide.held
+
         /**
          * When the guide last opened, in `System.nanoTime` units: each opening's own, for the guide's open-time
          * measurement and so each opening is a fresh guide session.
@@ -178,7 +182,7 @@ internal class LiveViewModel
 
         /** Opens the guide over the channel playing now; [atNanos] is when its key arrived (`System.nanoTime`). */
         fun openGuide(atNanos: Long) {
-            guide.open(atNanos, live?.playingChannel)
+            guide.open(atNanos, live?.playingChannel, live?.playingAiring)
         }
 
         /** The clock now (epoch ms), the one the transport view's times are in: the strip reads it. */

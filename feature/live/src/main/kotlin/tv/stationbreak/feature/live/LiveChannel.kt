@@ -41,6 +41,7 @@ import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
+import tv.stationbreak.core.domain.lineup.HeldAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.onLineup
 import tv.stationbreak.core.domain.logName
@@ -121,6 +122,16 @@ class LiveChannel(
 
     /** The channel tuned last (the one playing, or being tuned); null before the first. The guide opens on it. */
     val playingChannel: ChannelId? get() = tuned.playing?.id
+
+    /**
+     * What the picture is playing on the channel tuned last, with the block's real start and end; null while it is
+     * tuning or showing no program. The guide shows it as that channel's now cell until it ends (#556).
+     */
+    val playingAiring: HeldAiring?
+        get() {
+            val channel = tuned.playing?.id ?: return null
+            return screen.nowPlaying?.block?.let { HeldAiring(channel, it) }
+        }
 
     /** The latest flips, the newest last, at most [LiveTimings.flipLogSize]. */
     val flips: List<TuneReport.Flip> get() = flipLog

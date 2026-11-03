@@ -4,12 +4,15 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.model.CanonicalId
 
 /** What is playing, for the overlays: the banner of its block (as the picture's banner reads) and the item. */
 internal class Playing(
     val banner: Banner,
     val itemId: CanonicalId?,
+    /** The block as it was tuned: its real start and end, which an edit to the channel's rules does not move. */
+    val block: AiringBlock? = null,
     /** Names this showing of the program: it survives [Screen.widenNext], and a new tune makes a new one. */
     val token: Any = Any(),
 )
@@ -93,7 +96,7 @@ internal class Screen(
     ) = synchronized(this) {
         val now = playing
         if (now?.token === expect.token) {
-            playing = Playing(now.banner.copy(next = next), now.itemId, now.token)
+            playing = Playing(now.banner.copy(next = next), now.itemId, now.block, now.token)
             val state = shown
             val banner = (state as? LiveState.Watching)?.banner
             if (banner != null && !banner.actions) {
