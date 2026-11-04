@@ -1049,7 +1049,8 @@ filled in from the rules first; the scheduler has none of its own.
   and, in version 3, a window `episodeMinMs`/`episodeMaxMs` for episodes and a window `movieMinMs`/`movieMaxMs` for movies,
   each part given or not: a pool condition, see The pool of an epoch;
 - `repeatGapMs` and `pairUpToMs`: `repeatGapMinutes * 60000` and `pairUpToMinutes * 60000`, with the defaults `10800000` and
-  `2100000` filled in by the rules layer. A scheduler always gets both; only `curated` reads them. A scheduler accepts
+  `2100000` filled in by the rules layer. A scheduler is given both exactly when its mode is `curated` (they are not part of
+  the settings of any other mode, which has no use for them), and only `curated` reads them. A scheduler accepts
   `repeatGapMs` from 0 to 86400000 and `pairUpToMs` from 60000 to 86400000 inclusive, as whole milliseconds: it does not
   require a whole number of minutes (the rules layer always gives one), and a value outside its range is an input error;
 - `seed`: the channel seed, an unsigned 64-bit number;
