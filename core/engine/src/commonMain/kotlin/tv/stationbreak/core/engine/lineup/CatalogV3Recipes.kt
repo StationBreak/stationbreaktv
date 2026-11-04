@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.lineup.NameMatcher.Contains
 import tv.stationbreak.core.engine.lineup.NameMatcher.Exact
 import tv.stationbreak.core.engine.lineup.NameMatcher.Prefix
+import tv.stationbreak.core.engine.lineup.NameMatcher.Word
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.FilterKind
 import tv.stationbreak.core.rules.Filters
@@ -16,40 +17,8 @@ import tv.stationbreak.core.rules.Source
 //
 // Anchors and theme studios are rules sources, so a kid channel's anchors still pass its kid hold and its ceiling. A
 // recipe's anchors are ordered most important first, because the resolver keeps the leading ones that fit the
-// per-starter byte budget. The name tables in this file may name franchises, collections, titles, studios and
+// per-starter byte budget. The name tables in this file may name franchises, collections, titles, people, studios and
 // networks; nothing else in the repository may.
-
-/** The genre names TMDB uses, in the movie and TV lists. Any other genre spelling becomes a tag source. */
-internal val TMDB_GENRES: Set<String> =
-    linkedSetOf(
-        "Action",
-        "Adventure",
-        "Animation",
-        "Comedy",
-        "Crime",
-        "Documentary",
-        "Drama",
-        "Family",
-        "Fantasy",
-        "History",
-        "Horror",
-        "Music",
-        "Mystery",
-        "Romance",
-        "Science Fiction",
-        "TV Movie",
-        "Thriller",
-        "War",
-        "Western",
-        "Action & Adventure",
-        "Kids",
-        "News",
-        "Reality",
-        "Sci-Fi & Fantasy",
-        "Soap",
-        "Talk",
-        "War & Politics",
-    )
 
 private fun genres(vararg names: String): List<Source> = names.map { Source.Genre(it) }
 
@@ -66,7 +35,6 @@ private fun titles(vararg matchers: NameMatcher): List<Anchor> = matchers.map { 
 
 private fun studios(vararg matchers: NameMatcher): List<Anchor> = matchers.map { Anchor(AnchorKind.Studio, it) }
 
-@Suppress("LongParameterList")
 private fun filters(
     genres: List<String>? = null,
     notGenres: List<String>? = null,
@@ -258,7 +226,7 @@ private val kidsBand: List<Recipe> =
             says = "Family anime: small heroes, big feelings.",
             sources = genres("Anime", "Animation") + tags("anime", "family anime"),
             rating = "PG",
-            anchors = collections(Contains("Studio Ghibli")),
+            anchors = collections(Contains("Studio Ghibli"), Contains("Hayao Miyazaki")),
         ),
         recipe(
             Band.Kids,
@@ -307,6 +275,7 @@ private val kidsBand: List<Recipe> =
             rating = "TV-Y7",
             anchors =
                 collections(
+                    Contains("Starring Mel Blanc"),
                     Contains("Looney"),
                 ) +
                     titles(
@@ -504,7 +473,14 @@ private val generalBand: List<Recipe> =
             name = "Spoof Central",
             says = "Parodies of everything, played with a perfectly straight face.",
             sources = tags("spoof", "parody", "mockumentary", "satire"),
-            anchors = collections(Contains("Spoofs & Parodies"), Contains("Scary Movie"), Contains("Austin Powers")),
+            anchors =
+                collections(
+                    Contains("Spoofs & Parodies"),
+                    Contains("Scary Movie"),
+                    Contains("Austin Powers"),
+                    Contains("Mel Brooks"),
+                    Contains("Leslie Nielsen"),
+                ),
         ),
         recipe(
             Band.General,
@@ -616,6 +592,15 @@ private val dramaBand: List<Recipe> =
             name = "Silver Screen",
             says = "Old Hollywood in black and white, the glamour intact.",
             sources = tags("classic film", "classic movie") + years(from = 1920, to = 1959),
+            anchors =
+                collections(
+                    Contains("Starring Cary Grant"),
+                    Contains("Starring Audrey Hepburn"),
+                    Contains("Starring Gene Kelly"),
+                    Contains("Starring Danny Kaye"),
+                    Contains("Starring Bob Hope"),
+                    Contains("Billy Wilder"),
+                ),
         ),
         recipe(
             Band.Drama,
@@ -711,7 +696,7 @@ private val dramaBand: List<Recipe> =
             name = "Noir Nights",
             says = "Rain-slick streets, trench coats and a narrator who's seen too much.",
             sources = tags("film noir", "noir", "film-noir"),
-            anchors = collections(Contains("Film Noir")),
+            anchors = collections(Contains("Film Noir"), Contains("Alfred Hitchcock")),
         ),
         recipe(
             Band.Drama,
@@ -781,7 +766,21 @@ private val genreBand: List<Recipe> =
             says = "Giant monsters flattening miniature cities, zip lines visible.",
             sources = tags("kaiju", "giant monsters", "giant monster", "tokusatsu"),
             anchors = collections(Contains("Godzilla"), Contains("Kaiju"), Contains("Gamera"), Exact("Giant Monsters")),
-            themeStudios = listOf(Prefix("Toho"), Contains("Daiei"), Contains("Tsuburaya")),
+            themeStudios = listOf(Word("Toho"), Contains("Daiei"), Contains("Tsuburaya")),
+            filters =
+                filters(
+                    genres =
+                        listOf(
+                            "Science Fiction",
+                            "Horror",
+                            "Action",
+                            "Adventure",
+                            "Fantasy",
+                            "Thriller",
+                            "Sci-Fi & Fantasy",
+                            "Action & Adventure",
+                        ),
+                ),
         ),
         recipe(
             Band.Genre,
@@ -990,10 +989,10 @@ private val worldBand: List<Recipe> =
             themeStudios =
                 listOf(
                     Prefix("BBC"),
-                    Prefix("ITV"),
+                    Word("ITV"),
                     Contains("Channel 4"),
                     Prefix("Sky One"),
-                    Prefix("Sky 1"),
+                    Word("Sky 1"),
                     Prefix("Sky Atlantic"),
                     Contains("U&Dave"),
                     Contains("Thames"),
