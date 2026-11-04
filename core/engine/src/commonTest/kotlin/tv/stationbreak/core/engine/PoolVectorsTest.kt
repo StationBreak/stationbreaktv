@@ -274,5 +274,12 @@ class PoolVectorsTest {
         )
 
     private fun collection(o: JsonObject): RuleCollection =
-        collection(o.canonId("id"), o.ids("movies"), o.ids("episodes"), o.ids("series"), o.ids("seasons"))
+        collection(
+            o.canonId("id"),
+            o.ids("movies"),
+            o.ids("episodes"),
+            o.ids("series"),
+            o.ids("seasons"),
+            o.stringOrNull("name"),
+        )
 }

@@ -108,7 +108,8 @@ internal fun collection(
     episodes: Set<CanonicalId> = emptySet(),
     series: Set<CanonicalId> = emptySet(),
     seasons: Set<CanonicalId> = emptySet(),
-): RuleCollection = RuleCollection(id = id, movies = movies, episodes = episodes, series = series, seasons = seasons)
+    name: String? = null,
+): RuleCollection = RuleCollection(id = id, movies = movies, episodes = episodes, series = series, seasons = seasons, name = name)
 
 /** Items are kept in the order given: the builder does not sort, because the evaluator must keep that order. */
 internal fun snapshot(

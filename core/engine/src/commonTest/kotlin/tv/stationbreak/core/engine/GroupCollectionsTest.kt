@@ -18,6 +18,7 @@ class GroupCollectionsTest {
     private val large = CanonicalId.parse("f".repeat(32))
     private val film1 = movie(idOf(1))
     private val film2 = movie(idOf(2))
+    private val box = "Box Set 1 Collection"
 
     private fun rotation(named: List<CanonicalId>): ChannelRules =
         rules(
@@ -131,8 +132,8 @@ class GroupCollectionsTest {
                 items = listOf(film1, film2, ep),
                 collections =
                     listOf(
-                        collection(large, movies = setOf(film1.item.id)),
-                        collection(small, movies = setOf(film2.item.id), episodes = setOf(ep.item.id)),
+                        collection(large, name = box, movies = setOf(film1.item.id)),
+                        collection(small, name = box, movies = setOf(film2.item.id), episodes = setOf(ep.item.id)),
                     ),
             )
 
@@ -150,8 +151,8 @@ class GroupCollectionsTest {
                 items = listOf(film1),
                 collections =
                     listOf(
-                        collection(large, movies = setOf(film1.item.id)),
-                        collection(small, movies = setOf(film1.item.id)),
+                        collection(large, name = box, movies = setOf(film1.item.id)),
+                        collection(small, name = box, movies = setOf(film1.item.id)),
                     ),
             )
 
@@ -165,7 +166,7 @@ class GroupCollectionsTest {
         val snap =
             snapshot(
                 items = listOf(film1, film2),
-                collections = listOf(collection(small, movies = setOf(film1.item.id, film2.item.id))),
+                collections = listOf(collection(small, name = box, movies = setOf(film1.item.id, film2.item.id))),
             )
 
         val films = GroupCollections.of(curatedRules(), snap, listOf(film1.item))
@@ -192,5 +193,48 @@ class GroupCollectionsTest {
         assertNull(rotation[film2.item.id])
         val shuffle = rules(listOf(Source.Collection(small)), ordering = Ordering(OrderingMode.Shuffle))
         assertNull(mapOf(shuffle, snap, film1, film2)[film2.item.id])
+    }
+
+    @Test
+    fun curatedGroupsOnlyCollectionsNamedCollection() {
+        val snap =
+            snapshot(
+                items = listOf(film1, film2),
+                collections =
+                    listOf(
+                        collection(small, name = "Box Set 1", movies = setOf(film1.item.id, film2.item.id)),
+                        collection(large, name = null, movies = setOf(film1.item.id)),
+                    ),
+            )
+
+        assertNull(mapOf(curatedRules(), snap, film1, film2)[film1.item.id])
+        assertNull(mapOf(curatedRules(), snap, film1, film2)[film2.item.id])
+    }
+
+    @Test
+    fun theNameEndsInCollectionAfterAsciiFoldAndTrim() {
+        for (name in listOf("box set 1 COLLECTION", "  Box Set 1 Collection \u00A0", "A Collection")) {
+            val snap = snapshot(items = listOf(film1), collections = listOf(collection(small, name = name, movies = setOf(film1.item.id))))
+            assertEquals(small, mapOf(curatedRules(), snap, film1)[film1.item.id], name)
+        }
+        for (name in listOf("Collection", "Box Set Collections", "Box Set Collection 2", "Box Set\u00A0Collection", "")) {
+            val snap = snapshot(items = listOf(film1), collections = listOf(collection(small, name = name, movies = setOf(film1.item.id))))
+            assertNull(mapOf(curatedRules(), snap, film1)[film1.item.id], name)
+        }
+    }
+
+    @Test
+    fun anUnnamedCollectionDoesNotHideALargerNamedOne() {
+        val snap =
+            snapshot(
+                items = listOf(film1),
+                collections =
+                    listOf(
+                        collection(small, name = "Mixed Bag", movies = setOf(film1.item.id)),
+                        collection(large, name = box, movies = setOf(film1.item.id)),
+                    ),
+            )
+
+        assertEquals(large, mapOf(curatedRules(), snap, film1)[film1.item.id])
     }
 }

@@ -841,9 +841,13 @@ Ordering (`180` and `35` minutes, that is `10800000` and `2100000` ms) when the 
 
 **The side inputs.**
 
-- **The franchise map.** Every collection in the library snapshot is a candidate (not only the collections named in
-  `sources`, and including a collection that `exclusions` only exclude); a collection that is not in the snapshot groups
-  nothing. A film (a movie of the pool) that is a **member
+- **The franchise map.** Every collection in the library snapshot whose name is a **box set name** is a candidate (not
+  only the collections named in `sources`, and including a collection that `exclusions` only exclude); a collection that is
+  not in the snapshot, one with no name, and one whose name is not a box set name group nothing. A name is a box set name
+  when, after the **clean** step of the studio fold (which removes the dropped set and trims the space set from both ends,
+  see Studio names in String matching) and the ASCII fold, it ends with a U+0020 and `collection`; so `Box Set 1 Collection`
+  and `box set 1 COLLECTION ` are box set names and `Collection`, `Box Set Collections` and `Box Set Collection 2` are not.
+  The rule does not depend on any setting of the app. A film (a movie of the pool) that is a **member
   movie** of at least one such collection is mapped to the collection with the **smallest canonical ID** (compared as the
   32 ASCII bytes, unsigned) among those it is a member of. Episodes are never mapped. The map is worked out from the as-of
   library snapshot (see The pool of an epoch).
@@ -1058,7 +1062,7 @@ filled in from the rules first; the scheduler has none of its own.
 With caps in force, `epochHours` must be 24; any other value is an input error at the scheduler. A scheduler also takes the
 **film-to-collection map** of the epoch (see Groups in version 2) as an input; it is empty unless the mode is `rotation` or
 a capped `shuffle`, or `curated` (which reads the franchise map of `curated` instead: every film of the pool that is a member
-movie of any collection of the library snapshot, mapped to the smallest such collection ID), and every other mode ignores it.
+movie of any collection of the library snapshot whose name is a box set name, mapped to the smallest such collection ID), and every other mode ignores it.
 A scheduler also takes two more **side inputs** (version 3): the **weights**, a map from a title ID to a whole number from 1 to
 3 (only `curated` reads them; a title that is absent has weight 1), and the **keeps**, a map from a series ID to a cap in
 whole milliseconds, 1 or more, with no upper bound (0 or less is an input error; every mode applies them; see the trim window in
@@ -1577,7 +1581,7 @@ The anchors for this section are in `docs/rules-format/vectors/`: `epoch-math.js
 `epochStart` and `seed_n`), `key-order.json` (the three orders, the group keys, the in-group order and runs) and
 `lineup.json` (whole days: rules subset, items and `t`, with the block that is on and its offset). Version 2 adds
 `key-order-v2.json` and `lineup-v2.json`, of the same shapes with `caps`, `films` and `runtimeFilter`. Version 3 adds
-`pool-v3.json` (the pool: `studio` sources and exclusions, the version 3 filters and the franchise map), `key-order-v3.json`
+`pool-v3.json` (the pool: `studio` sources and exclusions, the version 3 filters and the franchise map; a snapshot collection there may carry a `name`, which the box set names of the franchise map read), `key-order-v3.json`
 and `lineup-v3.json`, of the same shapes as the version 1 and 2 files with the franchise map (`franchises`), the weights,
 the keeps, the two tunables (`repeatGapMs` and `pairUpToMs`) and the per-kind runtime windows. They were computed with a reference that was
 written from this text alone, not with the code that is tested. Version 1 is final (amended once, on 2026-10-19), so a wrong

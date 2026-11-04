@@ -4,6 +4,8 @@ package tv.stationbreak.core.engine
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.cleanStudioName
+import tv.stationbreak.core.model.foldNameAscii
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -22,7 +24,8 @@ object GroupCollections {
      * never in the map. The map is empty unless the mode reads it: `rotation` or a capped `shuffle`.
      *
      * For `curated` it is the franchise map: every film of [pool] that is a member movie of any collection of
-     * [snapshot], named by the channel or not, under the smallest such collection ID.
+     * [snapshot] whose name is a box set's ([isBoxSet]), named by the channel or not, under the smallest such
+     * collection ID.
      */
     fun of(
         rules: ChannelRules,
@@ -35,7 +38,9 @@ object GroupCollections {
         for (item in pool) if (item.kind == ScheduleItemKind.Movie) films.add(item.id)
         val named =
             if (curated) {
-                snapshot.collections.keys.toList()
+                snapshot.collections.values
+                    .filter { isBoxSet(it.name) }
+                    .map { it.id }
             } else {
                 rules.sources
                     .filterIsInstance<Source.Collection>()
@@ -50,4 +55,10 @@ object GroupCollections {
         }
         return FilmCollections.of(map)
     }
+
+    /**
+     * Whether a collection name is a box set's for the franchise map (docs/rules-format.md, "curated"): under the studio
+     * clean (which trims) and the ASCII fold, it ends with a space and `collection`. No name is not one.
+     */
+    fun isBoxSet(name: String?): Boolean = name != null && foldNameAscii(cleanStudioName(name)).endsWith(" collection")
 }
