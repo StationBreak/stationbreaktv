@@ -124,7 +124,7 @@ class StarterCatalogTest {
         for (r in recipes) {
             assertTrue(r.exclusions.size <= RulesLimits.MAX_LIST_ENTRIES, "${r.key} exclusions")
             // Building the rules checks the limits again, collection hints included.
-            RecipeResolver.resolve(r, SERVER, 0, NO_NAMES)
+            RecipeResolver.resolve(r, SERVER, 0, NO_NAMES, NO_LIBRARY)
         }
     }
 

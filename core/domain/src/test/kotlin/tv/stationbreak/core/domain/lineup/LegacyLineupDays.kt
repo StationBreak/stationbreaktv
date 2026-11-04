@@ -10,6 +10,7 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
+import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
@@ -185,7 +186,7 @@ internal class LegacyLineupDays(
         fun withheld(cutoff: Long): Set<CanonicalId> =
             withheldBy.getOrPut(cutoff) {
                 val snapshot = snapshots.getValue(cutoff)
-                val rules = optInRules() + hiddenRules()
+                val rules = optInRules(snapshot) + hiddenRules()
                 rules.flatMapTo(HashSet()) { (r, policy) ->
                     PoolEvaluator.evaluate(r, snapshot, policy).items.map { it.id }
                 }
@@ -207,15 +208,17 @@ internal class LegacyLineupDays(
         ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), KidStatus.basePolicyOf(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
-        private fun optInRules(): List<Pair<ChannelRules, PoolPolicy>> =
-            catalog.recipes.filter { it.optIn }.flatMap { recipe ->
-                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
+        private fun optInRules(snapshot: RuleSnapshot): List<Pair<ChannelRules, PoolPolicy>> {
+            val names = LibraryNames(snapshot, NO_NAMES)
+            return catalog.recipes.filter { it.optIn }.flatMap { recipe ->
+                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES, names)
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
                     resolved to KidStatus.policyOf(recipe),
                     inLineup?.let(::rulesOf)?.let { it to KidStatus.basePolicyOf(inLineup) },
                 )
             }
+        }
 
         private fun hiddenRules(): List<Pair<ChannelRules, PoolPolicy>> =
             lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->

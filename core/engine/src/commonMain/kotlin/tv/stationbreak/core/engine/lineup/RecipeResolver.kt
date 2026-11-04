@@ -12,10 +12,11 @@ import tv.stationbreak.core.rules.AutoSeedKind
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Ordering
+import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.rules.Timing
 
-private const val FORMAT_VERSION = 1
+private const val LATEST_FORMAT = 3
 
 /** Turns a catalog recipe into the rules of a real channel. Pure: the same inputs give the same rules. */
 object RecipeResolver {
@@ -25,24 +26,59 @@ object RecipeResolver {
      * in canonical-ID order and once each. A hint that matches nothing adds nothing. The broadcast day starts at
      * [LineupDefaults.DAY_START] at [utcOffsetMinutes]. `alignToGrid` is written as false, so the channel runs back to
      * back (the format's own default is true); every other timing field is left to its default.
+     *
+     * A themed recipe has its own sources, then a studio source for each studio of [names] a theme studio matches,
+     * then for each anchor in turn: a collection source for every collection that matches (the household's own
+     * included; the day build drops those when "Use my collections" is off), the series and films that match a title
+     * anchor, or a studio source. A source already present is dropped, and at most 256 are kept, the first ones. Its
+     * ordering is curated. The format version is the lowest the rules need.
      */
     fun resolve(
         recipe: Recipe,
         serverId: CanonicalId,
         utcOffsetMinutes: Int,
         collections: CollectionNames,
-    ): ChannelRules =
-        ChannelRules(
-            formatVersion = FORMAT_VERSION,
-            name = recipe.name,
-            seed = seedOf(serverId, recipe.key),
-            sources = recipe.sources + hinted(recipe.collectionHints, collections),
-            exclusions = recipe.exclusions.ifEmpty { null },
-            maxRating = recipe.maxRating,
-            ordering = recipe.ordering?.let { Ordering(it) },
-            timing = timingAt(utcOffsetMinutes),
-            filler = null,
-        )
+        names: LibraryNames,
+    ): ChannelRules {
+        val theme = recipe.theme
+        val sources =
+            if (theme == null) {
+                recipe.sources + hinted(recipe.collectionHints, collections)
+            } else {
+                themed(recipe, theme, names)
+            }
+        val rules =
+            ChannelRules(
+                formatVersion = LATEST_FORMAT,
+                name = recipe.name,
+                seed = seedOf(serverId, recipe.key),
+                sources = sources,
+                exclusions = recipe.exclusions.ifEmpty { null },
+                maxRating = recipe.maxRating,
+                ordering = (if (theme == null) recipe.ordering else OrderingMode.Curated)?.let { Ordering(it) },
+                timing = timingAt(utcOffsetMinutes),
+                filler = null,
+                filters = recipe.filters,
+            )
+        return rules.copy(formatVersion = rules.requiredVersion)
+    }
+
+    private fun themed(
+        recipe: Recipe,
+        theme: Theme,
+        names: LibraryNames,
+    ): List<Source> {
+        val out = LinkedHashSet<Source>(recipe.sources)
+        for (matcher in theme.themeStudios) for (studio in names.studios(matcher)) out.add(Source.Studio(studio))
+        for (anchor in theme.anchors) {
+            when (anchor.kind) {
+                AnchorKind.Collection -> for (id in names.collections(anchor.match)) out.add(Source.Collection(id))
+                AnchorKind.Title -> out.addAll(names.titles(anchor.match))
+                AnchorKind.Studio -> for (studio in names.studios(anchor.match)) out.add(Source.Studio(studio))
+            }
+        }
+        return out.take(RulesLimits.MAX_LIST_ENTRIES)
+    }
 
     /**
      * The scheduler settings of a leftovers channel: those of a resolved recipe with the same key, no ordering of its

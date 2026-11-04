@@ -29,6 +29,9 @@ internal val SERVER: CanonicalId = idOf(0x5E)
 internal val USER: CanonicalId = idOf(0x5F)
 internal val NO_NAMES: CollectionNames = CollectionNames(emptyMap())
 
+/** A library that holds no names: what a recipe without a theme resolves against. */
+internal val NO_LIBRARY: LibraryNames = LibraryNames(snapshot(), NO_NAMES)
+
 /** Each fixture item runs 30 minutes, so this many items make exactly the qualifying 12 hours. */
 internal const val QUALIFYING_ITEMS = 24
 

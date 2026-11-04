@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Source
 
 /** What a shipped recipe promised: its number, band, opt-in flag and ceiling, and a [fingerprint] of what it airs. */
@@ -53,6 +54,8 @@ internal fun fingerprintOf(recipe: Recipe): String {
             append("]ordering[")
             append(recipe.ordering?.wireName?.let(::text) ?: "-")
             append("]")
+            recipe.filters?.let { append("filters[").append(canonicalOf(it)).append("]") }
+            recipe.theme?.let { append("theme[").append(canonicalOf(it)).append("]") }
         }
     return fnv1a64(canonical)
 }
@@ -126,6 +129,39 @@ private fun canonicalOf(source: Source): String {
         }
     return "$body;"
 }
+
+private fun canonicalOf(filters: Filters): String =
+    buildString {
+        val lists = listOf("g" to filters.genres, "t" to filters.tags, "s" to filters.studios, "n" to filters.notGenres)
+        for ((label, names) in lists) {
+            append(label).append('[')
+            names?.forEach { append(text(it)) }
+            append(names?.let { "]" } ?: "-]")
+        }
+        append("years").append(filters.yearFrom).append(':').append(filters.yearTo)
+        append("run").append(filters.minRuntimeMinutes).append(':').append(filters.maxRuntimeMinutes)
+        append("ep").append(filters.episodeMinRuntimeMinutes).append(':').append(filters.episodeMaxRuntimeMinutes)
+        append("mv").append(filters.movieMinRuntimeMinutes).append(':').append(filters.movieMaxRuntimeMinutes)
+        append("kind").append(filters.kind?.wireName?.let(::text) ?: "-")
+    }
+
+private fun canonicalOf(matcher: NameMatcher): String =
+    when (matcher) {
+        is NameMatcher.Exact -> "exact" + text(matcher.folded)
+        is NameMatcher.Prefix -> "prefix" + text(matcher.folded)
+        is NameMatcher.Contains -> "contains" + text(matcher.folded)
+        is NameMatcher.Word -> "word" + text(matcher.folded)
+    }
+
+private fun canonicalOf(theme: Theme): String =
+    buildString {
+        append("anchors[")
+        theme.anchors.forEach { append(it.kind.name).append(canonicalOf(it.match)) }
+        append("]studios[")
+        theme.themeStudios.forEach { append(canonicalOf(it)) }
+        append("]format").append(theme.format?.name ?: "-")
+        append("anime").append(theme.animeOnly)
+    }
 
 // A text with its UTF-8 byte length in front, so the canonical string cannot be read two ways.
 private fun text(value: String): String = "${value.encodeToByteArray().size}:$value"

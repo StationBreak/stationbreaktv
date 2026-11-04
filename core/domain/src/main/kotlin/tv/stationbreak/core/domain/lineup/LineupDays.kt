@@ -15,6 +15,7 @@ import tv.stationbreak.core.engine.lineup.KidStatus.basePolicyOf
 import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
+import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
@@ -562,7 +563,7 @@ internal class LineupDays(
         /** What no leftovers channel may air from the [cut]'s snapshot: opt-in and hidden channels' pools. */
         fun withheld(cut: Cut): Set<CanonicalId> =
             withheldBy.getOrPut(cut) {
-                val rules = optInRules() + hiddenRules()
+                val rules = optInRules(cut) + hiddenRules()
                 rules.flatMapTo(HashSet()) { (r, policy) -> evaluate(r, cut, policy).items.map { it.id } }
             }
 
@@ -584,15 +585,17 @@ internal class LineupDays(
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
         // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
         // ceiling is as today.
-        private fun optInRules(): List<PolicyRules> =
-            catalog.recipes.filter { it.optIn }.flatMap { recipe ->
-                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
+        private fun optInRules(cut: Cut): List<PolicyRules> {
+            val names = LibraryNames(snapshotOf(cut), NO_NAMES)
+            return catalog.recipes.filter { it.optIn }.flatMap { recipe ->
+                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES, names)
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
                     PolicyRules(resolved, policyOf(recipe)),
                     inLineup?.let(::rulesOf)?.let { PolicyRules(it, basePolicyOf(inLineup)) },
                 )
             }
+        }
 
         // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling and its own policy.
         private fun hiddenRules(): List<PolicyRules> =

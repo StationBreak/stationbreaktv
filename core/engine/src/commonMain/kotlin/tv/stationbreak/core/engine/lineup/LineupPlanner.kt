@@ -267,10 +267,11 @@ internal class Planning(
     val nowMs: Long,
 ) {
     private val recipes = catalog.recipes.associateBy { it.key }
+    private val names by lazy { LibraryNames(snapshot, collections) }
 
     fun recipe(key: String): Recipe? = recipes[key]
 
-    fun resolve(recipe: Recipe): ChannelRules = RecipeResolver.resolve(recipe, serverId, offset, collections)
+    fun resolve(recipe: Recipe): ChannelRules = RecipeResolver.resolve(recipe, serverId, offset, collections, names)
 
     /**
      * The number each catalog channel takes in a first choice around [kept]: its default, unless a kept channel holds

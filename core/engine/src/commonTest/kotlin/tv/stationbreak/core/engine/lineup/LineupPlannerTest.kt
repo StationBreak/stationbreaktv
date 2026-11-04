@@ -60,7 +60,7 @@ class LineupPlannerTest {
         assertEquals(USER, lineup.userId)
         val r30 = lineup.channel("r30").starter
         assertFalse(r30.edited)
-        assertEquals(RecipeResolver.resolve(catalog.recipes[30], SERVER, 0, NO_NAMES), r30.rules)
+        assertEquals(RecipeResolver.resolve(catalog.recipes[30], SERVER, 0, NO_NAMES, NO_LIBRARY), r30.rules)
     }
 
     @Test
@@ -338,7 +338,8 @@ class LineupPlannerTest {
         assertEquals(ChannelState.On, scifi.state)
         assertEquals(330, scifi.number)
         assertEquals(5_000L, scifi.onSinceMs)
-        assertEquals(RecipeResolver.resolve(catalog.recipes.last(), SERVER, 0, NO_NAMES), scifi.starter.rules)
+        val expected = RecipeResolver.resolve(catalog.recipes.last(), SERVER, 0, NO_NAMES, NO_LIBRARY)
+        assertEquals(expected, scifi.starter.rules)
         // Nothing else moved.
         assertEquals(lineup.channels.filter { it.id != scifi.id }, next.channels.filter { it.id != scifi.id })
     }
