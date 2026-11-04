@@ -258,6 +258,13 @@ interface LibraryRepository : AccountCache {
     suspend fun distinctTags(account: LibraryAccount): List<String>
 
     /**
+     * The studios of [account]'s live items and series, each as the sync stores it (cleaned, not folded), distinct, by
+     * folded name and then name. The builder shows a studio by one of these spellings. Current state, never for
+     * building a day.
+     */
+    suspend fun distinctStudios(account: LibraryAccount): List<String>
+
+    /**
      * Up to [limit] live shows and films of [account] whose name contains [text] (ASCII case-insensitive; `%`, `_` and
      * `\` match themselves), by name and then ID. Episodes are never hits. It reads the saved library only and never
      * asks the server. The caller bounds [text]'s length; empty text finds nothing.

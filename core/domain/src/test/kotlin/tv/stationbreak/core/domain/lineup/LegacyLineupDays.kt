@@ -206,7 +206,7 @@ internal class LegacyLineupDays(
             claimed: Set<CanonicalId>,
         ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), KidStatus.basePolicyOf(channel))
 
-        // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
+        // Every opt-in recipe of the catalog, as resolved against the cut's snapshot and as the lineup holds it.
         private fun optInRules(snapshot: RuleSnapshot): List<Pair<ChannelRules, PoolPolicy>> {
             val collections = collectionNamesOf(snapshot)
             val names = LibraryNames(snapshot, collections)

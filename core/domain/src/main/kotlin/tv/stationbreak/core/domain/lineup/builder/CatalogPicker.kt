@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.TitleHit
+import tv.stationbreak.core.engine.lineup.NameMatcher
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -150,4 +151,23 @@ class SourceLabels(
     }
 
     private fun id(source: DraftSource): CanonicalId? = CanonicalId.parseOrNull(source.key)
+
+    /**
+     * The spelling to show for each of the studio [names] a channel's rules hold: a resolved starter stores a studio
+     * by its folded name, so each is mapped back to the smallest cleaned spelling among the saved library's studios
+     * with the same fold. A name no saved studio has is shown as stored. Reads the saved library only.
+     */
+    suspend fun studios(
+        account: LibraryAccount,
+        names: Collection<String>,
+    ): Map<String, String> {
+        if (names.isEmpty()) return emptyMap()
+        val held = HashMap<String, String>()
+        for (spelling in repository.distinctStudios(account)) {
+            val key = NameMatcher.fold(spelling)
+            val known = held[key]
+            if (known == null || spelling < known) held[key] = spelling
+        }
+        return names.associateWith { held[NameMatcher.fold(it)] ?: it }
+    }
 }

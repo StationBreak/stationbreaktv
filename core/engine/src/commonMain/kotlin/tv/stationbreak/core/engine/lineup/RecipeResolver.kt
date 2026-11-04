@@ -31,8 +31,8 @@ object RecipeResolver {
      * matches (the household's own included; the day build drops those when "Use my collections" is off), the series
      * and films that match a title anchor, or a studio source; then a studio source for each studio of [names] a theme
      * studio matches. Anchors come before theme studios so the cap never cuts an anchor first. A source already present
-     * is dropped (studio sources by folded name), and at most 256 are kept, the first ones. Its
-     * ordering is curated. The format version is the lowest the rules need.
+     * is dropped (studio sources by folded name), and at most 256 are kept, the first ones. Its ordering is curated.
+     * The format version is the lowest the rules need.
      */
     fun resolve(
         recipe: Recipe,

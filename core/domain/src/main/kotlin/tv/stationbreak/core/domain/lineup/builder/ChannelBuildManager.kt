@@ -32,6 +32,7 @@ class ChannelBuildManager(
     private val newSeed: NewSeed,
     private val newId: () -> String,
     private val labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
+    private val studioNames: StudioNames = { _, _ -> emptyMap() },
 ) : ChannelBuilder {
     override suspend fun blank(
         account: LibraryAccount,
@@ -128,8 +129,42 @@ class ChannelBuildManager(
     ): ChannelDraft {
         val bare = DraftRules.fromRules(rules, number) { it.label }
         val words = guarded(emptyMap()) { labels(account, (bare.sources + bare.leaveOut).distinct()) }
-        return DraftRules.fromRules(rules, number) { words[it] ?: it.key }
+        val draft = DraftRules.fromRules(rules, number) { words[it] ?: it.key }
+        return withStudioNames(account, draft)
     }
+
+    // A studio the rules hold folded is shown by a spelling the library holds. Only the kept lines change: the rules
+    // that are saved come from the stored ones.
+    private suspend fun withStudioNames(
+        account: LibraryAccount,
+        draft: ChannelDraft,
+    ): ChannelDraft {
+        val kept = draft.kept
+        val names =
+            kept
+                ?.items
+                .orEmpty()
+                .mapNotNull { studioOf(it) }
+                .distinct()
+        if (kept == null || names.isEmpty()) return draft
+        val shown = guarded(emptyMap()) { studioNames(account, names) }
+        val items =
+            kept.items.map { item ->
+                when (item) {
+                    is KeptItem.StudioSource -> KeptItem.StudioSource(shown[item.name] ?: item.name)
+                    is KeptItem.StudioExclusion -> KeptItem.StudioExclusion(shown[item.name] ?: item.name)
+                    else -> item
+                }
+            }
+        return draft.copy(kept = kept.copy(items = items))
+    }
+
+    private fun studioOf(item: KeptItem): String? =
+        when (item) {
+            is KeptItem.StudioSource -> item.name
+            is KeptItem.StudioExclusion -> item.name
+            else -> null
+        }
 
     override suspend fun create(
         account: LibraryAccount,
@@ -321,3 +356,6 @@ internal fun newCustomId(random: Random): String {
         }
     }
 }
+
+/** The spelling to show for each studio name a channel's rules hold (see [SourceLabels.studios]). */
+typealias StudioNames = suspend (LibraryAccount, Collection<String>) -> Map<String, String>

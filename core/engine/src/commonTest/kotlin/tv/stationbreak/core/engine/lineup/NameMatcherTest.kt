@@ -23,12 +23,19 @@ class NameMatcherTest {
         assertFalse(NameMatcher.Prefix("Show").matches(fold("A show")))
         assertTrue(NameMatcher.Contains("how").matches(fold("Show A")))
         assertFalse(NameMatcher.Contains("zzz").matches(fold("Show A")))
-        assertTrue(NameMatcher.Word("fx").matches(fold("FX Movies")))
-        assertTrue(NameMatcher.Word("FX").matches(fold("The FX-Channel")))
-        assertFalse(NameMatcher.Word("FX").matches(fold("Foxfx")))
-        assertFalse(NameMatcher.Word("FX").matches(fold("FXX")))
-        assertTrue(NameMatcher.Word("FX").matches(fold("Foxfx FX")))
-        assertEquals("show a", NameMatcher.Exact("  Show A ").folded)
+        assertEquals("show a", NameMatcher.Exact("  Show A\u00A0").folded)
+    }
+
+    @Test
+    fun wordMatchesOnWordBoundariesOfTheFoldedName() {
+        val word = NameMatcher.Word("ABC")
+        assertTrue(word.matches(fold("abc")))
+        assertTrue(word.matches(fold("z abc")))
+        assertTrue(word.matches(fold("the abc-channel")))
+        assertTrue(word.matches(fold("abcd ABC")))
+        assertFalse(word.matches(fold("abcd")))
+        assertFalse(word.matches(fold("zabc")))
+        assertFalse(word.matches(fold("abc_d")))
     }
 
     @Test
@@ -45,20 +52,31 @@ class NameMatcherTest {
 
     @Test
     fun aWordMatcherStartsAndEndsWithALetterOrDigit() {
-        assertFailsWith<IllegalArgumentException> { NameMatcher.Word("-fx") }
-        assertFailsWith<IllegalArgumentException> { NameMatcher.Word("fx.") }
-        assertTrue(NameMatcher.Word("AT-X").matches(fold("AT-X Channel")))
+        assertTrue(NameMatcher.Word("ab-c").matches(fold("an ab-c show")))
+        assertFailsWith<IllegalArgumentException> { NameMatcher.Word("-ab") }
+        assertFailsWith<IllegalArgumentException> { NameMatcher.Word("ab.") }
     }
 
-    private fun animeMatch(studio: String) = CurationTables.ANIME_STUDIOS.any { it.matches(fold(studio)) }
-
     @Test
-    fun shortAnimeTokensMatchWholeWordsOnly() {
-        assertFalse(animeMatch("Holmes Studio"))
-        assertFalse(animeMatch("Shaftesbury"))
-        assertTrue(animeMatch("Studio Bones Inc."))
-        assertTrue(animeMatch("Shaft"))
-        assertTrue(animeMatch("Production I.G"))
+    fun everyAnimeTableWordMatchesWholeWordsOnlyAndEveryContainsMatchesInside() {
+        for (m in CurationTables.ANIME_STUDIOS) {
+            when (m) {
+                is NameMatcher.Word -> {
+                    assertTrue(m.matches(fold("studio ${m.folded} inc")), m.folded)
+                    assertFalse(m.matches(fold("x${m.folded}y")), m.folded)
+                }
+
+                is NameMatcher.Contains -> {
+                    assertTrue(m.matches(fold("x ${m.folded} y")), m.folded)
+                }
+
+                else -> {
+                    error("The table holds only Word and Contains")
+                }
+            }
+        }
+        assertTrue(CurationTables.ANIME_STUDIOS.any { it is NameMatcher.Word })
+        assertTrue(CurationTables.ANIME_STUDIOS.any { it is NameMatcher.Contains })
     }
 
     @Test

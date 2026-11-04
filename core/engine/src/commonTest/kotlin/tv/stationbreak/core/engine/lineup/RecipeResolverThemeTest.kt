@@ -170,7 +170,7 @@ class RecipeResolverThemeTest {
     }
 
     @Test
-    fun anAnotherSpellingOfAStudioLeavesTheRulesEqual() {
+    fun anotherSpellingOfAStudioLeavesTheRulesEqual() {
         val theme = Theme(emptyList(), listOf(NameMatcher.Contains("studio")), null, false)
         val recipe = themed(theme)
         val extra = movie(idOf(42), studios = listOf("STUDIO a"))

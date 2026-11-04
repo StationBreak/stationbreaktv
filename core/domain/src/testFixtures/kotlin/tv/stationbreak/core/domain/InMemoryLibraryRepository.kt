@@ -390,6 +390,8 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override suspend fun distinctTags(account: LibraryAccount): List<String> = distinct(account, { it.tags }, { it.tags })
 
+    override suspend fun distinctStudios(account: LibraryAccount): List<String> = distinct(account, { it.studios }, { it.studios })
+
     // The live items' and series' names, exact spelling, by folded name and then name.
     private fun distinct(
         account: LibraryAccount,

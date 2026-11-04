@@ -582,9 +582,9 @@ internal class LineupDays(
             claimed: Set<CanonicalId>,
         ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel, lineup))
 
-        // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
-        // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
-        // ceiling is as today.
+        // Every opt-in recipe of the catalog, as resolved against the cut's snapshot (its collection names and library
+        // names, as the planner resolves them) and as the lineup holds it. Each is evaluated under its policy: the
+        // resolved recipe by its recipe, the lineup's channel by its channel. The ceiling is as today.
         private fun optInRules(cut: Cut): List<PolicyRules> {
             val snapshot = snapshotOf(cut)
             val collections = collectionNamesOf(snapshot)
@@ -687,8 +687,9 @@ private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
     }
 
 /**
- * The names of the collections [snapshot] holds, by ID: what a themed recipe's collection anchors and a recipe's hints
- * are matched against, so a day build resolves them as the planner does. A collection with no name has none here.
+ * The names of the collections [snapshot] holds, by ID, as of the snapshot's cut-off: what a themed recipe's collection
+ * anchors and a recipe's hints are matched against, so a day build resolves them as the planner does. A collection with
+ * no name has none here.
  */
 internal fun collectionNamesOf(snapshot: RuleSnapshot): CollectionNames {
     val names = HashMap<CanonicalId, String>()

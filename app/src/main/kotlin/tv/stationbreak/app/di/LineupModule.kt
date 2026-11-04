@@ -185,7 +185,7 @@ internal object LineupModule {
         server: MediaServer,
     ): ChannelBuilder {
         val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
-        return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke)
+        return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke, labels::studios)
     }
 
     /**

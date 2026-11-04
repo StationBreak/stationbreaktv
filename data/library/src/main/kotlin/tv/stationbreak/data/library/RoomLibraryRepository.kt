@@ -174,6 +174,9 @@ class RoomLibraryRepository internal constructor(
     override suspend fun distinctGenres(account: LibraryAccount): List<String> =
         account.keys().let { (server, user) -> distinctGenres(dao, seriesDao, server, user) }
 
+    override suspend fun distinctStudios(account: LibraryAccount): List<String> =
+        account.keys().let { (server, user) -> distinctStudios(dao, seriesDao, server, user) }
+
     override suspend fun distinctTags(account: LibraryAccount): List<String> =
         account.keys().let { (server, user) -> distinctTags(dao, seriesDao, server, user) }
 
