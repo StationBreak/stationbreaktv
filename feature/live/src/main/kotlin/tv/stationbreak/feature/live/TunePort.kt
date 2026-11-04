@@ -115,6 +115,16 @@ interface TunePort {
     ): NextHandle?
 
     /**
+     * Spike #563: [preResolve], and the item is also kept warm on the player's standby (decoder running, hidden), so a
+     * flip onto it is a surface hand-over. A port that cannot do that resolves it the ordinary way.
+     */
+    suspend fun preResolveWarm(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+    ): NextHandle? = preResolve(session, item, start)
+
+    /**
      * Plays [next] from [start] (the schedule's position now, as a handle held a while has gone stale), or from the
      * start it was resolved with when null.
      */

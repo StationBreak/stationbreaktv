@@ -145,14 +145,14 @@ class LiveChannelReportTest {
         val noAv =
             " playCallMs=-1 videoDecInitMs=-1 videoDecInitDurMs=-1 audioDecInitMs=-1 audioDecInitDurMs=-1" +
                 " audioTrackInitMs=-1 audioAdvancingMs=-1 audioUnderruns=-1 readyMs=-1" +
-                " preloaded=false preloadAgeMs=-1 preloadSetupMs=-1"
+                " preloaded=false preloadAgeMs=-1 preloadSetupMs=-1 warm=false"
         assertEquals(line + noLoads + noAv, tune.line())
         val av = AvTimings(30, 120, 40, 150, 25, 300, 1_050, 2, 900)
         assertEquals(
             line + noLoads +
                 " playCallMs=30 videoDecInitMs=120 videoDecInitDurMs=40 audioDecInitMs=150 audioDecInitDurMs=25" +
                 " audioTrackInitMs=300 audioAdvancingMs=1050 audioUnderruns=2 readyMs=900" +
-                " preloaded=false preloadAgeMs=-1 preloadSetupMs=-1",
+                " preloaded=false preloadAgeMs=-1 preloadSetupMs=-1 warm=false",
             tune.copy(av = av).line(),
         )
         val measured = tune.copy(tracksMs = 350, skippedFrames = 42)

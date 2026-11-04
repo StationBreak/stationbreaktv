@@ -128,12 +128,27 @@ internal class FakeVideoPlayer : VideoPlayer {
         preloads[key] = source
     }
 
+    /** The warm standbys asked for (key to source), spike #563. */
+    val warms = mutableMapOf<String, PlayerSource>()
+
+    override fun warm(
+        key: String,
+        source: PlayerSource,
+    ) {
+        warms[key] = source
+    }
+
     override fun preloadState(key: String): PreloadState? =
-        if (key in preloads) PreloadState(ageMs = 700, setupMs = if (preloadReady) 300 else null) else null
+        when (key) {
+            in preloads -> PreloadState(ageMs = 700, setupMs = if (preloadReady) 300 else null)
+            in warms -> PreloadState(ageMs = 900, setupMs = if (preloadReady) 400 else null, warm = true)
+            else -> null
+        }
 
     override fun dropPreload(key: String) {
         dropped += key
         preloads.remove(key)
+        warms.remove(key)
     }
 }
 

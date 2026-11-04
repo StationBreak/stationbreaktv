@@ -19,6 +19,7 @@ import kotlin.time.Duration
  *
  * Nothing here logs or builds a message from a result: results can name routes and streams.
  */
+@Suppress("TooManyFunctions") // Spike #563 added the warm pre-resolve beside the ordinary one.
 class TunePortAdapter(
     private val controller: TuneController,
 ) : TunePort {
@@ -29,14 +30,27 @@ class TunePortAdapter(
     ): TuneOutcome = controller.tune(session, item, start, null).toOutcome()
 
     /** Never throws, so a failed look-ahead is just "nothing prepared" and the next show is tuned the ordinary way. */
-    @Suppress("TooGenericExceptionCaught") // Any failure of the look-ahead means no handle; cancellation still passes.
     override suspend fun preResolve(
         session: Session,
         item: ItemId,
         start: Duration,
+    ): NextHandle? = preResolve(session, item, start, false)
+
+    override suspend fun preResolveWarm(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+    ): NextHandle? = preResolve(session, item, start, true)
+
+    @Suppress("TooGenericExceptionCaught") // Any failure of the look-ahead means no handle; cancellation still passes.
+    private suspend fun preResolve(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        warm: Boolean,
     ): NextHandle? =
         try {
-            controller.preResolve(session, item, start)?.let(::NextHandle)
+            controller.preResolve(session, item, start, warm)?.let(::NextHandle)
         } catch (e: CancellationException) {
             throw e
         } catch (

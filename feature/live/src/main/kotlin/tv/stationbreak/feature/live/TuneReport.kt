@@ -11,6 +11,7 @@ import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PreloadUse
+import tv.stationbreak.core.playback.WarmLog
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -257,10 +258,13 @@ sealed interface TuneReport {
     }
 }
 
-/** The preload fields of a tune or flip line (spike #563): `preloaded=false` and -1s when nothing was held. */
+/**
+ * The preload fields of a tune or flip line (spike #563): `preloaded=false` and -1s when nothing was held. `warm=true`
+ * when the key was the warm standby; then `preloaded` says it was ready and `preloadSetupMs` is its prepare to ready.
+ */
 internal fun PreloadUse?.fields(): String =
     "preloaded=${this?.preloaded ?: false} preloadAgeMs=${this?.ageMs ?: TuneReport.NOT_SEPARATE} " +
-        "preloadSetupMs=${this?.setupMs ?: TuneReport.NOT_SEPARATE}"
+        "preloadSetupMs=${this?.setupMs ?: TuneReport.NOT_SEPARATE} warm=${this?.warm ?: false}"
 
 /** How long the notes of a play that has ended may take to arrive. */
 private val NOTES_DRAIN = 50.milliseconds
@@ -357,6 +361,14 @@ internal fun Sitting.reportFlipPlayed(
         ),
     )
     report(TuneReport.Memory.now())
+    // Spike #563: a flip onto the warm standby, timed from the key press as the flip line above times it.
+    timings.preload?.takeIf { it.warm }?.let {
+        val toFrame = timings.firstFrameMs?.let { ms -> waitMs + ms } ?: TuneReport.NOT_SEPARATE
+        val toPlaying = (returned - timing.lastCommandAt).inWholeMilliseconds
+        WarmLog.line(
+            "flip shown toFirstFrameMs=$toFrame toPlayingMs=$toPlaying ready=${it.preloaded} ageMs=${it.ageMs}",
+        )
+    }
 }
 
 /** The flip's line when its first block came to a card instead of a picture: [outcome] is `slate` or `failed`. */

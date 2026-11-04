@@ -79,6 +79,22 @@ class LiveChannelNeighboursTest {
         }
 
     @Test
+    fun onlyTheDownNeighbourIsAskedToBeKeptWarm() =
+        runTest {
+            val w = watching()
+            // Spike #563: Down from 5 lands on 2; Up (9) is only pre-resolved.
+            assertEquals(listOf(itemOf(2)), w.r.tune.warmed)
+            assertEquals(
+                setOf(itemOf(9), itemOf(2)),
+                w.r
+                    .preResolves()
+                    .map { it.item }
+                    .toSet(),
+            )
+            w.job.cancel()
+        }
+
+    @Test
     fun noPreResolveWhileChoosing() =
         runTest {
             val w = watching()

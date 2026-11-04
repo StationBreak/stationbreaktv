@@ -207,6 +207,7 @@ class TuneController(
     private val seekTolerance: Duration = SeekCheck.TOLERANCE,
     watchScope: CoroutineScope? = null,
     private val preloadEnabled: () -> Boolean = PreloadSettings::enabled,
+    private val warmEnabled: () -> Boolean = WarmSettings::enabled,
     private val clock: () -> Long,
 ) {
     private val preloadKeys = AtomicLong()
@@ -287,17 +288,19 @@ class TuneController(
     /**
      * Resolves [item] at [start] with the server's default tracks, ahead of the [tune] that will play it, and returns
      * a handle for it; null when it could not be resolved or the controller is closed. It does not touch the player
-     * and does not take the tune lock, so it can run while another item plays.
+     * and does not take the tune lock, so it can run while another item plays. [warm] (spike #563) asks for the item to
+     * be kept warm on the player's standby rather than only preloaded.
      */
     suspend fun preResolve(
         session: Session,
         item: ItemId,
         start: Duration,
+        warm: Boolean = false,
     ): Prepared? {
         val resolved = if (closed.get()) null else resolve(session, item, start, null, false).resolved
         // Spike #563: a direct-play neighbour's media is prepared on the player ahead of the flip; the transcode and
         // direct-stream routes are left as they were.
-        val key = preloadKeyFor(resolved)
+        val key = preloadKeyFor(resolved, warm)
         val prepared = resolved?.let { Prepared(item, start, it, key) }
         if (prepared != null) {
             outstanding.add(prepared)
@@ -455,22 +458,36 @@ class TuneController(
         }
     }
 
-    /** Asks the player to preload [resolved] and returns its key; null (and says why in the log) when it does not. */
-    private fun preloadKeyFor(resolved: ResolvedPlayback?): String? {
+    /**
+     * Asks the player to preload [resolved], or to keep it warm on its standby when [warm] and the warm switch is on
+     * (then it is not also preloaded: the standby covers it), and returns its key; null (and says why in the log) when
+     * it does neither.
+     */
+    private fun preloadKeyFor(
+        resolved: ResolvedPlayback?,
+        warm: Boolean,
+    ): String? {
+        val warming = warm && warmEnabled()
+        if (warm && !warming) WarmLog.line("skipped reason=switchOff")
         val skip =
             when {
                 resolved == null -> "notResolved"
-                !preloadEnabled() -> "switchOff"
+                !warming && !preloadEnabled() -> "switchOff"
                 resolved.route != Route.DIRECT_PLAY -> "notDirectPlay route=${resolved.route.name.lowercase()}"
                 else -> null
             }
         if (skip != null || resolved == null) {
-            PreloadLog.line("skipped reason=$skip")
+            (if (warming) WarmLog::line else PreloadLog::line)("skipped reason=$skip")
             return null
         }
         val key = "p${preloadKeys.incrementAndGet()}"
-        PreloadLog.line("requested key=$key route=direct")
-        player.preload(key, resolved.source)
+        if (warming) {
+            WarmLog.line("requested key=$key route=direct")
+            player.warm(key, resolved.source)
+        } else {
+            PreloadLog.line("requested key=$key route=direct")
+            player.preload(key, resolved.source)
+        }
         return key
     }
 
@@ -489,8 +506,10 @@ class TuneController(
             } else {
                 "working"
             }
-        PreloadLog.line("tune key=$key state=$name ageMs=${state.ageMs} setupMs=${state.setupMs ?: -1}")
-        return PreloadUse(state.setupMs != null && state.error == null, state.ageMs, state.setupMs ?: -1)
+        (if (state.warm) WarmLog::line else PreloadLog::line)(
+            "tune key=$key state=$name ageMs=${state.ageMs} setupMs=${state.setupMs ?: -1}",
+        )
+        return PreloadUse(state.setupMs != null && state.error == null, state.ageMs, state.setupMs ?: -1, state.warm)
     }
 
     /**

@@ -140,6 +140,16 @@ interface VideoPlayer {
         source: PlayerSource,
     ) = Unit
 
+    /**
+     * Spike #563 (warm decoder): prepares [source] under [key] on a second, hidden and paused player, decoders and all,
+     * so a later [play] of a source with that [PlayerSource.preloadKey] is a hand-over of the surface. Replaces any
+     * standby held for another key. A player that cannot do it does nothing (the play is then an ordinary one).
+     */
+    fun warm(
+        key: String,
+        source: PlayerSource,
+    ) = Unit
+
     /** What the player knows of the preload [key]; null when there is none (never made, failed, dropped, or played). */
     fun preloadState(key: String): PreloadState? = null
 

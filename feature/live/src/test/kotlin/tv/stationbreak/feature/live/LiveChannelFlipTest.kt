@@ -293,7 +293,7 @@ class LiveChannelFlipTest {
         assertEquals(
             "flip toFirstFrameMs=-1 toPlayingMs=900 settleMs=400 elapsedMs=900 outcome=playing from=direct " +
                 "route=transcode fallback=loadFailed:CODE lookupMs=-1 handoverMs=-1 " +
-                "preloaded=false preloadAgeMs=-1 preloadSetupMs=-1",
+                "preloaded=false preloadAgeMs=-1 preloadSetupMs=-1 warm=false",
             line,
         )
         assertTrue(

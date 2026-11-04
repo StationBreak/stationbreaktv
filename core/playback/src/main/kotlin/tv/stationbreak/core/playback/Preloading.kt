@@ -36,6 +36,7 @@ data class PreloadState(
     val ageMs: Long,
     val setupMs: Long?,
     val error: String? = null,
+    val warm: Boolean = false,
 )
 
 /**
@@ -65,9 +66,13 @@ object PreloadLog {
     }
 }
 
-/** What a tune that was handed a preloaded source reports: numbers only. */
+/**
+ * What a tune that was handed a preloaded source reports: numbers only. [warm] is true when the key was a warm standby
+ * ([VideoPlayer.warm], spike #563); then [setupMs] is the standby's prepare to ready.
+ */
 data class PreloadUse(
     val preloaded: Boolean,
     val ageMs: Long,
     val setupMs: Long,
+    val warm: Boolean = false,
 )

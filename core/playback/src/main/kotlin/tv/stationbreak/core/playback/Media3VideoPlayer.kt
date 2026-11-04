@@ -13,6 +13,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
@@ -25,14 +26,17 @@ import androidx.media3.exoplayer.source.preload.DefaultPreloadManager
 import androidx.media3.exoplayer.source.preload.PreloadException
 import androidx.media3.exoplayer.source.preload.PreloadManagerListener
 import androidx.media3.exoplayer.source.preload.TargetPreloadStatusControl
+import androidx.media3.exoplayer.upstream.DefaultAllocator
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
+import kotlin.math.abs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -55,20 +59,55 @@ import kotlin.time.Duration.Companion.milliseconds
 @UnstableApi
 @Suppress("TooManyFunctions") // The one player: its transport and its picks stay together.
 class Media3VideoPlayer(
-    context: Context,
-    dataSource: DataSource.Factory,
+    private val context: Context,
+    private val dataSource: DataSource.Factory,
     private val clock: () -> Long,
-    buffering: PlaybackBuffering = PlaybackBuffering(),
+    private val buffering: PlaybackBuffering = PlaybackBuffering(),
 ) : VideoPlayer {
     init {
         // Before ExoPlayer exists: Media3's own error logs can quote a playlist line with a token.
         silenceMedia3Logging()
     }
 
-    private val loadCounter = LoadCounter()
-    private val allocator = PlaybackBuffering.mediaAllocator()
-    private val loadControl = buffering.toLoadControl(allocator)
-    private val mediaSourceFactory = CountingMediaSourceFactory(dataSource, loadCounter)
+    /**
+     * What one ExoPlayer is built with and owns: its media buffer, its load counter and its load control, which stops
+     * loading early while the player is a waiting standby ([holding], spike #563).
+     */
+    private class SlotParts(
+        buffering: PlaybackBuffering,
+        dataSource: DataSource.Factory,
+    ) {
+        val allocator: DefaultAllocator = PlaybackBuffering.mediaAllocator()
+        val loadCounter = LoadCounter()
+        val holding = AtomicBoolean(false)
+        val loadControl =
+            HoldingLoadControl(
+                buffering.toLoadControl(allocator),
+                WarmSettings.HOLD_BUFFER_MS * US_PER_MS,
+            ) { holding.get() }
+        val factory = CountingMediaSourceFactory(dataSource, loadCounter)
+
+        fun builder(context: Context): ExoPlayer.Builder =
+            ExoPlayer.Builder(context).setLoadControl(loadControl).setMediaSourceFactory(factory)
+
+        fun slot(
+            name: String,
+            exo: ExoPlayer,
+        ) = Slot(name, exo, allocator, loadCounter, holding)
+    }
+
+    /** One ExoPlayer and what is its own. Spike #563 holds two: the one on screen ([front]) and a standby ([spare]). */
+    private class Slot(
+        val name: String,
+        val exo: ExoPlayer,
+        val allocator: DefaultAllocator,
+        val loadCounter: LoadCounter,
+        val holding: AtomicBoolean,
+    ) {
+        val skips = SkippedFrames(exo)
+    }
+
+    private val partsA = SlotParts(buffering, dataSource)
 
     // Spike #563: the player is built through the preload manager's builder, so the two share one playback thread,
     // renderers, track selector, bandwidth meter and load control, and a prepared source can be handed to the player.
@@ -80,22 +119,31 @@ class Media3VideoPlayer(
                 TargetPreloadStatusControl<Int, DefaultPreloadManager.PreloadStatus> {
                     preloadStatuses[it] ?: DefaultPreloadManager.PreloadStatus.PRELOAD_STATUS_NOT_PRELOADED
                 },
-            ).setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(loadControl)
-    private val exo: ExoPlayer =
-        preloadBuilder.buildExoPlayer(
-            ExoPlayer
-                .Builder(context)
-                .setLoadControl(loadControl)
-                .setMediaSourceFactory(mediaSourceFactory),
-        )
+            ).setMediaSourceFactory(partsA.factory)
+            .setLoadControl(partsA.loadControl)
+
+    /** The player the preload manager feeds; a preloaded source can only be played on it. */
+    private val slotA: Slot = partsA.slot("a", preloadBuilder.buildExoPlayer(partsA.builder(context)))
     private val preloadManager = preloadBuilder.build()
-    private val handler = Handler(exo.applicationLooper)
+
+    /** The player on screen. Swapped with [spare] by a warm hand-over (spike #563). Looper only. */
+    private var front: Slot = slotA
+
+    /** The standby player, built on the first warm request; null until then or once released. Looper only. */
+    private var spare: Slot? = null
+
+    private val exo: ExoPlayer get() = front.exo
+    private val loadCounter: LoadCounter get() = front.loadCounter
+    private val skips: SkippedFrames get() = front.skips
+    private val handler = Handler(slotA.exo.applicationLooper)
+
+    /** The surface the app attached; the front player draws on it, and a warm hand-over moves it. Looper only. */
+    private var surfaceView: SurfaceView? = null
 
     // The `SBLIVE mem` line while a play is on the player (diagnostics, OOM of 2026-10-29).
     private val memory =
         MemorySampler(
-            allocator = allocator,
+            allocator = { front.allocator },
             schedule = { task, delayMs -> handler.postDelayed(task, delayMs) },
             cancel = handler::removeCallbacks,
             playing = { current != null },
@@ -156,12 +204,65 @@ class Media3VideoPlayer(
         )
     }
 
+    /**
+     * Spike #563: the standby's play: its key and source, when it began, and how far it got. Times are [clock] values;
+     * [NOT_DONE] until reached. Written on the looper; read from any thread.
+     */
+    private class Warm(
+        val key: String,
+        val startedAt: Long,
+    ) {
+        @Volatile var decoderAt: Long = NOT_DONE
+
+        @Volatile var decoderInitMs: Long = NOT_DONE
+
+        @Volatile var stateReady = false
+
+        @Volatile var readyAt: Long = NOT_DONE
+
+        @Volatile var error: String? = null
+
+        val ready: Boolean get() = readyAt != NOT_DONE && error == null
+
+        /** True once: the player is ready and its video decoder is up, and it has not been marked ready or failed. */
+        fun becameReady(): Boolean = readyAt == NOT_DONE && error == null && stateReady && decoderAt != NOT_DONE
+    }
+
+    /** The standby's play, if any. Written on the looper. */
+    @Volatile private var warm: Warm? = null
+
+    /** Set once the device showed it cannot keep a decoder warm without a surface, or failed too often. Looper only. */
+    private var warmDisabled = false
+    private var warmFailures = 0
+
+    /** The generation whose first frame on screen is the end of a warm hand-over, and when its play was called. */
+    private var swapShown: Pair<Long, Long>? = null
+
+    private val warmTimeout =
+        Runnable {
+            val w = warm ?: return@Runnable
+            if (w.ready) return@Runnable
+            // No decoder at all in that time: most likely the device cannot start one without a surface. Stop trying.
+            if (w.decoderAt == NOT_DONE) warmDisabled = true
+            giveUpWarm(w, if (w.decoderAt == NOT_DONE) "timeoutNoDecoder" else "timeout")
+        }
+
+    private val decoderCheck =
+        Runnable {
+            val w = warm ?: return@Runnable
+            if (w.stateReady && w.decoderAt == NOT_DONE && w.error == null) {
+                // Media3 starts no codec on a player with no surface where the device needs its output-surface
+                // workaround (no placeholder surface): this device cannot keep a decoder warm this way.
+                warmDisabled = true
+                giveUpWarm(w, "noDecoderWithoutSurface")
+            }
+        }
+
     /** The generation of the play now on the player; set on its looper, so events and plays agree. */
     @Volatile private var active = 0L
     private var current: PlayerSource? = null
     private var tracksApplied = false
     private var tracksReported = false
-    private val skips = SkippedFrames(exo)
 
     /** The media id of the item the current play set (see [mediaItem]). */
     private var playId = ""
@@ -183,7 +284,7 @@ class Media3VideoPlayer(
         private set
 
     init {
-        exo.addAnalyticsListener(Analytics())
+        slotA.exo.addAnalyticsListener(Analytics(slotA))
     }
 
     /** The Media3 player, for this module's instrumented tests. The app attaches a surface through [attach]. */
@@ -191,13 +292,18 @@ class Media3VideoPlayer(
 
     override fun attach(surface: SurfaceView?) =
         onPlayerThread {
+            surfaceView = surface
             if (surface == null) exo.clearVideoSurface() else exo.setVideoSurfaceView(surface)
         }
 
+    @Suppress("LongMethod") // One play's set-up, with the warm hand-over beside the ordinary path.
     override fun play(source: PlayerSource): Long {
         val generation = nextGeneration.incrementAndGet()
         val calledAt = clock()
         onPlayerThread {
+            // Spike #563: the standby holds this very source, ready: hand the surface over to it first.
+            val standby = standbyFor(source)
+            val detachMs = standby?.let { moveSurfaceToStandby() }
             active = generation
             // In the same step as `active`, so a reader on another thread never sees the old play under the new number.
             published = Published(generation, source.playerStart.inWholeMilliseconds, false)
@@ -211,18 +317,29 @@ class Media3VideoPlayer(
             seeking = false
             audio.reset()
             lastPickVerified = null
-            exo.trackSelectionParameters =
+            val parameters =
                 exo.trackSelectionParameters
                     .buildUpon()
                     .clearOverrides()
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                    .build()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
             playId = generation.toString()
+            if (standby != null) {
+                startStandby(standby, source, generation, calledAt, parameters, detachMs ?: NOT_DONE)
+                memory.start()
+                publish()
+                return@onPlayerThread
+            }
+            exo.trackSelectionParameters = parameters.build()
             val preloaded = source.preloadKey?.let { preloads.remove(it) }
             val usable = preloaded?.takeIf { it.error == null }
-            val prepared = usable?.let { preloadManager.getMediaSource(it.item) }
+            // Only the preload manager's own player can take its source; after a warm swap the front may be the other.
+            val prepared = usable?.takeIf { front === slotA }?.let { preloadManager.getMediaSource(it.item) }
             if (source.preloadKey != null) {
-                PreloadLog.line("handover key=${source.preloadKey} used=${prepared != null} entry=${preloaded != null}")
+                PreloadLog.line(
+                    "handover key=${source.preloadKey} used=${prepared != null} entry=${preloaded != null} " +
+                        "front=${front.name}",
+                )
             }
             if (prepared != null) {
                 // Spike #563: the prepared source, from where the live schedule is now.
@@ -261,7 +378,212 @@ class Media3VideoPlayer(
         source: PlayerSource,
     ) {
         PreloadLog.line("preload called key=$key")
-        onPlayerThread { startPreload(key, source) }
+        onPlayerThread {
+            // The warm switch was turned off: free the standby player's memory (the manager's own player stays).
+            if (!WarmSettings.enabled()) releaseSpare("switchOff")
+            startPreload(key, source)
+        }
+    }
+
+    override fun warm(
+        key: String,
+        source: PlayerSource,
+    ) = onPlayerThread { startWarm(key, source) }
+
+    /** Prepares [source] on the standby, paused, muted, with no surface and a held buffer. Looper only. */
+    private fun startWarm(
+        key: String,
+        source: PlayerSource,
+    ) {
+        val held = warm
+        when {
+            warmDisabled -> {
+                WarmLog.line("skipped key=$key reason=disabled")
+            }
+
+            held?.key == key -> {
+                WarmLog.line("skipped key=$key reason=alreadyWarm")
+            }
+
+            else -> {
+                held?.let { dropWarm(it, "replaced") }
+                val slot = spare ?: buildSpare()
+                val audio = WarmSettings.audioWarm()
+                val w = Warm(key, clock())
+                warm = w
+                slot.holding.set(true)
+                slot.exo.volume = 0f
+                slot.exo.playWhenReady = false
+                slot.exo.trackSelectionParameters =
+                    slot.exo.trackSelectionParameters
+                        .buildUpon()
+                        .clearOverrides()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !audio)
+                        .build()
+                slot.exo.setMediaItem(mediaItem(source, WARM_ID + key), source.playerStart.inWholeMilliseconds)
+                slot.exo.prepare()
+                handler.removeCallbacks(warmTimeout)
+                handler.postDelayed(warmTimeout, WarmSettings.READY_TIMEOUT_MS)
+                WarmLog.line(
+                    "prepare key=$key slot=${slot.name} startMs=${source.playerStart.inWholeMilliseconds} " +
+                        "audio=${if (audio) "on" else "off"}",
+                )
+            }
+        }
+    }
+
+    /** Builds the second player, the standby; it starts with no surface. Looper only. */
+    private fun buildSpare(): Slot {
+        val parts = SlotParts(buffering, dataSource)
+        val slot = parts.slot("b", parts.builder(context).build())
+        slot.exo.addAnalyticsListener(Analytics(slot))
+        spare = slot
+        WarmLog.line("standby built slot=b ${WarmLog.memoryFields()}")
+        return slot
+    }
+
+    /** The standby, when it holds [source]'s key and is ready; a held standby for that key that is not is dropped. */
+    private fun standbyFor(source: PlayerSource): Warm? {
+        val w = warm?.takeIf { it.key == source.preloadKey } ?: return null
+        val ageMs = clock() - w.startedAt
+        val usable = w.ready && spare != null
+        if (usable) {
+            WarmLog.line("swap requested key=${w.key} ageMs=$ageMs readyMs=${w.readyAt - w.startedAt}")
+        } else {
+            val why = w.error?.let { "failed" } ?: "notReady"
+            WarmLog.line("fallback key=${w.key} reason=$why ageMs=$ageMs")
+            dropWarm(w, why)
+        }
+        return w.takeIf { usable }
+    }
+
+    /**
+     * Moves the app's surface from the front player to the standby and makes the standby the front; the old front is
+     * stopped and becomes the standby. The old front lets go of the surface first (Media3 blocks until its renderer
+     * has), so the surface never has two producers. Returns how long that took, in ms. Looper only.
+     */
+    private fun moveSurfaceToStandby(): Long {
+        val old = front
+        val next = checkNotNull(spare)
+        val began = clock()
+        old.exo.clearVideoSurface()
+        val detachMs = clock() - began
+        // With a surface, Media3 moves the running codec onto it (MediaCodec.setOutputSurface): no new decoder.
+        surfaceView?.let { next.exo.setVideoSurfaceView(it) }
+        old.exo.stop()
+        old.exo.clearMediaItems()
+        // The old front's preloaded source (if it played one) is off the player now.
+        releasePlayedPreload()
+        front = next
+        spare = old
+        warm = null
+        handler.removeCallbacks(warmTimeout)
+        handler.removeCallbacks(decoderCheck)
+        return detachMs
+    }
+
+    /** Starts the new front (the standby that was) from [source]'s start, with its picks and its sound. Looper only. */
+    @Suppress("LongParameterList") // One hand-over's facts.
+    private fun startStandby(
+        w: Warm,
+        source: PlayerSource,
+        generation: Long,
+        calledAt: Long,
+        parameters: TrackSelectionParameters.Builder,
+        detachMs: Long,
+    ) {
+        if (source.directPlayTracks) {
+            picksOnto(parameters, source, exo.currentTracks)
+            tracksApplied = true
+        }
+        exo.trackSelectionParameters = parameters.build()
+        val startMs = source.playerStart.inWholeMilliseconds
+        val driftMs = exo.currentPosition - startMs
+        val seek = abs(driftMs) > WarmSettings.SEEK_TOLERANCE_MS
+        if (seek) exo.seekTo(startMs)
+        front.holding.set(false)
+        exo.volume = 1f
+        exo.playWhenReady = true
+        // The tracks were known before this play: they are ready at its start, and no load paid for them.
+        tracksReported = true
+        emit(PlayerEvent.TracksReady(clock(), generation, null))
+        swapShown = generation to calledAt
+        warmFailures = 0
+        WarmLog.line(
+            "swap started key=${w.key} slot=${front.name} detachMs=$detachMs driftMs=$driftMs seek=$seek " +
+                "surface=${surfaceView != null}",
+        )
+    }
+
+    /** Ends the standby's play [w] and says why. Looper only. */
+    private fun dropWarm(
+        w: Warm,
+        reason: String,
+    ) {
+        if (warm !== w) return
+        warm = null
+        handler.removeCallbacks(warmTimeout)
+        handler.removeCallbacks(decoderCheck)
+        spare?.let {
+            it.exo.stop()
+            it.exo.clearMediaItems()
+        }
+        WarmLog.line("dropped key=${w.key} reason=$reason ageMs=${clock() - w.startedAt}")
+    }
+
+    /** The standby failed: drop it, count it, and stop warming after [MAX_WARM_FAILURES] in a row. Looper only. */
+    private fun giveUpWarm(
+        w: Warm,
+        reason: String,
+    ) {
+        if (warm !== w) return
+        w.error = reason
+        warmFailures++
+        WarmLog.line("fallback key=${w.key} reason=$reason failures=$warmFailures ${WarmLog.memoryFields()}")
+        dropWarm(w, "failed")
+        if (warmFailures >= MAX_WARM_FAILURES) warmDisabled = true
+        if (warmDisabled) {
+            WarmLog.line("disabled reason=$reason failures=$warmFailures")
+            releaseSpare("disabled")
+        }
+    }
+
+    /** Frees the standby player (not the preload manager's own player, which is only stopped). Looper only. */
+    private fun releaseSpare(reason: String) {
+        val slot = spare ?: return
+        warm?.let { dropWarm(it, reason) }
+        if (slot === slotA) return
+        spare = null
+        slot.exo.release()
+        WarmLog.line("standby released reason=$reason")
+    }
+
+    /** One of the standby's events, for its play [w] only (the media id names it). Looper only. */
+    private fun standbyEvent(
+        eventTime: AnalyticsListener.EventTime,
+        update: (Warm) -> Unit,
+    ) {
+        val w = warm ?: return
+        if (mediaIdOf(eventTime)?.let { it != WARM_ID + w.key } == true) return
+        update(w)
+        if (w.becameReady()) {
+            w.readyAt = clock()
+            handler.removeCallbacks(warmTimeout)
+            handler.removeCallbacks(decoderCheck)
+            val slot = spare
+            val frames =
+                slot?.exo?.videoDecoderCounters?.let {
+                    it.ensureUpdated()
+                    it.renderedOutputBufferCount
+                } ?: -1
+            val bufKb = (slot?.allocator?.totalBytesAllocated ?: 0) / KIB
+            WarmLog.line(
+                "ready key=${w.key} readyMs=${w.readyAt - w.startedAt} decoderAtMs=${w.decoderAt - w.startedAt} " +
+                    "decoderInitMs=${w.decoderInitMs} framesDecoded=$frames standbyBufKb=$bufKb " +
+                    WarmLog.memoryFields(),
+            )
+        }
     }
 
     private fun startPreload(
@@ -292,14 +614,20 @@ class Media3VideoPlayer(
         preloadManager.invalidate()
     }
 
-    override fun preloadState(key: String): PreloadState? =
-        preloads[key]?.let {
+    override fun preloadState(key: String): PreloadState? {
+        warm?.takeIf { it.key == key }?.let {
+            val setup = if (it.ready) it.readyAt - it.startedAt else null
+            return PreloadState(clock() - it.startedAt, setup, it.error, warm = true)
+        }
+        return preloads[key]?.let {
             val done = it.completedAt
             PreloadState(clock() - it.startedAt, if (done == NOT_DONE) null else done - it.startedAt, it.error)
         }
+    }
 
     override fun dropPreload(key: String) =
         onPlayerThread {
+            warm?.takeIf { it.key == key }?.let { dropWarm(it, "dropped") }
             preloads.remove(key)?.let {
                 preloadStatuses.remove(it.rank)
                 preloadManager.remove(it.item)
@@ -377,7 +705,12 @@ class Media3VideoPlayer(
             seeking = false
             published = Published.NONE
             memory.stop()
-            exo.release()
+            warm = null
+            handler.removeCallbacks(warmTimeout)
+            handler.removeCallbacks(decoderCheck)
+            // Each player once: the spare may be the preload manager's own player after a warm hand-over.
+            listOfNotNull(front, spare, slotA).distinct().forEach { it.exo.release() }
+            spare = null
             if (preloads.isNotEmpty()) PreloadLog.line("removed reason=released n=${preloads.size}")
             preloads.clear()
             preloadManager.release()
@@ -442,6 +775,16 @@ class Media3VideoPlayer(
         tracks: Tracks,
     ) {
         val parameters = exo.trackSelectionParameters.buildUpon()
+        picksOnto(parameters, source, tracks)
+        exo.trackSelectionParameters = parameters.build()
+    }
+
+    /** Puts [source]'s audio and subtitle picks among [tracks] onto [parameters]. */
+    private fun picksOnto(
+        parameters: TrackSelectionParameters.Builder,
+        source: PlayerSource,
+        tracks: Tracks,
+    ) {
         source.audioPick?.let { pick ->
             val group = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.getOrNull(pick.position)
             if (group != null) {
@@ -458,7 +801,6 @@ class Media3VideoPlayer(
         } else if (source.subtitles.isEmpty()) {
             parameters.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
         }
-        exo.trackSelectionParameters = parameters.build()
     }
 
     private fun matches(
@@ -484,12 +826,25 @@ class Media3VideoPlayer(
         return mime != null && mime == expected
     }
 
+    /**
+     * The events of [slot]'s player. Only the front player's become [PlayerEvent]s; the standby's feed its warm-up
+     * (spike #563), and an old front's late events are dropped.
+     */
     @Suppress("TooManyFunctions") // One override per Media3 event the player reports.
-    private inner class Analytics : AnalyticsListener {
+    private inner class Analytics(
+        private val slot: Slot,
+    ) : AnalyticsListener {
+        private val onFront: Boolean get() = slot === front
+        private val isStandby: Boolean get() = slot === spare
+
         override fun onTracksChanged(
             eventTime: AnalyticsListener.EventTime,
             tracks: Tracks,
         ) {
+            if (onFront) frontTracks(tracks)
+        }
+
+        private fun frontTracks(tracks: Tracks) {
             if (!tracksReported && tracks.groups.isNotEmpty()) {
                 tracksReported = true
                 emit(PlayerEvent.TracksReady(clock(), active, loadCounter.close(containerMime(tracks))))
@@ -505,6 +860,15 @@ class Media3VideoPlayer(
             output: Any,
             renderTimeMs: Long,
         ) {
+            if (!onFront) return
+            val shown = swapShown
+            if (shown != null && shown.first == active) {
+                // Only a frame on the app's surface is the hand-over's end (not a late one from the hidden output).
+                val onScreen = surfaceView?.holder?.surface
+                if (onScreen != null && output !== onScreen) return
+                swapShown = null
+                WarmLog.line("swap shown playToFrameMs=${clock() - shown.second} slot=${slot.name}")
+            }
             emit(PlayerEvent.FirstFrame(clock(), active, skips.sincePlay()))
         }
 
@@ -512,7 +876,7 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             isPlaying: Boolean,
         ) {
-            if (!isPlaying) return
+            if (!onFront || !isPlaying) return
             hasPlayed = true
             val timings = av.finish(eventGeneration(eventTime, active))
             emit(PlayerEvent.Playing(clock(), exo.currentPosition.milliseconds, active, timings))
@@ -522,6 +886,15 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             state: Int,
         ) {
+            if (isStandby) {
+                standbyEvent(eventTime) {
+                    if (state == Player.STATE_READY && !it.stateReady) {
+                        it.stateReady = true
+                        if (it.decoderAt == NOT_DONE) handler.postDelayed(decoderCheck, WarmSettings.DECODER_GRACE_MS)
+                    }
+                }
+            }
+            if (!onFront) return
             if (state == Player.STATE_READY) av.ready(eventGeneration(eventTime, active), clock())
             // A seek ends at READY, or at the end of the stream (the target was reached: the end). IDLE drops it.
             if (state == Player.STATE_READY || state == Player.STATE_ENDED) finishSeek()
@@ -539,6 +912,7 @@ class Media3VideoPlayer(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
+            if (!onFront) return
             // A seek inside the buffer, or to the current position, never leaves READY: no state change would end it.
             if (reason == Player.DISCONTINUITY_REASON_SEEK && exo.playbackState == Player.STATE_READY) finishSeek()
         }
@@ -547,6 +921,7 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             cueGroup: CueGroup,
         ) {
+            if (!onFront) return
             emit(PlayerEvent.Cues(cueGroup.cues.size, active))
         }
 
@@ -554,6 +929,7 @@ class Media3VideoPlayer(
             eventTime: AnalyticsListener.EventTime,
             playoutStartSystemTimeMs: Long,
         ) {
+            if (!onFront) return
             audio.advancing()
             av.audioAdvancing(eventGeneration(eventTime, active), clock())
             emit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
@@ -564,31 +940,54 @@ class Media3VideoPlayer(
             decoderName: String,
             initializedTimestampMs: Long,
             initializationDurationMs: Long,
-        ) = av.videoDecoder(eventGeneration(eventTime, active), clock(), initializationDurationMs)
+        ) {
+            if (isStandby) {
+                standbyEvent(eventTime) {
+                    if (it.decoderAt == NOT_DONE) {
+                        it.decoderAt = clock()
+                        it.decoderInitMs = initializationDurationMs
+                    }
+                }
+            }
+            if (!onFront) return
+            av.videoDecoder(eventGeneration(eventTime, active), clock(), initializationDurationMs)
+        }
 
         override fun onAudioDecoderInitialized(
             eventTime: AnalyticsListener.EventTime,
             decoderName: String,
             initializedTimestampMs: Long,
             initializationDurationMs: Long,
-        ) = av.audioDecoder(eventGeneration(eventTime, active), clock(), initializationDurationMs)
+        ) {
+            if (!onFront) return
+            av.audioDecoder(eventGeneration(eventTime, active), clock(), initializationDurationMs)
+        }
 
         override fun onAudioTrackInitialized(
             eventTime: AnalyticsListener.EventTime,
             audioTrackConfig: AudioSink.AudioTrackConfig,
-        ) = av.audioTrack(eventGeneration(eventTime, active), clock())
+        ) {
+            if (!onFront) return
+            av.audioTrack(eventGeneration(eventTime, active), clock())
+        }
 
         override fun onAudioUnderrun(
             eventTime: AnalyticsListener.EventTime,
             bufferSize: Int,
             bufferSizeMs: Long,
             elapsedSinceLastFeedMs: Long,
-        ) = av.underrun(eventGeneration(eventTime, active))
+        ) {
+            if (!onFront) return
+            av.underrun(eventGeneration(eventTime, active))
+        }
 
         override fun onPlayerError(
             eventTime: AnalyticsListener.EventTime,
             error: PlaybackException,
         ) {
+            // An error of the standby's own item (a late one of an old front's item is not the standby's).
+            if (isStandby) standbyEvent(eventTime) { giveUpWarm(it, "error:${error.errorCodeName}") }
+            if (!onFront) return
             // The play ends here: a pending seek will not finish, and says nothing.
             seeking = false
             emit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
@@ -603,6 +1002,14 @@ class Media3VideoPlayer(
 
         /** The media id prefix of a preloaded item (not a number: its events fall back to the active play). */
         const val PRELOAD_ID = "pre:"
+
+        /** The media id prefix of the standby's item (not a number: after the hand-over it is the active play). */
+        const val WARM_ID = "warm:"
+
+        /** After this many standby failures in a row, the player stops warming for its lifetime. */
+        const val MAX_WARM_FAILURES = 3
+        const val US_PER_MS = 1_000L
+        const val KIB = 1_024L
 
         /** The tag live TV's measurement lines use, so a device run collects this line with them. */
         const val MEMORY_LOG_TAG = "SBLIVE"
@@ -658,6 +1065,14 @@ private class SkippedFrames(
         counters?.ensureUpdated()
         return counters?.skippedOutputBufferCount?.toLong() ?: 0L
     }
+}
+
+/** The media id of the item an event is about; null when it has none yet. */
+@UnstableApi
+private fun mediaIdOf(eventTime: AnalyticsListener.EventTime): String? {
+    val timeline = eventTime.timeline
+    if (timeline.isEmpty || eventTime.windowIndex >= timeline.windowCount) return null
+    return timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem.mediaId
 }
 
 /** The play an event belongs to: the media id names it; an event with no item yet is [active]'s. */

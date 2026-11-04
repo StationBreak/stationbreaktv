@@ -71,9 +71,11 @@ internal class Neighbours(
             PreloadLog.line("neighbour handle=dropped reason=notNeighbour")
             held.remove(id)?.let { discard(it) }
         }
+        // Spike #563: the Down neighbour (the channel a Down press lands on) is the one kept warm on the standby.
+        val downId = order.step(current.number, FlipDirection.Down)?.id
         coroutineScope {
             tagged.forEach { (direction, channel) ->
-                launch { prepare(channel.id, "channel=${channel.number} dir=$direction") }
+                launch { prepare(channel.id, "channel=${channel.number} dir=$direction", channel.id == downId) }
             }
         }
     }
@@ -99,6 +101,7 @@ internal class Neighbours(
     private suspend fun prepare(
         channel: ChannelId,
         label: String,
+        warm: Boolean,
     ) {
         val now = clock.now()
         // No following blocks: only what is on now matters here.
@@ -116,7 +119,8 @@ internal class Neighbours(
         held.remove(channel)?.let { discard(it) }
         val start = block?.positionAt(now.toEpochMilliseconds())
         if (program != null && start != null) {
-            val made = tuner.preResolve(session, ItemId(program.itemId.value), start)
+            val id = ItemId(program.itemId.value)
+            val made = if (warm) tuner.preResolveWarm(session, id, start) else tuner.preResolve(session, id, start)
             PreloadLog.line("neighbour $label handle=${if (made != null) "made" else "none reason=resolveFailed"}")
             made?.let {
                 held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs, now.toEpochMilliseconds())

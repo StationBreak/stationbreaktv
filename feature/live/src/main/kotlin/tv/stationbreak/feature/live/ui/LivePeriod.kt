@@ -115,6 +115,13 @@ internal class LivePeriod(
             if (!left.get()) inner.preload(key, source)
         }
 
+        override fun warm(
+            key: String,
+            source: PlayerSource,
+        ) {
+            if (!left.get()) inner.warm(key, source)
+        }
+
         override fun preloadState(key: String): PreloadState? = if (left.get()) null else inner.preloadState(key)
 
         override fun dropPreload(key: String) {
