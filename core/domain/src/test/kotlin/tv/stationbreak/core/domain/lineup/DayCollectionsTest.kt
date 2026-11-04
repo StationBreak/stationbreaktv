@@ -22,7 +22,6 @@ import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
@@ -164,7 +163,6 @@ class DayCollectionsTest {
                 day.n,
                 FilmCollections.of(emptyMap()),
                 TitleWeights.NONE,
-                TitleKeeps.NONE,
             )
         assertNotEquals(ungrouped.blocks, day.day.blocks, "the grouping reaches the layout")
         assertEquals(
@@ -174,7 +172,6 @@ class DayCollectionsTest {
                 day.n,
                 day.films,
                 TitleWeights.NONE,
-                TitleKeeps.NONE,
             ).blocks,
             day.day.blocks,
         )

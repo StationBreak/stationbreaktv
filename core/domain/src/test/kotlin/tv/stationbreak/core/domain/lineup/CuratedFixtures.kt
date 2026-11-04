@@ -26,7 +26,7 @@ internal fun programmed(
     vararg sources: Source,
 ): ChannelRules = rules(name, *sources).copy(formatVersion = 3, ordering = Ordering(OrderingMode.Curated))
 
-internal object Curated {
+internal object CuratedLibrary {
     const val HALF_HOUR_MS = 1_800_000L
     const val EPISODES = 30
 
@@ -122,7 +122,7 @@ internal fun LineupDays.curatedDays(
     atMs: Long,
 ): List<ChannelDay> {
     val scheduled = scheduled(lineup, atMs, null)
-    val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { Curated.snapshotAt(it) }
+    val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { CuratedLibrary.snapshotAt(it) }
     return days(lineup, scheduled, snapshots)
 }
 

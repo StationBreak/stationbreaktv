@@ -88,16 +88,28 @@ private const val MAX_TIME_MS = 1L shl 52
 private const val MAX_ITEMS = 1 shl 26
 
 /**
- * Builds day [n]. Throws [IllegalArgumentException], building nothing, when the input is out of range: 2^26 items or
- * more, a `createdAt` or `deletedAt` beyond +-2^52 ms, or a day whose start or end is. Filtering bad items is the
- * caller's job. [films] is the film-to-collection side input (the orders of rules format version 2 read it; an empty
- * map is every film on its own). [weights] and [keeps] are the side inputs of rules format version 3: how often a title
- * comes round in `curated`, and how much of a series the day keeps (the trim window, applied only here, to the pool
- * of the day; every other pool builder passes [TitleKeeps.NONE]). [TitleWeights.NONE] and [TitleKeeps.NONE] give the
- * day of a version 2 scheduler.
+ * Builds day [n] from [items], which are already the pool of the day: no trim window is applied (a caller that keeps
+ * the day's pool windows it once, with `EpochPool.dayPool`, when the day is made). Throws [IllegalArgumentException],
+ * building nothing, when the input is out of range: 2^26 items or more, a `createdAt` or `deletedAt` beyond +-2^52 ms,
+ * or a day whose start or end is. Filtering bad items is the caller's job. [films] is the film-to-collection side input
+ * (the orders of rules format version 2 read it; an empty map is every film on its own). [weights] is the side input
+ * of rules format version 3: how often a title comes round in `curated`. [TitleWeights.NONE] gives the day of a
+ * version 2 scheduler.
+ */
+fun buildDay(
+    settings: SchedulerSettings,
+    items: List<ScheduleItem>,
+    n: Long,
+    films: FilmCollections,
+    weights: TitleWeights,
+): Day = buildDayCounting(settings, items, n, films, weights, TitleKeeps.NONE, null)
+
+/**
+ * [buildDay] with the trim window of [keeps] applied to the pool of the day (docs/rules-format.md, "The pool of an
+ * epoch"): for the scheduler's own tests and vectors. Internal, so a lineup's day is windowed in one place only.
  */
 @Suppress("LongParameterList") // The day's inputs, one for one.
-fun buildDay(
+internal fun buildDay(
     settings: SchedulerSettings,
     items: List<ScheduleItem>,
     n: Long,

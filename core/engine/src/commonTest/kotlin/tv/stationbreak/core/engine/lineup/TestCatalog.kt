@@ -95,7 +95,33 @@ internal fun planOf(
     offset: Int = 0,
     names: CollectionNames = NO_NAMES,
     boundaryMs: Long = nextDayStart(nowMs, current?.utcOffsetMinutes ?: offset),
-): Lineup = LineupPlanner.plan(current, SERVER, USER, offset, snapshot, names, nowMs, boundaryMs, catalog)
+    applyDeferred: Boolean = false,
+): Lineup = plannedOf(current, snapshot, catalog, nowMs, offset, names, boundaryMs, applyDeferred).lineup
+
+/** [planOf] with whether a change waits for the boundary. */
+@Suppress("LongParameterList")
+internal fun plannedOf(
+    current: Lineup?,
+    snapshot: RuleSnapshot,
+    catalog: StarterCatalogView,
+    nowMs: Long = 1_000L,
+    offset: Int = 0,
+    names: CollectionNames = NO_NAMES,
+    boundaryMs: Long = nextDayStart(nowMs, current?.utcOffsetMinutes ?: offset),
+    applyDeferred: Boolean = false,
+): Plan =
+    LineupPlanner.planned(
+        current,
+        SERVER,
+        USER,
+        offset,
+        snapshot,
+        names,
+        nowMs,
+        boundaryMs,
+        catalog,
+        applyDeferred = applyDeferred,
+    )
 
 /** A day, and the hour the broadcast day starts at (06:00, offset 0), for tests that pick a boundary. */
 internal const val DAY_MS = 86_400_000L

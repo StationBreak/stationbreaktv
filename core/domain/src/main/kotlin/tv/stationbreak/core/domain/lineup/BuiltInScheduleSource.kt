@@ -680,7 +680,9 @@ class BuiltInScheduleSource(
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             keep(key, result, epoch)
-            if (disk != null) save(account, disk, result)
+            // Only the current lineup's days are written: a build that went on through a revision of the same key is
+            // still kept, but the next build writes the file for the lineup as it is now.
+            if (disk != null && isCurrent(account, revision)) save(account, disk, result)
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
             val allocated = Reading(probes.allocatedBytes()) - allocBefore

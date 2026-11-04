@@ -57,7 +57,7 @@ import kotlin.time.TimeSource
  * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build` and
  * then the trim window, `EpochPool.dayPool`), in canonical-ID order, its [films] (empty unless the channel's ordering
  * reads collections) and its [weights] (a curated day's, spec 23; else none). With
- * `buildDay(settings, pool, n, films, weights, NONE)` it is the input of the day's schedule; [pool], [films] and
+ * `buildDay(settings, pool, n, films, weights)` it is the input of the day's schedule; [pool], [films] and
  * [weights] are what is kept on disk (the keeps never are: [pool] is already windowed). [hidden] is why the day is
  * empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
  */
@@ -133,7 +133,7 @@ private fun layoutOf(
     lazy {
         val began = TimeSource.Monotonic.markNow()
         // The pool is already the day's pool (windowed when the day was made), so the layout builds it with no keeps.
-        buildDay(settings, pool, n, films, weights, TitleKeeps.NONE).also {
+        buildDay(settings, pool, n, films, weights).also {
             laidOut(n, began.elapsedNow().inWholeMilliseconds)
         }
     }
@@ -428,7 +428,11 @@ internal class LineupDays(
         atMs: Long,
     ): PlayKey = PlayKeys(lineup, atMs).of(channel)
 
-    /** [playKeyOf] of every channel of [lineup] at [atMs], with what they share worked out once. */
+    /**
+     * [playKeyOf] of every channel of [lineup] at [atMs], with what they share worked out once. At a boundary the keys
+     * follow the days when the lineup does: the background roll writes a new revision (the basis and past previous
+     * rules cleared), and a reader caches keys per revision and day.
+     */
     fun playKeysOf(
         lineup: Lineup,
         atMs: Long,
@@ -470,6 +474,23 @@ internal class LineupDays(
             return Epochs.epochStart(settings, Epochs.epochNumber(settings, atMs))
         }
 
+        // A member of the day's on-set in the curation part: its ID, its rules for the day, and (as [channelInputs])
+        // the ceiling and pool policy it is curated under; a member no longer in the lineup by its ID alone.
+        private fun memberPart(
+            id: ChannelId,
+            channel: LineupChannel?,
+            start: Long,
+        ): JsonObject {
+            val source = channel?.source as? ChannelSource.Starter
+            val fields = linkedMapOf<String, JsonElement>("id" to JsonPrimitive(id.value))
+            if (channel != null && source != null) {
+                fields["rules"] = LineupCodec.sourceOf(unnamed(source.withRulesNow(source.rulesFor(start))))
+                fields["ceiling"] = JsonPrimitive(ceilings.of(channel))
+                fields["policy"] = JsonPrimitive(nameOf(policyOf(channel, lineup)))
+            }
+            return JsonObject(fields)
+        }
+
         // The curated starters scheduled on the day that starts at [start].
         private fun curatedOn(start: Long): List<ChannelId> =
             scheduled.filter { it.dayStartMs == start && isCurated(it.channel, start) }.map { it.channel.id }
@@ -481,13 +502,7 @@ internal class LineupDays(
                 curations.getOrPut(start) {
                     val curation = curationOf(lineup, start, curatedOn(start))
                     val byId = lineup.channels.associateBy { it.id }
-                    val members =
-                        curation.on.map { id ->
-                            val source = byId[id]?.source as? ChannelSource.Starter
-                            val rules =
-                                source?.let { LineupCodec.sourceOf(unnamed(it.withRulesNow(it.rulesFor(start)))) }
-                            JsonObject(linkedMapOf("id" to JsonPrimitive(id.value), "rules" to (rules ?: JsonNull)))
-                        }
+                    val members = curation.on.map { id -> memberPart(id, byId[id], start) }
                     val part =
                         JsonObject(
                             linkedMapOf(
@@ -766,12 +781,34 @@ internal class LineupDays(
                 scheduled
                     .filter { it.channel.source is ChannelSource.Leftovers }
                     .sortedBy { claimOrder[it.channel.id] ?: leftovers.size }
+            val curatedCuts = curatedCutsOf(ruled.keys)
             for (s in inClaimOrder) {
                 beforeChannel()
+                checkClaimsFromStarters(s, curatedCuts)
                 val chain = chains.getOrPut(s.cut to s.curation) { ClaimChain(s.cut, s.curation, claimedByOn) }
                 leftoversDays[s] = leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId)
             }
             return scheduled.map { checkNotNull(ruled[it] ?: leftoversDays[it]) }
+        }
+
+        // The curation each cut's curated starters read: a leftovers channel of that cut claims from the same one.
+        private fun curatedCutsOf(ruled: Collection<Scheduled>): Map<Cut, DayCuration> {
+            val cuts = HashMap<Cut, DayCuration>()
+            for (s in ruled) {
+                val curation = s.curation
+                if (curation != null && s.isCuratedDay()) cuts[s.cut] = curation
+            }
+            return cuts
+        }
+
+        // A leftovers channel's day is the curated starters' day, and claims from their very curation.
+        private fun checkClaimsFromStarters(
+            s: Scheduled,
+            curatedCuts: Map<Cut, DayCuration>,
+        ) {
+            val starters = curatedCuts[s.cut]
+            check(starters == null || starters == s.curation) { "The leftovers claim from the starters' curation" }
+            check(curatedCuts.isEmpty() || s.cut in curatedCuts) { "The leftovers' day is the starters' day" }
         }
 
         /**
@@ -868,7 +905,7 @@ internal class LineupDays(
             if (own != null) {
                 epoch = EpochPool.build(s.settings, own.items, s.n)
                 keeps = own.keeps
-                weights = own.weights
+                weights = weightsIn(own.weights, epoch)
             } else {
                 epoch = EpochPool.build(s.settings, withoutHomes(pool.items, day.homes), s.n)
                 keeps = TitleKeeps.NONE
@@ -1057,6 +1094,14 @@ internal class LineupDays(
         val claimed: Set<CanonicalId>,
     )
 
+    // The settings of [rules], or null for settings the scheduler refuses.
+    private fun settingsOrNull(rules: ChannelRules): SchedulerSettings? =
+        try {
+            rules.toSchedulerSettings()
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
     // Whether this day is a curated starter's (its own curation), not a leftovers channel's.
     private fun Scheduled.isCuratedDay(): Boolean = curation != null && channel.source is ChannelSource.Starter
 
@@ -1088,14 +1133,6 @@ private fun unnamed(source: ChannelSource): ChannelSource =
         is ChannelSource.Leftovers, is ChannelSource.Unusable -> source
     }
 
-// The settings of [rules], or null for settings the scheduler refuses.
-private fun settingsOrNull(rules: ChannelRules): SchedulerSettings? =
-    try {
-        rules.toSchedulerSettings()
-    } catch (_: IllegalArgumentException) {
-        null
-    }
-
 /** No title has a weight: a day that is not curated. */
 internal val NO_WEIGHTS: TitleWeights = TitleWeights.NONE
 
@@ -1108,6 +1145,20 @@ private fun withoutHomes(
     val out = ArrayList<ScheduleItem>(items.size)
     for (item in items) if (homes.homeOf(item.groupId) == null) out.add(item)
     return out
+}
+
+// [weights] of the titles [pool] holds only: a title none of whose items is in the day weighs nothing in it, and the
+// days file then holds no weight a reader would refuse.
+private fun weightsIn(
+    weights: TitleWeights,
+    pool: List<ScheduleItem>,
+): TitleWeights {
+    if (weights.isEmpty) return weights
+    val titles = HashSet<CanonicalId>(pool.size * 2)
+    for (item in pool) titles.add(item.groupId)
+    val kept = HashMap<CanonicalId, Int>()
+    for ((title, weight) in weights.entries) if (title in titles) kept[title] = weight
+    return TitleWeights.of(kept)
 }
 
 // Weight 2 for every title of [pool]: a starter switched on after the basis was taken, as if it homed them all.

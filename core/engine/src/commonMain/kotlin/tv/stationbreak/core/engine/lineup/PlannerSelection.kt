@@ -64,7 +64,8 @@ internal object PlannerSelection {
             val number = numbers.getValue(id)
             if (recipe.optIn || number == null) continue
             val policy = KidStatus.policyOf(recipe)
-            candidates += p.curationChannel(id, number, recipe, policy, rules.getValue(recipe.key), p.household)
+            // Ties order by the recipe's number, as in the day build.
+            candidates += p.curationChannel(id, recipe.number, recipe, policy, rules.getValue(recipe.key), p.household)
         }
         val selected = Selection.select(p.snapshot, candidates, emptySet(), emptySet(), room)
         val belowCap = selected.shelf.values.count { it == ShelfReason.BelowCap }
@@ -215,9 +216,8 @@ internal object PlannerSelection {
         val own = channel.state == ChannelState.On || source.edited
         val rules = if (own) source.rules else p.switchOnRules(recipe, source)
         val policy = KidStatus.policyOf(channel, lineup)
-        // A starter with no number orders by its recipe's default; it only matters for ties.
-        val number = channel.number ?: recipe.number
-        return p.curationChannel(channel.id, number, recipe, policy, rules, household || source.edited)
+        // Ties order by the recipe's number, as in the day build, so a renumber never moves a home.
+        return p.curationChannel(channel.id, recipe.number, recipe, policy, rules, household || source.edited)
     }
 
     // The reasons of the kept starters: homed alongside the channels the selection put on (under the boundary's
@@ -264,6 +264,12 @@ internal object PlannerSelection {
 
             channel.state == ChannelState.On -> {
                 leftOut(channel, reason, p)
+            }
+
+            picked && !p.switchOnNow -> {
+                // A themed refresh switches nothing on in the middle of a day (D1): the plan at the boundary does.
+                p.deferredToBoundary = true
+                leftOut(channel, channel.shelfReason ?: ShelfReason.BelowCap, p)
             }
 
             picked && channel.id in today.on -> {

@@ -39,7 +39,6 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
@@ -310,7 +309,6 @@ class BuiltInChannelPreviews(
                     n,
                     ruled.films,
                     TitleWeights.NONE,
-                    TitleKeeps.NONE,
                 ),
             )
         }

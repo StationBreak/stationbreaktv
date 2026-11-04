@@ -206,10 +206,13 @@ class KidAuditTest {
             val byId = items.associateBy { it.item.id }
             var audited = 0
             var weighted = 0
+            var kidCurated = 0
             for (day in 0 until WEEK) {
                 for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
                     if (!channelDay.weights.isEmpty) weighted++
                     if (!isKidChannel(channelDay.channel)) continue
+                    // A kid starter's day with weights took part in the curation.
+                    if (!channelDay.weights.isEmpty) kidCurated++
                     val ceiling = ceilings.of(channelDay.channel)
                     for (scheduled in channelDay.pool) {
                         val entry = checkNotNull(byId[scheduled.id])
@@ -224,6 +227,7 @@ class KidAuditTest {
             }
             assertTrue(audited > 0, "the audit saw nothing")
             assertTrue(weighted > 0, "no day was curated")
+            assertTrue(kidCurated > 0, "no kid channel took part in the curation")
         }
 
     private fun isGrownUpStarterOrLeftovers(channel: LineupChannel): Boolean =

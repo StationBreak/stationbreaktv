@@ -46,13 +46,22 @@ class LineupPlannerCurationTest {
         c: StarterCatalogView = catalog,
     ): Lineup = planOf(null, library, c).also { assertTrue(it.finalised) }
 
+    @Suppress("LongParameterList") // A plan's inputs, defaulted.
     private fun replan(
         lineup: Lineup,
         library: RuleSnapshot,
         c: StarterCatalogView = catalog,
         nowMs: Long = noon,
         boundaryMs: Long = boundary,
-    ): Lineup = planOf(lineup, library, c, nowMs = nowMs, boundaryMs = boundaryMs)
+        applyDeferred: Boolean = false,
+    ): Lineup = planOf(lineup, library, c, nowMs = nowMs, boundaryMs = boundaryMs, applyDeferred = applyDeferred)
+
+    // The plan at the boundary a deferred change waited for.
+    private fun atBoundary(
+        lineup: Lineup,
+        library: RuleSnapshot,
+        c: StarterCatalogView = catalog,
+    ): Lineup = replan(lineup.rolled(boundary), library, c, boundary + 60_000L, boundary + DAY_MS, applyDeferred = true)
 
     private fun firstAround(
         kept: List<LineupChannel>,
@@ -104,21 +113,27 @@ class LineupPlannerCurationTest {
         assertTrue(ranked.channels.all { it.shelfReason == null })
     }
 
+    // A themed refresh switches nothing on in the middle of a day (D1, Task 21 fix round 1): the starter waits on the
+    // shelf, the plan asks to be planned again at the boundary, and the plan then switches it on.
     @Test
-    fun anUntouchedShelvedStarterThatNowQualifiesSwitchesOn() {
+    fun anUntouchedShelvedStarterThatNowQualifiesSwitchesOnAtTheBoundary() {
         val withFoxtrot = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)))
         val lineup = first(libraryOf(fills()), withFoxtrot)
         assertEquals(ChannelState.Shelf, lineup.channel("foxtrot").state)
         assertEquals(ShelfReason.Empty, lineup.channel("foxtrot").shelfReason)
+        val library = libraryOf(fills("foxtrot" to QUALIFYING_ITEMS))
 
-        val next = replan(lineup, libraryOf(fills("foxtrot" to QUALIFYING_ITEMS)), withFoxtrot)
+        val plan = plannedOf(lineup, library, withFoxtrot, nowMs = noon, boundaryMs = boundary)
 
-        val foxtrot = next.channel("foxtrot")
-        assertEquals(ChannelState.On, foxtrot.state, "on now, in the middle of the day")
-        assertEquals(noon, foxtrot.onSinceMs)
+        assertTrue(plan.replanAtBoundary)
+        assertEquals(ChannelState.Shelf, plan.lineup.channel("foxtrot").state, "not in the middle of the day")
+        assertNull(plan.lineup.curationBasis, "the on-set is unchanged")
+        val foxtrot = atBoundary(plan.lineup, library, withFoxtrot).channel("foxtrot")
+        assertEquals(ChannelState.On, foxtrot.state)
+        assertEquals(boundary + 60_000L, foxtrot.onSinceMs)
         assertNull(foxtrot.shelfReason)
         assertNull(foxtrot.leavesAtMs)
-        assertNull(foxtrot.starter.previousRules, "nothing of it aired today, so its rules apply at once")
+        assertNull(foxtrot.starter.previousRules, "nothing of it aired before, so its rules apply at once")
     }
 
     @Test
@@ -159,10 +174,12 @@ class LineupPlannerCurationTest {
         val withFoxtrot = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)))
         val lineup = first(libraryOf(fills()), withFoxtrot).copy(viewerChoicesKnown = false)
 
-        val next = replan(lineup, libraryOf(fills("delta" to 0, "foxtrot" to QUALIFYING_ITEMS)), withFoxtrot)
+        val library = libraryOf(fills("delta" to 0, "foxtrot" to QUALIFYING_ITEMS))
+        val next = replan(lineup, library, withFoxtrot)
 
         assertTrue(next.staying("delta"))
-        assertEquals(ChannelState.On, next.channel("foxtrot").state)
+        assertEquals(ChannelState.Shelf, next.channel("foxtrot").state, "it waits for the boundary")
+        assertEquals(ChannelState.On, atBoundary(next, library, withFoxtrot).channel("foxtrot").state)
         assertFalse(next.viewerChoicesKnown, "the planner does not decide that here")
     }
 
@@ -266,32 +283,47 @@ class LineupPlannerCurationTest {
 
     @Test
     fun thePreviousRulesStayWithinTheCap() {
-        // 60 starters: the first choice switches on 48; the 12 left fill better later and switch on at once while 12
-        // others leave at the boundary, so more than the cap are on until then.
+        // 60 starters, every one switched on by the viewer: more than the cap are on.
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
         val v1 = selecting(keys.mapIndexed { i, k -> themed(recipeOf(k, 200 + i)) })
-        val lineup = first(libraryOf(keys.associateWith { QUALIFYING_ITEMS }), v1)
-        val startersOn = lineup.channels.count { it.state == ChannelState.On && it.source is ChannelSource.Starter }
-        assertEquals(LineupDefaults.CAP - 2, startersOn)
-        val shelved = keys.filter { lineup.channel(it).state == ChannelState.Shelf }
-        val richer = libraryOf(keys.associateWith { if (it in shelved) 30 else QUALIFYING_ITEMS })
+        val library = libraryOf(keys.associateWith { QUALIFYING_ITEMS })
+        val chosen = first(library, v1)
+        val lineup =
+            chosen.copy(
+                channels =
+                    chosen.channels.map {
+                        val starter = it.source is ChannelSource.Starter
+                        if (starter) it.copy(state = ChannelState.On, chosenByViewer = true) else it
+                    },
+            )
 
         fun version(n: Int) =
             selecting(
                 keys.mapIndexed { i, k -> themed(recipeOf(k, 200 + i, sources = genre(k, "v$n"))) },
                 version = n,
             )
-        val next = replan(lineup, richer, version(2))
-        val again = replan(next, richer, version(3), nowMs = noon + 1_000L)
+        val next = plannedOf(lineup, library, version(2), nowMs = noon, boundaryMs = boundary)
+        val again = replan(next.lineup, library, version(3), nowMs = noon + 1_000L)
 
-        for (planned in listOf(next, again)) {
+        for (planned in listOf(next.lineup, again)) {
             val on = planned.channels.filter { it.state == ChannelState.On && it.source is ChannelSource.Starter }
-            assertEquals(60, on.size, "the leaving ones are on until the boundary")
+            assertEquals(60, on.size)
             val copies = planned.channels.count { (it.source as? ChannelSource.Starter)?.previousRules != null }
             assertTrue(copies <= LineupDefaults.CAP, "$copies previous copies")
+            // A starter beyond the cap is protected but holds no copy: it keeps today's rules unchanged.
+            for (key in keys.takeLast(10)) {
+                assertEquals(lineup.channel(key).starter.rules, planned.channel(key).starter.rulesFor(noon), key)
+            }
         }
-        for (key in shelved) assertNull(next.channel(key).starter.previousRules, key)
-        assertEquals(12, next.channels.count { it.leavesAtMs == boundary })
+        assertTrue(next.replanAtBoundary, "the plan at the boundary gives those the new rules")
+        val later = atBoundary(again, library, version(3))
+        for (key in keys) assertNull(later.channel(key).starter.previousRules, key)
+        assertTrue(
+            later
+                .channel(keys.last())
+                .starter.rules.sources
+                .contains(Source.Genre("v3")),
+        )
     }
 
     // A recipe that fills only through a household collection ("Box Set 2", not a server's "... Collection").
@@ -315,8 +347,19 @@ class LineupPlannerCurationTest {
         return library.copy(collections = mapOf(boxSet to collection(boxSet, movies = members, name = "Box Set 2")))
     }
 
-    private fun householdPlan(lineup: Lineup): Lineup =
-        planOf(lineup, householdLibrary(), withHouse, nowMs = noon, names = boxNames, boundaryMs = boundary)
+    private fun householdPlan(
+        lineup: Lineup,
+        applyDeferred: Boolean = false,
+    ): Lineup =
+        planOf(
+            lineup,
+            householdLibrary(),
+            withHouse,
+            nowMs = noon,
+            names = boxNames,
+            boundaryMs = boundary,
+            applyDeferred = applyDeferred,
+        )
 
     private fun fromNothing(flag: Boolean): Lineup =
         LineupPlanner.plan(
@@ -347,9 +390,10 @@ class LineupPlannerCurationTest {
         assertEquals(ShelfReason.Empty, leaving.channel("house").shelfReason)
     }
 
-    // A shelved starter switched on now airs from now: it must be selected under today's flag and the boundary's.
+    // A shelved starter switched on by the plan at the boundary airs from then: it must be selected under that day's
+    // flag and the next boundary's.
     @Test
-    fun aShelvedStarterSwitchesOnNowOnlyUnderBothFlags() {
+    fun aShelvedStarterSwitchesOnAtTheBoundaryOnlyUnderBothFlags() {
         val shelved = fromNothing(true).withChannel("house") { it.copy(state = ChannelState.Shelf) }
 
         fun refreshed(
@@ -357,7 +401,8 @@ class LineupPlannerCurationTest {
             basis: Boolean?,
         ): LineupChannel {
             val held = basis?.let { CurationBasis(boundary, emptySet(), it) }
-            return householdPlan(shelved.copy(useMyCollections = flag, curationBasis = held)).channel("house")
+            return householdPlan(shelved.copy(useMyCollections = flag, curationBasis = held), applyDeferred = true)
+                .channel("house")
         }
         assertEquals(ChannelState.On, refreshed(flag = true, basis = null).state)
         // Off from tomorrow.
@@ -434,10 +479,11 @@ class LineupPlannerCurationTest {
         assertEquals(lineup.onKeys(), held.onKeys())
         assertTrue(held.channels.all { it.leavesAtMs == null })
         assertEquals(3, held.catalogVersion)
-        // On its own catalog the same refresh selects.
+        // On its own catalog the same refresh selects: charlie leaves at the boundary, delta comes on then.
         val selected = replan(lineup, incremental, v3)
         assertEquals(boundary, selected.channel("charlie").leavesAtMs)
-        assertEquals(ChannelState.On, selected.channel("delta").state)
+        assertEquals(ChannelState.Shelf, selected.channel("delta").state)
+        assertEquals(ChannelState.On, atBoundary(selected, incremental, v3).channel("delta").state)
     }
 
     @Test

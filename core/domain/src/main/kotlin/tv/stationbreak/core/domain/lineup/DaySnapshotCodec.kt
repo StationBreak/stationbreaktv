@@ -194,7 +194,8 @@ internal object DaySnapshotCodec {
         val titles = body.titles.map(::idOf)
         return body.days.map { day ->
             val pool = poolOf(day, items)
-            StoredDay(day.channel, pool, filmsOf(day, items, pool, collections), day.hidden, weightsOf(day, titles))
+            val films = filmsOf(day, items, pool, collections)
+            StoredDay(day.channel, pool, films, day.hidden, weightsOf(day, titles, pool))
         }
     }
 
@@ -325,18 +326,22 @@ internal object DaySnapshotCodec {
     }
 }
 
-// The weights of a day: each a title of the table, once, at a weight of 1 to 3. Anything else is a fault.
+// The weights of a day: each a title of the table and of the day's own pool, once, at a weight of 1 to 3. Anything
+// else is a fault, so a file whose checksum is right still never weights a title the channel does not air.
 private fun weightsOf(
     day: DayV2,
     titles: List<CanonicalId>,
+    pool: List<ScheduleItem>,
 ): TitleWeights {
     val pairs = day.weights ?: return TitleWeights.NONE
+    val aired = HashSet<CanonicalId>(pool.size * 2)
+    for (item in pool) aired.add(item.groupId)
     val map = HashMap<CanonicalId, Int>(pairs.size * 2)
     for (pair in pairs) {
         if (pair.size != 2) throw IOException("A weight is a pair")
         val title = titles[rowIn(pair[0], titles.size)]
         val weight = pair[1]
-        val sound = weight in TitleWeights.MIN_WEIGHT..TitleWeights.MAX_WEIGHT
+        val sound = weight in TitleWeights.MIN_WEIGHT..TitleWeights.MAX_WEIGHT && title in aired
         if (!sound || map.put(title, weight) != null) throw IOException("A title's weight, once")
     }
     return TitleWeights.of(map)

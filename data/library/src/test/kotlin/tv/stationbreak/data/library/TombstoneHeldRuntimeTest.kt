@@ -14,7 +14,6 @@ import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.Duration.Companion.hours
@@ -153,7 +152,7 @@ class TombstoneHeldRuntimeTest {
             val held = read(cutoff)
 
             assertEquals("deletedAt = the cut-off is still held", cutoff, held.single().deletedAtMs)
-            val withDeletion = buildDay(settings, held, 0, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE).blocks
+            val withDeletion = buildDay(settings, held, 0, NO_FILMS, TitleWeights.NONE).blocks
             val withoutDeletion =
                 buildDay(
                     settings,
@@ -161,7 +160,6 @@ class TombstoneHeldRuntimeTest {
                     0,
                     NO_FILMS,
                     TitleWeights.NONE,
-                    TitleKeeps.NONE,
                 ).blocks
             assertEquals(withoutDeletion, withDeletion)
             assertTrue("the item airs", withDeletion.any { it.content is ScheduleContent.Program })

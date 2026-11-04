@@ -145,20 +145,8 @@ class LineupService internal constructor(
     // Background rolls (see [rollSoon]): their own scope, so a roll outlives the read that asked for it.
     private val rolls = BackgroundRolls(seams.rollDispatcher)
 
-    // The play keys of the last few revisions and days, so a list is not hashed again for each emission of the same
-    // revision on the same day. A key holds what is in force on the day being played (the curation basis, a starter's
-    // rules for the day), so it is kept per broadcast day too: one that turns over before the roll is not stale.
+    // The play keys of the last few revisions and days ([PlayKeyCache]).
     private val playKeys = PlayKeyCache()
-
-    private fun playKeysOf(
-        held: Revisioned,
-        nowMs: Long,
-    ): Map<ChannelId, PlayKey> {
-        val day = nextBoundary(held.lineup, nowMs)
-        return synchronized(playKeys) {
-            playKeys.getOrPut(held.revision to day) { days.playKeysOf(held.lineup, nowMs) }
-        }
-    }
 
     private class Entry {
         val mutex = Mutex()
@@ -297,8 +285,9 @@ class LineupService internal constructor(
         // What is past at the read is taken off first (`rolled`); the changes this plan makes start at the next day
         // boundary, worked out here with the lineup's own offset and passed in (the engine knows no scheduler).
         val rolled = current?.rolled(nowMs)
-        val planned =
-            LineupPlanner.plan(
+        val boundaryMs = nextBoundary(offsetFrom ?: rolled, nowMs)
+        val plan =
+            LineupPlanner.planned(
                 rolled,
                 owner.server,
                 owner.user,
@@ -306,14 +295,18 @@ class LineupService internal constructor(
                 read.snapshot,
                 read.names,
                 nowMs,
-                nextBoundary(offsetFrom ?: rolled, nowMs),
+                boundaryMs,
                 catalog,
                 withoutCollections = read.giveUp,
                 kept = (kept + own).distinctBy { it.id },
                 // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
                 // keeps a current lineup's own).
                 useMyCollections = offsetFrom?.useMyCollections ?: true,
+                // The plan a deferred change waited for applies it (a switch-on, a re-resolve kept off today's
+                // curation): the boundary it was due at has passed.
+                applyDeferred = before.replanDue(nowMs),
             )
+        val planned = plan.lineup
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
             RefreshMeta(
@@ -321,7 +314,7 @@ class LineupService internal constructor(
                 collectionPassActedOn = taken ?: before.collectionPassActedOn,
                 plannedLibraries = libraries.map { it.value }.sorted(),
                 extrasFromMs = extrasBoundary(before.extrasFromMs, offsetFrom, newAccount, nowMs),
-                replanFromMs = planned.replanFromMs(),
+                replanFromMs = plan.replanFromMs(boundaryMs),
             )
         return planned to meta
     }
@@ -801,7 +794,9 @@ class LineupService internal constructor(
             emitAll(entryOf(owner).state)
         }.map { held ->
             val nowMs = clock.now().toEpochMilliseconds()
-            val keys = held?.let { playKeysOf(it, nowMs) }.orEmpty()
+            val day = held?.let { nextBoundary(it.lineup, nowMs) } ?: 0L
+            val found = held?.let { playKeys.keysOf(it.revision, day) { days.playKeysOf(it.lineup, nowMs) } }
+            val keys = found.orEmpty()
             held
                 ?.lineup
                 ?.channels
@@ -1056,20 +1051,3 @@ private val NO_SERVER: CanonicalId = CanonicalId.parse("0".repeat(32))
 private const val MS_PER_DAY = 86_400_000L
 
 private const val STAND_IN_KEY = "boundary"
-
-private const val PLAY_KEY_REVISIONS = 8
-
-private typealias PlayKeys = Map<ChannelId, PlayKey>
-
-private const val PLAY_KEY_LOAD = 0.75f
-
-// By revision and the day's next boundary; most recently used last, the oldest goes when there are more than
-// [PLAY_KEY_REVISIONS].
-private class PlayKeyCache : LinkedHashMap<RevisionDay, PlayKeys>(PLAY_KEY_REVISIONS, PLAY_KEY_LOAD, true) {
-    override fun removeEldestEntry(eldest: PlayKeyEntry): Boolean = size > PLAY_KEY_REVISIONS
-}
-
-// A revision and the next boundary after the day the keys were worked out for.
-private typealias RevisionDay = Pair<Long, Long>
-
-private typealias PlayKeyEntry = MutableMap.MutableEntry<RevisionDay, PlayKeys>
