@@ -148,6 +148,7 @@ private fun ChannelChange.toEdit(): LineupEdit =
         is ChannelChange.SwitchOff -> LineupEdit.SwitchOff(id)
         is ChannelChange.SetNumber -> LineupEdit.SetNumber(id, number, swapWith)
         is ChannelChange.ClearNumber -> LineupEdit.ClearNumber(id, swapWith)
+        is ChannelChange.UseMyCollections -> LineupEdit.UseMyCollections(on)
     }
 
 /** Why an edit through the service was not applied and not refused either. */

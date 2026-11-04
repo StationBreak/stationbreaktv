@@ -28,8 +28,13 @@ import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
 
-/** One line of the list: the New channel row, a group's heading, a channel, or the Reset row after the last group. */
+/**
+ * One line of the list: the "Use my collections" switch, the New channel row, a group's heading, a channel, or the
+ * Reset row after the last group.
+ */
 private sealed interface Line {
+    data object Household : Line
+
     data object New : Line
 
     data class Heading(
@@ -45,6 +50,7 @@ private sealed interface Line {
 
 private fun linesOf(rows: List<ChannelRow>): List<Line> =
     buildList {
+        add(Line.Household)
         add(Line.New)
         ChannelGroup.entries.forEach { group ->
             val inGroup = rows.filter { it.group == group }
@@ -72,6 +78,7 @@ internal fun ChannelList(
     ) {
         items(lines.size, key = { lines[it].key() }) { i ->
             when (val line = lines[i]) {
+                Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
                 Line.New -> NewLine(focused = i == focused)
                 is Line.Heading -> HeadingLine(line.group)
                 is Line.Channel -> RowLine(line.row, focused = i == focused)
@@ -83,6 +90,7 @@ internal fun ChannelList(
 
 private fun Line.isFocus(focus: ChannelsFocus?): Boolean =
     when (this) {
+        Line.Household -> focus == ChannelsFocus.Household
         Line.New -> focus == ChannelsFocus.New
         is Line.Channel -> focus == ChannelsFocus.Row(row.id)
         Line.Reset -> focus == ChannelsFocus.Reset
@@ -91,6 +99,7 @@ private fun Line.isFocus(focus: ChannelsFocus?): Boolean =
 
 private fun Line.key(): String =
     when (this) {
+        Line.Household -> "household"
         Line.New -> "new"
         is Line.Heading -> "heading:$group"
         is Line.Channel -> "row:${row.id.value}"

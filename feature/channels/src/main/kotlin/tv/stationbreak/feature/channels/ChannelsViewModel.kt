@@ -87,6 +87,7 @@ internal class ChannelsViewModel
             /** [channels] and [reasons] as rows, made only when one of them changes. */
             val rows: List<ChannelRow> = emptyList(),
             val access: LineupAccess = LineupAccess.Loading,
+            val useMyCollections: Boolean = true,
             val focus: ChannelsFocus? = null,
             /** The channel to focus when the list first arrives. */
             val wantFocus: ChannelId? = null,
@@ -172,6 +173,12 @@ internal class ChannelsViewModel
                     launch {
                         editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
                     }
+                val household =
+                    launch {
+                        repository.useMyCollections(account).collect { on ->
+                            change(generation) { it.copy(useMyCollections = on) }
+                        }
+                    }
                 var pending: Job? = reasons
                 var first = true
                 try {
@@ -182,6 +189,7 @@ internal class ChannelsViewModel
                 } finally {
                     pending?.cancel()
                     access.cancel()
+                    household.cancel()
                 }
             }
 
@@ -388,7 +396,7 @@ internal class ChannelsViewModel
             val focus = m.focus
             return when {
                 focus == null -> firstFocus(m, ids)
-                focus == ChannelsFocus.Reset || focus == ChannelsFocus.New -> focus
+                focus == ChannelsFocus.Reset || focus == ChannelsFocus.New || focus == ChannelsFocus.Household -> focus
                 focus.id in ids -> focus
                 ids.isEmpty() -> ChannelsFocus.Reset
                 else -> ChannelsFocus.Row(ids[oldIds.indexOf(focus.id).coerceIn(0, ids.lastIndex)])
@@ -426,46 +434,29 @@ internal class ChannelsViewModel
                 reasonsRead = m.reasonsRead,
                 builder = m.builder,
                 gettingReady = m.wantBuilder != null,
+                useMyCollections = m.useMyCollections,
             )
 
-        private fun rowsOf(m: Model): List<ChannelRow> =
-            m.channels
-                .sortedWith(compareBy<ChannelSummary>({ groupOf(it) }, { it.number ?: Int.MAX_VALUE }))
-                .map { c ->
-                    val group = groupOf(c)
-                    ChannelRow(
-                        id = c.id,
-                        number = c.number,
-                        name = c.name,
-                        group = group,
-                        kind = c.kind,
-                        kid = c.kid,
-                        optIn = c.optIn,
-                        reason = if (group == ChannelGroup.On) m.reasons[c.id] else null,
-                        hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
-                    )
-                }
+        private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons)
 
-        private fun groupOf(c: ChannelSummary): ChannelGroup =
-            when (c.state) {
-                ChannelStatus.On -> ChannelGroup.On
-                ChannelStatus.Shelf -> ChannelGroup.Shelf
-                ChannelStatus.UserHidden -> ChannelGroup.Off
-            }
-
-        /** Focus to the row above or below; New is the first stop and Reset the last. */
+        /** Focus to the row above or below; the "Use my collections" switch is the first stop and Reset the last. */
         fun move(up: Boolean) {
             synchronized(lock) {
                 if (model.builder != null) return
                 val ids = model.rows.map { it.id }
-                val stops = listOf(ChannelsFocus.New) + ids.map { ChannelsFocus.Row(it) } + ChannelsFocus.Reset
+                val rows = ids.map { ChannelsFocus.Row(it) }
+                val stops = listOf(ChannelsFocus.Household, ChannelsFocus.New) + rows + ChannelsFocus.Reset
                 val at = stops.indexOf(model.focus)
-                val to = if (at < 0) 0 else (if (up) at - 1 else at + 1).coerceIn(0, stops.lastIndex)
+                val step = if (up) at - 1 else at + 1
+                val to = if (at < 0) stops.indexOf(ChannelsFocus.New) else step.coerceIn(0, stops.lastIndex)
                 apply { it.copy(focus = stops[to], wantBuilder = null, pendingFocus = null) }
             }
         }
 
-        /** On New: opens the builder. On a row: opens its actions. On Reset: asks to reset. */
+        /**
+         * On the switch: flips "Use my collections". On New: opens the builder. On a row: opens its actions. On Reset:
+         * asks to reset.
+         */
         fun select() {
             synchronized(lock) {
                 if (model.builder != null) return
@@ -474,6 +465,10 @@ internal class ChannelsViewModel
                         apply {
                             it.copy(panel = ChannelsPanel.Actions(focus.id), message = null, pendingFocus = null)
                         }
+                    }
+
+                    ChannelsFocus.Household -> {
+                        submit(ChannelChange.UseMyCollections(!model.useMyCollections))
                     }
 
                     ChannelsFocus.New -> {
@@ -637,7 +632,7 @@ internal class ChannelsViewModel
             change: ChannelChange,
             result: ChangeResult,
         ): Model {
-            val own = m.panel?.id == change.channel
+            val own = change.channelId != null && m.panel?.id == change.channelId
             val closed =
                 if (own) m.copy(panel = null, holder = null, pending = false) else m.copy(pending = false)
             return when (result) {
@@ -648,15 +643,6 @@ internal class ChannelsViewModel
                 ChangeResult.Failed -> closed.copy(message = ChannelsMessage.Failed)
             }
         }
-
-        private val ChannelChange.channel: ChannelId
-            get() =
-                when (this) {
-                    is ChannelChange.SwitchOn -> id
-                    is ChannelChange.SwitchOff -> id
-                    is ChannelChange.SetNumber -> id
-                    is ChannelChange.ClearNumber -> id
-                }
 
         private fun refused(
             m: Model,
@@ -678,26 +664,7 @@ internal class ChannelsViewModel
             change: ChannelChange,
             holder: ChannelId,
         ): Model {
-            val name =
-                m.channels
-                    .firstOrNull { it.id == holder }
-                    ?.name
-                    .orEmpty()
-            val panel =
-                when (change) {
-                    is ChannelChange.SetNumber -> {
-                        ChannelsPanel.Swap(change.id, change.number, name, toDefault = false)
-                    }
-
-                    is ChannelChange.ClearNumber -> {
-                        val number = m.channels.firstOrNull { it.id == change.id }?.defaultNumber
-                        number?.let { ChannelsPanel.Swap(change.id, it, name, toDefault = true) }
-                    }
-
-                    else -> {
-                        null
-                    }
-                }
+            val panel = swapPanelFor(change, m.channels, holder)
             return if (panel == null) {
                 closed.copy(message = ChannelsMessage.Failed)
             } else {

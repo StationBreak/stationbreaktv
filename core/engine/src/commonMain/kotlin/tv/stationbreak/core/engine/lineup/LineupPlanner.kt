@@ -94,7 +94,8 @@ object LineupPlanner {
             firstChoice(planning, userId, withoutCollections, kept)
         } else {
             val offset = current.utcOffsetMinutes
-            val planning = Planning(serverId, offset, snapshot, collections, catalog, nowMs, boundaryMs)
+            val household = current.householdFor(boundaryMs)
+            val planning = Planning(serverId, offset, snapshot, collections, catalog, nowMs, boundaryMs, household)
             refresh(current, planning, withoutCollections)
         }
     }
@@ -293,6 +294,9 @@ internal class Planning(
     val catalog: StarterCatalogView,
     val nowMs: Long,
     val boundaryMs: Long,
+    // The "Use my collections" flag in force for the days the ranking decides (`Lineup.householdFor`); a first
+    // choice has the default, on.
+    val household: Boolean = true,
 ) {
     private val recipes = catalog.recipes.associateBy { it.key }
     private val names by lazy { LibraryNames(snapshot, collections) }
@@ -336,9 +340,16 @@ internal class Planning(
     fun ranked(candidates: List<Pair<Recipe, ChannelRules>>): List<Recipe> =
         candidates
             .mapNotNull { (recipe, rules) ->
-                val pool = PoolEvaluator.evaluate(rules, snapshot, KidStatus.policyOf(recipe))
-                val runtime = airableRuntimeMs(pool.items, rules.toSchedulerSettings())
-                if (runtime >= LineupDefaults.MIN_AIRABLE_RUNTIME_MS) recipe to runtime else null
+                // With the household's collections off, a starter ranks on the pool it will air; none left ranks empty.
+                val aired = if (household) rules else HouseholdSources.without(rules, snapshot)
+                val runtime =
+                    aired?.let {
+                        airableRuntimeMs(
+                            PoolEvaluator.evaluate(it, snapshot, KidStatus.policyOf(recipe)).items,
+                            it.toSchedulerSettings(),
+                        )
+                    }
+                if (runtime != null && runtime >= LineupDefaults.MIN_AIRABLE_RUNTIME_MS) recipe to runtime else null
             }.sortedWith(compareByDescending<Pair<Recipe, Long>> { it.second }.thenBy { it.first.key })
             .map { it.first }
 

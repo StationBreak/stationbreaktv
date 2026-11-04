@@ -287,6 +287,27 @@ class LineupEditsTest {
     }
 
     @Test
+    fun useMyCollectionsSetsTheFlagAndTheBasis() {
+        val lineup = lineupOf(starter("western", 310), starter("mystery", 205))
+        val after = applied(lineup, LineupEdit.UseMyCollections(false))
+
+        assertEquals(false, after.useMyCollections)
+        assertEquals(CurationBasis(99L + DAY_MS, emptySet(), household = true), after.curationBasis)
+        assertEquals(true, after.householdFor(99L + DAY_MS - 1))
+        assertEquals(false, after.householdFor(99L + DAY_MS))
+        assertEquals(lineup.channels, after.channels, "no channel changes, and none is marked as chosen")
+        val back = applied(after, LineupEdit.UseMyCollections(true))
+        assertEquals(true, back.useMyCollections)
+        assertEquals(after.curationBasis, back.curationBasis, "the pending basis is kept, so today is not changed")
+    }
+
+    @Test
+    fun theSameValueChangesNothing() {
+        val lineup = lineupOf(starter("western", 310))
+        assertEquals(lineup, applied(lineup, LineupEdit.UseMyCollections(true)))
+    }
+
+    @Test
     fun removingACustomChannelPrunesTheCurationBasis() {
         val mine = custom("mine", 650, ChannelState.On)
         val base = lineupOf(mine, starter("western", 310))
@@ -425,7 +446,7 @@ class LineupEditsTest {
     private fun randomEdit(
         gen: SeededGen,
         lineup: Lineup,
-    ): LineupEdit {
+    ): LineupEdit.ChannelEdit {
         val ids = lineup.channels.map { it.id } + ChannelId("ghost")
         val id = gen.pick(ids)
         val holders = lineup.channels.filter { it.number != null }
@@ -449,7 +470,7 @@ class LineupEditsTest {
     // the edited one only by a replace without the kids flag.
     private fun assertKidStatusKept(
         before: Lineup,
-        edit: LineupEdit,
+        edit: LineupEdit.ChannelEdit,
         after: Lineup,
     ) {
         val lost =
@@ -466,7 +487,7 @@ class LineupEditsTest {
     // What an applied custom edit must have kept: the stored seed through a replace, only the seed through a reseed.
     private fun assertCustomEdit(
         before: Lineup,
-        edit: LineupEdit,
+        edit: LineupEdit.ChannelEdit,
         after: Lineup,
     ) {
         val old = before.channels.firstOrNull { it.id == edit.id }

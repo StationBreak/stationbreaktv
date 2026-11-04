@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
@@ -85,6 +86,13 @@ interface ChannelRepository {
      * under it (see [onLineup]).
      */
     fun activeChannels(): Flow<List<ChannelSummary>>
+
+    /**
+     * [account]'s "Use my collections" flag (spec 23), on by default and while there is no lineup. It follows the
+     * lineup; it is the viewer's setting, which starts to apply at the next day boundary. The default answer is on,
+     * for the many fakes that have no lineup.
+     */
+    fun useMyCollections(account: LibraryAccount): Flow<Boolean> = flowOf(true)
 }
 
 /**

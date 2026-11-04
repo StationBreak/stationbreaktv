@@ -10,11 +10,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onChild
 import androidx.compose.ui.test.onNodeWithTag
@@ -113,6 +115,7 @@ private class Lineup(
 ) : ChannelRepository,
     ChannelEditor {
     val list = MutableStateFlow(initial)
+    val household = MutableStateFlow(true)
     val changes = CopyOnWriteArrayList<ChannelChange>()
 
     val resets = AtomicInteger()
@@ -123,6 +126,8 @@ private class Lineup(
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
 
     override fun activeChannels(): Flow<List<ChannelSummary>> = list
+
+    override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = household
 
     override fun access(account: LibraryAccount): Flow<LineupAccess> = flowOf(access)
 
@@ -159,6 +164,10 @@ private class Lineup(
 
             is ChannelChange.ClearNumber -> {
                 Unit
+            }
+
+            is ChannelChange.UseMyCollections -> {
+                household.value = change.on
             }
         }
         return ChangeResult.Done
@@ -520,6 +529,26 @@ class ChannelsScreenTest {
         pressTogether(Pad.Select, Pad.Select, Pad.Select)
         assertEquals(listOf(ALPHA), tuned.toList())
         assertEquals(0, closed)
+    }
+
+    @Test
+    fun theToggleRowIsFocusableAndFlips() {
+        show(null)
+        // The list starts on New; the "Use my collections" switch is the stop above it.
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        press(Pad.Up)
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertIsSelected()
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertIsOn()
+        press(Pad.Select)
+        until { lineup.changes.isNotEmpty() && !lineup.household.value }
+        assertEquals(listOf<ChannelChange>(ChannelChange.UseMyCollections(false)), lineup.changes.toList())
+        until { compose.onAllNodes(hasTestTag(ChannelsTags.HOUSEHOLD) and isOff()).fetchSemanticsNodes().isNotEmpty() }
+        press(Pad.Select)
+        until { lineup.household.value }
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertIsSelected()
+        // Down leaves it for New again.
+        press(Pad.Down)
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
     }
 
     @Test

@@ -736,6 +736,14 @@ class LineupService internal constructor(
         }.distinctUntilChanged()
     }
 
+    override fun useMyCollections(account: LibraryAccount): Flow<Boolean> {
+        val owner = ownerOf(account) ?: return flowOf(true)
+        return flow {
+            loaded(account)
+            emitAll(entryOf(owner).state)
+        }.map { held -> held?.lineup?.useMyCollections ?: true }.distinctUntilChanged()
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun activeChannels(): Flow<List<ChannelSummary>> =
         library.activeAccount().flatMapLatest { account -> if (account == null) emptyFlow() else channels(account) }

@@ -8,32 +8,43 @@ import tv.stationbreak.core.rules.ChannelRules
 
 /** One change the user makes to a lineup's channels: on or off, a number, or a custom channel added or edited. */
 sealed interface LineupEdit {
-    /** The channel the edit is for. */
-    val id: ChannelId
+    /** An edit of one channel. */
+    sealed interface ChannelEdit : LineupEdit {
+        /** The channel the edit is for. */
+        val id: ChannelId
+    }
+
+    /**
+     * "Use my collections" on or off (spec 23). A lineup-level edit, not a channel's: it marks no channel as chosen by
+     * the viewer. The change starts at the next broadcast-day start (`withBasisFor`).
+     */
+    data class UseMyCollections(
+        val on: Boolean,
+    ) : LineupEdit
 
     /** [confirmedOptIn] must be true to switch on an opt-in (adult) starter. */
     data class SwitchOn(
         override val id: ChannelId,
         val confirmedOptIn: Boolean = false,
-    ) : LineupEdit
+    ) : ChannelEdit
 
     /** Hides the channel. */
     data class SwitchOff(
         override val id: ChannelId,
-    ) : LineupEdit
+    ) : ChannelEdit
 
     /** Moves [id] to [number]; with [swapWith], that channel, which must hold [number], takes [id]'s old number. */
     data class SetNumber(
         override val id: ChannelId,
         val number: Int,
         val swapWith: ChannelId? = null,
-    ) : LineupEdit
+    ) : ChannelEdit
 
     /** Back to the default number; with [swapWith], that channel, which must hold it, takes [id]'s current number. */
     data class ClearNumber(
         override val id: ChannelId,
         val swapWith: ChannelId? = null,
-    ) : LineupEdit
+    ) : ChannelEdit
 
     /**
      * Adds a custom channel, switched on. [number] null means "the first free one", worked out inside
@@ -46,7 +57,7 @@ sealed interface LineupEdit {
         val rules: ChannelRules,
         val number: Int?,
         val kids: Boolean,
-    ) : LineupEdit
+    ) : ChannelEdit
 
     /**
      * Replaces a custom channel's rules and number; with [swapWith], that channel, which holds [number], takes the old
@@ -63,13 +74,13 @@ sealed interface LineupEdit {
         val number: Int?,
         val swapWith: ChannelId? = null,
         val kids: Boolean,
-    ) : LineupEdit
+    ) : ChannelEdit
 
     /** Changes only the stored seed of a custom channel (Reshuffle). */
     data class Reseed(
         override val id: ChannelId,
         val seed: Seed,
-    ) : LineupEdit
+    ) : ChannelEdit
 
     /**
      * Removes a custom channel. A custom channel this app cannot read (its rules need a newer app, stored as
@@ -77,7 +88,7 @@ sealed interface LineupEdit {
      */
     data class RemoveCustom(
         override val id: ChannelId,
-    ) : LineupEdit
+    ) : ChannelEdit
 }
 
 /** Why an edit was not applied. */
@@ -153,12 +164,10 @@ object LineupEdits {
         boundaryMs: Long,
         catalog: StarterCatalogView = StarterCatalog,
     ): EditOutcome {
-        val channel = lineup.channels.firstOrNull { it.id == edit.id }
         val outcome =
-            when {
-                edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
-                channel == null -> refused(EditRefusal.UnknownChannel)
-                else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, catalog))
+            when (edit) {
+                is LineupEdit.UseMyCollections -> EditOutcome.Applied(lineup.copy(useMyCollections = edit.on))
+                is LineupEdit.ChannelEdit -> applyChannelEdit(lineup, edit, nowMs, catalog)
             }
         return if (outcome is EditOutcome.Applied) {
             EditOutcome.Applied(lineup.withBasisFor(outcome.lineup, nowMs, boundaryMs))
@@ -167,11 +176,25 @@ object LineupEdits {
         }
     }
 
+    private fun applyChannelEdit(
+        lineup: Lineup,
+        edit: LineupEdit.ChannelEdit,
+        nowMs: Long,
+        catalog: StarterCatalogView,
+    ): EditOutcome {
+        val channel = lineup.channels.firstOrNull { it.id == edit.id }
+        return when {
+            edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
+            channel == null -> refused(EditRefusal.UnknownChannel)
+            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, catalog))
+        }
+    }
+
     // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder).
     // A ReplaceCustom marks only the channel it swapped with: the edited one is the viewer's own anyway.
     private fun markChoice(
         before: Lineup,
-        edit: LineupEdit,
+        edit: LineupEdit.ChannelEdit,
         outcome: EditOutcome,
     ): EditOutcome {
         val marksSelf = marksItself(edit)
@@ -189,7 +212,7 @@ object LineupEdits {
         return EditOutcome.Applied(outcome.lineup.copy(channels = marked))
     }
 
-    private fun marksItself(edit: LineupEdit): Boolean =
+    private fun marksItself(edit: LineupEdit.ChannelEdit): Boolean =
         edit is LineupEdit.SwitchOn ||
             edit is LineupEdit.SwitchOff ||
             edit is LineupEdit.SetNumber ||
@@ -198,7 +221,7 @@ object LineupEdits {
     private fun applyTo(
         lineup: Lineup,
         channel: LineupChannel,
-        edit: LineupEdit,
+        edit: LineupEdit.ChannelEdit,
         nowMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome =

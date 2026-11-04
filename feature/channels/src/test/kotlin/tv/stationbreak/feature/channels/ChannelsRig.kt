@@ -63,6 +63,9 @@ internal class FakeChannels(
     initial: List<ChannelSummary> = emptyList(),
 ) : ChannelRepository {
     val list = MutableStateFlow(initial)
+    val household = MutableStateFlow(true)
+
+    override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = household
 
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
 

@@ -71,6 +71,19 @@ class ChannelManagerTest {
         }
 
     @Test
+    fun theHouseholdSwitchIsAChangeOfTheLineupNotOfAChannel() =
+        runBlocking<Unit> {
+            seed(lineup())
+
+            assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.UseMyCollections(false)))
+
+            val after = checkNotNull(service.lineup(ACCOUNT).value).lineup
+            assertEquals(false, after.useMyCollections)
+            assertTrue(after.channels.none { it.chosenByViewer })
+            assertEquals(false, service.useMyCollections(ACCOUNT).first())
+        }
+
+    @Test
     fun aFailedSaveIsReported() =
         runBlocking<Unit> {
             seed(lineup())
