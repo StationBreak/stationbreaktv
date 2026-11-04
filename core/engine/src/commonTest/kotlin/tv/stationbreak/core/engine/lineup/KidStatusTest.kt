@@ -49,10 +49,21 @@ class KidStatusTest {
     }
 
     @Test
-    fun theKidsLeftoversIsKidsOnlyAndTheGrownUpLeftoversIsOpen() {
+    fun theKidsLeftoversIsKidsOnlyAndTheGrownUpLeftoversIsGrownUp() {
         val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
         val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
         assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(kids))
-        assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds))
+    }
+
+    @Test
+    fun theGrownUpLeftoversIsGrownUp() {
+        val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds))
+    }
+
+    @Test
+    fun aCustomChannelStaysOpen() {
+        assertEquals(PoolPolicy.Open, KidStatus.policyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
     }
 }

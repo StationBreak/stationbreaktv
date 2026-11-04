@@ -65,3 +65,24 @@ app-side, like the kid hold.
   admits it. Only items the kid table refuses (a TV-PG episode of a TV-Y7 series, say), or everything when Kids' Odds
   & Ends is off, reach the grown-up Odds & Ends.
 - Mixed app versions can disagree on grown-up starters during an update, as for kid channels (A-VER-1).
+
+## Addendum (2026-11-03, spec 23): `grown-up-hold-2`
+
+The grown-up hold now drops everything the kid hold calls made for kids, not only children's ratings. The two gates
+share one predicate: `PoolPolicy.GrownUp` removes, after the exclusions, every item for which `KidHold.isMadeForKids`
+is true (a kids genre, a kid studio, a children's rating, or the animated-family signal of `kid-hold-3`). Family-friendly
+titles that are not made for kids by those tests (a live-action family film rated PG, say) stay. The ladder ceiling
+still applies to what is left.
+
+- **Version name.** `GrownUpHold.VERSION_NAME` is `grown-up-hold-2`. The gate now follows `KidHold.isMadeForKids`, so a
+  change to that predicate is a new version name of both holds. A day built under `grown-up-hold-1` is rebuilt.
+- **Counts.** `PoolCounts.childrensRatingOut` is renamed `madeForKidsOut`: it counts what the grown-up hold drops.
+  `HiddenReason.ChildrensRatingsOnly` keeps its name and its string.
+- **The grown-up leftovers is `GrownUp`**, no longer `Open` (this replaces the table row and the reasoning in
+  decision 4). It claims what no other channel takes, and drops what is made for kids. A custom channel outside the
+  Kids band stays `Open`.
+- **Airing nowhere.** A title that is made for kids and fails every kid ceiling (a kids-genre film rated R, say) is held
+  out of every kid channel and dropped by every grown-up channel, so it airs nowhere. This is accepted: made-for-kids
+  content stays off grown-up channels, and a viewer who wants it can build a custom channel.
+- **Applies at once.** Like `kid-hold-3`, this is safety policy: it applies at the update, and a programme on now can be
+  cut once.

@@ -17,8 +17,8 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
- * A grown-up starter drops children's-rated items (ADR-0020); a custom channel and the grown-up leftovers do not. Each
- * test has a TV-Y7 item and a PG item, both matching a genre.
+ * A grown-up starter and the grown-up leftovers drop what is made for kids (ADR-0020, grown-up-hold-2); a custom
+ * channel does not. Each test has a TV-Y7 item and a PG item, both matching a genre.
  */
 class LineupDaysGrownUpHoldTest {
     private val library = CountingLibrary()
@@ -81,11 +81,11 @@ class LineupDaysGrownUpHoldTest {
     }
 
     @Test
-    fun theGrownUpLeftoversAirsWhatTheGrownUpStarterDropped() {
+    fun theGrownUpLeftoversDropsWhatTheGrownUpStarterDropped() {
         seed()
         val drama = starterAt("drama", 150)
         val odds = leftovers("odds-and-ends", 199, null)
-        assertEquals(setOf(childrensItem), days(lineupOf(drama, odds)).getValue(odds.id.value).ids())
+        assertEquals(emptySet(), days(lineupOf(drama, odds)).getValue(odds.id.value).ids())
     }
 
     @Test
@@ -115,7 +115,7 @@ class LineupDaysGrownUpHoldTest {
     }
 
     @Test
-    fun withKidsLeftoversOffTheGrownUpOddsAirsWhatTheStartersDropAndNothingAirsNowhere() =
+    fun withKidsLeftoversOffWhatIsMadeForKidsAirsNowhere() =
         runBlocking<Unit> {
             seed()
             val lineup = lineupOf(starterAt("drama", 150), leftovers("odds-and-ends", 199, null))
@@ -125,18 +125,19 @@ class LineupDaysGrownUpHoldTest {
                 source
                     .channelDays(ACCOUNT, LIBRARIES, NOON)
                     .first { it.channel.id == LineupIds.leftovers("odds-and-ends") }
-            assertEquals(setOf(childrensItem), odds.ids())
-            assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(emptySet(), odds.ids())
+            assertEquals(1, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
         }
 
     @Test
-    fun withBothLeftoversOnAChildrensRatedItemLandsOnTheKidSideAndTheTableRefusedOneOnGrownUpOdds() {
+    fun withBothLeftoversOnAChildrensRatedItemLandsOnTheKidSideAndTheTableRefusedOneAirsNowhere() {
         seedMixed()
         val kids = leftovers("kids-odds-and-ends", 99, "PG")
         val odds = leftovers("odds-and-ends", 199, null)
         val days = days(lineupOf(starterAt("drama", 150), kids, odds))
         assertEquals(emptySet(), days.getValue(LineupIds.starter("drama").value).ids())
         assertEquals(setOf(id(1)), days.getValue(kids.id.value).ids())
-        assertEquals(setOf(id(3)), days.getValue(odds.id.value).ids())
+        // Made for kids by its series, so the grown-up leftovers drops it, and the kid table refuses it: nowhere.
+        assertEquals(emptySet(), days.getValue(odds.id.value).ids())
     }
 }

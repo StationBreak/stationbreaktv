@@ -13,13 +13,13 @@ object KidStatus {
 
     /**
      * The policy a channel's pool is evaluated under (ADR-0019, ADR-0020): a kid channel (the kids leftovers included)
-     * is kids-only; any other starter, edited or not, is grown-up; a custom channel and the grown-up leftovers channel
-     * are open (the leftovers one so that what the kid hold refuses still airs somewhere).
+     * is kids-only; any other starter, edited or not, and the grown-up leftovers channel are grown-up; a custom channel
+     * is open.
      */
     fun policyOf(channel: LineupChannel): PoolPolicy =
         when {
             isKidChannel(channel) -> PoolPolicy.KidsOnly
-            channel.source is ChannelSource.Starter -> PoolPolicy.GrownUp
+            channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers -> PoolPolicy.GrownUp
             else -> PoolPolicy.Open
         }
 

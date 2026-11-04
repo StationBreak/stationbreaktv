@@ -165,8 +165,8 @@ object KidHold {
      * entry's own, or the series' when the own is null or blank), and a known series with a rating must pass too, as
      * [passesKidCeiling] reads an episode. It passes when null or blank; or after `RatingLadder.normalise` it is `G`,
      * `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and trimmed, it is `NR`,
-     * `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails. Tags never take part. A null
-     * [series] contributes nothing.
+     * `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails. Tags never take part. A
+     * null [series] contributes nothing.
      */
     fun isAnimatedFamily(
         entry: RuleItem,
@@ -175,8 +175,8 @@ object KidHold {
 
     /**
      * Whether [entry]'s rating, or the known [series]' rating, is a children's one ([CHILDRENS_RATINGS]). This is the
-     * one predicate behind both [isMadeForKids]'s ratings rule and the grown-up hold (ADR-0020), so the two gates
-     * cannot drift. A null [series] contributes nothing.
+     * predicate behind [isMadeForKids]'s ratings rule, so the rule and this one cannot drift. A null [series]
+     * contributes nothing.
      */
     fun hasChildrensRating(
         entry: RuleItem,

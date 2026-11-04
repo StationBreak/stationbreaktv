@@ -91,8 +91,9 @@ class LineupDaysKidHoldTest {
         val toons = starterAt("toons", 150, animation(), edited = true)
         val littleFarm = starterAt("little-farm", 160, animation(), edited = true)
         val days = days(lineupOf(toons, littleFarm))
-        // "toons" is not a real kid key; "little-farm" is, and is not in TestCatalog (retired stand-in).
-        assertEquals(setOf(kidsItem, fantasyItem), days.getValue(toons.id.value).ids())
+        // "toons" is not a real kid key, so it is a grown-up starter and drops the kids' item (grown-up-hold-2);
+        // "little-farm" is a kid key, and is not in TestCatalog (retired stand-in).
+        assertEquals(setOf(fantasyItem), days.getValue(toons.id.value).ids())
         assertEquals(setOf(kidsItem), days.getValue(littleFarm.id.value).ids())
     }
 

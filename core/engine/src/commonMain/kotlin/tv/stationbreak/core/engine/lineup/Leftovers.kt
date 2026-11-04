@@ -20,7 +20,7 @@ import tv.stationbreak.core.rules.RatingLadder
  * matched by source, `blockedByCeiling` and `episodesWithUnknownSeries` as `PoolEvaluator` counts them,
  * `collectionsSynced` from the snapshot, no unresolved entries. Under `PoolPolicy.KidsOnly`, an unclaimed item that
  * is not made for kids is dropped and counted in `heldOut`, and the kid rating table replaces the ladder; under
- * `PoolPolicy.GrownUp` an unclaimed item with a children's rating is dropped and counted in `childrensRatingOut`; both
+ * `PoolPolicy.GrownUp` an unclaimed item that is made for kids is dropped and counted in `madeForKidsOut`; both
  * as `PoolEvaluator` does.
  */
 object Leftovers {
@@ -57,7 +57,7 @@ object Leftovers {
                     unresolvedExclusions = emptyList(),
                     collectionsSynced = snapshot.collectionsSynced,
                     heldOut = tally.heldOut,
-                    childrensRatingOut = tally.childrensRatingOut,
+                    madeForKidsOut = tally.madeForKidsOut,
                 ),
         )
     }
@@ -71,7 +71,7 @@ object Leftovers {
         var blocked = 0
         var unknownSeries = 0
         var heldOut = 0
-        var childrensRatingOut = 0
+        var madeForKidsOut = 0
 
         fun visit(
             entry: RuleItem,
@@ -87,7 +87,7 @@ object Leftovers {
                 }
 
                 PoolPolicy.GrownUp -> {
-                    if (KidHold.hasChildrensRating(entry, series)) childrensRatingOut++ else admit(entry, series)
+                    if (KidHold.isMadeForKids(entry, series)) madeForKidsOut++ else admit(entry, series)
                 }
             }
         }

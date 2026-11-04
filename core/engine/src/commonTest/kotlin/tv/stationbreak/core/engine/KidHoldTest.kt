@@ -387,7 +387,7 @@ class KidHoldTest {
     @Test
     fun theChildrensRatingsAreFrozenUnderBothHoldVersions() {
         assertEquals("kid-hold-3", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-1", GrownUpHold.VERSION_NAME)
+        assertEquals("grown-up-hold-2", GrownUpHold.VERSION_NAME)
         assertEquals(setOf("TV-Y", "TV-Y7", "TV-Y7-FV"), KidHold.CHILDRENS_RATINGS)
     }
 

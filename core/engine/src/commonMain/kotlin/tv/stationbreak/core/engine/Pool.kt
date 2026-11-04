@@ -25,7 +25,7 @@ data class Pool(
  * - `matchedBySource.size == rules.sources.size`, and every index in [unresolvedSources] and [unresolvedExclusions]
  *   refers to the `ChannelRules` that was passed to [PoolEvaluator.evaluate], not to any other.
  * - The number of distinct items that matched a source equals
- *   `items.size + excluded + heldOut + childrensRatingOut + filteredOut + blockedByCeiling`. Summing
+ *   `items.size + excluded + heldOut + madeForKidsOut + filteredOut + blockedByCeiling`. Summing
  *   [matchedBySource] over-counts when sources overlap, because an item is counted for each source it matched.
  * - Under a ceiling every unknown-series episode is blocked, so `blockedByCeiling - episodesWithUnknownSeries` is the
  *   number blocked by rating alone. (With no ceiling nothing is blocked, unless the pool is kids-only: a kids-only
@@ -51,8 +51,9 @@ data class Pool(
  *   made for kids, on a kids-only channel. Always 0 under any other policy.
  * @property filteredOut items that matched a source, survived the exclusions and the hold, and were dropped by the
  *   rules' `filters` (genres, years, kind), before the ceiling. Always 0 for rules with no filters.
- * @property childrensRatingOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and
- *   had a children's rating, on a grown-up channel (ADR-0020). Always 0 under any other policy.
+ * @property madeForKidsOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and
+ *   were made for kids ([KidHold.isMadeForKids]: a children's rating, a kids genre, a kid studio or the
+ *   animated-family signal), on a grown-up channel (ADR-0020). Always 0 under any other policy.
  */
 data class PoolCounts(
     val matchedBySource: List<Int>,
@@ -63,7 +64,7 @@ data class PoolCounts(
     val unresolvedExclusions: List<Int>,
     val collectionsSynced: Boolean,
     val heldOut: Int = 0,
-    val childrensRatingOut: Int = 0,
+    val madeForKidsOut: Int = 0,
     val filteredOut: Int = 0,
 ) {
     init {

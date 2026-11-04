@@ -3,7 +3,9 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.engine.KidHold
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.KidStatus.isKidChannel
+import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.RuleItem
@@ -35,6 +37,9 @@ class KidAuditTest {
     // The near misses, by the ID the seed gave them: an oracle that does not ask KidHold (the cases the signal must
     // refuse, and a live-action family G film, which is not made for kids by any list).
     private val nearMisses = mutableSetOf<CanonicalId>()
+
+    // Made for kids, and over every kid ceiling: it may air on no channel at all (grown-up-hold-2).
+    private val overEveryCeiling = mutableSetOf<CanonicalId>()
 
     private fun film(
         rating: String?,
@@ -74,6 +79,8 @@ class KidAuditTest {
             film("G", "Animation", "Kids")
             film("TV-Y7", "Adventure")
             film("R", "Drama")
+            film("R", "Kids")
+            overEveryCeiling += items.last().item.id
         }
         showOf("TV-G", "Animation", "Family")
         showOf(null, "Animation", "Family")
@@ -114,6 +121,49 @@ class KidAuditTest {
             assertTrue(audited > 0, "the audit saw nothing")
             assertTrue(animatedFamilyAired > 0, "the new signal never reached a kid channel")
         }
+
+    @Test
+    fun noGrownUpStarterOrLeftoversAirsAnythingMadeForKids() =
+        runBlocking<Unit> {
+            seed()
+            val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
+            service.refresh(ACCOUNT, LIBRARIES)
+            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val byId = items.associateBy { it.item.id }
+            var audited = 0
+            for (day in 0 until WEEK) {
+                for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
+                    if (!isGrownUpStarterOrLeftovers(channelDay.channel)) continue
+                    for (scheduled in channelDay.pool) {
+                        val entry = checkNotNull(byId[scheduled.id])
+                        val show = scheduled.seriesId?.let { shows[it] }
+                        val where = "${channelDay.name} day $day ${scheduled.id}"
+                        assertTrue(!KidHold.isMadeForKids(entry, show), "made for kids on a grown-up channel: $where")
+                        audited++
+                    }
+                }
+            }
+            assertTrue(audited > 0, "the audit saw nothing")
+        }
+
+    @Test
+    fun aKidTitleThatFailsEveryCeilingAirsNowhere() =
+        runBlocking<Unit> {
+            seed()
+            val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
+            service.refresh(ACCOUNT, LIBRARIES)
+            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            for (day in 0 until WEEK) {
+                for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
+                    for (scheduled in channelDay.pool) {
+                        assertTrue(scheduled.id !in overEveryCeiling, "${channelDay.name} day $day airs it")
+                    }
+                }
+            }
+        }
+
+    private fun isGrownUpStarterOrLeftovers(channel: LineupChannel): Boolean =
+        !isKidChannel(channel) && (channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers)
 
     private companion object {
         const val FILMS = 4

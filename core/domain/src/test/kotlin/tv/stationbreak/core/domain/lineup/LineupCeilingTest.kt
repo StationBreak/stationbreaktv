@@ -51,6 +51,18 @@ class LineupCeilingTest {
         )
     }
 
+    // The same ratings on grown-up titles (no kids genre): a grown-up channel drops made-for-kids titles (ADR-0020).
+    private fun seedGrownUpRatings() {
+        library.seed(
+            movie(1, "Drama", rating = "G"),
+            movie(2, "Drama", rating = "PG"),
+            movie(3, "Drama", rating = "R"),
+            movie(4, "Drama", rating = "TV-MA"),
+        )
+    }
+
+    private val dramas = rules("Dramas", Source.Genre("Drama"))
+
     private val toons = rules("Toons", Source.Genre("Animation"))
 
     private fun editedToons(maxRating: String?): LineupChannel {
@@ -75,7 +87,7 @@ class LineupCeilingTest {
 
     @Test
     fun aRetiredLeftoversKeyKeepsItsStoredCeiling() {
-        seedRatings()
+        seedGrownUpRatings()
         val retired = leftovers("grown-ups-retired", 150, maxRating = "R")
         assertEquals(setOf(id(1), id(2), id(3)), scheduledPool(lineupOf(retired), retired))
     }
@@ -124,8 +136,8 @@ class LineupCeilingTest {
 
     @Test
     fun aGrownUpStarterOutsideTheKidsBandKeepsItsStoredRules() {
-        seedRatings()
-        val grownUp = starter("laughs", 110, ChannelState.On, toons)
+        seedGrownUpRatings()
+        val grownUp = starter("laughs", 110, ChannelState.On, dramas)
         assertEquals(setOf(id(1), id(2), id(3), id(4)), scheduledPool(lineupOf(grownUp), grownUp))
     }
 
@@ -139,8 +151,8 @@ class LineupCeilingTest {
 
     @Test
     fun aCurrentKidSafeStarterRenumberedOutOfTheKidsBandKeepsItsRecipeCeiling() {
-        seedRatings()
-        val moved = starter("toons", 150, ChannelState.On, toons)
+        seedGrownUpRatings()
+        val moved = starter("toons", 150, ChannelState.On, dramas)
         assertEquals(setOf(id(1)), scheduledPool(lineupOf(moved), moved), "the recipe's ceiling is G")
     }
 

@@ -119,7 +119,25 @@ class LeftoversTest {
             )
         val pool = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.GrownUp)
         assertEquals(listOf(idOf(2), idOf(3)), pool.items.map { it.id })
-        assertEquals(1, pool.counts.childrensRatingOut)
+        assertEquals(1, pool.counts.madeForKidsOut)
         assertEquals(0, pool.counts.heldOut)
+    }
+
+    @Test
+    fun theGrownUpLeftoversNeverAirsWhatIsMadeForKids() {
+        val snap =
+            snapshot(
+                items =
+                    listOf(
+                        movie(idOf(1), rating = "R", studios = listOf("Pixar")),
+                        movie(idOf(2), rating = "PG-13", genres = listOf("Kids")),
+                        movie(idOf(3), rating = "G", genres = listOf("Animation", "Family")),
+                        movie(idOf(4), rating = "PG", genres = listOf("Family", "Comedy")),
+                        movie(idOf(5), rating = "R"),
+                    ),
+            )
+        val pool = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.GrownUp)
+        assertEquals(listOf(idOf(4), idOf(5)), pool.items.map { it.id })
+        assertEquals(3, pool.counts.madeForKidsOut)
     }
 }

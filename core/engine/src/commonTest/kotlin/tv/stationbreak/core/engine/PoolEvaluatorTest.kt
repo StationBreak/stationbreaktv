@@ -618,7 +618,7 @@ class PoolEvaluatorTest {
             },
         )
         // TV-Y movie, the episode of a TV-Y7 series, and the TV-Y7-FV movie.
-        assertEquals(3, pool.counts.childrensRatingOut)
+        assertEquals(3, pool.counts.madeForKidsOut)
         assertEquals(0, pool.counts.heldOut)
         assertEquals(0, pool.counts.blockedByCeiling)
     }
@@ -629,7 +629,7 @@ class PoolEvaluatorTest {
         val snap = snapshot(items = listOf(ep), series = listOf(series(kidsSeries, rating = "TV-Y7")))
         val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
         assertEquals(emptyList(), pool.items)
-        assertEquals(1, pool.counts.childrensRatingOut)
+        assertEquals(1, pool.counts.madeForKidsOut)
     }
 
     @Test
@@ -638,14 +638,14 @@ class PoolEvaluatorTest {
             snapshot(items = listOf(movie(idOf(1), rating = "PG"), movie(idOf(2), rating = "TV-PG"), movie(idOf(3))))
         val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
         assertEquals(3, pool.items.size)
-        assertEquals(0, pool.counts.childrensRatingOut)
+        assertEquals(0, pool.counts.madeForKidsOut)
     }
 
     @Test
     fun aGrownUpPoolStillAppliesTheLadderCeilingToWhatItKeeps() {
         val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), grownUpSnapshot(), PoolPolicy.GrownUp)
         // TV-PG is on the PG step of the ladder; the unrated movie is blocked by the ceiling.
-        assertEquals(3, pool.counts.childrensRatingOut)
+        assertEquals(3, pool.counts.madeForKidsOut)
         assertEquals(listOf(idOf(2), idOf(3), idOf(6)), pool.items.map { it.id })
         assertEquals(1, pool.counts.blockedByCeiling)
     }
@@ -655,10 +655,10 @@ class PoolEvaluatorTest {
         val snap = grownUpSnapshot()
         val open = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.Open)
         assertEquals(7, open.items.size)
-        assertEquals(0, open.counts.childrensRatingOut)
+        assertEquals(0, open.counts.madeForKidsOut)
         assertEquals(open, PoolEvaluator.evaluate(libraryRules(), snap))
         val kids = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snap, PoolPolicy.KidsOnly)
-        assertEquals(0, kids.counts.childrensRatingOut)
+        assertEquals(0, kids.counts.madeForKidsOut)
     }
 
     @Test
@@ -670,7 +670,7 @@ class PoolEvaluatorTest {
                 val c = pool.counts
                 assertEquals(
                     snap.items.size,
-                    pool.items.size + c.excluded + c.heldOut + c.childrensRatingOut + c.blockedByCeiling,
+                    pool.items.size + c.excluded + c.heldOut + c.madeForKidsOut + c.blockedByCeiling,
                 )
             }
         }
