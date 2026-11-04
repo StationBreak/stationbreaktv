@@ -116,7 +116,7 @@ class InOrderTest {
                 film('3', "1995-01-01"),
                 film('4', "1987-01-01"),
             )
-        val collected = GroupRules(FilmCollections.of(films.take(3).associate { it.id to idOf('c') }))
+        val collected = GroupRules(FilmCollections.of(films.take(3).associate { it.id to idOf('c') }), noWeights())
         val settings = testSettings(OrderingMode.InOrder, blockLength = 2)
 
         val withCollection = Runs.cycle(settings, films, 0uL, collected)

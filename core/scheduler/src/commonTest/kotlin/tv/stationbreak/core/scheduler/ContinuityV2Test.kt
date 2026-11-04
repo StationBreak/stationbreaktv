@@ -33,7 +33,7 @@ class ContinuityV2Test {
         fixture: V2Fixture,
         n: Long,
     ): BuiltDay {
-        val groups = GroupRules(fixture.films)
+        val groups = GroupRules(fixture.films, noWeights())
         val pool = EpochPool.build(settings, fixture.items, n, noKeeps())
         val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), groups)
         val day = buildDay(settings, fixture.items, n, fixture.films, noWeights(), noKeeps())
@@ -63,7 +63,7 @@ class ContinuityV2Test {
         fixture: V2Fixture,
         settings: SchedulerSettings,
     ): Int {
-        val rules = GroupRules(fixture.films)
+        val rules = GroupRules(fixture.films, noWeights())
         val caps = checkNotNull(settings.caps)
         var run = 0
         var exceeds = 0

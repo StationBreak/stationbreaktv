@@ -19,7 +19,7 @@ internal enum class GroupKind { Series, Collection, Single }
 internal class GroupRules(
     private val films: FilmCollections,
     /** The weight of each title: only the `curated` walk reads it. */
-    val weights: TitleWeights = TitleWeights.NONE,
+    val weights: TitleWeights,
 ) {
     /** The series of an episode, else the film's collection, else the item's own ID. */
     fun groupId(item: ScheduleItem): CanonicalId = item.seriesId ?: collectionOf(item) ?: item.id

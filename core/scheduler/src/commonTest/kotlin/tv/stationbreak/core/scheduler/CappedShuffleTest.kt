@@ -19,7 +19,7 @@ class CappedShuffleTest {
         val items: List<ScheduleItem>,
         collections: Map<CanonicalId, CanonicalId>,
     ) {
-        val rules = GroupRules(FilmCollections.of(collections))
+        val rules = GroupRules(FilmCollections.of(collections), noWeights())
     }
 
     private fun film(id: CanonicalId) =

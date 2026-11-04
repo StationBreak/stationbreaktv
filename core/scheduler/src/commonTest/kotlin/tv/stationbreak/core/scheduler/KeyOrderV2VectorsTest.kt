@@ -32,7 +32,7 @@ class KeyOrderV2VectorsTest {
 
     private fun JsonObject.pool(): List<ScheduleItem> = array("items").objects().map { it.keyOrderItem() }
 
-    private fun JsonObject.rules() = GroupRules((this["films"] as? JsonObject).films())
+    private fun JsonObject.rules() = GroupRules((this["films"] as? JsonObject).films(), noWeights())
 
     private fun JsonObject.strings(name: String): List<String> = array(name).map { it.jsonPrimitive.content }
 
