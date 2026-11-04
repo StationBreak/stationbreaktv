@@ -65,7 +65,7 @@ class LineupV3RoundTripTest {
                     "starter:laughs" -> it.copy(chosenByViewer = true)
                     else -> it
                 }
-            } + custom
+            } + custom + channel("custom:other", 601, ChannelState.On, ChannelSource.Custom(shuffle))
         val on = channels.filter { it.state == ChannelState.On }.map { it.id }.toSet()
         return first.copy(channels = channels, curationBasis = CurationBasis(7_000L, on, household = true))
     }
@@ -98,14 +98,17 @@ class LineupV3RoundTripTest {
     fun everyEditsResultRoundTrips() {
         val lineup = planned()
         val laughs = ChannelId("starter:laughs")
+        val mine = ChannelId("custom:mine")
         val edits =
             listOf(
                 LineupEdit.SwitchOn(ChannelId("starter:after-hours"), confirmedOptIn = true),
                 LineupEdit.SwitchOff(laughs),
                 LineupEdit.SetNumber(laughs, 500),
+                LineupEdit.SetNumber(laughs, 210, swapWith = ChannelId("starter:whodunit")),
                 LineupEdit.ClearNumber(laughs),
                 LineupEdit.AddCustom(ChannelId("custom:new"), shuffle, null, kids = false),
                 LineupEdit.ReplaceCustom(ChannelId("custom:mine"), shuffle, null, kids = false),
+                LineupEdit.ReplaceCustom(mine, shuffle, 601, ChannelId("custom:other"), kids = false),
                 LineupEdit.Reseed(ChannelId("custom:mine"), Seed(5uL)),
                 LineupEdit.RemoveCustom(ChannelId("custom:mine")),
             )

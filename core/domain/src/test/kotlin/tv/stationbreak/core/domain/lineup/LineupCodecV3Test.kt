@@ -229,49 +229,55 @@ class LineupCodecV3Test {
         assertEquals(listOf("starter:a", "starter:b", "starter:c"), written)
     }
 
-    // Every catalog starter resolved to the budget (collection IDs, 200-character non-ASCII studio names, a mix),
-    // the cap of them on with previousRules, both leftovers and five custom channels at 256 sources.
+    // Every catalog starter resolved to the budget (collection IDs, 200-character non-ASCII studio names, a mix) and
+    // topped up with name padding to within a few bytes of it, the cap of them on with previousRules, both leftovers,
+    // five custom channels at 256 sources, a full curation basis and a refresher meta. What is bounded: the rules
+    // copies of the starters total at most half the file, and the whole file stays under the file cap.
     @Test
     fun aWorstCaseLineupStaysUnderTheCap() {
         val collections = CollectionNames((1..300).associate { id(0x1000 + it) to "Box Set  Collection" })
         val library = LibraryNames(RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), true), collections)
         val boxSets = Anchor(AnchorKind.Collection, NameMatcher.Prefix("box set"))
         val longStudios = (1..60).map { Source.Studio("é".repeat(200) + it) }
+        val comedy = listOf<Source>(Source.Genre("Comedy"))
         val shapes =
             listOf(
-                Theme(listOf(boxSets), emptyList(), null, false) to listOf(Source.Genre("Comedy")),
-                Theme(emptyList(), emptyList(), null, false) to listOf(Source.Genre("Comedy")) + longStudios,
-                Theme(listOf(boxSets), emptyList(), null, false) to
-                    listOf(Source.Genre("Comedy")) + longStudios.take(3),
+                Theme(listOf(boxSets), emptyList(), null, false) to comedy,
+                Theme(emptyList(), emptyList(), null, false) to comedy + longStudios,
+                Theme(listOf(boxSets), emptyList(), null, false) to comedy + longStudios.take(3),
             )
-        val resolved =
-            shapes.mapIndexed { i, (theme, sources) ->
-                val recipe =
-                    Recipe(
-                        "shape$i",
-                        "Shape $i",
-                        "Synthetic.",
-                        Band.General,
-                        110,
-                        false,
-                        sources,
-                        emptyList(),
-                        null,
-                        OrderingMode.Curated,
-                        emptyList(),
-                        theme = theme,
-                    )
-                RecipeResolver.resolve(recipe, SERVER, 0, collections, library)
-            }
-        resolved.forEach { assertTrue(fileBytes(it) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES) }
 
+        // The recipe is named first, so the resolver measures the name; padding then closes the gap to the budget.
+        fun resolved(n: Int): ChannelRules {
+            val (theme, sources) = shapes[n % shapes.size]
+            val recipe =
+                Recipe(
+                    "s$n",
+                    "Starter $n",
+                    "Synthetic.",
+                    Band.General,
+                    110,
+                    false,
+                    sources,
+                    emptyList(),
+                    null,
+                    OrderingMode.Curated,
+                    emptyList(),
+                    theme = theme,
+                )
+            val rules = RecipeResolver.resolve(recipe, SERVER, 0, collections, library)
+            return paddedToBudget(rules)
+        }
+        val copies = ArrayList<ChannelRules>()
         val starters =
             (1..RecipeResolver.MAX_CATALOG_STARTERS).map { n ->
-                val now = resolved[n % resolved.size].copy(name = "Starter $n")
+                val now = resolved(n)
                 val on = n <= LineupDefaults.CAP
+                copies += now
                 val source =
                     if (on) {
-                        val before = now.copy(name = "Before $n")
+                        val before = now
+                        copies += before
                         ChannelSource.Starter("s$n", false, now, before, rulesFromMs = 1_792_000_000_000L)
                     } else {
                         ChannelSource.Starter("s$n", false, now)
@@ -285,13 +291,43 @@ class LineupCodecV3Test {
                     val mine = ChannelSource.Custom(rules("Mine $n", *many.toTypedArray()))
                     channel("custom-$n", 600 + n, ChannelState.On, mine)
                 }
+        val basis = CurationBasis(7_000L, starters.filter { it.state == ChannelState.On }.map { it.id }.toSet(), true)
+        val lineup = lineupOf(*(starters + others).toTypedArray()).copy(curationBasis = basis)
+        val meta = RefreshMeta(4L, 5L, (1..10).map { "library-$it" }, 6L)
 
-        val starterBytes = LineupCodec.encode(lineupOf(*starters.toTypedArray())).size
-        val total = LineupCodec.encode(lineupOf(*(starters + others).toTypedArray())).size
+        val copyBytes = copies.sumOf { fileBytes(it) }
+        val total = LineupCodec.encode(lineup, meta).size
 
-        println("worst case: starters $starterBytes bytes, whole file $total bytes of ${LineupLimits.MAX_FILE_BYTES}")
-        assertTrue(starterBytes <= LineupLimits.MAX_FILE_BYTES / 2, "the starters take $starterBytes bytes")
+        println("worst case: ${copies.size} copies $copyBytes bytes, file $total of ${LineupLimits.MAX_FILE_BYTES}")
+        assertEquals(RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.CAP, copies.size)
+        for (rules in copies) {
+            val bytes = fileBytes(rules)
+            assertTrue(bytes <= RecipeResolver.STARTER_RULES_BUDGET_BYTES, "a copy takes $bytes bytes")
+            assertTrue(bytes >= RecipeResolver.STARTER_RULES_BUDGET_BYTES - 16, "a copy takes only $bytes bytes")
+        }
+        assertTrue(copyBytes <= LineupLimits.MAX_FILE_BYTES / 2, "the rules copies take $copyBytes bytes")
         assertTrue(total <= LineupLimits.MAX_FILE_BYTES, "the whole file takes $total bytes")
+    }
+
+    // [rules] with tag sources added (the longest that still fits, one after another), then a longer name for the last
+    // few bytes: a copy that sits at the budget.
+    private fun paddedToBudget(rules: ChannelRules): ChannelRules {
+        val budget = RecipeResolver.STARTER_RULES_BUDGET_BYTES
+
+        fun withTag(
+            from: ChannelRules,
+            index: Int,
+            length: Int,
+        ) = from.copy(sources = from.sources + Source.Tag("p$index" + "y".repeat(length)))
+        var padded = rules
+        var index = 0
+        while (fileBytes(withTag(padded, index, 0)) <= budget) {
+            var length = 0
+            while (length < MAX_PAD && fileBytes(withTag(padded, index, length + 1)) <= budget) length++
+            padded = withTag(padded, index, length)
+            index++
+        }
+        return padded.copy(name = padded.name + "x".repeat(budget - fileBytes(padded)))
     }
 
     private fun fileBytes(rules: ChannelRules): Int {
@@ -324,6 +360,8 @@ class LineupCodecV3Test {
     }
 
     private companion object {
+        const val MAX_PAD = 200
+
         const val GUARD = "A new ShelfReason value is a schema change: bump LineupCodec.VERSION and update this test"
     }
 }

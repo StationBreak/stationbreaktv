@@ -29,10 +29,11 @@ object RecipeResolver {
     const val MAX_CATALOG_STARTERS: Int = 120
 
     /**
-     * The most bytes a starter's rules take in the lineup file (the rules text as a JSON string, escapes included).
-     * The file holds every catalog starter's rules, and the rules again as `previousRules` for the switched-on ones, so
-     * half the file cap is shared by [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies; the other half is left for
-     * custom channels, the leftovers and the rest of the file.
+     * The most bytes one copy of a starter's rules takes in the lineup file (the rules text as a JSON string, escapes
+     * included). The file holds the rules of every catalog starter, and the rules again as `previousRules` for the
+     * switched-on ones: [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies, so all those copies together total at
+     * most half the file cap. The channel envelopes (IDs, numbers, state), the leftovers, the custom channels, the
+     * curation basis and the meta sit in the other half; this bounds the copies only, not each starter's whole entry.
      */
     const val STARTER_RULES_BUDGET_BYTES: Int =
         (LineupLimits.MAX_FILE_BYTES / 2) / (MAX_CATALOG_STARTERS + LineupDefaults.CAP)
