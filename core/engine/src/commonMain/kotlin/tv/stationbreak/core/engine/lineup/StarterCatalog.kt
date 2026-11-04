@@ -6,10 +6,10 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.Source
 
 /**
- * The themed starter catalog (spec 12): original channel names, each with a one-line personality. A recipe is filled
- * later from whatever the library has, through genre, tag and year-range sources only, with spelling variants listed as
- * separate sources because scrapers disagree. Spread the numbers out inside a band so later recipes can slot in
- * between; a shipped key or number never changes and is never reused.
+ * The starter catalog (spec 12, spec 23): original channel names, each with a one-line personality. A recipe is filled
+ * later from whatever the library has, through genre, tag, studio and year-range sources and (from version 3) its
+ * theme's anchors, with spelling variants listed as separate sources because scrapers disagree. Spread the numbers
+ * out inside a band so later recipes can slot in between; a shipped key or number never changes and is never reused.
  *
  * A recipe key is a persistence identifier: stored lineups, channel IDs and the planner's matching all hang on it. It
  * is frozen once released, and after release only a recipe's `name` and `personality` (its one-line tagline) may
@@ -23,8 +23,11 @@ object StarterCatalog : StarterCatalogView {
      *
      * Version 2: every recipe outside the Kids band excludes every spelling of the kids' genres the kid hold knows
      * ([KidHold.KIDS_GENRES]), so kids' shows stop airing on grown-up channels.
+     *
+     * Version 3 (spec 23): the themed, programmed recipes ([CATALOG_V3_RECIPES]), every key, number, band, ceiling and
+     * opt-in kept. A lineup moves to it from the next day boundary (the planner keeps today's rules, D1).
      */
-    const val VERSION = 2
+    const val VERSION = 3
 
     override val version: Int = VERSION
 
@@ -33,8 +36,7 @@ object StarterCatalog : StarterCatalogView {
 
     override val selectsByIdentity: Boolean = VERSION >= SELECTS_BY_IDENTITY_FROM
 
-    override val recipes: List<Recipe> =
-        kidsBand + generalBand + dramaBand + genreBand + worldBand + premiumBand
+    override val recipes: List<Recipe> = CATALOG_V3_RECIPES
 
     /** The leftovers recipes. The kids' one, `kids-odds-and-ends`, always ships with a ceiling and is never retired. */
     override val leftovers: List<LeftoversRecipe> =
@@ -62,7 +64,11 @@ object StarterCatalog : StarterCatalogView {
      * added here, never removed; the catalog tests hold it to every frozen manifest.
      */
     val EVER_KID_SAFE_KEYS: Set<String> =
-        (kidsBand.map { it.key } + leftovers.filter { it.maxRating != null }.map { it.key }).toSet()
+        (
+            CATALOG_V2_RECIPES.filter { it.kidSafe }.map { it.key } +
+                recipes.filter { it.kidSafe }.map { it.key } +
+                leftovers.filter { it.maxRating != null }.map { it.key }
+        ).toSet()
 
     override val retiredNumbers: Set<Int> = emptySet()
 
@@ -942,3 +948,11 @@ private val premiumBand: List<Recipe> =
             sources = tags("director's cut", "making of", "behind the scenes", "extended cut"),
         ),
     )
+
+/**
+ * The recipes as catalog version 2 shipped them, in catalog order: no longer live. The kid-safe keys they had stay kid
+ * channels for good ([StarterCatalog.EVER_KID_SAFE_KEYS]), and the tests compare catalog 3 with them. Declared last:
+ * top-level properties are initialised in file order, and this reads the bands above.
+ */
+internal val CATALOG_V2_RECIPES: List<Recipe> =
+    kidsBand + generalBand + dramaBand + genreBand + worldBand + premiumBand

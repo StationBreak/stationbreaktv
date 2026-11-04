@@ -23,8 +23,9 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /**
- * The kid audit (spec 23, kid-hold-3): over a week of the catalog-2 lineup, everything on every kid channel is made
- * for kids and within the channel's ceiling, whatever the library holds. The library mixes the animated-family signal
+ * The kid audit (spec 23, kid-hold-3): over a week of the shipped catalog's lineup (catalog 3, programmed), and of one
+ * upgraded to it in the middle of a day, everything on every kid channel is made for kids and within the channel's
+ * ceiling, whatever the library holds. The library mixes the animated-family signal
  * with its near misses (live action, no Family, PG and above, a grown-up series). Invented names only.
  */
 class KidAuditTest {
@@ -227,6 +228,53 @@ class KidAuditTest {
             }
             assertTrue(audited > 0, "the audit saw nothing")
             assertTrue(weighted > 0, "no day was curated")
+            assertTrue(kidCurated > 0, "no kid channel took part in the curation")
+        }
+
+    // A lineup chosen under catalog 2 (a stand-in: the shipped recipes, plain) moves to catalog 3 at noon on day 0:
+    // day 0 airs the old rules, days 1 to 6 the programmed ones. Every day, every kid channel airs only what is made
+    // for kids and within its ceiling, and kid channels do take part in the curation once it applies.
+    @Test
+    fun aCatalogThreeLineupPassesTheKidAuditForSevenDays() =
+        runBlocking<Unit> {
+            seed()
+            assertEquals(3, StarterCatalog.VERSION)
+            val catalogTwo =
+                object : StarterCatalogView by StarterCatalog {
+                    override val version = 2
+                    override val selectsByIdentity = false
+                    override val recipes =
+                        StarterCatalog.recipes.map { it.copy(theme = null, ordering = null, filters = null) }
+                }
+            val store = RecordingStore()
+            val old = LineupService(store, library, clock, { 0 }, {}, catalogTwo)
+            old.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(2, old.loaded(ACCOUNT)?.lineup?.catalogVersion)
+            val service = LineupService(store, library, clock, { 0 }, {}, StarterCatalog)
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(3, service.loaded(ACCOUNT)?.lineup?.catalogVersion)
+            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val ceilings = Ceilings(StarterCatalog)
+            val byId = items.associateBy { it.item.id }
+            var audited = 0
+            var kidCurated = 0
+            for (day in 0 until WEEK) {
+                for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
+                    if (!isKidChannel(channelDay.channel)) continue
+                    if (!channelDay.weights.isEmpty) kidCurated++
+                    val ceiling = ceilings.of(channelDay.channel)
+                    for (scheduled in channelDay.pool) {
+                        val entry = checkNotNull(byId[scheduled.id])
+                        val show = scheduled.seriesId?.let { shows[it] }
+                        val where = "${channelDay.name} day $day ${scheduled.id}"
+                        assertTrue(KidHold.isMadeForKids(entry, show), "not made for kids: $where")
+                        assertTrue(KidHold.passesKidCeiling(entry, show, ceiling), "over its ceiling: $where")
+                        assertTrue(scheduled.id !in nearMisses, "a seeded near miss on a kid channel: $where")
+                        audited++
+                    }
+                }
+            }
+            assertTrue(audited > 0, "the audit saw nothing")
             assertTrue(kidCurated > 0, "no kid channel took part in the curation")
         }
 

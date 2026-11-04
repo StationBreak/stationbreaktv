@@ -7,6 +7,7 @@ import tv.stationbreak.core.domain.lineup.CuratedLibrary.channel
 import tv.stationbreak.core.domain.lineup.CuratedLibrary.ids
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
+import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
@@ -14,11 +15,17 @@ import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
+import tv.stationbreak.core.engine.lineup.LineupPlanner
+import tv.stationbreak.core.engine.lineup.Recipe
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.Theme
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.engine.lineup.curation.CurationChannel
 import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.rules.ChannelRules
@@ -319,6 +326,69 @@ class CuratedDaysTest {
         assertEquals(ids(lib.crime + lib.documentary), next.dayOf(odds).ids())
     }
 
+    // The app updates to a newer catalog in the middle of a day (spec 23, D1): the swap plans every unedited starter's
+    // new, programmed rules from the boundary, so every channel's rest of today is unchanged, the leftovers included:
+    // what they withhold for a hidden starter and for the opt-in recipe stays today's. From the boundary the new
+    // catalog applies: the hidden starter withholds nothing and the opt-in recipe the westerns, not the documentaries.
+    @Test
+    fun anUpgradeMidDayKeepsTodaysBlocks() {
+        val (old, new) = SwapCatalogs.old to SwapCatalogs.new
+
+        // Rules as an app of catalog 2 wrote them: back to back (so the old-file fix changes nothing).
+        fun plain(
+            name: String,
+            genre: String,
+        ) = rules(name, Source.Genre(genre), timing = timing().copy(alignToGrid = false))
+        val before =
+            lineupOf(
+                starter("laughs", 110, ChannelState.On, plain("Laughs", "Comedy")),
+                starter("whodunit", 210, ChannelState.On, plain("Whodunit", "Crime")),
+                starter("westerns", 220, ChannelState.Shelf, plain("Westerns", "Western")),
+                starter("frights", 310, ChannelState.UserHidden, plain("Frights", "Horror"))
+                    .copy(chosenByViewer = true),
+                starter("after-hours", 590, ChannelState.Shelf, plain("After Hours", "Documentary")),
+                leftovers("kids-odds-and-ends", 99, "PG"),
+                leftovers("odds-and-ends", 199, null),
+            ).copy(catalogVersion = 2, viewerChoicesKnown = false)
+        val oldDays = LineupDays(old)
+        val newDays = LineupDays(new)
+        val today = oldDays.curatedDays(before, noon)
+        assertTrue(ids(lib.horror + lib.documentary).none { it in today.dayOf(odds).ids() }, "both are withheld today")
+        assertTrue(ids(lib.western).all { it in today.dayOf(odds).ids() }, "the westerns are the leftovers' today")
+
+        val after =
+            LineupPlanner.plan(
+                before,
+                SERVER,
+                USER,
+                0,
+                lib.snapshotAt(noon),
+                CollectionNames(emptyMap()),
+                noon,
+                boundaryMs,
+                new,
+            )
+        assertEquals(3, after.catalogVersion)
+        val now = newDays.curatedDays(after, noon)
+
+        for (day in today) {
+            val id = day.channel.id.value
+            assertEquals(day.aired(), now.dayOf(id).aired(), "$id keeps today's blocks")
+            val key = oldDays.playKeyOf(day.channel, before, noon)
+            assertEquals(key, newDays.playKeyOf(after.channel(id), after, noon), "$id keeps today's play key")
+        }
+        // A channel that is new to today's list starts at the boundary: nothing of it airs today.
+        for (day in now.filter { d -> today.none { it.channel.id == d.channel.id } }) {
+            assertTrue(day.pool.isEmpty(), "${day.channel.id} airs nothing today")
+        }
+        // From the boundary the new catalog's rules apply: laughs is curated, and the leftovers take what the hidden
+        // starter and the opt-in recipe no longer withhold, and leave the westerns the opt-in recipe withholds now.
+        val next = newDays.curatedDays(after.rolled(boundaryMs), tomorrow)
+        assertTrue(!next.dayOf(laughs).weights.isEmpty, "laughs is curated from the boundary")
+        assertTrue(ids(lib.horror + lib.documentary).all { it in next.dayOf(odds).ids() })
+        assertTrue(ids(lib.western).none { it in next.dayOf(odds).ids() })
+    }
+
     // More than the cap of channels can be on until the boundary (a switch-on now, a leaving starter): the curation
     // takes every one of them, and the leftovers claim from all.
     @Test
@@ -398,4 +468,65 @@ class CuratedDaysTest {
     private companion object {
         const val MANY = 52
     }
+}
+
+// A catalog before the swap (version 2, ranked, plain recipes) and the one after it (version 3, every recipe themed and
+// programmed, same keys and numbers). The new one's westerns and frights have nothing, its after-hours takes the
+// westerns in place of the documentaries, and its laughs takes a genre nothing has besides comedy.
+private object SwapCatalogs {
+    private val genres =
+        listOf("laughs" to "Comedy", "whodunit" to "Crime", "westerns" to "Western", "frights" to "Horror")
+    private val numbers = mapOf("laughs" to 110, "whodunit" to 210, "westerns" to 220, "frights" to 310)
+
+    val old: StarterCatalogView = catalog(2) { key, genre -> plainRecipe(key, genre) }
+    val new: StarterCatalogView =
+        catalog(3) { key, genre ->
+            val sources =
+                when (key) {
+                    "laughs" -> listOf(Source.Genre(genre), Source.Genre("Comedy v3"))
+                    "whodunit" -> listOf(Source.Genre(genre))
+                    "after-hours" -> listOf(Source.Genre("Western"))
+                    else -> listOf(Source.Genre("Nothing"))
+                }
+            plainRecipe(key, genre).copy(
+                sources = sources,
+                ordering = OrderingMode.Curated,
+                theme = Theme(emptyList(), emptyList(), null, false),
+            )
+        }
+
+    private fun plainRecipe(
+        key: String,
+        genre: String,
+    ): Recipe {
+        val number = numbers[key] ?: AFTER_HOURS
+        val band = Band.entries.first { number in it.numbers }
+        return Recipe(
+            key,
+            key,
+            "Synthetic.",
+            band,
+            number,
+            key == "after-hours",
+            listOf(Source.Genre(genre)),
+            emptyList(),
+            null,
+            null,
+            emptyList(),
+        )
+    }
+
+    private fun catalog(
+        catalogVersion: Int,
+        recipe: (String, String) -> Recipe,
+    ): StarterCatalogView {
+        val all = genres.map { (key, genre) -> recipe(key, genre) } + recipe("after-hours", "Documentary")
+        return object : StarterCatalogView by TestCatalog {
+            override val version = catalogVersion
+            override val recipes = all
+            override val selectsByIdentity = catalogVersion >= 3
+        }
+    }
+
+    private const val AFTER_HOURS = 590
 }

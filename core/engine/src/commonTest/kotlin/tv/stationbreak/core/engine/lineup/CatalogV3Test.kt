@@ -18,12 +18,13 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CatalogV3Test {
     private val v3 = CATALOG_V3_RECIPES
-    private val v2 = StarterCatalog.recipes
+
+    // Catalog 2's recipes, which catalog 3 replaced.
+    private val v2 = CATALOG_V2_RECIPES
     private val animeOnlyKeys = setOf("tokyo-after-school", "giant-robot-hour", "power-level", "cherry-blossom-hour")
 
     private fun recipe(key: String): Recipe = checkNotNull(v3.firstOrNull { it.key == key }) { "no recipe $key" }
@@ -145,21 +146,18 @@ class CatalogV3Test {
         assertTrue(v3.all { it.collectionHints.isEmpty() })
     }
 
+    // What catalog 2 promised, as frozen in its manifest, and in catalog order.
     @Test
-    fun keysNumbersBandsCeilingsAndOptInMatchTheLiveCatalog() {
+    fun keysNumbersBandsCeilingsAndOptInMatchCatalogTwo() {
         assertEquals(v2.map { it.key }, v3.map { it.key })
-        for ((old, new) in v2.zip(v3)) {
-            assertEquals(old.number, new.number, old.key)
-            assertEquals(old.band, new.band, old.key)
-            assertEquals(old.maxRating, new.maxRating, old.key)
-            assertEquals(old.optIn, new.optIn, old.key)
+        assertEquals(CATALOG_MANIFEST_V2.recipes.keys, v3.map { it.key }.toSet())
+        for (new in v3) {
+            val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
+            assertEquals(old.number, new.number, new.key)
+            assertEquals(old.band, new.band, new.key)
+            assertEquals(old.maxRating, new.maxRating, new.key)
+            assertEquals(old.optIn, new.optIn, new.key)
         }
-    }
-
-    @Test
-    fun theLiveCatalogIsStillVersionTwo() {
-        assertEquals(2, StarterCatalog.VERSION)
-        assertNull(StarterCatalog.recipes.firstOrNull { it.theme != null })
     }
 
     @Test
@@ -196,7 +194,7 @@ class CatalogV3Test {
     @Test
     fun everyKidRecipeStaysKidSafe() {
         for (new in v3.filter { it.kidSafe }) {
-            val old = checkNotNull(StarterCatalog.recipe(new.key))
+            val old = v2.single { it.key == new.key }
             assertEquals(old.maxRating, new.maxRating, new.key)
             assertTrue(
                 new.theme

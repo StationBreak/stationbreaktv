@@ -52,8 +52,9 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..100, "size was ${recipes.size}")
-        assertEquals(2, StarterCatalog.VERSION)
-        assertEquals(2, StarterCatalog.version)
+        assertEquals(3, StarterCatalog.VERSION)
+        assertEquals(3, StarterCatalog.version)
+        assertEquals(CATALOG_V3_RECIPES, recipes, "catalog 3's recipes are the live ones")
     }
 
     @Test
@@ -179,10 +180,10 @@ class StarterCatalogTest {
         val shipped: StarterCatalogView = StarterCatalog
         assertEquals(shipped.version >= StarterCatalog.SELECTS_BY_IDENTITY_FROM, shipped.selectsByIdentity)
         if (shipped.selectsByIdentity) assertTrue(shipped.recipes.all { it.theme != null })
-        // The version-3 recipes, which the catalog switch ships, are themed throughout.
-        assertTrue(CATALOG_V3_RECIPES.all { it.theme != null })
+        assertTrue(shipped.selectsByIdentity, "catalog 3 selects")
         val themed = CATALOG_V3_RECIPES.first()
-        val plain = recipes.first { it.key != themed.key }
+        // Catalog 2's recipes are plain (not themed).
+        val plain = CATALOG_V2_RECIPES.first { it.key != themed.key }
         assertFailsWith<IllegalArgumentException> { TestCatalog(listOf(themed, plain), selectsByIdentity = true) }
     }
 

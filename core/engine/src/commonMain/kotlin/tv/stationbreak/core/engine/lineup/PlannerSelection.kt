@@ -17,10 +17,16 @@ import tv.stationbreak.core.rules.ChannelRules
  */
 internal object PlannerSelection {
     /**
-     * How a refresh decides which starters are on: [Mode.Select] once the lineup is on a catalog that selects by
-     * identity; [Mode.Hold] (nothing switches on or off; the on-set stays as the last selection left it) while a newer
-     * catalog waits for a collection pass over a lineup already on a selecting catalog; otherwise [Mode.Rank]
-     * (switch-ons only), which includes a lineup on a ranked catalog while a newer one waits.
+     * How a refresh decides which starters are on, all by the one flag of [p]'s catalog,
+     * [StarterCatalogView.selectsByIdentity]: with a catalog that selects, [Mode.Select] once the lineup is on it, and
+     * [Mode.Hold] (nothing switches on or off; the on-set stays as it is) while it waits for a collection pass over a
+     * lineup on an older catalog, whether that one selected or ranked. With a catalog that ranks, [Mode.Rank]
+     * (switch-ons only), waiting or not.
+     *
+     * Hold, not Rank, while a selecting catalog waits over a ranked lineup (the swap from catalog 2 to 3): a ranked
+     * switch-on would resolve the newer catalog's programmed recipe and put it on the air at once, a mid-day change of
+     * the curated on-set before the swap, and the swap's inference of the viewer's choices (A7) reads the lineup as
+     * catalog 2 left it.
      */
     enum class Mode { Select, Hold, Rank }
 
@@ -32,10 +38,9 @@ internal object PlannerSelection {
     ): Mode {
         val waiting = p.catalog.version > current.catalogVersion && !newer
         return when {
-            waiting && current.catalogVersion >= StarterCatalog.SELECTS_BY_IDENTITY_FROM -> Mode.Hold
-            waiting -> Mode.Rank
-            p.catalog.selectsByIdentity -> Mode.Select
-            else -> Mode.Rank
+            !p.catalog.selectsByIdentity -> Mode.Rank
+            waiting -> Mode.Hold
+            else -> Mode.Select
         }
     }
 
@@ -148,9 +153,10 @@ internal object PlannerSelection {
         nowMs: Long,
     ): Role {
         val on = channel.state == ChannelState.On
-        // A lineup upgraded from a file before version 3 cannot tell the viewer's switch-ons from the planner's: any
-        // starter on the air (and not leaving, which only the planner sets) may be the viewer's, so none is shelved.
-        // A starter that starts at the boundary was switched on by the planner, never the viewer.
+        // A lineup upgraded from a file before version 3 cannot tell the viewer's switch-ons from the planner's. The
+        // catalog swap infers them once (`LineupPlanner`, A7); until then (a selecting catalog the lineup is already
+        // on, read from an older file) any starter on the air (and not leaving, which only the planner sets) may be
+        // the viewer's, so none is shelved. A starter that starts at the boundary was switched on by the planner.
         val inferred = !viewerChoicesKnown && on && channel.leavesAtMs == null && channel.onSinceMs <= nowMs
         val chosen = channel.chosenByViewer || inferred
         return when {

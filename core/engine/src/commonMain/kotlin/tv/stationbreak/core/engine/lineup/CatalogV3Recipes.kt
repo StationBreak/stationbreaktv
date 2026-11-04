@@ -12,8 +12,7 @@ import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Source
 
 // The catalog-3 recipes (spec 23): a themed, curated version of every starter channel, with the same key, number,
-// band, ceiling and opt-in as the live catalog. They are built here but not yet live: [StarterCatalog] stays at
-// version 2 until the catalog swap.
+// band, ceiling and opt-in as catalog version 2. They are the live catalog's recipes ([StarterCatalog] version 3).
 //
 // Anchors and theme studios are rules sources, so a kid channel's anchors still pass its kid hold and its ceiling. A
 // recipe's anchors are ordered most important first, because the resolver keeps the leading ones that fit the

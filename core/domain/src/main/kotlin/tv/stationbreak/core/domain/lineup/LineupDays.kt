@@ -213,9 +213,9 @@ internal class Scheduled(
  * - every item in the epoch pool of every switched-on channel that is neither curated nor a leftovers channel, and
  *   every item the day's curation claims: the basis on-set's before its boundary, scheduled today or not, and the
  *   scheduled curated starters' from it (A5, F5), so a switch in the middle of a day leaves the leftovers' day alone;
- * - every item of the pool of every opt-in catalog recipe, on or not, both as the catalog resolves it (without
- *   collection hints) and as the lineup's channel holds it;
- * - every item of the pool of every channel the user hid;
+ * - every item of the pool of every opt-in catalog recipe, on or not, as the lineup's channel holds it for the day
+ *   (`rulesFor`), and, unless that channel is an unedited starter of the recipe, also as the catalog resolves it;
+ * - every item of the pool of every channel the user hid, under its rules for the day;
  * - the pools of the leftovers channels before it, ceilinged ones first (so the grown-up leftovers leaves out what the
  *   kids' leftovers airs, or would air if the user hid it).
  *
@@ -1101,20 +1101,30 @@ internal class LineupDays(
             claimed: Set<CanonicalId>,
         ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel, lineup))
 
-        // Every opt-in recipe of the catalog, as resolved against the cut's snapshot (its collection names and library
-        // names, as the planner resolves them) and as the lineup holds it. Each is evaluated under its policy: the
-        // resolved recipe by its recipe, the lineup's channel by its channel. The ceiling is as today.
+        // Every opt-in recipe of the catalog, as the lineup holds it on the day (its rules for that day: the rules in
+        // force, so a catalog swap or a re-resolve waiting for the boundary withholds today what it withheld before,
+        // D1). One the lineup holds as an unedited starter is that starter's rules, the recipe as the planner resolved
+        // it. Any other (an edited starter, a custom channel from it, or none) also withholds the recipe as resolved
+        // against the cut's snapshot (its collection names and library names, as the planner resolves them), from the
+        // catalog as it is now. Each is evaluated under its policy: the resolved recipe by its recipe, the lineup's
+        // channel by its channel. The ceiling is as today.
         private fun optInRules(cut: Cut): List<PolicyRules> {
             val snapshot = snapshotOf(cut)
-            val collections = collectionNamesOf(snapshot)
-            val names = LibraryNames(snapshot, collections)
+            val collections by lazy { collectionNamesOf(snapshot) }
+            val names by lazy { LibraryNames(snapshot, collections) }
             return catalog.recipes.filter { it.optIn }.flatMap { recipe ->
-                val offset = lineup.utcOffsetMinutes
-                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, offset, collections, names)
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
+                val followsRecipe = (inLineup?.source as? ChannelSource.Starter)?.edited == false
                 // The flag in force on the day counts here too: an opt-in channel withholds what it would air.
                 val household = lineup.householdFor(cut.dayStartMs)
-                val resolvedForDay = if (household) resolved else HouseholdSources.without(resolved, snapshot)
+                val resolvedForDay =
+                    if (followsRecipe) {
+                        null
+                    } else {
+                        val offset = lineup.utcOffsetMinutes
+                        val resolved = RecipeResolver.resolve(recipe, lineup.serverId, offset, collections, names)
+                        if (household) resolved else HouseholdSources.without(resolved, snapshot)
+                    }
                 listOfNotNull(
                     resolvedForDay?.let { PolicyRules(it, policyOf(recipe)) },
                     inLineup?.let { rulesAt(it, cut.dayStartMs, snapshot) }?.let {
