@@ -25,8 +25,9 @@ import kotlin.test.assertTrue
 
 /**
  * The `curated` walk against `docs/rules-format/vectors/key-order-v3.json`, which an independent reference computed
- * from the format text: the groups and their keys, start indexes, weights and queues, and the runs in order. A vector
- * is never changed to suit the code.
+ * from the format text: the groups and their keys, start indexes, weights and queues, the runs in order and every step
+ * of the walk (the clock, the groups ready, the group chosen, its run and slot, its pass before and after), read
+ * through the walk's test seam. A vector is never changed to suit the code.
  */
 class KeyOrderV3VectorsTest {
     private val vectors = VectorJson.parse(KeyOrderV3VectorFile.text).array("vectors").objects()
@@ -94,12 +95,36 @@ class KeyOrderV3VectorsTest {
             expect("weight of $id", group.intField("weight"), items.maxOf { weights[it.seriesId ?: it.id] })
             expect("kind of $id", group.string("kind"), kindName(rules.kind(items.first())))
         }
-        val runs = curatedRuns(pool, seedN, rules, case.settings())
+        val steps = ArrayList<WalkStep>()
+        val runs = curatedRuns(pool, seedN, rules, case.settings(), steps::add)
         val ids = runs.map { it.items.ids() }
         expect("runs", case.runsOf("runs"), ids)
         expect("order", case.array("order").map { it.jsonPrimitive.content }, ids.flatten())
-        val walked = case.array("walk").objects().map { step -> step.array("run").map { it.jsonPrimitive.content } }
-        expect("walk, run by run", walked, ids)
+        val walk = case.array("walk").objects()
+        expect("walk length", walk.size, steps.size)
+        for ((at, step) in walk.zip(steps).withIndex()) {
+            val (expected, actual) = step
+            val label = "walk step $at"
+            expect("$label, clock", expected.string("clock").toLong(), actual.clock)
+            expect(
+                "$label, ready",
+                expected.array("ready").map { it.jsonPrimitive.content }.sorted(),
+                actual.ready.map { it.value }.sorted(),
+            )
+            expect(
+                "$label, relaxed",
+                expected
+                    .getValue("relaxed")
+                    .jsonPrimitive.content
+                    .toBoolean(),
+                actual.relaxed,
+            )
+            expect("$label, chosen", expected.string("chosen"), actual.chosen.value)
+            expect("$label, run", expected.array("run").map { it.jsonPrimitive.content }, actual.run.map { it.value })
+            expect("$label, slot", expected.string("slot").toLong(), actual.slotMs)
+            expect("$label, pass before", expected.string("passBefore").toLong(), actual.passBefore)
+            expect("$label, pass after", expected.string("passAfter").toLong(), actual.passAfter)
+        }
         return failures
     }
 

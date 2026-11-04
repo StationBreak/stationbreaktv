@@ -27,6 +27,23 @@ internal class WalkGroup(
 )
 
 /**
+ * One step of the walk as a test sees it (docs/rules-format/vectors/key-order-v3.json, `walk`): the [clock] before the
+ * step, the groups [ready] then (empty when the step is [relaxed], taking the longest gap), the [chosen] group, its
+ * [run], the [slotMs] the run takes on the clock and the group's pass before and after.
+ */
+@Suppress("LongParameterList") // One field per column of the vectors' walk trace.
+internal class WalkStep(
+    val clock: Long,
+    val ready: List<CanonicalId>,
+    val relaxed: Boolean,
+    val chosen: CanonicalId,
+    val run: List<CanonicalId>,
+    val slotMs: Long,
+    val passBefore: Long,
+    val passAfter: Long,
+)
+
+/**
  * The runs of the `curated` order (docs/rules-format.md, "curated") for [pool] on the day with the seed [seedN]:
  * every group of the pool takes turns, the group with the least airtime first, no group again within
  * `settings.repeatGapMs` while another can go, episodes of at most `settings.pairUpToMs` in pairs. Whole numbers
@@ -37,12 +54,13 @@ internal fun curatedRuns(
     seedN: ULong,
     groups: GroupRules,
     settings: SchedulerSettings,
+    onStep: ((WalkStep) -> Unit)? = null,
 ): List<Run> {
     val members = HashMap<CanonicalId, ArrayList<ScheduleItem>>()
     for (item in pool) members.getOrPut(groups.groupId(item)) { ArrayList() }.add(item)
     val walkGroups = ArrayList<WalkGroup>(members.size)
     for ((id, items) in members) walkGroups.add(walkGroupOf(id, items, seedN, groups))
-    return walkGroups(walkGroups, settings)
+    return walkGroups(walkGroups, settings, onStep)
 }
 
 private fun walkGroupOf(
@@ -70,10 +88,14 @@ private fun walkGroupOf(
     return WalkGroup(id, key, queue, weight, kind == GroupKind.Series)
 }
 
-/** The walk over groups that are already built. Two heaps keep a step to O(log g) (see [GroupHeap]). */
+/**
+ * The walk over groups that are already built. Two heaps keep a step to O(log g) (see [GroupHeap]). [onStep] is a test
+ * seam: it is null in the app, and a step is only described when it is set.
+ */
 internal fun walkGroups(
     groups: List<WalkGroup>,
     settings: SchedulerSettings,
+    onStep: ((WalkStep) -> Unit)? = null,
 ): List<Run> {
     val state = WalkState(groups)
     val ready = GroupHeap(state, byLast = false)
@@ -88,13 +110,21 @@ internal fun walkGroups(
     while (remaining > 0) {
         // A group that aired long enough ago is ready again; the one that aired longest ago is the first to be.
         while (waiting.size > 0 && clock - state.last[waiting.peek()] >= settings.repeatGapMs) ready.push(waiting.pop())
-        val chosen = if (ready.size > 0) ready.pop() else waiting.pop()
+        val readyNow = if (onStep != null) ready.members().map { groups[it].id } else emptyList()
+        val relaxed = ready.size == 0
+        val chosen = if (relaxed) waiting.pop() else ready.pop()
         val run = state.take(chosen, settings.pairUpToMs)
         runs.add(run)
         remaining -= run.items.size
         state.last[chosen] = clock
-        clock += Timeline.slotMs(settings, run)
+        val slot = Timeline.slotMs(settings, run)
+        val passBefore = state.pass[chosen]
         state.pass[chosen] += run.runtimeMs * PASS_SCALE / state.groups[chosen].weight
+        if (onStep != null) {
+            val ids = run.items.map { it.id }
+            onStep(WalkStep(clock, readyNow, relaxed, groups[chosen].id, ids, slot, passBefore, state.pass[chosen]))
+        }
+        clock += slot
         if (state.next[chosen] < state.groups[chosen].queue.size) waiting.push(chosen)
     }
     return runs
@@ -162,6 +192,9 @@ private class GroupHeap(
         private set
 
     fun peek(): Int = items[0]
+
+    /** The groups in the heap, in no order: only the test seam asks. */
+    fun members(): List<Int> = items.take(size)
 
     fun push(group: Int) {
         var at = size++
