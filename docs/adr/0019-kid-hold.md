@@ -150,3 +150,45 @@ source and a per-version rating ladder. Rejected, after architecture and data gu
 family-genre titles all pass a PG ceiling.
 
 **Admit Family as a kids genre.** Rejected on principle (owner decision 1), not by measurement.
+
+## Addendum (2026-11-03, spec 23): `kid-hold-3`
+
+- **Amended by:** this addendum; the decision is the owner's (spec 23 design, R9).
+
+**The gap.** `kid-hold-2` counts a title as made for kids by a kids genre, a kid studio or a children's rating. A
+classic animated family film, rated G or TV-G and tagged Animation and Family, has none of the three unless the
+library happens to name a listed studio. It aired on no kid channel, and on grown-up channels it competed with
+grown-up films. Family alone stays rejected (decision 1 above): a live-action family film is not made for kids.
+
+**The portable signal.** `KidHold.isAnimatedFamily(entry, series)`: the genres of the item and of its known series
+together include Animation and Family, and the rating is G-like or unrated. The rating is the effective one (the
+item's own, or the series' when the own is null or blank), and a known series with a rating must pass too, as
+`passesKidCeiling` reads an episode. It passes when it is null or blank, or after `RatingLadder.normalise` is `G`,
+`TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`, or (ASCII upper-cased, trimmed) is `NR` or `NOT RATED`. It uses
+only genres and ratings, which every server has; tags, library names and folder layout never take part.
+`isMadeForKids` is the `kid-hold-2` test or this signal. `isSeriesMadeForKids(series)` applies the same lists to a
+series alone, for the curation's tone; it is not a hold of its own. The lists and `passesKidCeiling` are unchanged.
+
+**Both directions.** On the kid side, the signal admits these titles to kid channels and to Kids' Odds & Ends (this
+change). On the grown-up side, `grown-up-hold-2` makes grown-up channels drop everything this predicate calls made for
+kids, so a title is on a kid channel or a grown-up one, not both ([ADR-0020](0020-grown-up-hold.md) addendum). Until
+that lands the grown-up hold is as it was, which is no safety loss: a kid channel only ever gains titles that are made
+for kids by the new rule.
+
+**The cost.**
+
+- An unrated animated family title is made for kids but fails every ceiling (a title needs a kid tier, and unrated has
+  none), so it airs on no kid channel. It stays off kid channels until a rating is set. The signal still counts it for
+  the curation's tone and for the grown-up side.
+- A title rated PG or above, or off the ladder, is not admitted. A PG animated family film does not become made for
+  kids.
+- Each item costs two scans of its genre list (and its series') and no allocation.
+- Every day made under `kid-hold-2` is remade: `PersistedDays` keys its files by `VERSION_NAME`, so the persisted days
+  of kid channels, and of the grown-up channels that share the hold names, are rebuilt once. Like spec 18's holds this
+  applies at once, not at the next day boundary, and a programme on now can be cut once at the update. This is
+  accepted for kid safety.
+
+**The version.** `KidHold.VERSION_NAME` is `kid-hold-3`. The studio, genre and rating lists are the `kid-hold-2` ones,
+frozen under the new name; the manifest tests hold them. Mixed app versions can disagree on a kid channel during an
+update (A-VER-1).
+
