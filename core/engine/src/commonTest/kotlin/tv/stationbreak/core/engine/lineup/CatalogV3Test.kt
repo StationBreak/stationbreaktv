@@ -29,15 +29,28 @@ class CatalogV3Test {
 
     private fun recipe(key: String): Recipe = checkNotNull(v3.firstOrNull { it.key == key }) { "no recipe $key" }
 
-    private fun genreNames(r: Recipe): List<String> =
-        r.sources.filterIsInstance<Source.Genre>().map { it.name } + r.filters?.genres.orEmpty()
-
+    // An opt-in recipe's sources are exempt (as exclusions are, Resolution 7): what it holds back from the leftovers must
+    // be broad, and scrapers disagree on the spelling, so it keeps every non-TMDB genre catalog 2 gave it. Its filters
+    // are not exempt.
     @Test
     fun everyGenreIsATmdbGenreOrAnime() {
         for (r in v3) {
-            for (name in genreNames(r)) {
+            val sources = if (r.optIn) emptyList() else r.sources.filterIsInstance<Source.Genre>().map { it.name }
+            for (name in sources + r.filters?.genres.orEmpty()) {
                 assertTrue(name in TMDB_GENRES || name == "Anime", "${r.key} has genre $name")
             }
+        }
+    }
+
+    // What an opt-in recipe holds back from the leftovers never narrows at the swap: it keeps every catalog-2 source.
+    @Test
+    fun theOptInRecipesKeepEveryCatalogTwoSource() {
+        val optIn = v2.filter { it.optIn }
+        assertTrue(optIn.isNotEmpty())
+        for (old in optIn) {
+            val new = recipe(old.key)
+            assertTrue(new.optIn, old.key)
+            assertTrue(new.sources.containsAll(old.sources), "${old.key} lost ${old.sources - new.sources.toSet()}")
         }
     }
 

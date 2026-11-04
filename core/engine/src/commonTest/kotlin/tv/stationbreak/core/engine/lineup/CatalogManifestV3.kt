@@ -100,7 +100,7 @@ internal val CATALOG_MANIFEST_V3: CatalogManifest =
                 "masala-hour" to ManifestRecipe(432, Band.World, false, null, "6a1d50911be9ebaa"),
                 "telenovela-tonight" to ManifestRecipe(436, Band.World, false, null, "e9d6877c071d6107"),
                 "cherry-blossom-hour" to ManifestRecipe(440, Band.World, false, null, "c2613022c76b1b2c"),
-                "after-hours" to ManifestRecipe(504, Band.Premium, true, null, "37fb1d898d95940c"),
+                "after-hours" to ManifestRecipe(504, Band.Premium, true, null, "21d48d510874d2e1"),
                 "graveyard-shift" to ManifestRecipe(508, Band.Premium, false, null, "26f955e914f591b3"),
                 "one-season-only" to ManifestRecipe(512, Band.Premium, false, null, "63f86c86c2814d4d"),
                 "cartoons-after-dark" to ManifestRecipe(516, Band.Premium, false, null, "0c638352cc55420b"),

@@ -1059,7 +1059,7 @@ private val premiumBand: List<Recipe> =
             key = "after-hours",
             name = "After Hours",
             says = "Adults only, and only if you ask for it.",
-            sources = tags("adult", "erotic", "18+", "erotica"),
+            sources = genres("Adult", "Erotic", "Erotica") + tags("adult", "erotic", "18+", "erotica"),
             optIn = true,
         ),
         recipe(
