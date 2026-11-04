@@ -844,9 +844,11 @@ Ordering (`180` and `35` minutes, that is `10800000` and `2100000` ms) when the 
 - **The franchise map.** Every collection in the library snapshot whose name is a **box set name** is a candidate (not
   only the collections named in `sources`, and including a collection that `exclusions` only exclude); a collection that is
   not in the snapshot, one with no name, and one whose name is not a box set name group nothing. A name is a box set name
-  when, after the **clean** step of the studio fold (which removes the dropped set and trims the space set from both ends,
-  see Studio names in String matching) and the ASCII fold, it ends with a U+0020 and `collection`; so `Box Set 1 Collection`
-  and `box set 1 COLLECTION ` are box set names and `Collection`, `Box Set Collections` and `Box Set Collection 2` are not.
+  when, after the whole **clean** step of the studio fold (an unpaired surrogate is dropped; tab, carriage return, line feed,
+  U+2028 and U+2029 become a space; the dropped set is removed; the space set is trimmed from both ends; see Studio names in
+  String matching) and then the ASCII fold, it ends with a U+0020 and `collection`; so `Box Set 1 Collection`,
+  `box set 1 COLLECTION ` and `Box Set<TAB>Collection` are box set names and `Collection`, `Box Set Collections` and
+  `Box Set Collection 2` are not. A collection with no name, or a name that is empty after the clean, is not a box set.
   The rule does not depend on any setting of the app. A film (a movie of the pool) that is a **member
   movie** of at least one such collection is mapped to the collection with the **smallest canonical ID** (compared as the
   32 ASCII bytes, unsigned) among those it is a member of. Episodes are never mapped. The map is worked out from the as-of
@@ -1041,7 +1043,8 @@ filled in from the rules first; the scheduler has none of its own.
   them there; one that is ignores them in the order and checks them like any caps (so `epochHours` must be 24 below). This
   holds for `curated` too: a rules file with `curated` and `caps` is invalid (see Ordering), so the rules layer never gives
   caps to a `curated` scheduler, but a scheduler that is handed caps beside `curated` ignores them in the order and does not
-  fail because of them;
+  fail because of their presence. Their values are still checked like any caps: a cap outside 1 to 10, or an `epochHours`
+  other than 24 with caps present, is an input error;
 - `runtimeFilter`: none, or a window `minMs` and/or `maxMs` in milliseconds (`minMinutes * 60000`, `maxMinutes * 60000`)
   and, in version 3, a window `episodeMinMs`/`episodeMaxMs` for episodes and a window `movieMinMs`/`movieMaxMs` for movies,
   each part given or not: a pool condition, see The pool of an epoch;
