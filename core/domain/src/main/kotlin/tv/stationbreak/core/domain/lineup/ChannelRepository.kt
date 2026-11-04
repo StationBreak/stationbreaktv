@@ -18,6 +18,21 @@ enum class ChannelStatus {
     UserHidden,
 }
 
+/** Why the planner left a channel off the lineup (spec 23); the channel screen words each one. */
+enum class ShelfReason {
+    /** Nothing in the libraries fits the channel. */
+    Empty,
+
+    /** Too little fits once every title has its best home. */
+    TooThin,
+
+    /** It fits, but stronger channels filled the lineup. */
+    BelowCap,
+
+    /** An opt-in channel: on only if the viewer switches it on. */
+    OptIn,
+}
+
 /** What a channel airs, as channel management shows it. */
 enum class ChannelKind {
     /** A starter-catalog channel, edited by the user or not. */
@@ -47,6 +62,8 @@ enum class ChannelKind {
  * kids (the 1 to 99 numbers are theirs alone); [optIn] is a starter whose recipe needs a deliberate confirmation to
  * switch on. [playKey] stands for what the channel's rules do to its schedule (its order, seed, sources and the rest,
  * but not its name): it differs when the days built from the rules would, though the channel and its number do not.
+ * [shelfReason] is why the planner shelved the channel, or why it leaves at the next day start; null for every other
+ * channel, including one that starts at the next day start.
  */
 data class ChannelSummary(
     val id: ChannelId,
@@ -59,6 +76,7 @@ data class ChannelSummary(
     val kid: Boolean,
     val optIn: Boolean,
     val playKey: PlayKey,
+    val shelfReason: ShelfReason? = null,
 )
 
 /**

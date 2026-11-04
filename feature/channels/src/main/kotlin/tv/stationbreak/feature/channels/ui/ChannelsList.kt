@@ -17,10 +17,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
@@ -140,6 +142,7 @@ private fun RowLine(
     focused: Boolean,
 ) {
     val reason = row.reason
+    val shelfReason = row.shelfReason
     val labels = labelsOf(row)
     Column(
         Modifier
@@ -164,8 +167,27 @@ private fun RowLine(
                 color = ChannelsPalette.secondary,
             )
         }
+        if (shelfReason != null) {
+            Text(
+                stringResource(shelfReasonText(shelfReason)),
+                Modifier.testTag(ChannelsTags.shelfReason(row.id)),
+                // The theme's secondary size (14sp) is under the 10-foot minimum: 16sp, in the muted colour.
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = SHELF_REASON_SP.sp),
+                color = ChannelsPalette.secondary,
+            )
+        }
     }
 }
+
+private const val SHELF_REASON_SP = 16
+
+private fun shelfReasonText(reason: ShelfReason): Int =
+    when (reason) {
+        ShelfReason.Empty -> R.string.channels_shelf_empty
+        ShelfReason.TooThin -> R.string.channels_shelf_thin
+        ShelfReason.BelowCap -> R.string.channels_shelf_below_cap
+        ShelfReason.OptIn -> R.string.channels_shelf_opt_in
+    }
 
 @Composable
 private fun labelsOf(row: ChannelRow): String =

@@ -17,6 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import tv.stationbreak.core.engine.lineup.ShelfReason as EngineReason
 
 /** The day of a starter takes its rules, its sources and the household flag from the day, not from now (spec 23). */
 class BoundaryDaysTest {
@@ -215,5 +216,30 @@ class BoundaryDaysTest {
         assertTrue(days.scheduled(lineup, boundary, null).none { it.channel.id == leaving.id }, "gone once due")
         assertEquals(ChannelStatus.On, leaving.summary(TestCatalog, PlayKey("k"), boundary - 1).state)
         assertEquals(ChannelStatus.Shelf, leaving.summary(TestCatalog, PlayKey("k"), boundary).state)
+    }
+
+    @Test
+    fun theShelfReasonShowsOnShelvedAndLeavingRowsOnly() {
+        val laughs = before.channels.first { it.id == LineupIds.starter("laughs") }
+        val key = PlayKey("k")
+        val reason = EngineReason.BelowCap
+
+        fun reasonAt(
+            channel: LineupChannel,
+            nowMs: Long,
+        ) = channel.summary(TestCatalog, key, nowMs).shelfReason
+
+        val leaving = laughs.copy(leavesAtMs = boundary, shelfReason = reason)
+        assertEquals(ShelfReason.BelowCap, reasonAt(leaving, boundary - 1), "leaving at the boundary")
+        assertEquals(ShelfReason.BelowCap, reasonAt(leaving, boundary), "shelved once due")
+        assertEquals(
+            ShelfReason.OptIn,
+            reasonAt(laughs.copy(state = ChannelState.Shelf, shelfReason = EngineReason.OptIn), noon),
+        )
+        // Starting at the boundary, on the air, or hidden by the viewer: none.
+        assertNull(reasonAt(laughs.copy(onSinceMs = boundary, shelfReason = null), noon))
+        assertNull(reasonAt(laughs.copy(onSinceMs = boundary, shelfReason = reason), noon))
+        assertNull(reasonAt(laughs, noon))
+        assertNull(reasonAt(laughs.copy(state = ChannelState.UserHidden, shelfReason = reason), noon))
     }
 }

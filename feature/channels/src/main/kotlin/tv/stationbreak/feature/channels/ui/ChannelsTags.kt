@@ -56,6 +56,9 @@ object ChannelsTags {
     /** The reason an On channel has nothing to air, when it has one. */
     fun reason(channel: ChannelId) = "channels:reason:${channel.value}"
 
+    /** The reason a channel is shelved, or leaves at the next day start. */
+    fun shelfReason(channel: ChannelId) = "channels:shelf-reason:${channel.value}"
+
     /** One of the picker's three digits, 0 for the hundreds. */
     fun digit(position: Int) = "channels:digit:$position"
 }

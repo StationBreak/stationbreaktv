@@ -27,6 +27,7 @@ internal fun channelRows(
                 kid = c.kid,
                 optIn = c.optIn,
                 reason = if (group == ChannelGroup.On) reasons[c.id] else null,
+                shelfReason = c.shelfReason,
                 hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
             )
         }

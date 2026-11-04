@@ -8,6 +8,7 @@ import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import kotlin.time.Instant
+import tv.stationbreak.core.engine.lineup.ShelfReason as EngineReason
 
 // How engine lineup types are shown to features, which never see them (spec 12).
 
@@ -38,7 +39,27 @@ internal fun LineupChannel.summary(
     kid = KidStatus.isKidChannel(this),
     optIn = isOptIn(catalog),
     playKey = playKey,
+    shelfReason = shownShelfReason(nowMs),
 )
+
+// A shelved channel's reason, or the one the planner stored when it set a leave that is yet to come: a channel on the
+// air today that goes at the next day start. A channel that starts at the next day start has none.
+private fun LineupChannel.shownShelfReason(nowMs: Long): ShelfReason? {
+    // On with a leave set: it leaves at the next day start, or it has left already (and is shown on the shelf).
+    val leaving = state == ChannelState.On && leavesAtMs != null
+    return if (shownState(nowMs) == ChannelState.Shelf || leaving) {
+        shelfReason?.let {
+            when (it) {
+                EngineReason.Empty -> ShelfReason.Empty
+                EngineReason.TooThin -> ShelfReason.TooThin
+                EngineReason.BelowCap -> ShelfReason.BelowCap
+                EngineReason.OptIn -> ShelfReason.OptIn
+            }
+        }
+    } else {
+        null
+    }
+}
 
 /** The state a viewer sees at [nowMs]: a channel whose leave time has come is on the shelf, as `rolled` makes it. */
 private fun LineupChannel.shownState(nowMs: Long): ChannelState =
