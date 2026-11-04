@@ -104,8 +104,28 @@ object Curation {
     fun pools(
         snapshot: RuleSnapshot,
         on: List<CurationChannel>,
-    ): Map<ChannelId, CuratedPool> = CurationRun(LaneBuilder(snapshot, sortedChannels(on))).pools()
+    ): Map<ChannelId, CuratedPool> = curate(snapshot, on).pools
+
+    /**
+     * [pools] and the [homes] over [on] they were made from, in one run: the day build reads both (a channel switched
+     * on in the middle of a day airs what the basis channels do not home).
+     */
+    fun curate(
+        snapshot: RuleSnapshot,
+        on: List<CurationChannel>,
+    ): Curated {
+        val run = CurationRun(LaneBuilder(snapshot, sortedChannels(on)))
+        // The homes first: the guests and their cap, which pools() places, never move a home.
+        val homes = run.homes()
+        return Curated(run.pools(), homes)
+    }
 }
+
+/** The result of [Curation.curate]: each channel's curated pool, and where every candidate title lives. */
+class Curated(
+    val pools: Map<ChannelId, CuratedPool>,
+    val homes: Homes,
+)
 
 /**
  * Homes a subset of the channels it was built over. A channel's lane (candidates, hours, anchors, scores) depends only

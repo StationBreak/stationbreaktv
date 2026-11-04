@@ -632,6 +632,7 @@ internal fun describe(days: List<ChannelDay>) =
             it.pool,
             it.hidden,
             it.ceilingRank,
+            it.weights.entries,
             it.day.blocks,
         )
     }

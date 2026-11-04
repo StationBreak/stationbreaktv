@@ -634,4 +634,22 @@ class CurationTest {
         assertEquals(one.homeOf(f), homes.homeOf(f))
         assertEquals(one.stats(many[0].id), homes.stats(many[0].id))
     }
+
+    @Test
+    fun curateGivesThePoolsAndTheHomesOfOneRun() {
+        val lib = Library()
+        val shared = lib.show(eps = 4, genres = listOf("Drama", "Mystery"))
+        val own = (0 until 6).map { lib.film(genres = listOf("Drama")) }
+        val other = (0 until 6).map { lib.film(genres = listOf("Mystery")) }
+        val a = channel("ch-a", 100, listOf("Drama"), lib.itemsOf(listOf(shared) + own))
+        val b = channel("ch-b", 200, listOf("Drama", "Mystery"), lib.itemsOf(listOf(shared) + other))
+        val snap = lib.snapshot()
+
+        val curated = Curation.curate(snap, listOf(b, a))
+
+        assertEquals(Curation.pools(snap, listOf(a, b)), curated.pools)
+        val homes = Curation.homes(snap, listOf(a, b))
+        for (title in listOf(shared) + own + other) assertEquals(homes.homeOf(title), curated.homes.homeOf(title))
+        assertEquals(homes.stats(a.id), curated.homes.stats(a.id))
+    }
 }

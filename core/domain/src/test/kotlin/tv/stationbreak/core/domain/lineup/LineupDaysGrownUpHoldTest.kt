@@ -236,10 +236,10 @@ class LineupDaysGrownUpHoldTest {
         val odds = leftovers("odds-and-ends", 199, null)
         val kidsOn = leftovers("kids-odds-and-ends", 99, "PG")
         val kidsOff = leftovers("kids-odds-and-ends", 99, "PG", ChannelState.Shelf)
-        val on = LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOn, odds))
-        val off = LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOff, odds))
+        val on = LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOn, odds), NOON.toEpochMilliseconds())
+        val off = LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOff, odds), NOON.toEpochMilliseconds())
         assertNotEquals(on, off)
-        assertEquals(on, LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOn, odds)))
+        assertEquals(on, LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOn, odds), NOON.toEpochMilliseconds()))
     }
 
     @Test

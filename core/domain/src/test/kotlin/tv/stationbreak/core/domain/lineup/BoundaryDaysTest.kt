@@ -177,7 +177,7 @@ class BoundaryDaysTest {
         fun key(
             of: Lineup,
             id: String,
-        ) = days.playKeyOf(of.channels.first { it.id.value == id }, of)
+        ) = days.playKeyOf(of.channels.first { it.id.value == id }, of, noon)
         val laughs = LineupIds.starter("laughs").value
         assertNotEquals(key(lineup, laughs), key(toggled, laughs))
         assertNotEquals(key(toggled, laughs), key(cleared, laughs))

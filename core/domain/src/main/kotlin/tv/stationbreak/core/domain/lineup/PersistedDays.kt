@@ -8,10 +8,12 @@ import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.KidHold
+import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleWeights
 import java.util.Collections
 import kotlin.time.TimeSource
 
@@ -74,6 +76,9 @@ enum class DaySnapshotMiss {
  * - the catalog version, the lineup's UTC offset and a SHA-256 of what of the lineup the days depend on
  *   ([LineupDays.inputsOf]: every channel's state, source, ceiling and pool policy, and the leftovers' claim order),
  *   which leaves out the numbers and names that change no pool, so a renumber keeps the file;
+ * - the curation each scheduled channel's day reads ([Scheduled.curation]: the on-set and flag in force that day), as
+ *   a digest. It follows from the lineup's inputs and the day, so it is there to make the dependence plain, and a
+ *   change of it misses as `Lineup`;
  * - the cut-offs and every scheduled channel with its epoch number (which day), by channel ID: the file holds the days
  *   in that order too, and they are given back in the caller's (number) order.
  *
@@ -131,6 +136,7 @@ class PersistedDays internal constructor(
             catalog = catalogVersion,
             utcOffsetMinutes = utcOffsetMinutes,
             inputs = inputs,
+            curation = sha256Hex(inKeyOrder.joinToString("\n") { it.curation?.text().orEmpty() }.encodeToByteArray()),
             cutoffs = scheduled.map { it.cutoffMs }.distinct().sorted(),
             channels = inKeyOrder.map { it.channel.id.value },
             days = inKeyOrder.map { it.n },
@@ -145,7 +151,7 @@ class PersistedDays internal constructor(
         account: LibraryAccount,
         key: DayKey,
         scheduled: List<Scheduled>,
-        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?) -> ChannelDay,
+        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?, TitleWeights) -> ChannelDay,
     ): List<ChannelDay>? {
         if (!enabled) return null
         val began = TimeSource.Monotonic.markNow()
@@ -223,7 +229,7 @@ class PersistedDays internal constructor(
         file: ByteArray,
         key: DayKey,
         scheduled: List<Scheduled>,
-        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?) -> ChannelDay,
+        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?, TitleWeights) -> ChannelDay,
     ): Read {
         // The body is read only for a header that matches: a file for other inputs costs one short line.
         val header = DaySnapshotCodec.header(file) as? DaySnapshotCodec.Header.Read
@@ -233,7 +239,12 @@ class PersistedDays internal constructor(
         // Each day is the one its channel expects, by ID: a file whose days are in another order is a miss.
         val matched = body.map { it.channel } == scheduled.map { it.channel.id.value }
         return if (matched) {
-            Read.Loaded(scheduled.mapIndexed { i, s -> restore(s, body[i].pool, body[i].films, body[i].hidden) })
+            Read.Loaded(
+                scheduled.mapIndexed { i, s ->
+                    val day = body[i]
+                    restore(s, day.pool, day.films, day.hidden, day.weights)
+                },
+            )
         } else {
             Read.Missed(DaySnapshotMiss.Channels)
         }
@@ -257,9 +268,12 @@ class PersistedDays internal constructor(
     private fun inKeyOrder(scheduled: List<Scheduled>): List<Scheduled> = scheduled.sortedBy { it.channel.id.value }
 
     companion object {
-        /** The holds a kid and a grown-up channel's pools are narrowed by (ADR-0019, ADR-0020), and the extras. */
+        /**
+         * The holds a kid and a grown-up channel's pools are narrowed by (ADR-0019, ADR-0020), the extras, and the
+         * curation that cuts a curated starter's pool (spec 23).
+         */
         internal val HOLDS: List<String> =
-            listOf(KidHold.VERSION_NAME, GrownUpHold.VERSION_NAME, ExtrasFilter.VERSION_NAME)
+            listOf(KidHold.VERSION_NAME, GrownUpHold.VERSION_NAME, ExtrasFilter.VERSION_NAME, Curation.VERSION_NAME)
 
         /**
          * How many sets of cut-offs are kept per account: today's and the next day's. With one day start that is two

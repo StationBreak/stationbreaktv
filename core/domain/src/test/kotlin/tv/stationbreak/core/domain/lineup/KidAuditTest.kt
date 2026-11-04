@@ -8,7 +8,9 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.KidStatus.isKidChannel
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.StarterCatalog
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -185,6 +187,43 @@ class KidAuditTest {
                 }
             }
             assertEquals(overEveryCeiling, aired, "each title no kid channel can take airs on a grown-up channel")
+        }
+
+    // The shipped catalog with every recipe programmed: the day build curates every starter (spec 23). The curation
+    // only takes items out of pools the holds already narrowed, so nothing else may reach a kid channel.
+    @Test
+    fun curatedKidChannelsStillAirOnlyMadeForKids() =
+        runBlocking<Unit> {
+            seed()
+            val curated =
+                object : StarterCatalogView by StarterCatalog {
+                    override val recipes = StarterCatalog.recipes.map { it.copy(ordering = OrderingMode.Curated) }
+                }
+            val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, curated)
+            service.refresh(ACCOUNT, LIBRARIES)
+            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val ceilings = Ceilings(curated)
+            val byId = items.associateBy { it.item.id }
+            var audited = 0
+            var weighted = 0
+            for (day in 0 until WEEK) {
+                for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
+                    if (!channelDay.weights.isEmpty) weighted++
+                    if (!isKidChannel(channelDay.channel)) continue
+                    val ceiling = ceilings.of(channelDay.channel)
+                    for (scheduled in channelDay.pool) {
+                        val entry = checkNotNull(byId[scheduled.id])
+                        val show = scheduled.seriesId?.let { shows[it] }
+                        val where = "${channelDay.name} day $day ${scheduled.id}"
+                        assertTrue(KidHold.isMadeForKids(entry, show), "not made for kids: $where")
+                        assertTrue(KidHold.passesKidCeiling(entry, show, ceiling), "over its ceiling: $where")
+                        assertTrue(scheduled.id !in nearMisses, "a seeded near miss on a kid channel: $where")
+                        audited++
+                    }
+                }
+            }
+            assertTrue(audited > 0, "the audit saw nothing")
+            assertTrue(weighted > 0, "no day was curated")
         }
 
     private fun isGrownUpStarterOrLeftovers(channel: LineupChannel): Boolean =

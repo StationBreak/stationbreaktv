@@ -35,11 +35,12 @@ import tv.stationbreak.core.rules.ChannelRules
  * - With more than [LineupDefaults.CAP] starters on (the viewer can switch on past the cap), a re-resolve changes
  *   today's rules at once for the starters beyond the [LineupDefaults.CAP]th by number: what they air today can
  *   change in the middle of the day.
- * - A starter switched on in the middle of a day airs from now (`onSinceMs`), so what it airs leaves the leftovers'
- *   current day at once: the leftovers' day moves once. That includes the starter a "Use my collections" change kept
- *   waiting for its boundary (it must fill under today's flag and tomorrow's): the plan at that boundary switches it
- *   on, and the leftovers' new day, already begun, moves. Task 21 (spec 23, PR 5) has the leftovers claim from the
- *   basis on-set until the boundary instead.
+ * - A starter switched on in the middle of a day airs from now (`onSinceMs`). A programmed (curated) one is not in the
+ *   basis's on-set, so until the boundary it airs what the basis channels do not home, and the leftovers claim from
+ *   the basis on-set (spec 23, A5, F5): their current day does not move, and both can air the same title until the
+ *   boundary. That includes the starter a "Use my collections" change kept waiting for its boundary (the plan at that
+ *   boundary switches it on). A starter that is not programmed claims its day pool at once, so the leftovers' current
+ *   day moves once for it.
  * - With a catalog that selects by identity (`StarterCatalogView.selectsByIdentity`, version 3 on, every recipe themed)
  *   the planner selects (`Selection.select`, spec 23) on every plan, and that can change the lineup in the middle of a
  *   day, from what the library holds now. An untouched shelved starter the selection picks switches on at once, if it

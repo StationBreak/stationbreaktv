@@ -7,7 +7,6 @@ import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,14 +38,15 @@ class TrimmedItemsStayClaimedTest {
             )
         }
     private val others = (0 until 4).map { movie(100 + it, "Crime", rating = "R") }
-    private val lineup =
-        lineupOf(
-            starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy"))),
-            leftovers("odds-and-ends", 199, null),
-        )
-    private val keeps = TitleKeeps.of(mapOf(series to 2_400_000L))
-    private val windowed = LineupDays(TestCatalog) { _, _ -> }
-    private val trimming = LineupDays(TestCatalog, { s -> if (s.channel.number == 110) keeps else TitleKeeps.NONE })
+
+    // The same channel, plain and programmed: the curation caps the series at its share (an hour: the floor) and the
+    // day keeps a window of it.
+    private fun laughsWith(rules: tv.stationbreak.core.rules.ChannelRules) =
+        lineupOf(starter("laughs", 110, ChannelState.On, rules), leftovers("odds-and-ends", 199, null))
+
+    private val plain = laughsWith(rules("Laughs", Source.Genre("Comedy")))
+    private val lineup = laughsWith(programmed("Laughs", Source.Genre("Comedy")))
+    private val days = LineupDays(TestCatalog) { _, _ -> }
 
     private fun snapshots(scheduled: List<Scheduled>) =
         scheduled.map { it.cutoffMs }.distinct().associateWith {
@@ -57,34 +57,38 @@ class TrimmedItemsStayClaimedTest {
 
     @Test
     fun theLeftoversNeverAirATrimmedEpisodeAndNothingAirsNowhere() {
-        val scheduled = trimming.scheduled(lineup, NOON.toEpochMilliseconds(), null)
+        val scheduled = days.scheduled(lineup, NOON.toEpochMilliseconds(), null)
         val snaps = snapshots(scheduled)
 
-        val days = trimming.days(lineup, scheduled, snaps)
+        val built = days.days(lineup, scheduled, snaps)
 
-        val laughs = days.first { it.channel.number == 110 }
-        val rest = days.first { it.channel.number == 199 }
-        assertEquals(2, laughs.pool.size, "the window keeps two of six")
+        val laughs = built.first { it.channel.number == 110 }
+        val rest = built.first { it.channel.number == 199 }
+        assertEquals(3, laughs.pool.size, "the window keeps an hour, three of six")
         assertTrue(ids(rest.pool).none { it in ids(episodes.map { e -> e.item }) }, "no trimmed episode is left over")
-        assertEquals(0, trimming.airingNowhere(lineup, scheduled, snaps))
-        // The same build with no keeps gives the leftovers the same day.
-        val untrimmed = windowed.days(lineup, scheduled, snaps)
+        assertEquals(0, days.airingNowhere(lineup, scheduled, snaps))
+        // The plain channel, untrimmed, gives the leftovers the same day.
+        val plainScheduled = days.scheduled(plain, NOON.toEpochMilliseconds(), null)
+        val untrimmed = days.days(plain, plainScheduled, snapshots(plainScheduled))
         assertEquals(untrimmed.first { it.channel.number == 199 }.pool, rest.pool)
+        assertEquals(6, untrimmed.first { it.channel.number == 110 }.pool.size)
     }
 
     @Test
     fun aRestoredDayKeepsThePoolsItWasMadeWith() {
-        val scheduled = trimming.scheduled(lineup, NOON.toEpochMilliseconds(), null)
-        val days = trimming.days(lineup, scheduled, snapshots(scheduled))
+        val scheduled = days.scheduled(lineup, NOON.toEpochMilliseconds(), null)
+        val built = days.days(lineup, scheduled, snapshots(scheduled))
 
         // A day from disk claims nothing: it is its stored pool, made with no keeps, and the stored leftovers pool
         // already has the trimmed episodes out of it.
         val restored =
-            days.map { day ->
-                trimming.restore(scheduled.first { it.channel.id == day.channel.id }, day.pool, day.films, day.hidden)
+            built.map { day ->
+                val s = scheduled.first { it.channel.id == day.channel.id }
+                days.restore(s, day.pool, day.films, day.hidden, day.weights)
             }
 
-        assertEquals(days.map { it.pool }, restored.map { it.pool })
+        assertEquals(built.map { it.pool }, restored.map { it.pool })
+        assertEquals(built.map { it.day.blocks }, restored.map { it.day.blocks })
         val rest = restored.first { it.channel.number == 199 }
         assertTrue(ids(rest.pool).none { it in ids(episodes.map { e -> e.item }) })
     }

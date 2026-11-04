@@ -145,15 +145,20 @@ class LineupService internal constructor(
     // Background rolls (see [rollSoon]): their own scope, so a roll outlives the read that asked for it.
     private val rolls = BackgroundRolls(seams.rollDispatcher)
 
-    // The play keys of the last few revisions, so a list is not hashed again for each emission of the same revision.
+    // The play keys of the last few revisions and days, so a list is not hashed again for each emission of the same
+    // revision on the same day. A key holds what is in force on the day being played (the curation basis, a starter's
+    // rules for the day), so it is kept per broadcast day too: one that turns over before the roll is not stale.
     private val playKeys = PlayKeyCache()
 
-    private fun playKeysOf(held: Revisioned): Map<ChannelId, PlayKey> =
-        synchronized(playKeys) {
-            playKeys.getOrPut(held.revision) {
-                held.lineup.channels.associate { it.id to days.playKeyOf(it, held.lineup) }
-            }
+    private fun playKeysOf(
+        held: Revisioned,
+        nowMs: Long,
+    ): Map<ChannelId, PlayKey> {
+        val day = nextBoundary(held.lineup, nowMs)
+        return synchronized(playKeys) {
+            playKeys.getOrPut(held.revision to day) { days.playKeysOf(held.lineup, nowMs) }
         }
+    }
 
     private class Entry {
         val mutex = Mutex()
@@ -796,7 +801,7 @@ class LineupService internal constructor(
             emitAll(entryOf(owner).state)
         }.map { held ->
             val nowMs = clock.now().toEpochMilliseconds()
-            val keys = held?.let(::playKeysOf).orEmpty()
+            val keys = held?.let { playKeysOf(it, nowMs) }.orEmpty()
             held
                 ?.lineup
                 ?.channels
@@ -1058,7 +1063,13 @@ private typealias PlayKeys = Map<ChannelId, PlayKey>
 
 private const val PLAY_KEY_LOAD = 0.75f
 
-// Most recently used last; the oldest goes when there are more than [PLAY_KEY_REVISIONS].
-private class PlayKeyCache : LinkedHashMap<Long, PlayKeys>(PLAY_KEY_REVISIONS, PLAY_KEY_LOAD, true) {
-    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, PlayKeys>): Boolean = size > PLAY_KEY_REVISIONS
+// By revision and the day's next boundary; most recently used last, the oldest goes when there are more than
+// [PLAY_KEY_REVISIONS].
+private class PlayKeyCache : LinkedHashMap<RevisionDay, PlayKeys>(PLAY_KEY_REVISIONS, PLAY_KEY_LOAD, true) {
+    override fun removeEldestEntry(eldest: PlayKeyEntry): Boolean = size > PLAY_KEY_REVISIONS
 }
+
+// A revision and the next boundary after the day the keys were worked out for.
+private typealias RevisionDay = Pair<Long, Long>
+
+private typealias PlayKeyEntry = MutableMap.MutableEntry<RevisionDay, PlayKeys>

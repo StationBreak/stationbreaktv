@@ -18,10 +18,12 @@ import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
@@ -287,12 +289,17 @@ class HouseholdReplanTest {
             assertTrue(held().useMyCollections)
         }
 
-    // KNOWN EFFECT, pinned on purpose; Task 21 (spec 23, PR 5) changes it, and this test with it. A starter whose
-    // switch-on a household change kept waiting for the boundary is switched on by the plan at that boundary, after
-    // the new day has begun: it airs from now, so what it airs leaves the leftovers' current day at once. Task 21 has
-    // the leftovers claim from the basis on-set until the boundary instead.
+    // Was a known effect of PR 4 (a starter whose switch-on a household change kept waiting is switched on by the
+    // plan at the boundary, after the new day has begun, and what it airs left the leftovers' current day at once).
+    // Task 21 (spec 23) fixes it for programmed starters: until the basis's boundary the leftovers claim from the
+    // basis on-set, which the late switch-on is not in, so the leftovers' day stays whole and changes at the next
+    // boundary. A channel that is not programmed still claims its day pool at once (F5).
     @Test
-    fun knownEffectADeferredSwitchOnMovesTheLeftoversCurrentDayOnce() {
+    fun aDeferredSwitchOnLeavesTheLeftoversCurrentDayAlone() {
+        val programmed =
+            object : StarterCatalogView by catalog {
+                override val recipes: List<Recipe> = catalog.recipes.map { it.copy(ordering = OrderingMode.Curated) }
+            }
         val names = CollectionNames(mapOf(boxSet to "Box Set 2"))
 
         fun snapshotAt(cutoff: Long) =
@@ -305,27 +312,32 @@ class HouseholdReplanTest {
                 collectionsSynced = true,
             )
         val noonMs = NOON.toEpochMilliseconds()
-        val first = LineupPlanner.plan(null, SERVER, USER, 0, snapshotAt(noonMs), names, noonMs, boundary, catalog)
+        val first = LineupPlanner.plan(null, SERVER, USER, 0, snapshotAt(noonMs), names, noonMs, boundary, programmed)
         assertEquals(ChannelState.On, first.state(houseId))
         // At the boundary: the flag is on again, the basis is past (rolled), and the starter still waits on the shelf.
         val waiting = first.copy(channels = first.channels.map { if (it.id == houseId) it.shelved() else it })
         val atMs = boundary + 60_000L
-        val planned =
-            LineupPlanner.plan(waiting, SERVER, USER, 0, snapshotAt(atMs), names, atMs, boundary + DAY_MS, catalog)
+        val next = boundary + DAY_MS
+        val planned = LineupPlanner.plan(waiting, SERVER, USER, 0, snapshotAt(atMs), names, atMs, next, programmed)
         assertEquals(ChannelState.On, planned.state(houseId))
+        assertTrue(planned.curationBasis.let { it != null && houseId !in it.on }, "today's on-set is kept")
 
-        val days = LineupDays(catalog)
+        val days = LineupDays(programmed)
 
-        fun leftoversToday(lineup: Lineup): Set<CanonicalId> {
-            val scheduled = days.scheduled(lineup, atMs, null)
+        fun leftovers(
+            lineup: Lineup,
+            at: Long,
+        ): Set<CanonicalId> {
+            val scheduled = days.scheduled(lineup, at, null)
             val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { snapshotAt(it) }
             return days
                 .days(lineup, scheduled, snapshots)
                 .filter { it.channel.source is ChannelSource.Leftovers }
                 .flatMapTo(HashSet()) { day -> day.pool.map { it.id } }
         }
-        assertTrue(leftoversToday(waiting).containsAll(filmIds), "before the plan the leftovers air the box set today")
-        assertTrue(leftoversToday(planned).none { it in filmIds }, "after it, today's leftovers lose them at once")
+        assertTrue(leftovers(waiting, atMs).containsAll(filmIds), "before the plan the leftovers air the box set today")
+        assertTrue(leftovers(planned, atMs).containsAll(filmIds), "after it, today's leftovers keep them")
+        assertTrue(leftovers(planned.rolled(next), next + 60_000L).none { it in filmIds }, "from the next boundary not")
     }
 
     private companion object {
