@@ -388,10 +388,10 @@ class LineupPlannerMigrationTest {
         assertEquals(97 + 73, withoutAdded.size + withoutAdded.count { it.starter.previousRules != null })
     }
 
-    // A withholding starter whose rules are above the per-copy budget (an older app resolved without one) keeps no
-    // copy: it takes the new rules at once (a known edge), and the file bound holds.
+    // A starter whose rules are above the per-copy budget (an older app resolved without one) keeps no copy in any
+    // keeper group, on the air or withholding: it takes the new rules at once (a known edge), and the file bound holds.
     @Test
-    fun aWithholdingStarterOverThePerCopyBudgetKeepsNoCopy() {
+    fun aStarterOverThePerCopyBudgetKeepsNoCopyInAnyGroup() {
         val oversized = rules((0 until 200).map { Source.Tag("an over-long tag of a much older rules file $it") })
         assertTrue(RecipeResolver.fileBytes(oversized) > RecipeResolver.STARTER_RULES_BUDGET_BYTES)
         val lineup =
@@ -403,14 +403,45 @@ class LineupPlannerMigrationTest {
                         chosenByViewer = true,
                         source = it.starter.copy(rules = oversized.copy(timing = it.starter.rules.timing)),
                     )
+                }.withChannel("alpha") {
+                    it.copy(source = it.starter.copy(rules = oversized.copy(timing = it.starter.rules.timing)))
                 }
 
         val next = swap(lineup)
 
         assertEquals(lineup.channel("bravo").starter.rules, next.channel("bravo").starter.rulesFor(noon))
-        val charlie = next.channel("charlie").starter
-        assertNull(charlie.previousRules)
-        assertTrue(Source.Genre("charlie v3") in charlie.rules.sources, "it takes the new rules at once")
+        assertEquals(lineup.channel("delta").starter.rules, next.channel("delta").starter.rulesFor(noon))
+        for (key in listOf("charlie", "alpha")) {
+            val source = next.channel(key).starter
+            assertNull(source.previousRules, key)
+            assertTrue(Source.Genre("$key v3") in source.rules.sources, "$key takes the new rules at once")
+        }
+        assertEquals(ChannelState.On, next.channel("alpha").state)
+    }
+
+    // The opt-in starter's holdback keeps its copy before an ordinary hidden starter's, whatever their numbers. 120
+    // starters leave room for 50 keepers: the 48 on the air and two more, which go to the opt-in one and the first
+    // hidden one by number; the second hidden one takes the new rules at once.
+    @Test
+    fun theOptInStarterKeepsItsCopyBeforeHiddenOnes() {
+        val keysOf = (0 until 100).map { "r$it" to 200 + it } + (0 until 19).map { "g$it" to 300 + it }
+        val older = TestCatalog(keysOf.map { (k, n) -> recipeOf(k, n) } + recipeOf("late", 520, optIn = true), 2)
+        val library = libraryOf(keysOf.associate { it.first to QUALIFYING_ITEMS } + ("late" to QUALIFYING_ITEMS))
+        val chosen = planOf(null, library, older)
+        assertEquals(120, chosen.channels.count { it.source is ChannelSource.Starter })
+        val shelved = chosen.channels.filter { it.state == ChannelState.Shelf && it.id != LineupIds.starter("late") }
+        val (first, second) = shelved.sortedBy { it.number }.take(2).map { it.id.value.substringAfter(':') }
+        val lineup =
+            chosen
+                .withChannel(first) { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+                .withChannel(second) { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+        val newer = TestCatalog(older.recipes.map { it.copy(sources = it.sources + Source.Genre("new")) }, 3)
+
+        val next = swap(lineup, library, newer)
+
+        assertEquals(lineup.channel("late").starter.rules, next.channel("late").starter.rulesFor(noon), "opt-in kept")
+        assertEquals(lineup.channel(first).starter.rules, next.channel(first).starter.rulesFor(noon), first)
+        assertNull(next.channel(second).starter.previousRules, "$second is beyond the room")
     }
 
     // A hidden opt-in starter follows its recipe on a synced plan, from the boundary (spec 23, D1): what the leftovers

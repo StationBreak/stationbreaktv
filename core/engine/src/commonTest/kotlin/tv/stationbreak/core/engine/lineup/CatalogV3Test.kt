@@ -42,7 +42,8 @@ class CatalogV3Test {
         }
     }
 
-    // What an opt-in recipe holds back from the leftovers never narrows at the swap: it keeps every catalog-2 source.
+    // What an opt-in recipe holds back from the leftovers never narrows at the swap: it keeps every catalog-2 source,
+    // excludes nothing catalog 2 did not, and filters no more than catalog 2 did.
     @Test
     fun theOptInRecipesKeepEveryCatalogTwoSource() {
         val optIn = v2.filter { it.optIn }
@@ -51,6 +52,10 @@ class CatalogV3Test {
             val new = recipe(old.key)
             assertTrue(new.optIn, old.key)
             assertTrue(new.sources.containsAll(old.sources), "${old.key} lost ${old.sources - new.sources.toSet()}")
+            val added = new.exclusions - old.exclusions.toSet()
+            assertTrue(added.isEmpty(), "${old.key} excludes more: $added")
+            // No filter where catalog 2 had none (one, if catalog 2 had it, must be the same).
+            assertTrue(new.filters == null || new.filters == old.filters, "${old.key} filters more")
         }
     }
 
@@ -183,7 +188,8 @@ class CatalogV3Test {
             }
             assertTrue(r.exclusions.containsAll(kidsGenres), "${r.key} lets a kids' genre in")
             val excludesAnime = Source.Genre("Anime") in r.exclusions && Source.Tag("anime") in r.exclusions
-            assertEquals(r.key !in animeOnlyKeys, excludesAnime, r.key)
+            // An opt-in recipe keeps catalog 2's exclusions exactly: its holdback never narrows.
+            assertEquals(r.key !in animeOnlyKeys && !r.optIn, excludesAnime, r.key)
         }
     }
 

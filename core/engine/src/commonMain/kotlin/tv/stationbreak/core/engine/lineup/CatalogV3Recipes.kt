@@ -53,7 +53,10 @@ private fun filters(
 /** The kids' genres every grown-up recipe leaves out (as in catalog version 2). */
 private val KIDS_GENRE_EXCLUSIONS: List<Source> = KidHold.KIDS_GENRES.map { Source.Genre(it) }
 
-/** What a grown-up recipe other than an anime channel also leaves out. */
+/**
+ * What a grown-up recipe other than an anime channel or an opt-in one also leaves out. An opt-in recipe keeps catalog
+ * 2's exclusions exactly: what it holds back from the leftovers never narrows (adult-tagged anime stays held back).
+ */
 private val ANIME_EXCLUSIONS: List<Source> = listOf(Source.Genre("Anime"), Source.Tag("anime"))
 
 @Suppress("LongParameterList")
@@ -83,7 +86,7 @@ private fun recipe(
         exclusions =
             when {
                 band == Band.Kids -> emptyList()
-                animeOnly -> KIDS_GENRE_EXCLUSIONS
+                animeOnly || optIn -> KIDS_GENRE_EXCLUSIONS
                 else -> KIDS_GENRE_EXCLUSIONS + ANIME_EXCLUSIONS
             },
         maxRating = rating,

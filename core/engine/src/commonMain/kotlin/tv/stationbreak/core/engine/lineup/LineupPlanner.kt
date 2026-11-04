@@ -29,20 +29,21 @@ import tv.stationbreak.core.rules.ChannelRules
  * - Starters that keep previous rules are the keepers: first the protected ones, then the switched-on starters, by
  *   channel number (then recipe key), the two together at most [LineupDefaults.CAP]; then the withholding ones (an
  *   unedited hidden starter, or an unedited opt-in one not on: the leftovers withhold their pools for the day under
- *   their rules for it), up to the room the file has left (`keeperRoom`: [RecipeResolver.MAX_CATALOG_STARTERS] +
- *   [LineupDefaults.CAP] copies in all, the bound `RecipeResolver.STARTER_RULES_BUDGET_BYTES` is sized for, less one
- *   for each starter the plan ends with, a newer catalog's added recipes included), and only one whose rules fit the
- *   per-copy budget. Only a keeper is ever given a copy. A protected starter (D1, spec 23: a member of a pending
- *   curation basis, or an unedited starter on the air today whose rules for today are programmed) is one today's
- *   curation reads: they are keepers first, so they take new rules at the boundary (`withNewRules`) and never drop
- *   their previous rules before it. A starter that is not a keeper takes new rules at
- *   once and has any previous ones dropped (`withRulesNow`): one on the air beyond the cap (more than
- *   [LineupDefaults.CAP] on, which only the viewer's switch-ons make): what it airs today, and for a programmed one the
- *   homes it wins, can change in the middle of the day; a withholding one beyond the room (many hidden starters on a
- *   full lineup), or whose rules are above the per-copy budget (rules from an older app that resolved without one):
- *   what the leftovers withhold can shift once in the middle of a day; one that is not on, not
- *   withholding and not in a pending basis (nothing of it airs or is withheld today); and one that starts at the
- *   boundary (it airs nothing before). A shelved starter that switches on takes its new rules at once too.
+ *   their rules for it; the opt-in ones first), up to the room the file has left (`keeperRoom`:
+ *   [RecipeResolver.MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies in all, the bound
+ *   `RecipeResolver.STARTER_RULES_BUDGET_BYTES` is sized for, less one for each starter the plan ends with, a newer
+ *   catalog's added recipes included). In every group, only a starter whose rules fit the per-copy budget is a keeper.
+ *   Only a keeper is ever given a copy. A protected starter (D1, spec 23: a member of a pending curation basis, or an
+ *   unedited starter on the air today whose rules for today are programmed) is one today's curation reads: they are
+ *   keepers first, so they take new rules at the boundary (`withNewRules`) and never drop their previous rules before
+ *   it. A starter that is not a keeper takes new rules at once and has any previous ones dropped (`withRulesNow`): one
+ *   on the air beyond the cap (more than [LineupDefaults.CAP] on, which only the viewer's switch-ons make): what it
+ *   airs today, and for a programmed one the homes it wins, can change in the middle of the day; one of any group whose
+ *   rules are above the per-copy budget (rules from an older app that resolved without one): the same, for what it airs
+ *   or withholds; a withholding one beyond the room (many hidden starters on a full lineup): what the leftovers
+ *   withhold can shift once in the middle of a day; one that is not on, not withholding and not in a pending basis
+ *   (nothing of it airs or is withheld today); and one that starts at the boundary (it airs nothing before). A shelved
+ *   starter that switches on takes its new rules at once too.
  * - A starter the viewer switches on in the middle of a day airs from now (`onSinceMs`). A programmed one is not in the
  *   basis's on-set, so until the boundary it airs what the basis channels do not home (nothing at all, hidden for the
  *   day with its reason, when they home every title of it), and the leftovers claim from the basis on-set (spec 23,
@@ -472,12 +473,12 @@ private fun oldTopCandidate(
 // today, so they stay until the boundary, whether the starter is still on or not), then the switched-on starters, the
 // two together at most [LineupDefaults.CAP]; then, up to [keeperRoom] in all, the starters whose rules for today decide
 // what the leftovers withhold today (spec 23, D1: an unedited hidden one, and an unedited opt-in one not on;
-// `LineupDays` withholds their pools under their rules for the day), each with rules within the per-copy budget. Each
-// group by number, then recipe key. Only a keeper is ever given a previous copy: the bound on the file's previous
-// copies rests on this. (Beyond the cap, or the room, a holder can drop its copy and a starter takes new rules at once:
-// the documented edges of more than the cap on, and of more hidden starters than the room.) A starter that starts at
-// the boundary (`onSinceMs` after now) airs nothing today, so it needs no copy and is never a keeper: it takes new
-// rules at once.
+// `LineupDays` withholds their pools under their rules for the day), opt-in ones first. Every keeper's rules fit the
+// per-copy budget. Each group by number, then recipe key. Only a keeper is ever given a previous copy: the bound on the
+// file's previous copies rests on this. (Beyond the cap, or the room, a holder can drop its copy and a starter takes
+// new rules at once: the documented edges of more than the cap on, and of more hidden starters than the room.) A
+// starter that starts at the boundary (`onSinceMs` after now) airs nothing today, so it needs no copy and is never a
+// keeper: it takes new rules at once.
 private fun previousKeepers(
     channels: List<LineupChannel>,
     protected: Set<ChannelId>,
@@ -487,28 +488,39 @@ private fun previousKeepers(
     val byNumber =
         compareBy<LineupChannel> { it.number ?: Int.MAX_VALUE }
             .thenBy { (it.source as ChannelSource.Starter).recipeKey }
+    // The opt-in ones first: the holdback the viewer's consent rests on keeps its copy before an ordinary hidden one.
+    val optInFirst = compareBy<LineupChannel> { if (isOptIn(it, p)) 0 else 1 }.then(byNumber)
     val keepers = HashSet<ChannelId>()
 
     fun keep(
         room: Int,
+        order: Comparator<LineupChannel>,
         group: (LineupChannel) -> Boolean,
     ) {
         channels
-            .filter { it.source is ChannelSource.Starter && it.id !in keepers && group(it) }
-            .sortedWith(byNumber)
+            // A copy above the per-copy budget would break the file bound the room rests on: such a starter keeps
+            // none, whichever group it is in, and takes new rules at once (a known edge).
+            .filter { it.source is ChannelSource.Starter && it.id !in keepers && group(it) && withinBudget(it) }
+            .sortedWith(order)
             .take((room - keepers.size).coerceAtLeast(0))
             .mapTo(keepers) { it.id }
     }
     // Every protected starter first, whether or not it holds previous rules now: a re-resolve of one later today
     // (from a newer catalog, say, after the viewer switched it off) then keeps its rules for today too.
-    keep(LineupDefaults.CAP) { it.id in protected }
-    keep(LineupDefaults.CAP) { it.state == ChannelState.On && it.onSinceMs <= p.nowMs }
-    // A copy above the per-copy budget would break the file bound the room rests on: such a starter keeps none.
-    keep(keeperRoom(channels, p, newer)) {
-        withholds(it, p) && RecipeResolver.fileBytes(it.starter().rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES
-    }
+    keep(LineupDefaults.CAP, byNumber) { it.id in protected }
+    keep(LineupDefaults.CAP, byNumber) { it.state == ChannelState.On && it.onSinceMs <= p.nowMs }
+    keep(keeperRoom(channels, p, newer), optInFirst) { withholds(it, p) }
     return keepers
 }
+
+// Whether a copy of [channel]'s current rules fits the per-copy budget (`RecipeResolver.STARTER_RULES_BUDGET_BYTES`).
+private fun withinBudget(channel: LineupChannel): Boolean =
+    RecipeResolver.fileBytes(channel.starter().rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES
+
+private fun isOptIn(
+    channel: LineupChannel,
+    p: Planning,
+): Boolean = p.recipe(channel.starter().recipeKey)?.optIn == true
 
 // Whether [channel]'s rules for today decide what the leftovers withhold today (spec 23, D1): an unedited starter the
 // viewer hid, or an unedited opt-in one that is not on the air.
@@ -518,8 +530,7 @@ private fun withholds(
 ): Boolean {
     val source = channel.source as? ChannelSource.Starter
     if (source == null || source.edited) return false
-    val optIn = p.recipe(source.recipeKey)?.optIn == true
-    return channel.state == ChannelState.UserHidden || (optIn && channel.state != ChannelState.On)
+    return channel.state == ChannelState.UserHidden || (isOptIn(channel, p) && channel.state != ChannelState.On)
 }
 
 /**
