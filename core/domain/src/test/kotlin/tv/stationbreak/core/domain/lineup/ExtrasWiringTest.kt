@@ -399,7 +399,7 @@ class ExtrasWiringTest {
         LineupCodec
             .encode(held())
             .decodeToString()
-            .replace("\"version\":2", "\"version\":1")
+            .replace("\"version\":3", "\"version\":1")
             .encodeToByteArray()
 
     @Test

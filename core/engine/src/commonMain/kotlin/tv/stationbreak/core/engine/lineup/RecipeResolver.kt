@@ -21,6 +21,13 @@ private const val LATEST_FORMAT = 3
 /** Turns a catalog recipe into the rules of a real channel. Pure: the same inputs give the same rules. */
 object RecipeResolver {
     /**
+     * The most sources a resolved starter keeps. Lower than the rules format's own 256 ([RulesLimits.MAX_LIST_ENTRIES])
+     * because the lineup file holds a starter's rules twice (with `previousRules`): 50 starters at 48 sources of
+     * collection or title IDs encode to about 515 KB, under half of the 1 MiB file cap.
+     */
+    const val MAX_STARTER_SOURCES: Int = 48
+
+    /**
      * The rules for [recipe] on [serverId]. The sources are the recipe's own, then a collection source for every
      * collection in [collections] whose name equals a hint (ASCII case-insensitive, as everywhere in the rules format),
      * in canonical-ID order and once each. A hint that matches nothing adds nothing. The broadcast day starts at
@@ -31,8 +38,8 @@ object RecipeResolver {
      * matches (the household's own included; the day build drops those when "Use my collections" is off), the series
      * and films that match a title anchor, or a studio source; then a studio source for each studio of [names] a theme
      * studio matches. Anchors come before theme studios so the cap never cuts an anchor first. A source already present
-     * is dropped (studio sources by folded name), and at most 256 are kept, the first ones. Its ordering is curated.
-     * The format version is the lowest the rules need.
+     * is dropped (studio sources by folded name), and at most [MAX_STARTER_SOURCES] are kept, the first ones. Its
+     * ordering is curated. The format version is the lowest the rules need.
      */
     fun resolve(
         recipe: Recipe,
@@ -84,7 +91,7 @@ object RecipeResolver {
             }
         }
         for (matcher in theme.themeStudios) for (studio in names.studios(matcher)) addStudio(studio)
-        return out.take(RulesLimits.MAX_LIST_ENTRIES)
+        return out.take(MAX_STARTER_SOURCES)
     }
 
     /**

@@ -242,6 +242,37 @@ class LineupEditsTest {
     }
 
     @Test
+    fun everyViewerEditMarksTheChannel() {
+        val edits =
+            listOf(
+                starter("western", 310, ChannelState.Shelf) to { id: ChannelId -> LineupEdit.SwitchOn(id) },
+                starter("western", 310) to { id: ChannelId -> LineupEdit.SwitchOff(id) },
+                starter("western", 310) to { id: ChannelId -> LineupEdit.SetNumber(id, 350) },
+                starter("western", 310, override = 350) to { id: ChannelId -> LineupEdit.ClearNumber(id) },
+            )
+        for ((channel, edit) in edits) {
+            val lineup = lineupOf(channel, starter("mystery", 205))
+            assertTrue(!lineup.byId(western).chosenByViewer)
+
+            val after = applied(lineup, edit(western))
+
+            assertTrue(after.byId(western).chosenByViewer, "${edit(western)} marks the channel")
+            assertTrue(!after.byId(mystery).chosenByViewer, "${edit(western)} leaves the others")
+        }
+    }
+
+    @Test
+    fun aSwapMarksBothChannels() {
+        val lineup = lineupOf(starter("western", 310), starter("mystery", 205), starter("other", 300))
+
+        val after = applied(lineup, LineupEdit.SetNumber(western, 205, swapWith = mystery))
+
+        assertTrue(after.byId(western).chosenByViewer)
+        assertTrue(after.byId(mystery).chosenByViewer)
+        assertTrue(!after.byId(LineupIds.starter("other")).chosenByViewer)
+    }
+
+    @Test
     fun swapWithAChannelThatNoLongerHoldsTheNumberIsRefused() {
         val lineup = lineupOf(starter("western", 310), starter("mystery", 205), starter("other", 300))
         val other = LineupIds.starter("other")

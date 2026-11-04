@@ -100,15 +100,16 @@ class RecipeResolverThemeTest {
     }
 
     @Test
-    fun aRecipeThatResolvesToMoreThan256SourcesKeepsTheFirst256() {
+    fun aRecipeThatResolvesToMoreThanTheStarterCapKeepsTheFirst48() {
         val many = (1..300).associate { idOf(0x1000 + it) to "Box Set  Collection" }
         val anchor = Anchor(AnchorKind.Collection, NameMatcher.Prefix("box set"))
         val theme = Theme(listOf(anchor), emptyList(), null, false)
         val rules = resolve(themed(theme), CollectionNames(many))
-        assertEquals(256, rules.sources.size)
+        assertEquals(RecipeResolver.MAX_STARTER_SOURCES, rules.sources.size)
+        assertEquals(48, rules.sources.size)
         assertEquals(Source.Genre("Comedy"), rules.sources.first())
         assertEquals(Source.Collection(idOf(0x1000 + 1)), rules.sources[1])
-        assertEquals(Source.Collection(idOf(0x1000 + 255)), rules.sources.last())
+        assertEquals(Source.Collection(idOf(0x1000 + 47)), rules.sources.last())
     }
 
     @Test
@@ -192,7 +193,8 @@ class RecipeResolverThemeTest {
         val anchor = Anchor(AnchorKind.Collection, NameMatcher.Exact("box set 2"))
         val theme = Theme(listOf(anchor), listOf(NameMatcher.Prefix("studio ")), null, false)
         val rules = resolve(themed(theme), snap = big)
-        assertEquals(256, rules.sources.size)
+        assertEquals(RecipeResolver.MAX_STARTER_SOURCES, rules.sources.size)
+        assertEquals(48, rules.sources.size)
         assertEquals(Source.Collection(idOf(4)), rules.sources[1])
     }
 }

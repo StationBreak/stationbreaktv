@@ -153,8 +153,31 @@ object LineupEdits {
         return when {
             edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
             channel == null -> refused(EditRefusal.UnknownChannel)
-            else -> applyTo(lineup, channel, edit, nowMs, catalog)
+            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, catalog))
         }
+    }
+
+    // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder).
+    private fun markChoice(
+        before: Lineup,
+        edit: LineupEdit,
+        outcome: EditOutcome,
+    ): EditOutcome {
+        val viewerEdit =
+            edit is LineupEdit.SwitchOn ||
+                edit is LineupEdit.SwitchOff ||
+                edit is LineupEdit.SetNumber ||
+                edit is LineupEdit.ClearNumber
+        // An edit that changed nothing is not a choice.
+        if (!viewerEdit || outcome !is EditOutcome.Applied || outcome.lineup == before) return outcome
+        val old = before.channels.associateBy { it.id }
+        val marked =
+            outcome.lineup.channels.map {
+                val was = old[it.id]
+                val moved = was != null && (was.number != it.number || was.state != it.state)
+                if (it.id == edit.id || moved) it.copy(chosenByViewer = true) else it
+            }
+        return EditOutcome.Applied(outcome.lineup.copy(channels = marked))
     }
 
     private fun applyTo(

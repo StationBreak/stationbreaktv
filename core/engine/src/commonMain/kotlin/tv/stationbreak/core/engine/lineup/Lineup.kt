@@ -28,7 +28,13 @@ sealed interface ChannelSource {
         val recipeKey: String,
         val edited: Boolean,
         val rules: ChannelRules,
-    ) : ChannelSource
+        val previousRules: ChannelRules? = null,
+        val rulesFromMs: Long? = null,
+    ) : ChannelSource {
+        init {
+            require((previousRules == null) == (rulesFromMs == null)) { "Previous rules go with their boundary" }
+        }
+    }
 
     /**
      * A leftovers channel: its pool is the engine's, worked out from the other channels, under [maxRating]. The
@@ -55,10 +61,37 @@ sealed interface ChannelSource {
     ) : ChannelSource
 }
 
+/** Why an untouched starter is on the shelf (set by the planner). */
+enum class ShelfReason {
+    /** Nothing in the libraries fits the channel. */
+    Empty,
+
+    /** Too little fits once every show has its best home. */
+    TooThin,
+
+    /** It fits, but stronger channels filled the lineup. */
+    BelowCap,
+
+    /** It is opt-in: only on if the viewer switches it on. */
+    OptIn,
+}
+
+/**
+ * What the curation looked at on the days before [fromMs]: the channels [on] (the curated on-set) and the
+ * [household] flag then in force.
+ */
+data class CurationBasis(
+    val fromMs: Long,
+    val on: Set<ChannelId>,
+    val household: Boolean,
+)
+
 /**
  * One channel of a [Lineup]. Its [id] is permanent and separate from its [number], so renumbering never breaks
  * favourites. [numberOverride] and [nameOverride] are the user's and do not detach a starter from the catalog.
  * [onSinceMs] is when the channel was last switched on (for a channel that was never on, when it joined the lineup).
+ * [chosenByViewer] is true once the viewer switched the channel on or off or gave it a number. [leavesAtMs] is when an
+ * untouched starter the planner dropped goes to the shelf, and [shelfReason] why it is there (starters only).
  */
 data class LineupChannel(
     val id: ChannelId,
@@ -68,6 +101,9 @@ data class LineupChannel(
     val state: ChannelState,
     val source: ChannelSource,
     val onSinceMs: Long,
+    val chosenByViewer: Boolean = false,
+    val leavesAtMs: Long? = null,
+    val shelfReason: ShelfReason? = null,
 ) {
     /** The number the channel is shown at, or null while it has none (it waits on the shelf for the user). */
     val number: Int? get() = numberOverride ?: defaultNumber
@@ -76,6 +112,10 @@ data class LineupChannel(
 /**
  * One account's channel lineup on one server (spec 12). Every starter and leftovers channel uses the one
  * [utcOffsetMinutes] chosen at first setup.
+ *
+ * [useMyCollections] is the "Use my collections" flag. [curationBasis] keeps the old on-set and flag for days before
+ * its boundary. [viewerChoicesKnown] is false for a lineup read from a file before version 3, whose
+ * [LineupChannel.chosenByViewer] is only inferred.
  *
  * Invariants: channel IDs are unique, numbers that are set are unique, and every switched-on channel has a number.
  */
@@ -86,6 +126,9 @@ data class Lineup(
     val utcOffsetMinutes: Int,
     val finalised: Boolean,
     val channels: List<LineupChannel>,
+    val useMyCollections: Boolean = true,
+    val curationBasis: CurationBasis? = null,
+    val viewerChoicesKnown: Boolean = true,
 ) {
     init {
         require(uniqueIds(channels)) { "Channel IDs are unique" }
@@ -106,9 +149,26 @@ data class Lineup(
             utcOffsetMinutes: Int,
             finalised: Boolean,
             channels: List<LineupChannel>,
+            useMyCollections: Boolean = true,
+            curationBasis: CurationBasis? = null,
+            viewerChoicesKnown: Boolean = true,
         ): Lineup? {
             val valid = uniqueIds(channels) && uniqueNumbers(channels) && onAreNumbered(channels)
-            return if (valid) Lineup(serverId, userId, catalogVersion, utcOffsetMinutes, finalised, channels) else null
+            return if (valid) {
+                Lineup(
+                    serverId,
+                    userId,
+                    catalogVersion,
+                    utcOffsetMinutes,
+                    finalised,
+                    channels,
+                    useMyCollections,
+                    curationBasis,
+                    viewerChoicesKnown,
+                )
+            } else {
+                null
+            }
         }
     }
 }
