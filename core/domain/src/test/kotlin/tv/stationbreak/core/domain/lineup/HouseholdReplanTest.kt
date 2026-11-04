@@ -7,6 +7,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -17,6 +19,7 @@ import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleCollection
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -154,6 +157,40 @@ class HouseholdReplanTest {
             until { storedMeta().replanFromMs == null }
             assertTrue(library.snapshotCutoffs.size > reads, "the refresher planned, with the library as it was")
             assertEquals(ChannelState.On, fresh.loaded(ACCOUNT)?.lineup?.state(houseId))
+            job.cancel()
+        }
+
+    @Test
+    fun onlyAPlanClearsAPendingReplan() =
+        runBlocking<Unit> {
+            switchedOnToday()
+            nowMs = boundary + 60_000L
+            // The library cannot be read now, so the refresher's re-plan fails.
+            val failing =
+                object : LibraryRepository by library {
+                    override suspend fun ruleSnapshot(
+                        account: LibraryAccount,
+                        libraries: Set<ItemId>,
+                        cutoff: Instant,
+                    ): RuleSnapshot = error("library down")
+                }
+            val broken = LineupService(store, failing, clock, { 0 }, {}, catalog)
+            LineupRefresher(broken, failing, { LIBRARIES }, SyncActivity { MutableStateFlow(false) }, report = {})
+                .start(scope)
+            delay(500)
+            assertEquals(ChannelState.Shelf, broken.loaded(ACCOUNT)?.lineup?.state(houseId), "the re-plan failed")
+
+            // An ordinary edit after the boundary does not plan, so it must not clear the pending re-plan.
+            val off = ChannelChange.SwitchOff(westerns)
+            assertEquals(ChangeResult.Done, ChannelManager(broken) { null }.change(ACCOUNT, off))
+
+            val meta = storedMeta()
+            assertTrue(meta.replanDue(nowMs), "still due: $meta")
+            // A working refresher is behind because of it, and plans.
+            val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
+            refresherOver(fresh).start(scope)
+            until { fresh.loaded(ACCOUNT)?.lineup?.state(houseId) == ChannelState.On }
+            until { storedMeta().replanFromMs == null }
             job.cancel()
         }
 

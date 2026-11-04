@@ -447,7 +447,10 @@ class LineupService internal constructor(
                     // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
                     // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
                     val (edited, replanMeta) = replanned(owner, account, edit, outcome, libraries, before)
-                    val meta = replanMeta.copy(replanFromMs = edited.lineup.replanFromMs())
+                    // Only a plan clears a pending re-plan: an edit that did not plan keeps the one that was due.
+                    val planned = replanMeta !== before
+                    val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
+                    val meta = if (planned) replanMeta else before.copy(replanFromMs = kept)
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
                     if (saveVerified(owner, edited.lineup, meta)) {
                         publish(entry, edited.lineup, meta)
