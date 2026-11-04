@@ -35,6 +35,13 @@ class FitScoreTest {
     }
 
     @Test
+    fun theScoreIsTheSpecificityPlusThePoints() {
+        val f = inputs(genreHits = 2, tagHits = 1, anchor = true, guestOnly = true, toneMs = 3, candidateMs = 9)
+        val points = fitPointsQ16(2, 1, false, true, true, false, false, 3, 9)
+        assertEquals(specificityQ16(7) + points, fitScoreQ16(7, f))
+    }
+
+    @Test
     fun theToneTermFloors() {
         assertEquals(8L shl 16, plain(inputs(toneMs = 1, candidateMs = 7)))
     }

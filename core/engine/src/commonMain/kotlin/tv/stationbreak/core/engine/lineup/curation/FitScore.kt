@@ -60,12 +60,41 @@ private const val TONE_POINTS = 60L
 internal fun fitScoreQ16(
     candidateTitles: Int,
     f: FitInputs,
+): Long =
+    specificityQ16(candidateTitles) +
+        fitPointsQ16(
+            f.genreHits,
+            f.tagHits,
+            f.themeStudio,
+            f.guestOnly,
+            f.anchor,
+            f.kidOnKid,
+            f.formatFits,
+            f.toneMs,
+            f.candidateMs,
+        )
+
+/**
+ * The fit score without its specificity term, in 16-bit fixed point: the one place the points are written. A caller
+ * that scores many titles on one channel adds the channel's [specificityQ16] once and allocates no [FitInputs].
+ */
+@Suppress("LongParameterList") // One parameter per term of the score, so the per-title path allocates nothing.
+internal fun fitPointsQ16(
+    genreHits: Int,
+    tagHits: Int,
+    themeStudio: Boolean,
+    guestOnly: Boolean,
+    anchor: Boolean,
+    kidOnKid: Boolean,
+    formatFits: Boolean,
+    toneMs: Long,
+    candidateMs: Long,
 ): Long {
     val plain =
-        GENRE_POINTS * f.genreHits + TAG_POINTS * minOf(f.tagHits, TAG_HITS_MAX) +
-            (if (f.themeStudio) STUDIO_POINTS else 0L) - (if (f.guestOnly) GUEST_ONLY_POINTS else 0L) +
-            (if (f.anchor) ANCHOR_POINTS else 0L) + (if (f.kidOnKid) KID_POINTS else 0L) +
-            (if (f.formatFits) FORMAT_POINTS else 0L) +
-            (if (f.candidateMs > 0) TONE_POINTS * f.toneMs / f.candidateMs else 0L)
-    return specificityQ16(candidateTitles) + (plain shl FRAC_BITS)
+        GENRE_POINTS * genreHits + TAG_POINTS * minOf(tagHits, TAG_HITS_MAX) +
+            (if (themeStudio) STUDIO_POINTS else 0L) - (if (guestOnly) GUEST_ONLY_POINTS else 0L) +
+            (if (anchor) ANCHOR_POINTS else 0L) + (if (kidOnKid) KID_POINTS else 0L) +
+            (if (formatFits) FORMAT_POINTS else 0L) +
+            (if (candidateMs > 0) TONE_POINTS * toneMs / candidateMs else 0L)
+    return plain shl FRAC_BITS
 }

@@ -37,19 +37,22 @@ private const val UNKNOWN_RANK = -1
 internal object Titles {
     /**
      * The titles of [items], by ID. A series' ID is its title's ID; a film and an episode with no series are their
-     * own. An episode whose series the snapshot lacks is grouped by its series ID and judged on its own names. The
-     * fields of a series title are the union of the series' own and its episodes' among [items], in snapshot order.
+     * own. An episode whose series the snapshot lacks is grouped by its series ID and judged on its own names. A
+     * title's facts come from the snapshot, not from [items]: a series takes its own fields and those of every one of
+     * its episodes in the snapshot, in snapshot order, so which items are passed, and in what order, changes no fact.
+     * One pass over the snapshot groups the wanted titles' entries.
      */
     fun of(
         snapshot: RuleSnapshot,
         items: Collection<ScheduleItem>,
     ): Map<CanonicalId, Title> {
         val wanted = HashSet<CanonicalId>(items.size * 2)
-        for (item in items) wanted.add(item.id)
+        for (item in items) wanted.add(item.groupId)
         val groups = LinkedHashMap<CanonicalId, MutableList<RuleItem>>()
         for (entry in snapshot.items) {
-            if (entry.item.id !in wanted) continue
-            groups.getOrPut(entry.item.groupId) { ArrayList() }.add(entry)
+            val group = entry.item.groupId
+            if (group !in wanted) continue
+            groups.getOrPut(group) { ArrayList() }.add(entry)
         }
         val titles = LinkedHashMap<CanonicalId, Title>(groups.size * 2)
         for ((id, entries) in groups) {
@@ -74,13 +77,12 @@ internal object Titles {
             tags.addAll(series.tags)
             studios.addAll(series.studios)
         }
-        var rating: String? = series?.officialRating
         for (entry in entries) {
             genres.addAll(entry.genres)
             tags.addAll(entry.tags)
             studios.addAll(entry.studios)
-            if (rating == null) rating = entry.officialRating
         }
+        val rating: String? = series?.officialRating ?: highestRating(entries)
         val folded = Folded(entries, series)
         val format = formatOf(folded)
         val rank = RatingLadder.rankOf(rating) ?: UNKNOWN_RANK
@@ -98,6 +100,23 @@ internal object Titles {
             madeForKids = madeForKids(series, entries),
             adultAnimation = adult,
         )
+    }
+
+    // The highest-ranked episode rating, ties (and ratings off the ladder) by the smaller string, so neither the order
+    // nor the subset of episodes decides it. Null when no episode has one.
+    private fun highestRating(entries: List<RuleItem>): String? {
+        var best: String? = null
+        var bestRank = UNKNOWN_RANK
+        for (entry in entries) {
+            val rating = entry.officialRating ?: continue
+            val rank = RatingLadder.rankOf(rating) ?: UNKNOWN_RANK
+            val better = rank > bestRank || (rank == bestRank && rating < best.orEmpty())
+            if (best == null || better) {
+                best = rating
+                bestRank = rank
+            }
+        }
+        return best
     }
 
     private fun madeForKids(

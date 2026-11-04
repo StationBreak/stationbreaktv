@@ -114,4 +114,36 @@ class TitlesTest {
         val titles = titlesOf(listOf(episode(idOf(10), s, genres = listOf("Drama")), episode(idOf(11), s)))
         assertFalse(titles.getValue(s).madeForKids)
     }
+
+    @Test
+    fun aTitlesFactsComeFromTheWholeSnapshot() {
+        val s = idOf(1)
+        val sr = series(s)
+        val e1 = episode(idOf(10), s, genres = listOf("Anime"))
+        val e2 = episode(idOf(11), s, genres = listOf("Drama"))
+        val snap = snapshot(items = listOf(e1, e2), series = listOf(sr))
+        // Only e2 is passed, but e1 still makes the series anime.
+        val title = Titles.of(snap, listOf(e2.item)).getValue(s)
+        assertEquals(TitleFormat.Anime, title.format)
+        assertEquals(listOf("Anime", "Drama"), title.genres)
+    }
+
+    @Test
+    fun anUnratedSeriesTakesTheHighestEpisodeRatingWhateverTheOrder() {
+        val s = idOf(1)
+        val sr = series(s)
+        val eps =
+            listOf(
+                episode(idOf(10), s, rating = "TV-PG"),
+                episode(idOf(11), s, rating = "TV-MA"),
+                episode(idOf(12), s, rating = "TV-Y"),
+                episode(idOf(13), s),
+            )
+        for (order in listOf(eps, eps.reversed())) {
+            val snap = snapshot(items = order, series = listOf(sr))
+            assertEquals("TV-MA", Titles.of(snap, listOf(order[0].item)).getValue(s).rating)
+        }
+        val rated = snapshot(items = eps, series = listOf(series(s, rating = "TV-14")))
+        assertEquals("TV-14", Titles.of(rated, listOf(eps[0].item)).getValue(s).rating)
+    }
 }

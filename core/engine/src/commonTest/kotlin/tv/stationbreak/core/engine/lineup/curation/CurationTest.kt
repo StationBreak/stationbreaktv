@@ -301,6 +301,18 @@ class CurationTest {
         assertEquals(cap, pool.keeps[big])
         assertEquals(stats.cappedMs, cap + 10 * HOUR)
 
+        // With a guest, keeps take the cap of every member's hours, not of the homes alone.
+        val lib3 = Library()
+        val big3 = lib3.show(eps = 12, genres = listOf("Drama"))
+        val small3 = List(5) { lib3.show(eps = 2, genres = listOf("Drama")) }
+        val guest = lib3.show(eps = 6, genres = listOf("Drama"))
+        val anchored = listOf<Source>(Source.Series(guest))
+        val away = channel("ch-e", 100, listOf("Comedy"), lib3.itemsOf(listOf(guest)), anchors = anchored)
+        val c3 = channel("ch-c", 202, listOf("Drama"), lib3.itemsOf(listOf(big3, guest) + small3))
+        val pool3 = Curation.pools(lib3.snapshot(), listOf(away, c3)).getValue(c3.id)
+        assertTrue(guest in pool3.titles())
+        assertEquals(CurationDefaults.shareCapMs(28 * HOUR), pool3.keeps[big3])
+
         // The one-hour floor applies to both.
         val lib2 = Library()
         val short = lib2.show(eps = 3, epMs = HALF_HOUR, genres = listOf("Drama"))
@@ -445,6 +457,11 @@ class CurationTest {
             titles +=
                 if (random.nextBoolean()) {
                     lib.film(ms = ms, genres = genres, rating = rating, studios = studios)
+                } else if (random.nextInt(3) == 0) {
+                    // An unrated series whose episodes carry different ratings.
+                    val eps = random.nextInt(2, 15)
+                    val epRatings = List(3) { ratingPool[random.nextInt(ratingPool.size)] }
+                    lib.show(eps = eps, epMs = ms, genres = genres, studios = studios, epRatings = epRatings)
                 } else {
                     val eps = random.nextInt(1, 15)
                     lib.show(eps = eps, epMs = ms, genres = genres, rating = rating, studios = studios)
@@ -476,5 +493,126 @@ class CurationTest {
                 )
         }
         return World(lib.snapshot(), channels, titles)
+    }
+
+    @Test
+    fun aChannelWithNoHomesTakesNoGuestSpot() {
+        val lib = Library()
+        val t = lib.show(eps = 1, genres = listOf("Drama", "Mystery"))
+        val home = channel("ch-h", 100, listOf("Comedy"), lib.itemsOf(listOf(t)), anchors = listOf(Source.Series(t)))
+        // The best fit for t, but it homes nothing, so it must not use up one of t's two spots.
+        val empty = channel("ch-e", 201, listOf("Drama", "Mystery"), lib.itemsOf(listOf(t)))
+        val guests =
+            List(2) { i ->
+                val own = lib.show(eps = 10, genres = listOf("Drama"))
+                channel("ch-g$i", 202 + i, listOf("Drama"), lib.itemsOf(listOf(t, own)))
+            }
+        val pools = Curation.pools(lib.snapshot(), listOf(home, empty) + guests)
+        assertTrue(pools.getValue(empty.id).items.isEmpty())
+        for (g in guests) assertTrue(t in pools.getValue(g.id).titles(), "${g.id}")
+    }
+
+    @Test
+    fun aDecadeChannelAirsGuestsAndIsNotEmptiedByTheThirtyPercentCap() {
+        val lib = Library()
+        val shows = List(6) { lib.show(eps = 2, genres = listOf("Drama")) }
+        // An adult-animation title: a twelfth of the decade's candidate hours, under a quarter, so it is no guest.
+        val toon = lib.show(eps = 1, genres = listOf("Animation"), rating = "TV-MA")
+        val all = shows + toon
+        val home =
+            channel("ch-h", 100, listOf("Comedy"), lib.itemsOf(all), anchors = all.map { Source.Series(it) as Source })
+        val decade = channel("ch-d", 300, listOf("Drama"), lib.itemsOf(all), extraSources = listOf(EIGHTIES))
+        val pool = Curation.pools(lib.snapshot(), listOf(home, decade)).getValue(decade.id)
+        assertEquals(shows.toSet(), pool.titles())
+        for (s in shows) assertEquals(1, pool.weights[s])
+    }
+
+    @Test
+    fun decadeStatsQualifyFromItsCandidates() {
+        val lib = Library()
+        val shows = List(6) { lib.show(eps = 2, genres = listOf("Drama")) }
+        val home =
+            channel(
+                "ch-h",
+                100,
+                listOf("Comedy"),
+                lib.itemsOf(shows),
+                anchors = shows.map { Source.Series(it) as Source },
+            )
+        val decade = channel("ch-d", 300, listOf("Drama"), lib.itemsOf(shows), extraSources = listOf(EIGHTIES))
+        val stats = Curation.homes(lib.snapshot(), listOf(home, decade)).stats(decade.id)
+        assertEquals(ChannelStats(6, 12 * HOUR, 12 * HOUR, 0, true), stats)
+    }
+
+    @Test
+    fun aGrownUpTitleHomedOnAKidChannelStillGuests() {
+        val lib = Library()
+        val film = lib.film(ms = HOUR, genres = listOf("Drama"))
+        val byItem = listOf<Source>(Source.Item(film))
+        val kid =
+            channel("kid-a", 10, listOf("Kids"), lib.itemsOf(listOf(film)), kid = true, anchors = byItem)
+        val own = lib.show(eps = 10, genres = listOf("Drama"))
+        val grownUp = channel("ch-g", 200, listOf("Drama"), lib.itemsOf(listOf(film, own)))
+        val snap = lib.snapshot()
+        assertEquals(kid.id, Curation.homes(snap, listOf(kid, grownUp)).homeOf(film))
+        val pool = Curation.pools(snap, listOf(kid, grownUp)).getValue(grownUp.id)
+        assertTrue(film in pool.titles())
+        assertEquals(1, pool.weights[film])
+    }
+
+    @Test
+    fun equalGuestsDropTheLaterTitleFirst() {
+        val lib = Library()
+        val own = lib.show(eps = 7, genres = listOf("Drama"))
+        val g1 = lib.show(eps = 2, genres = listOf("Drama"))
+        val g2 = lib.show(eps = 2, genres = listOf("Drama"))
+        val homesOf =
+            listOf(g1, g2).mapIndexed { i, s ->
+                channel("ch-h$i", 100 + i, listOf("Comedy"), lib.itemsOf(listOf(s)), anchors = listOf(Source.Series(s)))
+            }
+        val g = channel("ch-g", 200, listOf("Drama"), lib.itemsOf(listOf(own, g1, g2)))
+        // 4 guest hours on 7 home hours is over 3/7; dropping one equal guest leaves 2, which fits.
+        val pool = Curation.pools(lib.snapshot(), homesOf + g).getValue(g.id)
+        assertEquals(setOf(own, g1), pool.titles())
+    }
+
+    @Test
+    fun removingAChannelChangesNoTitlesFormat() {
+        val lib = Library()
+        val s = lib.show(eps = 0)
+        val animeEp = lib.addEpisode(s, genres = listOf("Anime"))
+        val dramaEp = lib.addEpisode(s, genres = listOf("Drama"))
+        val animeOnly = Theme(emptyList(), emptyList(), null, animeOnly = true)
+        val x = channel("ch-x", 300, listOf("Anime"), listOf(animeEp), theme = animeOnly)
+        val y = channel("ch-y", 200, listOf("Drama"), listOf(dramaEp))
+        val snap = lib.snapshot()
+        // The series is anime from the snapshot, whichever channels are curated.
+        assertEquals(x.id, Curation.homes(snap, listOf(x, y)).homeOf(s))
+        assertNull(Curation.homes(snap, listOf(y)).homeOf(s))
+        assertTrue(
+            Curation
+                .pools(snap, listOf(y))
+                .getValue(y.id)
+                .items
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun removingAChannelChangesNoTitlesTone() {
+        val lib = Library()
+        // An unrated animated series: one episode rated TV-MA airs only on x, the other is TV-PG.
+        val s = lib.show(eps = 0, genres = listOf("Animation"))
+        val maEp = lib.addEpisode(s, genres = listOf("Animation"), rating = "TV-MA")
+        val pgEp = lib.addEpisode(s, genres = listOf("Animation"), rating = "TV-PG")
+        val live = lib.show(eps = 3, genres = listOf("Drama"))
+        val toon = lib.show(eps = 1, genres = listOf("Animation"), rating = "TV-MA")
+        val home = channel("ch-a", 100, listOf("Comedy"), listOf(pgEp), anchors = listOf(Source.Series(s)))
+        // g's homes are a quarter adult animation, so s guests there only while its tone is adult animation.
+        val g = channel("ch-g", 200, listOf("Drama"), listOf(pgEp) + lib.itemsOf(listOf(live, toon)))
+        val x = channel("ch-x", 300, listOf("Comedy"), listOf(maEp))
+        val snap = lib.snapshot()
+        assertTrue(s in Curation.pools(snap, listOf(home, g, x)).getValue(g.id).titles())
+        assertTrue(s in Curation.pools(snap, listOf(home, g)).getValue(g.id).titles())
     }
 }

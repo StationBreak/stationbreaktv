@@ -50,12 +50,14 @@ internal class Library {
         genres: List<String> = emptyList(),
         rating: String? = null,
         studios: List<String> = emptyList(),
+        epRatings: List<String?>? = null,
     ): CanonicalId {
         val id = idOf(next++)
         series += seriesOf(id, rating = rating, genres = genres, studios = studios)
         val list = byTitle.getOrPut(id) { ArrayList() }
-        repeat(eps) {
-            val ep = episodeOf(idOf(next++), id, rating = rating, genres = genres, studios = studios).lasting(epMs)
+        repeat(eps) { i ->
+            val epRating = if (epRatings == null) rating else epRatings[i % epRatings.size]
+            val ep = episodeOf(idOf(next++), id, rating = epRating, genres = genres, studios = studios).lasting(epMs)
             items += ep
             list += ep.item
         }
@@ -76,6 +78,18 @@ internal class Library {
     }
 
     fun itemsOf(titles: List<CanonicalId>): List<ScheduleItem> = titles.flatMap { byTitle.getValue(it) }
+
+    /** Adds one episode of [seriesId] (made by [show]) with its own genres and rating, and returns it. */
+    fun addEpisode(
+        seriesId: CanonicalId,
+        genres: List<String>,
+        rating: String? = null,
+    ): ScheduleItem {
+        val ep = episodeOf(idOf(next++), seriesId, rating = rating, genres = genres).lasting(HOUR)
+        items += ep
+        byTitle.getValue(seriesId) += ep.item
+        return ep.item
+    }
 
     fun snapshot(): RuleSnapshot {
         val sorted = items.sortedBy { it.item.id.value }
