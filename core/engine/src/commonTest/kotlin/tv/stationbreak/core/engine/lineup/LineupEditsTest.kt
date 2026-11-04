@@ -49,7 +49,7 @@ class LineupEditsTest {
     private fun apply(
         lineup: Lineup,
         edit: LineupEdit,
-    ): EditOutcome = LineupEdits.apply(lineup, edit, 99L, catalog)
+    ): EditOutcome = LineupEdits.apply(lineup, edit, 99L, 99L + DAY_MS, catalog)
 
     private fun applied(
         lineup: Lineup,
@@ -380,7 +380,7 @@ class LineupEditsTest {
             var lineup = randomLineup(gen)
             repeat(EDITS) {
                 val edit = randomEdit(gen, lineup)
-                when (val outcome = LineupEdits.apply(lineup, edit, 7L, catalog)) {
+                when (val outcome = LineupEdits.apply(lineup, edit, 7L, 7L + DAY_MS, catalog)) {
                     is EditOutcome.Applied -> {
                         // Building a Lineup checks the invariants; this also checks nothing else was lost.
                         val ids = lineup.channels.map { c -> c.id }

@@ -39,6 +39,7 @@ import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
@@ -270,15 +271,20 @@ class LineupService internal constructor(
                 ?.channels
                 .orEmpty()
                 .filter { it.isTheViewers() }
+        val nowMs = read.now.toEpochMilliseconds()
+        // What is past at the read is taken off first (`rolled`); the changes this plan makes start at the next day
+        // boundary, worked out here with the lineup's own offset and passed in (the engine knows no scheduler).
+        val rolled = current?.rolled(nowMs)
         val planned =
             LineupPlanner.plan(
-                current,
+                rolled,
                 owner.server,
                 owner.user,
                 standardOffsetMinutes(),
                 read.snapshot,
                 read.names,
-                read.now.toEpochMilliseconds(),
+                nowMs,
+                nextBoundary(basis ?: rolled, nowMs),
                 catalog,
                 withoutCollections = read.giveUp,
                 kept = (kept + own).distinctBy { it.id },
@@ -427,7 +433,10 @@ class LineupService internal constructor(
         edit: LineupEdit,
     ): EditOutcome? =
         try {
-            LineupEdits.apply(lineup, edit, clock.now().toEpochMilliseconds(), catalog)
+            // On the lineup as it is now (`rolled`): a change of the curated on-set starts at the next day boundary.
+            val nowMs = clock.now().toEpochMilliseconds()
+            val rolled = lineup.rolled(nowMs)
+            LineupEdits.apply(rolled, edit, nowMs, nextBoundary(rolled, nowMs), catalog)
         } catch (_: IllegalArgumentException) {
             report(LineupEvent.EditInvalid)
             null
@@ -631,19 +640,57 @@ class LineupService internal constructor(
         return entry.state.value
     }
 
+    /**
+     * [loaded], with what has become past taken off first ([rolled]): a starter that was to leave goes to the shelf,
+     * previous rules and a basis whose boundary has passed are dropped. The day turnover that the schedule source
+     * observes (its next read after a day start) is what calls this; it saves and publishes only when something
+     * changed, and never when the file may not be written (the days still follow `rulesFor` and `leavesAtMs`).
+     */
+    internal suspend fun loadedRolled(account: LibraryAccount): Revisioned? {
+        val held = loaded(account) ?: return null
+        val nowMs = clock.now().toEpochMilliseconds()
+        return if (held.lineup.rolled(nowMs) === held.lineup) held else roll(account, nowMs) ?: held
+    }
+
+    private suspend fun roll(
+        account: LibraryAccount,
+        nowMs: Long,
+    ): Revisioned? {
+        val owner = ownerOf(account) ?: return null
+        val entry = entryOf(owner)
+        return entry.mutex.withLock {
+            val start = startOf(owner, entry)
+            entry.writable = start.save
+            val held = reconciled(entry, start)
+            val lineup = held?.lineup ?: start.current
+            if (!entry.writable || lineup == null) {
+                noteWritable(entry)
+                return@withLock held
+            }
+            val rolled = lineup.rolled(nowMs)
+            val meta = held?.meta ?: start.meta
+            if (rolled !== lineup && saveVerified(owner, rolled, meta)) {
+                publish(entry, rolled, meta)
+                entry.loaded = true
+            }
+            entry.state.value
+        }
+    }
+
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> {
         val owner = ownerOf(account) ?: return flowOf(emptyList())
         return flow {
             loaded(account)
             emitAll(entryOf(owner).state)
         }.map { held ->
+            val nowMs = clock.now().toEpochMilliseconds()
             val keys = held?.let(::playKeysOf).orEmpty()
             held
                 ?.lineup
                 ?.channels
                 .orEmpty()
                 .sortedWith(CHANNEL_ORDER)
-                .map { it.summary(catalog, keys.getValue(it.id)) }
+                .map { it.summary(catalog, keys.getValue(it.id), nowMs) }
         }.distinctUntilChanged()
     }
 

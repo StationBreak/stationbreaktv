@@ -41,7 +41,17 @@ class LineupV3RoundTripTest {
     private fun plan(
         current: Lineup?,
         catalog: StarterCatalogView = TestCatalog,
-    ) = LineupPlanner.plan(current, SERVER, USER, 0, library, CollectionNames(emptyMap()), 5_000L, catalog)
+    ) = LineupPlanner.plan(
+        current,
+        SERVER,
+        USER,
+        0,
+        library,
+        CollectionNames(emptyMap()),
+        5_000L,
+        5_000L + 86_400_000L,
+        catalog,
+    )
 
     private fun assertRoundTrips(
         lineup: Lineup,
@@ -113,7 +123,7 @@ class LineupV3RoundTripTest {
                 LineupEdit.RemoveCustom(ChannelId("custom:mine")),
             )
         for (edit in edits) {
-            val outcome = LineupEdits.apply(lineup, edit, 6_000L, TestCatalog)
+            val outcome = LineupEdits.apply(lineup, edit, 6_000L, 6_000L + 86_400_000L, TestCatalog)
             assertRoundTrips(assertIs<EditOutcome.Applied>(outcome, "$edit applies").lineup, edit.toString())
         }
     }
@@ -125,7 +135,9 @@ class LineupV3RoundTripTest {
         assertEquals(true, ChannelId("custom:mine") in checkNotNull(lineup.curationBasis).on)
 
         val after =
-            assertIs<EditOutcome.Applied>(LineupEdits.apply(lineup, LineupEdit.RemoveCustom(mine), 6_000L, TestCatalog))
+            assertIs<EditOutcome.Applied>(
+                LineupEdits.apply(lineup, LineupEdit.RemoveCustom(mine), 6_000L, 6_000L + 86_400_000L, TestCatalog),
+            )
 
         assertEquals(false, ChannelId("custom:mine") in checkNotNull(after.lineup.curationBasis).on)
     }

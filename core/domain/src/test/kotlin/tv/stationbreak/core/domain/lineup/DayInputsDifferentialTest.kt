@@ -3,10 +3,13 @@ package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
+import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleSnapshot
@@ -19,6 +22,7 @@ import tv.stationbreak.core.rules.Source
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -148,7 +152,8 @@ class DayInputsDifferentialTest {
         lineup: Lineup,
         edit: LineupEdit,
     ): Lineup? {
-        val outcome = LineupEdits.apply(lineup, edit, NOON.toEpochMilliseconds(), TestCatalog)
+        val now = NOON.toEpochMilliseconds()
+        val outcome = LineupEdits.apply(lineup, edit, now, now + 86_400_000L, TestCatalog)
         return (outcome as? EditOutcome.Applied)?.lineup
     }
 
@@ -211,6 +216,56 @@ class DayInputsDifferentialTest {
         }
         assertTrue(compared >= MIN_COMPARED, "only $compared pairs shared inputs: the test would prove little")
         assertTrue(groups.size >= MIN_GROUPS, "only ${groups.size} distinct inputs: the edits change too little")
+    }
+
+    private fun digest(lineup: Lineup) = days.inputsOf(lineup, null)
+
+    @Test
+    fun householdBasisLeavesAtAndPreviousRulesChangeTheDigest() {
+        val lineup = fixtures.first()
+        val base = digest(lineup)
+        assertNotEquals(base, digest(lineup.copy(useMyCollections = !lineup.useMyCollections)), "household")
+        val basis = lineup.copy(curationBasis = CurationBasis(5_000L, setOf(LineupIds.starter("laughs")), true))
+        assertNotEquals(base, digest(basis), "basis")
+        assertNotEquals(digest(basis), digest(lineup.copy(curationBasis = CurationBasis(6_000L, emptySet(), true))))
+        val id = LineupIds.starter("laughs")
+        val leaving =
+            lineup.copy(channels = lineup.channels.map { if (it.id == id) it.copy(leavesAtMs = 9_000L) else it })
+        assertNotEquals(base, digest(leaving), "leavesAt")
+        val previous =
+            lineup.copy(
+                channels =
+                    lineup.channels.map {
+                        val source = it.source
+                        if (it.id == id && source is ChannelSource.Starter) {
+                            it.copy(source = source.withPrevious(rules("Old", Source.Genre("Crime")), 9_000L))
+                        } else {
+                            it
+                        }
+                    },
+            )
+        assertNotEquals(base, digest(previous), "previous rules")
+    }
+
+    @Test
+    fun chosenByViewerAndShelfReasonDoNot() {
+        val lineup = fixtures.first()
+        val id = LineupIds.starter("westerns")
+        val marked =
+            lineup.copy(
+                channels =
+                    lineup.channels.map {
+                        if (it.id ==
+                            id
+                        ) {
+                            it.copy(chosenByViewer = true, shelfReason = ShelfReason.TooThin)
+                        } else {
+                            it
+                        }
+                    },
+            )
+        assertEquals(digest(lineup), digest(marked))
+        assertEquals(digest(lineup), digest(lineup.copy(viewerChoicesKnown = false)))
     }
 
     private companion object {

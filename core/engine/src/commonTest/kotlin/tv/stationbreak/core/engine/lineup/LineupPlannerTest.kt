@@ -151,11 +151,22 @@ class LineupPlannerTest {
     @Test
     fun theFirstChoiceCanBeToldNotToWaitForTheCollectionPass() {
         val unsynced = libraryOf(fills(), collectionsSynced = false)
-        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base)
+        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, 1_000L + DAY_MS, base)
         assertFalse(plain.finalised, "the default still waits")
 
         val told =
-            LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base, withoutCollections = true)
+            LineupPlanner.plan(
+                null,
+                SERVER,
+                USER,
+                0,
+                unsynced,
+                NO_NAMES,
+                1_000L,
+                1_000L + DAY_MS,
+                base,
+                withoutCollections = true,
+            )
         assertTrue(told.finalised)
         assertEquals(five.map { it.first }.toSet() + "tots" + "kids-odds" + "odds", told.onKeys())
     }
@@ -514,12 +525,23 @@ class LineupPlannerTest {
                 version = 2,
             )
         val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
-        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2)
+        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, 9_000L + DAY_MS, v2)
         assertEquals(1, waiting.catalogVersion, "the default still waits")
         assertEquals(lineup.channels, waiting.channels)
 
         val told =
-            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+            LineupPlanner.plan(
+                lineup,
+                SERVER,
+                USER,
+                0,
+                unsynced,
+                NO_NAMES,
+                9_000L,
+                9_000L + DAY_MS,
+                v2,
+                withoutCollections = true,
+            )
         assertEquals(2, told.catalogVersion)
         assertEquals(
             excluded,
@@ -538,7 +560,18 @@ class LineupPlannerTest {
         val lineup = firstLineup(v1, extra = mapOf("kaiju" to QUALIFYING_ITEMS))
         val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
         val told =
-            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+            LineupPlanner.plan(
+                lineup,
+                SERVER,
+                USER,
+                0,
+                unsynced,
+                NO_NAMES,
+                9_000L,
+                9_000L + DAY_MS,
+                v2,
+                withoutCollections = true,
+            )
         assertEquals(2, told.catalogVersion)
         assertEquals(
             kaiju.sources,
@@ -621,7 +654,7 @@ class LineupPlannerTest {
     }
 
     private fun rankedFor(snapshot: RuleSnapshot): List<String> {
-        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L)
+        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L, 1_000L + DAY_MS)
         val candidates = base.recipes.map { it to planning.resolve(it) }
         return planning.ranked(candidates).map { it.key }
     }

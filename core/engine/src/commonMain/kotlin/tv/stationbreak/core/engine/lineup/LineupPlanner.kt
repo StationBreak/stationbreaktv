@@ -18,8 +18,13 @@ import tv.stationbreak.core.rules.ChannelRules
  * - An unedited starter stored without `alignToGrid` is set to false (back to back) once, on the next start or
  *   refresh after the update (the refresher plans for it even when the library has not changed). What is on now
  *   changes at once, and each TV switches at its own next start, so two TVs can differ until both have started.
- * - Rules resolved again (on a synced call, or from a newer catalog) take effect at once, so the schedule of that
- *   channel for the day may reshuffle once.
+ * - Rules resolved again (on a synced call, from a newer catalog, or for a starter that switches on) start at the next
+ *   broadcast-day start, the `boundaryMs` the caller gives: the starter keeps its previous rules for the days before it
+ *   (`ChannelSource.Starter.withNewRules`), so today's schedule never changes under the viewer. A change of the curated
+ *   on-set is recorded in the lineup's basis the same way (`withBasisFor`). The exceptions apply at once: the back to
+ *   back fix of an old file, and a viewer's reset.
+ * - A starter the planner takes off for good stays on until the boundary (`leavesAtMs`) and then goes to the shelf
+ *   (`Lineup.rolled`); the steps that set it come with the curation (spec 23).
  * - While a newer catalog waits for a full collection pass, a shelved starter that switches on is resolved from the
  *   newer catalog's recipe, until that catalog is applied.
  * - The viewer's number override always holds. A new recipe treats both default and override numbers as taken, so
@@ -74,6 +79,7 @@ object LineupPlanner {
         snapshot: RuleSnapshot,
         collections: CollectionNames,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView = StarterCatalog,
         withoutCollections: Boolean = false,
         kept: List<LineupChannel> = emptyList(),
@@ -83,10 +89,11 @@ object LineupPlanner {
             if (catalog.version < current.catalogVersion) return current
         }
         return if (current == null || !current.finalised) {
-            val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs)
+            val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs, boundaryMs)
             firstChoice(planning, userId, withoutCollections, kept)
         } else {
-            val planning = Planning(serverId, current.utcOffsetMinutes, snapshot, collections, catalog, nowMs)
+            val offset = current.utcOffsetMinutes
+            val planning = Planning(serverId, offset, snapshot, collections, catalog, nowMs, boundaryMs)
             refresh(current, planning, withoutCollections)
         }
     }
@@ -147,10 +154,13 @@ object LineupPlanner {
         val newer = p.catalog.version > current.catalogVersion && (p.snapshot.collectionsSynced || withoutCollections)
         val refreshed = current.channels.map { refreshed(backToBack(it), p, newer) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
-        return current.copy(
-            catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
-            channels = ordered(switchedOn(withNew, p)),
-        )
+        val next =
+            current.copy(
+                catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
+                channels = ordered(switchedOn(withNew, p)),
+            )
+        // A change of the curated on-set starts at the boundary: the days before it keep the old one (D1).
+        return current.withBasisFor(next, p.nowMs, p.boundaryMs)
     }
 
     // Starters stored before the app wrote `alignToGrid: false` have no value, which the format reads as the grid. An
@@ -159,8 +169,9 @@ object LineupPlanner {
     private fun backToBack(channel: LineupChannel): LineupChannel {
         val source = channel.source as? ChannelSource.Starter
         if (source == null || source.edited || source.rules.timing.alignToGrid != null) return channel
-        val rules = source.rules.copy(timing = source.rules.timing.copy(alignToGrid = false))
-        return channel.copy(source = source.copy(rules = rules))
+        // At once and not at a boundary (F12): old files only. Previous rules, if any, keep the same timing.
+        val fixed = source.mapRules { it.copy(timing = it.timing.copy(alignToGrid = false)) }
+        return channel.copy(source = fixed)
     }
 
     // Catalog updates and the hint pass of every synced call. Edited, custom and unusable channels are never touched.
@@ -175,9 +186,10 @@ object LineupPlanner {
                 when {
                     recipe == null -> {
                         if (newer) {
-                            // A custom channel has no day to leave on and no shelf reason.
+                            // A custom channel has no day to leave on and no shelf reason. It keeps the rules of today,
+                            // so a change still waiting for its boundary is not applied to a channel that is frozen.
                             channel.copy(
-                                source = ChannelSource.Custom(source.rules),
+                                source = ChannelSource.Custom(source.rulesFor(p.nowMs)),
                                 leavesAtMs = null,
                                 shelfReason = null,
                             )
@@ -192,7 +204,7 @@ object LineupPlanner {
 
                     else -> {
                         val rules = p.resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
-                        channel.copy(source = source.copy(rules = rules))
+                        channel.copy(source = source.withNewRules(rules, p.nowMs, p.boundaryMs))
                     }
                 }
             }
@@ -256,8 +268,11 @@ object LineupPlanner {
         val byId = chosen.associateBy { LineupIds.starter(it.key) }
         return channels.map { channel ->
             val recipe = byId[channel.id] ?: return@map channel
-            val source = ChannelSource.Starter(recipe.key, edited = false, rules = rules.getValue(recipe.key))
-            channel.copy(state = ChannelState.On, source = source, onSinceMs = p.nowMs)
+            val source = channel.source as ChannelSource.Starter
+            // Seed and timing stay, as on a refresh; the resolved rules start at the boundary.
+            val resolved = rules.getValue(recipe.key).copy(seed = source.rules.seed, timing = source.rules.timing)
+            val next = source.withNewRules(resolved, p.nowMs, p.boundaryMs)
+            channel.copy(state = ChannelState.On, source = next, onSinceMs = p.nowMs, shelfReason = null)
         }
     }
 
@@ -267,6 +282,7 @@ object LineupPlanner {
 }
 
 /** What one call of [LineupPlanner.plan] works with. Internal only so LineupPlannerTest can call `ranked`. */
+@Suppress("LongParameterList") // What one call reads, one for one.
 internal class Planning(
     val serverId: CanonicalId,
     val offset: Int,
@@ -274,6 +290,7 @@ internal class Planning(
     val collections: CollectionNames,
     val catalog: StarterCatalogView,
     val nowMs: Long,
+    val boundaryMs: Long,
 ) {
     private val recipes = catalog.recipes.associateBy { it.key }
     private val names by lazy { LibraryNames(snapshot, collections) }

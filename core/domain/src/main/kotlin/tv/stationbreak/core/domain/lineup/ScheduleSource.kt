@@ -25,6 +25,12 @@ enum class HiddenReason {
      */
     CollectionsNotSynced,
 
+    /**
+     * The channel is an unedited starter whose every source is one of the household's own collections, and "Use my
+     * collections" is off for this day.
+     */
+    HouseholdCollectionsOff,
+
     /** Nothing in the library matches the channel's sources. For a leftovers channel: nothing is left over. */
     NoMatches,
 

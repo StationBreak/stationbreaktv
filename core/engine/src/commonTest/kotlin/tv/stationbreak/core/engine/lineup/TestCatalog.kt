@@ -87,7 +87,11 @@ internal fun planOf(
     nowMs: Long = 1_000L,
     offset: Int = 0,
     names: CollectionNames = NO_NAMES,
-): Lineup = LineupPlanner.plan(current, SERVER, USER, offset, snapshot, names, nowMs, catalog)
+    boundaryMs: Long = nowMs + DAY_MS,
+): Lineup = LineupPlanner.plan(current, SERVER, USER, offset, snapshot, names, nowMs, boundaryMs, catalog)
+
+/** A day, for tests that pick a boundary a day after now. */
+internal const val DAY_MS = 86_400_000L
 
 internal fun Lineup.channel(key: String): LineupChannel =
     channels.first { it.id == LineupIds.starter(key) || it.id == LineupIds.leftovers(key) }

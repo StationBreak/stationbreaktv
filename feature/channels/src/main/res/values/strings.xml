@@ -37,6 +37,8 @@
     <string name="channels_choosing">Choosing channels…</string>
     <string name="channels_reset_not_chosen">Channels will be chosen after the next library check.</string>
     <string name="channels_reason_collections">Still reading your collections</string>
+    <!-- Provisional wording: goes to the design partner before it is final. -->
+    <string name="channels_reason_household_off">Uses your collections, which are turned off</string>
     <string name="channels_reason_no_matches">Nothing in your libraries fits this channel</string>
     <string name="channels_reason_not_for_kids">Nothing here is made for kids</string>
     <string name="channels_reason_childrens_only">Only children\'s shows fit; they air on the kids channels</string>

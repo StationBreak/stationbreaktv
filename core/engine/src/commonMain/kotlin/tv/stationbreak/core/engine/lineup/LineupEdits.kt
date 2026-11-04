@@ -142,18 +142,28 @@ object LineupEdits {
      * Applies [edit] to [lineup] at [nowMs], numbering from [catalog]'s recipes and retired numbers. Bands and opt-in
      * come from [catalog]; whether a channel is a kid channel does not: [KidStatus] reads the global
      * `StarterCatalog.EVER_KID_SAFE_KEYS`, whatever [catalog] is.
+     *
+     * An edit that changes the curated on-set (a starter switched on or off) is recorded in the lineup's basis, so the
+     * days before [boundaryMs], the next broadcast-day start, keep the old one (`withBasisFor`).
      */
     fun apply(
         lineup: Lineup,
         edit: LineupEdit,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView = StarterCatalog,
     ): EditOutcome {
         val channel = lineup.channels.firstOrNull { it.id == edit.id }
-        return when {
-            edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
-            channel == null -> refused(EditRefusal.UnknownChannel)
-            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, catalog))
+        val outcome =
+            when {
+                edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
+                channel == null -> refused(EditRefusal.UnknownChannel)
+                else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, catalog))
+            }
+        return if (outcome is EditOutcome.Applied) {
+            EditOutcome.Applied(lineup.withBasisFor(outcome.lineup, nowMs, boundaryMs))
+        } else {
+            outcome
         }
     }
 
@@ -384,9 +394,13 @@ object LineupEdits {
         catalog: StarterCatalogView,
     ): EditOutcome =
         when {
-            channel.state == ChannelState.On -> EditOutcome.Applied(lineup)
+            // Already on but leaving: switching it on keeps it (the viewer's choice beats the planner's).
+            channel.state == ChannelState.On -> applied(lineup, channel.copy(leavesAtMs = null))
+
             channel.source is ChannelSource.Unusable -> refused(EditRefusal.NotSwitchable)
+
             !confirmedOptIn && isOptIn(channel, catalog) -> refused(EditRefusal.OptInNotConfirmed)
+
             else -> switchedOn(lineup, channel, nowMs, catalog)
         }
 
@@ -397,7 +411,7 @@ object LineupEdits {
         nowMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome {
-        val on = channel.copy(state = ChannelState.On, onSinceMs = nowMs)
+        val on = channel.copy(state = ChannelState.On, onSinceMs = nowMs, leavesAtMs = null, shelfReason = null)
         val kid = KidStatus.isKidChannel(channel)
         val number = channel.number ?: FreeNumbers.lowest(lineup.channels, channel, kid, catalog)
         return when {
@@ -405,6 +419,15 @@ object LineupEdits {
             channel.number == null -> applied(lineup, on.copy(numberOverride = number))
             else -> applied(lineup, on)
         }
+    }
+
+    // Hidden by the viewer: it no longer leaves the lineup or sits on the shelf for a reason.
+    private fun hidden(
+        lineup: Lineup,
+        channel: LineupChannel,
+    ): EditOutcome {
+        val hidden = channel.copy(state = ChannelState.UserHidden, leavesAtMs = null, shelfReason = null)
+        return applied(lineup, hidden)
     }
 
     private fun switchOff(
@@ -415,7 +438,7 @@ object LineupEdits {
         return when {
             channel.state == ChannelState.UserHidden -> EditOutcome.Applied(lineup)
             channel.state == ChannelState.On && onCount == 1 -> refused(EditRefusal.LastOn)
-            else -> applied(lineup, channel.copy(state = ChannelState.UserHidden))
+            else -> hidden(lineup, channel)
         }
     }
 

@@ -73,8 +73,8 @@ class LineupPlannerSizeTest {
         val snapshot = snapshotOf(SyntheticLibrary(ITEMS))
         val names = CollectionNames(emptyMap())
         val began = System.nanoTime()
-        val first = LineupPlanner.plan(null, server, user, 0, snapshot, names, 1L)
-        val refreshed = LineupPlanner.plan(first, server, user, 0, snapshot, names, 2L)
+        val first = LineupPlanner.plan(null, server, user, 0, snapshot, names, 1L, 1L + DAY_MS)
+        val refreshed = LineupPlanner.plan(first, server, user, 0, snapshot, names, 2L, 2L + DAY_MS)
         val elapsedMs = (System.nanoTime() - began) / NANOS_PER_MS
         val on = refreshed.channels.count { it.state == ChannelState.On }
         println(

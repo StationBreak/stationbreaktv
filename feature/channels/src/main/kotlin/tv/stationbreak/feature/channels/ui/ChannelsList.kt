@@ -175,6 +175,7 @@ private fun labelsOf(row: ChannelRow): String =
 private fun reasonText(reason: HiddenReason): Int =
     when (reason) {
         HiddenReason.CollectionsNotSynced -> R.string.channels_reason_collections
+        HiddenReason.HouseholdCollectionsOff -> R.string.channels_reason_household_off
         HiddenReason.NoMatches -> R.string.channels_reason_no_matches
         HiddenReason.NothingMadeForKids -> R.string.channels_reason_not_for_kids
         HiddenReason.ChildrensRatingsOnly -> R.string.channels_reason_childrens_only

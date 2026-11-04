@@ -22,7 +22,9 @@ enum class ChannelState {
 sealed interface ChannelSource {
     /**
      * A catalog recipe resolved into [rules]. While not [edited] it follows catalog updates; once edited it is never
-     * touched by them.
+     * touched by them. A change of [rules] by the planner starts at a day boundary: [previousRules] are the rules
+     * before it, kept for the days that start before [rulesFromMs] (both set, or both null). Use [withPrevious],
+     * [withoutPrevious] and [mapRules], and `withNewRules` for a change, never a copy of one field.
      */
     data class Starter(
         val recipeKey: String,
@@ -34,6 +36,19 @@ sealed interface ChannelSource {
         init {
             require((previousRules == null) == (rulesFromMs == null)) { "Previous rules go with their boundary" }
         }
+
+        /** This starter with [rules] kept for the days before [fromMs]: the pair is always set together. */
+        fun withPrevious(
+            rules: ChannelRules,
+            fromMs: Long,
+        ): Starter = copy(previousRules = rules, rulesFromMs = fromMs)
+
+        /** This starter with no previous rules and no boundary. */
+        fun withoutPrevious(): Starter = copy(previousRules = null, rulesFromMs = null)
+
+        /** This starter with [transform] applied to its rules and to its previous rules, so the two stay in step. */
+        fun mapRules(transform: (ChannelRules) -> ChannelRules): Starter =
+            copy(rules = transform(rules), previousRules = previousRules?.let(transform))
     }
 
     /**
