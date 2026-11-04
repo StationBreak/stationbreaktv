@@ -4,12 +4,14 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolCounts
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.KidStatus.basePolicyOf
 import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
@@ -178,10 +180,12 @@ internal class Scheduled(
  * A kid channel ([KidStatus.isKidChannel]: numbered in the Kids band, or a key that was ever kid-safe) is also held to
  * made-for-kids content (spec 18): every pool it gets, ruled, leftovers and withheld, is evaluated with the hold, and
  * its cache key carries the policy. A hidden or opt-in kid channel withholds only what it would air if shown, so what
- * the hold keeps off it stays with the grown-up leftovers.
+ * the hold keeps off it is not offered to the grown-up channels either.
  *
- * Any other starter, edited or not, is grown-up (ADR-0020): it drops children's-rated items, with its own cache key.
- * A custom channel and the grown-up leftovers are open. [KidStatus.policyOf] decides all of this.
+ * Any other starter, edited or not, and the grown-up leftovers are grown-up (ADR-0020, grown-up-hold-2): they drop
+ * what a kid channel could take ([GrownUpHold.dropsFromGrownUp]), with their own cache key. A custom channel is open,
+ * and so is the grown-up leftovers while no kid leftovers channel is on. What the kid hold refuses stays on the
+ * grown-up side. [KidStatus.policyOf] decides all of this.
  *
  * Known edge, accepted: an unusable channel has no pool, so if the user hid one its content can reach the leftovers.
  */
@@ -236,7 +240,7 @@ internal class LineupDays(
         lineup: Lineup,
         extrasFromMs: Long?,
     ): String {
-        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it) }
+        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it, policyOf(it, lineup)) }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         val inputs =
             JsonObject(
@@ -252,24 +256,31 @@ internal class LineupDays(
     }
 
     // What one channel contributes to [inputsOf]: the one definition of "its days would change".
-    private fun channelInputs(channel: LineupChannel): JsonObject =
+    private fun channelInputs(
+        channel: LineupChannel,
+        policy: PoolPolicy,
+    ): JsonObject =
         JsonObject(
             linkedMapOf(
                 "id" to JsonPrimitive(channel.id.value),
                 "state" to JsonPrimitive(channel.state.name),
                 "ceiling" to JsonPrimitive(ceilings.of(channel)),
-                "policy" to JsonPrimitive(nameOf(policyOf(channel))),
+                "policy" to JsonPrimitive(nameOf(policy)),
                 "source" to LineupCodec.sourceOf(unnamed(channel.source)),
             ),
         )
 
     /**
-     * [channel]'s part of [inputsOf], as a digest: it changes whenever this channel's own inputs to the days change (a
-     * new play order, a reshuffle, other sources or filters; never a name or a number that changes no pool). A
-     * leftovers channel's days also depend on other channels, so the guide compares the whole list of keys.
+     * [channel]'s part of [inputsOf] in [lineup], as a digest: it changes whenever this channel's own inputs to the
+     * days change (a new play order, a reshuffle, other sources or filters, its pool policy in [lineup]; never a name
+     * or a number that changes no pool). A leftovers channel's days also depend on what the other channels claim, so
+     * the guide compares the whole list of keys.
      */
-    fun playKeyOf(channel: LineupChannel): PlayKey {
-        val inputs = channelInputs(channel).toString()
+    fun playKeyOf(
+        channel: LineupChannel,
+        lineup: Lineup,
+    ): PlayKey {
+        val inputs = channelInputs(channel, policyOf(channel, lineup)).toString()
         return PlayKey(sha256Hex(inputs.encodeToByteArray()))
     }
 
@@ -337,29 +348,62 @@ internal class LineupDays(
     }
 
     /**
-     * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no day
-     * pool, and not held back on purpose (opt-in recipes, hidden channels). Zero while the leftovers channels are on.
+     * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no
+     * channel's epoch pool (before the trim window), and not held back on purpose (opt-in recipes, hidden channels).
+     * Not counted here: titles a grown-up pool drops ([turnedAwayByBothHolds]), which are counted apart. Zero for
+     * everything else while the leftovers channels are on, and normally zero for those too.
      */
     fun airingNowhere(
         lineup: Lineup,
         scheduled: List<Scheduled>,
         snapshots: Map<Long, RuleSnapshot>,
         filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
-    ): Int {
+    ): Int = unaired(lineup, scheduled, snapshots, filteredSnapshots).first
+
+    /**
+     * How many of the items [airingNowhere] would count that a grown-up pool drops ([GrownUpHold.dropsFromGrownUp]):
+     * made for kids, takeable by a kid channel, and aired nowhere. Under `grown-up-hold-2` (ADR-0020, option C) a
+     * grown-up pool drops only what a kid channel could take, and the grown-up leftovers keeps everything while no kid
+     * leftovers is on, so this is normally zero; it remains as a guard (it is not zero when, say, the grown-up
+     * leftovers is off and no kid channel takes the title). A separate count, not part of [airingNowhere].
+     */
+    fun turnedAwayByBothHolds(
+        lineup: Lineup,
+        scheduled: List<Scheduled>,
+        snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
+    ): Int = unaired(lineup, scheduled, snapshots, filteredSnapshots).second
+
+    // The items that air nowhere, split: (kept by grown-up pools, dropped by them).
+    private fun unaired(
+        lineup: Lineup,
+        scheduled: List<Scheduled>,
+        snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot>,
+    ): Pair<Int, Int> {
         val build = Build(lineup, snapshots, filteredSnapshots)
         // Trimmed items stay claimed (plan Resolution 24): the count reads the epoch pools, not the windowed day pools.
         build.days(scheduled)
         val aired = scheduled.flatMapTo(HashSet()) { s -> build.epochPoolOf(s).map { it.id } }
         val nowhere = HashSet<CanonicalId>()
+        val turnedAway = HashSet<CanonicalId>()
         for ((cut, group) in scheduled.groupBy { it.cut }) {
-            val items = build.snapshotOf(cut).items.map { it.item }
+            val snapshot = build.snapshotOf(cut)
+            val items = snapshot.items.map { it.item }
             val eligible =
                 group.distinctBy { EpochPool.inputsOf(it.settings) }.flatMapTo(HashSet()) { s ->
                     EpochPool.build(s.settings, items, s.n).map { it.id }
                 }
-            nowhere += eligible - aired - build.withheld(cut) - build.hiddenLeftovers(cut)
+            val left = eligible - aired - build.withheld(cut) - build.hiddenLeftovers(cut)
+            for (entry in snapshot.items) {
+                val id = entry.item.id
+                if (id !in left) continue
+                val seriesId = entry.item.seriesId
+                val series = if (seriesId == null) null else snapshot.series[seriesId]
+                if (GrownUpHold.dropsFromGrownUp(entry, series)) turnedAway += id else nowhere += id
+            }
         }
-        return nowhere.size
+        return nowhere.size to turnedAway.size
     }
 
     private fun settingsOf(
@@ -535,7 +579,7 @@ internal class LineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel, lineup))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
         // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
@@ -546,7 +590,7 @@ internal class LineupDays(
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
                     PolicyRules(resolved, policyOf(recipe)),
-                    inLineup?.let(::rulesOf)?.let { PolicyRules(it, policyOf(inLineup)) },
+                    inLineup?.let(::rulesOf)?.let { PolicyRules(it, basePolicyOf(inLineup)) },
                 )
             }
 
@@ -616,7 +660,7 @@ internal fun hiddenReason(
     val counts = pool.counts
     val unresolved = counts.unresolvedSources.isNotEmpty() || counts.unresolvedExclusions.isNotEmpty()
     val matched =
-        pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.filteredOut +
+        pool.items.size + counts.excluded + counts.heldOut + counts.madeForKidsOut + counts.filteredOut +
             counts.blockedByCeiling
     return when {
         day.isNotEmpty() -> null
@@ -633,7 +677,7 @@ private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
     when {
         counts.blockedByCeiling > 0 -> HiddenReason.AllBlockedByCeiling
         counts.heldOut > 0 -> HiddenReason.NothingMadeForKids
-        counts.childrensRatingOut > 0 -> HiddenReason.ChildrensRatingsOnly
+        counts.madeForKidsOut > 0 -> HiddenReason.ChildrensRatingsOnly
         counts.filteredOut > 0 -> HiddenReason.AllFilteredOut
         else -> HiddenReason.AllExcluded
     }

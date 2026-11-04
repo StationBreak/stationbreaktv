@@ -135,7 +135,9 @@ class LineupService internal constructor(
 
     private fun playKeysOf(held: Revisioned): Map<ChannelId, PlayKey> =
         synchronized(playKeys) {
-            playKeys.getOrPut(held.revision) { held.lineup.channels.associate { it.id to days.playKeyOf(it) } }
+            playKeys.getOrPut(held.revision) {
+                held.lineup.channels.associate { it.id to days.playKeyOf(it, held.lineup) }
+            }
         }
 
     private class Entry {
@@ -529,8 +531,9 @@ class LineupService internal constructor(
     /**
      * How many items of the [libraries] could air in a switched-on channel's day at [at] and yet air nowhere: in no
      * channel's day, and not held back on purpose (an opt-in recipe's or a hidden channel's). A check that the catalog
-     * does its job: zero while the leftovers channels are on. Zero while there is no lineup. Reads the library as the
-     * days are built (one `ruleSnapshot` per distinct cut-off).
+     * does its job: zero while the leftovers channels are on, apart from what a grown-up pool drops (see
+     * [turnedAwayByBothHoldsCount]). Zero while there is no lineup. Reads the library as the days are built (one
+     * `ruleSnapshot` per distinct cut-off).
      */
     internal suspend fun airingNowhereCount(
         account: LibraryAccount,
@@ -541,6 +544,22 @@ class LineupService internal constructor(
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
         val read = snapshotsOf(library, account, libraries, scheduled.map { it.cut }.distinct().sorted())
         return days.airingNowhere(held.lineup, scheduled, read.first, read.second)
+    }
+
+    /**
+     * How many of the items [airingNowhereCount] leaves out are ones a grown-up pool drops
+     * (`GrownUpHold.dropsFromGrownUp`: made for kids and takeable by a kid channel) and air nowhere. Under
+     * `grown-up-hold-2` (ADR-0020, option C) this is normally zero; it remains as a guard, counted apart.
+     */
+    internal suspend fun turnedAwayByBothHoldsCount(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): Int {
+        val held = loaded(account) ?: return 0
+        val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
+        val read = snapshotsOf(library, account, libraries, scheduled.map { it.cut }.distinct().sorted())
+        return days.turnedAwayByBothHolds(held.lineup, scheduled, read.first, read.second)
     }
 
     /**

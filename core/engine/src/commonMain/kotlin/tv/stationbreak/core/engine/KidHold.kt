@@ -10,11 +10,11 @@ import tv.stationbreak.core.rules.RatingLadder
  * The kid hold (spec 18, "The kid hold"): what a held channel will air. A held channel airs only what is made for
  * children ([isMadeForKids]) and that passes a kid rating table ([passesKidCeiling]). It is pure: it reads the entry
  * and its series and nothing else. Tags never take part. The lists below are frozen under [VERSION_NAME]; a change to
- * either is a new version name.
+ * either is a new version name. `kid-hold-3` adds the animated-family signal ([isAnimatedFamily]; ADR-0019 addendum).
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-2"
+    const val VERSION_NAME = "kid-hold-3"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's
@@ -97,7 +97,9 @@ object KidHold {
 
     /**
      * The ratings that mean made for children, after `RatingLadder.normalise` (TV Parental Guidelines). Frozen under
-     * both [VERSION_NAME] and `GrownUpHold.VERSION_NAME`: a change to it is a new version name of each.
+     * both [VERSION_NAME] and `GrownUpHold.VERSION_NAME`: a change to it is a new version name of each. The grown-up
+     * gate (`GrownUpHold.dropsFromGrownUp`) is built from [isMadeForKids] and [passesKidCeiling], so a change to
+     * either of those is a new version name of both holds too.
      */
     val CHILDRENS_RATINGS: Set<String> = setOf("TV-Y", "TV-Y7", "TV-Y7-FV")
 
@@ -128,9 +130,9 @@ object KidHold {
     /**
      * Whether [entry] is made for children: one of its genres is in [KIDS_GENRES], one of its studios is in
      * [KID_STUDIOS], or its rating is a children's one (`TV-Y`, `TV-Y7`, `TV-Y7-FV`, per the TV Parental Guidelines),
-     * and so, when [series] is not null, is one of the series'. A null [series] (a movie, an episode with no series,
-     * or one whose series the snapshot lacks) contributes nothing, so such an episode matches on its own names and
-     * rating only.
+     * and so, when [series] is not null, is one of the series'; or it is an animated family title
+     * ([isAnimatedFamily]). A null [series] (a movie, an episode with no series, or one whose series the snapshot
+     * lacks) contributes nothing, so such an episode matches on its own names and rating only.
      */
     fun isMadeForKids(
         entry: RuleItem,
@@ -145,14 +147,40 @@ object KidHold {
                         anyMatch(genreSet, series.foldedGenres) ||
                             anyMatch(studioSet, series.foldedStudios)
                     )
-            )
+            ) ||
+            isAnimatedFamily(entry, series)
+
+    /**
+     * Whether [series] is made for children on its own names and rating, by the same lists as [isMadeForKids]: a kids
+     * genre, a kid studio, a children's rating, or the animated-family signal on the series alone. It is not a hold of
+     * its own; the curation reads it for the tone of a series (spec 23).
+     */
+    fun isSeriesMadeForKids(series: RuleSeries): Boolean =
+        anyMatch(genreSet, series.foldedGenres) ||
+            anyMatch(studioSet, series.foldedStudios) ||
+            isChildrensRating(series.officialRating) ||
+            AnimatedFamilySignal.holdsForSeries(series)
+
+    /**
+     * The `kid-hold-3` signal: the genres of [entry], together with those of its known [series], include both
+     * Animation and Family, and the rating is one that means G or unrated. The rating is the effective one (the
+     * entry's own, or the series' when the own is null or blank), and a known series with a rating must pass too, as
+     * [passesKidCeiling] reads an episode. It passes when null or blank; or after `RatingLadder.normalise` it is `G`,
+     * `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and trimmed, it is `NR`,
+     * `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails. Tags never take part. A
+     * null [series] contributes nothing.
+     */
+    internal fun isAnimatedFamily(
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean = AnimatedFamilySignal.holds(entry, series)
 
     /**
      * Whether [entry]'s rating, or the known [series]' rating, is a children's one ([CHILDRENS_RATINGS]). This is the
-     * one predicate behind both [isMadeForKids]'s ratings rule and the grown-up hold (ADR-0020), so the two gates
-     * cannot drift. A null [series] contributes nothing.
+     * predicate behind [isMadeForKids]'s ratings rule, so the rule and this one cannot drift. A null [series]
+     * contributes nothing.
      */
-    fun hasChildrensRating(
+    private fun hasChildrensRating(
         entry: RuleItem,
         series: RuleSeries?,
     ): Boolean = isChildrensRating(entry.officialRating) || (series != null && isChildrensRating(series.officialRating))

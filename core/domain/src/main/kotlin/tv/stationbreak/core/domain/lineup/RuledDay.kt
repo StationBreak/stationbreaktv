@@ -32,11 +32,11 @@ internal data class PolicyRules(
 internal fun Ceilings.policyRules(
     rules: ChannelRules,
     channel: LineupChannel,
-): PolicyRules = PolicyRules(rules.copy(maxRating = of(channel)), KidStatus.policyOf(channel))
+): PolicyRules = PolicyRules(rules.copy(maxRating = of(channel)), KidStatus.basePolicyOf(channel))
 
 /**
  * The day of [channel] under [rules] for epoch [n], from [snapshot]. The ceiling is [ceilings]' and the policy is
- * `KidStatus.policyOf(channel)`; nothing else decides them. [evaluate] is the pool provider: LineupDays passes its
+ * `KidStatus.basePolicyOf(channel)`; nothing else decides them. [evaluate] is the pool provider: LineupDays passes its
  * cache (ruled and withheld pools share it), the preview a plain evaluator call. The film-to-collection map is of the
  * very snapshot the pool was evaluated from.
  */

@@ -264,7 +264,7 @@ class PersistedDaysTest {
     @Test
     fun anotherHoldVersionMisses() {
         save()
-        val held = persisted(holds = listOf("kid-hold-3", "grown-up-hold-1"))
+        val held = persisted(holds = listOf("kid-hold-0", "grown-up-hold-2"))
         assertNull(load(held, keyOf(held)))
         assertEquals(DaySnapshotMiss.Holds, lastMiss())
     }

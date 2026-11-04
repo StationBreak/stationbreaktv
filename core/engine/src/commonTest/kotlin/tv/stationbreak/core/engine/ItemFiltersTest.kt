@@ -119,7 +119,7 @@ class ItemFiltersTest {
         val counts = pool.counts
         assertEquals(
             items.size,
-            pool.items.size + counts.excluded + counts.heldOut + counts.childrensRatingOut + counts.filteredOut +
+            pool.items.size + counts.excluded + counts.heldOut + counts.madeForKidsOut + counts.filteredOut +
                 counts.blockedByCeiling,
         )
     }

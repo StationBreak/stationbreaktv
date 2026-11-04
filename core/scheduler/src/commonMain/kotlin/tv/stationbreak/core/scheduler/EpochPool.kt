@@ -63,6 +63,7 @@ object EpochPool {
      * The pool of the day: [pool] (the result of [build]) with the trim window of [keeps] applied ([TrimWindow]); [pool]
      * itself when [keeps] is empty. It is cheap (no layout), so a caller that keeps the day's pool, on disk too, can
      * work it out when the day is made. A pool that was kept after the window is built again with [TitleKeeps.NONE].
+     * Claims and coverage checks use [build], never this.
      */
     fun dayPool(
         pool: List<ScheduleItem>,

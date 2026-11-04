@@ -12,16 +12,36 @@ object KidStatus {
     fun policyOf(recipe: Recipe): PoolPolicy = if (isKidRecipe(recipe)) PoolPolicy.KidsOnly else PoolPolicy.GrownUp
 
     /**
-     * The policy a channel's pool is evaluated under (ADR-0019, ADR-0020): a kid channel (the kids leftovers included)
-     * is kids-only; any other starter, edited or not, is grown-up; a custom channel and the grown-up leftovers channel
-     * are open (the leftovers one so that what the kid hold refuses still airs somewhere).
+     * The policy of [channel] on its own (ADR-0019, ADR-0020): a kid channel (the kids leftovers included) is
+     * kids-only; any other starter, edited or not, and the grown-up leftovers channel are grown-up; a custom channel
+     * is open. It ignores the grown-up leftovers fallback, so it is wrong for a leftovers channel: every pool and
+     * every inputs key must use [policyOf] with the lineup. Safe on its own only for a starter or custom channel.
      */
-    fun policyOf(channel: LineupChannel): PoolPolicy =
+    fun basePolicyOf(channel: LineupChannel): PoolPolicy =
         when {
             isKidChannel(channel) -> PoolPolicy.KidsOnly
-            channel.source is ChannelSource.Starter -> PoolPolicy.GrownUp
+            channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers -> PoolPolicy.GrownUp
             else -> PoolPolicy.Open
         }
+
+    /**
+     * The policy [channel]'s pool is evaluated under in [lineup]: [policyOf] (the channel), except that the grown-up
+     * leftovers is open, not grown-up, while no kid leftovers channel is switched on in [lineup] (ADR-0020). Nothing
+     * then takes the made-for-kids items the kid starters do not match, so the grown-up leftovers keeps them (under its
+     * own ceiling) and the holds leave nothing airing nowhere. Grown-up starters keep the hold either way.
+     */
+    fun policyOf(
+        channel: LineupChannel,
+        lineup: Lineup,
+    ): PoolPolicy {
+        val policy = basePolicyOf(channel)
+        val grownUpLeftovers = policy == PoolPolicy.GrownUp && channel.source is ChannelSource.Leftovers
+        return if (grownUpLeftovers && !hasKidLeftoversOn(lineup)) PoolPolicy.Open else policy
+    }
+
+    /** Whether [lineup] has a kid leftovers channel (Kids' Odds & Ends) switched on. */
+    fun hasKidLeftoversOn(lineup: Lineup): Boolean =
+        lineup.channels.any { it.source is ChannelSource.Leftovers && it.state == ChannelState.On && isKidChannel(it) }
 
     /** A kid recipe: in the Kids band, or a key that was ever kid-safe. */
     fun isKidRecipe(recipe: Recipe): Boolean {

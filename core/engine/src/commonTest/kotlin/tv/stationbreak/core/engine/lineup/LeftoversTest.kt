@@ -119,7 +119,48 @@ class LeftoversTest {
             )
         val pool = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.GrownUp)
         assertEquals(listOf(idOf(2), idOf(3)), pool.items.map { it.id })
-        assertEquals(1, pool.counts.childrensRatingOut)
+        assertEquals(1, pool.counts.madeForKidsOut)
         assertEquals(0, pool.counts.heldOut)
+    }
+
+    @Test
+    fun theGrownUpLeftoversDropsOnlyWhatAKidChannelCouldTake() {
+        val snap =
+            snapshot(
+                items =
+                    listOf(
+                        movie(idOf(1), rating = "PG", studios = listOf("Pixar")),
+                        movie(idOf(2), rating = "PG-13", genres = listOf("Kids")),
+                        movie(idOf(3), rating = "G", genres = listOf("Animation", "Family")),
+                        movie(idOf(4), rating = "PG", genres = listOf("Family", "Comedy")),
+                        movie(idOf(5), rating = "R"),
+                    ),
+            )
+        val pool = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.GrownUp)
+        assertEquals(listOf(idOf(2), idOf(4), idOf(5)), pool.items.map { it.id })
+        assertEquals(2, pool.counts.madeForKidsOut)
+    }
+
+    @Test
+    fun theGrownUpLeftoversKeepsUnratedAnimatedFamilyAndKidStudioTitlesNoKidChannelCanTake() {
+        val animated = listOf("Animation", "Family")
+        val snap =
+            snapshot(
+                items =
+                    listOf(
+                        movie(idOf(1), rating = null, genres = animated),
+                        movie(idOf(2), rating = "NR", genres = animated),
+                        movie(idOf(3), rating = "Not Rated", genres = animated),
+                        movie(idOf(4), rating = "TV-PG", studios = listOf("Pixar")),
+                        episode(idOf(6), show, rating = "TV-14"),
+                        movie(idOf(5), rating = "G", genres = animated),
+                    ),
+                series = listOf(series(show, rating = "TV-14", studios = listOf("Pixar"))),
+            )
+        val grownUp = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.GrownUp)
+        assertEquals(listOf(idOf(1), idOf(2), idOf(3), idOf(4), idOf(6)), grownUp.items.map { it.id })
+        assertEquals(1, grownUp.counts.madeForKidsOut)
+        val kids = Leftovers.pool(snap, emptySet(), "PG", policy = PoolPolicy.KidsOnly)
+        assertEquals(listOf(idOf(5)), kids.items.map { it.id })
     }
 }
