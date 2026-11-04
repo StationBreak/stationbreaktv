@@ -23,12 +23,16 @@ import tv.stationbreak.core.rules.ChannelRules
  *   (`ChannelSource.Starter.withNewRules`), so today's schedule never changes under the viewer. A change of the curated
  *   on-set is recorded in the lineup's basis the same way (`withBasisFor`). The exceptions apply at once: the back to
  *   back fix of an old file, and a viewer's reset.
- * - Only a switched-on starter keeps previous rules. One that is not on (on the shelf, or hidden by the viewer) takes
- *   new rules at once and has any previous ones dropped on every plan (`withRulesNow`): nothing of it airs today, and
- *   so the lineup file holds at most one previous copy per switched-on starter (the bound
- *   `RecipeResolver.STARTER_RULES_BUDGET_BYTES` is sized for). A shelved starter that switches on takes its new rules
- *   at once too. What a hidden starter's rules hold back from the leftovers (the items it would air) can therefore
- *   shift once in the middle of a day, after a plan that resolves it again or drops its previous rules.
+ * - Only the first [LineupDefaults.CAP] switched-on starters, by channel number (then recipe key), keep previous
+ *   rules. Any other starter takes new rules at once and has any previous ones dropped on every plan
+ *   (`withRulesNow`), so the lineup file holds at most [LineupDefaults.CAP] previous copies, the bound
+ *   `RecipeResolver.STARTER_RULES_BUDGET_BYTES` is sized for. A starter that is not on (on the shelf, or hidden by the
+ *   viewer) airs nothing today, so what changes for it is only what its rules hold back from the leftovers (the items
+ *   it would air): that can shift once in the middle of a day, after a plan that resolves it again or drops its
+ *   previous rules. A shelved starter that switches on takes its new rules at once too.
+ * - With more than [LineupDefaults.CAP] starters on (the viewer can switch on past the cap), a re-resolve changes
+ *   today's rules at once for the starters beyond the [LineupDefaults.CAP]th by number: what they air today can
+ *   change in the middle of the day.
  * - A starter switched on in the middle of a day airs from now (`onSinceMs`), so what it airs leaves the leftovers'
  *   current day at once: the leftovers' day moves once. That includes the starter a "Use my collections" change kept
  *   waiting for its boundary (it must fill under today's flag and tomorrow's): the plan at that boundary switches it
@@ -81,9 +85,10 @@ object LineupPlanner {
      * (the "Odds and ends" decision), so the lineup can hold more than the cap when the kept channels alone fill it.
      * A finalised lineup ignores [kept]: it is planned from its own channels.
      *
-     * "Use my collections" is a setting, and a plan keeps it: a lineup not yet finalised keeps its own flag and basis
-     * through its first choice, and ranks under them. A lineup planned from nothing ([current] null) takes
-     * [useMyCollections] (a reset passes the flag of the lineup it replaces; a new account has the default, on).
+     * "Use my collections" is a setting, and a plan keeps it: a lineup not yet finalised keeps its own flag (and, while
+     * it waits, its basis); the first choice ranks under the flag and applies it at once, with no basis, as a reset
+     * does (nothing chosen has aired yet). A lineup planned from nothing ([current] null) takes [useMyCollections] (a
+     * reset passes the flag of the lineup it replaces; a new account has the default, on).
      */
     @Suppress("LongParameterList")
     fun plan(
@@ -108,8 +113,8 @@ object LineupPlanner {
             // The flag and basis a first choice keeps: the unfinalised lineup's own, else the one given.
             val held = current ?: Lineup(serverId, userId, catalog.version, standardOffsetMinutes, false, emptyList())
             val setting = if (current == null) held.copy(useMyCollections = useMyCollections) else held
-            val household = setting.householdFor(boundaryMs)
-            val today = setting.householdFor(nowMs)
+            // The first choice applies the flag at once (`chosen` drops the basis), so it ranks under it for today too.
+            val household = setting.useMyCollections
             val planning =
                 Planning(
                     serverId,
@@ -120,7 +125,7 @@ object LineupPlanner {
                     nowMs,
                     boundaryMs,
                     household,
-                    today,
+                    household,
                 )
             firstChoice(planning, userId, withoutCollections, kept, setting)
         } else {
@@ -187,7 +192,8 @@ object LineupPlanner {
                 val state = if (it.key in on) ChannelState.On else ChannelState.Shelf
                 p.starterChannel(it, numbers.getValue(LineupIds.starter(it.key)), state, rules.getValue(it.key))
             }
-        return unfinalised.copy(finalised = true, channels = ordered(kept + leftovers + starters))
+        // The flag applies at once, as on a reset: nothing chosen has aired yet, so there is no day to keep.
+        return unfinalised.copy(finalised = true, curationBasis = null, channels = ordered(kept + leftovers + starters))
     }
 
     private fun refresh(
@@ -198,7 +204,8 @@ object LineupPlanner {
         // A newer catalog waits for a full collection pass, so its hints resolve against every collection, unless the
         // caller has given up waiting for one. Hints missed that way resolve on the first synced refresh (rehinted).
         val newer = p.catalog.version > current.catalogVersion && (p.snapshot.collectionsSynced || withoutCollections)
-        val refreshed = current.channels.map { refreshed(backToBack(it), p, newer) }
+        val keepers = previousKeepers(current.channels)
+        val refreshed = current.channels.map { refreshed(backToBack(it), p, newer, it.id in keepers) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         val next =
             current.copy(
@@ -220,11 +227,24 @@ object LineupPlanner {
         return channel.copy(source = fixed)
     }
 
+    // The switched-on starters that may keep previous rules: the first [LineupDefaults.CAP] by number, then recipe key
+    // (an On channel always has a number). The bound on the file's previous copies rests on this.
+    private fun previousKeepers(channels: List<LineupChannel>): Set<ChannelId> =
+        channels
+            .filter { it.state == ChannelState.On && it.source is ChannelSource.Starter }
+            .sortedWith(
+                compareBy<LineupChannel> { it.number ?: Int.MAX_VALUE }
+                    .thenBy { (it.source as ChannelSource.Starter).recipeKey },
+            ).take(LineupDefaults.CAP)
+            .mapTo(HashSet()) { it.id }
+
     // Catalog updates and the hint pass of every synced call. Edited, custom and unusable channels are never touched.
+    // Only a [keeper] (see [previousKeepers]) keeps previous rules.
     private fun refreshed(
         channel: LineupChannel,
         p: Planning,
         newer: Boolean,
+        keeper: Boolean,
     ): LineupChannel =
         when (val source = channel.source) {
             is ChannelSource.Starter -> {
@@ -249,17 +269,21 @@ object LineupPlanner {
                     }
 
                     !(newer || rehinted(channel, p)) -> {
-                        // Not resolved again. One that is not on keeps no previous rules (see the known effects).
-                        val on = channel.state == ChannelState.On
-                        if (on) channel else channel.copy(source = source.withoutPrevious())
+                        // Not resolved again. Only a keeper keeps previous rules (see the known effects); with
+                        // nothing to drop the channel is the same instance, so a quiet plan changes nothing.
+                        if (keeper || source.previousRules == null) {
+                            channel
+                        } else {
+                            channel.copy(source = source.withoutPrevious())
+                        }
                     }
 
                     else -> {
                         val rules = p.resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
-                        // Only a starter on the air keeps today's rules until the boundary; nothing of one that is
-                        // not on airs today, so it takes them at once and the file holds no second copy of it.
+                        // Only a keeper (on the air, within the cap by number) keeps today's rules until the boundary;
+                        // any other takes them at once and the file holds no second copy of it.
                         val next =
-                            if (channel.state == ChannelState.On) {
+                            if (keeper) {
                                 source.withNewRules(rules, p.nowMs, p.boundaryMs)
                             } else {
                                 source.withRulesNow(rules)

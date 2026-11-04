@@ -100,6 +100,64 @@ class BoundaryRulesTest {
         assertEquals(3 * DAY_MS + DAY_START_MS, next.channel("alpha").starter.rulesFromMs)
     }
 
+    // The viewer can switch on past the cap; the file is sized for LineupDefaults.CAP previous copies. Only the first
+    // CAP switched-on starters by number (override, else default; then recipe key) keep previous rules.
+    @Test
+    fun withMoreThanTheCapOnOnlyTheLowestNumberedKeepPreviousRules() {
+        val recipes = (0 until VIEWER_ON).map { recipeOf("r" + it.toString().padStart(2, '0'), 101 + it) }
+        val catalog = TestCatalog(recipes)
+        val fills = recipes.associate { it.key to QUALIFYING_ITEMS }
+        val first = planOf(null, libraryOf(fills), catalog)
+        // Every starter switched on by the viewer; the last one renumbered to 100, so it sorts first.
+        val last = LineupIds.starter(recipes.last().key)
+        val allOn =
+            first.copy(
+                channels =
+                    first.channels.map {
+                        if (it.source !is ChannelSource.Starter) return@map it
+                        val on = it.copy(state = ChannelState.On, chosenByViewer = true)
+                        if (it.id == last) on.copy(numberOverride = 100) else on
+                    },
+            )
+        val starters = allOn.channels.filter { it.source is ChannelSource.Starter }
+        assertEquals(VIEWER_ON, starters.count { it.state == ChannelState.On })
+        val lowest =
+            starters
+                .sortedBy { it.number }
+                .take(LineupDefaults.CAP)
+                .map { it.id }
+                .toSet()
+        assertTrue(last in lowest)
+
+        // A same-day re-resolve of every starter.
+        val genreNew = listOf<Source>(Source.Genre("new"))
+        val v2 = TestCatalog(recipes.map { recipeOf(it.key, it.number, sources = genreNew) }, version = 2)
+        val next = replan(allOn, v2)
+        val kept = next.channels.filter { (it.source as? ChannelSource.Starter)?.previousRules != null }
+        assertEquals(lowest, kept.map { it.id }.toSet())
+        val nextStarters = next.channels.mapNotNull { it.source as? ChannelSource.Starter }
+        assertTrue(nextStarters.all { it.rules.sources == genreNew }, "every starter takes the new rules")
+
+        // Every plan drops previous rules beyond the cap, even one that resolves nothing again.
+        val stale = rulesOf("r00")
+        val allStale =
+            allOn.copy(
+                channels =
+                    allOn.channels.map {
+                        val source = it.source as? ChannelSource.Starter ?: return@map it
+                        it.copy(source = source.withPrevious(stale, boundary))
+                    },
+            )
+        val quiet = planOf(allStale, libraryOf(fills, collectionsSynced = false), catalog, noon, boundaryMs = boundary)
+        val stillKept = quiet.channels.filter { (it.source as? ChannelSource.Starter)?.previousRules != null }
+        assertEquals(lowest, stillKept.map { it.id }.toSet())
+        // A plan with nothing to drop keeps each starter the same instance.
+        val again = planOf(quiet, libraryOf(fills, collectionsSynced = false), catalog, noon, boundaryMs = boundary)
+        for ((before, after) in quiet.channels.zip(again.channels)) {
+            if (before.source is ChannelSource.Starter) assertSame(before, after, before.id.value)
+        }
+    }
+
     @Test
     fun withNewRulesRequiresUnchangedTiming() {
         val old = rulesOf("alpha")
@@ -224,4 +282,9 @@ class BoundaryRulesTest {
     }
 
     private fun ordering(mode: OrderingMode) = Ordering(mode)
+
+    private companion object {
+        // Today's catalog has 97 starters.
+        const val VIEWER_ON = 97
+    }
 }

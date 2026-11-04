@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.RuleSnapshot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** With "Use my collections" off the planner ranks starters on the pools they will air (spec 23). */
@@ -83,8 +84,8 @@ class LineupPlannerHouseholdTest {
         assertEquals(ChannelState.Shelf, refreshed(flag = true, basisHousehold = false).channel("house").state)
     }
 
-    // A setting survives a plan: a lineup not yet finalised keeps its flag (and basis) through its first choice, and
-    // ranks under it.
+    // A setting survives a plan: a lineup not yet finalised keeps its flag through its first choice, which ranks
+    // under it and applies it at once (no basis), as a reset does.
     @Test
     fun anUnfinalisedLineupKeepsItsFlagThroughTheFirstChoice() {
         val library = householdLibrary()
@@ -96,12 +97,13 @@ class LineupPlannerHouseholdTest {
 
         assertTrue(chosen.finalised)
         assertFalse(chosen.useMyCollections)
-        assertEquals(basis, chosen.curationBasis)
+        assertNull(chosen.curationBasis, "the flag applies at once, as on a reset")
         assertEquals(ChannelState.Shelf, chosen.channel("house").state, "ranked with the household's collections off")
         // Still waiting for the collection pass: the flag stays all the same.
         val waiting = planOf(unfinalised, library.copy(collectionsSynced = false), withHouse, names = boxNames)
         assertFalse(waiting.finalised)
         assertFalse(waiting.useMyCollections)
+        assertEquals(basis, waiting.curationBasis, "kept while nothing is chosen")
     }
 
     // A reset plans from nothing and carries the flag of the lineup it replaces.

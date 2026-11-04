@@ -18,10 +18,12 @@ import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupDefaults
+import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.NameMatcher
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.ShelfReason
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.lineup.Theme
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
@@ -251,41 +253,50 @@ class LineupCodecV3Test {
     // topped up with name padding to within a few bytes of it, the cap of them on with previousRules, both leftovers,
     // five custom channels at 256 sources, a full curation basis and a refresher meta. What is bounded: the rules
     // copies of the starters total at most half the file, and the whole file stays under the file cap.
+    private val worstCollections = CollectionNames((1..300).associate { id(0x1000 + it) to "Box Set  Collection" })
+    private val worstLibrary =
+        LibraryNames(RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), true), worstCollections)
+    private val boxSets = Anchor(AnchorKind.Collection, NameMatcher.Prefix("box set"))
+    private val longStudios = (1..60).map { Source.Studio("é".repeat(200) + it) }
+    private val comedy = listOf<Source>(Source.Genre("Comedy"))
+    private val shapes =
+        listOf(
+            Theme(listOf(boxSets), emptyList(), null, false) to comedy,
+            Theme(emptyList(), emptyList(), null, false) to comedy + longStudios,
+            Theme(listOf(boxSets), emptyList(), null, false) to comedy + longStudios.take(3),
+        )
+
+    private fun worstRecipe(n: Int): Recipe {
+        val (theme, sources) = shapes[n % shapes.size]
+        return Recipe(
+            "s$n",
+            "Starter $n",
+            "Synthetic.",
+            Band.General,
+            110,
+            false,
+            sources,
+            emptyList(),
+            null,
+            OrderingMode.Curated,
+            emptyList(),
+            theme = theme,
+        )
+    }
+
+    // The recipe is named first, so the resolver measures the name; padding then closes the gap to the budget.
+    private fun resolved(n: Int): ChannelRules =
+        paddedToBudget(RecipeResolver.resolve(worstRecipe(n), SERVER, 0, worstCollections, worstLibrary))
+
+    private fun customChannels() =
+        (1..5).map { n ->
+            val many = (1..256).map { Source.Collection(id(n * 1000 + it)) }
+            val mine = ChannelSource.Custom(rules("Mine $n", *many.toTypedArray()))
+            channel("custom-$n", 600 + n, ChannelState.On, mine)
+        }
+
     @Test
     fun aWorstCaseLineupStaysUnderTheCap() {
-        val collections = CollectionNames((1..300).associate { id(0x1000 + it) to "Box Set  Collection" })
-        val library = LibraryNames(RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), true), collections)
-        val boxSets = Anchor(AnchorKind.Collection, NameMatcher.Prefix("box set"))
-        val longStudios = (1..60).map { Source.Studio("é".repeat(200) + it) }
-        val comedy = listOf<Source>(Source.Genre("Comedy"))
-        val shapes =
-            listOf(
-                Theme(listOf(boxSets), emptyList(), null, false) to comedy,
-                Theme(emptyList(), emptyList(), null, false) to comedy + longStudios,
-                Theme(listOf(boxSets), emptyList(), null, false) to comedy + longStudios.take(3),
-            )
-
-        // The recipe is named first, so the resolver measures the name; padding then closes the gap to the budget.
-        fun resolved(n: Int): ChannelRules {
-            val (theme, sources) = shapes[n % shapes.size]
-            val recipe =
-                Recipe(
-                    "s$n",
-                    "Starter $n",
-                    "Synthetic.",
-                    Band.General,
-                    110,
-                    false,
-                    sources,
-                    emptyList(),
-                    null,
-                    OrderingMode.Curated,
-                    emptyList(),
-                    theme = theme,
-                )
-            val rules = RecipeResolver.resolve(recipe, SERVER, 0, collections, library)
-            return paddedToBudget(rules)
-        }
         val copies = ArrayList<ChannelRules>()
         val starters =
             (1..RecipeResolver.MAX_CATALOG_STARTERS).map { n ->
@@ -304,11 +315,7 @@ class LineupCodecV3Test {
             }
         val others =
             listOf(leftovers("kids-odds-and-ends", 99, "PG"), leftovers("odds-and-ends", 199, null)) +
-                (1..5).map { n ->
-                    val many = (1..256).map { Source.Collection(id(n * 1000 + it)) }
-                    val mine = ChannelSource.Custom(rules("Mine $n", *many.toTypedArray()))
-                    channel("custom-$n", 600 + n, ChannelState.On, mine)
-                }
+                customChannels()
         val basis = CurationBasis(7_000L, starters.filter { it.state == ChannelState.On }.map { it.id }.toSet(), true)
         val lineup = lineupOf(*(starters + others).toTypedArray()).copy(curationBasis = basis)
         val meta = RefreshMeta(4L, 5L, (1..10).map { "library-$it" }, 6L)
@@ -324,6 +331,50 @@ class LineupCodecV3Test {
             assertTrue(bytes >= RecipeResolver.STARTER_RULES_BUDGET_BYTES - 16, "a copy takes only $bytes bytes")
         }
         assertTrue(copyBytes <= LineupLimits.MAX_FILE_BYTES / 2, "the rules copies take $copyBytes bytes")
+        assertTrue(total <= LineupLimits.MAX_FILE_BYTES, "the whole file takes $total bytes")
+    }
+
+    // The viewer can switch every starter on, past the cap. Each starter at the budget, all on, each with previous
+    // rules at the budget too (as a same-day re-resolve would leave them without the cap); a plan keeps previous rules
+    // on the first CAP by number only, and the file it gives stays under the file cap.
+    @Test
+    fun everyStarterSwitchedOnStaysUnderTheCapAfterAPlan() {
+        val boundary = 1_792_000_000_000L
+        val starters =
+            (1..RecipeResolver.MAX_CATALOG_STARTERS).map { n ->
+                val now = resolved(n)
+                val source = ChannelSource.Starter("s$n", false, now).withPrevious(now, boundary)
+                channel("starter:s$n", 1000 + n, ChannelState.On, source).copy(chosenByViewer = true)
+            }
+        val others =
+            listOf(leftovers("kids-odds-and-ends", 99, "PG"), leftovers("odds-and-ends", 199, null)) + customChannels()
+        val lineup = lineupOf(*(starters + others).toTypedArray())
+        val catalog =
+            object : StarterCatalogView by TestCatalog {
+                override val recipes: List<Recipe> = (1..RecipeResolver.MAX_CATALOG_STARTERS).map { worstRecipe(it) }
+            }
+        val unsynced = RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), collectionsSynced = false)
+
+        val planned =
+            LineupPlanner.plan(
+                lineup,
+                lineup.serverId,
+                lineup.userId,
+                0,
+                unsynced,
+                worstCollections,
+                boundary - 3_600_000L,
+                boundary,
+                catalog,
+            )
+
+        val withPrevious = planned.channels.filter { (it.source as? ChannelSource.Starter)?.previousRules != null }
+        assertEquals((1..LineupDefaults.CAP).map { "starter:s$it" }.toSet(), withPrevious.map { it.id.value }.toSet())
+        val on = planned.channels.count { it.id.value.startsWith("starter:") && it.state == ChannelState.On }
+        assertEquals(RecipeResolver.MAX_CATALOG_STARTERS, on, "the viewer's choices stand")
+        val meta = RefreshMeta(4L, 5L, (1..10).map { "library-$it" }, 6L, replanFromMs = boundary)
+        val total = LineupCodec.encode(planned, meta).size
+        println("every starter on: file $total of ${LineupLimits.MAX_FILE_BYTES}")
         assertTrue(total <= LineupLimits.MAX_FILE_BYTES, "the whole file takes $total bytes")
     }
 
