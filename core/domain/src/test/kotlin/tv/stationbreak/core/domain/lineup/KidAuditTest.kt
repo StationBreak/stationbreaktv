@@ -41,6 +41,12 @@ class KidAuditTest {
     // Made for kids, and over every kid ceiling: it may air on no channel at all (grown-up-hold-2).
     private val overEveryCeiling = mutableSetOf<CanonicalId>()
 
+    // Made for kids by a list or the signal, and seeded as such: never on a grown-up channel.
+    private val madeForKidsSeeded = mutableSetOf<CanonicalId>()
+
+    // Family-friendly but not made for kids: allowed on a grown-up channel.
+    private val liveActionFamilyG = mutableSetOf<CanonicalId>()
+
     private fun film(
         rating: String?,
         vararg genres: String,
@@ -71,16 +77,19 @@ class KidAuditTest {
             film("G", "Animation", "Family")
             film("TV-G", "Animation", "Family")
             film(null, "Animation", "Family")
+            madeForKidsSeeded += items.takeLast(3).map { entry -> entry.item.id }
             film("PG", "Animation", "Family", nearMiss = true)
             film("PG-13", "Animation", "Family", "Comedy", nearMiss = true)
             film("R", "Animation", "Comedy")
             film("G", "Family", "Comedy", nearMiss = true)
+            liveActionFamilyG += items.last().item.id
             film("PG", "Family")
             film("G", "Animation", "Kids")
             film("TV-Y7", "Adventure")
             film("R", "Drama")
             film("R", "Kids")
             overEveryCeiling += items.last().item.id
+            madeForKidsSeeded += items.last().item.id
         }
         showOf("TV-G", "Animation", "Family")
         showOf(null, "Animation", "Family")
@@ -131,6 +140,7 @@ class KidAuditTest {
             val source = BuiltInScheduleSource(service, library) { LIBRARIES }
             val byId = items.associateBy { it.item.id }
             var audited = 0
+            var familyAired = 0
             for (day in 0 until WEEK) {
                 for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
                     if (!isGrownUpStarterOrLeftovers(channelDay.channel)) continue
@@ -139,11 +149,14 @@ class KidAuditTest {
                         val show = scheduled.seriesId?.let { shows[it] }
                         val where = "${channelDay.name} day $day ${scheduled.id}"
                         assertTrue(!KidHold.isMadeForKids(entry, show), "made for kids on a grown-up channel: $where")
+                        assertTrue(scheduled.id !in madeForKidsSeeded, "seeded kids title on grown-up: $where")
+                        if (scheduled.id in liveActionFamilyG) familyAired++
                         audited++
                     }
                 }
             }
             assertTrue(audited > 0, "the audit saw nothing")
+            assertTrue(familyAired > 0, "the live-action family G film aired on no grown-up channel")
         }
 
     @Test

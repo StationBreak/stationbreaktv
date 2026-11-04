@@ -178,10 +178,11 @@ internal class Scheduled(
  * A kid channel ([KidStatus.isKidChannel]: numbered in the Kids band, or a key that was ever kid-safe) is also held to
  * made-for-kids content (spec 18): every pool it gets, ruled, leftovers and withheld, is evaluated with the hold, and
  * its cache key carries the policy. A hidden or opt-in kid channel withholds only what it would air if shown, so what
- * the hold keeps off it stays with the grown-up leftovers.
+ * the hold keeps off it is not offered to the grown-up channels either.
  *
- * Any other starter, edited or not, is grown-up (ADR-0020): it drops children's-rated items, with its own cache key.
- * A custom channel and the grown-up leftovers are open. [KidStatus.policyOf] decides all of this.
+ * Any other starter, edited or not, and the grown-up leftovers are grown-up (ADR-0020, grown-up-hold-2): they drop
+ * what is made for kids, with their own cache key. Only a custom channel is open. What the kid hold refuses may
+ * therefore air nowhere. [KidStatus.policyOf] decides all of this.
  *
  * Known edge, accepted: an unusable channel has no pool, so if the user hid one its content can reach the leftovers.
  */
