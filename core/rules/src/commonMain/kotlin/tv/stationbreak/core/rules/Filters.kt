@@ -56,7 +56,7 @@ data class Filters(
         requireWindow(episodeMinRuntimeMinutes, episodeMaxRuntimeMinutes)
         requireWindow(movieMinRuntimeMinutes, movieMaxRuntimeMinutes)
         require(yearsExtras.isEmpty() || yearFrom != null) { "Unknown year fields need years" }
-        require(runtimeExtras.isEmpty() || hasRuntime) { "Unknown runtime fields need a runtime" }
+        require(runtimeExtras.isEmpty() || hasAnyRuntime) { "Unknown runtime fields need a runtime" }
         require(episodeRuntimeExtras.isEmpty() || hasEpisodeRuntime) { "Unknown episode runtime fields need a window" }
         require(movieRuntimeExtras.isEmpty() || hasMovieRuntime) { "Unknown movie runtime fields need a window" }
         RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.FILTERS + usedNames())

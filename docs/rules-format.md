@@ -478,7 +478,9 @@ They do not change the rating ceiling: an item still needs to pass `maxRating` (
 
 The version 3 parts each have a file: `docs/rules-format/examples/v3/filters-tags-studios.json` (`tags` and `studios`),
 `docs/rules-format/examples/v3/not-genres.json` (`genres` with `notGenres`) and
-`docs/rules-format/examples/v3/runtime-per-kind.json` (a general window and a window for each kind).
+`docs/rules-format/examples/v3/runtime-per-kind.json` (a general window and a window for each kind). A `runtime` object
+may hold a window for one kind only and a field this version does not know
+(`docs/rules-format/examples/v3/runtime-kind-window-with-unknown-field.json`); the unknown field is kept.
 
 ## Ordering
 
@@ -2003,7 +2005,7 @@ Everything below is in this repository, under `docs/`:
   `docs/rules-format/examples/v2/invalid/`, files a reader must reject (the schema rejects those it can); a file there
   whose kind is unknown (a version 1 file that uses version 2, or an unknown `filters.kind`) is rejected as unsupported.
 - `docs/rules-format/examples/v3/`: one worked example per version 3 feature (`studio.json`, `filters-tags-studios.json`,
-  `not-genres.json`, `runtime-per-kind.json`, `curated.json` and `curated-tuned.json`), each of which validates against the
+  `not-genres.json`, `runtime-per-kind.json`, `runtime-kind-window-with-unknown-field.json`, `curated.json` and `curated-tuned.json`), each of which validates against the
   version 3 schema; and `docs/rules-format/examples/invalid/v3-feature-in-v2.json`, a file that says `formatVersion` 2 and
   uses a `studio` source, which the version 3 schema rejects and a reader reads as unsupported.
 - `docs/rules-format/examples/invalid/`: files the schema must reject (wrong type, missing `formatVersion`,
@@ -2064,5 +2066,6 @@ Examples in `docs/rules-format/examples/`, with what they show:
 | `docs/rules-format/examples/v3/filters-tags-studios.json` | The `tags` and `studios` filters. |
 | `docs/rules-format/examples/v3/not-genres.json` | `genres` with `notGenres`. |
 | `docs/rules-format/examples/v3/runtime-per-kind.json` | A general runtime window and a window for each kind. |
+| `docs/rules-format/examples/v3/runtime-kind-window-with-unknown-field.json` | A runtime with a window for one kind and an unknown field. |
 | `docs/rules-format/examples/v3/curated.json` | `curated` with the default tunables. |
 | `docs/rules-format/examples/v3/curated-tuned.json` | `curated` with both tunables, a `studio` source and `notGenres`. |

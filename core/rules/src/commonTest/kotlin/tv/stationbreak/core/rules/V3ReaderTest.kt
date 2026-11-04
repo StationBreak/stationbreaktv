@@ -55,6 +55,21 @@ class V3ReaderTest {
     }
 
     @Test
+    fun aRuntimeWithOnlyAKindWindowAndAnUnknownFieldReadsOk() {
+        val text = example("runtime-kind-window-with-unknown-field.json")
+        val rules = readOk(text)
+        assertEquals(30, rules.filters?.episodeMaxRuntimeMinutes)
+        assertEquals(setOf("future"), rules.filters?.runtimeExtras?.keys)
+        assertEquals(text, RulesWriter.write(rules))
+    }
+
+    @Test
+    fun aRuntimeWithAnUnknownFieldAndNoWindowIsInvalid() {
+        val filters = buildJsonObject { put("runtime", buildJsonObject { put("future", 1) }) }
+        assertIs<RulesResult.Invalid>(RulesReader.read(v(3) { it.with("filters", filters) }))
+    }
+
+    @Test
     fun aPerKindRuntimeAloneIsAWholeRuntimePart() {
         val filters =
             buildJsonObject {

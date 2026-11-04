@@ -1735,6 +1735,35 @@ internal object ExampleFiles {
                   }
                 }
                 """.trimIndent() + "\n",
+            "runtime-kind-window-with-unknown-field.json" to
+                """
+                {
+                  "formatVersion": 3,
+                  "name": "Short Shows",
+                  "seed": "47",
+                  "sources": [
+                    {
+                      "type": "library",
+                      "id": "11111111111111111111111111111111"
+                    }
+                  ],
+                  "filters": {
+                    "runtime": {
+                      "episode": {
+                        "maxMinutes": 30
+                      },
+                      "future": 1
+                    }
+                  },
+                  "timing": {
+                    "epochHours": 24,
+                    "broadcastDay": {
+                      "utcOffsetMinutes": -300,
+                      "start": "06:00"
+                    }
+                  }
+                }
+                """.trimIndent() + "\n",
             "runtime-per-kind.json" to
                 """
                 {
