@@ -9,32 +9,31 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
+import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.Timing
 
 private const val MS_PER_SECOND = 1_000L
 private const val MS_PER_MINUTE = 60_000L
 private const val MINUTES_PER_HOUR = 60
 
-// The defaults of `ordering.repeatGapMinutes` and `ordering.pairUpToMinutes` (180 and 35 minutes) for a channel whose
-// rules have no `ordering` object: only `curated` reads them.
-private const val DEFAULT_REPEAT_GAP_MS = 10_800_000L
-private const val DEFAULT_PAIR_UP_MS = 2_100_000L
-
 /**
  * The scheduler's numbers for a channel: its ordering, seed and timing with the rules-format defaults applied
  * (`effective…`), so the defaults are written once, in `core:rules`. The caps are the caps in force
  * ([ChannelRules.effectiveCaps]: `rotation`, or a `shuffle` that has them), and the runtime filter is in milliseconds.
  */
-fun ChannelRules.toSchedulerSettings(): SchedulerSettings =
-    settingsOf(
+fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
+    // Rules with no `ordering` object take the tunables' defaults from core:rules too (only `curated` reads them).
+    val tunables = ordering ?: Ordering(orderingMode)
+    return settingsOf(
         orderingMode,
         seed,
         timing,
         caps = effectiveCaps?.let { Caps(it.effectiveSeries, it.effectiveFilm) },
         runtimeFilter = filters?.let { runtimeFilterOf(it) },
-        repeatGapMs = ordering?.let { it.effectiveRepeatGapMinutes * MS_PER_MINUTE } ?: DEFAULT_REPEAT_GAP_MS,
-        pairUpToMs = ordering?.let { it.effectivePairUpToMinutes * MS_PER_MINUTE } ?: DEFAULT_PAIR_UP_MS,
+        repeatGapMs = tunables.effectiveRepeatGapMinutes * MS_PER_MINUTE,
+        pairUpToMs = tunables.effectivePairUpToMinutes * MS_PER_MINUTE,
     )
+}
 
 private fun runtimeFilterOf(filters: Filters): RuntimeFilter? =
     if (!filters.hasAnyRuntime) {
