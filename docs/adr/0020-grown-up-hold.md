@@ -65,7 +65,7 @@ app-side, like the kid hold.
 - Where a dropped item lands. With both leftovers on (the default), Kids' Odds & Ends claims first, so a
   children's-rated item a grown-up starter drops lands on a kid channel or on Kids' Odds & Ends, where the kid hold
   admits it. Only items the kid table refuses (a TV-PG episode of a TV-Y7 series, say), or everything when Kids' Odds
-  & Ends is off, reach the grown-up Odds & Ends (superseded by the 2026-11-03 addendum: it now drops them too).
+  & Ends is off, reach the grown-up Odds & Ends, which keeps them (2026-11-03 addendum).
 - Mixed app versions can disagree on grown-up starters during an update, as for kid channels (A-VER-1).
 
 ## Addendum (2026-11-03, spec 23): `grown-up-hold-2`
@@ -86,11 +86,19 @@ channel airs) also stays, and the grown-up channel's usual ladder ceiling applie
 - **Counts.** `PoolCounts.childrensRatingOut` is renamed `madeForKidsOut`: it counts what the grown-up hold drops, and
   only that. `HiddenReason.ChildrensRatingsOnly` keeps its name and its string.
 - **The grown-up leftovers is `GrownUp`**, no longer `Open` (this replaces the table row and the reasoning in
-  decision 4). It claims what no other channel takes, and drops what a kid channel could take. A custom channel outside
-  the Kids band stays `Open`.
+  decision 4), with one fallback: while the lineup has no kid leftovers channel (Kids' Odds & Ends) switched on, the
+  grown-up leftovers is `Open` (`KidStatus.policyOf(channel, lineup)`). It claims what no other channel takes. With
+  Kids' Odds & Ends On it drops what a kid channel could take (that channel airs it); with Kids' Odds & Ends not On
+  it drops nothing for the hold, and its own ceiling still applies, so a made-for-kids title no kid starter matches
+  does not air nowhere. Grown-up starters keep the hold either way. The policy is part of the day's inputs and of
+  the persisted-day digest, so switching Kids' Odds & Ends on or off rebuilds the grown-up leftovers' days. A custom
+  channel outside the Kids band stays `Open`.
+- **A missing series.** An episode whose series ID is not in the snapshot fails the kid ceiling (`passesKidCeiling`),
+  so no kid channel can take it and the grown-up hold keeps it.
 - **Airing nowhere.** With the holds as above, a made-for-kids title is dropped by a grown-up channel only if a kid
   channel's widest ceiling accepts it, so the holds alone leave no title airing nowhere.
-  `turnedAwayByBothHolds` (made for kids, aired nowhere) is normally zero and stays as a guard; it can be above zero
-  when, for instance, no kid channel is on and the grown-up pools still drop the title.
+  `turnedAwayByBothHolds` (what a grown-up pool drops, `GrownUpHold.dropsFromGrownUp`, and aired nowhere) is normally
+  zero and stays as a guard; it can be above zero when, for instance, the grown-up Odds & Ends is off and the title
+  matches no kid channel. A made-for-kids title a kid channel cannot take counts as `airingNowhere` in that case.
 - **Applies at once.** Like `kid-hold-3`, this is safety policy: it applies at the update, and a programme on now can be
   cut once.

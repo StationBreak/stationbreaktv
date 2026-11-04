@@ -4,7 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import tv.stationbreak.core.engine.KidHold
+import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolCounts
 import tv.stationbreak.core.engine.PoolEvaluator
@@ -182,8 +182,9 @@ internal class Scheduled(
  * the hold keeps off it is not offered to the grown-up channels either.
  *
  * Any other starter, edited or not, and the grown-up leftovers are grown-up (ADR-0020, grown-up-hold-2): they drop
- * what is made for kids, with their own cache key. Only a custom channel is open. What the kid hold refuses may
- * therefore air nowhere. [KidStatus.policyOf] decides all of this.
+ * what a kid channel could take ([GrownUpHold.dropsFromGrownUp]), with their own cache key. A custom channel is open,
+ * and so is the grown-up leftovers while no kid leftovers channel is on. What the kid hold refuses stays on the
+ * grown-up side. [KidStatus.policyOf] decides all of this.
  *
  * Known edge, accepted: an unusable channel has no pool, so if the user hid one its content can reach the leftovers.
  */
@@ -238,7 +239,7 @@ internal class LineupDays(
         lineup: Lineup,
         extrasFromMs: Long?,
     ): String {
-        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it) }
+        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it, policyOf(it, lineup)) }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         val inputs =
             JsonObject(
@@ -254,13 +255,16 @@ internal class LineupDays(
     }
 
     // What one channel contributes to [inputsOf]: the one definition of "its days would change".
-    private fun channelInputs(channel: LineupChannel): JsonObject =
+    private fun channelInputs(
+        channel: LineupChannel,
+        policy: PoolPolicy,
+    ): JsonObject =
         JsonObject(
             linkedMapOf(
                 "id" to JsonPrimitive(channel.id.value),
                 "state" to JsonPrimitive(channel.state.name),
                 "ceiling" to JsonPrimitive(ceilings.of(channel)),
-                "policy" to JsonPrimitive(nameOf(policyOf(channel))),
+                "policy" to JsonPrimitive(nameOf(policy)),
                 "source" to LineupCodec.sourceOf(unnamed(channel.source)),
             ),
         )
@@ -271,7 +275,7 @@ internal class LineupDays(
      * leftovers channel's days also depend on other channels, so the guide compares the whole list of keys.
      */
     fun playKeyOf(channel: LineupChannel): PlayKey {
-        val inputs = channelInputs(channel).toString()
+        val inputs = channelInputs(channel, policyOf(channel)).toString()
         return PlayKey(sha256Hex(inputs.encodeToByteArray()))
     }
 
@@ -341,8 +345,8 @@ internal class LineupDays(
     /**
      * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no
      * channel's epoch pool (before the trim window), and not held back on purpose (opt-in recipes, hidden channels).
-     * Not counted here: titles made for kids ([turnedAwayByBothHolds]), which are counted apart. Zero for everything
-     * else while the leftovers channels are on, and normally zero for those too (see [turnedAwayByBothHolds]).
+     * Not counted here: titles a grown-up pool drops ([turnedAwayByBothHolds]), which are counted apart. Zero for
+     * everything else while the leftovers channels are on, and normally zero for those too.
      */
     fun airingNowhere(
         lineup: Lineup,
@@ -352,10 +356,11 @@ internal class LineupDays(
     ): Int = unaired(lineup, scheduled, snapshots, filteredSnapshots).first
 
     /**
-     * How many of the items [airingNowhere] would count are made for kids ([KidHold.isMadeForKids]): made for kids and
-     * aired nowhere. Under `grown-up-hold-2` (ADR-0020, option C) a grown-up pool drops only what a kid channel could
-     * take, so this is normally zero; it remains as a guard (it is not zero when, say, the grown-up leftovers is off
-     * and no kid channel is on). A separate count, not part of [airingNowhere].
+     * How many of the items [airingNowhere] would count that a grown-up pool drops ([GrownUpHold.dropsFromGrownUp]):
+     * made for kids, takeable by a kid channel, and aired nowhere. Under `grown-up-hold-2` (ADR-0020, option C) a
+     * grown-up pool drops only what a kid channel could take, and the grown-up leftovers keeps everything while no kid
+     * leftovers is on, so this is normally zero; it remains as a guard (it is not zero when, say, the grown-up
+     * leftovers is off and no kid channel takes the title). A separate count, not part of [airingNowhere].
      */
     fun turnedAwayByBothHolds(
         lineup: Lineup,
@@ -364,7 +369,7 @@ internal class LineupDays(
         filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
     ): Int = unaired(lineup, scheduled, snapshots, filteredSnapshots).second
 
-    // The items that air nowhere, split: (not made for kids, made for kids).
+    // The items that air nowhere, split: (kept by grown-up pools, dropped by them).
     private fun unaired(
         lineup: Lineup,
         scheduled: List<Scheduled>,
@@ -390,7 +395,7 @@ internal class LineupDays(
                 if (id !in left) continue
                 val seriesId = entry.item.seriesId
                 val series = if (seriesId == null) null else snapshot.series[seriesId]
-                if (KidHold.isMadeForKids(entry, series)) turnedAway += id else nowhere += id
+                if (GrownUpHold.dropsFromGrownUp(entry, series)) turnedAway += id else nowhere += id
             }
         }
         return nowhere.size to turnedAway.size
@@ -569,7 +574,7 @@ internal class LineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel, lineup))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
         // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The

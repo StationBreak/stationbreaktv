@@ -81,11 +81,21 @@ class LineupDaysGrownUpHoldTest {
     }
 
     @Test
-    fun theGrownUpLeftoversDropsWhatTheGrownUpStarterDropped() {
+    fun withNoKidsLeftoversTheGrownUpLeftoversKeepsWhatTheGrownUpStarterDropped() {
         seed()
         val drama = starterAt("drama", 150)
         val odds = leftovers("odds-and-ends", 199, null)
-        assertEquals(emptySet(), days(lineupOf(drama, odds)).getValue(odds.id.value).ids())
+        assertEquals(setOf(childrensItem), days(lineupOf(drama, odds)).getValue(odds.id.value).ids())
+    }
+
+    @Test
+    fun withKidsLeftoversOnWhatTheGrownUpStarterDroppedAirsThereNotOnTheGrownUpLeftovers() {
+        seed()
+        val kids = leftovers("kids-odds-and-ends", 99, "PG")
+        val odds = leftovers("odds-and-ends", 199, null)
+        val days = days(lineupOf(starterAt("drama", 150), kids, odds))
+        assertEquals(setOf(childrensItem), days.getValue(kids.id.value).ids())
+        assertEquals(emptySet(), days.getValue(odds.id.value).ids())
     }
 
     @Test
@@ -115,7 +125,7 @@ class LineupDaysGrownUpHoldTest {
     }
 
     @Test
-    fun withKidsLeftoversOffWhatIsMadeForKidsIsTurnedAway() =
+    fun withKidsLeftoversOffTheGrownUpLeftoversAirsWhatTheStarterDropped() =
         runBlocking<Unit> {
             seed()
             val lineup = lineupOf(starterAt("drama", 150), leftovers("odds-and-ends", 199, null))
@@ -125,9 +135,9 @@ class LineupDaysGrownUpHoldTest {
                 source
                     .channelDays(ACCOUNT, LIBRARIES, NOON)
                     .first { it.channel.id == LineupIds.leftovers("odds-and-ends") }
-            assertEquals(emptySet(), odds.ids())
+            assertEquals(setOf(childrensItem), odds.ids())
             assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
-            assertEquals(1, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(0, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
         }
 
     @Test
@@ -175,6 +185,47 @@ class LineupDaysGrownUpHoldTest {
             val days = source.channelDays(ACCOUNT, LIBRARIES, NOON).associateBy { it.channel.id.value }
             assertEquals(setOf(id(1), id(2)), days.getValue(drama.id.value).ids())
             assertEquals(emptySet(), days.getValue(kids.id.value).ids())
+            assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(0, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
+        }
+
+    @Test
+    fun anUnratedAnimatedFamilyTitleNoStarterMatchesAirsNowhereWhenTheGrownUpLeftoversIsOff() =
+        runBlocking<Unit> {
+            library.seed(movie(1, "Animation", "Family", rating = null))
+            val lineup = lineupOf(starterAt("drama", 150), leftovers("kids-odds-and-ends", 99, "PG"))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
+            service.refresh(ACCOUNT, LIBRARIES)
+            // No kid channel can take it, so it is not a title a grown-up pool drops: it counts as airing nowhere.
+            assertEquals(1, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(0, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
+        }
+
+    @Test
+    fun withKidsOddsAndEndsOffAKidFilmNoKidStarterMatchesAirsOnTheGrownUpOddsAndEnds() =
+        runBlocking<Unit> {
+            library.seed(movie(1, "Kids", rating = "G"))
+            val drama = starterAt("drama", 150)
+            val odds = leftovers("odds-and-ends", 199, null)
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(drama, odds)))
+            service.refresh(ACCOUNT, LIBRARIES)
+            val days = source.channelDays(ACCOUNT, LIBRARIES, NOON).associateBy { it.channel.id.value }
+            assertEquals(setOf(id(1)), days.getValue(odds.id.value).ids())
+            assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(0, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
+        }
+
+    @Test
+    fun withKidsOddsAndEndsOnTheSameFilmAirsThereAndNotOnTheGrownUpOddsAndEnds() =
+        runBlocking<Unit> {
+            library.seed(movie(1, "Kids", rating = "G"))
+            val kids = leftovers("kids-odds-and-ends", 99, "PG")
+            val odds = leftovers("odds-and-ends", 199, null)
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(starterAt("drama", 150), kids, odds)))
+            service.refresh(ACCOUNT, LIBRARIES)
+            val days = source.channelDays(ACCOUNT, LIBRARIES, NOON).associateBy { it.channel.id.value }
+            assertEquals(setOf(id(1)), days.getValue(kids.id.value).ids())
+            assertEquals(emptySet(), days.getValue(odds.id.value).ids())
             assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
             assertEquals(0, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
         }

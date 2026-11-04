@@ -423,6 +423,34 @@ class KidHoldTest {
         )
     }
 
+    // The gate's behaviour is pinned under both version names: a change to any vector is a new version of each hold.
+    @Test
+    fun theGrownUpGateIsPinnedUnderBothHoldVersions() {
+        assertEquals("kid-hold-3", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-2", GrownUpHold.VERSION_NAME)
+        val animated = listOf("Animation", "Family")
+        val drops =
+            mapOf(
+                "G animated family" to (film(rating = "G", genres = animated) to true),
+                "TV-Y" to (film(rating = "TV-Y") to true),
+                "PG kids genre" to (film(rating = "PG", genres = listOf("Kids")) to true),
+                "PG kid studio" to (film(rating = "PG", studios = listOf("Pixar")) to true),
+                "unrated animated family" to (film(rating = null, genres = animated) to false),
+                "NR animated family" to (film(rating = "NR", genres = animated) to false),
+                "TV-PG kid studio" to (film(rating = "TV-PG", studios = listOf("Pixar")) to false),
+                "R kids genre" to (film(rating = "R", genres = listOf("Kids")) to false),
+                "live-action family PG" to (film(rating = "PG", genres = listOf("Family")) to false),
+                "R drama" to (film(rating = "R") to false),
+            )
+        for ((name, pair) in drops) {
+            assertEquals(pair.second, GrownUpHold.dropsFromGrownUp(pair.first, null), name)
+        }
+        // An episode: the series is read; a missing series fails the kid ceiling, so it is kept.
+        assertTrue(GrownUpHold.dropsFromGrownUp(episodeOf(rating = "TV-Y7"), show(rating = "TV-Y7")))
+        assertFalse(GrownUpHold.dropsFromGrownUp(episodeOf(rating = "TV-Y7"), null))
+        assertFalse(GrownUpHold.dropsFromGrownUp(episodeOf(rating = "TV-PG"), show(rating = "TV-Y7")))
+    }
+
     @Test
     fun theUnratedSpellingsTrimAllWhitespace() {
         val genres = listOf("Animation", "Family")

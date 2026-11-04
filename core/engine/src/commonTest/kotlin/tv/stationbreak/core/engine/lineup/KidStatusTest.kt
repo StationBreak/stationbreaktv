@@ -57,6 +57,22 @@ class KidStatusTest {
     }
 
     @Test
+    fun theGrownUpLeftoversIsOpenUnlessAKidLeftoversIsOnInTheLineup() {
+        fun lineupOf(vararg channels: LineupChannel) = Lineup(SERVER, USER, 1, 0, true, channels.toList())
+        val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
+        val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
+        val alpha = starter("alpha", 110)
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(kids, odds)))
+        assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds, lineupOf(odds)))
+        for (state in listOf(ChannelState.Shelf, ChannelState.UserHidden)) {
+            assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds, lineupOf(kids.copy(state = state), odds)))
+        }
+        // Everything else is as without a lineup.
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(alpha, lineupOf(alpha, odds)))
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(kids, lineupOf(kids, odds)))
+    }
+
+    @Test
     fun aCustomChannelStaysOpen() {
         assertEquals(PoolPolicy.Open, KidStatus.policyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
     }

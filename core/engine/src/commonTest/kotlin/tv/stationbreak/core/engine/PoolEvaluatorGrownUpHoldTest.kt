@@ -7,8 +7,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** The grown-up hold of `grown-up-hold-2` (ADR-0020 addendum): a grown-up pool drops only what a kid channel
- * could take (made for kids and within the widest kid ceiling); the rest stays (option C). */
+/**
+ * The grown-up hold of `grown-up-hold-2` (ADR-0020 addendum): a grown-up pool drops only what a kid channel could take
+ * (made for kids and within the widest kid ceiling); the rest stays (option C).
+ */
 class PoolEvaluatorGrownUpHoldTest {
     private fun libraryRules(): ChannelRules = rules(listOf(Source.Library(LIB)), null, null)
 
@@ -98,6 +100,14 @@ class PoolEvaluatorGrownUpHoldTest {
             )
         val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
         assertEquals(listOf(idOf(1), idOf(2)), idsOf(pool))
+        assertEquals(0, pool.counts.madeForKidsOut)
+    }
+
+    @Test
+    fun anEpisodeWhoseSeriesIsMissingFromTheSnapshotIsKept() {
+        val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "TV-Y")))
+        val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
+        assertEquals(listOf(idOf(1)), idsOf(pool))
         assertEquals(0, pool.counts.madeForKidsOut)
     }
 

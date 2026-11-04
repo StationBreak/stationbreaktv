@@ -14,6 +14,7 @@ import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
@@ -39,8 +40,8 @@ class KidAuditTest {
     // refuse, and a live-action family G film, which is not made for kids by any list).
     private val nearMisses = mutableSetOf<CanonicalId>()
 
-    // Made for kids, and over every kid ceiling (unrated, or rated R): no kid channel takes it, so a grown-up channel
-    // keeps it (grown-up-hold-2, option C).
+    // Made for kids, and over every kid ceiling (an unrated animated family film, and a film rated R in a kids genre):
+    // no kid channel takes it, so a grown-up channel keeps it (grown-up-hold-2, option C).
     private val overEveryCeiling = mutableSetOf<CanonicalId>()
 
     // Made for kids by a list or the signal, and seeded as such: never on a grown-up channel.
@@ -172,18 +173,18 @@ class KidAuditTest {
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
             val source = BuiltInScheduleSource(service, library) { LIBRARIES }
-            var airedOnGrownUp = 0
+            val aired = HashSet<CanonicalId>()
             for (day in 0 until WEEK) {
                 for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
                     val kid = isKidChannel(channelDay.channel)
                     for (scheduled in channelDay.pool) {
                         if (scheduled.id !in overEveryCeiling) continue
                         assertTrue(!kid, "${channelDay.name} day $day is a kid channel and airs it")
-                        airedOnGrownUp++
+                        aired += scheduled.id
                     }
                 }
             }
-            assertTrue(airedOnGrownUp > 0, "a title no kid channel can take aired nowhere")
+            assertEquals(overEveryCeiling, aired, "each title no kid channel can take airs on a grown-up channel")
         }
 
     private fun isGrownUpStarterOrLeftovers(channel: LineupChannel): Boolean =
