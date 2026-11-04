@@ -77,14 +77,11 @@ internal class LaneBuilder(
     val lanes: Array<Lane> = Array(channels.size) { build(channels[it], pools[it]) }
 
     private fun foldTitles(): Array<FoldedTitle> {
-        val all = ArrayList<ScheduleItem>()
-        val wanted = HashSet<CanonicalId>()
-        for (pool in pools) {
-            all.addAll(pool)
-            for (item in pool) wanted.add(item.id)
-        }
+        val distinct = distinctItems(pools)
+        val wanted = HashSet<CanonicalId>(distinct.size * 2)
+        for (item in distinct) wanted.add(item.id)
         for (entry in snapshot.items) if (entry.item.id in wanted) entries[entry.item.id] = entry
-        val byId = Titles.of(snapshot, all)
+        val byId = Titles.of(snapshot, distinct)
         val ids = ArrayList(byId.keys)
         ids.sortWith(ID_ORDER)
         val out = ArrayList<FoldedTitle>(ids.size)
@@ -201,6 +198,17 @@ internal class LaneBuilder(
         }
         return score
     }
+}
+
+/**
+ * The items of [pools], each once (the first time it is met), so the title build reads every item once however many
+ * channels share it.
+ */
+internal fun distinctItems(pools: Array<List<ScheduleItem>>): List<ScheduleItem> {
+    val seen = HashSet<CanonicalId>()
+    val out = ArrayList<ScheduleItem>()
+    for (pool in pools) for (item in pool) if (seen.add(item.id)) out.add(item)
+    return out
 }
 
 // A4: only what can air is curated or claimed, in canonical-ID order.

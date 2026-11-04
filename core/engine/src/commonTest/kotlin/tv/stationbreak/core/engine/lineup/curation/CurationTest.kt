@@ -615,4 +615,23 @@ class CurationTest {
         assertTrue(s in Curation.pools(snap, listOf(home, g, x)).getValue(g.id).titles())
         assertTrue(s in Curation.pools(snap, listOf(home, g)).getValue(g.id).titles())
     }
+
+    @Test
+    fun titlesAreBuiltFromEachItemOnce() {
+        val lib = Library()
+        val s = lib.show(eps = 3, genres = listOf("Drama"))
+        val f = lib.film(genres = listOf("Drama"))
+        val items = lib.itemsOf(listOf(s, f))
+        val distinct = distinctItems(Array(100) { items })
+        assertEquals(items, distinct)
+
+        // A hundred channels sharing one pool give the same homes and stats as the first alone would compute.
+        val snap = lib.snapshot()
+        val many = List(100) { channel("ch-$it", 200 + it, listOf("Drama"), items) }
+        val homes = Curation.homes(snap, many)
+        val one = Curation.homes(snap, listOf(many[0]))
+        assertEquals(one.homeOf(s), homes.homeOf(s))
+        assertEquals(one.homeOf(f), homes.homeOf(f))
+        assertEquals(one.stats(many[0].id), homes.stats(many[0].id))
+    }
 }
