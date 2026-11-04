@@ -22,6 +22,7 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeChannelEditor
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
@@ -63,13 +64,16 @@ internal class FakeChannels(
     initial: List<ChannelSummary> = emptyList(),
 ) : ChannelRepository {
     val list = MutableStateFlow(initial)
-    val household = MutableStateFlow(true)
-
-    override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = household
 
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
 
     override fun activeChannels(): Flow<List<ChannelSummary>> = list
+}
+
+internal class FakeHousehold : HouseholdSetting {
+    val flag = MutableStateFlow(true)
+
+    override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = flag
 }
 
 /** The fake editor, which waits for a gate a test sets before it answers (a slow save or reset). */
@@ -101,6 +105,7 @@ internal class ChannelsRig(
     val account = LibraryAccount(ServerId("srv1"), UserId("u1"))
     val library = InMemoryLibraryRepository()
     val repo = FakeChannels(channels)
+    val household = FakeHousehold()
     val editor = FakeChannelEditor()
     val gated = GatedEditor(editor)
     val schedule = FakeSchedule()
@@ -108,7 +113,16 @@ internal class ChannelsRig(
         object : Clock {
             override fun now(): Instant = Instant.fromEpochMilliseconds(T0)
         }
-    val vm = ChannelsViewModel(library, repo, gated, schedule, clock, StandardTestDispatcher(scope.testScheduler))
+    val vm =
+        ChannelsViewModel(
+            library,
+            repo,
+            household,
+            gated,
+            schedule,
+            clock,
+            StandardTestDispatcher(scope.testScheduler),
+        )
     val ui get() = vm.ui.value
 
     suspend fun open(

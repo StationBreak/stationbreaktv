@@ -29,6 +29,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -56,12 +57,13 @@ internal val ACCESS_WAIT = 10.seconds
  * A write started in one visit finishes on this ViewModel's scope even if the screen goes meanwhile. A reset that
  * finishes after the screen was opened again is not used by [closing] (accepted: the new visit starts from the list).
  */
-@Suppress("TooManyFunctions") // One screen's actions, each small.
+@Suppress("TooManyFunctions", "LongParameterList") // One screen's actions, each small; its ports, one each.
 @HiltViewModel
 internal class ChannelsViewModel
     internal constructor(
         private val library: LibraryRepository,
         private val repository: ChannelRepository,
+        private val household: HouseholdSetting,
         private val editor: ChannelEditor,
         private val schedule: ScheduleSource,
         private val clock: Clock,
@@ -71,10 +73,11 @@ internal class ChannelsViewModel
         constructor(
             library: LibraryRepository,
             repository: ChannelRepository,
+            household: HouseholdSetting,
             editor: ChannelEditor,
             schedule: ScheduleSource,
             clock: Clock,
-        ) : this(library, repository, editor, schedule, clock, Dispatchers.Default)
+        ) : this(library, repository, household, editor, schedule, clock, Dispatchers.Default)
 
         /** What one visit to the screen knows beyond what [ChannelsUi] shows. */
         private data class Model(
@@ -88,6 +91,8 @@ internal class ChannelsViewModel
             val rows: List<ChannelRow> = emptyList(),
             val access: LineupAccess = LineupAccess.Loading,
             val useMyCollections: Boolean = true,
+            /** The value the viewer last asked "Use my collections" to take, until the change that sends it is done. */
+            val householdWant: Boolean? = null,
             val focus: ChannelsFocus? = null,
             /** The channel to focus when the list first arrives. */
             val wantFocus: ChannelId? = null,
@@ -173,9 +178,9 @@ internal class ChannelsViewModel
                     launch {
                         editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
                     }
-                val household =
+                val flag =
                     launch {
-                        repository.useMyCollections(account).collect { on ->
+                        household.useMyCollections(account).collect { on ->
                             change(generation) { it.copy(useMyCollections = on) }
                         }
                     }
@@ -189,7 +194,7 @@ internal class ChannelsViewModel
                 } finally {
                     pending?.cancel()
                     access.cancel()
-                    household.cancel()
+                    flag.cancel()
                 }
             }
 
@@ -434,7 +439,7 @@ internal class ChannelsViewModel
                 reasonsRead = m.reasonsRead,
                 builder = m.builder,
                 gettingReady = m.wantBuilder != null,
-                useMyCollections = m.useMyCollections,
+                useMyCollections = m.householdWant ?: m.useMyCollections,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons)
@@ -468,7 +473,7 @@ internal class ChannelsViewModel
                     }
 
                     ChannelsFocus.Household -> {
-                        submit(ChannelChange.UseMyCollections(!model.useMyCollections))
+                        flipHousehold()
                     }
 
                     ChannelsFocus.New -> {
@@ -484,6 +489,20 @@ internal class ChannelsViewModel
                     }
                 }
             }
+        }
+
+        // Flips from the value last asked for, so a second press while a change is out is not lost: it is sent when
+        // the first is done. Under [lock].
+        private fun flipHousehold() {
+            val want = !(model.householdWant ?: model.useMyCollections)
+            apply { it.copy(householdWant = want) }
+            if (!model.pending) sendHousehold(want)
+        }
+
+        // A change that did not go out (the lineup may not be changed, say) leaves no asked-for value behind.
+        private fun sendHousehold(want: Boolean) {
+            submit(ChannelChange.UseMyCollections(want))
+            synchronized(lock) { if (!model.pending) apply { it.copy(householdWant = null) } }
         }
 
         // Shows the builder for [mode] when the lineup can be written; the focus stays on what it left from.
@@ -624,6 +643,11 @@ internal class ChannelsViewModel
             scope.launch {
                 val result = editor.change(account, change)
                 change(generation) { applyResult(it, change, result) }
+                // A press that came while this change was out asked for another value: send it now.
+                val again = synchronized(lock) { model.householdWant }
+                if (change is ChannelChange.UseMyCollections && result == ChangeResult.Done && again != null) {
+                    if (again != change.on) sendHousehold(again)
+                }
             }
         }
 
@@ -635,13 +659,25 @@ internal class ChannelsViewModel
             val own = change.channelId != null && m.panel?.id == change.channelId
             val closed =
                 if (own) m.copy(panel = null, holder = null, pending = false) else m.copy(pending = false)
+            val settled = if (change is ChannelChange.UseMyCollections) settledWant(closed, change, result) else closed
             return when (result) {
-                ChangeResult.Done -> closed.copy(message = null)
-                is ChangeResult.Refused -> refused(m, closed, change, result.reason)
-                ChangeResult.NotEditable -> closed.copy(message = ChannelsMessage.NotEditable)
-                ChangeResult.SaveFailed -> closed.copy(message = ChannelsMessage.SaveFailed)
-                ChangeResult.Failed -> closed.copy(message = ChannelsMessage.Failed)
+                ChangeResult.Done -> settled.copy(message = null)
+                is ChangeResult.Refused -> refused(m, settled, change, result.reason)
+                ChangeResult.NotEditable -> settled.copy(message = ChannelsMessage.NotEditable)
+                ChangeResult.SaveFailed -> settled.copy(message = ChannelsMessage.SaveFailed)
+                ChangeResult.Failed -> settled.copy(message = ChannelsMessage.Failed)
             }
+        }
+
+        // The asked-for value stands only while a later press differs from what was just sent and the send worked.
+        private fun settledWant(
+            closed: Model,
+            change: ChannelChange.UseMyCollections,
+            result: ChangeResult,
+        ): Model {
+            val want = closed.householdWant
+            val again = result == ChangeResult.Done && want != null && want != change.on
+            return if (again) closed else closed.copy(householdWant = null)
         }
 
         private fun refused(

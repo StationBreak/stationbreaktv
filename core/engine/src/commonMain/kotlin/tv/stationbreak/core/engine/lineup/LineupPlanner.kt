@@ -95,7 +95,9 @@ object LineupPlanner {
         } else {
             val offset = current.utcOffsetMinutes
             val household = current.householdFor(boundaryMs)
-            val planning = Planning(serverId, offset, snapshot, collections, catalog, nowMs, boundaryMs, household)
+            val today = current.householdFor(nowMs)
+            val planning =
+                Planning(serverId, offset, snapshot, collections, catalog, nowMs, boundaryMs, household, today)
             refresh(current, planning, withoutCollections)
         }
     }
@@ -297,6 +299,8 @@ internal class Planning(
     // The "Use my collections" flag in force for the days the ranking decides (`Lineup.householdFor`); a first
     // choice has the default, on.
     val household: Boolean = true,
+    // The flag in force today: a starter switched on airs from now, so it must fill today as well (`withRulesNow`).
+    val householdToday: Boolean = household,
 ) {
     private val recipes = catalog.recipes.associateBy { it.key }
     private val names by lazy { LibraryNames(snapshot, collections) }
@@ -341,17 +345,28 @@ internal class Planning(
         candidates
             .mapNotNull { (recipe, rules) ->
                 // With the household's collections off, a starter ranks on the pool it will air; none left ranks empty.
-                val aired = if (household) rules else HouseholdSources.without(rules, snapshot)
-                val runtime =
-                    aired?.let {
-                        airableRuntimeMs(
-                            PoolEvaluator.evaluate(it, snapshot, KidStatus.policyOf(recipe)).items,
-                            it.toSchedulerSettings(),
-                        )
-                    }
-                if (runtime != null && runtime >= LineupDefaults.MIN_AIRABLE_RUNTIME_MS) recipe to runtime else null
+                val runtime = airableUnder(recipe, rules, household)
+                // One switched on airs from now, so it must also fill under the flag of today, when that differs.
+                val today = if (householdToday == household) runtime else airableUnder(recipe, rules, householdToday)
+                val least = LineupDefaults.MIN_AIRABLE_RUNTIME_MS
+                if (runtime >= least && today >= least) {
+                    recipe to runtime
+                } else {
+                    null
+                }
             }.sortedWith(compareByDescending<Pair<Recipe, Long>> { it.second }.thenBy { it.first.key })
             .map { it.first }
+
+    // The airable runtime of [rules]' pool with the household flag [on]; zero when no source is left.
+    private fun airableUnder(
+        recipe: Recipe,
+        rules: ChannelRules,
+        on: Boolean,
+    ): Long {
+        val aired = (if (on) rules else HouseholdSources.without(rules, snapshot)) ?: return 0L
+        val pool = PoolEvaluator.evaluate(aired, snapshot, KidStatus.policyOf(recipe))
+        return airableRuntimeMs(pool.items, aired.toSchedulerSettings())
+    }
 
     fun starterChannel(
         recipe: Recipe,

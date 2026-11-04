@@ -56,4 +56,30 @@ class LineupPlannerHouseholdTest {
         val off = shelved.copy(useMyCollections = false)
         assertEquals(ChannelState.Shelf, planOf(off, library, withHouse, names = boxNames).channel("house").state)
     }
+
+    // A shelved "house" with the flag and the basis given; refreshed at 14:00, so today began at 06:00.
+    private fun refreshed(
+        flag: Boolean,
+        basisHousehold: Boolean?,
+    ): Lineup {
+        val library = householdLibrary()
+        val shelved =
+            planOf(null, library, withHouse, names = boxNames).withChannel("house") {
+                it.copy(state = ChannelState.Shelf)
+            }
+        val nowMs = 14 * 3_600_000L
+        val boundary = nextDayStart(nowMs)
+        val basis = basisHousehold?.let { CurationBasis(boundary, emptySet(), it) }
+        val lineup = shelved.copy(useMyCollections = flag, curationBasis = basis)
+        return planOf(lineup, library, withHouse, nowMs = nowMs, names = boxNames, boundaryMs = boundary)
+    }
+
+    @Test
+    fun aStarterIsSwitchedOnOnlyIfItFillsUnderTodaysFlagAndTomorrows() {
+        assertEquals(ChannelState.On, refreshed(flag = true, basisHousehold = null).channel("house").state)
+        // Switched off earlier today: today still has the household's collections, tomorrow does not.
+        assertEquals(ChannelState.Shelf, refreshed(flag = false, basisHousehold = true).channel("house").state)
+        // Switched back on today after having been off: tomorrow has them, today's day build does not.
+        assertEquals(ChannelState.Shelf, refreshed(flag = true, basisHousehold = false).channel("house").state)
+    }
 }

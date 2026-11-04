@@ -3,6 +3,7 @@
 
 package tv.stationbreak.feature.channels
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
@@ -21,7 +22,7 @@ class ChannelsHouseholdTest {
         channelsTest(trio) { rig ->
             rig.open(this)
             assertTrue("on by default", rig.ui.useMyCollections)
-            rig.repo.household.value = false
+            rig.household.flag.value = false
             runCurrent()
             assertEquals(false, rig.ui.useMyCollections)
 
@@ -37,7 +38,7 @@ class ChannelsHouseholdTest {
                 listOf<ChannelChange>(ChannelChange.UseMyCollections(true)),
                 rig.editor.changes.map { it.second },
             )
-            rig.repo.household.value = true
+            rig.household.flag.value = true
             runCurrent()
             rig.vm.select()
             runCurrent()
@@ -61,5 +62,29 @@ class ChannelsHouseholdTest {
             runCurrent()
             assertTrue(rig.editor.changes.isEmpty())
             assertEquals(ChannelsMessage.NotEditable, rig.ui.message)
+        }
+
+    @Test
+    fun twoQuickPressesEndInTheOriginalStateAndSendBothChanges() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            rig.vm.move(true)
+            val gate = CompletableDeferred<Unit>()
+            rig.gated.changeGate = gate
+
+            rig.vm.select()
+            runCurrent()
+            assertEquals("the screen shows what was asked for", false, rig.ui.useMyCollections)
+            rig.vm.select()
+            runCurrent()
+            assertEquals(true, rig.ui.useMyCollections)
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(
+                listOf<ChannelChange>(ChannelChange.UseMyCollections(false), ChannelChange.UseMyCollections(true)),
+                rig.editor.changes.map { it.second },
+            )
+            assertEquals(true, rig.ui.useMyCollections)
         }
 }

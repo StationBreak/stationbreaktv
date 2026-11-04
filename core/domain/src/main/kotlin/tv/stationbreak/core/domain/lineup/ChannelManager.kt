@@ -51,7 +51,7 @@ class ChannelManager(
     ): ChangeResult {
         val saved =
             try {
-                service.edit(account, change.toEdit())
+                service.edit(account, change.toEdit(), librariesFor(change))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -60,6 +60,22 @@ class ChannelManager(
             }
         return resultOf(saved)
     }
+
+    // Only the household switch plans again, so only it reads the viewer's libraries; none known saves the edit alone.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun librariesFor(change: ChannelChange): Set<ItemId>? =
+        if (change !is ChannelChange.UseMyCollections) {
+            null
+        } else {
+            try {
+                libraries()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                service.reportEvent(LineupEvent.ResetLibrariesUnavailable)
+                null
+            }
+        }
 
     private fun resultOf(saved: Saved<EditOutcome>?): ChangeResult =
         saved.mapped(

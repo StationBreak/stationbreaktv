@@ -33,7 +33,7 @@
     <string name="channels_libraries_unavailable">Your library choices can\'t be read right now. Nothing was changed.</string>
     <string name="channels_use_my_collections">Use my collections</string>
     <!-- Provisional copy, for the design partner to settle. -->
-    <string name="channels_use_my_collections_hint">Built-in channels can use collections you made</string>
+    <string name="channels_use_my_collections_hint">Built-in channels can use collections you made. Changes start tomorrow.</string>
     <string name="channels_switch_on">On</string>
     <string name="channels_switch_off">Off</string>
     <string name="channels_reset">Reset channels</string>

@@ -50,6 +50,7 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
@@ -113,7 +114,8 @@ private class Lineup(
     initial: List<ChannelSummary>,
     private val access: LineupAccess,
 ) : ChannelRepository,
-    ChannelEditor {
+    ChannelEditor,
+    HouseholdSetting {
     val list = MutableStateFlow(initial)
     val household = MutableStateFlow(true)
     val changes = CopyOnWriteArrayList<ChannelChange>()
@@ -228,7 +230,7 @@ class ChannelsScreenTest {
         lineup = Lineup(lineup(extra), access)
         currentNow.value = current
         runBlocking { library.useAccount(account) }
-        vm = ChannelsViewModel(library, lineup, lineup, schedule, clock, work)
+        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, clock, work)
         val builderVm =
             BuilderViewModel(library, builder, FakeCatalogPicker(), FakeChannelPreviews(), lineup, clock, work)
         compose.setContent {

@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -27,24 +29,28 @@ internal fun HouseholdLine(
     focused: Boolean,
 ) {
     val state = stringResource(if (on) R.string.channels_switch_on else R.string.channels_switch_off)
+    val label = stringResource(R.string.channels_use_my_collections)
+    val hint = stringResource(R.string.channels_use_my_collections_hint)
     Column(
         Modifier
             .fillMaxWidth()
             .drawnFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.HOUSEHOLD)
-            .semantics(mergeDescendants = true) {
+            .clearAndSetSemantics {
+                // One announcement: the label and the hint; the state is the toggle's, not read as text.
+                contentDescription = "$label, $hint"
                 selected = focused
                 role = Role.Switch
                 toggleableState = ToggleableState(on)
             },
     ) {
         Text(
-            stringResource(R.string.channels_use_my_collections) + "  " + state,
+            "$label  $state",
             style = MaterialTheme.typography.bodyLarge,
         )
         Text(
-            stringResource(R.string.channels_use_my_collections_hint),
+            hint,
             style = MaterialTheme.typography.bodyMedium,
             color = ChannelsPalette.secondary,
         )

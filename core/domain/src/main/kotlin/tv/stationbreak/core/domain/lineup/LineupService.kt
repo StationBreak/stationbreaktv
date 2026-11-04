@@ -101,7 +101,8 @@ class LineupService internal constructor(
     private val standardOffsetMinutes: () -> Int,
     private val report: (LineupEvent) -> Unit,
     private val seams: LineupSeams,
-) : ChannelRepository {
+) : ChannelRepository,
+    HouseholdSetting {
     /** For tests: a small catalog in place of the real one. */
     internal constructor(
         store: LineupStore,
@@ -401,6 +402,7 @@ class LineupService internal constructor(
     internal suspend fun edit(
         account: LibraryAccount,
         edit: LineupEdit,
+        libraries: Set<ItemId>? = null,
     ): Saved<EditOutcome>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
@@ -427,17 +429,44 @@ class LineupService internal constructor(
                 }
 
                 else -> {
-                    val meta = held?.meta ?: start.meta
+                    val before = held?.meta ?: start.meta
+                    // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
+                    // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
+                    val (edited, meta) = replanned(owner, account, edit, outcome, libraries, before)
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
-                    if (saveVerified(owner, outcome.lineup, meta)) {
-                        publish(entry, outcome.lineup, meta)
+                    if (saveVerified(owner, edited.lineup, meta)) {
+                        publish(entry, edited.lineup, meta)
                         entry.loaded = true
-                        Saved.Ok(outcome)
+                        Saved.Ok(edited)
                     } else {
                         Saved.Failed
                     }
                 }
             }
+        }
+    }
+
+    // The applied [outcome] planned again against the library when [edit] is the household switch and [libraries] is
+    // known; else (or when the library or the plan fails, which is reported) the outcome and [before] as they are.
+    @Suppress("TooGenericExceptionCaught", "LongParameterList") // Any failure of the read or plan: report and keep.
+    private suspend fun replanned(
+        owner: Owner,
+        account: LibraryAccount,
+        edit: LineupEdit,
+        outcome: EditOutcome.Applied,
+        libraries: Set<ItemId>?,
+        before: RefreshMeta,
+    ): Pair<EditOutcome.Applied, RefreshMeta> {
+        if (edit !is LineupEdit.UseMyCollections || libraries.isNullOrEmpty()) return outcome to before
+        return try {
+            val read = readForPlan(account, libraries)
+            val (planned, meta) = plannedFrom(owner, read, libraries, outcome.lineup, before)
+            EditOutcome.Applied(planned) to meta
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            report(LineupEvent.RefreshFailed)
+            outcome to before
         }
     }
 
