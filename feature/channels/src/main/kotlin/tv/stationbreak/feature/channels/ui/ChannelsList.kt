@@ -14,10 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
@@ -141,19 +142,24 @@ private fun RowLine(
     row: ChannelRow,
     focused: Boolean,
 ) {
-    val reason = row.reason
-    val shelfReason = row.shelfReason
+    val reason = row.reason?.let { stringResource(reasonText(it)) }
+    val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it)) }
     val labels = labelsOf(row)
+    val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason)
     Column(
         Modifier
             .fillMaxWidth()
             .drawnFocus(focused)
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(ChannelsTags.row(row.id))
-            .semantics { selected = focused },
+            // One announcement for the whole row, reasons included; the state stays the row's own.
+            .clearAndSetSemantics {
+                contentDescription = spoken
+                selected = focused
+            },
     ) {
         val number = row.number?.toString().orEmpty()
-        // Only the number and name are dimmed: the reason stays at full strength so it can be read.
+        // Only the number and name are dimmed: the reasons stay at full strength so they can be read.
         Text(
             listOf(number, row.name, labels).filter { it.isNotEmpty() }.joinToString("  "),
             Modifier.alpha(if (reason != null) DIMMED_ALPHA else 1f),
@@ -161,25 +167,22 @@ private fun RowLine(
         )
         if (reason != null) {
             Text(
-                stringResource(reasonText(reason)),
+                reason,
                 Modifier.testTag(ChannelsTags.reason(row.id)),
-                style = MaterialTheme.typography.bodyMedium,
+                style = channelsSecondaryLine(),
                 color = ChannelsPalette.secondary,
             )
         }
         if (shelfReason != null) {
             Text(
-                stringResource(shelfReasonText(shelfReason)),
+                shelfReason,
                 Modifier.testTag(ChannelsTags.shelfReason(row.id)),
-                // The theme's secondary size (14sp) is under the 10-foot minimum: 16sp, in the muted colour.
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = SHELF_REASON_SP.sp),
+                style = channelsSecondaryLine(),
                 color = ChannelsPalette.secondary,
             )
         }
     }
 }
-
-private const val SHELF_REASON_SP = 16
 
 private fun shelfReasonText(reason: ShelfReason): Int =
     when (reason) {

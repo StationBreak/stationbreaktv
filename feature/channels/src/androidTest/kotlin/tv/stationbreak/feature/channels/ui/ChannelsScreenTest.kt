@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
@@ -55,6 +56,7 @@ import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
@@ -93,6 +95,7 @@ private fun summary(
     state: ChannelStatus = ChannelStatus.On,
     optIn: Boolean = false,
     kind: ChannelKind = ChannelKind.Starter,
+    shelfReason: ShelfReason? = null,
 ): ChannelSummary {
     val since = Instant.fromEpochMilliseconds(T0)
     return ChannelSummary(
@@ -106,6 +109,7 @@ private fun summary(
         kid = false,
         optIn = optIn,
         playKey = PlayKey("test"),
+        shelfReason = shelfReason,
     )
 }
 
@@ -214,7 +218,7 @@ class ChannelsScreenTest {
             listOf(
                 summary(ALPHA, 6, "Alpha"),
                 summary(BRAVO, 7, "Bravo"),
-                summary(CHARLIE, 9, "Charlie", ChannelStatus.Shelf),
+                summary(CHARLIE, 9, "Charlie", ChannelStatus.Shelf, shelfReason = ShelfReason.BelowCap),
                 summary(DELTA, 12, "Delta", ChannelStatus.UserHidden),
                 summary(NIGHT, 30, "Night", ChannelStatus.Shelf, optIn = true),
             )
@@ -303,6 +307,24 @@ class ChannelsScreenTest {
         assertTrue(!exists(ChannelsTags.reason(ALPHA)))
         compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
         assertTrue(exists(ChannelsTags.RESET))
+    }
+
+    @Test
+    fun aShelvedRowShowsAndSpeaksItsShelfReason() {
+        show(ALPHA)
+        until { exists(ChannelsTags.shelfReason(CHARLIE)) }
+        compose
+            .onNodeWithTag(ChannelsTags.shelfReason(CHARLIE), useUnmergedTree = true)
+            .assertTextContains("Fits, but stronger channels filled the lineup")
+        compose
+            .onNodeWithTag(ChannelsTags.row(CHARLIE))
+            .assertContentDescriptionContains("Charlie", substring = true)
+            .assertContentDescriptionContains("Fits, but stronger channels filled the lineup", substring = true)
+        // Bravo's "nothing to air" line is spoken with its row too; Alpha has no reason line at all.
+        compose
+            .onNodeWithTag(ChannelsTags.row(BRAVO))
+            .assertContentDescriptionContains("Nothing in your libraries fits this channel", substring = true)
+        assertTrue(!exists(ChannelsTags.shelfReason(ALPHA)))
     }
 
     @Test

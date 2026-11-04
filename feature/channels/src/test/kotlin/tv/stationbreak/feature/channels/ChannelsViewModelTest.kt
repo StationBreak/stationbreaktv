@@ -82,11 +82,23 @@ class ChannelsViewModelTest {
             assertEquals(ShelfReason.OptIn, reasons[D])
         }
 
+    // On (leaving) and Shelf rows show the reason their summary carries; a switched-off row shows none.
     @Test
-    fun anOnRowShowsNoShelfReason() =
-        channelsTest(listOf(summary(A, 5), summary(B, 7, UserHidden), summary(C, 9, Shelf))) { rig ->
+    fun onAndShelfRowsShowTheirReasonAndAnOffRowNone() =
+        channelsTest(
+            listOf(
+                summary(A, 5, On, shelfReason = ShelfReason.Empty),
+                summary(B, 7, UserHidden, shelfReason = ShelfReason.TooThin),
+                summary(C, 9, Shelf, shelfReason = ShelfReason.BelowCap),
+                summary(D, 11, On),
+            ),
+        ) { rig ->
             rig.open(this)
-            assertEquals(listOf(null, null, null), rig.ui.rows.map { it.shelfReason })
+            val reasons = rig.ui.rows.associate { it.id to it.shelfReason }
+            assertEquals(ShelfReason.Empty, reasons[A])
+            assertNull(reasons[B])
+            assertEquals(ShelfReason.BelowCap, reasons[C])
+            assertNull(reasons[D])
         }
 
     @Test

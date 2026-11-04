@@ -242,4 +242,9 @@ class BoundaryDaysTest {
         assertNull(reasonAt(laughs, noon))
         assertNull(reasonAt(laughs.copy(state = ChannelState.UserHidden, shelfReason = reason), noon))
     }
+
+    @Test
+    fun theDomainReasonsMatchTheEngineOnesByNameAndOrder() {
+        assertEquals(EngineReason.entries.map { it.name }, ShelfReason.entries.map { it.name })
+    }
 }
