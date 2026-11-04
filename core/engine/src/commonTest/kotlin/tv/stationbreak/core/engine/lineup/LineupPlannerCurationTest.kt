@@ -169,19 +169,22 @@ class LineupPlannerCurationTest {
         assertNull(next.channel("delta").shelfReason)
     }
 
-    // A lineup read from a file before version 3 cannot tell the viewer's switch-ons from the planner's, so any
-    // starter on the air may be the viewer's: none is shelved. A shelved one still switches on.
+    // A lineup read from a file before version 3 cannot tell the viewer's switch-ons from the planner's: before its
+    // first selection the planner infers them (A7). Delta, empty now, is outside the top the ranking would pick, so it
+    // reads as the viewer's and stays; a shelved one still switches on, from the boundary.
     @Test
-    fun anUpgradedLineupNeverShelvesAStarterOnTheAir() {
+    fun anUpgradedLineupHasItsChoicesInferredBeforeItsFirstSelection() {
         val withFoxtrot = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)))
         val lineup = first(libraryOf(fills()), withFoxtrot).copy(viewerChoicesKnown = false)
 
         val library = libraryOf(fills("delta" to 0, "foxtrot" to QUALIFYING_ITEMS))
         val next = replan(lineup, library, withFoxtrot)
 
+        assertTrue(next.viewerChoicesKnown)
+        assertTrue(next.channel("delta").chosenByViewer)
         assertTrue(next.staying("delta"))
+        assertFalse(next.channel("alpha").chosenByViewer)
         assertTrue(next.channel("foxtrot").startsAtTheBoundary())
-        assertFalse(next.viewerChoicesKnown, "the planner does not decide that here")
     }
 
     @Test

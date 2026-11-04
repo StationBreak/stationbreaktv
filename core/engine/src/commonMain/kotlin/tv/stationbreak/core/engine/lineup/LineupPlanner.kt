@@ -31,14 +31,16 @@ import tv.stationbreak.core.rules.ChannelRules
  *   unedited hidden starter, or an unedited opt-in one not on: the leftovers withhold their pools for the day under
  *   their rules for it), up to the room the file has left (`keeperRoom`: [RecipeResolver.MAX_CATALOG_STARTERS] +
  *   [LineupDefaults.CAP] copies in all, the bound `RecipeResolver.STARTER_RULES_BUDGET_BYTES` is sized for, less one
- *   for each starter). Only a keeper is ever given a copy. A protected starter (D1, spec 23: a member of a pending
+ *   for each starter the plan ends with, a newer catalog's added recipes included), and only one whose rules fit the
+ *   per-copy budget. Only a keeper is ever given a copy. A protected starter (D1, spec 23: a member of a pending
  *   curation basis, or an unedited starter on the air today whose rules for today are programmed) is one today's
  *   curation reads: they are keepers first, so they take new rules at the boundary (`withNewRules`) and never drop
  *   their previous rules before it. A starter that is not a keeper takes new rules at
  *   once and has any previous ones dropped (`withRulesNow`): one on the air beyond the cap (more than
  *   [LineupDefaults.CAP] on, which only the viewer's switch-ons make): what it airs today, and for a programmed one the
  *   homes it wins, can change in the middle of the day; a withholding one beyond the room (many hidden starters on a
- *   full lineup): what the leftovers withhold can shift once in the middle of a day; one that is not on, not
+ *   full lineup), or whose rules are above the per-copy budget (rules from an older app that resolved without one):
+ *   what the leftovers withhold can shift once in the middle of a day; one that is not on, not
  *   withholding and not in a pending basis (nothing of it airs or is withheld today); and one that starts at the
  *   boundary (it airs nothing before). A shelved starter that switches on takes its new rules at once too.
  * - A starter the viewer switches on in the middle of a day airs from now (`onSinceMs`). A programmed one is not in the
@@ -57,9 +59,7 @@ import tv.stationbreak.core.rules.ChannelRules
  *   (`Lineup.rolled`); picked again before then, it stays. Ties between channels follow each recipe's number, as in
  *   the day build, never the channel's. A starter on the air that the viewer chose
  *   (switched on or renumbered) is pinned: never shelved, and a leaving time is cleared; an edited one is never
- *   touched; in a lineup upgraded from a file before version 3 whose choices are not inferred yet (that happens at
- *   the catalog swap) no starter on the air is shelved (any may be the viewer's). A shelved starter the viewer chose
- *   or edited is not switched on by the planner, but gets its reason.
+ *   touched. A shelved starter the viewer chose or edited is not switched on by the planner, but gets its reason.
  * - What the curation reads of a recipe besides the rules (its themes, tags, studios and format, for the fit score)
  *   is not frozen for the day: a catalog update can move today's homes on the curated channels. Every app build
  *   rebuilds the days anyway (`PersistedDays`), so this is the same once-per-update change.
@@ -70,10 +70,10 @@ import tv.stationbreak.core.rules.ChannelRules
  *   whatever catalog the lineup is on (`PlannerSelection.modeOf`): the swap from catalog 2 waits whole. While a newer
  *   ranked catalog waits, the lineup is still ranked: a shelved starter that switches on is resolved from the newer
  *   catalog's recipe, until that catalog is applied.
- * - The catalog swap of a lineup read from a file before version 3 infers the viewer's choices once, before anything
- *   else of the newer catalog (A7, E7, `withInferredChoices`): an unedited starter on the air that is opt-in or outside
- *   the older planner's top is the viewer's. A starter the older planner put on that no longer fills reads as the
- *   viewer's too, and is pinned.
+ * - A lineup read from a file before version 3 has the viewer's choices inferred once, before its first selection (the
+ *   catalog swap) and anything else of the newer catalog (A7, E7, `withInferredChoices`): an unedited starter on the
+ *   air that is opt-in or outside the older planner's top is the viewer's. A starter the older planner put on that no
+ *   longer fills reads as the viewer's too, and is pinned.
  * - The viewer's number override always holds. A new recipe treats both default and override numbers as taken, so
  *   when its default is held by a viewer's override it joins the shelf with no number, and never shares one.
  */
@@ -102,7 +102,7 @@ object LineupPlanner {
      * is [LineupDefaults.CAP] less every channel on and not leaving that is not an untouched candidate (the leftovers,
      * own channels, edited and pinned starters); an untouched starter left out is shelved at [boundaryMs], with its
      * reason, and every shelved starter carries a current reason. On every call with a full collection pass
-     * (`collectionsSynced`) each unedited starter that is on or on the shelf is resolved
+     * (`collectionsSynced`) each unedited starter that is on or on the shelf, or hidden and opt-in, is resolved
      * again from its recipe, keeping its seed and timing, so a collection that appears later reaches it. A call
      * without one resolves no channel again, apart from a starter it switches on. A newer catalog refreshes unedited
      * starters (keeping seed and timing), freezes starters whose recipe left as custom channels and shelves new
@@ -256,14 +256,17 @@ object LineupPlanner {
         // A newer catalog waits for a full collection pass, so its hints resolve against every collection, unless the
         // caller has given up waiting for one. Hints missed that way resolve on the first synced refresh (rehinted).
         val newer = p.catalog.version > lineup.catalogVersion && (p.snapshot.collectionsSynced || withoutCollections)
-        // The viewer's choices of a file before version 3 are inferred once, before anything else of the newer
-        // catalog: from the lineup as the older one left it, under today's rules (A7).
-        val current = if (newer && !lineup.viewerChoicesKnown) withInferredChoices(lineup, p) else lineup
-        val keepers = previousKeepers(current.channels, protectedStarters(current, p.nowMs), p)
+        // The viewer's choices of a file before version 3 are inferred once, before the first selection (the catalog
+        // swap), and before anything else of the newer catalog: from the lineup as the older one left it, under
+        // today's rules (A7). A selection never runs with them unknown.
+        val mode = PlannerSelection.modeOf(lineup, p, newer)
+        val infer = !lineup.viewerChoicesKnown && mode == PlannerSelection.Mode.Select
+        val current = if (infer) withInferredChoices(lineup, p) else lineup
+        val keepers = previousKeepers(current.channels, protectedStarters(current, p.nowMs), p, newer)
         val refreshed = current.channels.map { refreshed(backToBack(it), p, newer, it.id in keepers) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         val planned =
-            when (PlannerSelection.modeOf(current, p, newer)) {
+            when (mode) {
                 PlannerSelection.Mode.Select -> PlannerSelection.refreshed(current, withNew, p)
                 PlannerSelection.Mode.Hold -> withNew
                 PlannerSelection.Mode.Rank -> switchedOn(withNew, p)
@@ -319,7 +322,7 @@ object LineupPlanner {
                         channel
                     }
 
-                    !(newer || rehinted(channel, p)) -> {
+                    !(newer || rehinted(channel, recipe, p)) -> {
                         // Not resolved again. Only a keeper keeps previous rules (see the known effects); with
                         // nothing to drop the channel is the same instance, so a quiet plan changes nothing.
                         // A protected starter that holds previous rules is a keeper (see [previousKeepers]).
@@ -332,8 +335,6 @@ object LineupPlanner {
 
                     else -> {
                         val rules = p.resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
-                        // Only a keeper (on the air, within the cap by number) keeps today's rules until the boundary;
-                        // any other takes them at once and the file holds no second copy of it.
                         // Only a keeper (see [previousKeepers]) keeps today's rules until the boundary; any other takes
                         // them at once and the file holds no second copy of it. A protected starter that is not a
                         // keeper exists only with more than the cap protected (see the known effects).
@@ -360,11 +361,14 @@ object LineupPlanner {
         }
 
     // On a synced call an unedited starter that is on or on the shelf is resolved again, so collections that appeared
-    // since reach it. Resolution is deterministic: unchanged collection names give equal rules.
+    // since reach it. Resolution is deterministic: unchanged collection names give equal rules. A hidden one is not,
+    // except an opt-in one: what the leftovers withhold for it follows its rules, so they follow the recipe (from the
+    // boundary, as a withholding keeper: spec 23, D1).
     private fun rehinted(
         channel: LineupChannel,
+        recipe: Recipe,
         p: Planning,
-    ): Boolean = p.snapshot.collectionsSynced && channel.state != ChannelState.UserHidden
+    ): Boolean = p.snapshot.collectionsSynced && (channel.state != ChannelState.UserHidden || recipe.optIn)
 
     // Catalog channels the lineup does not have yet. A taken default number is left unset rather than shared.
     private fun added(
@@ -467,16 +471,18 @@ private fun oldTopCandidate(
 // The starters that may keep previous rules: first every [protected] starter (today's curation reads its rules for
 // today, so they stay until the boundary, whether the starter is still on or not), then the switched-on starters, the
 // two together at most [LineupDefaults.CAP]; then, up to [keeperRoom] in all, the starters whose rules for today decide
-// what the leftovers withhold today (Task 23: an unedited hidden one, and an unedited opt-in one not on; `LineupDays`
-// withholds their pools under their rules for the day). Each group by number, then recipe key. Only a keeper is ever
-// given a previous copy: the bound on the file's previous copies rests on this. (Beyond the cap, or the room, a holder
-// can drop its copy and a starter takes new rules at once: the documented edges of more than the cap on, and of more
-// hidden starters than the room.) A starter that starts at the boundary (`onSinceMs` after now) airs nothing today, so
-// it needs no copy and is never a keeper: it takes new rules at once.
+// what the leftovers withhold today (spec 23, D1: an unedited hidden one, and an unedited opt-in one not on;
+// `LineupDays` withholds their pools under their rules for the day), each with rules within the per-copy budget. Each
+// group by number, then recipe key. Only a keeper is ever given a previous copy: the bound on the file's previous
+// copies rests on this. (Beyond the cap, or the room, a holder can drop its copy and a starter takes new rules at once:
+// the documented edges of more than the cap on, and of more hidden starters than the room.) A starter that starts at
+// the boundary (`onSinceMs` after now) airs nothing today, so it needs no copy and is never a keeper: it takes new
+// rules at once.
 private fun previousKeepers(
     channels: List<LineupChannel>,
     protected: Set<ChannelId>,
     p: Planning,
+    newer: Boolean,
 ): Set<ChannelId> {
     val byNumber =
         compareBy<LineupChannel> { it.number ?: Int.MAX_VALUE }
@@ -497,11 +503,14 @@ private fun previousKeepers(
     // (from a newer catalog, say, after the viewer switched it off) then keeps its rules for today too.
     keep(LineupDefaults.CAP) { it.id in protected }
     keep(LineupDefaults.CAP) { it.state == ChannelState.On && it.onSinceMs <= p.nowMs }
-    keep(keeperRoom(channels)) { withholds(it, p) }
+    // A copy above the per-copy budget would break the file bound the room rests on: such a starter keeps none.
+    keep(keeperRoom(channels, p, newer)) {
+        withholds(it, p) && RecipeResolver.fileBytes(it.starter().rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES
+    }
     return keepers
 }
 
-// Whether [channel]'s rules for today decide what the leftovers withhold today (Task 23): an unedited starter the
+// Whether [channel]'s rules for today decide what the leftovers withhold today (spec 23, D1): an unedited starter the
 // viewer hid, or an unedited opt-in one that is not on the air.
 private fun withholds(
     channel: LineupChannel,
@@ -516,14 +525,24 @@ private fun withholds(
 /**
  * How many starters of [channels] may hold previous rules: the copies the lineup file is sized for
  * (`RecipeResolver.STARTER_RULES_BUDGET_BYTES`: [RecipeResolver.MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies of
- * a starter's rules in all) less the starters' own rules, one copy each; never fewer than [LineupDefaults.CAP]. With
- * at most [RecipeResolver.MAX_CATALOG_STARTERS] starters the copies stay within that bound. The protected and
+ * a starter's rules in all) less the own rules of every starter the plan ends with (those of [channels], and with a
+ * [newer] catalog every recipe of it, which `added` turns into a starter), one copy each; never fewer than
+ * [LineupDefaults.CAP]. With at most [RecipeResolver.MAX_CATALOG_STARTERS] starters the copies stay within that
+ * bound. The protected and
  * switched-on keepers stay within [LineupDefaults.CAP]; the room above it is for the withholding ones only.
  */
-private fun keeperRoom(channels: List<LineupChannel>): Int {
-    val starters = channels.count { it.source is ChannelSource.Starter }
-    return maxOf(LineupDefaults.CAP, RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.CAP - starters)
+private fun keeperRoom(
+    channels: List<LineupChannel>,
+    p: Planning,
+    newer: Boolean,
+): Int {
+    // The starters the plan ends with: a newer catalog adds its recipes the lineup lacks (each a starter with rules).
+    val starters = channels.filter { it.source is ChannelSource.Starter }.mapTo(HashSet()) { it.id }
+    if (newer) p.catalog.recipes.mapTo(starters) { LineupIds.starter(it.key) }
+    return maxOf(LineupDefaults.CAP, RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.CAP - starters.size)
 }
+
+private fun LineupChannel.starter(): ChannelSource.Starter = source as ChannelSource.Starter
 
 // The starters today's curation reads (D1): every member of a pending basis's on-set, and every unedited starter on
 // the air today (started, leaving or not) whose rules for today are programmed. The ones that hold previous rules are

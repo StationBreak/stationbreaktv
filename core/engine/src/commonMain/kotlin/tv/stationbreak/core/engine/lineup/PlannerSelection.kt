@@ -104,7 +104,9 @@ internal object PlannerSelection {
     ): List<LineupChannel> {
         val lineup = current.copy(channels = channels)
         val roles = HashMap<ChannelId, Role>()
-        for (channel in channels) roleOf(channel, current.viewerChoicesKnown, p)?.let { roles[channel.id] = it }
+        // The planner infers the viewer's choices of an older file before any selection (`withInferredChoices`).
+        check(current.viewerChoicesKnown) { "The viewer's choices are inferred before a selection" }
+        for (channel in channels) roleOf(channel, p)?.let { roles[channel.id] = it }
         val room = LineupDefaults.CAP - channels.count { it.takesRoom(roles[it.id]) }
         // Selected under the boundary's flag: a starter the selection switches on starts at the boundary.
         val atBoundary = select(lineup, channels, roles, p, p.household, room)
@@ -132,7 +134,6 @@ internal object PlannerSelection {
 
     private fun roleOf(
         channel: LineupChannel,
-        viewerChoicesKnown: Boolean,
         p: Planning,
     ): Role? {
         val source = channel.source as? ChannelSource.Starter
@@ -141,7 +142,7 @@ internal object PlannerSelection {
         return when {
             !planned -> null
             checkNotNull(source).edited -> if (channel.state == ChannelState.Shelf) Role.Kept else null
-            else -> roleOfPlanned(channel, checkNotNull(recipe), viewerChoicesKnown, p.nowMs)
+            else -> roleOfPlanned(channel, checkNotNull(recipe))
         }
     }
 
@@ -149,19 +150,11 @@ internal object PlannerSelection {
     private fun roleOfPlanned(
         channel: LineupChannel,
         recipe: Recipe,
-        viewerChoicesKnown: Boolean,
-        nowMs: Long,
     ): Role {
         val on = channel.state == ChannelState.On
-        // A lineup upgraded from a file before version 3 cannot tell the viewer's switch-ons from the planner's. The
-        // catalog swap infers them once (`LineupPlanner`, A7); until then (a selecting catalog the lineup is already
-        // on, read from an older file) any starter on the air (and not leaving, which only the planner sets) may be
-        // the viewer's, so none is shelved. A starter that starts at the boundary was switched on by the planner.
-        val inferred = !viewerChoicesKnown && on && channel.leavesAtMs == null && channel.onSinceMs <= nowMs
-        val chosen = channel.chosenByViewer || inferred
         return when {
-            chosen && on -> Role.Pinned
-            chosen -> Role.Kept
+            channel.chosenByViewer && on -> Role.Pinned
+            channel.chosenByViewer -> Role.Kept
             recipe.optIn -> Role.OptIn
             channel.number == null -> Role.Numberless
             else -> Role.Free

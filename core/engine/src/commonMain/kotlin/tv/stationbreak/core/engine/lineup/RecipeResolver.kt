@@ -112,8 +112,11 @@ object RecipeResolver {
         return candidates.take(count)
     }
 
-    // What [rules] take in the lineup file: the rules text held as a JSON string.
-    private fun fileBytes(rules: ChannelRules): Int = escapedBytes(RulesWriter.write(rules)) + QUOTES
+    /**
+     * What [rules] take in the lineup file: the rules text held as a JSON string, the size
+     * [STARTER_RULES_BUDGET_BYTES] bounds.
+     */
+    internal fun fileBytes(rules: ChannelRules): Int = escapedBytes(RulesWriter.write(rules)) + QUOTES
 
     // The bytes [text] takes inside a JSON string, its quotes left out. Escaping goes character by character, so the
     // escaped parts of a text add up to the escaped whole.

@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
+import tv.stationbreak.core.engine.collection
 import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.engine.movie
 import tv.stationbreak.core.engine.rules
@@ -349,6 +350,99 @@ class LineupPlannerMigrationTest {
         for (channel in held.channels) {
             assertEquals(lineup.channels.single { it.id == channel.id }.source, channel.source, channel.id.value)
         }
+    }
+
+    // The keepers' copies stay within the file's bound when a newer catalog adds recipes: the room counts the starters
+    // the plan ends with, the added ones included. 97 starters, half of them hidden, then a catalog of 120.
+    @Test
+    fun theKeeperRoomCountsTheRecipesANewerCatalogAdds() {
+        val keysOf = (0 until 97).map { "r$it" to 200 + it }
+        val older = TestCatalog(keysOf.map { (k, n) -> recipeOf(k, n) }, version = 2)
+        val library = libraryOf(keysOf.associate { it.first to QUALIFYING_ITEMS })
+        val chosen = planOf(null, library, older)
+        val lineup =
+            chosen.copy(
+                channels =
+                    chosen.channels.map {
+                        val shelved = it.source is ChannelSource.Starter && it.state == ChannelState.Shelf
+                        if (shelved) it.copy(state = ChannelState.UserHidden, chosenByViewer = true) else it
+                    },
+            )
+        val hidden = lineup.channels.count { it.state == ChannelState.UserHidden }
+        assertTrue(hidden >= 45, "$hidden hidden")
+        val more = (0 until 23).map { recipeOf("n$it", 300 + it) }
+        val newer =
+            TestCatalog(older.recipes.map { it.copy(sources = it.sources + Source.Genre("new")) } + more, version = 3)
+
+        val next = swap(lineup, library, newer)
+
+        val starters = next.channels.filter { it.source is ChannelSource.Starter }
+        assertEquals(120, starters.size)
+        val copies = starters.size + starters.count { it.starter.previousRules != null }
+        assertEquals(RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.CAP, copies, "the room is used to the bound")
+        // Without the added recipes in the count the room would be 73 and the copies 193.
+        val withoutAdded =
+            swap(lineup, library, TestCatalog(newer.recipes.take(97), version = 3))
+                .channels
+                .filter { it.source is ChannelSource.Starter }
+        assertEquals(97 + 73, withoutAdded.size + withoutAdded.count { it.starter.previousRules != null })
+    }
+
+    // A withholding starter whose rules are above the per-copy budget (an older app resolved without one) keeps no
+    // copy: it takes the new rules at once (a known edge), and the file bound holds.
+    @Test
+    fun aWithholdingStarterOverThePerCopyBudgetKeepsNoCopy() {
+        val oversized = rules((0 until 200).map { Source.Tag("an over-long tag of a much older rules file $it") })
+        assertTrue(RecipeResolver.fileBytes(oversized) > RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+        val lineup =
+            before()
+                .withChannel("bravo") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+                .withChannel("charlie") {
+                    it.copy(
+                        state = ChannelState.UserHidden,
+                        chosenByViewer = true,
+                        source = it.starter.copy(rules = oversized.copy(timing = it.starter.rules.timing)),
+                    )
+                }
+
+        val next = swap(lineup)
+
+        assertEquals(lineup.channel("bravo").starter.rules, next.channel("bravo").starter.rulesFor(noon))
+        val charlie = next.channel("charlie").starter
+        assertNull(charlie.previousRules)
+        assertTrue(Source.Genre("charlie v3") in charlie.rules.sources, "it takes the new rules at once")
+    }
+
+    // A hidden opt-in starter follows its recipe on a synced plan, from the boundary (spec 23, D1): what the leftovers
+    // withhold for it reaches a collection that appears later, and not before the next day. A hidden starter that is
+    // not opt-in is left as it is.
+    @Test
+    fun aHiddenOptInStarterFollowsItsRecipeFromTheBoundary() {
+        val boxId = idOf(0x7000)
+        val hinted =
+            TestCatalog(
+                plain.map {
+                    if (it.key == "late" || it.key == "echo") it.copy(collectionHints = listOf("Box Set 1")) else it
+                },
+                version = 2,
+            )
+        val lineup =
+            planOf(null, libraryOf(fills), hinted)
+                .withChannel("late") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+                .withChannel("echo") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+        val box = collection(boxId, name = "Box Set 1")
+        val names =
+            tv.stationbreak.core.model
+                .CollectionNames(mapOf(boxId to "Box Set 1"))
+
+        val next =
+            planOf(lineup, libraryOf(fills, collections = listOf(box)), hinted, nowMs = noon, names = names)
+
+        val late = next.channel("late").starter
+        assertEquals(lineup.channel("late").starter.rules, late.rulesFor(noon), "today's withheld set stays")
+        assertTrue(Source.Collection(boxId) in late.rules.sources, "from the boundary it reaches the box set")
+        assertEquals(boundary, late.rulesFromMs)
+        assertEquals(lineup.channel("echo").starter, next.channel("echo").starter, "a hidden starter is left alone")
     }
 
     private fun leftoversOf(lineup: Lineup) = lineup.channels.filter { it.source is ChannelSource.Leftovers }

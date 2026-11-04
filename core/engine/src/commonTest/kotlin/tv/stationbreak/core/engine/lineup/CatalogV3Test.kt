@@ -29,9 +29,9 @@ class CatalogV3Test {
 
     private fun recipe(key: String): Recipe = checkNotNull(v3.firstOrNull { it.key == key }) { "no recipe $key" }
 
-    // An opt-in recipe's sources are exempt (as exclusions are, Resolution 7): what it holds back from the leftovers must
-    // be broad, and scrapers disagree on the spelling, so it keeps every non-TMDB genre catalog 2 gave it. Its filters
-    // are not exempt.
+    // An opt-in recipe's sources are exempt (as exclusions are, Resolution 7): what it holds back from the leftovers
+    // must be broad, and scrapers disagree on the spelling, so it keeps every non-TMDB genre catalog 2 gave it. Its
+    // filters are not exempt.
     @Test
     fun everyGenreIsATmdbGenreOrAnime() {
         for (r in v3) {

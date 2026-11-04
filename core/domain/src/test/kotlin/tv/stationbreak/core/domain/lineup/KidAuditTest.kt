@@ -231,6 +231,8 @@ class KidAuditTest {
             assertTrue(kidCurated > 0, "no kid channel took part in the curation")
         }
 
+    // Catalog 2's own recipes are test code of core:engine, out of reach here: its real kid rules on the day of the
+    // swap are audited there (`LineupPlannerMigrationTest.kidChannelsOnlyEverSeeKidHoldThree`).
     // A lineup chosen under catalog 2 (a stand-in: the shipped recipes, plain) moves to catalog 3 at noon on day 0:
     // day 0 airs the old rules, days 1 to 6 the programmed ones. Every day, every kid channel airs only what is made
     // for kids and within its ceiling, and kid channels do take part in the curation once it applies.

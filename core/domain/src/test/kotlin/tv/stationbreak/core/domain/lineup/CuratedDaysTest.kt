@@ -356,6 +356,9 @@ class CuratedDaysTest {
         assertTrue(ids(lib.horror + lib.documentary).none { it in today.dayOf(odds).ids() }, "both are withheld today")
         assertTrue(ids(lib.western).all { it in today.dayOf(odds).ids() }, "the westerns are the leftovers' today")
 
+        // The window before the swap: the new build runs while catalog 3 waits for a collection pass (Hold).
+        assertTheWaitKeepsToday(before, today, oldDays, newDays)
+
         val after =
             LineupPlanner.plan(
                 before,
@@ -387,6 +390,28 @@ class CuratedDaysTest {
         assertTrue(!next.dayOf(laughs).weights.isEmpty, "laughs is curated from the boundary")
         assertTrue(ids(lib.horror + lib.documentary).all { it in next.dayOf(odds).ids() })
         assertTrue(ids(lib.western).none { it in next.dayOf(odds).ids() })
+    }
+
+    // The new build's days of [before] as a plan holds it while the new catalog waits for a collection pass are
+    // [today]'s, blocks and play keys, for every channel.
+    private fun assertTheWaitKeepsToday(
+        before: Lineup,
+        today: List<ChannelDay>,
+        oldDays: LineupDays,
+        newDays: LineupDays,
+    ) {
+        val unsynced = lib.snapshotAt(noon).copy(collectionsSynced = false)
+        val waiting =
+            LineupPlanner.plan(before, SERVER, USER, 0, unsynced, NO_NAMES, noon, boundaryMs, SwapCatalogs.new)
+        assertEquals(2, waiting.catalogVersion)
+        val held = newDays.curatedDays(waiting, noon)
+        assertEquals(today.map { it.channel.id }, held.map { it.channel.id })
+        for (day in today) {
+            val id = day.channel.id.value
+            assertEquals(day.aired(), held.dayOf(id).aired(), "$id while catalog 3 waits")
+            val key = oldDays.playKeyOf(day.channel, before, noon)
+            assertEquals(key, newDays.playKeyOf(waiting.channel(id), waiting, noon), "$id key while catalog 3 waits")
+        }
     }
 
     // More than the cap of channels can be on until the boundary (a switch-on now, a leaving starter): the curation
@@ -473,6 +498,8 @@ class CuratedDaysTest {
 // A catalog before the swap (version 2, ranked, plain recipes) and the one after it (version 3, every recipe themed and
 // programmed, same keys and numbers). The new one's westerns and frights have nothing, its after-hours takes the
 // westerns in place of the documentaries, and its laughs takes a genre nothing has besides comedy.
+private val NO_NAMES = CollectionNames(emptyMap())
+
 private object SwapCatalogs {
     private val genres =
         listOf("laughs" to "Comedy", "whodunit" to "Crime", "westerns" to "Western", "frights" to "Horror")
