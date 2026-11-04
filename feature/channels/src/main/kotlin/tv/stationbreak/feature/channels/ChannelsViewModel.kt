@@ -643,10 +643,22 @@ internal class ChannelsViewModel
             scope.launch {
                 val result = editor.change(account, change)
                 change(generation) { applyResult(it, change, result) }
-                // A press that came while this change was out asked for another value: send it now.
-                val again = synchronized(lock) { model.householdWant }
-                if (change is ChannelChange.UseMyCollections && result == ChangeResult.Done && again != null) {
-                    if (again != change.on) sendHousehold(again)
+                // A household press that came while any change was out is sent now if it differs from the value in
+                // force (the one just sent, else the one shown by the lineup); otherwise it is dropped.
+                val send =
+                    synchronized(lock) {
+                        val want = model.householdWant
+                        val sent = (change as? ChannelChange.UseMyCollections)?.on
+                        val inForce = sent ?: model.useMyCollections
+                        if (want != null && want != inForce) {
+                            want
+                        } else {
+                            if (want != null) this@ChannelsViewModel.apply { it.copy(householdWant = null) }
+                            null
+                        }
+                    }
+                if (send != null && !(change is ChannelChange.UseMyCollections && result != ChangeResult.Done)) {
+                    sendHousehold(send)
                 }
             }
         }

@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -15,6 +20,7 @@ import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -109,17 +115,62 @@ class HouseholdReplanTest {
             assertEquals(lineup, saved)
         }
 
+    private val job = Job()
+    private val scope = CoroutineScope(job)
+    private val boundary = NOON.toEpochMilliseconds() + 18 * 3_600_000L // 06:00 the next day
+
+    private fun refresherOver(service: LineupService) =
+        LineupRefresher(service, library, { LIBRARIES }, SyncActivity { MutableStateFlow(false) }, report = {})
+
+    private fun storedMeta(): RefreshMeta {
+        val bytes = checkNotNull(store.inner.peek(ACCOUNT))
+        return (LineupCodec.decode(bytes) as LineupCodec.Decoded.Loaded).meta
+    }
+
+    private suspend fun until(condition: suspend () -> Boolean) {
+        withTimeout(10_000L) { while (!condition()) delay(10) }
+    }
+
+    // Switched on today, after an earlier sync with it off left the household-only starter on the shelf.
+    private suspend fun switchedOnToday(): LineupService {
+        library.delegate.useAccount(ACCOUNT)
+        offAndShelved()
+        val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
+        ChannelManager(fresh) { LIBRARIES }.change(ACCOUNT, on)
+        assertEquals(boundary, storedMeta().replanFromMs, "the pending change is remembered, in the file")
+        return fresh
+    }
+
     @Test
-    fun theHouseholdOnlyStarterComesBackOnAtTheNextBoundaryWithNoLibraryChange() =
+    fun theHouseholdOnlyStarterComesBackOnAtTheNextBoundaryThroughTheRefresher() =
         runBlocking<Unit> {
-            offAndShelved()
-            val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
-            ChannelManager(fresh) { LIBRARIES }.change(ACCOUNT, on)
+            val fresh = switchedOnToday()
+            nowMs = boundary + 60_000L
+            val reads = library.snapshotCutoffs.size
 
-            nowMs = NOON.toEpochMilliseconds() + 86_400_000L
-            fresh.refresh(ACCOUNT, LIBRARIES)
+            refresherOver(fresh).start(scope)
 
-            assertEquals(ChannelState.On, checkNotNull(fresh.loaded(ACCOUNT)).lineup.state(houseId))
+            until { fresh.loaded(ACCOUNT)?.lineup?.state(houseId) == ChannelState.On }
+            until { storedMeta().replanFromMs == null }
+            assertTrue(library.snapshotCutoffs.size > reads, "the refresher planned, with the library as it was")
+            assertEquals(ChannelState.On, fresh.loaded(ACCOUNT)?.lineup?.state(houseId))
+            job.cancel()
+        }
+
+    @Test
+    fun theBackgroundRollAsksTheRefresherToPlanAtTheBoundary() =
+        runBlocking<Unit> {
+            val fresh = switchedOnToday()
+            refresherOver(fresh).start(scope)
+            delay(300)
+            assertEquals(ChannelState.Shelf, fresh.loaded(ACCOUNT)?.lineup?.state(houseId), "not before the boundary")
+
+            nowMs = boundary + 60_000L
+            fresh.rollSoon(ACCOUNT, checkNotNull(fresh.loaded(ACCOUNT)))
+
+            until { fresh.loaded(ACCOUNT)?.lineup?.state(houseId) == ChannelState.On }
+            assertEquals(null, storedMeta().replanFromMs)
+            job.cancel()
         }
 
     @Test

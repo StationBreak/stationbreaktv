@@ -64,6 +64,10 @@ import kotlin.time.Instant
  * check then finds it current unless the run wrote more. A run that never ends (the process dies) leaves nothing
  * undone: the generation is durable, so the next start sees it.
  *
+ * A household change (spec 23, "Use my collections") also leaves the lineup behind once its boundary has passed
+ * ([RefreshMeta.replanFromMs]), so a starter whose switch-on waited for the boundary is planned in with no library
+ * change. The background roll that tidies a past boundary signals the refresher ([LineupService.replanRequests]).
+ *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws never stops later
  * ones or reaches the app scope. A trigger source that itself fails is reported the same way and listened to again
  * after a wait that starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no
@@ -135,8 +139,10 @@ class LineupRefresher(
                 .drop(1)
                 .filter { !it }
                 .map { Trigger.SyncEnded }
+        // A household change reached its boundary (said by the background roll): the lineup is behind then.
+        val replans = service.replanRequests.filter { it == account }.map { Trigger.Replan }
         val backoff = Backoff(initialBackoffMs)
-        merge(start, passes, successes, runEnds)
+        merge(start, passes, successes, runEnds, replans)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
             // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
             .onEach { if (it !is Trigger.Start) backoff.reset() }
@@ -169,7 +175,7 @@ class LineupRefresher(
         held: Revisioned?,
         chosen: Set<ItemId>?,
     ): Boolean {
-        if (held == null || needsPlan(held.lineup)) return true
+        if (held == null || needsPlan(held.lineup) || held.meta.replanDue(service.nowMs())) return true
         return chosen != null &&
             (
                 held.meta.plannedLibraries != chosen.map { it.value }.sorted() ||
@@ -231,7 +237,7 @@ class LineupRefresher(
         pass: Instant?,
     ): Boolean =
         when (trigger) {
-            Trigger.Start, Trigger.Success -> {
+            Trigger.Start, Trigger.Success, Trigger.Replan -> {
                 behind(account, held, chosen)
             }
 
@@ -289,5 +295,7 @@ class LineupRefresher(
         data object Pass : Trigger
 
         data object SyncEnded : Trigger
+
+        data object Replan : Trigger
     }
 }

@@ -87,4 +87,30 @@ class ChannelsHouseholdTest {
             )
             assertEquals(true, rig.ui.useMyCollections)
         }
+
+    @Test
+    fun aPressWhileARowChangeIsPendingIsSentWhenItFinishes() =
+        channelsTest(trio) { rig ->
+            rig.open(this)
+            val gate = CompletableDeferred<Unit>()
+            rig.gated.changeGate = gate
+            rig.vm.switchOff(B)
+            runCurrent()
+            rig.vm.move(true)
+            rig.vm.select()
+            runCurrent()
+            assertEquals("the press is shown at once", false, rig.ui.useMyCollections)
+
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(
+                listOf<ChannelChange>(ChannelChange.SwitchOff(B), ChannelChange.UseMyCollections(false)),
+                rig.editor.changes.map { it.second },
+            )
+            // The lineup follows the change that was sent.
+            rig.household.flag.value = false
+            runCurrent()
+            assertEquals(false, rig.ui.useMyCollections)
+        }
 }

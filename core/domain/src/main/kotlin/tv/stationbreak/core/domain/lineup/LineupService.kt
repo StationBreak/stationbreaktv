@@ -9,7 +9,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -312,9 +314,21 @@ class LineupService internal constructor(
                 collectionPassActedOn = taken ?: before.collectionPassActedOn,
                 plannedLibraries = libraries.map { it.value }.sorted(),
                 extrasFromMs = extrasBoundary(before.extrasFromMs, offsetFrom, newAccount, nowMs),
+                replanFromMs = planned.replanFromMs(),
             )
         return planned to meta
     }
+
+    internal fun nowMs(): Long = clock.now().toEpochMilliseconds()
+
+    private val replans =
+        MutableSharedFlow<LibraryAccount>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * An account whose pending household change has reached its boundary, said by the background roll (which only
+     * signals: it never plans under its try-lock). The refresher listens and refreshes.
+     */
+    internal val replanRequests: Flow<LibraryAccount> get() = replans
 
     /**
      * When the extras filter starts. A [stored] boundary stands unless it is more than a day after [nowMs] (a clock
@@ -432,7 +446,8 @@ class LineupService internal constructor(
                     val before = held?.meta ?: start.meta
                     // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
                     // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
-                    val (edited, meta) = replanned(owner, account, edit, outcome, libraries, before)
+                    val (edited, replanMeta) = replanned(owner, account, edit, outcome, libraries, before)
+                    val meta = replanMeta.copy(replanFromMs = edited.lineup.replanFromMs())
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
                     if (saveVerified(owner, edited.lineup, meta)) {
                         publish(entry, edited.lineup, meta)
@@ -698,7 +713,9 @@ class LineupService internal constructor(
     ) {
         val nowMs = clock.now().toEpochMilliseconds()
         val owner = ownerOf(account)
-        if (owner != null && held.lineup.rolled(nowMs) !== held.lineup) startRoll(entryOf(owner), owner, held, nowMs)
+        if (owner != null && held.lineup.rolled(nowMs) !== held.lineup) {
+            startRoll(entryOf(owner), owner, held, nowMs, account)
+        }
     }
 
     // One attempt per boundary (the first lookup to see it), started on the roll scope.
@@ -707,6 +724,7 @@ class LineupService internal constructor(
         owner: Owner,
         held: Revisioned,
         nowMs: Long,
+        account: LibraryAccount,
     ) {
         val boundary = nextBoundary(held.lineup, nowMs)
         val first =
@@ -715,7 +733,7 @@ class LineupService internal constructor(
             }
         if (first) {
             rollAttempts.incrementAndGet()
-            val job = rollScope.launch { rollHeld(owner, entry, nowMs) }
+            val job = rollScope.launch { rollHeld(owner, entry, nowMs, account) }
             synchronized(lock) { rolls += job }
             job.invokeOnCompletion { synchronized(lock) { rolls -= job } }
         }
@@ -727,16 +745,21 @@ class LineupService internal constructor(
         owner: Owner,
         entry: Entry,
         nowMs: Long,
+        account: LibraryAccount,
     ) {
         if (!entry.mutex.tryLock()) return
+        val replan: Boolean
         try {
             val held = entry.state.value
             val rolled = held?.lineup?.rolled(nowMs)
             val due = held != null && rolled !== held.lineup && held.writable && entry.writable
             if (due && saveVerified(owner, checkNotNull(rolled), held.meta)) publish(entry, rolled, held.meta)
+            // A household change at its boundary: say so; the refresher plans, never this try-lock.
+            replan = held != null && held.meta.replanDue(nowMs)
         } finally {
             entry.mutex.unlock()
         }
+        if (replan) replans.tryEmit(account)
     }
 
     /** For tests: waits for the background rolls started so far. */

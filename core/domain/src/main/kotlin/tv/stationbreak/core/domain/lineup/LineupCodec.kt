@@ -52,7 +52,7 @@ import tv.stationbreak.core.rules.RulesWriter
  * Beside the lineup the file may hold a `meta` object, the refresher's bookkeeping about the lineup ([RefreshMeta]).
  * Version 1 gained it before any release shipped, so it is an optional key and not a new version: a file without it
  * loads with an empty [RefreshMeta], and an unknown key inside it is [Decoded.Unreadable] like any other. Version 2
- * added the meta field `extrasFromMs`.
+ * added the meta field `extrasFromMs`. The meta field `replanFromMs` came with version 3, before it shipped.
  *
  * Decoding never throws.
  */
@@ -438,8 +438,10 @@ private class MetaV1(
     val collectionPassActedOn: Long? = null,
     val plannedLibraries: List<String>? = null,
     val extrasFromMs: Long? = null,
+    val replanFromMs: Long? = null,
 ) {
-    val refreshMeta get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries, extrasFromMs)
+    val refreshMeta
+        get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries, extrasFromMs, replanFromMs)
 
     companion object {
         /** Null for an empty [meta], so a file with nothing to say holds no `meta` key. */
@@ -447,7 +449,13 @@ private class MetaV1(
             if (meta == RefreshMeta()) {
                 null
             } else {
-                MetaV1(meta.plannedGeneration, meta.collectionPassActedOn, meta.plannedLibraries, meta.extrasFromMs)
+                MetaV1(
+                    meta.plannedGeneration,
+                    meta.collectionPassActedOn,
+                    meta.plannedLibraries,
+                    meta.extrasFromMs,
+                    meta.replanFromMs,
+                )
             }
     }
 }
