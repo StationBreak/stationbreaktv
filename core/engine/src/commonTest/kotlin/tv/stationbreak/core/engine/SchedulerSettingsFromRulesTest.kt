@@ -91,6 +91,41 @@ class SchedulerSettingsFromRulesTest {
     }
 
     @Test
+    fun perKindWindowsBecomeMilliseconds() {
+        val perKind =
+            Filters(
+                null,
+                null,
+                null,
+                20,
+                180,
+                null,
+                episodeMinRuntimeMinutes = 5,
+                episodeMaxRuntimeMinutes = 30,
+                movieMinRuntimeMinutes = 80,
+            )
+        val s = v2.copy(formatVersion = 3, filters = perKind).toSchedulerSettings()
+        assertEquals(
+            RuntimeFilter(
+                minMs = 1_200_000L,
+                maxMs = 10_800_000L,
+                episodeMinMs = 300_000L,
+                episodeMaxMs = 1_800_000L,
+                movieMinMs = 4_800_000L,
+                movieMaxMs = null,
+            ),
+            s.runtimeFilter,
+        )
+        val episodeOnly = Filters(null, null, null, null, null, null, episodeMaxRuntimeMinutes = 30)
+        assertEquals(
+            RuntimeFilter(null, null, episodeMaxMs = 1_800_000L),
+            v2.copy(formatVersion = 3, filters = episodeOnly).toSchedulerSettings().runtimeFilter,
+        )
+        val themeOnly = Filters(null, null, null, null, null, null, tags = listOf("Tag A"))
+        assertNull(v2.copy(formatVersion = 3, filters = themeOnly).toSchedulerSettings().runtimeFilter)
+    }
+
+    @Test
     fun v1RulesGiveV1Settings() {
         val s = base.toSchedulerSettings()
         assertNull(s.caps)
@@ -100,5 +135,25 @@ class SchedulerSettingsFromRulesTest {
     @Test
     fun aVersion2FileWithNoV2FeatureStillGivesSettings() {
         assertEquals(OrderingMode.Shuffle, base.copy(formatVersion = 2).toSchedulerSettings().orderingMode)
+    }
+
+    @Test
+    fun aCuratedChannelHasSettingsWithTheTunablesInMilliseconds() {
+        val curated = base.copy(formatVersion = 3, ordering = Ordering(OrderingMode.Curated))
+        val defaults = curated.toSchedulerSettings()
+        assertEquals(OrderingMode.Curated, defaults.orderingMode)
+        assertEquals(10_800_000L, defaults.curated?.repeatGapMs)
+        assertEquals(2_100_000L, defaults.curated?.pairUpToMs)
+        val tuned =
+            curated
+                .copy(ordering = Ordering(OrderingMode.Curated, repeatGapMinutes = 90, pairUpToMinutes = 50))
+                .toSchedulerSettings()
+        assertEquals(5_400_000L, tuned.curated?.repeatGapMs)
+        assertEquals(3_000_000L, tuned.curated?.pairUpToMs)
+    }
+
+    @Test
+    fun otherOrdersHaveNoTunables() {
+        assertNull(base.toSchedulerSettings().curated)
     }
 }

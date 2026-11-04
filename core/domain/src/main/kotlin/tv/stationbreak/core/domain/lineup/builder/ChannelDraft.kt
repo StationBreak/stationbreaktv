@@ -97,6 +97,16 @@ sealed interface KeptItem {
         val to: Int,
     ) : KeptItem
 
+    /** A studio source (rules format 3): the builder has no studio picker; it counts as a source. */
+    data class StudioSource(
+        val name: String,
+    ) : KeptItem
+
+    /** A studio exclusion (rules format 3): it counts as a left-out item. */
+    data class StudioExclusion(
+        val name: String,
+    ) : KeptItem
+
     data class BlockLength(
         val n: Int,
     ) : KeptItem
@@ -118,7 +128,7 @@ sealed interface KeptItem {
     data object OtherSettings : KeptItem
 }
 
-enum class KeptOrder { Chronological, RandomInOrder }
+enum class KeptOrder { Chronological, RandomInOrder, Curated }
 
 /** Why a draft cannot be saved yet. */
 enum class DraftProblem {
@@ -223,17 +233,21 @@ data class ChannelDraft(
     // More of a list than the rules format holds.
     private fun listsProblem(): DraftProblem? =
         when {
-            sources.size + keptYearRanges() > MAX_LIST -> DraftProblem.TooManySources
-            leaveOut.size > MAX_LIST -> DraftProblem.TooManyLeftOut
+            sources.size + keptSources() > MAX_LIST -> DraftProblem.TooManySources
+            leaveOut.size + keptLeftOut() > MAX_LIST -> DraftProblem.TooManyLeftOut
             filters.genres.size > MAX_LIST -> DraftProblem.TooManyGenres
             else -> null
         }
 
-    /** True when the draft draws on something: a source, or a year range a copy keeps (which is a source too). */
-    fun hasPool(): Boolean = sources.isNotEmpty() || keptYearRanges() > 0
+    /** True when the draft draws on something: a source, or a year range or studio a copy keeps (also a source). */
+    fun hasPool(): Boolean = sources.isNotEmpty() || keptSources() > 0
 
-    // The year ranges a copy carries are sources of the rules too, and count toward the format's 256.
-    private fun keptYearRanges(): Int = kept?.items.orEmpty().count { it is KeptItem.YearsSource }
+    // The year ranges and studio sources a copy carries are sources of the rules too: they count toward the 256.
+    private fun keptSources(): Int = kept?.items.orEmpty().count(::isKeptSource)
+
+    private fun isKeptSource(item: KeptItem) = item is KeptItem.YearsSource || item is KeptItem.StudioSource
+
+    private fun keptLeftOut(): Int = kept?.items.orEmpty().count { it is KeptItem.StudioExclusion }
 
     /** The kept items that are still in force: the viewer has not chosen an order or caps that replace them. */
     val keptInForce: List<KeptItem>

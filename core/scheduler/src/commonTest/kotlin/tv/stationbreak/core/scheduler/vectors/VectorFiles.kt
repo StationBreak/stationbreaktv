@@ -3988,5 +3988,7 @@ internal object VectorFiles {
             "lineup.json" to LineupVectorFile.text,
             "key-order-v2.json" to KeyOrderV2VectorFile.text,
             "lineup-v2.json" to LineupV2VectorFile.text,
+            "key-order-v3.json" to KeyOrderV3VectorFile.text,
+            "lineup-v3.json" to LineupV3VectorFile.text,
         )
 }

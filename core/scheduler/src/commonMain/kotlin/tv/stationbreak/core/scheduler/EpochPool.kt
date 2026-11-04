@@ -4,6 +4,7 @@ package tv.stationbreak.core.scheduler
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
 
 /**
  * Which items count for epoch `n` (spec 08, Unit 1).
@@ -41,8 +42,8 @@ object EpochPool {
         )
 
     /**
-     * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes). Throws
-     * [IllegalArgumentException] naming the ID when two inputs share one, whether or not either would be kept.
+     * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes), with no trim window.
+     * Throws [IllegalArgumentException] naming the ID when two inputs share one, whether or not either would be kept.
      */
     fun build(
         settings: SchedulerSettings,
@@ -57,6 +58,25 @@ object EpochPool {
         val kept = items.filter { isInPool(it, cutoff, settings) }
         return if (canonical) kept else kept.sortedBy { it.id.value }
     }
+
+    /**
+     * The pool of the day: [pool] (the result of [build]) with the trim window of [keeps] applied ([TrimWindow]); [pool]
+     * itself when [keeps] is empty. It is cheap (no layout), so a caller that keeps the day's pool, on disk too, can
+     * work it out when the day is made. A pool that was kept after the window is built again with [TitleKeeps.NONE].
+     */
+    fun dayPool(
+        pool: List<ScheduleItem>,
+        n: Long,
+        keeps: TitleKeeps,
+    ): List<ScheduleItem> = TrimWindow.apply(pool, n, keeps)
+
+    /** [build] and then [dayPool]: for the tests of the window. */
+    internal fun build(
+        settings: SchedulerSettings,
+        items: List<ScheduleItem>,
+        n: Long,
+        keeps: TitleKeeps,
+    ): List<ScheduleItem> = dayPool(build(settings, items, n), n, keeps)
 
     private fun isStrictlyAscending(items: List<ScheduleItem>): Boolean {
         for (index in 1 until items.size) {
@@ -73,7 +93,7 @@ object EpochPool {
         val deleted = item.deletedAtMs
         return item.createdAtMs < cutoff &&
             (deleted == null || deleted >= cutoff) &&
-            settings.isAirable(item.runtimeMs)
+            settings.isAirable(item.runtimeMs, item.kind)
     }
 
     private fun requireUniqueIds(items: List<ScheduleItem>) {

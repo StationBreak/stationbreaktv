@@ -22,7 +22,7 @@ internal object DayOracle {
     ): List<ScheduleBlock> {
         val dayStart = Epochs.epochStart(settings, n)
         val dayEnd = dayStart + settings.epochMs
-        val pool = EpochPool.build(settings, items, n)
+        val pool = EpochPool.build(settings, items, n, noKeeps())
         val cycle = cycle(settings, pool, Epochs.seedN(settings.seed, n))
         if (cycle.isEmpty()) return listOf(ScheduleBlock(dayStart, dayEnd, ScheduleContent.Slate))
 

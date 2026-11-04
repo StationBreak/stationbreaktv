@@ -4,10 +4,13 @@ package tv.stationbreak.core.scheduler
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.CuratedTuning
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 
 internal const val MS_MINUTE = 60_000L
 internal const val MS_HOUR = 3_600_000L
@@ -32,6 +35,8 @@ internal fun testSettings(
     minRuntimeMs: Long = 60_000L,
     caps: Caps? = null,
     runtimeFilter: RuntimeFilter? = null,
+    repeatGapMs: Long = 10_800_000L,
+    pairUpToMs: Long = 2_100_000L,
 ) = SchedulerSettings(
     orderingMode = orderingMode,
     seed = seed,
@@ -45,13 +50,20 @@ internal fun testSettings(
     minRuntimeMs = minRuntimeMs,
     caps = caps,
     runtimeFilter = runtimeFilter,
+    curated = CuratedTuning(repeatGapMs, pairUpToMs).takeIf { orderingMode == OrderingMode.Curated },
 )
 
 /** No film belongs to a collection: the v1 tests' side input. */
 internal fun noFilms() = FilmCollections.of(emptyMap())
 
 /** The v1 tests' group rules: no film is in a collection. */
-internal fun noGroups() = GroupRules(noFilms())
+internal fun noGroups() = GroupRules(noFilms(), TitleWeights.NONE)
+
+/** No title has a weight above 1: the side input of every test that is not about the curated order. */
+internal fun noWeights() = TitleWeights.NONE
+
+/** No series is trimmed. */
+internal fun noKeeps() = TitleKeeps.NONE
 
 /** Rotation turns with no epoch limit that matters: the items of these tests are far shorter than a day. */
 internal fun rotationTurnsOfADay(

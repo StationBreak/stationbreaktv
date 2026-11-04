@@ -77,6 +77,20 @@ sealed interface Source {
         }
     }
 
+    /**
+     * Version 3: every item one of whose studios, or (an episode) its series' studios, equals [name] under the studio
+     * fold (docs/rules-format.md, "String matching").
+     */
+    data class Studio(
+        val name: String,
+        override val extras: JsonObject = NO_EXTRAS,
+    ) : Source {
+        init {
+            RulesVocabulary.requireText(name, RulesLimits.MAX_TEXT_CODE_POINTS, "A name")
+            RulesVocabulary.requireFreeExtras(extras, setOf("type", "name"))
+        }
+    }
+
     /** Version 2: the one movie or episode with this ID. An ID that is anything else matches nothing. */
     data class Item(
         val id: CanonicalId,

@@ -6,7 +6,7 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
- * The channel rules of format versions 1 and 2 (docs/rules-format.md). A reader builds this from a file and a writer
+ * The channel rules of format versions 1 to 3 (docs/rules-format.md). A reader builds this from a file and a writer
  * turns it back into the same file. A file holds only what its [formatVersion] allows: [requiredVersion] is the lowest
  * version that has every feature the rules use, and the version must not be below it.
  *
@@ -29,9 +29,9 @@ data class ChannelRules(
 ) {
     init {
         require(formatVersion in 1..RulesLimits.SUPPORTED_FORMAT_VERSION.toInt()) {
-            "Only format versions 1 and 2 can be held"
+            "Only format versions 1 to 3 can be held"
         }
-        require(formatVersion >= requiredVersion) { "A version 1 file cannot use a version 2 feature" }
+        require(formatVersion >= requiredVersion) { "The file version is below the lowest that has these features" }
         name?.let { RulesVocabulary.requireText(it, RulesLimits.MAX_NAME_CODE_POINTS, "The name") }
         require(sources.size in 1..RulesLimits.MAX_LIST_ENTRIES) { "There are 1 to 256 sources" }
         require(effectiveExclusions.size <= RulesLimits.MAX_LIST_ENTRIES) { "There are at most 256 exclusions" }
@@ -41,6 +41,10 @@ data class ChannelRules(
         }
         RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.topLevel(formatVersion))
         ordering?.let { RulesVocabulary.requireFreeExtras(it.extras, RulesVocabulary.ordering(formatVersion)) }
+        filters?.let {
+            RulesVocabulary.requireFreeExtras(it.extras, RulesVocabulary.filters(formatVersion))
+            RulesVocabulary.requireFreeExtras(it.runtimeExtras, RulesVocabulary.filterRuntime(formatVersion))
+        }
     }
 
     /** The ordering mode to use: `shuffle` when the file has no `ordering`. */
@@ -64,9 +68,20 @@ data class ChannelRules(
                 else -> null
             }
 
-    /** The lowest format version that has every feature these rules use: 2 for a version 2 feature, else 1. */
+    /**
+     * The lowest format version that has every feature these rules use: 3 for a version 3 feature (a studio source or
+     * exclusion, a `tags`, `studios` or `notGenres` filter, a per-kind runtime, the `curated` order or one of its
+     * tunables), 2 for a version 2 feature, else 1.
+     */
     val requiredVersion: Int
         get() {
+            val usesV3 =
+                sources.any { it is Source.Studio } ||
+                    effectiveExclusions.any { it is Source.Studio } ||
+                    filters?.usesVersion3 == true ||
+                    orderingMode == OrderingMode.Curated ||
+                    ordering?.repeatGapMinutes != null ||
+                    ordering?.pairUpToMinutes != null
             val usesV2 =
                 sources.any { it is Source.Item } ||
                     effectiveExclusions.any { it is Source.Item } ||
@@ -74,12 +89,19 @@ data class ChannelRules(
                     orderingMode == OrderingMode.Rotation ||
                     orderingMode == OrderingMode.InOrder ||
                     ordering?.caps != null
-            return if (usesV2) 2 else 1
+            return if (usesV3) {
+                3
+            } else if (usesV2) {
+                2
+            } else {
+                1
+            }
         }
 
     /**
-     * These rules at [version], with any extra whose key [version] knows dropped (top level and `ordering`), so a file
-     * that kept `filters` or `caps` as unknown fields can move to version 2 and get real ones. That drops data: call it
+     * These rules at [version], with any extra whose key [version] knows dropped (top level, `ordering`, `filters` and
+     * `filters.runtime`), so a file that kept `filters`, `caps` or `tags` as unknown fields can move up and get real
+     * ones. That drops data: call it
      * only on an explicit upgrade, never to normalise a file on the way through.
      */
     fun withVersion(version: Int): ChannelRules =
@@ -89,6 +111,12 @@ data class ChannelRules(
                 ordering?.copy(
                     extras = JsonObject(ordering.extras.filterKeys { it !in RulesVocabulary.ordering(version) }),
                 ),
+            filters =
+                filters?.copy(
+                    extras = JsonObject(filters.extras.filterKeys { it !in RulesVocabulary.filters(version) }),
+                    runtimeExtras =
+                        JsonObject(filters.runtimeExtras.filterKeys { it !in RulesVocabulary.filterRuntime(version) }),
+                ),
             extras = JsonObject(extras.filterKeys { it !in RulesVocabulary.topLevel(version) }),
         )
 }
@@ -97,18 +125,40 @@ data class ChannelRules(
 fun ChannelRules.normalised(): ChannelRules = withVersion(requiredVersion)
 
 /**
- * The `ordering` object. [caps] is a version 2 field; in a version 1 file `caps` is one of the [extras]. The extras are
- * checked against the file's version by [ChannelRules], which knows it; here only the names every version knows.
+ * The `ordering` object. [caps] is a version 2 field, and [repeatGapMinutes] and [pairUpToMinutes] are version 3
+ * fields; in an older file those names are among the [extras]. The extras are checked against the file's version by
+ * [ChannelRules], which knows it; here only the names every version knows and the names this object holds. The two
+ * tunables are read by `curated` and ignored, but checked, with any other mode.
  */
 data class Ordering(
     val mode: OrderingMode,
     val caps: OrderingCaps? = null,
+    val repeatGapMinutes: Int? = null,
+    val pairUpToMinutes: Int? = null,
     val extras: JsonObject = NO_EXTRAS,
 ) {
     init {
         RulesVocabulary.requireFreeExtras(extras, RulesVocabulary.ORDERING_V1)
         require(caps == null || "caps" !in extras) { "An unknown field cannot reuse the known field name 'caps'" }
+        require(mode != OrderingMode.Curated || caps == null) { "The curated order has no caps" }
+        require(repeatGapMinutes == null || repeatGapMinutes in 0..RulesVocabulary.MAX_REPEAT_GAP_MINUTES) {
+            "The repeat gap is 0 to 1440 minutes"
+        }
+        val pairs = RulesVocabulary.MIN_PAIR_UP_MINUTES..RulesVocabulary.MAX_PAIR_UP_MINUTES
+        require(pairUpToMinutes == null || pairUpToMinutes in pairs) { "The pair-up length is 1 to 1440 minutes" }
+        require(repeatGapMinutes == null || "repeatGapMinutes" !in extras) {
+            "An unknown field cannot reuse the known field name 'repeatGapMinutes'"
+        }
+        require(pairUpToMinutes == null || "pairUpToMinutes" !in extras) {
+            "An unknown field cannot reuse the known field name 'pairUpToMinutes'"
+        }
     }
+
+    /** The shortest time before a title or franchise may air again under `curated`: 180 when the file does not say. */
+    val effectiveRepeatGapMinutes: Int get() = repeatGapMinutes ?: RulesVocabulary.DEFAULT_REPEAT_GAP_MINUTES
+
+    /** The longest episode that is paired with the next under `curated`: 35 when the file does not say. */
+    val effectivePairUpToMinutes: Int get() = pairUpToMinutes ?: RulesVocabulary.DEFAULT_PAIR_UP_MINUTES
 }
 
 /** The `ordering.caps` object of version 2. A part the file leaves out is `null` here. */

@@ -32,6 +32,7 @@ import tv.stationbreak.core.rules.normalised
 @Suppress("TooManyFunctions") // One step of the draft to rules and back, each.
 internal object DraftRules {
     private const val EPOCH_HOURS = 24
+    private const val FORMAT_3 = 3
     private val NO_EXTRAS = JsonObject(emptyMap())
 
     /** The rules of [draft], under the lineup's [utcOffsetMinutes]. [previous] is the stored rules of an edit. */
@@ -42,9 +43,16 @@ internal object DraftRules {
     ): ChannelRules {
         require(draft.kept == null || previous != null) { "Kept settings come from the rules they were read from" }
         val carry = previous.takeIf { draft.kept != null }
-        // Version 2 first, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
-        // `caps` extra makes room for the real ones).
-        val v2 = assemble(draft, utcOffsetMinutes, 2, carry?.withVersion(2))
+        // Version 3 first: a copy's studio sources, theme filters and curated order are carried, and the file says 3
+        // only when they are still in the rules.
+        val carry3 = carry?.withVersion(FORMAT_3)
+        val v3 = assemble(draft, utcOffsetMinutes, FORMAT_3, carry3)
+        if (v3.requiredVersion == FORMAT_3) return v3.normalised()
+        // Version 2 next, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
+        // `caps` extra makes room for the real ones). A carry that needed 3 has lost it by now (the viewer took the
+        // builder's order), so it is read at 3.
+        val carry2 = if (carry != null && carry.requiredVersion == FORMAT_3) carry3 else carry?.withVersion(2)
+        val v2 = assemble(draft, utcOffsetMinutes, 2, carry2)
         val staysV1 = carry != null && carry.formatVersion == 1 && v2.requiredVersion == 1
         return if (staysV1) assemble(draft, utcOffsetMinutes, 1, carry) else v2.normalised()
     }
@@ -60,7 +68,7 @@ internal object DraftRules {
             formatVersion = version,
             name = draft.name.trim().ifEmpty { null },
             seed = draft.seed,
-            sources = withYearRanges(draft.sources.map(consuming(carry?.sources)), carry?.sources),
+            sources = withHidden(draft.sources.map(consuming(carry?.sources)), carry?.sources),
             exclusions = leftOut(draft, carry),
             maxRating = draft.filters.maxRating,
             ordering = ordering,
@@ -81,17 +89,17 @@ internal object DraftRules {
         carry: ChannelRules?,
     ): List<Source>? {
         val built = draft.leaveOut.map(consuming(carry?.exclusions))
-        return withYearRanges(built, carry?.exclusions).ifEmpty { null }
+        return withHidden(built, carry?.exclusions).ifEmpty { null }
     }
 
-    // The year ranges of the stored list go back at their places: the builder cannot show them.
-    private fun withYearRanges(
+    // The year ranges and studios of the stored list go back at their places: the builder cannot show them.
+    private fun withHidden(
         built: List<Source>,
         stored: List<Source>?,
     ): List<Source> {
         val out = built.toMutableList()
         stored?.forEachIndexed { index, source ->
-            if (source is Source.YearRange) out.add(index.coerceAtMost(out.size), source)
+            if (source is Source.YearRange || source is Source.Studio) out.add(index.coerceAtMost(out.size), source)
         }
         return out
     }
@@ -103,18 +111,17 @@ internal object DraftRules {
         val keepsOrder = draft.keepsOrder()
         val uncapped = draft.keepsUncapped()
         val order = draft.order ?: PlayOrder.Shuffle
-        val extras = carry?.ordering?.extras ?: NO_EXTRAS
         return when {
             keepsOrder && carry != null -> {
                 carry.ordering
             }
 
             uncapped && carry != null -> {
-                carry.ordering?.let { Ordering(OrderingMode.Shuffle, null, it.extras) }
+                carry.ordering?.let { ordered(carry, OrderingMode.Shuffle) }
             }
 
             order == PlayOrder.InOrder -> {
-                Ordering(OrderingMode.InOrder, null, extras)
+                ordered(carry, OrderingMode.InOrder)
             }
 
             else -> {
@@ -122,9 +129,21 @@ internal object DraftRules {
                 val capExtras = carry?.ordering?.caps?.extras ?: NO_EXTRAS
                 val series = draft.seriesCap ?: ChannelDraft.DEFAULT_SERIES_CAP
                 val film = draft.filmCap ?: ChannelDraft.DEFAULT_FILM_CAP
-                Ordering(mode, OrderingCaps(series, film, capExtras), extras)
+                ordered(carry, mode, OrderingCaps(series, film, capExtras))
             }
         }
+    }
+
+    // The two curated tunables are checked in every mode (and read only by `curated`), so a copy keeps them while the
+    // viewer leaves the carried mode alone, and drops them when the mode changes.
+    private fun ordered(
+        carry: ChannelRules?,
+        mode: OrderingMode,
+        caps: OrderingCaps? = null,
+    ): Ordering {
+        val carried = carry?.ordering
+        val tuned = carried?.takeIf { it.mode == mode }
+        return Ordering(mode, caps, tuned?.repeatGapMinutes, tuned?.pairUpToMinutes, carried?.extras ?: NO_EXTRAS)
     }
 
     private fun timingOf(
@@ -169,6 +188,15 @@ internal object DraftRules {
                         null -> null
                     },
                 extras = carried?.extras ?: NO_EXTRAS,
+                tags = carried?.tags,
+                studios = carried?.studios,
+                notGenres = carried?.notGenres,
+                episodeMinRuntimeMinutes = carried?.episodeMinRuntimeMinutes,
+                episodeMaxRuntimeMinutes = carried?.episodeMaxRuntimeMinutes,
+                movieMinRuntimeMinutes = carried?.movieMinRuntimeMinutes,
+                movieMaxRuntimeMinutes = carried?.movieMaxRuntimeMinutes,
+                episodeRuntimeExtras = carried?.episodeRuntimeExtras ?: NO_EXTRAS,
+                movieRuntimeExtras = carried?.movieRuntimeExtras ?: NO_EXTRAS,
                 yearsExtras = if (years) carried?.yearsExtras ?: NO_EXTRAS else NO_EXTRAS,
                 runtimeExtras = if (hasRuntime) carried?.runtimeExtras ?: NO_EXTRAS else NO_EXTRAS,
             )
@@ -210,6 +238,7 @@ internal object DraftRules {
             is Source.Genre -> source.copy(extras = extras)
             is Source.Series -> source.copy(extras = extras)
             is Source.Item -> source.copy(extras = extras)
+            is Source.Studio -> source.copy(extras = extras)
             is Source.YearRange -> source.copy(extras = extras)
         }
 
@@ -267,7 +296,7 @@ internal object DraftRules {
         )
     }
 
-    // Null for a year range: the builder cannot show it (it is a kept item).
+    // Null for a year range or a studio: the builder cannot show it (it is a kept item).
     private fun draftSourceOf(
         source: Source,
         labels: (DraftSource) -> String,
@@ -280,7 +309,7 @@ internal object DraftRules {
                 is Source.Genre -> DraftSource.Genre(source.name, "")
                 is Source.Series -> DraftSource.Show(source.id.value, "")
                 is Source.Item -> DraftSource.Pick(source.id.value, "")
-                is Source.YearRange -> null
+                is Source.Studio, is Source.YearRange -> null
             }
         return plain?.let { it.withLabel(labels(it)) }
     }
@@ -292,9 +321,10 @@ internal object DraftRules {
             when (rules.orderingMode) {
                 OrderingMode.Chronological -> items += KeptItem.Order(KeptOrder.Chronological)
                 OrderingMode.RandomInOrder -> items += KeptItem.Order(KeptOrder.RandomInOrder)
+                OrderingMode.Curated -> items += KeptItem.Order(KeptOrder.Curated)
                 else -> Unit
             }
-            rules.sources.filterIsInstance<Source.YearRange>().forEach { items += KeptItem.YearsSource(it.from, it.to) }
+            items += sourceItemsOf(rules)
             if (rules.orderingMode == OrderingMode.Shuffle && rules.effectiveCaps == null) items += KeptItem.NoCaps
             val epoch = rules.timing.effectiveEpochHours
             if (epoch != EPOCH_HOURS) items += KeptItem.EpochHours(epoch)
@@ -305,17 +335,36 @@ internal object DraftRules {
             return items
         }
 
-        // Anything left that the builder would write differently: extras, a year-range exclusion, a filler object that
-        // does nothing, or timing the builder writes otherwise.
+        // The sources and exclusions the builder has no picker for: year ranges, studios.
+        private fun sourceItemsOf(rules: ChannelRules): List<KeptItem> {
+            val items = ArrayList<KeptItem>()
+            for (source in rules.sources) {
+                when (source) {
+                    is Source.YearRange -> items += KeptItem.YearsSource(source.from, source.to)
+                    is Source.Studio -> items += KeptItem.StudioSource(source.name)
+                    else -> Unit
+                }
+            }
+            for (excluded in rules.effectiveExclusions) {
+                if (excluded is Source.Studio) items += KeptItem.StudioExclusion(excluded.name)
+            }
+            return items
+        }
+
+        // Anything left that the builder would write differently: extras, a year-range exclusion,
+        // a theme filter or per-kind runtime, a curated tunable, a filler object that does nothing, or timing the
+        // builder writes otherwise.
         private fun hasOtherSettings(rules: ChannelRules): Boolean =
             hasExtras(rules) ||
                 timingDiffers(rules.timing) ||
                 rules.effectiveExclusions.any { it is Source.YearRange } ||
+                rules.filters?.usesVersion3 == true ||
+                rules.ordering?.let { it.repeatGapMinutes != null || it.pairUpToMinutes != null } == true ||
                 (rules.filler != null && rules.fillerMode == FillerMode.None)
 
         private fun hasExtras(rules: ChannelRules): Boolean {
             val sourceExtras = (rules.sources + rules.effectiveExclusions).any { it.extras.isNotEmpty() }
-            val filterExtras = rules.filters?.let { listOf(it.extras, it.yearsExtras, it.runtimeExtras) }.orEmpty()
+            val filterExtras = rules.filters?.let(::extrasOf).orEmpty()
             val orderingExtras = listOfNotNull(rules.ordering?.extras, rules.ordering?.caps?.extras)
             val timingExtras =
                 rules.timing.extras.isNotEmpty() ||
@@ -324,6 +373,9 @@ internal object DraftRules {
             val nested = (filterExtras + orderingExtras).any { it.isNotEmpty() }
             return rules.extras.isNotEmpty() || sourceExtras || nested || timingExtras
         }
+
+        private fun extrasOf(filters: Filters): List<JsonObject> =
+            with(filters) { listOf(extras, yearsExtras, runtimeExtras, episodeRuntimeExtras, movieRuntimeExtras) }
 
         private fun timingDiffers(timing: Timing): Boolean =
             timing.graceHours != null ||

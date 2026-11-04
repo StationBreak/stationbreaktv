@@ -39,6 +39,8 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.scheduler.Day
@@ -299,7 +301,18 @@ class BuiltInChannelPreviews(
                 ruledDayOf(ceilings, rules, channel, snapshot, settings, n) { r, policy ->
                     PoolEvaluator.evaluate(r, snapshot, policy)
                 }
-            return Today(ruled, snapshot, buildDay(settings, ruled.day, n, ruled.films))
+            return Today(
+                ruled,
+                snapshot,
+                buildDay(
+                    settings,
+                    ruled.day,
+                    n,
+                    ruled.films,
+                    TitleWeights.NONE,
+                    TitleKeeps.NONE,
+                ),
+            )
         }
 
         // Picks the kids hold leaves out: a show or film source that has items under no policy and none under the hold.

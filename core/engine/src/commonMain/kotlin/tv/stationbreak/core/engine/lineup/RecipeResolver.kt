@@ -59,6 +59,8 @@ object RecipeResolver {
             timingAt(utcOffsetMinutes),
             caps = null,
             runtimeFilter = null,
+            // A leftovers channel shuffles: it has no curated tuning.
+            curated = null,
         )
 
     private fun seedOf(

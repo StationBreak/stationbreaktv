@@ -1,0 +1,18 @@
+{
+  "formatVersion": 2,
+  "name": "Version 2 Studio",
+  "seed": "46",
+  "sources": [
+    {
+      "type": "studio",
+      "name": "Studio A"
+    }
+  ],
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

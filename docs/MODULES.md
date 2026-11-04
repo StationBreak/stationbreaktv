@@ -326,6 +326,12 @@ items) and hands the scheduler a side map beside the item list: `FilmCollections
 taken from the same snapshot as the pool, and it is kept with the built day, on disk too, so a restored day uses the stored
 map. Only Rotation and capped Shuffle read it; the other orders ignore it.
 
+Rules format version 3 adds two more side inputs of the same kind, both in `core:model` and both built only by `of`:
+`TitleWeights` (a title ID to a weight of 1 to 3, read by `curated`) and `TitleKeeps` (a series ID to a cap in
+milliseconds, the trim window). The franchise map of `curated` is a `FilmCollections` too, built from the collections of
+the snapshot whose names are box set names. The trim window is applied only inside `buildDay`; the day pool that is kept
+on disk is the pool after it (`Day.pool`) and is restored with no keeps.
+
 ### Dependency graph (allowed edges)
 
 ```

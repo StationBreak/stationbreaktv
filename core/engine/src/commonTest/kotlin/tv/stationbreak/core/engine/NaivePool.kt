@@ -85,7 +85,7 @@ internal object NaivePool {
                     is Source.Collection -> snapshot.collections[source.id] == null
 
                     is Source.Library, is Source.Genre, is Source.Tag, is Source.YearRange, is Source.Series,
-                    is Source.Item,
+                    is Source.Item, is Source.Studio,
                     -> false
                 }
             if (missing) out.add(index)
@@ -163,6 +163,10 @@ internal object NaivePool {
 
             is Source.Item -> {
                 item.id == source.id
+            }
+
+            is Source.Studio -> {
+                error("format 3 is matched from Task 6")
             }
 
             is Source.Collection -> {

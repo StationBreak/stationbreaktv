@@ -31,6 +31,13 @@ class SchemaExamplesTest {
             .getSchema(RulesFormatFiles.schemaV2File.readText())
     }
 
+    private val schemaV3: Schema by lazy {
+        assertTrue(RulesFormatFiles.schemaV3File.isFile, "missing ${RulesFormatFiles.schemaV3File}")
+        SchemaRegistry
+            .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
+            .getSchema(RulesFormatFiles.schemaV3File.readText())
+    }
+
     private fun errors(text: String) = schema.validate(text, InputFormat.JSON)
 
     @Test
@@ -69,6 +76,63 @@ class SchemaExamplesTest {
                 assertTrue(result is RulesResult.Invalid, "$name: $result")
             }
         }
+    }
+
+    @Test
+    fun everyV3ExampleValidatesAgainstTheV3Schema() {
+        assertTrue(RulesFormatFiles.validV3.isNotEmpty(), "no files in examples/v3/")
+        val failures =
+            RulesFormatFiles.validV3.mapNotNull { (name, text) ->
+                schemaV3.validate(text, InputFormat.JSON).takeIf { it.isNotEmpty() }?.let { name to it }
+            }
+        if (failures.isNotEmpty()) fail(failures.joinToString("\n") { (n, e) -> "$n: $e" })
+    }
+
+    @Test
+    fun everyV1AndV2ExampleAlsoValidatesAgainstTheV3Schema() {
+        val failures =
+            (RulesFormatFiles.valid + RulesFormatFiles.validV2).mapNotNull { (name, text) ->
+                schemaV3.validate(text, InputFormat.JSON).takeIf { it.isNotEmpty() }?.let { name to it }
+            }
+        if (failures.isNotEmpty()) fail(failures.joinToString("\n") { (n, e) -> "$n: $e" })
+    }
+
+    @Test
+    fun aVersion3FeatureInAVersion2FileFailsTheV3SchemaAndTheReader() {
+        val text = RulesFormatFiles.invalid.getValue("v3-feature-in-v2.json")
+        assertTrue(schemaV3.validate(text, InputFormat.JSON).isNotEmpty(), "the v3 schema must reject it")
+        assertTrue(RulesReader.read(text) is RulesResult.Unsupported, "the reader must call it unsupported")
+    }
+
+    @Test
+    fun theV3SchemaRejectsVersion3FeaturesInEarlierFilesAndBadValues() {
+        val v3 = Json.parseToJsonElement(RulesFormatFiles.validV3.getValue("curated-tuned.json")).jsonObject
+
+        fun withVersion(v: Int) = JsonObject(v3 + ("formatVersion" to JsonPrimitive(v))).toString()
+
+        assertTrue(schemaV3.validate(withVersion(3), InputFormat.JSON).isEmpty())
+        assertTrue(schemaV3.validate(withVersion(2), InputFormat.JSON).isNotEmpty(), "studio source in a v2 file")
+        assertTrue(schemaV3.validate(withVersion(1), InputFormat.JSON).isNotEmpty(), "studio source in a v1 file")
+        val curated = Json.parseToJsonElement(RulesFormatFiles.validV3.getValue("curated.json")).jsonObject
+        val curatedInV2 = JsonObject(curated + ("formatVersion" to JsonPrimitive(2))).toString()
+        assertTrue(schemaV3.validate(curatedInV2, InputFormat.JSON).isNotEmpty(), "curated in a v2 file")
+        val ordering = JsonObject(mapOf("mode" to JsonPrimitive("curated"), "repeatGapMinutes" to JsonPrimitive(1441)))
+        val badGap = JsonObject(v3 + ("ordering" to ordering)).toString()
+        assertTrue(schemaV3.validate(badGap, InputFormat.JSON).isNotEmpty())
+        val pair = JsonObject(mapOf("mode" to JsonPrimitive("curated"), "pairUpToMinutes" to JsonPrimitive(0)))
+        assertTrue(schemaV3.validate(JsonObject(v3 + ("ordering" to pair)).toString(), InputFormat.JSON).isNotEmpty())
+    }
+
+    @Test
+    fun theV3SchemaStaysOpen() {
+        val full = Json.parseToJsonElement(RulesFormatFiles.validV3.getValue("runtime-per-kind.json")).jsonObject
+        val filters = full.getValue("filters").jsonObject
+        val runtime = filters.getValue("runtime").jsonObject
+        val episode = JsonObject(runtime.getValue("episode").jsonObject + ("futureField" to JsonPrimitive(true)))
+        val newRuntime = JsonObject(runtime + ("episode" to episode))
+        val opened = JsonObject(full + ("filters" to JsonObject(filters + ("runtime" to newRuntime))))
+        assertTrue(schemaV3.validate(opened.toString(), InputFormat.JSON).isEmpty())
+        assertTrue("https://json-schema.org/draft/2020-12/schema" in RulesFormatFiles.schemaV3File.readText())
     }
 
     @Test
@@ -185,6 +249,8 @@ class SchemaExamplesTest {
 
     @Test fun upperCaseFillerMode() = rejects("filler-mode-kebab-case.json")
 
+    @Test fun aVersion3FeatureInAVersion2File() = rejects("v3-feature-in-v2.json")
+
     @Test fun nameOf101CodePoints() = rejects("name-101-code-points.json")
 
     @Test
@@ -249,6 +315,7 @@ class SchemaExamplesTest {
                 "block-length-101.json",
                 "max-rating-null.json",
                 "align-to-grid-string.json",
+                "v3-feature-in-v2.json",
             )
     }
 }

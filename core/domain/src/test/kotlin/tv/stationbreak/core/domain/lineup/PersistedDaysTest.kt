@@ -19,6 +19,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.rules.Source
 import java.util.zip.CRC32
 import kotlin.test.Test
@@ -97,12 +98,15 @@ class PersistedDaysTest {
         of: Lineup = lineup,
     ) = lineupDays.scheduled(of, atMs, null)
 
-    private fun built(scheduled: List<Scheduled>): List<ChannelDay> {
+    private fun built(
+        scheduled: List<Scheduled>,
+        days: LineupDays = lineupDays,
+    ): List<ChannelDay> {
         val snapshots =
             scheduled.map { it.cutoffMs }.distinct().associateWith {
                 RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
             }
-        return lineupDays.days(lineup, scheduled, snapshots)
+        return days.days(lineup, scheduled, snapshots)
     }
 
     @Suppress("LongParameterList")
@@ -150,6 +154,62 @@ class PersistedDaysTest {
         assertTrue(loaded.any { it.hidden != null }, "an empty day keeps its reason")
         assertTrue(loaded.any { day -> day.pool.any { it.seriesId != null } }, "an episode keeps its series")
         assertTrue(events.first() is DaySnapshotEvent.Saved && events.last() is DaySnapshotEvent.Hit)
+    }
+
+    @Test
+    fun savingDaysLaysOutNoneOfThem() {
+        var layouts = 0
+        val counting = LineupDays(TestCatalog) { _, _ -> layouts++ }
+        val days = built(scheduledAt(NOON_MS), counting)
+        val kept = persisted()
+
+        assertTrue(runBlocking { kept.save(ACCOUNT, keyOf(kept), days) })
+
+        assertEquals(0, layouts)
+        assertTrue(days.none { it.isLaidOut })
+    }
+
+    @Test
+    fun aRestoredDayEqualsAFreshDayBuiltWithKeeps() {
+        val base = built(scheduledAt(NOON_MS)).first()
+        val series = id(900)
+        val episodes =
+            (1..6).map {
+                ScheduleItem(
+                    id(910 + it),
+                    ScheduleItemKind.Episode,
+                    1_200_000L,
+                    ADDED_MS,
+                    null,
+                    null,
+                    null,
+                    series,
+                    1,
+                    it,
+                )
+            }
+        val keeps = TitleKeeps.of(mapOf(series to 2_400_000L))
+        val scheduled = scheduledAt(NOON_MS).first { it.channel.id == base.channel.id }
+
+        fun fresh() =
+            ChannelDay.of(
+                base.channel,
+                base.name,
+                base.settings,
+                base.n,
+                episodes,
+                base.films,
+                null,
+                base.ceilingRank,
+                keeps,
+            )
+
+        val day = fresh()
+        val restored = lineupDays.restore(scheduled, day.pool, day.films, null)
+
+        assertEquals(2, day.pool.size, "the window keeps two of six")
+        assertEquals(day.pool, restored.pool)
+        assertEquals(day.day.blocks, restored.day.blocks)
     }
 
     // The days of a file are matched to the channels by the IDs written with them, never by position alone: a body

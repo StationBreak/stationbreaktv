@@ -2,7 +2,6 @@
 package tv.stationbreak.core.scheduler.vectors
 
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -13,6 +12,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.CuratedTuning
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleBlock
@@ -20,9 +20,13 @@ import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.MS_MINUTE
 import tv.stationbreak.core.scheduler.buildDay
+import tv.stationbreak.core.scheduler.noKeeps
+import tv.stationbreak.core.scheduler.noWeights
 import tv.stationbreak.core.scheduler.vectors.VectorJson.array
 import tv.stationbreak.core.scheduler.vectors.VectorJson.obj
 import tv.stationbreak.core.scheduler.vectors.VectorJson.objects
@@ -31,9 +35,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Reads the day cases of `lineup.json` and `lineup-v2.json` (and the items of the key-order files) and checks a case
- * against `buildDay` and `Day.whatsOn`. A case is never changed to suit the code; a disagreement is reported with the
- * case's name.
+ * Reads the day cases of `lineup.json`, `lineup-v2.json` and `lineup-v3.json` (and the items of the key-order files)
+ * and checks a case against `buildDay` and `Day.whatsOn`. A case is never changed to suit the code; a disagreement is
+ * reported with the case's name.
  */
 internal object DayCases {
     private const val MS_SECOND = 1000L
@@ -45,8 +49,9 @@ internal object DayCases {
         val timing = obj("timing")
         val day = timing.obj("broadcastDay")
         val (hours, minutes) = day.string("start").split(":").map { it.toInt() }
+        val mode = orderingModeOf(obj("ordering").string("mode"))
         return SchedulerSettings(
-            orderingMode = orderingModeOf(obj("ordering").string("mode")),
+            orderingMode = mode,
             seed = Seed(string("seed").toULong()),
             blockLength = timing.getValue("blockLength").jsonPrimitive.int,
             // A case may omit alignToGrid: the version 1 default is true.
@@ -59,8 +64,17 @@ internal object DayCases {
             minRuntimeMs = timing.getValue("minRuntimeSeconds").jsonPrimitive.int * MS_SECOND,
             caps = (this["caps"] as? JsonObject)?.caps(),
             runtimeFilter = (this["runtimeFilter"] as? JsonObject)?.runtimeFilter(),
+            // The curated tunables are decimal strings in ms, given in every curated case (and read by no other mode).
+            curated =
+                CuratedTuning(
+                    optional("repeatGapMs")?.toLong() ?: DEFAULT_REPEAT_GAP_MS,
+                    optional("pairUpToMs")?.toLong() ?: DEFAULT_PAIR_UP_MS,
+                ).takeIf { mode == OrderingMode.Curated },
         )
     }
+
+    private const val DEFAULT_REPEAT_GAP_MS = 10_800_000L
+    private const val DEFAULT_PAIR_UP_MS = 2_100_000L
 
     // An unknown mode is rejected like any other bad input.
     private fun orderingModeOf(wireName: String): OrderingMode =
@@ -69,11 +83,38 @@ internal object DayCases {
 
     fun JsonObject.caps(): Caps = Caps(getValue("series").jsonPrimitive.int, getValue("film").jsonPrimitive.int)
 
-    private fun JsonObject.runtimeFilter(): RuntimeFilter =
-        RuntimeFilter(
-            minMs = this["minMinutes"]?.jsonPrimitive?.intOrNull?.let { it * MS_MINUTE },
-            maxMs = this["maxMinutes"]?.jsonPrimitive?.intOrNull?.let { it * MS_MINUTE },
+    private fun JsonObject.runtimeFilter(): RuntimeFilter {
+        val episode = this["episode"] as? JsonObject
+        val movie = this["movie"] as? JsonObject
+        return RuntimeFilter(
+            minMs = minutes("minMinutes"),
+            maxMs = minutes("maxMinutes"),
+            episodeMinMs = episode?.minutes("minMinutes"),
+            episodeMaxMs = episode?.minutes("maxMinutes"),
+            movieMinMs = movie?.minutes("minMinutes"),
+            movieMaxMs = movie?.minutes("maxMinutes"),
         )
+    }
+
+    private fun JsonObject.minutes(name: String): Long? = this[name]?.jsonPrimitive?.intOrNull?.let { it * MS_MINUTE }
+
+    /** The weights of a case's settings (title ID to 1..3); absent means every title has weight 1. */
+    fun JsonObject.weights(): TitleWeights =
+        (this["weights"] as? JsonObject)
+            ?.let { map -> TitleWeights.of(map.entries.associate { (id, w) -> canonical(id) to w.jsonPrimitive.int }) }
+            ?: noWeights()
+
+    /** The keeps of a case's settings (series ID to a cap in ms, a decimal string); absent means none. */
+    fun JsonObject.keeps(): TitleKeeps =
+        (this["keeps"] as? JsonObject)
+            ?.let { map ->
+                val caps = map.entries.associate { (id, cap) -> canonical(id) to cap.jsonPrimitive.content.toLong() }
+                TitleKeeps.of(caps)
+            }
+            ?: noKeeps()
+
+    /** The film-to-collection map of a case: `films` (rotation, capped shuffle) or `franchises` (curated). */
+    fun JsonObject.filmMap(): FilmCollections = ((this["films"] ?: this["franchises"]) as? JsonObject).films()
 
     /** The `films` object (film ID to collection ID); absent means none. */
     fun JsonObject?.films(): FilmCollections =
@@ -155,8 +196,8 @@ internal object DayCases {
                     stage = "reading the items"
                     val items = case.array("items").objects().map { it.item() }
                     stage = "building the day"
-                    val films = case.obj("settings")["films"].filmsOrNone()
-                    buildDay(settings, items, case.string("n").toLong(), films)
+                    val raw = case.obj("settings")
+                    buildDay(settings, items, case.string("n").toLong(), raw.filmMap(), raw.weights(), raw.keeps())
                 }
             val error = thrown.exceptionOrNull()
             if (thrown.isSuccess) failures.add("[$name] input error: building should be rejected, but it built a day")
@@ -167,7 +208,15 @@ internal object DayCases {
         }
         val settings = case.obj("settings")
         val items = case.array("items").objects().map { it.item() }
-        val day = buildDay(settings.settings(), items, case.string("n").toLong(), settings["films"].filmsOrNone())
+        val day =
+            buildDay(
+                settings.settings(),
+                items,
+                case.string("n").toLong(),
+                settings.filmMap(),
+                settings.weights(),
+                settings.keeps(),
+            )
         val expectedBlocks = case.array("blocks").objects().map { it.block() }
         expect("blocks", expectedBlocks, day.blocks)
         for (query in case.array("queries").objects()) {
@@ -192,8 +241,6 @@ internal object DayCases {
         }
         return failures
     }
-
-    private fun JsonElement?.filmsOrNone(): FilmCollections = (this as? JsonObject).films()
 
     /** Every day of [cases] starts at its epoch's start, ends at the epoch's end, and has no gap or overlap. */
     fun assertEveryDayTilesItsEpoch(cases: List<JsonObject>) {

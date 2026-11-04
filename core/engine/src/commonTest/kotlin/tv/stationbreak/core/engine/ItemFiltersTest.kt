@@ -14,16 +14,30 @@ import kotlin.test.assertEquals
 class ItemFiltersTest {
     private val show = idOf(0x10)
 
+    @Suppress("LongParameterList") // Test builder: one defaulted parameter per filter part.
     private fun filters(
         genres: List<String>? = null,
         years: IntRange? = null,
         kind: FilterKind? = null,
-    ) = Filters(genres, years?.first, years?.last, null, null, kind)
+        tags: List<String>? = null,
+        studios: List<String>? = null,
+        notGenres: List<String>? = null,
+    ) = Filters(
+        genres,
+        years?.first,
+        years?.last,
+        null,
+        null,
+        kind,
+        tags = tags,
+        studios = studios,
+        notGenres = notGenres,
+    )
 
     private fun libraryRules(
         filters: Filters?,
         maxRating: String? = null,
-    ): ChannelRules = rules(listOf(Source.Library(LIB)), null, maxRating, formatVersion = 2, filters = filters)
+    ): ChannelRules = rules(listOf(Source.Library(LIB)), null, maxRating, formatVersion = 3, filters = filters)
 
     private fun idsOf(
         rules: ChannelRules,
@@ -119,5 +133,96 @@ class ItemFiltersTest {
 
         assertEquals(plain, empty)
         assertEquals(0, empty.counts.filteredOut)
+    }
+
+    @Test
+    fun tagsFilterIsAnyOf() {
+        val a = movie(idOf(1), tags = listOf("Tag A"))
+        val b = movie(idOf(2), tags = listOf("tag b"))
+        val c = movie(idOf(3), tags = listOf("Tag C"))
+        val inherits = episode(idOf(4), show)
+        val tagged = series(show, tags = listOf("TAG A"))
+
+        val rules = libraryRules(filters(tags = listOf("tag a", "Tag B")))
+        val ids = idsOf(rules, a, b, c, inherits, shows = listOf(tagged))
+
+        assertEquals(listOf(idOf(1), idOf(2), idOf(4)), ids)
+    }
+
+    @Test
+    fun studiosFilterIsAnyOf() {
+        val a = movie(idOf(1), studios = listOf("Studio A"))
+        val b = movie(idOf(2), studios = listOf("STUDIO B "))
+        val c = movie(idOf(3), studios = listOf("Studio C"))
+        val inherits = episode(idOf(4), show)
+        val noSeries = episode(idOf(5), idOf(0x99))
+        val studio = series(show, studios = listOf("Studio A"))
+
+        val rules = libraryRules(filters(studios = listOf("studio a", "Studio B")))
+        val ids = idsOf(rules, a, b, c, inherits, noSeries, shows = listOf(studio))
+
+        // The episode whose series is missing is checked on its own studios; the filter does not fail closed there.
+        assertEquals(listOf(idOf(1), idOf(2), idOf(4)), ids)
+    }
+
+    @Test
+    fun notGenresDropsAnyListedGenreOnItemOrSeries() {
+        val comedy = movie(idOf(1), genres = listOf("Comedy"))
+        val drama = movie(idOf(2), genres = listOf("Drama"))
+        val none = movie(idOf(3))
+        val horrorShow = episode(idOf(4), show)
+        val own = episode(idOf(5), idOf(0x11), genres = listOf("HORROR"))
+        val fine = episode(idOf(6), idOf(0x11))
+        val loose = episode(idOf(7), null)
+        val shows = listOf(series(show, genres = listOf("Horror")), series(idOf(0x11), genres = listOf("Drama")))
+
+        val ids =
+            idsOf(
+                libraryRules(filters(notGenres = listOf("horror", "Comedy"))),
+                comedy,
+                drama,
+                none,
+                horrorShow,
+                own,
+                fine,
+                loose,
+                shows = shows,
+            )
+
+        assertEquals(listOf(idOf(2), idOf(3), idOf(6), idOf(7)), ids)
+    }
+
+    @Test
+    fun notGenresFailsClosedOnAMissingSeries() {
+        val orphan = episode(idOf(1), idOf(0x99))
+        val loose = episode(idOf(2), null)
+        val film = movie(idOf(3))
+
+        val ids = idsOf(libraryRules(filters(notGenres = listOf("Horror"))), orphan, loose, film)
+
+        assertEquals(listOf(idOf(2), idOf(3)), ids)
+    }
+
+    @Test
+    fun allFiltersAreAndedWithTheCeiling() {
+        val all =
+            filters(
+                genres = listOf("Comedy"),
+                tags = listOf("Tag A"),
+                studios = listOf("Studio A"),
+                notGenres = listOf("Horror"),
+            )
+        val g = listOf("Comedy")
+        val tag = listOf("Tag A")
+        val studio = listOf("Studio A")
+        val pass = movie(idOf(1), rating = "G", genres = g, tags = tag, studios = studio)
+        val noTag = movie(idOf(2), rating = "G", genres = g, studios = studio)
+        val noStudio = movie(idOf(3), rating = "G", genres = g, tags = tag)
+        val horror = movie(idOf(4), rating = "G", genres = g + "Horror", tags = tag, studios = studio)
+        val tooOld = movie(idOf(5), rating = "R", genres = g, tags = tag, studios = studio)
+
+        val ids = idsOf(libraryRules(all, maxRating = "PG"), pass, noTag, noStudio, horror, tooOld)
+
+        assertEquals(listOf(idOf(1)), ids)
     }
 }

@@ -17,6 +17,8 @@ import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.Duration.Companion.milliseconds
@@ -280,6 +282,7 @@ class EditCutoffPropertyTest {
             minRuntimeMs = 1_000L + gen.nextLong(3_599_000L),
             caps = null,
             runtimeFilter = null,
+            curated = null,
         )
     }
 
@@ -383,8 +386,20 @@ class EditCutoffPropertyTest {
             assertEquals("day n items, history cut", dayNCut.withoutDeletionTimes(), dayNKnown.withoutDeletionTimes())
 
             // 2. buildDay makes the same day from both.
-            val built = buildDay(history.settings, dayNKnown, history.n, NO_FILMS).blocks
-            assertEquals("the day built", buildDay(history.settings, dayNCut, history.n, NO_FILMS).blocks, built)
+            val built =
+                buildDay(
+                    history.settings,
+                    dayNKnown,
+                    history.n,
+                    NO_FILMS,
+                    TitleWeights.NONE,
+                    TitleKeeps.NONE,
+                ).blocks
+            assertEquals(
+                "the day built",
+                buildDay(history.settings, dayNCut, history.n, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE).blocks,
+                built,
+            )
 
             // 3. Day n + 1 sees the edits that were held back.
             val dayN1 = read(full, history.nextCutoff)

@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.ordering.splitmix64
 import tv.stationbreak.core.model.schedule.Caps
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.TitleWeights
 
 /**
  * The order a channel plays its pool in (docs/rules-format.md, "Ordering"; spec 08, Unit 2). Every order comes from
@@ -146,7 +147,7 @@ object Orderings {
     fun groups(
         pool: List<ScheduleItem>,
         seed: Seed,
-    ): List<OrderGroup> = groups(pool, seed, GroupRules(FilmCollections.of(emptyMap())))
+    ): List<OrderGroup> = groups(pool, seed, GroupRules(FilmCollections.of(emptyMap()), TitleWeights.NONE))
 
     /**
      * The groups of [pool] as [rules] defines them, in the same key order as [groups]. A series keeps [inGroupKey]; a

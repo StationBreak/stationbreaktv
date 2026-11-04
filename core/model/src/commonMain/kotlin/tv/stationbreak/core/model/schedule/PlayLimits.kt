@@ -21,24 +21,54 @@ data class Caps(
 }
 
 /**
- * The runtime window of `filters.runtime` in milliseconds: an item airs only inside it. At least one bound is set, each
- * is at least 1, and [minMs] is not above [maxMs].
+ * The runtime windows of `filters.runtime` in milliseconds: an item airs only inside the general window ([minMs],
+ * [maxMs]) and inside the window of its own kind ([episodeMinMs], [episodeMaxMs] for episodes, [movieMinMs],
+ * [movieMaxMs] for films), when there is one. At least one bound is set somewhere, each is at least 1, and a minimum is
+ * not above its maximum.
  */
 data class RuntimeFilter(
     val minMs: Long?,
     val maxMs: Long?,
+    val episodeMinMs: Long? = null,
+    val episodeMaxMs: Long? = null,
+    val movieMinMs: Long? = null,
+    val movieMaxMs: Long? = null,
 ) {
     init {
-        require(minMs != null || maxMs != null) { "A runtime filter needs a bound" }
-        require(minMs == null || minMs >= 1L) { "The minimum runtime is at least 1 ms" }
-        require(maxMs == null || maxMs >= 1L) { "The maximum runtime is at least 1 ms" }
-        require(minMs == null || maxMs == null || minMs <= maxMs) { "The minimum runtime is not above the maximum" }
+        require(
+            minMs != null || maxMs != null || episodeMinMs != null || episodeMaxMs != null ||
+                movieMinMs != null || movieMaxMs != null,
+        ) { "A runtime filter needs a bound" }
+        requireWindow(minMs, maxMs)
+        requireWindow(episodeMinMs, episodeMaxMs)
+        requireWindow(movieMinMs, movieMaxMs)
     }
 
-    /** True when [runtimeMs] is inside the window; a missing bound is open. */
-    fun admits(runtimeMs: Long): Boolean {
-        val aboveMin = minMs == null || runtimeMs >= minMs
-        val belowMax = maxMs == null || runtimeMs <= maxMs
-        return aboveMin && belowMax
+    private fun requireWindow(
+        min: Long?,
+        max: Long?,
+    ) {
+        require(min == null || min >= 1L) { "The minimum runtime is at least 1 ms" }
+        require(max == null || max >= 1L) { "The maximum runtime is at least 1 ms" }
+        require(min == null || max == null || min <= max) { "The minimum runtime is not above the maximum" }
     }
+
+    /** True when [runtimeMs] is inside the general window and the window of [kind]; a missing bound is open. */
+    fun admits(
+        runtimeMs: Long,
+        kind: ScheduleItemKind,
+    ): Boolean {
+        val ofKind =
+            when (kind) {
+                ScheduleItemKind.Episode -> within(runtimeMs, episodeMinMs, episodeMaxMs)
+                ScheduleItemKind.Movie -> within(runtimeMs, movieMinMs, movieMaxMs)
+            }
+        return within(runtimeMs, minMs, maxMs) && ofKind
+    }
+
+    private fun within(
+        runtimeMs: Long,
+        min: Long?,
+        max: Long?,
+    ): Boolean = (min == null || runtimeMs >= min) && (max == null || runtimeMs <= max)
 }

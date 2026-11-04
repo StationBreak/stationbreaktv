@@ -26,10 +26,13 @@ internal object RulesFormatFiles {
 
     val schemaV2File: File = File(dir, "channel-rules.v2.schema.json")
 
+    val schemaV3File: File = File(dir, "channel-rules.v3.schema.json")
+
     val valid: Map<String, String> get() = jsonFiles("examples")
     val invalid: Map<String, String> get() = jsonFiles("examples/invalid")
     val validV2: Map<String, String> get() = jsonFiles("examples/v2")
     val invalidV2: Map<String, String> get() = jsonFiles("examples/v2/invalid")
+    val validV3: Map<String, String> get() = jsonFiles("examples/v3")
 
     /** Parses JSON text into plain maps, lists, strings, numbers and booleans. */
     fun parse(text: String): Any? = mapper.readValue(text, Any::class.java)

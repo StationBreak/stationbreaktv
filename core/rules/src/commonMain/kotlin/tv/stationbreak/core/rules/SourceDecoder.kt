@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.CanonicalId
 
 private val SOURCE_KINDS_V1 = setOf("library", "genre", "collection", "tag", "yearRange", "series")
 private val SOURCE_KINDS_V2 = SOURCE_KINDS_V1 + "item"
+private val SOURCE_KINDS_V3 = SOURCE_KINDS_V2 + "studio"
 private val FILLER_SOURCE_KINDS = setOf("library", "collection", "tag")
 private const val MAX_LIST = RulesLimits.MAX_LIST_ENTRIES
 
@@ -16,7 +17,12 @@ internal class SourceDecoder(
     private val unsupported: UnsupportedKinds,
     version: Int,
 ) {
-    private val kinds = if (version >= 2) SOURCE_KINDS_V2 else SOURCE_KINDS_V1
+    private val kinds =
+        when {
+            version >= 3 -> SOURCE_KINDS_V3
+            version >= 2 -> SOURCE_KINDS_V2
+            else -> SOURCE_KINDS_V1
+        }
 
     fun list(
         element: JsonElement,
@@ -54,6 +60,7 @@ internal class SourceDecoder(
             "item" -> Source.Item(id(obj, path), extras(obj, setOf("type", "id")))
             "genre" -> Source.Genre(sourceName(obj, path), extras(obj, setOf("type", "name")))
             "tag" -> Source.Tag(sourceName(obj, path), extras(obj, setOf("type", "name")))
+            "studio" -> Source.Studio(sourceName(obj, path), extras(obj, setOf("type", "name")))
             else -> yearRange(obj, path)
         }
 

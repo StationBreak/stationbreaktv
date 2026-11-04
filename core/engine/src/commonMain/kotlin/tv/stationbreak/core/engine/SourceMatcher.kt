@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.cleanStudioName
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
 
@@ -36,6 +37,7 @@ internal class SourceMatcher(
     private val seasonMembers: Map<String, IntArray>
     private val genres: NameSet
     private val tags: NameSet
+    private val studios: NameSet
     private val yearFrom: IntArray
     private val yearTo: IntArray
     private val yearSource: IntArray
@@ -60,6 +62,8 @@ internal class SourceMatcher(
         val genreSources = ArrayList<Int>()
         val tagNames = ArrayList<String>()
         val tagSources = ArrayList<Int>()
+        val studioNames = ArrayList<String>()
+        val studioSources = ArrayList<Int>()
         val from = ArrayList<Int>()
         val to = ArrayList<Int>()
         val years = ArrayList<Int>()
@@ -75,6 +79,15 @@ internal class SourceMatcher(
 
                 is Source.Item -> {
                     items.add(source.id.value, index)
+                }
+
+                is Source.Studio -> {
+                    // The studio fold cleans, then folds; a name that cleans to nothing matches nothing.
+                    val cleaned = cleanStudioName(source.name)
+                    if (cleaned.isNotEmpty()) {
+                        studioNames.add(cleaned)
+                        studioSources.add(index)
+                    }
                 }
 
                 is Source.Genre -> {
@@ -114,6 +127,7 @@ internal class SourceMatcher(
         seasonMembers = seasons.freeze()
         genres = NameSet(genreNames, genreSources.toIntArray())
         tags = NameSet(tagNames, tagSources.toIntArray())
+        studios = NameSet(studioNames, studioSources.toIntArray())
         allGenreSources = if (genreSources.isEmpty()) null else genreSources.toIntArray()
         allTagSources = if (tagSources.isEmpty()) null else tagSources.toIntArray()
         yearFrom = from.toIntArray()
@@ -189,6 +203,10 @@ internal class SourceMatcher(
             any = true
         }
         if (markNames(tags, item.foldedTags, inherited?.foldedTags, hits)) {
+            if (hits == null) return true
+            any = true
+        }
+        if (markNames(studios, item.foldedStudios, inherited?.foldedStudios, hits)) {
             if (hits == null) return true
             any = true
         }

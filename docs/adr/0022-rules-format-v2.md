@@ -143,3 +143,54 @@ does not claim it.
 - A file with `formatVersion` 3 is not scheduled. Version 2 does not change any version 1 default, rule or vector.
 - Every ruling's cost is accepted. The costs that a viewer can see (an edit joining part-way into an item, a show
   running tail into head once per cycle, a rare repeat at the end of a day) are told to the owner.
+
+## Addendum: Version 3 (spec 23, lineup curation, 2026-11-03)
+
+Version 2's last consequence ("a file with `formatVersion` 3 is not scheduled") held until this addendum. Spec 23 needs
+three things that version 2 cannot say, and a lineup that changes for existing rules needs a new version (ADR-0002).
+
+**Why version 3.**
+
+1. **Studios.** A themed channel is "this studio's output", and a studio is a field every Jellyfin server has. Version 2 has
+   no source or filter for it. Version 3 adds the `studio` source and exclusion and the `studios` filter, matched under a
+   fixed studio fold (clean, then ASCII fold) so every TV reads the same name the same way.
+2. **Narrower themes.** A theme is often "this, but not that". Version 3 adds the filters `tags` (any of), `notGenres` (none
+   of, failing closed when an episode's series is not in the snapshot) and a runtime window for each kind of item
+   (`runtime.episode`, `runtime.movie`), so "short shows, mid-length films" can be one channel.
+3. **A programmed order.** `shuffle` spreads titles by chance and `rotation` by caps. A channel that should feel
+   programmed (short episodes in pairs, no title or franchise again within three hours, a heavier title a little more
+   often) needs an order of its own: `curated`, with the tunables `ordering.repeatGapMinutes` (0 to 1440, default 180) and
+   `ordering.pairUpToMinutes` (1 to 1440, default 35).
+
+**Rulings.**
+
+- **Side inputs are not in the file (Resolution 9).** The weights (title to 1 to 3), the franchise map (every snapshot
+  collection, the smallest ID) and the trim window's `keeps` (series to a cap in milliseconds) depend on the whole lineup
+  or on the library, not on one channel's rules. They are inputs to building a day, like the film-to-collection map in
+  version 2. A rules file read on its own gives every title weight 1 and keeps everything. Two TVs agree because they
+  compute the same side inputs from the same lineup and snapshot (spec 23 tests this).
+- **Tunables are in the file (Resolution 10).** The repeat gap and the pair-up length change a lineup and are properties
+  of one channel, so they are optional version 3 fields with fixed defaults, in the file, validated whatever the mode and
+  read only by `curated`. Their presence counts as using version 3.
+- **The trim window (Resolution 12).** When curation caps a series' share on a channel, it claims all of the series and
+  gives the scheduler a cap in milliseconds; the scheduler turns it into a count `k` from the series' items in the in-group
+  order and keeps a window of `k` items that starts at `floorMod(n * k, s)` and wraps. Films are never windowed. This is the
+  last step of the pool of an epoch, in every mode, and is empty for every version 1 and 2 caller.
+- **`curated` is placed like `shuffle`.** Each day has its own seed and starts at its first run; the repeat gap restarts with
+  the day (a title can end one day and open the next); the planned end of the day wraps and has no group rule. `curated` has
+  no caps (a file with both is invalid) and ignores `timing.blockLength`.
+- **A studio source is not fail-closed.** Like a genre or tag source it uses an episode's own studios when its series is
+  missing. Only `notGenres` fails closed, because it is a promise of what will not air.
+
+**Coexistence.** Versions 1, 2 and 3 coexist with no migration. A reader that supports 3 reads 1 and 2 unchanged, and a
+version 3 feature in a file that says 1 or 2 is an unknown kind (`studio`, `curated`: unsupported) or an unknown field (the
+filters and tunables: kept and ignored). **A builder or other writer writes the lowest version its features need**, so a
+channel that uses no version 3 feature stays a version 2 (or 1) file byte for byte and older apps keep reading it. The
+catalog that uses version 3 is a later step of spec 23; no shipped rules use it yet.
+
+**Consequences.**
+
+- The document, a version 3 JSON Schema and the version 3 examples are the contract; the version 3 vectors are computed by
+  an independent reference written from the document alone. A disagreement is fixed in the code or the document, never in a
+  vector.
+- A file with `formatVersion` 4 is not scheduled. Version 3 does not change any version 1 or 2 default, rule or vector.

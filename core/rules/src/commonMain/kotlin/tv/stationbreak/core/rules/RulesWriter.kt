@@ -32,7 +32,7 @@ object RulesWriter {
             rules.exclusions?.let { put("exclusions", JsonArray(it.map(::source))) }
             rules.maxRating?.let { put("maxRating", JsonPrimitive(it)) }
             rules.ordering?.let { put("ordering", ordering(it)) }
-            rules.filters?.let { put("filters", filters(it)) }
+            rules.filters?.let { put("filters", FiltersWriter.write(it)) }
             put("timing", timing(rules.timing))
             rules.filler?.let { put("filler", filler(it)) }
         }
@@ -49,32 +49,8 @@ object RulesWriter {
                     },
                 )
             }
-        }
-
-    private fun filters(filters: Filters): JsonObject =
-        obj(filters.extras) {
-            filters.genres?.let { genres -> put("genres", JsonArray(genres.map { JsonPrimitive(it) })) }
-            val from = filters.yearFrom
-            val to = filters.yearTo
-            if (from != null && to != null) {
-                put(
-                    "years",
-                    obj(filters.yearsExtras) {
-                        put("from", JsonPrimitive(from))
-                        put("to", JsonPrimitive(to))
-                    },
-                )
-            }
-            if (filters.minRuntimeMinutes != null || filters.maxRuntimeMinutes != null) {
-                put(
-                    "runtime",
-                    obj(filters.runtimeExtras) {
-                        filters.minRuntimeMinutes?.let { put("minMinutes", JsonPrimitive(it)) }
-                        filters.maxRuntimeMinutes?.let { put("maxMinutes", JsonPrimitive(it)) }
-                    },
-                )
-            }
-            filters.kind?.let { put("kind", JsonPrimitive(it.wireName)) }
+            ordering.repeatGapMinutes?.let { put("repeatGapMinutes", JsonPrimitive(it)) }
+            ordering.pairUpToMinutes?.let { put("pairUpToMinutes", JsonPrimitive(it)) }
         }
 
     private fun timing(timing: Timing): JsonObject =
@@ -131,6 +107,10 @@ object RulesWriter {
                 is Source.Item -> {
                     typed("item", "id" to JsonPrimitive(source.id.value))
                 }
+
+                is Source.Studio -> {
+                    typed("studio", "name" to JsonPrimitive(source.name))
+                }
             }
         }
 
@@ -143,7 +123,7 @@ object RulesWriter {
     }
 
     /** Known fields first, in the order [known] puts them, then each extra that does not reuse a known key. */
-    private fun obj(
+    internal fun obj(
         extras: JsonObject,
         known: MutableMap<String, JsonElement>.() -> Unit,
     ): JsonObject {

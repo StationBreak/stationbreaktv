@@ -1,0 +1,21 @@
+{
+  "formatVersion": 3,
+  "name": "Programmed",
+  "seed": "44",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "ordering": {
+    "mode": "curated"
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

@@ -6,6 +6,7 @@ import tv.stationbreak.core.model.schedule.Caps
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.schedule.TitleWeights
 
 /** What kind of group an item belongs to in the version 2 orders. */
 internal enum class GroupKind { Series, Collection, Single }
@@ -17,6 +18,8 @@ internal enum class GroupKind { Series, Collection, Single }
  */
 internal class GroupRules(
     private val films: FilmCollections,
+    /** The weight of each title: only the `curated` walk reads it. */
+    val weights: TitleWeights,
 ) {
     /** The series of an episode, else the film's collection, else the item's own ID. */
     fun groupId(item: ScheduleItem): CanonicalId = item.seriesId ?: collectionOf(item) ?: item.id

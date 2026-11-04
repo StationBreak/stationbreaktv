@@ -26,6 +26,8 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.RatingLadder
@@ -37,9 +39,11 @@ import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.TimeSource
 
 /**
- * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build`), in
- * canonical-ID order, and its [films] (empty unless the channel's ordering reads collections). With
- * `buildDay(settings, pool, n, films)` it is the input of the day's schedule. [hidden] is why
+ * A switched-on channel's broadcast day: its [settings], the epoch [n] and that day's [pool] (`EpochPool.build` and
+ * then the trim window, `EpochPool.dayPool`), in canonical-ID order, and its [films] (empty unless the channel's
+ * ordering reads collections). With
+ * `buildDay(settings, pool, n, films, weights, NONE)` it is the input of the day's schedule; [pool] is what is kept on
+ * disk. [hidden] is why
  * the day is empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
  */
 @Suppress("LongParameterList") // The day's fixed facts, one for one.
@@ -55,17 +59,31 @@ internal class ChannelDay private constructor(
     // The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once).
     private val layout: Lazy<Day>,
 ) {
-    constructor(
-        channel: LineupChannel,
-        name: String,
-        settings: SchedulerSettings,
-        n: Long,
-        pool: List<ScheduleItem>,
-        films: FilmCollections,
-        hidden: HiddenReason?,
-        ceilingRank: Int?,
-        laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
-    ) : this(channel, name, settings, n, pool, films, hidden, ceilingRank, layoutOf(settings, pool, n, films, laidOut))
+    companion object {
+        /**
+         * A day made now: [pool] is the pool of the epoch ([EpochPool.build]) and must not be windowed already, and the
+         * day's pool is that with the trim window of [keeps] applied, worked out here once (no layout is built). A day
+         * restored from disk is made with [TitleKeeps.NONE]: what was kept is the windowed pool already, and NONE
+         * leaves it as it is.
+         */
+        @Suppress("LongParameterList") // The day's fixed facts, one for one.
+        fun of(
+            channel: LineupChannel,
+            name: String,
+            settings: SchedulerSettings,
+            n: Long,
+            pool: List<ScheduleItem>,
+            films: FilmCollections,
+            hidden: HiddenReason?,
+            ceilingRank: Int?,
+            keeps: TitleKeeps,
+            laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
+        ): ChannelDay {
+            val dayPool = EpochPool.dayPool(pool, n, keeps)
+            val layout = layoutOf(settings, dayPool, n, films, laidOut)
+            return ChannelDay(channel, name, settings, n, dayPool, films, hidden, ceilingRank, layout)
+        }
+    }
 
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
@@ -95,7 +113,16 @@ private fun layoutOf(
 ): Lazy<Day> =
     lazy {
         val began = TimeSource.Monotonic.markNow()
-        buildDay(settings, pool, n, films).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
+        // The pool is already the day's pool (windowed when the day was made), so the layout builds it with no keeps.
+        // The weights come with the curation wiring (Task 21).
+        buildDay(
+            settings,
+            pool,
+            n,
+            films,
+            TitleWeights.NONE,
+            TitleKeeps.NONE,
+        ).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
     }
 
 /** No film is in a collection: a leftovers channel's side map, and a channel whose ordering does not read one. */
@@ -161,6 +188,9 @@ internal class Scheduled(
 @Suppress("TooManyFunctions") // A lineup's days: worked out, restored, keyed and rebound together.
 internal class LineupDays(
     private val catalog: StarterCatalogView,
+    // The trim keeps of a channel's day: none until the curation wiring (Task 21) gives each channel its own. When it
+    // does, they must also join [inputsOf] and the key of the persisted days, or a changed keep would reuse old days.
+    private val keepsFor: (Scheduled) -> TitleKeeps = { TitleKeeps.NONE },
     private val laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
 ) {
     private val ceilings = Ceilings(catalog)
@@ -282,19 +312,28 @@ internal class LineupDays(
     ): List<ChannelDay> = Build(lineup, snapshots, filteredSnapshots, evaluated).days(scheduled, beforeChannel)
 
     /**
-     * The day of [s] whose day pool is [pool], whose film-to-collection map is [films] and whose empty reason is
-     * [hidden]: what [days] gives once it has worked those out, and what a day kept on disk ([PersistedDays]) is made
-     * back into. Everything else of the day comes from [s] and the catalog.
+     * The day of [s] as a day kept on disk ([PersistedDays]) is made back into: [pool] is the day pool as it was kept
+     * (already windowed, so it is made with [TitleKeeps.NONE]), [films] is its film-to-collection map and [hidden] its
+     * empty reason. Everything else of the day comes from [s] and the catalog.
      */
     fun restore(
         s: Scheduled,
         pool: List<ScheduleItem>,
         films: FilmCollections,
         hidden: HiddenReason?,
+    ): ChannelDay = dayOf(s, pool, films, hidden, TitleKeeps.NONE)
+
+    // The day of [s] from the pool of its epoch: the day pool is that with the window of [keeps] applied, once.
+    private fun dayOf(
+        s: Scheduled,
+        pool: List<ScheduleItem>,
+        films: FilmCollections,
+        hidden: HiddenReason?,
+        keeps: TitleKeeps,
     ): ChannelDay {
         val ceilingRank = RatingLadder.rankOf(ceilings.of(s.channel))
         val name = s.channel.displayName(catalog)
-        return ChannelDay(s.channel, name, s.settings, s.n, pool, films, hidden, ceilingRank, laidOut)
+        return ChannelDay.of(s.channel, name, s.settings, s.n, pool, films, hidden, ceilingRank, keeps, laidOut)
     }
 
     /**
@@ -308,7 +347,9 @@ internal class LineupDays(
         filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
     ): Int {
         val build = Build(lineup, snapshots, filteredSnapshots)
-        val aired = build.days(scheduled).flatMapTo(HashSet()) { day -> day.pool.map { it.id } }
+        // Trimmed items stay claimed (plan Resolution 24): the count reads the epoch pools, not the windowed day pools.
+        build.days(scheduled)
+        val aired = scheduled.flatMapTo(HashSet()) { s -> build.epochPoolOf(s).map { it.id } }
         val nowhere = HashSet<CanonicalId>()
         for ((cut, group) in scheduled.groupBy { it.cut }) {
             val items = build.snapshotOf(cut).items.map { it.item }
@@ -364,6 +405,11 @@ internal class LineupDays(
     ) {
         private val withheldBy = HashMap<Cut, Set<CanonicalId>>()
 
+        // The pool of each scheduled channel's epoch, before the trim window: what a channel claims.
+        private val epochPools = HashMap<Scheduled, List<ScheduleItem>>()
+
+        fun epochPoolOf(s: Scheduled): List<ScheduleItem> = epochPools.getValue(s)
+
         /** The snapshot of [cut]: with the extras taken out for a filtered day. */
         fun snapshotOf(cut: Cut): RuleSnapshot =
             if (cut.extras) filteredSnapshots.getValue(cut.cutoffMs) else snapshots.getValue(cut.cutoffMs)
@@ -398,7 +444,11 @@ internal class LineupDays(
                 beforeChannel()
                 ruled[s] = ruledDay(s)
             }
-            val claimedByOn = ruled.values.flatMapTo(HashSet()) { day -> day.pool.map { it.id } }
+            // Trimmed items stay claimed (plan Resolution 24): a channel that is on claims its whole epoch pool, not
+            // its windowed day pool, so the leftovers never air what the window set aside, whatever the day. The claim
+            // chain below does the same. Days restored from disk claim nothing (the leftovers' stored pools already
+            // left these items out); only a build from the snapshots, here, makes claims.
+            val claimedByOn = ruled.keys.flatMapTo(HashSet()) { s -> epochPoolOf(s).map { it.id } }
             val byId = scheduled.associateBy { it.channel.id }
             // The leftovers channels claim in turn, so each one's day is worked out in claim order: the chain of
             // claims is walked once per cut-off, not again from the start for every channel. The days go back in the
@@ -434,7 +484,9 @@ internal class LineupDays(
                 ruledDayOf(ceilings, rules, s.channel, snapshot, s.settings, s.n) { r, policy ->
                     evaluate(r, s.cut, policy)
                 }
-            return restore(s, ruled.day, ruled.films, hiddenReason(ruled.pool, ruled.day))
+            epochPools[s] = ruled.day
+            // The window keeps at least one episode of each series, so emptiness (and its reason) is unchanged by it.
+            return dayOf(s, ruled.day, ruled.films, hiddenReason(ruled.pool, ruled.day), keepsFor(s))
         }
 
         private fun leftoversDay(
@@ -449,12 +501,18 @@ internal class LineupDays(
                 val before = leftovers[chain.next++]
                 val pool = leftoversPool(before, snapshot, chain.claimed)
                 val on = byId[before.id]
-                val items = if (on != null) EpochPool.build(on.settings, pool.items, on.n) else pool.items
+                val items =
+                    if (on != null) {
+                        EpochPool.build(on.settings, pool.items, on.n)
+                    } else {
+                        pool.items
+                    }
                 items.mapTo(chain.claimed) { it.id }
             }
             val pool = leftoversPool(s.channel, snapshot, chain.claimed)
             val day = EpochPool.build(s.settings, pool.items, s.n)
-            return restore(s, day, NO_FILMS, hiddenReason(pool, day))
+            epochPools[s] = day
+            return dayOf(s, day, NO_FILMS, hiddenReason(pool, day), keepsFor(s))
         }
 
         /** What no leftovers channel may air from the [cut]'s snapshot: opt-in and hidden channels' pools. */

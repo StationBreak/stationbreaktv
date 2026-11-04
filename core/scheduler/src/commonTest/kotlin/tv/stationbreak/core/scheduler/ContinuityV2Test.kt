@@ -33,10 +33,10 @@ class ContinuityV2Test {
         fixture: V2Fixture,
         n: Long,
     ): BuiltDay {
-        val groups = GroupRules(fixture.films)
-        val pool = EpochPool.build(settings, fixture.items, n)
+        val groups = GroupRules(fixture.films, noWeights())
+        val pool = EpochPool.build(settings, fixture.items, n, noKeeps())
         val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), groups)
-        val day = buildDay(settings, fixture.items, n, fixture.films)
+        val day = buildDay(settings, fixture.items, n, fixture.films, noWeights(), noKeeps())
         val lap = (day.startMs + settings.offsetMs).floorDiv(cycle.sumOf { Timeline.slotMs(settings, it) })
         return BuiltDay(n, day, cycle, lap * cycle.size + day.startRunIndex)
     }
@@ -63,7 +63,7 @@ class ContinuityV2Test {
         fixture: V2Fixture,
         settings: SchedulerSettings,
     ): Int {
-        val rules = GroupRules(fixture.films)
+        val rules = GroupRules(fixture.films, noWeights())
         val caps = checkNotNull(settings.caps)
         var run = 0
         var exceeds = 0
@@ -167,7 +167,7 @@ class ContinuityV2Test {
                 for (built in days(settings, fixture, 700L, 12)) {
                     val cycleItems = built.cycle.flatMap { it.items }
                     val first = built.cycle.take(built.day.startRunIndex).sumOf { it.items.size }
-                    val pool = EpochPool.build(settings, fixture.items, built.n)
+                    val pool = EpochPool.build(settings, fixture.items, built.n, noKeeps())
                     assertEquals(Orderings.inOrder(pool), cycleItems, "the cycle is the in-order walk, day ${built.n}")
                     val played =
                         built.day.blocks

@@ -53,6 +53,24 @@ class ExampleCoverageTest {
     }
 
     @Test
+    fun everyV3FeatureIsShown() {
+        val v3 = RulesFormatFiles.validV3.values.map { asMap(RulesFormatFiles.parse(it)) }
+        assertTrue(v3.isNotEmpty(), "no files in examples/v3/")
+        assertTrue(v3.all { it["formatVersion"] == 3 }, "every v3 example says 3")
+        assertTrue(v3.any { doc -> list(doc["sources"]).any { it["type"] == "studio" } }, "studio source")
+        assertTrue(v3.any { doc -> list(doc["exclusions"]).any { it["type"] == "studio" } }, "studio exclusion")
+        val filters = v3.mapNotNull { it["filters"] as? Map<*, *> }
+        for (part in listOf("tags", "studios", "notGenres")) {
+            assertTrue(filters.any { part in it }, "filters.$part")
+        }
+        val runtimes = filters.mapNotNull { it["runtime"] as? Map<*, *> }
+        assertTrue(runtimes.any { "episode" in it } && runtimes.any { "movie" in it }, "per-kind runtime")
+        val ordering = v3.mapNotNull { it["ordering"] as? Map<*, *> }
+        assertTrue(ordering.any { it["mode"] == "curated" && "repeatGapMinutes" !in it }, "curated, default tunables")
+        assertTrue(ordering.any { "repeatGapMinutes" in it && "pairUpToMinutes" in it }, "both tunables")
+    }
+
+    @Test
     fun everyFillerModeIsShownWithEachFillerSource() {
         val fillers = docs.mapNotNull { it["filler"] as? Map<*, *> }
         assertEquals(setOf("none", "padToGrid", "betweenEveryN"), fillers.map { it["mode"] }.toSet())

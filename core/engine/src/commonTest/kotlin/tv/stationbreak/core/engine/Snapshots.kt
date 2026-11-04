@@ -35,6 +35,7 @@ internal fun movie(
     tags: List<String> = emptyList(),
     year: Int? = null,
     deletedAtMs: Long? = null,
+    studios: List<String> = emptyList(),
 ): RuleItem =
     RuleItem(
         item =
@@ -55,6 +56,7 @@ internal fun movie(
         officialRating = rating,
         genres = genres,
         tags = tags,
+        studios = studios,
     )
 
 @Suppress("LongParameterList") // Test builders: one defaulted parameter per field a test varies.
@@ -68,6 +70,7 @@ internal fun episode(
     tags: List<String> = emptyList(),
     year: Int? = null,
     deletedAtMs: Long? = null,
+    studios: List<String> = emptyList(),
 ): RuleItem =
     RuleItem(
         item =
@@ -88,6 +91,7 @@ internal fun episode(
         officialRating = rating,
         genres = genres,
         tags = tags,
+        studios = studios,
     )
 
 internal fun series(
@@ -95,15 +99,19 @@ internal fun series(
     rating: String? = null,
     genres: List<String> = emptyList(),
     tags: List<String> = emptyList(),
-): RuleSeries = RuleSeries(id = id, officialRating = rating, genres = genres, tags = tags)
+    studios: List<String> = emptyList(),
+): RuleSeries = RuleSeries(id = id, officialRating = rating, genres = genres, tags = tags, studios = studios)
 
+@Suppress("LongParameterList") // A test builder: every field has a default.
 internal fun collection(
     id: CanonicalId,
     movies: Set<CanonicalId> = emptySet(),
     episodes: Set<CanonicalId> = emptySet(),
     series: Set<CanonicalId> = emptySet(),
     seasons: Set<CanonicalId> = emptySet(),
-): RuleCollection = RuleCollection(id = id, movies = movies, episodes = episodes, series = series, seasons = seasons)
+    name: String? = null,
+): RuleCollection =
+    RuleCollection(id = id, movies = movies, episodes = episodes, series = series, seasons = seasons, name = name)
 
 /** Items are kept in the order given: the builder does not sort, because the evaluator must keep that order. */
 internal fun snapshot(

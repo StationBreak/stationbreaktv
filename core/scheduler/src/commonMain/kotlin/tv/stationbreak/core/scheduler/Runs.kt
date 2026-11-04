@@ -34,7 +34,8 @@ object Runs {
     /**
      * The runs of one cycle of [pool] in the settings' ordering mode. [seedN] is the epoch's seed, and only `shuffle`
      * uses it: `randomInOrder` and `rotation` key their groups with the channel seed, so their walk is the same every
-     * day. For those two, one turn is one run, and `blockLength` does not apply to `rotation`.
+     * day. For those two, one turn is one run, and `blockLength` does not apply to `rotation`
+     * or `curated` (whose runs are pairs, set by `pairUpToMs`).
      */
     internal fun cycle(
         settings: SchedulerSettings,
@@ -65,6 +66,10 @@ object Runs {
 
             OrderingMode.InOrder -> {
                 form(Orderings.inOrder(pool), settings.blockLength)
+            }
+
+            OrderingMode.Curated -> {
+                curatedRuns(pool, seedN, groups, settings)
             }
         }
 }

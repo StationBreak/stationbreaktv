@@ -1,0 +1,28 @@
+{
+  "formatVersion": 3,
+  "name": "Tagged And Produced",
+  "seed": "41",
+  "sources": [
+    {
+      "type": "library",
+      "id": "11111111111111111111111111111111"
+    }
+  ],
+  "filters": {
+    "tags": [
+      "Tag A",
+      "Tag B"
+    ],
+    "studios": [
+      "Studio A",
+      "Studio C"
+    ]
+  },
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

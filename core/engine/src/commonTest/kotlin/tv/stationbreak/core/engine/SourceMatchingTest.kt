@@ -319,4 +319,67 @@ class SourceMatchingTest {
         assertEquals(true, matcher.tally(movie(idOf(1)), null, hits))
         assertEquals(listOf(1, 1), hits.toList())
     }
+
+    @Test
+    fun aStudioSourceMatchesTheItemOrItsSeries() {
+        val snap =
+            snapshot(
+                series =
+                    listOf(
+                        series(show, studios = listOf("Studio A")),
+                        series(otherShow, studios = listOf("Studio B")),
+                    ),
+            )
+        check(
+            Source.Studio("Studio A"),
+            snap,
+            movie(idOf(1), studios = listOf("Studio A")) to true,
+            movie(idOf(2), studios = listOf("Studio B", "Studio A")) to true,
+            movie(idOf(3), studios = listOf("Studio B")) to false,
+            movie(idOf(4)) to false,
+            // Inherited from the series.
+            episode(idOf(5), show) to true,
+            episode(idOf(6), otherShow) to false,
+            episode(idOf(7), otherShow, studios = listOf("Studio A")) to true,
+            // A series missing from the snapshot: own studios only, and no fail-closed match.
+            episode(idOf(8), idOf(0x99)) to false,
+            episode(idOf(9), idOf(0x99), studios = listOf("Studio A")) to true,
+            episode(idOf(10), null) to false,
+        )
+        val closed = SourceMatcher(listOf(Source.Studio("Studio A")), snap, missingSeriesMatchesNames = true)
+        assertEquals(false, closed.matches(episode(idOf(11), idOf(0x99)), null))
+    }
+
+    @Test
+    fun studioMatchingUsesTheStudioFold() {
+        val snap = snapshot()
+        val nbsp = "\u00A0"
+        check(
+            Source.Studio("Studio A"),
+            snap,
+            movie(idOf(1), studios = listOf("STUDIO A")) to true,
+            movie(idOf(2), studios = listOf("Studio A$nbsp")) to true,
+            movie(idOf(3), studios = listOf("Stu\u200Bdio A")) to true,
+            movie(idOf(4), studios = listOf("Studio  A")) to false,
+            movie(idOf(5), studios = listOf("Studi\u00F6 A")) to false,
+        )
+        // The rules' name is folded the same way.
+        check(Source.Studio("  studio a$nbsp"), snap, movie(idOf(6), studios = listOf("Studio A")) to true)
+        // A name that cleans to nothing matches nothing.
+        check(Source.Studio("\u200B"), snap, movie(idOf(7), studios = listOf("\u200B")) to false)
+        // A studio is not a genre or a tag.
+        check(Source.Studio("Comedy"), snap, movie(idOf(8), genres = listOf("Comedy")) to false)
+    }
+
+    @Test
+    fun aStudioSourceIsTalliedOncePerItem() {
+        val matcher =
+            SourceMatcher(
+                listOf(Source.Studio("Studio A"), Source.Studio("studio a"), Source.Studio("Studio B")),
+                snapshot(),
+            )
+        val hits = IntArray(3)
+        assertEquals(true, matcher.tally(movie(idOf(1), studios = listOf("Studio A", "STUDIO A")), null, hits))
+        assertEquals(listOf(1, 1, 0), hits.toList())
+    }
 }

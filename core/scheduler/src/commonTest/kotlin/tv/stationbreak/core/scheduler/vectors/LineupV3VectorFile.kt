@@ -1,0 +1,12210 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.core.scheduler.vectors
+
+/**
+ * The Kotlin copy of `docs/rules-format/vectors/lineup-v3.json`. `VectorFilesInSyncTest` (jvmTest) fails if it
+ * differs from the published file. A test in commonTest cannot read files, because linuxX64Test cannot.
+ */
+@Suppress("LargeClass") // Data only: one vector file.
+internal object LineupV3VectorFile {
+    val text: String =
+        """
+        {
+          "description": "Version 3 whole days, in the lineup-v2.json case shape (see its description). ordering.mode may also be curated. settings may also hold: repeatGapMs and pairUpToMs (decimal strings, ms; given in every curated case, absent elsewhere, where they are not read); weights (title ID to a whole number 1 to 3; absent means every title has weight 1); keeps (series ID to a cap in whole milliseconds, a decimal string; the trim window, applied in every mode as the last step of the epoch's pool); franchises (the franchise map of curated: film ID to collection ID, already resolved); runtimeFilter may also hold episode and movie, each {minMinutes?, maxMinutes?}, the per-kind windows (applied to the epoch's pool, runtimeMs compared to minutes * 60000, both included). Every case has errorTimes S - 1 and E. An inputError case gives no blocks: building the day fails.",
+          "source": "independent Python reference, not committed",
+          "cases": [
+            {
+              "name": "curated, defaults, aligned 30: series that pair, a 44-minute series, two franchises and singles",
+              "note": "Series ...5e0020 alternates 30 and 36 minute episodes: a 36-minute episode (over pairUpToMs, 35 min) is never in a pair. Franchises ...c0110006 (3 films) and ...c0110007 (2 films) never pair.",
+              "settings": {
+                "seed": "201",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "franchises": {
+                  "000000000000030000000000f1170083": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170084": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170085": "000000000000030000000000c0110006",
+                  "000000000000030000000000f117008d": "000000000000030000000000c0110007",
+                  "000000000000030000000000f117008e": "000000000000030000000000c0110007"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9001e01",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-01",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001e02",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-02",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001e03",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-03",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001e04",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-04",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001e05",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-05",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001e06",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-06",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001e07",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-07",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001e08",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-08",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9001e09",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-09",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9001e0a",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-10",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9001e0b",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-11",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9001e0c",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-12",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000e9001f01",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-01",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001f02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-02",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001f03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-03",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001f04",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-04",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001f05",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-05",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001f06",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-06",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001f07",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-07",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001f08",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-08",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002001",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002002",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002003",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002005",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002006",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002007",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002008",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000f1170083",
+                  "kind": "movie",
+                  "runtimeMs": "6300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1984-06-08"
+                },
+                {
+                  "id": "000000000000030000000000f1170084",
+                  "kind": "movie",
+                  "runtimeMs": "6480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1989-06-16"
+                },
+                {
+                  "id": "000000000000030000000000f1170085",
+                  "kind": "movie",
+                  "runtimeMs": "6960000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2016-02-12"
+                },
+                {
+                  "id": "000000000000030000000000f117008d",
+                  "kind": "movie",
+                  "runtimeMs": "7260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1977-05-25"
+                },
+                {
+                  "id": "000000000000030000000000f117008e",
+                  "kind": "movie",
+                  "runtimeMs": "7440000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1980
+                },
+                {
+                  "id": "000000000000030000000000f1170097",
+                  "kind": "movie",
+                  "runtimeMs": "8520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1994-09-23"
+                },
+                {
+                  "id": "000000000000030000000000f1170098",
+                  "kind": "movie",
+                  "runtimeMs": "5280000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f1170099",
+                  "kind": "movie",
+                  "runtimeMs": "5820000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-12-19"
+                },
+                {
+                  "id": "00000000000003000000000010050004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793710860000",
+                  "itemId": "000000000000030000000000f117008d"
+                },
+                {
+                  "startMs": "1793710860000",
+                  "endMs": "1793712600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793712600000",
+                  "endMs": "1793718900000",
+                  "itemId": "000000000000030000000000f1170083"
+                },
+                {
+                  "startMs": "1793718900000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793728320000",
+                  "itemId": "000000000000030000000000f1170097"
+                },
+                {
+                  "startMs": "1793728320000",
+                  "endMs": "1793728800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793728800000",
+                  "endMs": "1793730600000",
+                  "itemId": "00000000000003000000000010050004"
+                },
+                {
+                  "startMs": "1793730600000",
+                  "endMs": "1793736420000",
+                  "itemId": "000000000000030000000000f1170099"
+                },
+                {
+                  "startMs": "1793736420000",
+                  "endMs": "1793737800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793737800000",
+                  "endMs": "1793740440000",
+                  "itemId": "000000000000030000000000e9001f02"
+                },
+                {
+                  "startMs": "1793740440000",
+                  "endMs": "1793741400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793741400000",
+                  "endMs": "1793743200000",
+                  "itemId": "000000000000030000000000e9002008"
+                },
+                {
+                  "startMs": "1793743200000",
+                  "endMs": "1793748480000",
+                  "itemId": "000000000000030000000000f1170098"
+                },
+                {
+                  "startMs": "1793748480000",
+                  "endMs": "1793748600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793748600000",
+                  "endMs": "1793751300000",
+                  "itemId": "000000000000030000000000e9001f03"
+                },
+                {
+                  "startMs": "1793751300000",
+                  "endMs": "1793752200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793752200000",
+                  "endMs": "1793754360000",
+                  "itemId": "000000000000030000000000e9002001"
+                },
+                {
+                  "startMs": "1793754360000",
+                  "endMs": "1793755800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793755800000",
+                  "endMs": "1793757180000",
+                  "itemId": "000000000000030000000000e9001e02"
+                },
+                {
+                  "startMs": "1793757180000",
+                  "endMs": "1793758500000",
+                  "itemId": "000000000000030000000000e9001e03"
+                },
+                {
+                  "startMs": "1793758500000",
+                  "endMs": "1793759400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793759400000",
+                  "endMs": "1793766840000",
+                  "itemId": "000000000000030000000000f117008e"
+                },
+                {
+                  "startMs": "1793766840000",
+                  "endMs": "1793768400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793768400000",
+                  "endMs": "1793770200000",
+                  "itemId": "000000000000030000000000e9002002"
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793772840000",
+                  "itemId": "000000000000030000000000e9001f04"
+                },
+                {
+                  "startMs": "1793772840000",
+                  "endMs": "1793773800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793773800000",
+                  "endMs": "1793775150000",
+                  "itemId": "000000000000030000000000e9001e04"
+                },
+                {
+                  "startMs": "1793775150000",
+                  "endMs": "1793776530000",
+                  "itemId": "000000000000030000000000e9001e05"
+                },
+                {
+                  "startMs": "1793776530000",
+                  "endMs": "1793777400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793777400000",
+                  "endMs": "1793783880000",
+                  "itemId": "000000000000030000000000f1170084"
+                },
+                {
+                  "startMs": "1793783880000",
+                  "endMs": "1793784600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793784600000",
+                  "endMs": "1793786760000",
+                  "itemId": "000000000000030000000000e9002003"
+                },
+                {
+                  "startMs": "1793786760000",
+                  "endMs": "1793788200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793788200000",
+                  "endMs": "1793789520000",
+                  "itemId": "000000000000030000000000e9001e06"
+                },
+                {
+                  "startMs": "1793789520000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793710860000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793756490000",
+                  "k": 3,
+                  "blockIndex": 18,
+                  "offsetMs": "690000",
+                  "nextIndexes": [
+                    19,
+                    20,
+                    21
+                  ]
+                },
+                {
+                  "t": "1793757179999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "1379999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 34,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "curated, defaults, aligned 30, the next day: a new walk and a new order, the gap restarts",
+              "note": "The walk is made afresh for day n + 1 with its own seed_n and its clock at 0: no repeat gap is carried from day n, and the day starts at run 0.",
+              "settings": {
+                "seed": "201",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "franchises": {
+                  "000000000000030000000000f1170083": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170084": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170085": "000000000000030000000000c0110006",
+                  "000000000000030000000000f117008d": "000000000000030000000000c0110007",
+                  "000000000000030000000000f117008e": "000000000000030000000000c0110007"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9001e01",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-01",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001e02",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-02",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001e03",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-03",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001e04",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-04",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001e05",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-05",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001e06",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-06",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001e07",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-07",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001e08",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-08",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9001e09",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-09",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9001e0a",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-10",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9001e0b",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-11",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9001e0c",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-12",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000e9001f01",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-01",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001f02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-02",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001f03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-03",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001f04",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-04",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001f05",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-05",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001f06",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-06",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001f07",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-07",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001f08",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-08",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002001",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002002",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002003",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002005",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002006",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002007",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002008",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000f1170083",
+                  "kind": "movie",
+                  "runtimeMs": "6300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1984-06-08"
+                },
+                {
+                  "id": "000000000000030000000000f1170084",
+                  "kind": "movie",
+                  "runtimeMs": "6480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1989-06-16"
+                },
+                {
+                  "id": "000000000000030000000000f1170085",
+                  "kind": "movie",
+                  "runtimeMs": "6960000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2016-02-12"
+                },
+                {
+                  "id": "000000000000030000000000f117008d",
+                  "kind": "movie",
+                  "runtimeMs": "7260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1977-05-25"
+                },
+                {
+                  "id": "000000000000030000000000f117008e",
+                  "kind": "movie",
+                  "runtimeMs": "7440000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1980
+                },
+                {
+                  "id": "000000000000030000000000f1170097",
+                  "kind": "movie",
+                  "runtimeMs": "8520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1994-09-23"
+                },
+                {
+                  "id": "000000000000030000000000f1170098",
+                  "kind": "movie",
+                  "runtimeMs": "5280000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f1170099",
+                  "kind": "movie",
+                  "runtimeMs": "5820000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-12-19"
+                },
+                {
+                  "id": "00000000000003000000000010050004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20761",
+              "blocks": [
+                {
+                  "startMs": "1793790000000",
+                  "endMs": "1793796480000",
+                  "itemId": "000000000000030000000000f1170084"
+                },
+                {
+                  "startMs": "1793796480000",
+                  "endMs": "1793797200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793797200000",
+                  "endMs": "1793805720000",
+                  "itemId": "000000000000030000000000f1170097"
+                },
+                {
+                  "startMs": "1793805720000",
+                  "endMs": "1793806200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793806200000",
+                  "endMs": "1793808840000",
+                  "itemId": "000000000000030000000000e9001f04"
+                },
+                {
+                  "startMs": "1793808840000",
+                  "endMs": "1793809800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793809800000",
+                  "endMs": "1793815620000",
+                  "itemId": "000000000000030000000000f1170099"
+                },
+                {
+                  "startMs": "1793815620000",
+                  "endMs": "1793817000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793817000000",
+                  "endMs": "1793818800000",
+                  "itemId": "00000000000003000000000010050004"
+                },
+                {
+                  "startMs": "1793818800000",
+                  "endMs": "1793826240000",
+                  "itemId": "000000000000030000000000f117008e"
+                },
+                {
+                  "startMs": "1793826240000",
+                  "endMs": "1793827800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793827800000",
+                  "endMs": "1793833080000",
+                  "itemId": "000000000000030000000000f1170098"
+                },
+                {
+                  "startMs": "1793833080000",
+                  "endMs": "1793833200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793833200000",
+                  "endMs": "1793834550000",
+                  "itemId": "000000000000030000000000e9001e01"
+                },
+                {
+                  "startMs": "1793834550000",
+                  "endMs": "1793835930000",
+                  "itemId": "000000000000030000000000e9001e02"
+                },
+                {
+                  "startMs": "1793835930000",
+                  "endMs": "1793836800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793836800000",
+                  "endMs": "1793839500000",
+                  "itemId": "000000000000030000000000e9001f05"
+                },
+                {
+                  "startMs": "1793839500000",
+                  "endMs": "1793840400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793840400000",
+                  "endMs": "1793842200000",
+                  "itemId": "000000000000030000000000e9002006"
+                },
+                {
+                  "startMs": "1793842200000",
+                  "endMs": "1793849160000",
+                  "itemId": "000000000000030000000000f1170085"
+                },
+                {
+                  "startMs": "1793849160000",
+                  "endMs": "1793849400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793849400000",
+                  "endMs": "1793850720000",
+                  "itemId": "000000000000030000000000e9001e03"
+                },
+                {
+                  "startMs": "1793850720000",
+                  "endMs": "1793852070000",
+                  "itemId": "000000000000030000000000e9001e04"
+                },
+                {
+                  "startMs": "1793852070000",
+                  "endMs": "1793853000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793853000000",
+                  "endMs": "1793855640000",
+                  "itemId": "000000000000030000000000e9001f06"
+                },
+                {
+                  "startMs": "1793855640000",
+                  "endMs": "1793856600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793856600000",
+                  "endMs": "1793858760000",
+                  "itemId": "000000000000030000000000e9002007"
+                },
+                {
+                  "startMs": "1793858760000",
+                  "endMs": "1793860200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793860200000",
+                  "endMs": "1793861580000",
+                  "itemId": "000000000000030000000000e9001e05"
+                },
+                {
+                  "startMs": "1793861580000",
+                  "endMs": "1793862900000",
+                  "itemId": "000000000000030000000000e9001e06"
+                },
+                {
+                  "startMs": "1793862900000",
+                  "endMs": "1793863800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793863800000",
+                  "endMs": "1793866500000",
+                  "itemId": "000000000000030000000000e9001f07"
+                },
+                {
+                  "startMs": "1793866500000",
+                  "endMs": "1793867400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793867400000",
+                  "endMs": "1793869200000",
+                  "itemId": "000000000000030000000000e9002008"
+                },
+                {
+                  "startMs": "1793869200000",
+                  "endMs": "1793871360000",
+                  "itemId": "000000000000030000000000e9002001"
+                },
+                {
+                  "startMs": "1793871360000",
+                  "endMs": "1793872800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793872800000",
+                  "endMs": "1793874150000",
+                  "itemId": "000000000000030000000000e9001e07"
+                },
+                {
+                  "startMs": "1793874150000",
+                  "endMs": "1793874600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793874600000",
+                  "endMs": "1793875980000",
+                  "itemId": "000000000000030000000000e9001e08"
+                },
+                {
+                  "startMs": "1793875980000",
+                  "endMs": "1793876400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793790000000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793796480000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793845680000",
+                  "k": 3,
+                  "blockIndex": 19,
+                  "offsetMs": "3480000",
+                  "nextIndexes": [
+                    20,
+                    21,
+                    22
+                  ]
+                },
+                {
+                  "t": "1793849159999",
+                  "k": 0,
+                  "blockIndex": 19,
+                  "offsetMs": "6959999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793876399999",
+                  "k": 3,
+                  "blockIndex": 39,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793789999999",
+                "1793876400000"
+              ]
+            },
+            {
+              "name": "curated, not aligned (back to back)",
+              "settings": {
+                "seed": "201",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "franchises": {
+                  "000000000000030000000000f1170083": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170084": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170085": "000000000000030000000000c0110006",
+                  "000000000000030000000000f117008d": "000000000000030000000000c0110007",
+                  "000000000000030000000000f117008e": "000000000000030000000000c0110007"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9001e01",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-01",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001e02",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-02",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001e03",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-03",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001e04",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-04",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001e05",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-05",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001e06",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-06",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001e07",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-07",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001e08",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-08",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9001e09",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-09",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9001e0a",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-10",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9001e0b",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-11",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9001e0c",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-12",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000e9001f01",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-01",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001f02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-02",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001f03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-03",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001f04",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-04",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001f05",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-05",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001f06",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-06",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001f07",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-07",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001f08",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-08",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002001",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002002",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002003",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002005",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002006",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002007",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002008",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000f1170083",
+                  "kind": "movie",
+                  "runtimeMs": "6300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1984-06-08"
+                },
+                {
+                  "id": "000000000000030000000000f1170084",
+                  "kind": "movie",
+                  "runtimeMs": "6480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1989-06-16"
+                },
+                {
+                  "id": "000000000000030000000000f1170085",
+                  "kind": "movie",
+                  "runtimeMs": "6960000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2016-02-12"
+                },
+                {
+                  "id": "000000000000030000000000f117008d",
+                  "kind": "movie",
+                  "runtimeMs": "7260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1977-05-25"
+                },
+                {
+                  "id": "000000000000030000000000f117008e",
+                  "kind": "movie",
+                  "runtimeMs": "7440000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1980
+                },
+                {
+                  "id": "000000000000030000000000f1170097",
+                  "kind": "movie",
+                  "runtimeMs": "8520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1994-09-23"
+                },
+                {
+                  "id": "000000000000030000000000f1170098",
+                  "kind": "movie",
+                  "runtimeMs": "5280000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f1170099",
+                  "kind": "movie",
+                  "runtimeMs": "5820000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-12-19"
+                },
+                {
+                  "id": "00000000000003000000000010050004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20762",
+              "blocks": [
+                {
+                  "startMs": "1793876400000",
+                  "endMs": "1793878200000",
+                  "itemId": "00000000000003000000000010050004"
+                },
+                {
+                  "startMs": "1793878200000",
+                  "endMs": "1793883480000",
+                  "itemId": "000000000000030000000000f1170098"
+                },
+                {
+                  "startMs": "1793883480000",
+                  "endMs": "1793889300000",
+                  "itemId": "000000000000030000000000f1170099"
+                },
+                {
+                  "startMs": "1793889300000",
+                  "endMs": "1793892000000",
+                  "itemId": "000000000000030000000000e9001f03"
+                },
+                {
+                  "startMs": "1793892000000",
+                  "endMs": "1793893800000",
+                  "itemId": "000000000000030000000000e9002004"
+                },
+                {
+                  "startMs": "1793893800000",
+                  "endMs": "1793902320000",
+                  "itemId": "000000000000030000000000f1170097"
+                },
+                {
+                  "startMs": "1793902320000",
+                  "endMs": "1793903670000",
+                  "itemId": "000000000000030000000000e9001e0a"
+                },
+                {
+                  "startMs": "1793903670000",
+                  "endMs": "1793905050000",
+                  "itemId": "000000000000030000000000e9001e0b"
+                },
+                {
+                  "startMs": "1793905050000",
+                  "endMs": "1793907210000",
+                  "itemId": "000000000000030000000000e9002005"
+                },
+                {
+                  "startMs": "1793907210000",
+                  "endMs": "1793909850000",
+                  "itemId": "000000000000030000000000e9001f04"
+                },
+                {
+                  "startMs": "1793909850000",
+                  "endMs": "1793916330000",
+                  "itemId": "000000000000030000000000f1170084"
+                },
+                {
+                  "startMs": "1793916330000",
+                  "endMs": "1793923770000",
+                  "itemId": "000000000000030000000000f117008e"
+                },
+                {
+                  "startMs": "1793923770000",
+                  "endMs": "1793925570000",
+                  "itemId": "000000000000030000000000e9002006"
+                },
+                {
+                  "startMs": "1793925570000",
+                  "endMs": "1793926890000",
+                  "itemId": "000000000000030000000000e9001e0c"
+                },
+                {
+                  "startMs": "1793926890000",
+                  "endMs": "1793928240000",
+                  "itemId": "000000000000030000000000e9001e01"
+                },
+                {
+                  "startMs": "1793928240000",
+                  "endMs": "1793930940000",
+                  "itemId": "000000000000030000000000e9001f05"
+                },
+                {
+                  "startMs": "1793930940000",
+                  "endMs": "1793937900000",
+                  "itemId": "000000000000030000000000f1170085"
+                },
+                {
+                  "startMs": "1793937900000",
+                  "endMs": "1793940060000",
+                  "itemId": "000000000000030000000000e9002007"
+                },
+                {
+                  "startMs": "1793940060000",
+                  "endMs": "1793941440000",
+                  "itemId": "000000000000030000000000e9001e02"
+                },
+                {
+                  "startMs": "1793941440000",
+                  "endMs": "1793942760000",
+                  "itemId": "000000000000030000000000e9001e03"
+                },
+                {
+                  "startMs": "1793942760000",
+                  "endMs": "1793945400000",
+                  "itemId": "000000000000030000000000e9001f06"
+                },
+                {
+                  "startMs": "1793945400000",
+                  "endMs": "1793952660000",
+                  "itemId": "000000000000030000000000f117008d"
+                },
+                {
+                  "startMs": "1793952660000",
+                  "endMs": "1793954460000",
+                  "itemId": "000000000000030000000000e9002008"
+                },
+                {
+                  "startMs": "1793954460000",
+                  "endMs": "1793955810000",
+                  "itemId": "000000000000030000000000e9001e04"
+                },
+                {
+                  "startMs": "1793955810000",
+                  "endMs": "1793957190000",
+                  "itemId": "000000000000030000000000e9001e05"
+                },
+                {
+                  "startMs": "1793957190000",
+                  "endMs": "1793959890000",
+                  "itemId": "000000000000030000000000e9001f07"
+                },
+                {
+                  "startMs": "1793959890000",
+                  "endMs": "1793962050000",
+                  "itemId": "000000000000030000000000e9002001"
+                },
+                {
+                  "startMs": "1793962050000",
+                  "endMs": "1793962800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793876400000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793878200000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793926230000",
+                  "k": 3,
+                  "blockIndex": 13,
+                  "offsetMs": "660000",
+                  "nextIndexes": [
+                    14,
+                    15,
+                    16
+                  ]
+                },
+                {
+                  "t": "1793926889999",
+                  "k": 0,
+                  "blockIndex": 13,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793962050000",
+                  "k": 1,
+                  "blockIndex": 27,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793962799999",
+                  "k": 3,
+                  "blockIndex": 27,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793876399999",
+                "1793962800000"
+              ]
+            },
+            {
+              "name": "curated, grid 15, weights (a series at 2, a film at 3), repeat gap 20 minutes",
+              "settings": {
+                "seed": "202",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "1200000",
+                "pairUpToMs": "2100000",
+                "weights": {
+                  "000000000000030000000000005e001f": 2,
+                  "000000000000030000000000f1170097": 3
+                },
+                "franchises": {
+                  "000000000000030000000000f1170083": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170084": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170085": "000000000000030000000000c0110006",
+                  "000000000000030000000000f117008d": "000000000000030000000000c0110007",
+                  "000000000000030000000000f117008e": "000000000000030000000000c0110007"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9001e01",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-01",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001e02",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-02",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001e03",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-03",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001e04",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-04",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001e05",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-05",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001e06",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-06",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001e07",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-07",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001e08",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-08",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9001e09",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-09",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9001e0a",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-10",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9001e0b",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-11",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9001e0c",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-12",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000e9001f01",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-01",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001f02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-02",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001f03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-03",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001f04",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-04",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001f05",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-05",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001f06",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-06",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001f07",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-07",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001f08",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-08",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002001",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002002",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002003",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002005",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002006",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002007",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002008",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000f1170083",
+                  "kind": "movie",
+                  "runtimeMs": "6300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1984-06-08"
+                },
+                {
+                  "id": "000000000000030000000000f1170084",
+                  "kind": "movie",
+                  "runtimeMs": "6480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1989-06-16"
+                },
+                {
+                  "id": "000000000000030000000000f1170085",
+                  "kind": "movie",
+                  "runtimeMs": "6960000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2016-02-12"
+                },
+                {
+                  "id": "000000000000030000000000f117008d",
+                  "kind": "movie",
+                  "runtimeMs": "7260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1977-05-25"
+                },
+                {
+                  "id": "000000000000030000000000f117008e",
+                  "kind": "movie",
+                  "runtimeMs": "7440000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1980
+                },
+                {
+                  "id": "000000000000030000000000f1170097",
+                  "kind": "movie",
+                  "runtimeMs": "8520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1994-09-23"
+                },
+                {
+                  "id": "000000000000030000000000f1170098",
+                  "kind": "movie",
+                  "runtimeMs": "5280000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f1170099",
+                  "kind": "movie",
+                  "runtimeMs": "5820000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-12-19"
+                },
+                {
+                  "id": "00000000000003000000000010050004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793712120000",
+                  "itemId": "000000000000030000000000f1170097"
+                },
+                {
+                  "startMs": "1793712120000",
+                  "endMs": "1793712600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793712600000",
+                  "endMs": "1793714400000",
+                  "itemId": "00000000000003000000000010050004"
+                },
+                {
+                  "startMs": "1793714400000",
+                  "endMs": "1793717040000",
+                  "itemId": "000000000000030000000000e9001f08"
+                },
+                {
+                  "startMs": "1793717040000",
+                  "endMs": "1793717100000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793717100000",
+                  "endMs": "1793722920000",
+                  "itemId": "000000000000030000000000f1170099"
+                },
+                {
+                  "startMs": "1793722920000",
+                  "endMs": "1793723400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793723400000",
+                  "endMs": "1793726100000",
+                  "itemId": "000000000000030000000000e9001f01"
+                },
+                {
+                  "startMs": "1793726100000",
+                  "endMs": "1793733540000",
+                  "itemId": "000000000000030000000000f117008e"
+                },
+                {
+                  "startMs": "1793733540000",
+                  "endMs": "1793734200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793734200000",
+                  "endMs": "1793735520000",
+                  "itemId": "000000000000030000000000e9001e06"
+                },
+                {
+                  "startMs": "1793735520000",
+                  "endMs": "1793736870000",
+                  "itemId": "000000000000030000000000e9001e07"
+                },
+                {
+                  "startMs": "1793736870000",
+                  "endMs": "1793736900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793736900000",
+                  "endMs": "1793739060000",
+                  "itemId": "000000000000030000000000e9002003"
+                },
+                {
+                  "startMs": "1793739060000",
+                  "endMs": "1793739600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793739600000",
+                  "endMs": "1793742240000",
+                  "itemId": "000000000000030000000000e9001f02"
+                },
+                {
+                  "startMs": "1793742240000",
+                  "endMs": "1793742300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793742300000",
+                  "endMs": "1793749260000",
+                  "itemId": "000000000000030000000000f1170085"
+                },
+                {
+                  "startMs": "1793749260000",
+                  "endMs": "1793749500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793749500000",
+                  "endMs": "1793754780000",
+                  "itemId": "000000000000030000000000f1170098"
+                },
+                {
+                  "startMs": "1793754780000",
+                  "endMs": "1793754900000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793754900000",
+                  "endMs": "1793757600000",
+                  "itemId": "000000000000030000000000e9001f03"
+                },
+                {
+                  "startMs": "1793757600000",
+                  "endMs": "1793759400000",
+                  "itemId": "000000000000030000000000e9002004"
+                },
+                {
+                  "startMs": "1793759400000",
+                  "endMs": "1793760780000",
+                  "itemId": "000000000000030000000000e9001e08"
+                },
+                {
+                  "startMs": "1793760780000",
+                  "endMs": "1793762100000",
+                  "itemId": "000000000000030000000000e9001e09"
+                },
+                {
+                  "startMs": "1793762100000",
+                  "endMs": "1793764740000",
+                  "itemId": "000000000000030000000000e9001f04"
+                },
+                {
+                  "startMs": "1793764740000",
+                  "endMs": "1793764800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793764800000",
+                  "endMs": "1793766960000",
+                  "itemId": "000000000000030000000000e9002005"
+                },
+                {
+                  "startMs": "1793766960000",
+                  "endMs": "1793767500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793767500000",
+                  "endMs": "1793770200000",
+                  "itemId": "000000000000030000000000e9001f05"
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793771550000",
+                  "itemId": "000000000000030000000000e9001e0a"
+                },
+                {
+                  "startMs": "1793771550000",
+                  "endMs": "1793772930000",
+                  "itemId": "000000000000030000000000e9001e0b"
+                },
+                {
+                  "startMs": "1793772930000",
+                  "endMs": "1793773800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793773800000",
+                  "endMs": "1793776440000",
+                  "itemId": "000000000000030000000000e9001f06"
+                },
+                {
+                  "startMs": "1793776440000",
+                  "endMs": "1793776500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793776500000",
+                  "endMs": "1793778300000",
+                  "itemId": "000000000000030000000000e9002006"
+                },
+                {
+                  "startMs": "1793778300000",
+                  "endMs": "1793781000000",
+                  "itemId": "000000000000030000000000e9001f07"
+                },
+                {
+                  "startMs": "1793781000000",
+                  "endMs": "1793788260000",
+                  "itemId": "000000000000030000000000f117008d"
+                },
+                {
+                  "startMs": "1793788260000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793712120000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793756250000",
+                  "k": 3,
+                  "blockIndex": 21,
+                  "offsetMs": "1350000",
+                  "nextIndexes": [
+                    22,
+                    23,
+                    24
+                  ]
+                },
+                {
+                  "t": "1793757599999",
+                  "k": 0,
+                  "blockIndex": 21,
+                  "offsetMs": "2699999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 38,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "curated, grid 60 (start 06:00), repeat gap 0, pairUpTo 20 minutes",
+              "settings": {
+                "seed": "203",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "0",
+                "pairUpToMs": "1200000",
+                "franchises": {
+                  "000000000000030000000000f1170083": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170084": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170085": "000000000000030000000000c0110006",
+                  "000000000000030000000000f117008d": "000000000000030000000000c0110007",
+                  "000000000000030000000000f117008e": "000000000000030000000000c0110007"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 60,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9001e01",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-01",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001e02",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-02",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001e03",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-03",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001e04",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-04",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001e05",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-05",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001e06",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-06",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001e07",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-07",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001e08",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-08",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9001e09",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-09",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9001e0a",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-10",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9001e0b",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-11",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9001e0c",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-12",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000e9001f01",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-01",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001f02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-02",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001f03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-03",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001f04",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-04",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001f05",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-05",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001f06",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-06",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001f07",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-07",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001f08",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-08",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002001",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002002",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002003",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002005",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002006",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002007",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002008",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000f1170083",
+                  "kind": "movie",
+                  "runtimeMs": "6300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1984-06-08"
+                },
+                {
+                  "id": "000000000000030000000000f1170084",
+                  "kind": "movie",
+                  "runtimeMs": "6480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1989-06-16"
+                },
+                {
+                  "id": "000000000000030000000000f1170085",
+                  "kind": "movie",
+                  "runtimeMs": "6960000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2016-02-12"
+                },
+                {
+                  "id": "000000000000030000000000f117008d",
+                  "kind": "movie",
+                  "runtimeMs": "7260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1977-05-25"
+                },
+                {
+                  "id": "000000000000030000000000f117008e",
+                  "kind": "movie",
+                  "runtimeMs": "7440000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1980
+                },
+                {
+                  "id": "000000000000030000000000f1170097",
+                  "kind": "movie",
+                  "runtimeMs": "8520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1994-09-23"
+                },
+                {
+                  "id": "000000000000030000000000f1170098",
+                  "kind": "movie",
+                  "runtimeMs": "5280000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f1170099",
+                  "kind": "movie",
+                  "runtimeMs": "5820000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-12-19"
+                },
+                {
+                  "id": "00000000000003000000000010050004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793705400000",
+                  "itemId": "000000000000030000000000e9002002"
+                },
+                {
+                  "startMs": "1793705400000",
+                  "endMs": "1793707200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793707200000",
+                  "endMs": "1793713020000",
+                  "itemId": "000000000000030000000000f1170099"
+                },
+                {
+                  "startMs": "1793713020000",
+                  "endMs": "1793714400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793714400000",
+                  "endMs": "1793722920000",
+                  "itemId": "000000000000030000000000f1170097"
+                },
+                {
+                  "startMs": "1793722920000",
+                  "endMs": "1793725200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793725200000",
+                  "endMs": "1793731680000",
+                  "itemId": "000000000000030000000000f1170084"
+                },
+                {
+                  "startMs": "1793731680000",
+                  "endMs": "1793732400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793732400000",
+                  "endMs": "1793737680000",
+                  "itemId": "000000000000030000000000f1170098"
+                },
+                {
+                  "startMs": "1793737680000",
+                  "endMs": "1793739600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793739600000",
+                  "endMs": "1793746860000",
+                  "itemId": "000000000000030000000000f117008d"
+                },
+                {
+                  "startMs": "1793746860000",
+                  "endMs": "1793750400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793750400000",
+                  "endMs": "1793752560000",
+                  "itemId": "000000000000030000000000e9002003"
+                },
+                {
+                  "startMs": "1793752560000",
+                  "endMs": "1793754000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793754000000",
+                  "endMs": "1793755800000",
+                  "itemId": "00000000000003000000000010050004"
+                },
+                {
+                  "startMs": "1793755800000",
+                  "endMs": "1793757600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793757600000",
+                  "endMs": "1793760240000",
+                  "itemId": "000000000000030000000000e9001f08"
+                },
+                {
+                  "startMs": "1793760240000",
+                  "endMs": "1793761200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793761200000",
+                  "endMs": "1793762520000",
+                  "itemId": "000000000000030000000000e9001e09"
+                },
+                {
+                  "startMs": "1793762520000",
+                  "endMs": "1793764800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793764800000",
+                  "endMs": "1793766600000",
+                  "itemId": "000000000000030000000000e9002004"
+                },
+                {
+                  "startMs": "1793766600000",
+                  "endMs": "1793768400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793768400000",
+                  "endMs": "1793769750000",
+                  "itemId": "000000000000030000000000e9001e0a"
+                },
+                {
+                  "startMs": "1793769750000",
+                  "endMs": "1793772000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793772000000",
+                  "endMs": "1793774160000",
+                  "itemId": "000000000000030000000000e9002005"
+                },
+                {
+                  "startMs": "1793774160000",
+                  "endMs": "1793775600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793775600000",
+                  "endMs": "1793778300000",
+                  "itemId": "000000000000030000000000e9001f01"
+                },
+                {
+                  "startMs": "1793778300000",
+                  "endMs": "1793779200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793779200000",
+                  "endMs": "1793780580000",
+                  "itemId": "000000000000030000000000e9001e0b"
+                },
+                {
+                  "startMs": "1793780580000",
+                  "endMs": "1793782800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793782800000",
+                  "endMs": "1793789760000",
+                  "itemId": "000000000000030000000000f1170085"
+                },
+                {
+                  "startMs": "1793789760000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793705400000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793758920000",
+                  "k": 3,
+                  "blockIndex": 16,
+                  "offsetMs": "1320000",
+                  "nextIndexes": [
+                    17,
+                    18,
+                    19
+                  ]
+                },
+                {
+                  "t": "1793760239999",
+                  "k": 0,
+                  "blockIndex": 16,
+                  "offsetMs": "2639999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 31,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "curated, blockLength 4 is ignored",
+              "note": "Same day as the first curated case: timing.blockLength plays no part in curated, so the blocks are the same.",
+              "settings": {
+                "seed": "201",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "franchises": {
+                  "000000000000030000000000f1170083": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170084": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170085": "000000000000030000000000c0110006",
+                  "000000000000030000000000f117008d": "000000000000030000000000c0110007",
+                  "000000000000030000000000f117008e": "000000000000030000000000c0110007"
+                },
+                "timing": {
+                  "blockLength": 4,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9001e01",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-01",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001e02",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-02",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001e03",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-03",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001e04",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-04",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001e05",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-05",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001e06",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-06",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001e07",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-07",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001e08",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-08",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9001e09",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-09",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9001e0a",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-10",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9001e0b",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-11",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9001e0c",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-12",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000e9001f01",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-01",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001f02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-02",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001f03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-03",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001f04",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-04",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001f05",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-05",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001f06",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-06",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001f07",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-07",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001f08",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-08",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002001",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002002",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002003",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002005",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002006",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002007",
+                  "kind": "episode",
+                  "runtimeMs": "2160000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002008",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0020",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000f1170083",
+                  "kind": "movie",
+                  "runtimeMs": "6300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1984-06-08"
+                },
+                {
+                  "id": "000000000000030000000000f1170084",
+                  "kind": "movie",
+                  "runtimeMs": "6480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1989-06-16"
+                },
+                {
+                  "id": "000000000000030000000000f1170085",
+                  "kind": "movie",
+                  "runtimeMs": "6960000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2016-02-12"
+                },
+                {
+                  "id": "000000000000030000000000f117008d",
+                  "kind": "movie",
+                  "runtimeMs": "7260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1977-05-25"
+                },
+                {
+                  "id": "000000000000030000000000f117008e",
+                  "kind": "movie",
+                  "runtimeMs": "7440000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1980
+                },
+                {
+                  "id": "000000000000030000000000f1170097",
+                  "kind": "movie",
+                  "runtimeMs": "8520000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1994-09-23"
+                },
+                {
+                  "id": "000000000000030000000000f1170098",
+                  "kind": "movie",
+                  "runtimeMs": "5280000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f1170099",
+                  "kind": "movie",
+                  "runtimeMs": "5820000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-12-19"
+                },
+                {
+                  "id": "00000000000003000000000010050004",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793710860000",
+                  "itemId": "000000000000030000000000f117008d"
+                },
+                {
+                  "startMs": "1793710860000",
+                  "endMs": "1793712600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793712600000",
+                  "endMs": "1793718900000",
+                  "itemId": "000000000000030000000000f1170083"
+                },
+                {
+                  "startMs": "1793718900000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793728320000",
+                  "itemId": "000000000000030000000000f1170097"
+                },
+                {
+                  "startMs": "1793728320000",
+                  "endMs": "1793728800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793728800000",
+                  "endMs": "1793730600000",
+                  "itemId": "00000000000003000000000010050004"
+                },
+                {
+                  "startMs": "1793730600000",
+                  "endMs": "1793736420000",
+                  "itemId": "000000000000030000000000f1170099"
+                },
+                {
+                  "startMs": "1793736420000",
+                  "endMs": "1793737800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793737800000",
+                  "endMs": "1793740440000",
+                  "itemId": "000000000000030000000000e9001f02"
+                },
+                {
+                  "startMs": "1793740440000",
+                  "endMs": "1793741400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793741400000",
+                  "endMs": "1793743200000",
+                  "itemId": "000000000000030000000000e9002008"
+                },
+                {
+                  "startMs": "1793743200000",
+                  "endMs": "1793748480000",
+                  "itemId": "000000000000030000000000f1170098"
+                },
+                {
+                  "startMs": "1793748480000",
+                  "endMs": "1793748600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793748600000",
+                  "endMs": "1793751300000",
+                  "itemId": "000000000000030000000000e9001f03"
+                },
+                {
+                  "startMs": "1793751300000",
+                  "endMs": "1793752200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793752200000",
+                  "endMs": "1793754360000",
+                  "itemId": "000000000000030000000000e9002001"
+                },
+                {
+                  "startMs": "1793754360000",
+                  "endMs": "1793755800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793755800000",
+                  "endMs": "1793757180000",
+                  "itemId": "000000000000030000000000e9001e02"
+                },
+                {
+                  "startMs": "1793757180000",
+                  "endMs": "1793758500000",
+                  "itemId": "000000000000030000000000e9001e03"
+                },
+                {
+                  "startMs": "1793758500000",
+                  "endMs": "1793759400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793759400000",
+                  "endMs": "1793766840000",
+                  "itemId": "000000000000030000000000f117008e"
+                },
+                {
+                  "startMs": "1793766840000",
+                  "endMs": "1793768400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793768400000",
+                  "endMs": "1793770200000",
+                  "itemId": "000000000000030000000000e9002002"
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793772840000",
+                  "itemId": "000000000000030000000000e9001f04"
+                },
+                {
+                  "startMs": "1793772840000",
+                  "endMs": "1793773800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793773800000",
+                  "endMs": "1793775150000",
+                  "itemId": "000000000000030000000000e9001e04"
+                },
+                {
+                  "startMs": "1793775150000",
+                  "endMs": "1793776530000",
+                  "itemId": "000000000000030000000000e9001e05"
+                },
+                {
+                  "startMs": "1793776530000",
+                  "endMs": "1793777400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793777400000",
+                  "endMs": "1793783880000",
+                  "itemId": "000000000000030000000000f1170084"
+                },
+                {
+                  "startMs": "1793783880000",
+                  "endMs": "1793784600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793784600000",
+                  "endMs": "1793786760000",
+                  "itemId": "000000000000030000000000e9002003"
+                },
+                {
+                  "startMs": "1793786760000",
+                  "endMs": "1793788200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793788200000",
+                  "endMs": "1793789520000",
+                  "itemId": "000000000000030000000000e9001e06"
+                },
+                {
+                  "startMs": "1793789520000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793710860000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793756490000",
+                  "k": 3,
+                  "blockIndex": 18,
+                  "offsetMs": "690000",
+                  "nextIndexes": [
+                    19,
+                    20,
+                    21
+                  ]
+                },
+                {
+                  "t": "1793757179999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "1379999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 34,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "curated, a short pool: the cycle (about 7 hours) wraps inside the day",
+              "note": "The walk orders the pool once; the regular layout plays that cycle again from run 0 when it runs out.",
+              "settings": {
+                "seed": "204",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "franchises": {
+                  "000000000000030000000000f11700a1": "000000000000030000000000c0110008",
+                  "000000000000030000000000f11700a2": "000000000000030000000000c0110008"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002101",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0021",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002102",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0021",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002103",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0021",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002104",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0021",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002105",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0021",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000f11700a1",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2000-01-01"
+                },
+                {
+                  "id": "000000000000030000000000f11700a2",
+                  "kind": "movie",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2002-01-01"
+                },
+                {
+                  "id": "000000000000030000000000f11700a3",
+                  "kind": "movie",
+                  "runtimeMs": "5400000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793709000000",
+                  "itemId": "000000000000030000000000f11700a3"
+                },
+                {
+                  "startMs": "1793709000000",
+                  "endMs": "1793714700000",
+                  "itemId": "000000000000030000000000f11700a1"
+                },
+                {
+                  "startMs": "1793714700000",
+                  "endMs": "1793716200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793716200000",
+                  "endMs": "1793717520000",
+                  "itemId": "000000000000030000000000e9002104"
+                },
+                {
+                  "startMs": "1793717520000",
+                  "endMs": "1793718840000",
+                  "itemId": "000000000000030000000000e9002105"
+                },
+                {
+                  "startMs": "1793718840000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793725800000",
+                  "itemId": "000000000000030000000000f11700a2"
+                },
+                {
+                  "startMs": "1793725800000",
+                  "endMs": "1793727000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793727000000",
+                  "endMs": "1793728320000",
+                  "itemId": "000000000000030000000000e9002101"
+                },
+                {
+                  "startMs": "1793728320000",
+                  "endMs": "1793729640000",
+                  "itemId": "000000000000030000000000e9002102"
+                },
+                {
+                  "startMs": "1793729640000",
+                  "endMs": "1793730600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793730600000",
+                  "endMs": "1793731920000",
+                  "itemId": "000000000000030000000000e9002103"
+                },
+                {
+                  "startMs": "1793731920000",
+                  "endMs": "1793732400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793732400000",
+                  "endMs": "1793737800000",
+                  "itemId": "000000000000030000000000f11700a3"
+                },
+                {
+                  "startMs": "1793737800000",
+                  "endMs": "1793743500000",
+                  "itemId": "000000000000030000000000f11700a1"
+                },
+                {
+                  "startMs": "1793743500000",
+                  "endMs": "1793745000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793745000000",
+                  "endMs": "1793746320000",
+                  "itemId": "000000000000030000000000e9002104"
+                },
+                {
+                  "startMs": "1793746320000",
+                  "endMs": "1793747640000",
+                  "itemId": "000000000000030000000000e9002105"
+                },
+                {
+                  "startMs": "1793747640000",
+                  "endMs": "1793748600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793748600000",
+                  "endMs": "1793754600000",
+                  "itemId": "000000000000030000000000f11700a2"
+                },
+                {
+                  "startMs": "1793754600000",
+                  "endMs": "1793755800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793755800000",
+                  "endMs": "1793757120000",
+                  "itemId": "000000000000030000000000e9002101"
+                },
+                {
+                  "startMs": "1793757120000",
+                  "endMs": "1793758440000",
+                  "itemId": "000000000000030000000000e9002102"
+                },
+                {
+                  "startMs": "1793758440000",
+                  "endMs": "1793759400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793759400000",
+                  "endMs": "1793760720000",
+                  "itemId": "000000000000030000000000e9002103"
+                },
+                {
+                  "startMs": "1793760720000",
+                  "endMs": "1793761200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793761200000",
+                  "endMs": "1793766600000",
+                  "itemId": "000000000000030000000000f11700a3"
+                },
+                {
+                  "startMs": "1793766600000",
+                  "endMs": "1793772300000",
+                  "itemId": "000000000000030000000000f11700a1"
+                },
+                {
+                  "startMs": "1793772300000",
+                  "endMs": "1793773800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793773800000",
+                  "endMs": "1793775120000",
+                  "itemId": "000000000000030000000000e9002104"
+                },
+                {
+                  "startMs": "1793775120000",
+                  "endMs": "1793776440000",
+                  "itemId": "000000000000030000000000e9002105"
+                },
+                {
+                  "startMs": "1793776440000",
+                  "endMs": "1793777400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793777400000",
+                  "endMs": "1793783400000",
+                  "itemId": "000000000000030000000000f11700a2"
+                },
+                {
+                  "startMs": "1793783400000",
+                  "endMs": "1793784600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793784600000",
+                  "endMs": "1793785920000",
+                  "itemId": "000000000000030000000000e9002101"
+                },
+                {
+                  "startMs": "1793785920000",
+                  "endMs": "1793787240000",
+                  "itemId": "000000000000030000000000e9002102"
+                },
+                {
+                  "startMs": "1793787240000",
+                  "endMs": "1793788200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793788200000",
+                  "endMs": "1793789520000",
+                  "itemId": "000000000000030000000000e9002103"
+                },
+                {
+                  "startMs": "1793789520000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793709000000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793751600000",
+                  "k": 3,
+                  "blockIndex": 19,
+                  "offsetMs": "3000000",
+                  "nextIndexes": [
+                    20,
+                    21,
+                    22
+                  ]
+                },
+                {
+                  "t": "1793754599999",
+                  "k": 0,
+                  "blockIndex": 19,
+                  "offsetMs": "5999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793714700000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 38,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "curated, a single series plays straight through, and repeats",
+              "settings": {
+                "seed": "205",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002201",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0022",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002202",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0022",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002203",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0022",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002204",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0022",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002205",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0022",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002206",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0022",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002207",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0022",
+                  "season": 1,
+                  "episode": 7
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793704920000",
+                  "itemId": "000000000000030000000000e9002203"
+                },
+                {
+                  "startMs": "1793704920000",
+                  "endMs": "1793706240000",
+                  "itemId": "000000000000030000000000e9002204"
+                },
+                {
+                  "startMs": "1793706240000",
+                  "endMs": "1793707200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793707200000",
+                  "endMs": "1793708520000",
+                  "itemId": "000000000000030000000000e9002205"
+                },
+                {
+                  "startMs": "1793708520000",
+                  "endMs": "1793709840000",
+                  "itemId": "000000000000030000000000e9002206"
+                },
+                {
+                  "startMs": "1793709840000",
+                  "endMs": "1793710800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793710800000",
+                  "endMs": "1793712120000",
+                  "itemId": "000000000000030000000000e9002207"
+                },
+                {
+                  "startMs": "1793712120000",
+                  "endMs": "1793713440000",
+                  "itemId": "000000000000030000000000e9002201"
+                },
+                {
+                  "startMs": "1793713440000",
+                  "endMs": "1793714400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793714400000",
+                  "endMs": "1793715720000",
+                  "itemId": "000000000000030000000000e9002202"
+                },
+                {
+                  "startMs": "1793715720000",
+                  "endMs": "1793716200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793716200000",
+                  "endMs": "1793717520000",
+                  "itemId": "000000000000030000000000e9002203"
+                },
+                {
+                  "startMs": "1793717520000",
+                  "endMs": "1793718840000",
+                  "itemId": "000000000000030000000000e9002204"
+                },
+                {
+                  "startMs": "1793718840000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793721120000",
+                  "itemId": "000000000000030000000000e9002205"
+                },
+                {
+                  "startMs": "1793721120000",
+                  "endMs": "1793722440000",
+                  "itemId": "000000000000030000000000e9002206"
+                },
+                {
+                  "startMs": "1793722440000",
+                  "endMs": "1793723400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793723400000",
+                  "endMs": "1793724720000",
+                  "itemId": "000000000000030000000000e9002207"
+                },
+                {
+                  "startMs": "1793724720000",
+                  "endMs": "1793726040000",
+                  "itemId": "000000000000030000000000e9002201"
+                },
+                {
+                  "startMs": "1793726040000",
+                  "endMs": "1793727000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793727000000",
+                  "endMs": "1793728320000",
+                  "itemId": "000000000000030000000000e9002202"
+                },
+                {
+                  "startMs": "1793728320000",
+                  "endMs": "1793728800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793728800000",
+                  "endMs": "1793730120000",
+                  "itemId": "000000000000030000000000e9002203"
+                },
+                {
+                  "startMs": "1793730120000",
+                  "endMs": "1793731440000",
+                  "itemId": "000000000000030000000000e9002204"
+                },
+                {
+                  "startMs": "1793731440000",
+                  "endMs": "1793732400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793732400000",
+                  "endMs": "1793733720000",
+                  "itemId": "000000000000030000000000e9002205"
+                },
+                {
+                  "startMs": "1793733720000",
+                  "endMs": "1793735040000",
+                  "itemId": "000000000000030000000000e9002206"
+                },
+                {
+                  "startMs": "1793735040000",
+                  "endMs": "1793736000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793736000000",
+                  "endMs": "1793737320000",
+                  "itemId": "000000000000030000000000e9002207"
+                },
+                {
+                  "startMs": "1793737320000",
+                  "endMs": "1793738640000",
+                  "itemId": "000000000000030000000000e9002201"
+                },
+                {
+                  "startMs": "1793738640000",
+                  "endMs": "1793739600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793739600000",
+                  "endMs": "1793740920000",
+                  "itemId": "000000000000030000000000e9002202"
+                },
+                {
+                  "startMs": "1793740920000",
+                  "endMs": "1793741400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793741400000",
+                  "endMs": "1793742720000",
+                  "itemId": "000000000000030000000000e9002203"
+                },
+                {
+                  "startMs": "1793742720000",
+                  "endMs": "1793744040000",
+                  "itemId": "000000000000030000000000e9002204"
+                },
+                {
+                  "startMs": "1793744040000",
+                  "endMs": "1793745000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793745000000",
+                  "endMs": "1793746320000",
+                  "itemId": "000000000000030000000000e9002205"
+                },
+                {
+                  "startMs": "1793746320000",
+                  "endMs": "1793747640000",
+                  "itemId": "000000000000030000000000e9002206"
+                },
+                {
+                  "startMs": "1793747640000",
+                  "endMs": "1793748600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793748600000",
+                  "endMs": "1793749920000",
+                  "itemId": "000000000000030000000000e9002207"
+                },
+                {
+                  "startMs": "1793749920000",
+                  "endMs": "1793751240000",
+                  "itemId": "000000000000030000000000e9002201"
+                },
+                {
+                  "startMs": "1793751240000",
+                  "endMs": "1793752200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793752200000",
+                  "endMs": "1793753520000",
+                  "itemId": "000000000000030000000000e9002202"
+                },
+                {
+                  "startMs": "1793753520000",
+                  "endMs": "1793754000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793754000000",
+                  "endMs": "1793755320000",
+                  "itemId": "000000000000030000000000e9002203"
+                },
+                {
+                  "startMs": "1793755320000",
+                  "endMs": "1793756640000",
+                  "itemId": "000000000000030000000000e9002204"
+                },
+                {
+                  "startMs": "1793756640000",
+                  "endMs": "1793757600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793757600000",
+                  "endMs": "1793758920000",
+                  "itemId": "000000000000030000000000e9002205"
+                },
+                {
+                  "startMs": "1793758920000",
+                  "endMs": "1793760240000",
+                  "itemId": "000000000000030000000000e9002206"
+                },
+                {
+                  "startMs": "1793760240000",
+                  "endMs": "1793761200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793761200000",
+                  "endMs": "1793762520000",
+                  "itemId": "000000000000030000000000e9002207"
+                },
+                {
+                  "startMs": "1793762520000",
+                  "endMs": "1793763840000",
+                  "itemId": "000000000000030000000000e9002201"
+                },
+                {
+                  "startMs": "1793763840000",
+                  "endMs": "1793764800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793764800000",
+                  "endMs": "1793766120000",
+                  "itemId": "000000000000030000000000e9002202"
+                },
+                {
+                  "startMs": "1793766120000",
+                  "endMs": "1793766600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793766600000",
+                  "endMs": "1793767920000",
+                  "itemId": "000000000000030000000000e9002203"
+                },
+                {
+                  "startMs": "1793767920000",
+                  "endMs": "1793769240000",
+                  "itemId": "000000000000030000000000e9002204"
+                },
+                {
+                  "startMs": "1793769240000",
+                  "endMs": "1793770200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793771520000",
+                  "itemId": "000000000000030000000000e9002205"
+                },
+                {
+                  "startMs": "1793771520000",
+                  "endMs": "1793772840000",
+                  "itemId": "000000000000030000000000e9002206"
+                },
+                {
+                  "startMs": "1793772840000",
+                  "endMs": "1793773800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793773800000",
+                  "endMs": "1793775120000",
+                  "itemId": "000000000000030000000000e9002207"
+                },
+                {
+                  "startMs": "1793775120000",
+                  "endMs": "1793776440000",
+                  "itemId": "000000000000030000000000e9002201"
+                },
+                {
+                  "startMs": "1793776440000",
+                  "endMs": "1793777400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793777400000",
+                  "endMs": "1793778720000",
+                  "itemId": "000000000000030000000000e9002202"
+                },
+                {
+                  "startMs": "1793778720000",
+                  "endMs": "1793779200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793779200000",
+                  "endMs": "1793780520000",
+                  "itemId": "000000000000030000000000e9002203"
+                },
+                {
+                  "startMs": "1793780520000",
+                  "endMs": "1793781840000",
+                  "itemId": "000000000000030000000000e9002204"
+                },
+                {
+                  "startMs": "1793781840000",
+                  "endMs": "1793782800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793782800000",
+                  "endMs": "1793784120000",
+                  "itemId": "000000000000030000000000e9002205"
+                },
+                {
+                  "startMs": "1793784120000",
+                  "endMs": "1793785440000",
+                  "itemId": "000000000000030000000000e9002206"
+                },
+                {
+                  "startMs": "1793785440000",
+                  "endMs": "1793786400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793786400000",
+                  "endMs": "1793787720000",
+                  "itemId": "000000000000030000000000e9002207"
+                },
+                {
+                  "startMs": "1793787720000",
+                  "endMs": "1793789040000",
+                  "itemId": "000000000000030000000000e9002201"
+                },
+                {
+                  "startMs": "1793789040000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793704920000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793746980000",
+                  "k": 3,
+                  "blockIndex": 37,
+                  "offsetMs": "660000",
+                  "nextIndexes": [
+                    38,
+                    39,
+                    40
+                  ]
+                },
+                {
+                  "t": "1793747639999",
+                  "k": 0,
+                  "blockIndex": 37,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793706240000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 74,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "curated, the planned end: as shuffle, it wraps and has no group rule",
+              "settings": {
+                "seed": "206",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": false,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002301",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002302",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002303",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002304",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002305",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002306",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002401",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002402",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002403",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002404",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000f11700ab",
+                  "kind": "movie",
+                  "runtimeMs": "9000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700ac",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700ad",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700ae",
+                  "kind": "movie",
+                  "runtimeMs": "10200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002701",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002702",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002703",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002704",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002705",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002706",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002707",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002708",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002709",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e900270a",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e900270b",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e900270c",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000f11700af",
+                  "kind": "movie",
+                  "runtimeMs": "8400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002c01",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002c02",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002c03",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002c04",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002c05",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002c06",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002c07",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002c08",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002c09",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9002c0a",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9002c0b",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9002c0c",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 12
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793705460000",
+                  "itemId": "000000000000030000000000f11700ad"
+                },
+                {
+                  "startMs": "1793705460000",
+                  "endMs": "1793706960000",
+                  "itemId": "000000000000030000000000e9002402"
+                },
+                {
+                  "startMs": "1793706960000",
+                  "endMs": "1793708460000",
+                  "itemId": "000000000000030000000000e9002403"
+                },
+                {
+                  "startMs": "1793708460000",
+                  "endMs": "1793716860000",
+                  "itemId": "000000000000030000000000f11700af"
+                },
+                {
+                  "startMs": "1793716860000",
+                  "endMs": "1793719860000",
+                  "itemId": "000000000000030000000000e900270a"
+                },
+                {
+                  "startMs": "1793719860000",
+                  "endMs": "1793721060000",
+                  "itemId": "000000000000030000000000f11700ac"
+                },
+                {
+                  "startMs": "1793721060000",
+                  "endMs": "1793723700000",
+                  "itemId": "000000000000030000000000e9002304"
+                },
+                {
+                  "startMs": "1793723700000",
+                  "endMs": "1793732700000",
+                  "itemId": "000000000000030000000000f11700ab"
+                },
+                {
+                  "startMs": "1793732700000",
+                  "endMs": "1793735100000",
+                  "itemId": "000000000000030000000000e9002c02"
+                },
+                {
+                  "startMs": "1793735100000",
+                  "endMs": "1793736600000",
+                  "itemId": "000000000000030000000000e9002404"
+                },
+                {
+                  "startMs": "1793736600000",
+                  "endMs": "1793738100000",
+                  "itemId": "000000000000030000000000e9002401"
+                },
+                {
+                  "startMs": "1793738100000",
+                  "endMs": "1793741100000",
+                  "itemId": "000000000000030000000000e900270b"
+                },
+                {
+                  "startMs": "1793741100000",
+                  "endMs": "1793743740000",
+                  "itemId": "000000000000030000000000e9002305"
+                },
+                {
+                  "startMs": "1793743740000",
+                  "endMs": "1793753940000",
+                  "itemId": "000000000000030000000000f11700ae"
+                },
+                {
+                  "startMs": "1793753940000",
+                  "endMs": "1793756340000",
+                  "itemId": "000000000000030000000000e9002c03"
+                },
+                {
+                  "startMs": "1793756340000",
+                  "endMs": "1793758980000",
+                  "itemId": "000000000000030000000000e9002306"
+                },
+                {
+                  "startMs": "1793758980000",
+                  "endMs": "1793761980000",
+                  "itemId": "000000000000030000000000e900270c"
+                },
+                {
+                  "startMs": "1793761980000",
+                  "endMs": "1793764380000",
+                  "itemId": "000000000000030000000000e9002c04"
+                },
+                {
+                  "startMs": "1793764380000",
+                  "endMs": "1793767020000",
+                  "itemId": "000000000000030000000000e9002301"
+                },
+                {
+                  "startMs": "1793767020000",
+                  "endMs": "1793770020000",
+                  "itemId": "000000000000030000000000e9002701"
+                },
+                {
+                  "startMs": "1793770020000",
+                  "endMs": "1793772420000",
+                  "itemId": "000000000000030000000000e9002c05"
+                },
+                {
+                  "startMs": "1793772420000",
+                  "endMs": "1793775060000",
+                  "itemId": "000000000000030000000000e9002302"
+                },
+                {
+                  "startMs": "1793775060000",
+                  "endMs": "1793778060000",
+                  "itemId": "000000000000030000000000e9002702"
+                },
+                {
+                  "startMs": "1793778060000",
+                  "endMs": "1793780460000",
+                  "itemId": "000000000000030000000000e9002c06"
+                },
+                {
+                  "startMs": "1793780460000",
+                  "endMs": "1793783100000",
+                  "itemId": "000000000000030000000000e9002303"
+                },
+                {
+                  "startMs": "1793783100000",
+                  "endMs": "1793786100000",
+                  "itemId": "000000000000030000000000e9002703"
+                },
+                {
+                  "startMs": "1793786100000",
+                  "endMs": "1793788500000",
+                  "itemId": "000000000000030000000000e9002c07"
+                },
+                {
+                  "startMs": "1793788500000",
+                  "endMs": "1793790000000",
+                  "itemId": "000000000000030000000000e9002402"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793705460000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793755140000",
+                  "k": 3,
+                  "blockIndex": 14,
+                  "offsetMs": "1200000",
+                  "nextIndexes": [
+                    15,
+                    16,
+                    17
+                  ]
+                },
+                {
+                  "t": "1793756339999",
+                  "k": 0,
+                  "blockIndex": 14,
+                  "offsetMs": "2399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 27,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ],
+              "note": "Not aligned. The regular layout stops at run 25 of 37; the planned end visits every item of the cycle once from that run's first item, wrapping to the start of the order: ...e9002704 passed over; ...e9002c08 passed over; ...e9002705 passed over; ...e9002c09 passed over; ...e9002706 passed over; ...e9002c0a passed over; ...e9002707 passed over; ...e9002c0b passed over; ...e9002708 passed over; ...e9002c0c passed over; ...e9002709 passed over; ...e9002c01 passed over; ...f11700ad passed over; ...e9002402 placed; ...e9002403 passed over; ...f11700af passed over; ...e900270a passed over; ...f11700ac passed over; ...e9002304 passed over; ...f11700ab passed over; ...e9002c02 passed over; ...e9002404 passed over; ...e9002401 passed over; ...e900270b passed over; ...e9002305 passed over; ...f11700ae passed over; ...e9002c03 passed over; ...e9002306 passed over; ...e900270c passed over; ...e9002c04 passed over; ...e9002301 passed over; ...e9002701 passed over; ...e9002c05 passed over; ...e9002302 passed over; ...e9002702 passed over; ...e9002c06 passed over; ...e9002303 passed over; ...e9002703 passed over; ...e9002c07 passed over."
+            },
+            {
+              "name": "curated, the planned end on a 30-minute grid: an item passed over, a later one placed",
+              "settings": {
+                "seed": "230",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002301",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002302",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002303",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002304",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002305",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002306",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0023",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002401",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002402",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002403",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002404",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0024",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000f11700ab",
+                  "kind": "movie",
+                  "runtimeMs": "9000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700ac",
+                  "kind": "movie",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700ad",
+                  "kind": "movie",
+                  "runtimeMs": "1860000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700ae",
+                  "kind": "movie",
+                  "runtimeMs": "10200000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002701",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002702",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002703",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002704",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002705",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002706",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002707",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002708",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002709",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e900270a",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e900270b",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e900270c",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0027",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000f11700af",
+                  "kind": "movie",
+                  "runtimeMs": "8400000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002c01",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002c02",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002c03",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002c04",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002c05",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002c06",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002c07",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9002c08",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9002c09",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9002c0a",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9002c0b",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9002c0c",
+                  "kind": "episode",
+                  "runtimeMs": "2400000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002c",
+                  "season": 1,
+                  "episode": 12
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793706000000",
+                  "itemId": "000000000000030000000000e9002c06"
+                },
+                {
+                  "startMs": "1793706000000",
+                  "endMs": "1793707200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793707200000",
+                  "endMs": "1793716200000",
+                  "itemId": "000000000000030000000000f11700ab"
+                },
+                {
+                  "startMs": "1793716200000",
+                  "endMs": "1793718840000",
+                  "itemId": "000000000000030000000000e9002305"
+                },
+                {
+                  "startMs": "1793718840000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793722200000",
+                  "itemId": "000000000000030000000000e9002c07"
+                },
+                {
+                  "startMs": "1793722200000",
+                  "endMs": "1793723400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793723400000",
+                  "endMs": "1793726400000",
+                  "itemId": "000000000000030000000000e900270b"
+                },
+                {
+                  "startMs": "1793726400000",
+                  "endMs": "1793727000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793727000000",
+                  "endMs": "1793735400000",
+                  "itemId": "000000000000030000000000f11700af"
+                },
+                {
+                  "startMs": "1793735400000",
+                  "endMs": "1793736000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793736000000",
+                  "endMs": "1793746200000",
+                  "itemId": "000000000000030000000000f11700ae"
+                },
+                {
+                  "startMs": "1793746200000",
+                  "endMs": "1793746800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793746800000",
+                  "endMs": "1793748660000",
+                  "itemId": "000000000000030000000000f11700ad"
+                },
+                {
+                  "startMs": "1793748660000",
+                  "endMs": "1793750400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793750400000",
+                  "endMs": "1793751900000",
+                  "itemId": "000000000000030000000000e9002403"
+                },
+                {
+                  "startMs": "1793751900000",
+                  "endMs": "1793753400000",
+                  "itemId": "000000000000030000000000e9002404"
+                },
+                {
+                  "startMs": "1793753400000",
+                  "endMs": "1793754000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793754000000",
+                  "endMs": "1793755200000",
+                  "itemId": "000000000000030000000000f11700ac"
+                },
+                {
+                  "startMs": "1793755200000",
+                  "endMs": "1793755800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793755800000",
+                  "endMs": "1793758200000",
+                  "itemId": "000000000000030000000000e9002c08"
+                },
+                {
+                  "startMs": "1793758200000",
+                  "endMs": "1793759400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793759400000",
+                  "endMs": "1793762040000",
+                  "itemId": "000000000000030000000000e9002306"
+                },
+                {
+                  "startMs": "1793762040000",
+                  "endMs": "1793763000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793763000000",
+                  "endMs": "1793766000000",
+                  "itemId": "000000000000030000000000e900270c"
+                },
+                {
+                  "startMs": "1793766000000",
+                  "endMs": "1793766600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793766600000",
+                  "endMs": "1793769000000",
+                  "itemId": "000000000000030000000000e9002c09"
+                },
+                {
+                  "startMs": "1793769000000",
+                  "endMs": "1793770200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793772840000",
+                  "itemId": "000000000000030000000000e9002301"
+                },
+                {
+                  "startMs": "1793772840000",
+                  "endMs": "1793773800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793773800000",
+                  "endMs": "1793775300000",
+                  "itemId": "000000000000030000000000e9002401"
+                },
+                {
+                  "startMs": "1793775300000",
+                  "endMs": "1793776800000",
+                  "itemId": "000000000000030000000000e9002402"
+                },
+                {
+                  "startMs": "1793776800000",
+                  "endMs": "1793777400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793777400000",
+                  "endMs": "1793780400000",
+                  "itemId": "000000000000030000000000e9002701"
+                },
+                {
+                  "startMs": "1793780400000",
+                  "endMs": "1793781000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793781000000",
+                  "endMs": "1793783400000",
+                  "itemId": "000000000000030000000000e9002c0a"
+                },
+                {
+                  "startMs": "1793783400000",
+                  "endMs": "1793784600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793784600000",
+                  "endMs": "1793787240000",
+                  "itemId": "000000000000030000000000e9002302"
+                },
+                {
+                  "startMs": "1793787240000",
+                  "endMs": "1793788200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793788200000",
+                  "endMs": "1793789700000",
+                  "itemId": "000000000000030000000000e9002403"
+                },
+                {
+                  "startMs": "1793789700000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793706000000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793757000000",
+                  "k": 3,
+                  "blockIndex": 20,
+                  "offsetMs": "1200000",
+                  "nextIndexes": [
+                    21,
+                    22,
+                    23
+                  ]
+                },
+                {
+                  "t": "1793758199999",
+                  "k": 0,
+                  "blockIndex": 20,
+                  "offsetMs": "2399999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 40,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ],
+              "note": "The regular layout stops at run 19 of 37; planned end visits: ...e9002702 passed over; ...e9002c0b passed over; ...e9002303 passed over; ...e9002703 passed over; ...e9002c0c passed over; ...e9002304 passed over; ...e9002704 passed over; ...e9002c01 passed over; ...e9002705 passed over; ...e9002c02 passed over; ...e9002706 passed over; ...e9002c03 passed over; ...e9002707 passed over; ...e9002c04 passed over; ...e9002708 passed over; ...e9002c05 passed over; ...e9002709 passed over; ...e900270a passed over; ...e9002c06 passed over; ...f11700ab passed over; ...e9002305 passed over; ...e9002c07 passed over; ...e900270b passed over; ...f11700af passed over; ...f11700ae passed over; ...f11700ad passed over; ...e9002403 placed; ...e9002404 passed over; ...f11700ac passed over; ...e9002c08 passed over; ...e9002306 passed over; ...e900270c passed over; ...e9002c09 passed over; ...e9002301 passed over; ...e9002401 passed over; ...e9002402 passed over; ...e9002701 passed over; ...e9002c0a passed over; ...e9002302 passed over."
+            },
+            {
+              "name": "curated, epochHours 1: a pair of 35-minute episodes (slot 90 minutes) is left out after the walk",
+              "note": "Both episodes of each pair are 2,100,000 ms, so they pair; the pair's slot (70 minutes rounded up to 90) is longer than the 60-minute epoch, so the run is left out after the walk and the planned end never visits its items. The runs on each side of it become neighbours.",
+              "settings": {
+                "seed": "208",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 1,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002501",
+                  "kind": "episode",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0025",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002502",
+                  "kind": "episode",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0025",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002503",
+                  "kind": "episode",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0025",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002504",
+                  "kind": "episode",
+                  "runtimeMs": "2100000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0025",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000f11700b5",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700b6",
+                  "kind": "movie",
+                  "runtimeMs": "3300000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "00000000000003000000000010050005",
+                  "kind": "episode",
+                  "runtimeMs": "1200000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "498243",
+              "blocks": [
+                {
+                  "startMs": "1793714400000",
+                  "endMs": "1793717400000",
+                  "itemId": "000000000000030000000000f11700b5"
+                },
+                {
+                  "startMs": "1793717400000",
+                  "endMs": "1793718000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793714400000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1793717400000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793715900000",
+                  "k": 3,
+                  "blockIndex": 0,
+                  "offsetMs": "1500000",
+                  "nextIndexes": [
+                    1
+                  ]
+                },
+                {
+                  "t": "1793717399999",
+                  "k": 0,
+                  "blockIndex": 0,
+                  "offsetMs": "2999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793717999999",
+                  "k": 3,
+                  "blockIndex": 1,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793714399999",
+                "1793718000000"
+              ]
+            },
+            {
+              "name": "curated, epochHours 2: a 100-minute film's 120-minute slot equals the epoch and stays",
+              "settings": {
+                "seed": "209",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 2,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000f11700bf",
+                  "kind": "movie",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700c0",
+                  "kind": "movie",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002601",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0026",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002602",
+                  "kind": "episode",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0026",
+                  "season": 1,
+                  "episode": 2
+                }
+              ],
+              "n": "249125",
+              "blocks": [
+                {
+                  "startMs": "1793739600000",
+                  "endMs": "1793741100000",
+                  "itemId": "000000000000030000000000e9002602"
+                },
+                {
+                  "startMs": "1793741100000",
+                  "endMs": "1793742600000",
+                  "itemId": "000000000000030000000000e9002601"
+                },
+                {
+                  "startMs": "1793742600000",
+                  "endMs": "1793743200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793743200000",
+                  "endMs": "1793746200000",
+                  "itemId": "000000000000030000000000f11700c0"
+                },
+                {
+                  "startMs": "1793746200000",
+                  "endMs": "1793746800000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793739600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793741100000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793741850000",
+                  "k": 3,
+                  "blockIndex": 1,
+                  "offsetMs": "750000",
+                  "nextIndexes": [
+                    2,
+                    3,
+                    4
+                  ]
+                },
+                {
+                  "t": "1793742599999",
+                  "k": 0,
+                  "blockIndex": 1,
+                  "offsetMs": "1499999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793742600000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1793746799999",
+                  "k": 3,
+                  "blockIndex": 4,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793739599999",
+                "1793746800000"
+              ]
+            },
+            {
+              "name": "curated, n = -1 (before 1970), UTC, start 00:00",
+              "settings": {
+                "seed": "210",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "franchises": {
+                  "000000000000030000000000f1170083": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170084": "000000000000030000000000c0110006",
+                  "000000000000030000000000f1170085": "000000000000030000000000c0110006",
+                  "000000000000030000000000f117008d": "000000000000030000000000c0110007",
+                  "000000000000030000000000f117008e": "000000000000030000000000c0110007"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9001e01",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-01",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001e02",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-02",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001e03",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-03",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001e04",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-04",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001e05",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-05",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001e06",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-06",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001e07",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-07",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001e08",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-08",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000e9001e09",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-09",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 9
+                },
+                {
+                  "id": "000000000000030000000000e9001e0a",
+                  "kind": "episode",
+                  "runtimeMs": "1350000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-10",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 10
+                },
+                {
+                  "id": "000000000000030000000000e9001e0b",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-11",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 11
+                },
+                {
+                  "id": "000000000000030000000000e9001e0c",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2003-01-12",
+                  "seriesId": "000000000000030000000000005e001e",
+                  "season": 1,
+                  "episode": 12
+                },
+                {
+                  "id": "000000000000030000000000e9001f01",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-01",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9001f02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-02",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9001f03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-03",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9001f04",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-04",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9001f05",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-05",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9001f06",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-06",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9001f07",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-07",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000e9001f08",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1998-09-08",
+                  "seriesId": "000000000000030000000000005e001f",
+                  "season": 1,
+                  "episode": 8
+                },
+                {
+                  "id": "000000000000030000000000f1170083",
+                  "kind": "movie",
+                  "runtimeMs": "6300000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1984-06-08"
+                },
+                {
+                  "id": "000000000000030000000000f1170084",
+                  "kind": "movie",
+                  "runtimeMs": "6480000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1989-06-16"
+                },
+                {
+                  "id": "000000000000030000000000f1170085",
+                  "kind": "movie",
+                  "runtimeMs": "6960000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2016-02-12"
+                },
+                {
+                  "id": "000000000000030000000000f117008d",
+                  "kind": "movie",
+                  "runtimeMs": "7260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "1977-05-25"
+                },
+                {
+                  "id": "000000000000030000000000f117008e",
+                  "kind": "movie",
+                  "runtimeMs": "7440000",
+                  "createdAtMs": "-1000000000000",
+                  "productionYear": 1980
+                }
+              ],
+              "n": "-1",
+              "blocks": [
+                {
+                  "startMs": "-86400000",
+                  "endMs": "-78960000",
+                  "itemId": "000000000000030000000000f117008e"
+                },
+                {
+                  "startMs": "-78960000",
+                  "endMs": "-77400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-77400000",
+                  "endMs": "-76020000",
+                  "itemId": "000000000000030000000000e9001e05"
+                },
+                {
+                  "startMs": "-76020000",
+                  "endMs": "-74700000",
+                  "itemId": "000000000000030000000000e9001e06"
+                },
+                {
+                  "startMs": "-74700000",
+                  "endMs": "-73800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-73800000",
+                  "endMs": "-67320000",
+                  "itemId": "000000000000030000000000f1170084"
+                },
+                {
+                  "startMs": "-67320000",
+                  "endMs": "-66600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-66600000",
+                  "endMs": "-63960000",
+                  "itemId": "000000000000030000000000e9001f08"
+                },
+                {
+                  "startMs": "-63960000",
+                  "endMs": "-63000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-63000000",
+                  "endMs": "-61650000",
+                  "itemId": "000000000000030000000000e9001e07"
+                },
+                {
+                  "startMs": "-61650000",
+                  "endMs": "-60270000",
+                  "itemId": "000000000000030000000000e9001e08"
+                },
+                {
+                  "startMs": "-60270000",
+                  "endMs": "-59400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-59400000",
+                  "endMs": "-52140000",
+                  "itemId": "000000000000030000000000f117008d"
+                },
+                {
+                  "startMs": "-52140000",
+                  "endMs": "-50400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-50400000",
+                  "endMs": "-47700000",
+                  "itemId": "000000000000030000000000e9001f01"
+                },
+                {
+                  "startMs": "-47700000",
+                  "endMs": "-46800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-46800000",
+                  "endMs": "-45480000",
+                  "itemId": "000000000000030000000000e9001e09"
+                },
+                {
+                  "startMs": "-45480000",
+                  "endMs": "-44130000",
+                  "itemId": "000000000000030000000000e9001e0a"
+                },
+                {
+                  "startMs": "-44130000",
+                  "endMs": "-43200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-43200000",
+                  "endMs": "-36240000",
+                  "itemId": "000000000000030000000000f1170085"
+                },
+                {
+                  "startMs": "-36240000",
+                  "endMs": "-36000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-36000000",
+                  "endMs": "-33360000",
+                  "itemId": "000000000000030000000000e9001f02"
+                },
+                {
+                  "startMs": "-33360000",
+                  "endMs": "-32400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-32400000",
+                  "endMs": "-31020000",
+                  "itemId": "000000000000030000000000e9001e0b"
+                },
+                {
+                  "startMs": "-31020000",
+                  "endMs": "-29700000",
+                  "itemId": "000000000000030000000000e9001e0c"
+                },
+                {
+                  "startMs": "-29700000",
+                  "endMs": "-28800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-28800000",
+                  "endMs": "-22500000",
+                  "itemId": "000000000000030000000000f1170083"
+                },
+                {
+                  "startMs": "-22500000",
+                  "endMs": "-21600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-21600000",
+                  "endMs": "-18900000",
+                  "itemId": "000000000000030000000000e9001f03"
+                },
+                {
+                  "startMs": "-18900000",
+                  "endMs": "-18000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-18000000",
+                  "endMs": "-16650000",
+                  "itemId": "000000000000030000000000e9001e01"
+                },
+                {
+                  "startMs": "-16650000",
+                  "endMs": "-15270000",
+                  "itemId": "000000000000030000000000e9001e02"
+                },
+                {
+                  "startMs": "-15270000",
+                  "endMs": "-14400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-14400000",
+                  "endMs": "-11760000",
+                  "itemId": "000000000000030000000000e9001f04"
+                },
+                {
+                  "startMs": "-11760000",
+                  "endMs": "-10800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-10800000",
+                  "endMs": "-9480000",
+                  "itemId": "000000000000030000000000e9001e03"
+                },
+                {
+                  "startMs": "-9480000",
+                  "endMs": "-8130000",
+                  "itemId": "000000000000030000000000e9001e04"
+                },
+                {
+                  "startMs": "-8130000",
+                  "endMs": "-7200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-7200000",
+                  "endMs": "-4500000",
+                  "itemId": "000000000000030000000000e9001f05"
+                },
+                {
+                  "startMs": "-4500000",
+                  "endMs": "-3600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-3600000",
+                  "endMs": "-960000",
+                  "itemId": "000000000000030000000000e9001f06"
+                },
+                {
+                  "startMs": "-960000",
+                  "endMs": "0",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-86400000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "-78960000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "-34680000",
+                  "k": 3,
+                  "blockIndex": 21,
+                  "offsetMs": "1320000",
+                  "nextIndexes": [
+                    22,
+                    23,
+                    24
+                  ]
+                },
+                {
+                  "t": "-33360001",
+                  "k": 0,
+                  "blockIndex": 21,
+                  "offsetMs": "2639999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-1",
+                  "k": 3,
+                  "blockIndex": 41,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "-86400001",
+                "0"
+              ]
+            },
+            {
+              "name": "runtime windows per kind: episodes 10 to 30 minutes, movies 80 to 150 minutes, both edges included (chronological)",
+              "note": "Episodes ...e9002801 (599,999 ms), ...e9002802 (600,000), ...e9002803 (1,800,000), ...e9002804 (1,800,001) of series ...5e0028 and the loose episode ...10050006 (100 min); films ...f11700c9 (4,799,999 ms), ...f11700ca (4,800,000), ...f11700cb (9,000,000), ...f11700cc (9,000,001), ...f11700cd (25 min). In the pool: ...e9002802, ...e9002803, ...f11700ca, ...f11700cb. The loose episode is out by the episode window.",
+              "settings": {
+                "seed": "211",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "runtimeFilter": {
+                  "episode": {
+                    "minMinutes": 10,
+                    "maxMinutes": 30
+                  },
+                  "movie": {
+                    "minMinutes": 80,
+                    "maxMinutes": 150
+                  }
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002801",
+                  "kind": "episode",
+                  "runtimeMs": "599999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-01",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002802",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-02",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002803",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-03",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002804",
+                  "kind": "episode",
+                  "runtimeMs": "1800001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-04",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000f11700c9",
+                  "kind": "movie",
+                  "runtimeMs": "4799999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-05"
+                },
+                {
+                  "id": "000000000000030000000000f11700ca",
+                  "kind": "movie",
+                  "runtimeMs": "4800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-06"
+                },
+                {
+                  "id": "000000000000030000000000f11700cb",
+                  "kind": "movie",
+                  "runtimeMs": "9000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-07"
+                },
+                {
+                  "id": "000000000000030000000000f11700cc",
+                  "kind": "movie",
+                  "runtimeMs": "9000001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-08"
+                },
+                {
+                  "id": "000000000000030000000000f11700cd",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-09"
+                },
+                {
+                  "id": "00000000000003000000000010050006",
+                  "kind": "episode",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793708400000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793708400000",
+                  "endMs": "1793709000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793709000000",
+                  "endMs": "1793718000000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793718000000",
+                  "endMs": "1793718600000",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793718600000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793721600000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793721600000",
+                  "endMs": "1793726400000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793726400000",
+                  "endMs": "1793727000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793727000000",
+                  "endMs": "1793736000000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793736000000",
+                  "endMs": "1793736600000",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793736600000",
+                  "endMs": "1793737800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793737800000",
+                  "endMs": "1793739600000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793739600000",
+                  "endMs": "1793744400000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793744400000",
+                  "endMs": "1793745000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793745000000",
+                  "endMs": "1793754000000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793754000000",
+                  "endMs": "1793754600000",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793754600000",
+                  "endMs": "1793755800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793755800000",
+                  "endMs": "1793757600000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793757600000",
+                  "endMs": "1793762400000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793762400000",
+                  "endMs": "1793763000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793763000000",
+                  "endMs": "1793772000000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793772000000",
+                  "endMs": "1793772600000",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793772600000",
+                  "endMs": "1793773800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793773800000",
+                  "endMs": "1793775600000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793775600000",
+                  "endMs": "1793780400000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793780400000",
+                  "endMs": "1793781000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793781000000",
+                  "endMs": "1793790000000",
+                  "itemId": "000000000000030000000000f11700cb"
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793708400000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793749500000",
+                  "k": 3,
+                  "blockIndex": 14,
+                  "offsetMs": "4500000",
+                  "nextIndexes": [
+                    15,
+                    16,
+                    17
+                  ]
+                },
+                {
+                  "t": "1793753999999",
+                  "k": 0,
+                  "blockIndex": 14,
+                  "offsetMs": "8999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 26,
+                  "offsetMs": "8999999",
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "runtime windows per kind: only an episode window (maxMinutes 30): films are not limited (inOrder)",
+              "note": "Episodes ...e9002801 (599,999 ms), ...e9002802 (600,000), ...e9002803 (1,800,000), ...e9002804 (1,800,001) of series ...5e0028 and the loose episode ...10050006 (100 min); films ...f11700c9 (4,799,999 ms), ...f11700ca (4,800,000), ...f11700cb (9,000,000), ...f11700cc (9,000,001), ...f11700cd (25 min). Every film stays; the episodes over 30 minutes (...e9002804, the loose ...10050006) are out.",
+              "settings": {
+                "seed": "211",
+                "ordering": {
+                  "mode": "inOrder"
+                },
+                "runtimeFilter": {
+                  "episode": {
+                    "maxMinutes": 30
+                  }
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002801",
+                  "kind": "episode",
+                  "runtimeMs": "599999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-01",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002802",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-02",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002803",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-03",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002804",
+                  "kind": "episode",
+                  "runtimeMs": "1800001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-04",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000f11700c9",
+                  "kind": "movie",
+                  "runtimeMs": "4799999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-05"
+                },
+                {
+                  "id": "000000000000030000000000f11700ca",
+                  "kind": "movie",
+                  "runtimeMs": "4800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-06"
+                },
+                {
+                  "id": "000000000000030000000000f11700cb",
+                  "kind": "movie",
+                  "runtimeMs": "9000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-07"
+                },
+                {
+                  "id": "000000000000030000000000f11700cc",
+                  "kind": "movie",
+                  "runtimeMs": "9000001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-08"
+                },
+                {
+                  "id": "000000000000030000000000f11700cd",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-09"
+                },
+                {
+                  "id": "00000000000003000000000010050006",
+                  "kind": "episode",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793704199999",
+                  "itemId": "000000000000030000000000e9002801"
+                },
+                {
+                  "startMs": "1793704199999",
+                  "endMs": "1793705400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793705400000",
+                  "endMs": "1793706000000",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793706000000",
+                  "endMs": "1793707200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793707200000",
+                  "endMs": "1793709000000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793709000000",
+                  "endMs": "1793713799999",
+                  "itemId": "000000000000030000000000f11700c9"
+                },
+                {
+                  "startMs": "1793713799999",
+                  "endMs": "1793714400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793714400000",
+                  "endMs": "1793719200000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793719200000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793728800000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793728800000",
+                  "endMs": "1793737800001",
+                  "itemId": "000000000000030000000000f11700cc"
+                },
+                {
+                  "startMs": "1793737800001",
+                  "endMs": "1793739600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793739600000",
+                  "endMs": "1793741100000",
+                  "itemId": "000000000000030000000000f11700cd"
+                },
+                {
+                  "startMs": "1793741100000",
+                  "endMs": "1793741400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793741400000",
+                  "endMs": "1793741999999",
+                  "itemId": "000000000000030000000000e9002801"
+                },
+                {
+                  "startMs": "1793741999999",
+                  "endMs": "1793743200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793743200000",
+                  "endMs": "1793743800000",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793743800000",
+                  "endMs": "1793745000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793745000000",
+                  "endMs": "1793746800000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793746800000",
+                  "endMs": "1793751599999",
+                  "itemId": "000000000000030000000000f11700c9"
+                },
+                {
+                  "startMs": "1793751599999",
+                  "endMs": "1793752200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793752200000",
+                  "endMs": "1793757000000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793757000000",
+                  "endMs": "1793757600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793757600000",
+                  "endMs": "1793766600000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793766600000",
+                  "endMs": "1793775600001",
+                  "itemId": "000000000000030000000000f11700cc"
+                },
+                {
+                  "startMs": "1793775600001",
+                  "endMs": "1793777400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793777400000",
+                  "endMs": "1793778900000",
+                  "itemId": "000000000000030000000000f11700cd"
+                },
+                {
+                  "startMs": "1793778900000",
+                  "endMs": "1793779200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793779200000",
+                  "endMs": "1793779799999",
+                  "itemId": "000000000000030000000000e9002801"
+                },
+                {
+                  "startMs": "1793779799999",
+                  "endMs": "1793781000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793781000000",
+                  "endMs": "1793781600000",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793781600000",
+                  "endMs": "1793782800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793782800000",
+                  "endMs": "1793784600000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793784600000",
+                  "endMs": "1793789399999",
+                  "itemId": "000000000000030000000000f11700c9"
+                },
+                {
+                  "startMs": "1793789399999",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793704199999",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793745900000",
+                  "k": 3,
+                  "blockIndex": 18,
+                  "offsetMs": "900000",
+                  "nextIndexes": [
+                    19,
+                    20,
+                    21
+                  ]
+                },
+                {
+                  "t": "1793746799999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 34,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "runtime windows per kind: a general maxMinutes 120 and a movie minMinutes 80 (curated)",
+              "note": "Episodes ...e9002801 (599,999 ms), ...e9002802 (600,000), ...e9002803 (1,800,000), ...e9002804 (1,800,001) of series ...5e0028 and the loose episode ...10050006 (100 min); films ...f11700c9 (4,799,999 ms), ...f11700ca (4,800,000), ...f11700cb (9,000,000), ...f11700cc (9,000,001), ...f11700cd (25 min). The general window removes the films over 120 minutes; the movie window removes ...f11700c9 (one ms short of 80 minutes) and ...f11700cd. Episodes are only under the general window.",
+              "settings": {
+                "seed": "212",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "runtimeFilter": {
+                  "maxMinutes": 120,
+                  "movie": {
+                    "minMinutes": 80
+                  }
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002801",
+                  "kind": "episode",
+                  "runtimeMs": "599999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-01",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002802",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-02",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002803",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-03",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002804",
+                  "kind": "episode",
+                  "runtimeMs": "1800001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-04",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000f11700c9",
+                  "kind": "movie",
+                  "runtimeMs": "4799999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-05"
+                },
+                {
+                  "id": "000000000000030000000000f11700ca",
+                  "kind": "movie",
+                  "runtimeMs": "4800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-06"
+                },
+                {
+                  "id": "000000000000030000000000f11700cb",
+                  "kind": "movie",
+                  "runtimeMs": "9000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-07"
+                },
+                {
+                  "id": "000000000000030000000000f11700cc",
+                  "kind": "movie",
+                  "runtimeMs": "9000001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-08"
+                },
+                {
+                  "id": "000000000000030000000000f11700cd",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-09"
+                },
+                {
+                  "id": "00000000000003000000000010050006",
+                  "kind": "episode",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793709600000",
+                  "itemId": "00000000000003000000000010050006"
+                },
+                {
+                  "startMs": "1793709600000",
+                  "endMs": "1793710800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793710800000",
+                  "endMs": "1793715600000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793715600000",
+                  "endMs": "1793716200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793716200000",
+                  "endMs": "1793718000000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793718000000",
+                  "endMs": "1793719800001",
+                  "itemId": "000000000000030000000000e9002804"
+                },
+                {
+                  "startMs": "1793719800001",
+                  "endMs": "1793721600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793721600000",
+                  "endMs": "1793722199999",
+                  "itemId": "000000000000030000000000e9002801"
+                },
+                {
+                  "startMs": "1793722199999",
+                  "endMs": "1793722799999",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793722799999",
+                  "endMs": "1793723400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793723400000",
+                  "endMs": "1793729400000",
+                  "itemId": "00000000000003000000000010050006"
+                },
+                {
+                  "startMs": "1793729400000",
+                  "endMs": "1793730600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793730600000",
+                  "endMs": "1793735400000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793735400000",
+                  "endMs": "1793736000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793736000000",
+                  "endMs": "1793737800000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793737800000",
+                  "endMs": "1793739600001",
+                  "itemId": "000000000000030000000000e9002804"
+                },
+                {
+                  "startMs": "1793739600001",
+                  "endMs": "1793741400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793741400000",
+                  "endMs": "1793741999999",
+                  "itemId": "000000000000030000000000e9002801"
+                },
+                {
+                  "startMs": "1793741999999",
+                  "endMs": "1793742599999",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793742599999",
+                  "endMs": "1793743200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793743200000",
+                  "endMs": "1793749200000",
+                  "itemId": "00000000000003000000000010050006"
+                },
+                {
+                  "startMs": "1793749200000",
+                  "endMs": "1793750400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793750400000",
+                  "endMs": "1793755200000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793755200000",
+                  "endMs": "1793755800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793755800000",
+                  "endMs": "1793757600000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793757600000",
+                  "endMs": "1793759400001",
+                  "itemId": "000000000000030000000000e9002804"
+                },
+                {
+                  "startMs": "1793759400001",
+                  "endMs": "1793761200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793761200000",
+                  "endMs": "1793761799999",
+                  "itemId": "000000000000030000000000e9002801"
+                },
+                {
+                  "startMs": "1793761799999",
+                  "endMs": "1793762399999",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793762399999",
+                  "endMs": "1793763000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793763000000",
+                  "endMs": "1793769000000",
+                  "itemId": "00000000000003000000000010050006"
+                },
+                {
+                  "startMs": "1793769000000",
+                  "endMs": "1793770200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793775000000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793775000000",
+                  "endMs": "1793775600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793775600000",
+                  "endMs": "1793777400000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793777400000",
+                  "endMs": "1793779200001",
+                  "itemId": "000000000000030000000000e9002804"
+                },
+                {
+                  "startMs": "1793779200001",
+                  "endMs": "1793781000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793781000000",
+                  "endMs": "1793781599999",
+                  "itemId": "000000000000030000000000e9002801"
+                },
+                {
+                  "startMs": "1793781599999",
+                  "endMs": "1793782199999",
+                  "itemId": "000000000000030000000000e9002802"
+                },
+                {
+                  "startMs": "1793782199999",
+                  "endMs": "1793782800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793782800000",
+                  "endMs": "1793788800000",
+                  "itemId": "00000000000003000000000010050006"
+                },
+                {
+                  "startMs": "1793788800000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793709600000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793746200000",
+                  "k": 3,
+                  "blockIndex": 20,
+                  "offsetMs": "3000000",
+                  "nextIndexes": [
+                    21,
+                    22,
+                    23
+                  ]
+                },
+                {
+                  "t": "1793749199999",
+                  "k": 0,
+                  "blockIndex": 20,
+                  "offsetMs": "5999999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 41,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "runtime windows per kind: a general minMinutes 25 with an episode window minMinutes 30 (shuffle)",
+              "settings": {
+                "seed": "213",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "runtimeFilter": {
+                  "minMinutes": 25,
+                  "episode": {
+                    "minMinutes": 30
+                  }
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002801",
+                  "kind": "episode",
+                  "runtimeMs": "599999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-01",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002802",
+                  "kind": "episode",
+                  "runtimeMs": "600000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-02",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002803",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-03",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002804",
+                  "kind": "episode",
+                  "runtimeMs": "1800001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-04",
+                  "seriesId": "000000000000030000000000005e0028",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000f11700c9",
+                  "kind": "movie",
+                  "runtimeMs": "4799999",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-05"
+                },
+                {
+                  "id": "000000000000030000000000f11700ca",
+                  "kind": "movie",
+                  "runtimeMs": "4800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-06"
+                },
+                {
+                  "id": "000000000000030000000000f11700cb",
+                  "kind": "movie",
+                  "runtimeMs": "9000000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-07"
+                },
+                {
+                  "id": "000000000000030000000000f11700cc",
+                  "kind": "movie",
+                  "runtimeMs": "9000001",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-08"
+                },
+                {
+                  "id": "000000000000030000000000f11700cd",
+                  "kind": "movie",
+                  "runtimeMs": "1500000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2001-01-09"
+                },
+                {
+                  "id": "00000000000003000000000010050006",
+                  "kind": "episode",
+                  "runtimeMs": "6000000",
+                  "createdAtMs": "-1000000000000"
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793705400001",
+                  "itemId": "000000000000030000000000e9002804"
+                },
+                {
+                  "startMs": "1793705400001",
+                  "endMs": "1793707200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793707200000",
+                  "endMs": "1793709000000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793709000000",
+                  "endMs": "1793713799999",
+                  "itemId": "000000000000030000000000f11700c9"
+                },
+                {
+                  "startMs": "1793713799999",
+                  "endMs": "1793714400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793714400000",
+                  "endMs": "1793723400000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793723400000",
+                  "endMs": "1793724900000",
+                  "itemId": "000000000000030000000000f11700cd"
+                },
+                {
+                  "startMs": "1793724900000",
+                  "endMs": "1793725200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793725200000",
+                  "endMs": "1793734200001",
+                  "itemId": "000000000000030000000000f11700cc"
+                },
+                {
+                  "startMs": "1793734200001",
+                  "endMs": "1793736000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793736000000",
+                  "endMs": "1793740800000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793740800000",
+                  "endMs": "1793741400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793741400000",
+                  "endMs": "1793747400000",
+                  "itemId": "00000000000003000000000010050006"
+                },
+                {
+                  "startMs": "1793747400000",
+                  "endMs": "1793748600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793748600000",
+                  "endMs": "1793750400001",
+                  "itemId": "000000000000030000000000e9002804"
+                },
+                {
+                  "startMs": "1793750400001",
+                  "endMs": "1793752200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793752200000",
+                  "endMs": "1793754000000",
+                  "itemId": "000000000000030000000000e9002803"
+                },
+                {
+                  "startMs": "1793754000000",
+                  "endMs": "1793758799999",
+                  "itemId": "000000000000030000000000f11700c9"
+                },
+                {
+                  "startMs": "1793758799999",
+                  "endMs": "1793759400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793759400000",
+                  "endMs": "1793768400000",
+                  "itemId": "000000000000030000000000f11700cb"
+                },
+                {
+                  "startMs": "1793768400000",
+                  "endMs": "1793769900000",
+                  "itemId": "000000000000030000000000f11700cd"
+                },
+                {
+                  "startMs": "1793769900000",
+                  "endMs": "1793770200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793779200001",
+                  "itemId": "000000000000030000000000f11700cc"
+                },
+                {
+                  "startMs": "1793779200001",
+                  "endMs": "1793781000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793781000000",
+                  "endMs": "1793785800000",
+                  "itemId": "000000000000030000000000f11700ca"
+                },
+                {
+                  "startMs": "1793785800000",
+                  "endMs": "1793786400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793786400000",
+                  "endMs": "1793788200001",
+                  "itemId": "000000000000030000000000e9002804"
+                },
+                {
+                  "startMs": "1793788200001",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793705400001",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793749500000",
+                  "k": 3,
+                  "blockIndex": 14,
+                  "offsetMs": "900000",
+                  "nextIndexes": [
+                    15,
+                    16,
+                    17
+                  ]
+                },
+                {
+                  "t": "1793750400000",
+                  "k": 0,
+                  "blockIndex": 14,
+                  "offsetMs": "1800000",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 27,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ]
+            },
+            {
+              "name": "trim window, keeps 60 minutes (k = 2), day n (curated)",
+              "settings": {
+                "seed": "214",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "keeps": {
+                  "000000000000030000000000005e0029": "3600000"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793709300000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793709300000",
+                  "endMs": "1793710800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793710800000",
+                  "endMs": "1793713440000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793713440000",
+                  "endMs": "1793714400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793714400000",
+                  "endMs": "1793715720000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1793715720000",
+                  "endMs": "1793717100000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1793717100000",
+                  "endMs": "1793718000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793718000000",
+                  "endMs": "1793724060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793724060000",
+                  "endMs": "1793725200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793725200000",
+                  "endMs": "1793727900000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793727900000",
+                  "endMs": "1793728800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793728800000",
+                  "endMs": "1793731440000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793731440000",
+                  "endMs": "1793732400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793732400000",
+                  "endMs": "1793738100000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793738100000",
+                  "endMs": "1793739600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793739600000",
+                  "endMs": "1793742240000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793742240000",
+                  "endMs": "1793743200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793743200000",
+                  "endMs": "1793744520000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1793744520000",
+                  "endMs": "1793745900000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1793745900000",
+                  "endMs": "1793746800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793746800000",
+                  "endMs": "1793752860000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793752860000",
+                  "endMs": "1793754000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793754000000",
+                  "endMs": "1793756700000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793756700000",
+                  "endMs": "1793757600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793757600000",
+                  "endMs": "1793760240000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793760240000",
+                  "endMs": "1793761200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793761200000",
+                  "endMs": "1793766900000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793766900000",
+                  "endMs": "1793768400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793768400000",
+                  "endMs": "1793771040000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793771040000",
+                  "endMs": "1793772000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793772000000",
+                  "endMs": "1793773320000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1793773320000",
+                  "endMs": "1793774700000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1793774700000",
+                  "endMs": "1793775600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793775600000",
+                  "endMs": "1793781660000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793781660000",
+                  "endMs": "1793782800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793782800000",
+                  "endMs": "1793785500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793785500000",
+                  "endMs": "1793786400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793786400000",
+                  "endMs": "1793789040000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793789040000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793709300000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793745210000",
+                  "k": 3,
+                  "blockIndex": 18,
+                  "offsetMs": "690000",
+                  "nextIndexes": [
+                    19,
+                    20,
+                    21
+                  ]
+                },
+                {
+                  "t": "1793745899999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "1379999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 38,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. keeps caps it at 3,600,000 ms: prefix sums 22, 44, 88 minutes, so k = 2. series ...5e0029: s = 7, k = 2, start = 3, keeps e[3] e[4]."
+            },
+            {
+              "name": "trim window, keeps 60 minutes (k = 2), day n + 1 (curated)",
+              "settings": {
+                "seed": "214",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "keeps": {
+                  "000000000000030000000000005e0029": "3600000"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20761",
+              "blocks": [
+                {
+                  "startMs": "1793790000000",
+                  "endMs": "1793796060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793796060000",
+                  "endMs": "1793797200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793797200000",
+                  "endMs": "1793802900000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793802900000",
+                  "endMs": "1793804400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793804400000",
+                  "endMs": "1793807040000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793807040000",
+                  "endMs": "1793808000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793808000000",
+                  "endMs": "1793809800000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1793809800000",
+                  "endMs": "1793811060000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1793811060000",
+                  "endMs": "1793811600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793811600000",
+                  "endMs": "1793814240000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793814240000",
+                  "endMs": "1793815200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793815200000",
+                  "endMs": "1793817900000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793817900000",
+                  "endMs": "1793818800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793818800000",
+                  "endMs": "1793824860000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793824860000",
+                  "endMs": "1793826000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793826000000",
+                  "endMs": "1793831700000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793831700000",
+                  "endMs": "1793833200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793833200000",
+                  "endMs": "1793835840000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793835840000",
+                  "endMs": "1793836800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793836800000",
+                  "endMs": "1793838600000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1793838600000",
+                  "endMs": "1793839860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1793839860000",
+                  "endMs": "1793840400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793840400000",
+                  "endMs": "1793843040000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793843040000",
+                  "endMs": "1793844000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793844000000",
+                  "endMs": "1793846700000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793846700000",
+                  "endMs": "1793847600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793847600000",
+                  "endMs": "1793853660000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793853660000",
+                  "endMs": "1793854800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793854800000",
+                  "endMs": "1793860500000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793860500000",
+                  "endMs": "1793862000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793862000000",
+                  "endMs": "1793864640000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793864640000",
+                  "endMs": "1793865600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793865600000",
+                  "endMs": "1793867400000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1793867400000",
+                  "endMs": "1793868660000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1793868660000",
+                  "endMs": "1793869200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793869200000",
+                  "endMs": "1793871840000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793871840000",
+                  "endMs": "1793872800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793872800000",
+                  "endMs": "1793875500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793875500000",
+                  "endMs": "1793876400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793790000000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793796060000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793837700000",
+                  "k": 3,
+                  "blockIndex": 19,
+                  "offsetMs": "900000",
+                  "nextIndexes": [
+                    20,
+                    21,
+                    22
+                  ]
+                },
+                {
+                  "t": "1793838599999",
+                  "k": 0,
+                  "blockIndex": 19,
+                  "offsetMs": "1799999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793876399999",
+                  "k": 3,
+                  "blockIndex": 38,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793789999999",
+                "1793876400000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. keeps caps it at 3,600,000 ms: prefix sums 22, 44, 88 minutes, so k = 2. series ...5e0029: s = 7, k = 2, start = 5, keeps e[5] e[6]. Day n + 1 keeps the next two episodes (adjacent windows)."
+            },
+            {
+              "name": "trim window, the window wraps past the last episode to the first (keeps 88 minutes, k = 3, chronological)",
+              "settings": {
+                "seed": "215",
+                "ordering": {
+                  "mode": "chronological"
+                },
+                "keeps": {
+                  "000000000000030000000000005e0029": "5280000"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20764",
+              "blocks": [
+                {
+                  "startMs": "1794049200000",
+                  "endMs": "1794051900000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794051900000",
+                  "endMs": "1794052800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794052800000",
+                  "endMs": "1794058500000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794058500000",
+                  "endMs": "1794060000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794060000000",
+                  "endMs": "1794066060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794066060000",
+                  "endMs": "1794067200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794067200000",
+                  "endMs": "1794068520000",
+                  "itemId": "000000000000030000000000e9002901"
+                },
+                {
+                  "startMs": "1794068520000",
+                  "endMs": "1794069000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794069000000",
+                  "endMs": "1794070320000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1794070320000",
+                  "endMs": "1794070800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794070800000",
+                  "endMs": "1794072600000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794072600000",
+                  "endMs": "1794075240000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794075240000",
+                  "endMs": "1794076200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794076200000",
+                  "endMs": "1794078840000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794078840000",
+                  "endMs": "1794079800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794079800000",
+                  "endMs": "1794082500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794082500000",
+                  "endMs": "1794083400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794083400000",
+                  "endMs": "1794089100000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794089100000",
+                  "endMs": "1794090600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794090600000",
+                  "endMs": "1794096660000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794096660000",
+                  "endMs": "1794097800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794097800000",
+                  "endMs": "1794099120000",
+                  "itemId": "000000000000030000000000e9002901"
+                },
+                {
+                  "startMs": "1794099120000",
+                  "endMs": "1794099600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794099600000",
+                  "endMs": "1794100920000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1794100920000",
+                  "endMs": "1794101400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794101400000",
+                  "endMs": "1794103200000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794103200000",
+                  "endMs": "1794105840000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794105840000",
+                  "endMs": "1794106800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794106800000",
+                  "endMs": "1794109440000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794109440000",
+                  "endMs": "1794110400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794110400000",
+                  "endMs": "1794113100000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794113100000",
+                  "endMs": "1794114000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794114000000",
+                  "endMs": "1794119700000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794119700000",
+                  "endMs": "1794121200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794121200000",
+                  "endMs": "1794127260000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794127260000",
+                  "endMs": "1794128400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794128400000",
+                  "endMs": "1794129720000",
+                  "itemId": "000000000000030000000000e9002901"
+                },
+                {
+                  "startMs": "1794129720000",
+                  "endMs": "1794130200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794130200000",
+                  "endMs": "1794131520000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1794131520000",
+                  "endMs": "1794132000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794132000000",
+                  "endMs": "1794133800000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794133800000",
+                  "endMs": "1794135600000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1794049200000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1794051900000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1794098460000",
+                  "k": 3,
+                  "blockIndex": 21,
+                  "offsetMs": "660000",
+                  "nextIndexes": [
+                    22,
+                    23,
+                    24
+                  ]
+                },
+                {
+                  "t": "1794099119999",
+                  "k": 0,
+                  "blockIndex": 21,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1794135599999",
+                  "k": 3,
+                  "blockIndex": 41,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1794049199999",
+                "1794135600000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. The cap 5,280,000 ms is exactly the first three episodes (88 minutes), so k = 3 (the test is at most the cap). series ...5e0029: s = 7, k = 3, start = 6, keeps e[6] e[0] e[1]."
+            },
+            {
+              "name": "trim window, a cap over the whole series: k = s, nothing is removed (shuffle)",
+              "settings": {
+                "seed": "216",
+                "ordering": {
+                  "mode": "shuffle"
+                },
+                "keeps": {
+                  "000000000000030000000000005e0029": "11040000",
+                  "000000000000030000000000005e0063": "1"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "blocks": [
+                {
+                  "startMs": "1793703600000",
+                  "endMs": "1793704980000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1793704980000",
+                  "endMs": "1793705400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793705400000",
+                  "endMs": "1793706720000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1793706720000",
+                  "endMs": "1793707200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793707200000",
+                  "endMs": "1793708520000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1793708520000",
+                  "endMs": "1793709000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793709000000",
+                  "endMs": "1793711640000",
+                  "itemId": "000000000000030000000000e9002903"
+                },
+                {
+                  "startMs": "1793711640000",
+                  "endMs": "1793712600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793712600000",
+                  "endMs": "1793718300000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793718300000",
+                  "endMs": "1793719800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793719800000",
+                  "endMs": "1793721120000",
+                  "itemId": "000000000000030000000000e9002901"
+                },
+                {
+                  "startMs": "1793721120000",
+                  "endMs": "1793721600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793721600000",
+                  "endMs": "1793722860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1793722860000",
+                  "endMs": "1793723400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793723400000",
+                  "endMs": "1793726100000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793726100000",
+                  "endMs": "1793727000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793727000000",
+                  "endMs": "1793729640000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793729640000",
+                  "endMs": "1793730600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793730600000",
+                  "endMs": "1793732400000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1793732400000",
+                  "endMs": "1793735040000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793735040000",
+                  "endMs": "1793736000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793736000000",
+                  "endMs": "1793742060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793742060000",
+                  "endMs": "1793743200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793743200000",
+                  "endMs": "1793744580000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1793744580000",
+                  "endMs": "1793745000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793745000000",
+                  "endMs": "1793746320000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1793746320000",
+                  "endMs": "1793746800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793746800000",
+                  "endMs": "1793748120000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1793748120000",
+                  "endMs": "1793748600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793748600000",
+                  "endMs": "1793751240000",
+                  "itemId": "000000000000030000000000e9002903"
+                },
+                {
+                  "startMs": "1793751240000",
+                  "endMs": "1793752200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793752200000",
+                  "endMs": "1793757900000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793757900000",
+                  "endMs": "1793759400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793759400000",
+                  "endMs": "1793760720000",
+                  "itemId": "000000000000030000000000e9002901"
+                },
+                {
+                  "startMs": "1793760720000",
+                  "endMs": "1793761200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793761200000",
+                  "endMs": "1793762460000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1793762460000",
+                  "endMs": "1793763000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793763000000",
+                  "endMs": "1793765700000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793765700000",
+                  "endMs": "1793766600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793766600000",
+                  "endMs": "1793769240000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793769240000",
+                  "endMs": "1793770200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793770200000",
+                  "endMs": "1793772000000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1793772000000",
+                  "endMs": "1793774640000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793774640000",
+                  "endMs": "1793775600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793775600000",
+                  "endMs": "1793781660000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793781660000",
+                  "endMs": "1793782800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793782800000",
+                  "endMs": "1793784180000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1793784180000",
+                  "endMs": "1793784600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793784600000",
+                  "endMs": "1793785920000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1793785920000",
+                  "endMs": "1793786400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793786400000",
+                  "endMs": "1793787720000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1793787720000",
+                  "endMs": "1793788200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793788200000",
+                  "endMs": "1793789520000",
+                  "itemId": "000000000000030000000000e9002901"
+                },
+                {
+                  "startMs": "1793789520000",
+                  "endMs": "1793790000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793703600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793704980000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1793747460000",
+                  "k": 3,
+                  "blockIndex": 27,
+                  "offsetMs": "660000",
+                  "nextIndexes": [
+                    28,
+                    29,
+                    30
+                  ]
+                },
+                {
+                  "t": "1793748119999",
+                  "k": 0,
+                  "blockIndex": 27,
+                  "offsetMs": "1319999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1793789999999",
+                  "k": 3,
+                  "blockIndex": 53,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793703599999",
+                "1793790000000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. The cap is 11,040,000 ms (184 minutes, the whole series), so k = s = 7 and the pool keeps every episode. The keeps entry ...5e0063 is the series of no episode of the pool: it changes nothing."
+            },
+            {
+              "name": "trim window, the first episode is over the cap: k = 1, one episode a day (randomInOrder)",
+              "settings": {
+                "seed": "217",
+                "ordering": {
+                  "mode": "randomInOrder"
+                },
+                "keeps": {
+                  "000000000000030000000000005e0029": "1200000"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20763",
+              "blocks": [
+                {
+                  "startMs": "1793962800000",
+                  "endMs": "1793968500000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793968500000",
+                  "endMs": "1793970000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793970000000",
+                  "endMs": "1793976060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1793976060000",
+                  "endMs": "1793977200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793977200000",
+                  "endMs": "1793979840000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1793979840000",
+                  "endMs": "1793980800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793980800000",
+                  "endMs": "1793983500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1793983500000",
+                  "endMs": "1793984400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793984400000",
+                  "endMs": "1793985720000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1793985720000",
+                  "endMs": "1793986200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793986200000",
+                  "endMs": "1793988840000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1793988840000",
+                  "endMs": "1793989800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793989800000",
+                  "endMs": "1793995500000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1793995500000",
+                  "endMs": "1793997000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1793997000000",
+                  "endMs": "1794003060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794003060000",
+                  "endMs": "1794004200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794004200000",
+                  "endMs": "1794006840000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794006840000",
+                  "endMs": "1794007800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794007800000",
+                  "endMs": "1794010500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794010500000",
+                  "endMs": "1794011400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794011400000",
+                  "endMs": "1794012720000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1794012720000",
+                  "endMs": "1794013200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794013200000",
+                  "endMs": "1794015840000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794015840000",
+                  "endMs": "1794016800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794016800000",
+                  "endMs": "1794022500000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794022500000",
+                  "endMs": "1794024000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794024000000",
+                  "endMs": "1794030060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794030060000",
+                  "endMs": "1794031200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794031200000",
+                  "endMs": "1794033840000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794033840000",
+                  "endMs": "1794034800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794034800000",
+                  "endMs": "1794037500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794037500000",
+                  "endMs": "1794038400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794038400000",
+                  "endMs": "1794039720000",
+                  "itemId": "000000000000030000000000e9002902"
+                },
+                {
+                  "startMs": "1794039720000",
+                  "endMs": "1794040200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794040200000",
+                  "endMs": "1794042840000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794042840000",
+                  "endMs": "1794043800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794043800000",
+                  "endMs": "1794046440000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794046440000",
+                  "endMs": "1794049200000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1793962800000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1793968500000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1794009150000",
+                  "k": 3,
+                  "blockIndex": 18,
+                  "offsetMs": "1350000",
+                  "nextIndexes": [
+                    19,
+                    20,
+                    21
+                  ]
+                },
+                {
+                  "t": "1794010499999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "2699999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1794049199999",
+                  "k": 3,
+                  "blockIndex": 37,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1793962799999",
+                "1794049200000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. The cap is 1,200,000 ms (20 minutes); even e[0] (22 minutes) is over it, so k = 1 and the day keeps e[floorMod(n, 7)]. series ...5e0029: s = 7, k = 1, start = 1, keeps e[1]."
+            },
+            {
+              "name": "trim window, n = -1, two series trimmed, a deleted episode and a short one change s (rotation)",
+              "settings": {
+                "seed": "218",
+                "ordering": {
+                  "mode": "rotation"
+                },
+                "caps": {
+                  "series": 3,
+                  "film": 1
+                },
+                "keeps": {
+                  "000000000000030000000000005e0029": "4200000",
+                  "000000000000030000000000005e002b": "7200000"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": 0,
+                    "start": "00:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "deletedAtMs": "-111600000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002b01",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002b",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002b02",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002b",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002b03",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002b",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002b04",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002b",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002b05",
+                  "kind": "episode",
+                  "runtimeMs": "3000000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002b",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002909",
+                  "kind": "episode",
+                  "runtimeMs": "59999",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 9
+                }
+              ],
+              "n": "-1",
+              "blocks": [
+                {
+                  "startMs": "-86400000",
+                  "endMs": "-80340000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "-80340000",
+                  "endMs": "-79200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-79200000",
+                  "endMs": "-76560000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "-76560000",
+                  "endMs": "-73920000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "-73920000",
+                  "endMs": "-71220000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "-71220000",
+                  "endMs": "-70200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-70200000",
+                  "endMs": "-68940000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "-68940000",
+                  "endMs": "-67140000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "-67140000",
+                  "endMs": "-66600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-66600000",
+                  "endMs": "-63600000",
+                  "itemId": "000000000000030000000000e9002b04"
+                },
+                {
+                  "startMs": "-63600000",
+                  "endMs": "-60600000",
+                  "itemId": "000000000000030000000000e9002b05"
+                },
+                {
+                  "startMs": "-60600000",
+                  "endMs": "-59400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-59400000",
+                  "endMs": "-53700000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "-53700000",
+                  "endMs": "-52200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-52200000",
+                  "endMs": "-46140000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "-46140000",
+                  "endMs": "-45000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-45000000",
+                  "endMs": "-42360000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "-42360000",
+                  "endMs": "-39720000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "-39720000",
+                  "endMs": "-37020000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "-37020000",
+                  "endMs": "-36000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-36000000",
+                  "endMs": "-34740000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "-34740000",
+                  "endMs": "-32940000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "-32940000",
+                  "endMs": "-32400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-32400000",
+                  "endMs": "-29400000",
+                  "itemId": "000000000000030000000000e9002b04"
+                },
+                {
+                  "startMs": "-29400000",
+                  "endMs": "-26400000",
+                  "itemId": "000000000000030000000000e9002b05"
+                },
+                {
+                  "startMs": "-26400000",
+                  "endMs": "-25200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-25200000",
+                  "endMs": "-19500000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "-19500000",
+                  "endMs": "-18000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-18000000",
+                  "endMs": "-11940000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "-11940000",
+                  "endMs": "-10800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-10800000",
+                  "endMs": "-8160000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "-8160000",
+                  "endMs": "-5520000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "-5520000",
+                  "endMs": "-2820000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "-2820000",
+                  "endMs": "-1800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "-1800000",
+                  "endMs": "-540000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "-540000",
+                  "endMs": "0",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "-86400000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "-80340000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "-41040000",
+                  "k": 3,
+                  "blockIndex": 17,
+                  "offsetMs": "1320000",
+                  "nextIndexes": [
+                    18,
+                    19,
+                    20
+                  ]
+                },
+                {
+                  "t": "-39720001",
+                  "k": 0,
+                  "blockIndex": 17,
+                  "offsetMs": "2639999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "-1",
+                  "k": 3,
+                  "blockIndex": 35,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "-86400001",
+                "0"
+              ],
+              "note": "The day is n = -1 (S = -86,400,000 on UTC). Episode e[1] (...e9002902) of series ...5e0029 was deleted before the cut-off and the episode ...e9002909 is shorter than minRuntimeMs, so the trim window works on the other six episodes (s = 6; e[] below numbers those six). Series ...5e002b: five 50-minute episodes, cap 120 minutes. series ...5e0029: s = 6, k = 2, start = 4, keeps e[4] e[5]; series ...5e002b: s = 5, k = 2, start = 3, keeps e[3] e[4]. floorMod(-1, s) = s - 1."
+            },
+            {
+              "name": "trim window after a per-kind runtime window: the 44-minute episode is out first, so s = 6 and k = 3 (curated, grid 15, weights, franchises)",
+              "settings": {
+                "seed": "220",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "runtimeFilter": {
+                  "episode": {
+                    "maxMinutes": 40
+                  }
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "weights": {
+                  "000000000000030000000000005e0029": 3
+                },
+                "keeps": {
+                  "000000000000030000000000005e0029": "3960000"
+                },
+                "franchises": {
+                  "000000000000030000000000f11700dd": "000000000000030000000000c0110009",
+                  "000000000000030000000000f11700de": "000000000000030000000000c0110009"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 15,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20765",
+              "blocks": [
+                {
+                  "startMs": "1794135600000",
+                  "endMs": "1794136860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794136860000",
+                  "endMs": "1794138660000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794138660000",
+                  "endMs": "1794139200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794139200000",
+                  "endMs": "1794145260000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794145260000",
+                  "endMs": "1794145500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794145500000",
+                  "endMs": "1794146880000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794146880000",
+                  "endMs": "1794147300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794147300000",
+                  "endMs": "1794153000000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794153000000",
+                  "endMs": "1794153600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794153600000",
+                  "endMs": "1794154860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794154860000",
+                  "endMs": "1794156660000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794156660000",
+                  "endMs": "1794157200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794157200000",
+                  "endMs": "1794163260000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794163260000",
+                  "endMs": "1794163500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794163500000",
+                  "endMs": "1794164880000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794164880000",
+                  "endMs": "1794165300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794165300000",
+                  "endMs": "1794171000000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794171000000",
+                  "endMs": "1794171600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794171600000",
+                  "endMs": "1794172860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794172860000",
+                  "endMs": "1794174660000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794174660000",
+                  "endMs": "1794175200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794175200000",
+                  "endMs": "1794181260000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794181260000",
+                  "endMs": "1794181500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794181500000",
+                  "endMs": "1794182880000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794182880000",
+                  "endMs": "1794183300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794183300000",
+                  "endMs": "1794189000000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794189000000",
+                  "endMs": "1794189600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794189600000",
+                  "endMs": "1794190860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794190860000",
+                  "endMs": "1794192660000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794192660000",
+                  "endMs": "1794193200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794193200000",
+                  "endMs": "1794199260000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794199260000",
+                  "endMs": "1794199500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794199500000",
+                  "endMs": "1794200880000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794200880000",
+                  "endMs": "1794201300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794201300000",
+                  "endMs": "1794207000000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794207000000",
+                  "endMs": "1794207600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794207600000",
+                  "endMs": "1794208860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794208860000",
+                  "endMs": "1794210660000",
+                  "itemId": "000000000000030000000000e9002907"
+                },
+                {
+                  "startMs": "1794210660000",
+                  "endMs": "1794211200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794211200000",
+                  "endMs": "1794217260000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794217260000",
+                  "endMs": "1794217500000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794217500000",
+                  "endMs": "1794218880000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794218880000",
+                  "endMs": "1794219300000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794219300000",
+                  "endMs": "1794220560000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794220560000",
+                  "endMs": "1794222000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1794135600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1794136860000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1794178230000",
+                  "k": 3,
+                  "blockIndex": 21,
+                  "offsetMs": "3030000",
+                  "nextIndexes": [
+                    22,
+                    23,
+                    24
+                  ]
+                },
+                {
+                  "t": "1794181259999",
+                  "k": 0,
+                  "blockIndex": 21,
+                  "offsetMs": "6059999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1794138660000",
+                  "k": 1,
+                  "blockIndex": 2,
+                  "nextIndexes": [
+                    3
+                  ]
+                },
+                {
+                  "t": "1794221999999",
+                  "k": 3,
+                  "blockIndex": 44,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1794135599999",
+                "1794222000000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. The episode window (at most 40 minutes) removes e[2] (44 minutes) and series ...5e002a's 44- and 45-minute episodes before the trim window, so the window works on 22, 22, 22, 23, 21, 30 minutes: prefix sums 22, 44, 66, so k = 3 at the cap 3,960,000 ms. series ...5e0029: s = 6, k = 3, start = 3, keeps e[3] e[4] e[5]. Films ...f11700dd and ...f11700de are one franchise (...c0110009)."
+            },
+            {
+              "name": "trim window, inOrder, keeps 45 minutes (k = 2), day n",
+              "settings": {
+                "seed": "221",
+                "ordering": {
+                  "mode": "inOrder"
+                },
+                "keeps": {
+                  "000000000000030000000000005e0029": "2700000"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20770",
+              "blocks": [
+                {
+                  "startMs": "1794567600000",
+                  "endMs": "1794570300000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794570300000",
+                  "endMs": "1794571200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794571200000",
+                  "endMs": "1794576900000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794576900000",
+                  "endMs": "1794578400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794578400000",
+                  "endMs": "1794584460000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794584460000",
+                  "endMs": "1794585600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794585600000",
+                  "endMs": "1794588240000",
+                  "itemId": "000000000000030000000000e9002903"
+                },
+                {
+                  "startMs": "1794588240000",
+                  "endMs": "1794589200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794589200000",
+                  "endMs": "1794590520000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1794590520000",
+                  "endMs": "1794591000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794591000000",
+                  "endMs": "1794593640000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794593640000",
+                  "endMs": "1794594600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794594600000",
+                  "endMs": "1794597240000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794597240000",
+                  "endMs": "1794598200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794598200000",
+                  "endMs": "1794600900000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794600900000",
+                  "endMs": "1794601800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794601800000",
+                  "endMs": "1794607500000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794607500000",
+                  "endMs": "1794609000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794609000000",
+                  "endMs": "1794615060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794615060000",
+                  "endMs": "1794616200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794616200000",
+                  "endMs": "1794618840000",
+                  "itemId": "000000000000030000000000e9002903"
+                },
+                {
+                  "startMs": "1794618840000",
+                  "endMs": "1794619800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794619800000",
+                  "endMs": "1794621120000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1794621120000",
+                  "endMs": "1794621600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794621600000",
+                  "endMs": "1794624240000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794624240000",
+                  "endMs": "1794625200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794625200000",
+                  "endMs": "1794627840000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794627840000",
+                  "endMs": "1794628800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794628800000",
+                  "endMs": "1794631500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794631500000",
+                  "endMs": "1794632400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794632400000",
+                  "endMs": "1794638100000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794638100000",
+                  "endMs": "1794639600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794639600000",
+                  "endMs": "1794645660000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794645660000",
+                  "endMs": "1794646800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794646800000",
+                  "endMs": "1794649440000",
+                  "itemId": "000000000000030000000000e9002903"
+                },
+                {
+                  "startMs": "1794649440000",
+                  "endMs": "1794650400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794650400000",
+                  "endMs": "1794651720000",
+                  "itemId": "000000000000030000000000e9002904"
+                },
+                {
+                  "startMs": "1794651720000",
+                  "endMs": "1794654000000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1794567600000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1794570300000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1794612030000",
+                  "k": 3,
+                  "blockIndex": 18,
+                  "offsetMs": "3030000",
+                  "nextIndexes": [
+                    19,
+                    20,
+                    21
+                  ]
+                },
+                {
+                  "t": "1794615059999",
+                  "k": 0,
+                  "blockIndex": 18,
+                  "offsetMs": "6059999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1794653999999",
+                  "k": 3,
+                  "blockIndex": 37,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1794567599999",
+                "1794654000000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. The cap 2,700,000 ms holds e[0] and e[1] (44 minutes), so k = 2. series ...5e0029: s = 7, k = 2, start = 2, keeps e[2] e[3]. The pool, and so the cycle, changes from day to day."
+            },
+            {
+              "name": "trim window, inOrder, keeps 45 minutes (k = 2), day n + 1",
+              "settings": {
+                "seed": "221",
+                "ordering": {
+                  "mode": "inOrder"
+                },
+                "keeps": {
+                  "000000000000030000000000005e0029": "2700000"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20771",
+              "blocks": [
+                {
+                  "startMs": "1794654000000",
+                  "endMs": "1794660060000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794660060000",
+                  "endMs": "1794661200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794661200000",
+                  "endMs": "1794662580000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794662580000",
+                  "endMs": "1794663000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794663000000",
+                  "endMs": "1794664260000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794664260000",
+                  "endMs": "1794664800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794664800000",
+                  "endMs": "1794667440000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794667440000",
+                  "endMs": "1794668400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794668400000",
+                  "endMs": "1794671040000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794671040000",
+                  "endMs": "1794672000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794672000000",
+                  "endMs": "1794674700000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794674700000",
+                  "endMs": "1794675600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794675600000",
+                  "endMs": "1794681300000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794681300000",
+                  "endMs": "1794682800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794682800000",
+                  "endMs": "1794688860000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794688860000",
+                  "endMs": "1794690000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794690000000",
+                  "endMs": "1794691380000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794691380000",
+                  "endMs": "1794691800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794691800000",
+                  "endMs": "1794693060000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794693060000",
+                  "endMs": "1794693600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794693600000",
+                  "endMs": "1794696240000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794696240000",
+                  "endMs": "1794697200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794697200000",
+                  "endMs": "1794699840000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794699840000",
+                  "endMs": "1794700800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794700800000",
+                  "endMs": "1794703500000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794703500000",
+                  "endMs": "1794704400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794704400000",
+                  "endMs": "1794710100000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794710100000",
+                  "endMs": "1794711600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794711600000",
+                  "endMs": "1794717660000",
+                  "itemId": "000000000000030000000000f11700de"
+                },
+                {
+                  "startMs": "1794717660000",
+                  "endMs": "1794718800000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794718800000",
+                  "endMs": "1794720180000",
+                  "itemId": "000000000000030000000000e9002905"
+                },
+                {
+                  "startMs": "1794720180000",
+                  "endMs": "1794720600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794720600000",
+                  "endMs": "1794721860000",
+                  "itemId": "000000000000030000000000e9002906"
+                },
+                {
+                  "startMs": "1794721860000",
+                  "endMs": "1794722400000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794722400000",
+                  "endMs": "1794725040000",
+                  "itemId": "000000000000030000000000e9002a01"
+                },
+                {
+                  "startMs": "1794725040000",
+                  "endMs": "1794726000000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794726000000",
+                  "endMs": "1794728640000",
+                  "itemId": "000000000000030000000000e9002a02"
+                },
+                {
+                  "startMs": "1794728640000",
+                  "endMs": "1794729600000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794729600000",
+                  "endMs": "1794732300000",
+                  "itemId": "000000000000030000000000e9002a03"
+                },
+                {
+                  "startMs": "1794732300000",
+                  "endMs": "1794733200000",
+                  "slate": true
+                },
+                {
+                  "startMs": "1794733200000",
+                  "endMs": "1794738900000",
+                  "itemId": "000000000000030000000000f11700dd"
+                },
+                {
+                  "startMs": "1794738900000",
+                  "endMs": "1794740400000",
+                  "slate": true
+                }
+              ],
+              "queries": [
+                {
+                  "t": "1794654000000",
+                  "k": 2,
+                  "blockIndex": 0,
+                  "offsetMs": "0",
+                  "nextIndexes": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "t": "1794660060000",
+                  "k": 1,
+                  "blockIndex": 1,
+                  "nextIndexes": [
+                    2
+                  ]
+                },
+                {
+                  "t": "1794694920000",
+                  "k": 3,
+                  "blockIndex": 20,
+                  "offsetMs": "1320000",
+                  "nextIndexes": [
+                    21,
+                    22,
+                    23
+                  ]
+                },
+                {
+                  "t": "1794696239999",
+                  "k": 0,
+                  "blockIndex": 20,
+                  "offsetMs": "2639999",
+                  "nextIndexes": []
+                },
+                {
+                  "t": "1794740399999",
+                  "k": 3,
+                  "blockIndex": 41,
+                  "nextIndexes": []
+                }
+              ],
+              "errorTimes": [
+                "1794653999999",
+                "1794740400000"
+              ],
+              "note": "Series ...5e0029 has seven episodes in the in-group order e[0] to e[6] of 22, 22, 44, 22, 23, 21 and 30 minutes. The cap 2,700,000 ms holds e[0] and e[1] (44 minutes), so k = 2. series ...5e0029: s = 7, k = 2, start = 4, keeps e[4] e[5]. The pool, and so the cycle, changes from day to day."
+            },
+            {
+              "name": "input error: a weight of 4",
+              "settings": {
+                "seed": "219",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "weights": {
+                  "000000000000030000000000005e0029": 4
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "inputError": true,
+              "reason": "weights: a whole number from 1 to 3."
+            },
+            {
+              "name": "input error: a keeps cap of 0",
+              "settings": {
+                "seed": "219",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "keeps": {
+                  "000000000000030000000000005e0029": "0"
+                },
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "inputError": true,
+              "reason": "keeps: a cap in whole milliseconds, 1 or more."
+            },
+            {
+              "name": "input error: repeatGapMs 86,460,000 (1441 minutes)",
+              "settings": {
+                "seed": "219",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "86460000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "inputError": true,
+              "reason": "repeatGapMinutes: 0 to 1440."
+            },
+            {
+              "name": "input error: pairUpToMs 0",
+              "settings": {
+                "seed": "219",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "0",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "inputError": true,
+              "reason": "pairUpToMinutes: 1 to 1440."
+            },
+            {
+              "name": "input error: a per-kind runtime window with no bound",
+              "settings": {
+                "seed": "219",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "runtimeFilter": {
+                  "episode": {}
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "inputError": true,
+              "reason": "A per-kind window has at least one bound."
+            },
+            {
+              "name": "input error: an episode window with minMinutes above maxMinutes",
+              "settings": {
+                "seed": "219",
+                "ordering": {
+                  "mode": "curated"
+                },
+                "runtimeFilter": {
+                  "episode": {
+                    "minMinutes": 31,
+                    "maxMinutes": 30
+                  }
+                },
+                "repeatGapMs": "10800000",
+                "pairUpToMs": "2100000",
+                "timing": {
+                  "blockLength": 1,
+                  "alignToGrid": true,
+                  "epochHours": 24,
+                  "graceHours": 6,
+                  "gridMinutes": 30,
+                  "minRuntimeSeconds": 60,
+                  "broadcastDay": {
+                    "utcOffsetMinutes": -300,
+                    "start": "06:00"
+                  }
+                }
+              },
+              "items": [
+                {
+                  "id": "000000000000030000000000e9002901",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-01",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002902",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-02",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002903",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-03",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 3
+                },
+                {
+                  "id": "000000000000030000000000e9002904",
+                  "kind": "episode",
+                  "runtimeMs": "1320000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-04",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 4
+                },
+                {
+                  "id": "000000000000030000000000e9002905",
+                  "kind": "episode",
+                  "runtimeMs": "1380000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-05",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 5
+                },
+                {
+                  "id": "000000000000030000000000e9002906",
+                  "kind": "episode",
+                  "runtimeMs": "1260000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-06",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 6
+                },
+                {
+                  "id": "000000000000030000000000e9002907",
+                  "kind": "episode",
+                  "runtimeMs": "1800000",
+                  "createdAtMs": "-1000000000000",
+                  "premiereDate": "2010-01-07",
+                  "seriesId": "000000000000030000000000005e0029",
+                  "season": 1,
+                  "episode": 7
+                },
+                {
+                  "id": "000000000000030000000000f11700dd",
+                  "kind": "movie",
+                  "runtimeMs": "5700000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000f11700de",
+                  "kind": "movie",
+                  "runtimeMs": "6060000",
+                  "createdAtMs": "-1000000000000"
+                },
+                {
+                  "id": "000000000000030000000000e9002a01",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 1
+                },
+                {
+                  "id": "000000000000030000000000e9002a02",
+                  "kind": "episode",
+                  "runtimeMs": "2640000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 2
+                },
+                {
+                  "id": "000000000000030000000000e9002a03",
+                  "kind": "episode",
+                  "runtimeMs": "2700000",
+                  "createdAtMs": "-1000000000000",
+                  "seriesId": "000000000000030000000000005e002a",
+                  "season": 1,
+                  "episode": 3
+                }
+              ],
+              "n": "20760",
+              "inputError": true,
+              "reason": "minMinutes is not above maxMinutes."
+            }
+          ]
+        }
+        """.trimIndent() + "\n"
+}

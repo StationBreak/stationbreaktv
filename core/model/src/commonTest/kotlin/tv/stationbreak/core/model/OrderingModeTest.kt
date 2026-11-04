@@ -9,7 +9,7 @@ class OrderingModeTest {
     @Test
     fun wireNamesAreUniqueAndExact() {
         val names = OrderingMode.entries.map { it.wireName }
-        assertEquals(listOf("shuffle", "chronological", "randomInOrder", "rotation", "inOrder"), names)
+        assertEquals(listOf("shuffle", "chronological", "randomInOrder", "rotation", "inOrder", "curated"), names)
         assertEquals(names.size, names.toSet().size)
     }
 
@@ -22,6 +22,7 @@ class OrderingModeTest {
                 OrderingMode.RandomInOrder,
                 OrderingMode.Rotation,
                 OrderingMode.InOrder,
+                OrderingMode.Curated,
             ),
             OrderingMode.entries,
         )

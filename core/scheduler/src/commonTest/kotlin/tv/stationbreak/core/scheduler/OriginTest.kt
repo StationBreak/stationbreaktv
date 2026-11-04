@@ -44,14 +44,22 @@ class OriginTest {
     fun alignedSlotsGiveTheRunThatContainsS() {
         // Slots 30, 60, 30: Q = [0, 30, 90, 120]. Days start at minute 30 + 60n.
         val s = settings()
-        val day0 = buildDay(s, threePrograms, 0L, noFilms()) // S = 30, pos = 30, j = 1 (Q[1] = 30 <= 30)
+        val day0 =
+            buildDay(
+                s,
+                threePrograms,
+                0L,
+                noFilms(),
+                noWeights(),
+                noKeeps(),
+            ) // S = 30, pos = 30, j = 1 (Q[1] = 30 <= 30)
         assertEquals(1, day0.startRunIndex)
         assertEquals(listOf("30-70:2", "70-90:slate"), day0.describe())
         // S = 90, pos = 90, j = 2 (Q[2] = 90 <= 90): an exact boundary
-        val day1 = buildDay(s, threePrograms, 1L, noFilms())
+        val day1 = buildDay(s, threePrograms, 1L, noFilms(), noWeights(), noKeeps())
         assertEquals(2, day1.startRunIndex)
         assertEquals(listOf("90-120:3", "120-140:1", "140-150:slate"), day1.describe().take(3))
-        val day2 = buildDay(s, threePrograms, 2L, noFilms()) // S = 150, pos = 30, j = 1 again
+        val day2 = buildDay(s, threePrograms, 2L, noFilms(), noWeights(), noKeeps()) // S = 150, pos = 30, j = 1 again
         assertEquals(1, day2.startRunIndex)
         assertEquals("150-190:2", day2.describe().first())
     }
@@ -59,14 +67,14 @@ class OriginTest {
     @Test
     fun theRunAfterTheLastIsRunZero() {
         // Day 1 above starts at run 2 (the last) and its next block is run 0.
-        val day = buildDay(settings(), threePrograms, 1L, noFilms())
+        val day = buildDay(settings(), threePrograms, 1L, noFilms(), noWeights(), noKeeps())
         assertEquals(listOf("90-120:3", "120-140:1"), day.describe().take(2))
     }
 
     @Test
     fun aDayBeforeTheEpochUsesFloorModulo() {
         // n = -1: S = -30, pos = floorMod(-30, 120) = 90, j = 2. Truncating division would give pos = -30.
-        val day = buildDay(settings(), threePrograms, -1L, noFilms())
+        val day = buildDay(settings(), threePrograms, -1L, noFilms(), noWeights(), noKeeps())
         assertEquals(2, day.startRunIndex)
         assertEquals(listOf("-30-0:3", "0-20:1", "20-30:slate"), day.describe())
     }
@@ -75,10 +83,10 @@ class OriginTest {
     fun withoutTheGridTheSlotIsTheRuntime() {
         // Runtimes 20, 40, 30: Q = [0, 20, 60, 90]. S = 30 gives j = 1; S = 90 gives pos = 0, j = 0.
         val s = settings(alignToGrid = false)
-        val day0 = buildDay(s, threePrograms, 0L, noFilms())
+        val day0 = buildDay(s, threePrograms, 0L, noFilms(), noWeights(), noKeeps())
         assertEquals(1, day0.startRunIndex)
         assertEquals("30-70:2", day0.describe().first())
-        val day1 = buildDay(s, threePrograms, 1L, noFilms())
+        val day1 = buildDay(s, threePrograms, 1L, noFilms(), noWeights(), noKeeps())
         assertEquals(0, day1.startRunIndex)
         assertEquals(listOf("90-110:1", "110-150:2"), day1.describe())
     }
@@ -90,7 +98,7 @@ class OriginTest {
         val s = settings(epochHours = 1, startMinuteOfDay = 0)
         val items = listOf(movie('1', 20), movie('2', 50))
         for (n in -4L..4L) {
-            val day = buildDay(s, items, n, noFilms())
+            val day = buildDay(s, items, n, noFilms(), noWeights(), noKeeps())
             assertEquals(Epochs.epochStart(s, n), day.blocks.first().startMs)
             assertTrue(day.blocks.first().content is ScheduleContent.Program)
         }
@@ -103,10 +111,10 @@ class OriginTest {
         val items =
             listOf(movie('1', 20), movie('2', 20), movie('3', 100), movie('4', 90), movie('5', 40), movie('6', 40))
         val s = settings(alignToGrid = false, epochHours = 3, blockLength = 2)
-        val day1 = buildDay(s, items, 1L, noFilms()) // S = 210, pos = 90, j = 1: run [5 6]
+        val day1 = buildDay(s, items, 1L, noFilms(), noWeights(), noKeeps()) // S = 210, pos = 90, j = 1: run [5 6]
         assertEquals(2, day1.cycleRunCount)
         assertEquals(listOf("210-250:5", "250-290:6", "290-310:1"), day1.describe().take(3))
-        val day2 = buildDay(s, items, 2L, noFilms()) // S = 390, pos = 30, j = 0: run [1 2]
+        val day2 = buildDay(s, items, 2L, noFilms(), noWeights(), noKeeps()) // S = 390, pos = 30, j = 0: run [1 2]
         assertEquals("390-410:1", day2.describe().first())
     }
 
@@ -115,8 +123,18 @@ class OriginTest {
         val s = settings(mode = OrderingMode.Shuffle, alignToGrid = false)
         val items = listOf(movie('1', 20), movie('2', 40), movie('3', 30), movie('4', 10))
         for (n in -2L..3L) {
-            val expectedFirst = Orderings.shuffle(EpochPool.build(s, items, n), Epochs.seedN(s.seed, n)).first()
-            val day = buildDay(s, items, n, noFilms())
+            val expectedFirst =
+                Orderings
+                    .shuffle(
+                        EpochPool.build(
+                            s,
+                            items,
+                            n,
+                            noKeeps(),
+                        ),
+                        Epochs.seedN(s.seed, n),
+                    ).first()
+            val day = buildDay(s, items, n, noFilms(), noWeights(), noKeeps())
             assertEquals(0, day.startRunIndex)
             assertEquals(ScheduleContent.Program(expectedFirst.id), day.blocks.first().content)
             assertEquals(Epochs.epochStart(s, n), day.blocks.first().startMs)
@@ -134,9 +152,9 @@ class OriginTest {
             )
         val s = settings(mode = OrderingMode.RandomInOrder, alignToGrid = true, epochHours = 2, startMinuteOfDay = 0)
         for (n in -3L..3L) {
-            val cycle = DayOracle.cycle(s, EpochPool.build(s, items, n), Epochs.seedN(s.seed, n))
+            val cycle = DayOracle.cycle(s, EpochPool.build(s, items, n, noKeeps()), Epochs.seedN(s.seed, n))
             val expected = DayOracle.continuousRun(s, cycle, Epochs.epochStart(s, n))
-            val day = buildDay(s, items, n, noFilms())
+            val day = buildDay(s, items, n, noFilms(), noWeights(), noKeeps())
             assertEquals(expected, day.startRunIndex, "n = $n")
             assertEquals(ScheduleContent.Program(cycle[expected].items.first().id), day.blocks.first().content)
         }
@@ -156,7 +174,7 @@ class OriginTest {
                 utcOffsetMinutes = 345,
             )
         val items = listOf(movie('1', 20), movie('2', 25), movie('3', 35))
-        val day = buildDay(s, items, -4L, noFilms())
+        val day = buildDay(s, items, -4L, noFilms(), noWeights(), noKeeps())
         assertEquals(-195 * MS_MINUTE - 345 * MS_MINUTE, day.startMs)
         assertEquals(2, day.startRunIndex)
         assertEquals(
@@ -164,7 +182,7 @@ class OriginTest {
             day.describe(),
         )
         // A day at n = 0 has pos 45 too.
-        assertEquals(2, buildDay(s, items, 0L, noFilms()).startRunIndex)
+        assertEquals(2, buildDay(s, items, 0L, noFilms(), noWeights(), noKeeps()).startRunIndex)
     }
 
     // --- Nepal and India: every regular run starts on a grid mark ----------------------------------------------------
@@ -179,7 +197,7 @@ class OriginTest {
         for (mode in SCHEDULED_MODES) {
             val m = s.copy(orderingMode = mode, seed = Seed(77uL))
             for (n in -6L..6L) {
-                val day = buildDay(m, items, n, noFilms())
+                val day = buildDay(m, items, n, noFilms(), noWeights(), noKeeps())
                 val label = "$mode n=$n offset=${m.utcOffsetMinutes}"
                 assertTrue(Epochs.isGridMark(m, day.startMs), "S is a grid mark: $label")
                 assertTrue(Epochs.isGridMark(m, day.endMs), "the next S is a grid mark: $label")
@@ -218,7 +236,7 @@ class OriginTest {
         for (mode in SCHEDULED_MODES) {
             val m = nepal.copy(orderingMode = mode)
             for (n in -4L..4L) {
-                val day = buildDay(m, mixed, n, noFilms())
+                val day = buildDay(m, mixed, n, noFilms(), noWeights(), noKeeps())
                 // The first program after a slate, and the first block of the day, is the start of a run.
                 val starts =
                     day.blocks.filterIndexed { i, b ->

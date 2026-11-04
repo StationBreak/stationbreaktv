@@ -3,7 +3,7 @@ package tv.stationbreak.core.rules
 
 import kotlinx.serialization.json.JsonObject
 
-/** The fixed names and ranges of format versions 1 and 2, shared by the reader and by the checks on the types. */
+/** The fixed names and ranges of format versions 1 to 3, shared by the reader and by the checks on the types. */
 internal object RulesVocabulary {
     /** The names a `maxRating` may take: the rating ladder. */
     val RATINGS: Set<String> get() = RatingLadder.names
@@ -14,10 +14,13 @@ internal object RulesVocabulary {
     val TOP_LEVEL_V2 = TOP_LEVEL_V1 + "filters"
     val ORDERING_V1 = setOf("mode")
     val ORDERING_V2 = ORDERING_V1 + "caps"
+    val ORDERING_V3 = ORDERING_V2 + "repeatGapMinutes" + "pairUpToMinutes"
     val CAPS = setOf("series", "film")
     val FILTERS = setOf("genres", "years", "runtime", "kind")
+    val FILTERS_V3 = FILTERS + "tags" + "studios" + "notGenres"
     val FILTER_YEARS = setOf("from", "to")
     val FILTER_RUNTIME = setOf("minMinutes", "maxMinutes")
+    val FILTER_RUNTIME_V3 = FILTER_RUNTIME + "episode" + "movie"
     val GRID_MINUTES = setOf(15, 30, 60)
     val TIMING =
         setOf(
@@ -32,10 +35,17 @@ internal object RulesVocabulary {
     val BROADCAST_DAY = setOf("utcOffsetMinutes", "start")
     val FILLER = setOf("mode", "every", "source")
 
+    const val VERSION_2 = 2
+    const val VERSION_3 = 3
     const val MAX_BLOCK_LENGTH = 100
     const val MIN_CAP = 1
     const val MAX_CAP = 10
     const val MAX_RUNTIME_MINUTES = 1440
+    const val MAX_REPEAT_GAP_MINUTES = 1440
+    const val MIN_PAIR_UP_MINUTES = 1
+    const val MAX_PAIR_UP_MINUTES = 1440
+    const val DEFAULT_REPEAT_GAP_MINUTES = 180
+    const val DEFAULT_PAIR_UP_MINUTES = 35
     const val CAPS_EPOCH_HOURS = 24
     const val MAX_GRACE_HOURS = 48
     const val MAX_MIN_RUNTIME_SECONDS = 3600
@@ -48,10 +58,21 @@ internal object RulesVocabulary {
     const val OFFSET_STEP = 15
 
     /** The top-level field names that [version] knows. */
-    fun topLevel(version: Int): Set<String> = if (version >= 2) TOP_LEVEL_V2 else TOP_LEVEL_V1
+    fun topLevel(version: Int): Set<String> = if (version >= VERSION_2) TOP_LEVEL_V2 else TOP_LEVEL_V1
 
     /** The `ordering` field names that [version] knows. */
-    fun ordering(version: Int): Set<String> = if (version >= 2) ORDERING_V2 else ORDERING_V1
+    fun ordering(version: Int): Set<String> =
+        when {
+            version >= VERSION_3 -> ORDERING_V3
+            version >= VERSION_2 -> ORDERING_V2
+            else -> ORDERING_V1
+        }
+
+    /** The `filters` field names that [version] knows. */
+    fun filters(version: Int): Set<String> = if (version >= VERSION_3) FILTERS_V3 else FILTERS
+
+    /** The `filters.runtime` field names that [version] knows. */
+    fun filterRuntime(version: Int): Set<String> = if (version >= VERSION_3) FILTER_RUNTIME_V3 else FILTER_RUNTIME
 
     /** Fails when [extras] holds a key the object already writes itself, which could change what the file means. */
     fun requireFreeExtras(

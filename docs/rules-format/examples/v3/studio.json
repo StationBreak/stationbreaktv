@@ -1,0 +1,24 @@
+{
+  "formatVersion": 3,
+  "name": "Studio A Night",
+  "seed": "40",
+  "sources": [
+    {
+      "type": "studio",
+      "name": "Studio A"
+    }
+  ],
+  "exclusions": [
+    {
+      "type": "studio",
+      "name": "Studio B"
+    }
+  ],
+  "timing": {
+    "epochHours": 24,
+    "broadcastDay": {
+      "utcOffsetMinutes": -300,
+      "start": "06:00"
+    }
+  }
+}

@@ -23,6 +23,8 @@ import tv.stationbreak.core.model.Seed
  *   leaves out anything shorter, so a day holds at most `epochMs / minRuntimeMs` programs.
  * @property caps the play-in-a-row caps, or null when none are in force (the mode ignores them)
  * @property runtimeFilter the `filters.runtime` window, or null: an item outside it does not air
+ * @property curated the tunables of the `curated` order: set exactly when [orderingMode] is `Curated`, so no other
+ *   mode carries numbers it never reads
  * @property startMinuteOfDay when the broadcast day starts: minutes after midnight on the channel's clock, 0..1439.
  */
 data class SchedulerSettings(
@@ -38,6 +40,7 @@ data class SchedulerSettings(
     val minRuntimeMs: Long,
     val caps: Caps?,
     val runtimeFilter: RuntimeFilter?,
+    val curated: CuratedTuning?,
 ) {
     init {
         require(blockLength in MIN_BLOCK_LENGTH..MAX_BLOCK_LENGTH) { "A run is 1 to 100 items" }
@@ -49,6 +52,9 @@ data class SchedulerSettings(
         require(startMinuteOfDay % gridMinutes == 0) { "The start must be on the grid" }
         require(graceHours in 0..MAX_GRACE_HOURS) { "Grace is 0 to 48 hours" }
         require(minRuntimeMs in MIN_RUNTIME_MS..MAX_RUNTIME_MS) { "The minimum runtime is 1 second to 1 hour" }
+        require((orderingMode == OrderingMode.Curated) == (curated != null)) {
+            "The curated tuning is given exactly with the curated order"
+        }
         require(orderingMode != OrderingMode.Rotation || caps != null) { "Rotation needs caps" }
         require(caps == null || epochHours == MAX_EPOCH_HOURS) { "Caps need a 24-hour epoch" }
     }
@@ -69,12 +75,16 @@ data class SchedulerSettings(
     val graceMs: Long get() = graceHours * MS_PER_HOUR
 
     /**
-     * True when a program of [runtimeMs] can air: `minRuntimeMs <= runtimeMs <= epochMs`, and inside [runtimeFilter]
+     * True when a program of [runtimeMs] and [kind] can air: `minRuntimeMs <= runtimeMs <= epochMs`, and inside
+     * [runtimeFilter]
      * when there is one. A shorter item is not a program, and a longer one can never play without running over its
      * epoch. The one place this rule is written.
      */
-    fun isAirable(runtimeMs: Long): Boolean {
-        val inFilter = runtimeFilter?.admits(runtimeMs) != false
+    fun isAirable(
+        runtimeMs: Long,
+        kind: ScheduleItemKind,
+    ): Boolean {
+        val inFilter = runtimeFilter?.admits(runtimeMs, kind) != false
         return runtimeMs in minRuntimeMs..epochMs && inFilter
     }
 
@@ -100,5 +110,26 @@ data class SchedulerSettings(
 
         private val GRID_MINUTES = setOf(15, 30, 60)
         private val EPOCH_HOURS = setOf(1, 2, 3, 4, 6, 8, 12, 24)
+    }
+}
+
+/**
+ * The two tunables of `curated` in milliseconds (`ordering.repeatGapMinutes` and `ordering.pairUpToMinutes`):
+ * [repeatGapMs] is the shortest time before a title or franchise airs again (0 to 24 h), [pairUpToMs] the longest
+ * episode paired with the next (1 minute to 24 h). No defaults here either: they live in `core:rules`.
+ */
+data class CuratedTuning(
+    val repeatGapMs: Long,
+    val pairUpToMs: Long,
+) {
+    init {
+        require(repeatGapMs in 0..SchedulerSettings.MAX_EPOCH_MS) { "The repeat gap is 0 to 1440 minutes" }
+        require(pairUpToMs in MS_PER_MINUTE..SchedulerSettings.MAX_EPOCH_MS) {
+            "The pair-up length is 1 to 1440 minutes"
+        }
+    }
+
+    private companion object {
+        private const val MS_PER_MINUTE = 60_000L
     }
 }

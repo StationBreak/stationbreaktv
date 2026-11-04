@@ -262,7 +262,8 @@ internal object DaySnapshotCodec {
         table.forEachIndexed { row, item -> rowOf[item] = row }
         val pools =
             days.map { day ->
-                val rows = IntArray(day.pool.size) { i -> rowOf.getValue(day.pool[i]) }
+                val pool = day.pool
+                val rows = IntArray(pool.size) { i -> rowOf.getValue(pool[i]) }
                 val films = filmRows(day, rowOf, collections)
                 if (isAscending(rows)) {
                     val set = BitSet(table.size)

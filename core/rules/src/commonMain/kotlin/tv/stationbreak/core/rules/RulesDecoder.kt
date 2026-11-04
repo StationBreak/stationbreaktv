@@ -8,7 +8,8 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
- * Builds [ChannelRules] from the JSON of a file of format [version]; version 2 features are read only when it is 2.
+ * Builds [ChannelRules] from the JSON of a file of format [version]; a feature of version 2 or 3 is read only when the
+ * file says that version or later.
  * Throws [InvalidRules] for a wrong shape; an unknown kind is recorded in [unsupported] and the rest of the file is
  * still checked.
  */
@@ -17,8 +18,9 @@ internal class RulesDecoder(
 ) {
     val unsupported = UnsupportedKinds()
     private val sources = SourceDecoder(unsupported, version)
-    private val filtersDecoder = FiltersDecoder(unsupported)
-    private val modes = OrderingMode.entries.filter { version >= 2 || it !in V2_MODES }
+    private val filtersDecoder = FiltersDecoder(unsupported, version)
+    private val modes =
+        OrderingMode.entries.filter { (version >= 2 || it !in V2_MODES) && (version >= 3 || it !in V3_MODES) }
 
     fun rules(root: JsonObject): ChannelRules =
         ChannelRules(
@@ -53,8 +55,21 @@ internal class RulesDecoder(
         val mode = modes.firstOrNull { it.wireName == text }
         if (mode == null) unsupported.mark("ordering mode", text)
         val caps = if (version >= 2) obj["caps"]?.let { caps(it) } else null
-        return mode?.let { Ordering(it, caps, extras(obj, RulesVocabulary.ordering(version))) }
+        val gap = if (version >= 3) obj["repeatGapMinutes"]?.let { repeatGap(it) } else null
+        val pair = if (version >= 3) obj["pairUpToMinutes"]?.let { pairUp(it) } else null
+        return mode?.let { Ordering(it, caps, gap, pair, extras(obj, RulesVocabulary.ordering(version))) }
     }
+
+    private fun repeatGap(element: JsonElement): Int =
+        ranged(element, "ordering.repeatGapMinutes", 0, RulesVocabulary.MAX_REPEAT_GAP_MINUTES)
+
+    private fun pairUp(element: JsonElement): Int =
+        ranged(
+            element,
+            "ordering.pairUpToMinutes",
+            RulesVocabulary.MIN_PAIR_UP_MINUTES,
+            RulesVocabulary.MAX_PAIR_UP_MINUTES,
+        )
 
     private fun caps(element: JsonElement): OrderingCaps {
         val obj = element as? JsonObject ?: invalid("ordering.caps must be an object")
@@ -88,5 +103,6 @@ internal class RulesDecoder(
 
     private companion object {
         val V2_MODES = setOf(OrderingMode.Rotation, OrderingMode.InOrder)
+        val V3_MODES = setOf(OrderingMode.Curated)
     }
 }
