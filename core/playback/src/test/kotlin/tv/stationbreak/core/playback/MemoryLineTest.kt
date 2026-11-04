@@ -53,7 +53,7 @@ class MemoryLineTest {
         var playing = true
         val sampler =
             MemorySampler(
-                allocator = allocator,
+                allocator = { allocator },
                 schedule = scheduler::schedule,
                 cancel = scheduler::cancel,
                 playing = { playing },

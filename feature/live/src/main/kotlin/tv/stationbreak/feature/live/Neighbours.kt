@@ -15,6 +15,8 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.PreloadLog
+import tv.stationbreak.core.playback.PreloadSettings
 import kotlin.time.Clock
 
 /** A handle resolved for the block of [item] that starts at [blockStartMs] on one channel. */
@@ -23,6 +25,7 @@ private class Resolved(
     val item: CanonicalId,
     val blockStartMs: Long,
     val blockEndMs: Long,
+    val madeAtMs: Long,
 ) {
     /** True when [program] in [block] is the very block this handle was resolved for. */
     fun isFor(
@@ -43,6 +46,7 @@ internal class Neighbours(
     private val tuner: TunePort,
     private val schedule: ScheduleSource,
     private val clock: Clock,
+    private val maxAgeMs: Long = PreloadSettings.MAX_AGE_MS,
 ) {
     private val held = linkedMapOf<ChannelId, Resolved>()
 
@@ -55,13 +59,25 @@ internal class Neighbours(
         current: ChannelAiring,
         order: FlipOrder,
     ) {
-        val wanted =
-            listOfNotNull(order.step(current.number, FlipDirection.Up), order.step(current.number, FlipDirection.Down))
-                .filter { it.id != current.id }
-                .distinctBy { it.id }
+        val tagged =
+            listOfNotNull(
+                order.step(current.number, FlipDirection.Up)?.let { FlipDirection.Up to it },
+                order.step(current.number, FlipDirection.Down)?.let { FlipDirection.Down to it },
+            ).filter { it.second.id != current.id }
+                .distinctBy { it.second.id }
+        val wanted = tagged.map { it.second }
         val others = held.keys.filter { id -> wanted.none { it.id == id } }
-        others.forEach { id -> held.remove(id)?.let { discard(it) } }
-        coroutineScope { wanted.forEach { channel -> launch { prepare(channel.id) } } }
+        others.forEach { id ->
+            PreloadLog.line("neighbour handle=dropped reason=notNeighbour")
+            held.remove(id)?.let { discard(it) }
+        }
+        // Spike #563: the Down neighbour (the channel a Down press lands on) is the one kept warm on the standby.
+        val downId = order.step(current.number, FlipDirection.Down)?.id
+        coroutineScope {
+            tagged.forEach { (direction, channel) ->
+                launch { prepare(channel.id, "channel=${channel.number} dir=$direction", channel.id == downId) }
+            }
+        }
     }
 
     /**
@@ -75,26 +91,42 @@ internal class Neighbours(
     ) {
         while (true) {
             if (idle()) prepareAround(current, lineup())
-            val endMs = held.values.minOfOrNull { it.blockEndMs }
+            val endMs = held.values.minOfOrNull { minOf(it.blockEndMs, it.madeAtMs + maxAgeMs) }
             val wait = if (idle()) endMs?.minus(clock.now().toEpochMilliseconds()) else BUSY_RETRY_MS
             if (wait == null) return
             delay(maxOf(wait, MIN_WAIT_MS))
         }
     }
 
-    private suspend fun prepare(channel: ChannelId) {
+    private suspend fun prepare(
+        channel: ChannelId,
+        label: String,
+        warm: Boolean,
+    ) {
         val now = clock.now()
         // No following blocks: only what is on now matters here.
         val block = schedule.onAir(channel, now, 0)?.now
         val program = (block?.airing as? Airing.Program)?.takeIf { it.info != null }
         val kept = held[channel]
-        if (kept != null && kept.isFor(program, block)) return
+        if (kept != null && kept.isFor(program, block) && now.toEpochMilliseconds() - kept.madeAtMs < maxAgeMs) {
+            PreloadLog.line("neighbour $label handle=kept ageMs=${now.toEpochMilliseconds() - kept.madeAtMs}")
+            return
+        }
+        if (kept != null) {
+            val stale = if (kept.isFor(program, block)) "age" else "blockEnded"
+            PreloadLog.line("neighbour $label handle=dropped reason=$stale")
+        }
         held.remove(channel)?.let { discard(it) }
         val start = block?.positionAt(now.toEpochMilliseconds())
         if (program != null && start != null) {
-            tuner.preResolve(session, ItemId(program.itemId.value), start)?.let {
-                held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs)
+            val id = ItemId(program.itemId.value)
+            val made = if (warm) tuner.preResolveWarm(session, id, start) else tuner.preResolve(session, id, start)
+            PreloadLog.line("neighbour $label handle=${if (made != null) "made" else "none reason=resolveFailed"}")
+            made?.let {
+                held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs, now.toEpochMilliseconds())
             }
+        } else {
+            PreloadLog.line("neighbour $label handle=none reason=noProgram")
         }
     }
 

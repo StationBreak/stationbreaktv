@@ -79,6 +79,22 @@ class LiveChannelNeighboursTest {
         }
 
     @Test
+    fun onlyTheDownNeighbourIsAskedToBeKeptWarm() =
+        runTest {
+            val w = watching()
+            // Spike #563: Down from 5 lands on 2; Up (9) is only pre-resolved.
+            assertEquals(listOf(itemOf(2)), w.r.tune.warmed)
+            assertEquals(
+                setOf(itemOf(9), itemOf(2)),
+                w.r
+                    .preResolves()
+                    .map { it.item }
+                    .toSet(),
+            )
+            w.job.cancel()
+        }
+
+    @Test
     fun noPreResolveWhileChoosing() =
         runTest {
             val w = watching()
@@ -126,6 +142,23 @@ class LiveChannelNeighboursTest {
             assertNull(neighbours.take(CH9, onAir))
             assertTrue(r.discards().any { it.item == itemOf(9) })
             assertTrue(r.tune.calls.none { it is Call.TuneHandle })
+        }
+
+    @Test
+    fun aHandleOlderThanTheMaxAgeIsMadeAgainInTheSameBlock() =
+        runTest {
+            val r = rig()
+            val neighbours = Neighbours(r.session, r.tune, r.schedule, r.clock, maxAgeMs = 5 * MIN)
+            val order = FlipOrder(r.schedule.airings(r.clock.now()))
+            neighbours.prepareAround(checkNotNull(order.byId(CH5)), order)
+            val first = r.preResolves().count { it.item == itemOf(9) }
+            r.jumpMs += 2 * MIN
+            neighbours.prepareAround(checkNotNull(order.byId(CH5)), order)
+            assertEquals("still young: kept", first, r.preResolves().count { it.item == itemOf(9) })
+            r.jumpMs += 4 * MIN
+            neighbours.prepareAround(checkNotNull(order.byId(CH5)), order)
+            assertEquals("old: made again", first + 1, r.preResolves().count { it.item == itemOf(9) })
+            assertTrue(r.discards().any { it.item == itemOf(9) })
         }
 
     @Test

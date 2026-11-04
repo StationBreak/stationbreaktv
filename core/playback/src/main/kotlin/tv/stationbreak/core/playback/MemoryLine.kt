@@ -24,13 +24,14 @@ internal fun memoryLine(
         "poolMb=${poolBytes / MIB} bufferedMs=$bufferedMs"
 
 /**
- * Logs a [memoryLine] every [INTERVAL_MS] while [playing] holds, reading [allocator] (the player's own). [start] is
- * called for each play and never doubles the schedule; sampling ends by itself once no play is on, and [stop] (release)
- * cancels the next sample. [schedule] and [cancel] run tasks on the player's looper; all calls are made there.
+ * Logs a [memoryLine] every [INTERVAL_MS] while [playing] holds, reading [allocator] (the media buffer of the player on
+ * screen). [start] is called for each play and never doubles the schedule; sampling ends by itself once no play is on,
+ * and [stop] (release) cancels the next sample. [schedule] and [cancel] run tasks on the player's looper; all calls are
+ * made there.
  */
 @UnstableApi
 internal class MemorySampler(
-    private val allocator: DefaultAllocator,
+    private val allocator: () -> DefaultAllocator,
     private val schedule: (Runnable, Long) -> Unit,
     private val cancel: (Runnable) -> Unit,
     private val playing: () -> Boolean,
@@ -46,8 +47,8 @@ internal class MemorySampler(
             memoryLine(
                 heapUsedBytes = runtime.totalMemory() - runtime.freeMemory(),
                 heapMaxBytes = runtime.maxMemory(),
-                playerBufferBytes = allocator.totalBytesAllocated.toLong(),
-                poolBytes = allocator.unusedBytesAllocated.toLong(),
+                playerBufferBytes = allocator().totalBytesAllocated.toLong(),
+                poolBytes = allocator().unusedBytesAllocated.toLong(),
                 bufferedMs = bufferedMs(),
             ),
         )

@@ -185,6 +185,18 @@ class FakeTune(
         return NextHandle(Prepared(item, start, id))
     }
 
+    /** The items pre-resolved with a warm request (spike #563), in order; each is also a [Call.PreResolve]. */
+    val warmed = mutableListOf<ItemId>()
+
+    override suspend fun preResolveWarm(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+    ): NextHandle? {
+        warmed += item
+        return preResolve(session, item, start)
+    }
+
     override suspend fun tune(
         session: Session,
         next: NextHandle,

@@ -109,6 +109,7 @@ class Prepared internal constructor(
     internal val item: ItemId,
     internal val start: Duration,
     internal val resolved: ResolvedPlayback,
+    internal val preloadKey: String? = null,
 ) {
     /** Set once nothing else need end any encode this handle's play started: a tune adopted it, or stopped it. */
     @Volatile internal var adopted: Boolean = false
@@ -151,6 +152,7 @@ sealed interface TuneResult {
         val loads: LoadStats? = null,
         val notes: Flow<PlayNote> = emptyFlow(),
         val av: AvTimings? = null,
+        val preload: PreloadUse? = null,
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -197,15 +199,19 @@ sealed interface TuneResult {
  * alone. A [Prepared] handle that the caller drops without [tune], [discard] or [close] keeps
  * its server encode until the server times it out.
  */
-@Suppress("TooManyFunctions") // One controller by decision: tune, stop, close and the attempt steps share its state.
+@Suppress("TooManyFunctions", "LongParameterList") // One controller by decision: its steps share its state.
 class TuneController(
     private val resolver: PlaybackResolver,
     private val server: MediaServer,
     private val player: VideoPlayer,
     private val seekTolerance: Duration = SeekCheck.TOLERANCE,
     watchScope: CoroutineScope? = null,
+    private val preloadEnabled: () -> Boolean = PreloadSettings::enabled,
+    private val warmEnabled: () -> Boolean = WarmSettings::enabled,
     private val clock: () -> Long,
 ) {
+    private val preloadKeys = AtomicLong()
+
     private val ownsScope = watchScope == null
     private val scope: CoroutineScope = watchScope ?: CoroutineScope(SupervisorJob())
 
@@ -282,15 +288,20 @@ class TuneController(
     /**
      * Resolves [item] at [start] with the server's default tracks, ahead of the [tune] that will play it, and returns
      * a handle for it; null when it could not be resolved or the controller is closed. It does not touch the player
-     * and does not take the tune lock, so it can run while another item plays.
+     * and does not take the tune lock, so it can run while another item plays. [warm] (spike #563) asks for the item to
+     * be kept warm on the player's standby rather than only preloaded.
      */
     suspend fun preResolve(
         session: Session,
         item: ItemId,
         start: Duration,
+        warm: Boolean = false,
     ): Prepared? {
         val resolved = if (closed.get()) null else resolve(session, item, start, null, false).resolved
-        val prepared = resolved?.let { Prepared(item, start, it) }
+        // Spike #563: a direct-play neighbour's media is prepared on the player ahead of the flip; the transcode and
+        // direct-stream routes are left as they were.
+        val key = preloadKeyFor(resolved, warm)
+        val prepared = resolved?.let { Prepared(item, start, it, key) }
         if (prepared != null) {
             outstanding.add(prepared)
             // Added before this check and close() sets the flag before it reads the set: one of the two sees the other.
@@ -334,6 +345,8 @@ class TuneController(
                 tuneWith(session, prepared.item, start ?: prepared.start, override, null)
             }
         } finally {
+            // Whatever the player did not take is dropped; one it took is no longer held, so this finds nothing.
+            if (taken) prepared.preloadKey?.let(player::dropPreload)
             // A play that began owns the encode now (it is the current attempt); otherwise nothing will end it.
             if (taken && !prepared.adopted) stopEncode(session, prepared.resolved)
         }
@@ -347,7 +360,10 @@ class TuneController(
         session: Session,
         prepared: Prepared,
     ) {
-        if (outstanding.remove(prepared)) stopEncode(session, prepared.resolved)
+        if (outstanding.remove(prepared)) {
+            prepared.preloadKey?.let(player::dropPreload)
+            stopEncode(session, prepared.resolved)
+        }
     }
 
     /**
@@ -387,6 +403,7 @@ class TuneController(
         abandonEncode(session)
         val began = clock()
         var fallback: Fallback? = null
+        var use: PreloadUse? = null
         var attempt =
             if (ready != null) {
                 // Recorded before anything can be cancelled, so a cancel still finds its encode to stop; then a cancel
@@ -395,7 +412,10 @@ class TuneController(
                 current = resolved
                 ready.adopted = true
                 currentCoroutineContext().ensureActive()
-                play(resolved, began, false)
+                use = ready.preloadKey?.let { preloadUse(it) }
+                val key = ready.preloadKey
+                val handed = resolved.copy(source = resolved.source.copy(preloadKey = key))
+                play(handed, began, false)
             } else {
                 attempt(session, item, start, override, false, began)
             }
@@ -424,6 +444,7 @@ class TuneController(
                     attempt.loads,
                     attempt.notes,
                     attempt.av,
+                    use,
                 )
             }
 
@@ -435,6 +456,60 @@ class TuneController(
                 }
             }
         }
+    }
+
+    /**
+     * Asks the player to preload [resolved], or to keep it warm on its standby when [warm] and the warm switch is on
+     * (then it is not also preloaded: the standby covers it), and returns its key; null (and says why in the log) when
+     * it does neither.
+     */
+    private fun preloadKeyFor(
+        resolved: ResolvedPlayback?,
+        warm: Boolean,
+    ): String? {
+        val warming = warm && warmEnabled()
+        if (warm && !warming) WarmLog.line("skipped reason=switchOff")
+        val skip =
+            when {
+                resolved == null -> "notResolved"
+                !warming && !preloadEnabled() -> "switchOff"
+                resolved.route != Route.DIRECT_PLAY -> "notDirectPlay route=${resolved.route.name.lowercase()}"
+                else -> null
+            }
+        if (skip != null || resolved == null) {
+            (if (warming) WarmLog::line else PreloadLog::line)("skipped reason=$skip")
+            return null
+        }
+        val key = "p${preloadKeys.incrementAndGet()}"
+        if (warming) {
+            WarmLog.line("requested key=$key route=direct")
+            player.warm(key, resolved.source)
+        } else {
+            PreloadLog.line("requested key=$key route=direct")
+            player.preload(key, resolved.source)
+        }
+        return key
+    }
+
+    /** What the player holds of the preload [key], as a tune reports it; "not preloaded" when it holds nothing. */
+    private fun preloadUse(key: String): PreloadUse {
+        val state = player.preloadState(key)
+        if (state == null) {
+            PreloadLog.line("tune key=$key state=missing")
+            return PreloadUse(false, -1, -1)
+        }
+        val name =
+            if (state.error != null) {
+                "error"
+            } else if (state.setupMs != null) {
+                "prepared"
+            } else {
+                "working"
+            }
+        (if (state.warm) WarmLog::line else PreloadLog::line)(
+            "tune key=$key state=$name ageMs=${state.ageMs} setupMs=${state.setupMs ?: -1}",
+        )
+        return PreloadUse(state.setupMs != null && state.error == null, state.ageMs, state.setupMs ?: -1, state.warm)
     }
 
     /**
