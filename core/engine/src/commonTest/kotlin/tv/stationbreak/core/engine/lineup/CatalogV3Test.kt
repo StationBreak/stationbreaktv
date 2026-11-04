@@ -214,9 +214,10 @@ class CatalogV3Test {
         }
     }
 
-    // A neutral library: for every collection or title anchor, a matching collection or title that holds a
-    // grown-up film and a kid film. Only the anchors can reach them, so a kept kid film proves the anchor reaches
-    // the pool, and a held-out grown-up film proves the kid hold still applies to it.
+    // A neutral library: for every collection or title anchor, a matching collection or title that holds three
+    // films. Only the anchors can reach them. The R film is above every kid ceiling, so it proves the ceiling still
+    // applies. The G drama is inside the ceiling but not made for kids, so it proves the made-for-kids gate still
+    // applies. The TV-Y film passes both, and being kept proves the anchor reaches the pool.
     private fun assertAnchorsPassTheKidHold(r: Recipe) {
         val anchors = checkNotNull(r.theme).anchors.filter { it.kind != AnchorKind.Studio }
         if (anchors.isEmpty()) return
@@ -227,19 +228,23 @@ class CatalogV3Test {
         val kids = HashSet<CanonicalId>()
         for ((i, anchor) in anchors.withIndex()) {
             val name = anchor.match.folded
-            val adult = movie(idOf(0x100 + 2 * i), rating = "R", genres = listOf("Drama"))
-            val kid = movie(idOf(0x101 + 2 * i), rating = "TV-Y")
+            val adult = movie(idOf(0x100 + 3 * i), rating = "R", genres = listOf("Drama"))
+            val plain = movie(idOf(0x102 + 3 * i), rating = "G", genres = listOf("Drama"))
+            val kid = movie(idOf(0x101 + 3 * i), rating = "TV-Y")
             grownUp.add(adult.item.id)
+            grownUp.add(plain.item.id)
             kids.add(kid.item.id)
             if (anchor.kind == AnchorKind.Collection) {
                 val id = idOf(0x1000 + i)
-                collections.add(collection(id, movies = setOf(adult.item.id, kid.item.id)))
+                collections.add(collection(id, movies = setOf(adult.item.id, kid.item.id, plain.item.id)))
                 collectionNames[id] = name
                 items.add(adult)
                 items.add(kid)
+                items.add(plain)
             } else {
                 items.add(adult.copy(name = name))
                 items.add(kid.copy(name = name))
+                items.add(plain.copy(name = name))
             }
         }
         val names = CollectionNames(collectionNames)
