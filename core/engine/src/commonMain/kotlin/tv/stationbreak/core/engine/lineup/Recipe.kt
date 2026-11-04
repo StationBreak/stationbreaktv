@@ -125,4 +125,11 @@ interface StarterCatalogView {
 
     /** Keys that shipped once and are never used again. */
     val retiredKeys: Set<String>
+
+    /**
+     * True when the planner chooses this catalog's starters by identity (`Selection.select`, spec 23) rather than by
+     * ranking: catalog version 3 on ([StarterCatalog.SELECTS_BY_IDENTITY_FROM]). Every recipe of such a catalog is
+     * themed (a test holds the shipped catalog to it).
+     */
+    val selectsByIdentity: Boolean
 }

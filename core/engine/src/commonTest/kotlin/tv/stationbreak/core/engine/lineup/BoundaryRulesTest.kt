@@ -104,6 +104,7 @@ class BoundaryRulesTest {
                 base.recipes.map {
                     it.copy(ordering = OrderingMode.Curated, theme = Theme(emptyList(), emptyList(), null, false))
                 },
+                selectsByIdentity = true,
             )
         val lineup = planOf(null, libraryOf(fills(themed)), themed)
         val emptied = libraryOf(fills(themed) + ("alpha" to 0))
@@ -273,6 +274,7 @@ class BoundaryRulesTest {
         val outcome = LineupEdits.apply(lineup, LineupEdit.SwitchOn(LineupIds.starter("alpha")), noon, boundary, base)
         val alpha = assertIs<EditOutcome.Applied>(outcome).lineup.channel("alpha")
         assertNull(alpha.leavesAtMs)
+        assertNull(alpha.shelfReason)
         assertEquals(ChannelState.On, alpha.state)
         assertTrue(alpha.chosenByViewer)
     }

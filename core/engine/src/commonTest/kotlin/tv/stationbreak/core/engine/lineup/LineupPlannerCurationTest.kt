@@ -12,6 +12,7 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -21,6 +22,11 @@ class LineupPlannerCurationTest {
     private val noon = 12 * 3_600_000L
     private val boundary = nextDayStart(noon)
 
+    private fun selecting(
+        recipes: List<Recipe>,
+        version: Int = 1,
+    ): TestCatalog = TestCatalog(recipes, version, selectsByIdentity = true)
+
     private fun themed(recipe: Recipe): Recipe =
         recipe.copy(ordering = OrderingMode.Curated, theme = Theme(emptyList(), emptyList(), null, false))
 
@@ -29,7 +35,7 @@ class LineupPlannerCurationTest {
     // "dup" is about the same genre as "alpha" with a higher number: every title homes on "alpha".
     private val baseRecipes =
         five.map { (k, n) -> recipeOf(k, n) } + recipeOf("tots", 10) + recipeOf("dup", 150, sources = genre("alpha"))
-    private val catalog = TestCatalog(baseRecipes.map(::themed))
+    private val catalog = selecting(baseRecipes.map(::themed))
     private val unthemed = TestCatalog(baseRecipes)
 
     private fun fills(vararg extra: Pair<String, Int>): Map<String, Int> =
@@ -68,6 +74,9 @@ class LineupPlannerCurationTest {
             onSinceMs = 0L,
         )
 
+    private fun LineupChannel.chosenShelf(reason: ShelfReason?): LineupChannel =
+        copy(state = ChannelState.Shelf, chosenByViewer = true, shelfReason = reason)
+
     private fun Lineup.withCustoms(count: Int): Lineup = copy(channels = channels + (0 until count).map(::custom))
 
     // An untouched starter on the air and not leaving.
@@ -97,7 +106,7 @@ class LineupPlannerCurationTest {
 
     @Test
     fun anUntouchedShelvedStarterThatNowQualifiesSwitchesOn() {
-        val withFoxtrot = TestCatalog(catalog.recipes + themed(recipeOf("foxtrot", 130)))
+        val withFoxtrot = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)))
         val lineup = first(libraryOf(fills()), withFoxtrot)
         assertEquals(ChannelState.Shelf, lineup.channel("foxtrot").state)
         assertEquals(ShelfReason.Empty, lineup.channel("foxtrot").shelfReason)
@@ -147,7 +156,7 @@ class LineupPlannerCurationTest {
     // starter on the air may be the viewer's: none is shelved. A shelved one still switches on.
     @Test
     fun anUpgradedLineupNeverShelvesAStarterOnTheAir() {
-        val withFoxtrot = TestCatalog(catalog.recipes + themed(recipeOf("foxtrot", 130)))
+        val withFoxtrot = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)))
         val lineup = first(libraryOf(fills()), withFoxtrot).copy(viewerChoicesKnown = false)
 
         val next = replan(lineup, libraryOf(fills("delta" to 0, "foxtrot" to QUALIFYING_ITEMS)), withFoxtrot)
@@ -160,7 +169,7 @@ class LineupPlannerCurationTest {
     @Test
     fun shelvedStartersCarryTheirReason() {
         val late = themed(recipeOf("late", 520, optIn = true))
-        val withMore = TestCatalog(catalog.recipes + themed(recipeOf("foxtrot", 130)) + late)
+        val withMore = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)) + late)
         val library = libraryOf(fills("late" to QUALIFYING_ITEMS))
         // 44 of the viewer's own channels and the two leftovers leave room for four starters.
         val kept = (0 until 44).map(::custom)
@@ -205,7 +214,7 @@ class LineupPlannerCurationTest {
     fun aPinnedOptInStarterIsACandidate() {
         val late = themed(recipeOf("late", 520, optIn = true))
         val latest = themed(recipeOf("latest", 530, sources = listOf(Source.Genre("late"))))
-        val withLate = TestCatalog(catalog.recipes + late + latest)
+        val withLate = selecting(catalog.recipes + late + latest)
         val library = libraryOf(fills("late" to QUALIFYING_ITEMS))
         val lineup = first(library, withLate)
         assertEquals(ShelfReason.OptIn, lineup.channel("late").shelfReason)
@@ -260,7 +269,7 @@ class LineupPlannerCurationTest {
         // 60 starters: the first choice switches on 48; the 12 left fill better later and switch on at once while 12
         // others leave at the boundary, so more than the cap are on until then.
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
-        val v1 = TestCatalog(keys.mapIndexed { i, k -> themed(recipeOf(k, 200 + i)) })
+        val v1 = selecting(keys.mapIndexed { i, k -> themed(recipeOf(k, 200 + i)) })
         val lineup = first(libraryOf(keys.associateWith { QUALIFYING_ITEMS }), v1)
         val startersOn = lineup.channels.count { it.state == ChannelState.On && it.source is ChannelSource.Starter }
         assertEquals(LineupDefaults.CAP - 2, startersOn)
@@ -268,7 +277,7 @@ class LineupPlannerCurationTest {
         val richer = libraryOf(keys.associateWith { if (it in shelved) 30 else QUALIFYING_ITEMS })
 
         fun version(n: Int) =
-            TestCatalog(
+            selecting(
                 keys.mapIndexed { i, k -> themed(recipeOf(k, 200 + i, sources = genre(k, "v$n"))) },
                 version = n,
             )
@@ -294,7 +303,7 @@ class LineupPlannerCurationTest {
             ordering = OrderingMode.Curated,
             theme = Theme(listOf(boxSetAnchor), emptyList(), null, false),
         )
-    private val withHouse = TestCatalog(catalog.recipes + house)
+    private val withHouse = selecting(catalog.recipes + house)
 
     private fun householdLibrary(): RuleSnapshot {
         val library = libraryOf(fills("members" to QUALIFYING_ITEMS))
@@ -357,5 +366,123 @@ class LineupPlannerCurationTest {
         val waiting = refreshed(flag = true, basis = false)
         assertEquals(ChannelState.Shelf, waiting.state)
         assertEquals(ShelfReason.Empty, waiting.shelfReason)
+    }
+
+    // A viewer's renumber of a starter that is leaving keeps it: the edit clears the leaving time, and the planner pins
+    // a chosen starter on the air even if a leaving time is still set.
+    @Test
+    fun aRenumberedLeavingStarterStays() {
+        val emptied = libraryOf(fills("delta" to 0))
+        val leaving = replan(first(), emptied)
+        assertEquals(boundary, leaving.channel("delta").leavesAtMs)
+
+        val edit = LineupEdit.SetNumber(LineupIds.starter("delta"), 311)
+        val renumbered = assertIs<EditOutcome.Applied>(LineupEdits.apply(leaving, edit, noon, boundary, catalog)).lineup
+        assertNull(renumbered.channel("delta").leavesAtMs)
+        assertNull(renumbered.channel("delta").shelfReason)
+        val next = replan(renumbered, emptied, nowMs = noon + 1_000L)
+        assertTrue(next.staying("delta"))
+        assertNull(next.channel("delta").shelfReason)
+
+        // Chosen but still marked as leaving (written before the edit cleared it): the planner clears it.
+        val stale = leaving.withChannel("delta") { it.copy(chosenByViewer = true) }
+        val pinned = replan(stale, emptied, nowMs = noon + 1_000L).channel("delta")
+        assertEquals(ChannelState.On, pinned.state)
+        assertNull(pinned.leavesAtMs)
+        assertNull(pinned.shelfReason)
+    }
+
+    @Test
+    fun everyShelvedStarterHasACurrentReason() {
+        val late = themed(recipeOf("late", 520, optIn = true))
+        val golf = themed(recipeOf("golf", 140))
+        val more = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)) + golf + late)
+        val library = libraryOf(fills("late" to QUALIFYING_ITEMS, "golf" to QUALIFYING_ITEMS))
+        val lineup =
+            first(library, more)
+                // The viewer gave alpha golf's number, so golf waits on the shelf with none.
+                .withChannel("golf") { it.copy(state = ChannelState.Shelf, defaultNumber = null, shelfReason = null) }
+                .withChannel("alpha") { it.copy(numberOverride = 140, chosenByViewer = true) }
+                // Shelved by the viewer's choice, each with a stale reason or none.
+                .withChannel("echo") { it.chosenShelf(ShelfReason.Empty) }
+                .withChannel("dup") { it.copy(chosenByViewer = true, shelfReason = null) }
+                .withChannel("foxtrot") { it.copy(chosenByViewer = true, shelfReason = ShelfReason.BelowCap) }
+
+        val next = replan(lineup, library, more)
+
+        val shelved = next.channels.filter { it.state == ChannelState.Shelf && it.source is ChannelSource.Starter }
+        for (channel in shelved) assertNotNull(channel.shelfReason, channel.id.value)
+        assertEquals(ShelfReason.BelowCap, next.channel("golf").shelfReason, "no number, so no room to air")
+        assertEquals(ShelfReason.BelowCap, next.channel("echo").shelfReason, "it would qualify")
+        assertEquals(ShelfReason.TooThin, next.channel("dup").shelfReason)
+        assertEquals(ShelfReason.Empty, next.channel("foxtrot").shelfReason)
+        assertEquals(ShelfReason.OptIn, next.channel("late").shelfReason)
+        assertEquals(ChannelState.Shelf, next.channel("echo").state, "the viewer's shelf choice holds")
+    }
+
+    // While a newer catalog waits for a collection pass over a lineup already selected, nothing switches on or off.
+    @Test
+    fun aWaitingCatalogHoldsTheOnSet() {
+        val v3 = selecting(catalog.recipes, version = 3)
+        val v4 = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)), version = 4)
+        val lineup = first(libraryOf(fills()), v3).withChannel("delta") { it.copy(state = ChannelState.Shelf) }
+        // An incremental sync: charlie is now empty, delta fills.
+        val incremental = libraryOf(fills("charlie" to 0), collectionsSynced = false)
+
+        val held = replan(lineup, incremental, v4)
+
+        assertEquals(lineup.onKeys(), held.onKeys())
+        assertTrue(held.channels.all { it.leavesAtMs == null })
+        assertEquals(3, held.catalogVersion)
+        // On its own catalog the same refresh selects.
+        val selected = replan(lineup, incremental, v3)
+        assertEquals(boundary, selected.channel("charlie").leavesAtMs)
+        assertEquals(ChannelState.On, selected.channel("delta").state)
+    }
+
+    @Test
+    fun noRoomShelvesEveryUntouchedStarterAtTheBoundary() {
+        for (customs in listOf(LineupDefaults.CAP - 2, LineupDefaults.CAP + 5)) {
+            val next = replan(first().withCustoms(customs), libraryOf(fills()))
+            for (key in listOf("tots", "alpha", "bravo", "charlie", "delta", "echo")) {
+                assertEquals(boundary, next.channel(key).leavesAtMs, "$customs: $key")
+                assertEquals(ShelfReason.BelowCap, next.channel(key).shelfReason, "$customs: $key")
+            }
+        }
+    }
+
+    @Test
+    fun withEveryStarterOnPinnedNothingLeaves() {
+        val lineup =
+            first().copy(
+                channels =
+                    first().channels.map {
+                        val starterOn = it.source is ChannelSource.Starter && it.state == ChannelState.On
+                        if (starterOn) it.copy(chosenByViewer = true) else it
+                    },
+            )
+
+        val next = replan(lineup, libraryOf(fills("delta" to 0, "tots" to 0)))
+
+        assertTrue(next.channels.all { it.leavesAtMs == null })
+        assertEquals(lineup.onKeys(), next.onKeys())
+        assertTrue(next.staying("tots"), "a pinned kid starter stays too")
+    }
+
+    @Test
+    fun anUntouchedKidStarterThatEmptiesLeaves() {
+        val next = replan(first(), libraryOf(fills("tots" to 0)))
+        assertEquals(boundary, next.channel("tots").leavesAtMs)
+        assertEquals(ShelfReason.Empty, next.channel("tots").shelfReason)
+    }
+
+    @Test
+    fun aQuietRefreshChangesNothing() {
+        val library = libraryOf(fills())
+        val lineup = first(library)
+        val once = replan(lineup, library)
+        val twice = replan(once, library, nowMs = noon + 1_000L)
+        assertEquals(lineup, once)
+        assertEquals(once, twice)
     }
 }

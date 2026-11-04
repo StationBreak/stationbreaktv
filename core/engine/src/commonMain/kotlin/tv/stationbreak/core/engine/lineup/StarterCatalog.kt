@@ -28,6 +28,11 @@ object StarterCatalog : StarterCatalogView {
 
     override val version: Int = VERSION
 
+    /** The first catalog version whose starters the planner selects by identity (spec 23). */
+    const val SELECTS_BY_IDENTITY_FROM: Int = 3
+
+    override val selectsByIdentity: Boolean = VERSION >= SELECTS_BY_IDENTITY_FROM
+
     override val recipes: List<Recipe> =
         kidsBand + generalBand + dramaBand + genreBand + worldBand + premiumBand
 

@@ -10,14 +10,21 @@ import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
 
-/** A small catalog for planner tests. */
+/**
+ * A small catalog for planner tests. One that [selectsByIdentity] holds only themed recipes, as a shipped one must.
+ */
 internal class TestCatalog(
     override val recipes: List<Recipe>,
     override val version: Int = 1,
     override val leftovers: List<LeftoversRecipe> = TEST_LEFTOVERS,
     override val retiredNumbers: Set<Int> = emptySet(),
     override val retiredKeys: Set<String> = emptySet(),
-) : StarterCatalogView
+    override val selectsByIdentity: Boolean = false,
+) : StarterCatalogView {
+    init {
+        require(!selectsByIdentity || recipes.all { it.theme != null }) { "A selecting catalog is themed throughout" }
+    }
+}
 
 internal val TEST_LEFTOVERS: List<LeftoversRecipe> =
     listOf(

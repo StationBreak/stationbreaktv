@@ -2,12 +2,14 @@
 package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.engine.PoolEvaluator
+import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.airableRuntimeMs
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.rules.ChannelRules
 
 /**
@@ -38,17 +40,19 @@ import tv.stationbreak.core.rules.ChannelRules
  *   waiting for its boundary (it must fill under today's flag and tomorrow's): the plan at that boundary switches it
  *   on, and the leftovers' new day, already begun, moves. Task 21 (spec 23, PR 5) has the leftovers claim from the
  *   basis on-set until the boundary instead.
- * - With a themed catalog (every recipe themed) the planner selects by identity (`Selection.select`, spec 23) on every
- *   plan, and that can change the lineup in the middle of a day, from what the library holds now. An untouched shelved
- *   starter the selection picks switches on at once, if it is picked under the boundary's "Use my collections" flag
- *   and under today's; it airs from now, as above. An untouched starter on the air that the selection leaves out stays
- *   on until the boundary (`leavesAtMs`) and then goes to the shelf (`Lineup.rolled`); picked again before then, it
- *   stays. Until the boundary both are on, so more than [LineupDefaults.CAP] channels can be on for the rest of the
- *   day. A starter the viewer switched on, renumbered or edited is never shelved, and in a lineup upgraded from a file
- *   before version 3 no starter on the air is (any may be the viewer's). A shelved starter the viewer renumbered is
- *   not switched on by the planner either.
- * - While a newer themed catalog waits for a full collection pass the lineup is still ranked: shelved starters may
- *   switch on, none leaves.
+ * - With a catalog that selects by identity (`StarterCatalogView.selectsByIdentity`, version 3 on, every recipe themed)
+ *   the planner selects (`Selection.select`, spec 23) on every plan, and that can change the lineup in the middle of a
+ *   day, from what the library holds now. An untouched shelved starter the selection picks switches on at once, if it
+ *   is picked under the boundary's "Use my collections" flag and under today's; it airs from now, as above. An
+ *   untouched starter on the air that the selection leaves out stays on until the boundary (`leavesAtMs`) and then goes
+ *   to the shelf (`Lineup.rolled`); picked again before then, it stays. Until the boundary both are on, so more than
+ *   [LineupDefaults.CAP] channels can be on for the rest of the day. A starter on the air that the viewer chose
+ *   (switched on or renumbered) is pinned: never shelved, and a leaving time is cleared; an edited one is never
+ *   touched; in a lineup upgraded from a file before version 3 no starter on the air is shelved (any may be the
+ *   viewer's). A shelved starter the viewer chose or edited is not switched on by the planner, but gets its reason.
+ * - While a newer catalog waits for a full collection pass over a lineup already on a selecting catalog, no starter
+ *   switches on or leaves. Over a lineup on an older (ranked) catalog, the lineup is still ranked while it waits:
+ *   shelved starters may switch on, none leaves.
  * - While a newer catalog waits for a full collection pass, a shelved starter that switches on is resolved from the
  *   newer catalog's recipe, until that catalog is applied.
  * - The viewer's number override always holds. A new recipe treats both default and override numbers as taken, so
@@ -67,18 +71,19 @@ object LineupPlanner {
      * through the hint pass below. With fewer than [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes
      * nothing is on yet either. A kid recipe fills only with what is made for children (the kid hold, ADR-0019).
      * Otherwise the leftovers channels and the best-filling non-opt-in recipes (ties by key) are switched on up to
-     * [LineupDefaults.CAP], and every other recipe goes on the shelf at its default number. With a themed catalog the
-     * best are chosen by identity instead (`Selection.select`): "filling" means qualifying once every title has its
-     * home, and every recipe left on the shelf with a number carries its [ShelfReason].
+     * [LineupDefaults.CAP], and every other recipe goes on the shelf at its default number. With a catalog that
+     * selects by identity the best are chosen by identity instead (`Selection.select`): "filling" means qualifying
+     * once every title has its home, and every recipe left on the shelf carries its [ShelfReason] (BelowCap for one
+     * without a number).
      *
      * A finalised lineup keeps its offset, its numbers and every switched-on or hidden channel's state. A shelved,
-     * unedited starter that has a number and fills is switched on while there is room, best first. With a themed
-     * catalog ([PlannerSelection]) the untouched starters are selected again instead: the candidates are the unedited,
-     * numbered starters not hidden that are not opt-in or that the viewer switched on (pinned); the room is
-     * [LineupDefaults.CAP] less every channel on and not leaving that is not an untouched candidate (the leftovers, own
-     * channels, edited and pinned starters); an untouched starter left out is shelved at [boundaryMs], with its
-     * reason. On every call
-     * with a full collection pass (`collectionsSynced`) each unedited starter that is on or on the shelf is resolved
+     * unedited starter that has a number and fills is switched on while there is room, best first. With a catalog that
+     * selects by identity ([PlannerSelection]) the untouched starters are selected again instead: the candidates are
+     * the unedited, numbered starters not hidden that are not opt-in or that the viewer switched on (pinned); the room
+     * is [LineupDefaults.CAP] less every channel on and not leaving that is not an untouched candidate (the leftovers,
+     * own channels, edited and pinned starters); an untouched starter left out is shelved at [boundaryMs], with its
+     * reason, and every shelved starter carries a current reason. On every call with a full collection pass
+     * (`collectionsSynced`) each unedited starter that is on or on the shelf is resolved
      * again from its recipe, keeping its seed and timing, so a collection that appears later reaches it. A call
      * without one resolves no channel again, apart from a starter it switches on. A newer catalog refreshes unedited
      * starters (keeping seed and timing), freezes starters whose recipe left as custom channels and shelves new
@@ -87,7 +92,9 @@ object LineupPlanner {
      * catalog takes its rating ceiling from it on every call, deferred catalog or not. A catalog older than the
      * lineup's changes nothing.
      *
-     * Each recipe's pool is evaluated at most once per call.
+     * Each recipe is resolved at most once per call, and each channel's pool is evaluated at most once per call for
+     * each set of rules it is weighed with: on a day the "Use my collections" flag differs between today and the
+     * boundary, a pool whose rules the flag changes is evaluated under both, and only then.
      *
      * A first choice can be made around [kept] channels (a reset keeps the viewer's own channels; the caller picks
      * them, and for a lineup not yet finalised, whose own channels a first choice replaces, it passes the ones to
@@ -196,7 +203,7 @@ object LineupPlanner {
         val taken = kept.count { it.state == ChannelState.On } + leftovers.count { it.state == ChannelState.On }
         val room = (LineupDefaults.CAP - taken).coerceAtLeast(0)
         val choice =
-            if (PlannerSelection.isThemed(p.catalog)) {
+            if (p.catalog.selectsByIdentity) {
                 PlannerSelection.firstChoice(p, recipes, numbers, rules, room)
             } else {
                 val ranked =
@@ -214,7 +221,7 @@ object LineupPlanner {
                 val id = LineupIds.starter(it.key)
                 val state = if (id in choice.on) ChannelState.On else ChannelState.Shelf
                 val channel = p.starterChannel(it, numbers.getValue(id), state, rules.getValue(it.key))
-                // A themed choice gives every recipe it leaves off its reason; a ranked one gives none.
+                // A selecting choice gives every recipe it leaves off its reason; a ranked one gives none.
                 val reason = if (state == ChannelState.Shelf) choice.shelf[id] else null
                 if (reason != null) channel.copy(shelfReason = reason) else channel
             }
@@ -233,9 +240,12 @@ object LineupPlanner {
         val keepers = previousKeepers(current.channels)
         val refreshed = current.channels.map { refreshed(backToBack(it), p, newer, it.id in keepers) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
-        // A themed catalog selects once the lineup is on it; while a newer one waits, the lineup is still ranked.
-        val themed = PlannerSelection.isThemed(p.catalog) && (newer || p.catalog.version == current.catalogVersion)
-        val planned = if (themed) PlannerSelection.refreshed(current, withNew, p) else switchedOn(withNew, p)
+        val planned =
+            when (PlannerSelection.modeOf(current, p, newer)) {
+                PlannerSelection.Mode.Select -> PlannerSelection.refreshed(current, withNew, p)
+                PlannerSelection.Mode.Hold -> withNew
+                PlannerSelection.Mode.Rank -> switchedOn(withNew, p)
+            }
         val next =
             current.copy(
                 catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
@@ -416,6 +426,31 @@ internal class Planning(
     // Each recipe is resolved once per plan, whichever step asks first. Read by key only, never iterated.
     private val resolved = HashMap<String, ChannelRules>()
 
+    // The pools evaluated in this plan, by channel: the rules and policy each was evaluated with. Read by key only.
+    private val pools = HashMap<ChannelId, MutableList<EvaluatedPool>>()
+
+    private class EvaluatedPool(
+        val rules: ChannelRules,
+        val policy: PoolPolicy,
+        val items: List<ScheduleItem>,
+    )
+
+    /**
+     * The pool of [rules] under [policy] for channel [id]: evaluated on the first call with these rules and policy,
+     * the same list on every later one (a household flag that leaves the rules unchanged evaluates nothing again).
+     */
+    fun poolOf(
+        id: ChannelId,
+        rules: ChannelRules,
+        policy: PoolPolicy,
+    ): List<ScheduleItem> {
+        val held = pools.getOrPut(id) { ArrayList(2) }
+        for (pool in held) if (pool.policy == policy && pool.rules == rules) return pool.items
+        val items = PoolEvaluator.evaluate(rules, snapshot, policy).items
+        held += EvaluatedPool(rules, policy, items)
+        return items
+    }
+
     fun recipe(key: String): Recipe? = recipes[key]
 
     /** The rules of [recipe], resolved on the first call for its key and the same rules on every later call. */
@@ -459,8 +494,10 @@ internal class Planning(
             .mapNotNull { (recipe, rules) ->
                 // With the household's collections off, a starter ranks on the pool it will air; none left ranks empty.
                 val runtime = airableUnder(recipe, rules, household)
-                // One switched on airs from now, so it must also fill under the flag of today, when that differs.
-                val today = if (householdToday == household) runtime else airableUnder(recipe, rules, householdToday)
+                // One switched on airs from now, so it must also fill under the flag of today, when that differs (and
+                // the flag changes its rules).
+                val same = householdToday == household || HouseholdSources.without(rules, snapshot) === rules
+                val today = if (same) runtime else airableUnder(recipe, rules, householdToday)
                 val least = LineupDefaults.MIN_AIRABLE_RUNTIME_MS
                 if (runtime >= least && today >= least) {
                     recipe to runtime

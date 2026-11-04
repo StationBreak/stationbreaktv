@@ -190,7 +190,8 @@ object LineupEdits {
         }
     }
 
-    // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder).
+    // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder); a
+    // marked channel on the air stops leaving.
     // A ReplaceCustom marks only the channel it swapped with: the edited one is the viewer's own anyway.
     private fun markChoice(
         before: Lineup,
@@ -207,7 +208,14 @@ object LineupEdits {
                 val was = old[it.id]
                 val moved = was != null && it.id != edit.id && (was.number != it.number || was.state != it.state)
                 val own = marksSelf && it.id == edit.id
-                if (own || moved) it.copy(chosenByViewer = true) else it
+                when {
+                    !own && !moved -> it
+
+                    // The viewer's choice beats the planner's: a channel on the air no longer leaves.
+                    it.state == ChannelState.On -> it.copy(chosenByViewer = true, leavesAtMs = null, shelfReason = null)
+
+                    else -> it.copy(chosenByViewer = true)
+                }
             }
         return EditOutcome.Applied(outcome.lineup.copy(channels = marked))
     }
@@ -418,7 +426,7 @@ object LineupEdits {
     ): EditOutcome =
         when {
             // Already on but leaving: switching it on keeps it (the viewer's choice beats the planner's).
-            channel.state == ChannelState.On -> applied(lineup, channel.copy(leavesAtMs = null))
+            channel.state == ChannelState.On -> applied(lineup, channel.copy(leavesAtMs = null, shelfReason = null))
 
             channel.source is ChannelSource.Unusable -> refused(EditRefusal.NotSwitchable)
 
