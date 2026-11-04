@@ -43,11 +43,20 @@ sealed interface NameMatcher {
         override fun matches(foldedName: String): Boolean = foldedName.contains(folded)
     }
 
-    /** The name has [name] as whole words: the characters on either side of it are not letters, digits or "_". */
+    /**
+     * The name has [name] as whole words: the characters on either side of it are not letters, digits or "_". The
+     * folded name must start and end with a letter or digit, because a boundary next to punctuation is not a word
+     * boundary and the match would mean something different.
+     */
     data class Word(
         val name: String,
     ) : NameMatcher {
         override val folded: String = foldedNonEmpty(name)
+
+        init {
+            val edges = isAlnum(folded.first()) && isAlnum(folded.last())
+            require(edges) { "A word starts and ends with a letter or digit" }
+        }
 
         override fun matches(foldedName: String): Boolean {
             var from = foldedName.indexOf(folded)
@@ -73,6 +82,8 @@ private fun foldedNonEmpty(name: String): String {
     require(folded.isNotEmpty()) { "A matcher needs a name" }
     return folded
 }
+
+private fun isAlnum(c: Char): Boolean = c in 'a'..'z' || c in '0'..'9'
 
 private fun isWordChar(c: Char): Boolean = c in 'a'..'z' || c in '0'..'9' || c == '_'
 

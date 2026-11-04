@@ -44,6 +44,15 @@ class RecipeResolverTest {
     )
 
     @Test
+    fun everyStarterResolvesAgainstAnEmptyLibraryAtFormatOne() {
+        for (r in StarterCatalog.recipes) {
+            val rules = RecipeResolver.resolve(r, server, 0, noCollections, NO_LIBRARY)
+            assertEquals(1, rules.formatVersion, r.key)
+            assertEquals(r.sources, rules.sources, r.key)
+        }
+    }
+
+    @Test
     fun resolveSetsNameSeedSourcesCeilingAndTiming() {
         val r = recipe(maxRating = "PG", band = Band.Kids, number = 10, ordering = OrderingMode.Chronological)
         val rules = RecipeResolver.resolve(r, server, -300, noCollections, NO_LIBRARY)

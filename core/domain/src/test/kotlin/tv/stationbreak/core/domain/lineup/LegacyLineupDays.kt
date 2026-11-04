@@ -20,7 +20,6 @@ import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -209,9 +208,11 @@ internal class LegacyLineupDays(
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
         private fun optInRules(snapshot: RuleSnapshot): List<Pair<ChannelRules, PoolPolicy>> {
-            val names = LibraryNames(snapshot, NO_NAMES)
+            val collections = collectionNamesOf(snapshot)
+            val names = LibraryNames(snapshot, collections)
             return catalog.recipes.filter { it.optIn }.flatMap { recipe ->
-                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES, names)
+                val offset = lineup.utcOffsetMinutes
+                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, offset, collections, names)
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
                     resolved to KidStatus.policyOf(recipe),
@@ -273,8 +274,6 @@ internal class LegacyLineupDays(
     private companion object {
         /** The most a kids' channel may air: the Kids band's maximum. */
         const val KIDS_MAX_RATING = "PG"
-
-        val NO_NAMES = CollectionNames(emptyMap())
 
         /** A grown-up leftovers number, for the stand-in recipe of a retired leftovers key. */
         const val RETIRED_NUMBER = 199

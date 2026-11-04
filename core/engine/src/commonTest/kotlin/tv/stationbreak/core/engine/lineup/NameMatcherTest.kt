@@ -42,4 +42,27 @@ class NameMatcherTest {
         val names = LibraryNames(snapshot(items = listOf(unnamed)), CollectionNames(emptyMap()))
         assertEquals(emptyList(), names.titles(NameMatcher.Contains("a")))
     }
+
+    @Test
+    fun aWordMatcherStartsAndEndsWithALetterOrDigit() {
+        assertFailsWith<IllegalArgumentException> { NameMatcher.Word("-fx") }
+        assertFailsWith<IllegalArgumentException> { NameMatcher.Word("fx.") }
+        assertTrue(NameMatcher.Word("AT-X").matches(fold("AT-X Channel")))
+    }
+
+    private fun animeMatch(studio: String) = CurationTables.ANIME_STUDIOS.any { it.matches(fold(studio)) }
+
+    @Test
+    fun shortAnimeTokensMatchWholeWordsOnly() {
+        assertFalse(animeMatch("Holmes Studio"))
+        assertFalse(animeMatch("Shaftesbury"))
+        assertTrue(animeMatch("Studio Bones Inc."))
+        assertTrue(animeMatch("Shaft"))
+        assertTrue(animeMatch("Production I.G"))
+    }
+
+    @Test
+    fun theCurationTablesVersionIsPinned() {
+        assertEquals("curation-1", CurationTables.VERSION_NAME)
+    }
 }

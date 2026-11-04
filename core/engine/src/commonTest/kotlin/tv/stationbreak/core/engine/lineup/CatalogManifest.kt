@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Source
 
@@ -143,6 +148,33 @@ private fun canonicalOf(filters: Filters): String =
         append("ep").append(filters.episodeMinRuntimeMinutes).append(':').append(filters.episodeMaxRuntimeMinutes)
         append("mv").append(filters.movieMinRuntimeMinutes).append(':').append(filters.movieMaxRuntimeMinutes)
         append("kind").append(filters.kind?.wireName?.let(::text) ?: "-")
+        append("extras").append(canonicalOf(filters.extras))
+        append("yearsExtras").append(canonicalOf(filters.yearsExtras))
+        append("runtimeExtras").append(canonicalOf(filters.runtimeExtras))
+        append("episodeRuntimeExtras").append(canonicalOf(filters.episodeRuntimeExtras))
+        append("movieRuntimeExtras").append(canonicalOf(filters.movieRuntimeExtras))
+    }
+
+// JSON with object keys in sorted order, every text length-prefixed.
+private fun canonicalOf(element: JsonElement): String =
+    when (element) {
+        is JsonObject -> {
+            element.entries
+                .sortedBy { it.key }
+                .joinToString(",", "{", "}") { text(it.key) + canonicalOf(it.value) }
+        }
+
+        is JsonArray -> {
+            element.joinToString(",", "[", "]") { canonicalOf(it) }
+        }
+
+        is JsonNull -> {
+            "null"
+        }
+
+        is JsonPrimitive -> {
+            if (element.isString) "s" + text(element.content) else "p" + text(element.content)
+        }
     }
 
 private fun canonicalOf(matcher: NameMatcher): String =
@@ -153,13 +185,26 @@ private fun canonicalOf(matcher: NameMatcher): String =
         is NameMatcher.Word -> "word" + text(matcher.folded)
     }
 
+private fun kindTag(kind: AnchorKind): String =
+    when (kind) {
+        AnchorKind.Collection -> "collection"
+        AnchorKind.Title -> "title"
+        AnchorKind.Studio -> "studio"
+    }
+
 private fun canonicalOf(theme: Theme): String =
     buildString {
         append("anchors[")
-        theme.anchors.forEach { append(it.kind.name).append(canonicalOf(it.match)) }
+        theme.anchors.forEach { append(kindTag(it.kind)).append(canonicalOf(it.match)) }
         append("]studios[")
         theme.themeStudios.forEach { append(canonicalOf(it)) }
-        append("]format").append(theme.format?.name ?: "-")
+        append("]format").append(
+            when (theme.format) {
+                null -> "-"
+                FormatPromise.Films -> "films"
+                FormatPromise.ShortSeries -> "short-series"
+            },
+        )
         append("anime").append(theme.animeOnly)
     }
 

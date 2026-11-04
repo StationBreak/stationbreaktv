@@ -586,9 +586,12 @@ internal class LineupDays(
         // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
         // ceiling is as today.
         private fun optInRules(cut: Cut): List<PolicyRules> {
-            val names = LibraryNames(snapshotOf(cut), NO_NAMES)
+            val snapshot = snapshotOf(cut)
+            val collections = collectionNamesOf(snapshot)
+            val names = LibraryNames(snapshot, collections)
             return catalog.recipes.filter { it.optIn }.flatMap { recipe ->
-                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES, names)
+                val offset = lineup.utcOffsetMinutes
+                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, offset, collections, names)
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
                     PolicyRules(resolved, policyOf(recipe)),
@@ -625,8 +628,6 @@ internal class LineupDays(
             .sortedWith(compareBy<LineupChannel> { ceilings.of(it) == null }.then(CHANNEL_ORDER))
 
     private companion object {
-        val NO_NAMES = CollectionNames(emptyMap())
-
         /** A grown-up leftovers number, for the stand-in recipe of a retired leftovers key. */
         const val RETIRED_NUMBER = 199
     }
@@ -684,3 +685,13 @@ private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
         counts.filteredOut > 0 -> HiddenReason.AllFilteredOut
         else -> HiddenReason.AllExcluded
     }
+
+/**
+ * The names of the collections [snapshot] holds, by ID: what a themed recipe's collection anchors and a recipe's hints
+ * are matched against, so a day build resolves them as the planner does. A collection with no name has none here.
+ */
+internal fun collectionNamesOf(snapshot: RuleSnapshot): CollectionNames {
+    val names = HashMap<CanonicalId, String>()
+    for ((id, collection) in snapshot.collections) collection.name?.let { names[id] = it }
+    return CollectionNames(names)
+}

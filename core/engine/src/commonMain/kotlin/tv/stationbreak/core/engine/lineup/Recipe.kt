@@ -71,12 +71,14 @@ data class Recipe(
     val guestOnly: Boolean get() = sources.any { it is Source.YearRange }
 
     /** The genres the recipe is about: its genre sources, then the genres of its filters, once each, in order. */
-    val themeGenres: List<String>
-        get() = (sources.filterIsInstance<Source.Genre>().map { it.name } + filters?.genres.orEmpty()).distinct()
+    val themeGenres: List<String> by lazy {
+        (sources.filterIsInstance<Source.Genre>().map { it.name } + filters?.genres.orEmpty()).distinct()
+    }
 
     /** The tags the recipe is about: its tag sources, then the tags of its filters, once each, in order. */
-    val themeTags: List<String>
-        get() = (sources.filterIsInstance<Source.Tag>().map { it.name } + filters?.tags.orEmpty()).distinct()
+    val themeTags: List<String> by lazy {
+        (sources.filterIsInstance<Source.Tag>().map { it.name } + filters?.tags.orEmpty()).distinct()
+    }
 }
 
 private fun atMostPg(rating: String?): Boolean {

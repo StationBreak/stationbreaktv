@@ -4,7 +4,6 @@ package tv.stationbreak.core.engine.lineup
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
-import tv.stationbreak.core.model.cleanStudioName
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
 
@@ -38,9 +37,9 @@ class LibraryNames(
         out
     }
 
-    // Folded studio name to one spelling of it (the smallest), so the answer does not depend on item order.
-    private val studioSpellings: Map<String, String> by lazy {
-        val out = HashMap<String, String>()
+    // The folded studio names (studio clean, then ASCII fold) held by items and series.
+    private val studioKeys: Set<String> by lazy {
+        val out = HashSet<String>()
         for (entry in snapshot.items) addStudios(out, entry.studios)
         for (series in snapshot.series.values) addStudios(out, series.studios)
         out
@@ -56,14 +55,16 @@ class LibraryNames(
         return out
     }
 
-    /** The studio names [match]es, one per folded spelling, in ascending order of the folded name. */
+    /**
+     * The studios [match]es, in ascending order. Each is the folded name ([NameMatcher.fold]), not a spelling the
+     * library holds: a studio source matches under the same fold, so what airs is the same, and the rules do not change
+     * when an item with another spelling of a studio is added.
+     */
     fun studios(match: NameMatcher): List<String> {
         val keys = ArrayList<String>()
-        for (key in studioSpellings.keys) if (match.matches(key)) keys.add(key)
+        for (key in studioKeys) if (match.matches(key)) keys.add(key)
         keys.sort()
-        val out = ArrayList<String>(keys.size)
-        for (key in keys) out.add(studioSpellings.getValue(key))
-        return out
+        return keys
     }
 
     /** A series source for every series whose name [match]es, then an item source for every film, each in ID order. */
@@ -75,15 +76,12 @@ class LibraryNames(
     }
 
     private fun addStudios(
-        into: HashMap<String, String>,
+        into: HashSet<String>,
         names: List<String>,
     ) {
         for (raw in names) {
-            val cleaned = cleanStudioName(raw)
-            if (cleaned.isEmpty()) continue
-            val key = NameMatcher.fold(cleaned)
-            val held = into[key]
-            if (held == null || cleaned < held) into[key] = cleaned
+            val key = NameMatcher.fold(raw)
+            if (key.isNotEmpty()) into.add(key)
         }
     }
 }

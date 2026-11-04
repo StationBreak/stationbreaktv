@@ -73,11 +73,11 @@ class RecipeResolverThemeTest {
         assertEquals(
             listOf(
                 Source.Genre("Comedy"),
-                Source.Studio("Studio B"),
                 Source.Collection(idOf(4)),
                 Source.Collection(idOf(5)),
                 Source.Series(idOf(20)),
-                Source.Studio("Studio A"),
+                Source.Studio("studio a"),
+                Source.Studio("studio b"),
             ),
             rules.sources,
         )
@@ -167,5 +167,32 @@ class RecipeResolverThemeTest {
         assertEquals(listOf("t1", "t2"), recipe.themeTags)
         assertEquals(true, recipe.guestOnly)
         assertEquals(true, recipe.curated)
+    }
+
+    @Test
+    fun anAnotherSpellingOfAStudioLeavesTheRulesEqual() {
+        val theme = Theme(emptyList(), listOf(NameMatcher.Contains("studio")), null, false)
+        val recipe = themed(theme)
+        val extra = movie(idOf(42), studios = listOf("STUDIO a"))
+        val more = snapshot(items = library.items + extra, series = library.series.values.toList())
+        assertEquals(resolve(recipe), resolve(recipe, snap = more))
+    }
+
+    @Test
+    fun studioSourcesAreUniqueByFoldedName() {
+        val theme = Theme(listOf(Anchor(AnchorKind.Studio, NameMatcher.Exact("studio a"))), emptyList(), null, false)
+        val rules = resolve(themed(theme, sources = listOf(Source.Studio("Studio A"))))
+        assertEquals(listOf<Source>(Source.Studio("Studio A")), rules.sources)
+    }
+
+    @Test
+    fun anchorsSurviveTheCapWhenThemeStudiosOverflowIt() {
+        val studios = (1..300).map { "Studio ${it.toString().padStart(3, '0')}" }
+        val big = snapshot(items = studios.mapIndexed { i, s -> movie(idOf(0x100 + i), studios = listOf(s)) })
+        val anchor = Anchor(AnchorKind.Collection, NameMatcher.Exact("box set 2"))
+        val theme = Theme(listOf(anchor), listOf(NameMatcher.Prefix("studio ")), null, false)
+        val rules = resolve(themed(theme), snap = big)
+        assertEquals(256, rules.sources.size)
+        assertEquals(Source.Collection(idOf(4)), rules.sources[1])
     }
 }

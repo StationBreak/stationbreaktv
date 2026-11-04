@@ -27,10 +27,11 @@ object RecipeResolver {
      * [LineupDefaults.DAY_START] at [utcOffsetMinutes]. `alignToGrid` is written as false, so the channel runs back to
      * back (the format's own default is true); every other timing field is left to its default.
      *
-     * A themed recipe has its own sources, then a studio source for each studio of [names] a theme studio matches,
-     * then for each anchor in turn: a collection source for every collection that matches (the household's own
-     * included; the day build drops those when "Use my collections" is off), the series and films that match a title
-     * anchor, or a studio source. A source already present is dropped, and at most 256 are kept, the first ones. Its
+     * A themed recipe has its own sources, then for each anchor in turn: a collection source for every collection that
+     * matches (the household's own included; the day build drops those when "Use my collections" is off), the series
+     * and films that match a title anchor, or a studio source; then a studio source for each studio of [names] a theme
+     * studio matches. Anchors come before theme studios so the cap never cuts an anchor first. A source already present
+     * is dropped (studio sources by folded name), and at most 256 are kept, the first ones. Its
      * ordering is curated. The format version is the lowest the rules need.
      */
     fun resolve(
@@ -68,15 +69,21 @@ object RecipeResolver {
         theme: Theme,
         names: LibraryNames,
     ): List<Source> {
-        val out = LinkedHashSet<Source>(recipe.sources)
-        for (matcher in theme.themeStudios) for (studio in names.studios(matcher)) out.add(Source.Studio(studio))
+        val out = LinkedHashSet<Source>()
+        val studios = HashSet<String>()
+
+        fun addStudio(name: String) {
+            if (studios.add(NameMatcher.fold(name))) out.add(Source.Studio(name))
+        }
+        for (source in recipe.sources) if (source is Source.Studio) addStudio(source.name) else out.add(source)
         for (anchor in theme.anchors) {
             when (anchor.kind) {
                 AnchorKind.Collection -> for (id in names.collections(anchor.match)) out.add(Source.Collection(id))
                 AnchorKind.Title -> out.addAll(names.titles(anchor.match))
-                AnchorKind.Studio -> for (studio in names.studios(anchor.match)) out.add(Source.Studio(studio))
+                AnchorKind.Studio -> for (studio in names.studios(anchor.match)) addStudio(studio)
             }
         }
+        for (matcher in theme.themeStudios) for (studio in names.studios(matcher)) addStudio(studio)
         return out.take(RulesLimits.MAX_LIST_ENTRIES)
     }
 

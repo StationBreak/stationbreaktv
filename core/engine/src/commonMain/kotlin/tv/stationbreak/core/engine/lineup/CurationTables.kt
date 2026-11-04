@@ -6,41 +6,45 @@ package tv.stationbreak.core.engine.lineup
  * names are allowed in this file only.
  */
 object CurationTables {
+    /** The version name of both tables. Later code (day inputs, the curation digest) refers to this constant. */
     const val VERSION_NAME: String = "curation-1"
 
-    /** Studios and networks that mark an animated title as anime. */
+    /**
+     * Studios and networks that mark an animated title as anime. A one-word name is a whole-word match, so a short
+     * name does not match inside a longer one; a name of several words is a substring match.
+     */
     val ANIME_STUDIOS: List<NameMatcher> =
         listOf(
-            "Tokyo MX",
-            "AT-X",
-            "Nippon",
-            "Fuji TV",
-            "TV Tokyo",
-            "Aniplex",
-            "Sunrise",
-            "Toei Animation",
-            "Madhouse",
-            "Production I.G",
-            "Bones",
-            "MAPPA",
-            "Kyoto Animation",
-            "Tatsunoko",
-            "KADOKAWA",
-            "Crunchyroll",
-            "Studio Ghibli",
-            "Tokuma",
-            "TMS",
-            "Pierrot",
-            "Kinema Citrus",
-            "OLM",
-            "Gonzo",
-            "Shaft",
-            "Wit Studio",
-            "A-1 Pictures",
-            "J.C.Staff",
-            "Studio Bind",
-            "BS11",
-        ).map { NameMatcher.Contains(it) }
+            NameMatcher.Contains("Tokyo MX"),
+            NameMatcher.Word("AT-X"),
+            NameMatcher.Word("Nippon"),
+            NameMatcher.Contains("Fuji TV"),
+            NameMatcher.Contains("TV Tokyo"),
+            NameMatcher.Word("Aniplex"),
+            NameMatcher.Word("Sunrise"),
+            NameMatcher.Contains("Toei Animation"),
+            NameMatcher.Word("Madhouse"),
+            NameMatcher.Contains("Production I.G"),
+            NameMatcher.Word("Bones"),
+            NameMatcher.Word("MAPPA"),
+            NameMatcher.Contains("Kyoto Animation"),
+            NameMatcher.Word("Tatsunoko"),
+            NameMatcher.Word("KADOKAWA"),
+            NameMatcher.Word("Crunchyroll"),
+            NameMatcher.Contains("Studio Ghibli"),
+            NameMatcher.Word("Tokuma"),
+            NameMatcher.Word("TMS"),
+            NameMatcher.Word("Pierrot"),
+            NameMatcher.Contains("Kinema Citrus"),
+            NameMatcher.Word("OLM"),
+            NameMatcher.Word("Gonzo"),
+            NameMatcher.Word("Shaft"),
+            NameMatcher.Contains("Wit Studio"),
+            NameMatcher.Contains("A-1 Pictures"),
+            NameMatcher.Contains("J.C.Staff"),
+            NameMatcher.Contains("Studio Bind"),
+            NameMatcher.Word("BS11"),
+        )
 
     /** Networks whose animation is for grown-ups. */
     val ADULT_ANIMATION_NETWORKS: List<NameMatcher> =
