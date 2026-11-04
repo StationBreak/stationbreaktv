@@ -2,7 +2,6 @@
 package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.engine.lineup.Lineup
-import tv.stationbreak.core.engine.lineup.Plan
 
 /**
  * What the refresher remembers about a stored lineup (spec 12), kept in the same file as the lineup so a restart does
@@ -16,10 +15,9 @@ import tv.stationbreak.core.engine.lineup.Plan
  * - [extrasFromMs] is when the extras filter (spec 23) starts to apply, in epoch milliseconds: a day whose start is at
  *   or after it airs no extras. [Long.MIN_VALUE] filters from the start (a new account); null is a file from before
  *   the filter, which the next plan gives the next day start.
- * - [replanFromMs] is the boundary at which a household change (spec 23) takes effect, or at which a change the
- *   planner deferred is due (a themed refresh's switch-on, a re-resolve kept off today's curation), while one is
- *   pending: from then on the lineup is behind, so the refresher plans it again though the library did not change, and
- *   that plan applies the deferred change. Null when no such change is pending.
+ * - [replanFromMs] is the boundary at which a household change (spec 23) takes effect, while one is pending: from
+ *   then on the lineup is behind, so the refresher plans it again though the library did not change (a starter whose
+ *   switch-on was deferred to the boundary is then switched on). Null when no such change is pending.
  */
 internal data class RefreshMeta(
     val plannedGeneration: Long? = null,
@@ -31,13 +29,6 @@ internal data class RefreshMeta(
     /** True when the pending household change has reached its boundary at [nowMs]: the lineup is behind. */
     fun replanDue(nowMs: Long): Boolean = replanFromMs.let { it != null && nowMs >= it }
 }
-
-/**
- * When the lineup of this plan must be planned again: the pending household change's boundary ([replanFromMs]), or
- * [boundaryMs] when the plan deferred a change to it, whichever comes first. Null when neither.
- */
-internal fun Plan.replanFromMs(boundaryMs: Long): Long? =
-    listOfNotNull(lineup.replanFromMs(), boundaryMs.takeIf { replanAtBoundary }).minOrNull()
 
 /**
  * The boundary a pending household change takes effect at, when the lineup must be planned again then: a basis still

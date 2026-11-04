@@ -36,8 +36,7 @@ object RecipeResolver {
      * included). The file holds the rules of every catalog starter, and the rules again as `previousRules` for at most
      * [LineupDefaults.CAP] of them (the planner gives a previous copy only to its keepers, at most
      * [LineupDefaults.CAP]: the protected starters that hold one already, then the switched-on starters by number,
-     * however many the viewer switches on; a protected starter that is not a keeper defers its change to the boundary
-     * and makes no copy):
+     * however many the viewer switches on; any other starter takes new rules at once and holds no copy):
      * [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies,
      * so all those copies together total at most half the file cap. The channel envelopes (IDs, numbers, state), the
      * leftovers, the custom channels, the curation basis and the meta sit in the other half; this bounds the copies

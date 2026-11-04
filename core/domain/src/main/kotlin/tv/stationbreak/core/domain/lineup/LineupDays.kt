@@ -176,7 +176,8 @@ internal data class DayCuration(
  * extras filter applies to the day (its start is at or after the lineup's boundary, [LineupDays.scheduled]).
  * [curation] is the curation of the day for a curated starter (what it airs is cut from it) and for a leftovers
  * channel (what it claims from it), and null for any other channel: it travels with the day, and the days' key on
- * disk hashes it (`PersistedDays.keyOf`).
+ * disk hashes it (`PersistedDays.keyOf`). [starting] is a channel switched on for a later boundary
+ * (`LineupChannel.onSinceMs` after the moment asked about): its day is empty, as `leavesAtMs` in reverse.
  */
 internal class Scheduled(
     val channel: LineupChannel,
@@ -184,6 +185,7 @@ internal class Scheduled(
     val n: Long,
     val extras: Boolean = false,
     val curation: DayCuration? = null,
+    val starting: Boolean = false,
 ) {
     /** The day's cut-off (`S - G`): the library snapshot the day is built from is read at it. */
     val cutoffMs: Long get() = Epochs.cutoff(settings, n)
@@ -242,8 +244,10 @@ internal class LineupDays(
     /**
      * The channels of [lineup] that are scheduled at [atMs], in number order. Reads nothing. A day is filtered of
      * extras when its start is at or after [extrasFromMs] (the account's `RefreshMeta.extrasFromMs`; null is never).
-     * A channel that leaves the lineup at or before [atMs] ([LineupChannel.leavesAtMs]) is no longer on. A starter's
-     * settings are those of the rules for the day that holds [atMs] (`rulesFor`), not today's newest.
+     * A channel that leaves the lineup at or before [atMs] ([LineupChannel.leavesAtMs]) is no longer on; one that
+     * starts after [atMs] ([LineupChannel.onSinceMs], a planner switch-on for the boundary) is [Scheduled.starting],
+     * with an empty day (`HiddenReason.EmptyToday`, so the guide leaves it out until it starts). A starter's settings
+     * are those of the rules for the day that holds [atMs] (`rulesFor`), not today's newest.
      */
     fun scheduled(
         lineup: Lineup,
@@ -256,19 +260,23 @@ internal class LineupDays(
                 .sortedWith(CHANNEL_ORDER)
                 .mapNotNull { channel -> settingsOf(channel, lineup, atMs)?.let { channel to it } }
         // The curated starters scheduled on each day start: the on-set of that day, unless the basis holds it.
+        // A starter the planner switched on for the next boundary (`onSinceMs` after [atMs]) is not on the air yet:
+        // it has a day with nothing in it, and takes no part in that day's curation.
         val curatedOn = HashMap<Long, MutableList<ChannelId>>()
         for ((channel, settings) in ruled) {
             val start = Epochs.epochStart(settings, Epochs.epochNumber(settings, atMs))
-            if (isCurated(channel, start)) curatedOn.getOrPut(start) { ArrayList() }.add(channel.id)
+            val started = channel.onSinceMs <= atMs
+            if (started && isCurated(channel, start)) curatedOn.getOrPut(start) { ArrayList() }.add(channel.id)
         }
         val curations = HashMap<Long, DayCuration>()
         return ruled.map { (channel, settings) ->
             val n = Epochs.epochNumber(settings, atMs)
             val start = Epochs.epochStart(settings, n)
-            val reads = channel.source is ChannelSource.Leftovers || isCurated(channel, start)
+            val starting = channel.onSinceMs > atMs
+            val reads = !starting && (channel.source is ChannelSource.Leftovers || isCurated(channel, start))
             val curation =
                 if (reads) curations.getOrPut(start) { curationOf(lineup, start, curatedOn[start].orEmpty()) } else null
-            Scheduled(channel, settings, n, extrasFromMs != null && start >= extrasFromMs, curation)
+            Scheduled(channel, settings, n, extrasFromMs != null && start >= extrasFromMs, curation, starting)
         }
     }
 
@@ -391,6 +399,8 @@ internal class LineupDays(
                 "leavesAt" to JsonPrimitive(channel.leavesAtMs),
                 "source" to LineupCodec.sourceOf(unnamed(channel.source)),
             )
+        // When a channel on the air started, or starts (a later boundary): its days before then are empty.
+        if (channel.state == ChannelState.On) fields["onSince"] = JsonPrimitive(channel.onSinceMs)
         if (household != null) fields["household"] = household
         return JsonObject(fields)
     }
@@ -463,7 +473,7 @@ internal class LineupDays(
                     )
                 }
             val inputs = channelInputs(channel, policyOf(channel, lineup), household)
-            val curated = start != null && isCurated(channel, start)
+            val curated = start != null && channel.onSinceMs <= atMs && isCurated(channel, start)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
             return PlayKey(sha256Hex(fields.toString().encodeToByteArray()))
         }
@@ -493,7 +503,9 @@ internal class LineupDays(
 
         // The curated starters scheduled on the day that starts at [start].
         private fun curatedOn(start: Long): List<ChannelId> =
-            scheduled.filter { it.dayStartMs == start && isCurated(it.channel, start) }.map { it.channel.id }
+            scheduled.filter { it.dayStartMs == start && !it.starting && isCurated(it.channel, start) }.map {
+                it.channel.id
+            }
 
         // The curation in force on the day that starts at [start]: its on-set, each member's rules for the day (a
         // member no longer in the lineup by its ID alone), and the flag. One digest per day start.
@@ -760,7 +772,7 @@ internal class LineupDays(
             for (s in scheduled) {
                 if (s.channel.source is ChannelSource.Leftovers) continue
                 beforeChannel()
-                ruled[s] = ruledDay(s)
+                ruled[s] = if (s.starting) startingDay(s) else ruledDay(s)
             }
             // The leftovers claim exactly (F5): the epoch pool of every channel that is on and not curated, and per
             // cut the curated claims of the day's curation ([ClaimChain]). Trimmed items stay claimed (plan Resolution
@@ -916,6 +928,13 @@ internal class LineupDays(
             val films = GroupCollections.of(ruled, snapshot, epoch)
             // The window keeps at least one episode of each series, so emptiness (and its reason) is unchanged by it.
             return dayOf(s, epoch, films, hiddenReason(pool, epoch), keeps, weights)
+        }
+
+        // A starter switched on for a later boundary: nothing airs before it starts, and it claims nothing.
+        private fun startingDay(s: Scheduled): ChannelDay {
+            epochPools[s] = emptyList()
+            // TODO(design partner): a reason of its own ("Starts at 6 AM") for a channel that starts at the boundary.
+            return dayOf(s, emptyList(), NO_FILMS, HiddenReason.EmptyToday, TitleKeeps.NONE, NO_WEIGHTS)
         }
 
         // An unedited starter whose sources are all household collections, on a day the flag is off: nothing to air.

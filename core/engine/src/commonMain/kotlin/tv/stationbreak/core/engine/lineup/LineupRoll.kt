@@ -123,18 +123,21 @@ internal fun Lineup.withBasisFor(
     boundaryMs: Long,
 ): Lineup {
     val pending = curationBasis.let { it != null && it.fromMs > nowMs }
-    val before = curatedOnSet()
-    val differs = before != change.curatedOnSet() || useMyCollections != change.useMyCollections
+    // Today's on-set leaves out a starter that starts at the boundary (`onSinceMs` after now); the next one has it.
+    val before = curatedOnSet(nowMs)
+    val differs = before != change.curatedOnSet(null) || useMyCollections != change.useMyCollections
     if (pending || !differs) return change
     return change.copy(curationBasis = CurationBasis(boundaryMs, before, useMyCollections))
 }
 
-// The channels the curation homes titles on: on, not leaving, unedited starters whose rules are programmed.
-private fun Lineup.curatedOnSet(): Set<ChannelId> =
+// The channels the curation homes titles on: on, not leaving, unedited starters whose rules are programmed; with
+// [startedBy], only those already started by then (a starter that starts at the boundary is not in today's set).
+private fun Lineup.curatedOnSet(startedBy: Long?): Set<ChannelId> =
     channels
         .filter { channel ->
             val source = channel.source
             channel.state == ChannelState.On &&
+                (startedBy == null || channel.onSinceMs <= startedBy) &&
                 channel.leavesAtMs == null &&
                 source is ChannelSource.Starter &&
                 !source.edited &&

@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.lineup.CuratedLibrary.boundaryMs
 import tv.stationbreak.core.domain.lineup.CuratedLibrary.channel
 import tv.stationbreak.core.engine.lineup.Band
@@ -22,6 +16,7 @@ import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.lineup.rolled
+import tv.stationbreak.core.engine.lineup.rulesFor
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleItem
@@ -33,13 +28,11 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Clock
-import kotlin.time.Instant
 
 /**
- * Today's curation is frozen (D1, Task 21 fix round 1): the rules of every starter today's curation reads stay as they
- * are until the boundary, and a themed refresh switches nothing on before it; ties follow the recipe's number in the
- * planner and the day build alike.
+ * Today's curation is frozen (D1, Task 21 fix rounds 1 and 2): the rules of every starter today's curation reads stay
+ * as they are until the boundary (keepers first; beyond the cap, a documented edge), and a themed refresh's switch-on
+ * starts at the boundary (`onSinceMs`); ties follow the recipe's number in the planner and the day build alike.
  */
 class CuratedDayFreezeTest {
     private val hour = 3_600_000L
@@ -111,7 +104,7 @@ class CuratedDayFreezeTest {
     }
 
     @Test
-    fun aReResolveBeyondTheCapLeavesOtherChannelsTodayAlone() {
+    fun aReResolveBeyondTheCapTakesNewRulesAtOnce() {
         val genres = (0 until MANY).map { "Genre $it" }
         val base = (0 until MANY).map { recipeOf(it, listOf(Source.Genre(genres[it]))) }
         val last = MANY - 1
@@ -139,18 +132,24 @@ class CuratedDayFreezeTest {
             val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { snapshot(it, items) }
             return days.days(of, scheduled, snapshots)
         }
-        val plan =
-            LineupPlanner.planned(lineup, SERVER, USER, 0, snapshot(noon, items), noNames, noon, boundaryMs, v2)
+        val planned =
+            LineupPlanner.plan(lineup, SERVER, USER, 0, snapshot(noon, items), noNames, noon, boundaryMs, v2)
 
-        assertTrue(plan.replanAtBoundary, "the starter beyond the cap takes its new rules at the boundary")
-        val today = built(lineup)
-        val now = built(plan.lineup)
-        for (day in today) assertEquals(day.aired(), now.dayOf(day.channel.id.value).aired(), "${day.channel.id}")
+        // The documented edge of more than the cap on: a starter beyond the keepers takes its new rules at once (no
+        // previous copy), so its today, and the homes it now wins, change in the middle of the day.
         val beyond =
-            plan.lineup.channels
+            planned.channels
                 .first { it.number == 300 + last }
                 .source as ChannelSource.Starter
         assertNull(beyond.previousRules, "no previous copy beyond the cap")
+        assertTrue(Source.Genre("Extra") in beyond.rulesFor(noon).sources)
+        val today = built(lineup)
+        val now = built(planned)
+        val beyondId = "starter:${beyond.recipeKey}"
+        assertNotEquals(today.dayOf(beyondId).aired(), now.dayOf(beyondId).aired())
+        // A keeper the change does not touch keeps its day.
+        val untouched = "starter:genre-5"
+        assertEquals(today.dayOf(untouched).aired(), now.dayOf(untouched).aired())
     }
 
     @Test
@@ -226,59 +225,111 @@ class CuratedDayFreezeTest {
         assertTrue(built.dayOf(twinId.value).pool.isEmpty())
     }
 
-    // The refresher path: a themed refresh that picks a shelved starter leaves it on the shelf, asks to plan again at
-    // the boundary, and the plan the refresher makes then switches it on.
+    // The selecting catalog's first choice, then westerns back on the shelf (untouched), as an earlier plan left it.
+    private fun withWesternsShelved(catalog: StarterCatalogView): Lineup {
+        val library = fillingLibrary().sortedBy { it.item.id.value }
+        val first =
+            LineupPlanner.plan(null, SERVER, USER, 0, snapshot(noon, library), noNames, noon, boundaryMs, catalog)
+        assertEquals(ChannelState.On, first.stateOf(westernsId))
+        return first.copy(channels = first.channels.map { if (it.id == westernsId) it.shelved() else it })
+    }
+
+    private val westernsId = LineupIds.starter("westerns")
+
+    // A refresh at 14:00 picks a shelved starter: it is on from the boundary. Today it has an empty day (out of the
+    // guide), takes no part in today's curation, and every other channel's today and play key are unchanged.
     @Test
-    fun aThemedSwitchOnWaitsForTheBoundaryThroughTheRefresher() =
-        runBlocking<Unit> {
-            val catalog = programmedCatalog(1, selects = true)
-            val library = CountingLibrary().apply { seed(fillingLibrary()) }
-            library.delegate.useAccount(ACCOUNT)
-            val store = RecordingStore()
-            var nowMs = noon
-            val clock =
-                object : Clock {
-                    override fun now(): Instant = Instant.fromEpochMilliseconds(nowMs)
-                }
-            LineupService(store, library, clock, { 0 }, {}, catalog).refresh(ACCOUNT, LIBRARIES)
-            val westerns = LineupIds.starter("westerns")
-            val chosen = (LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT))) as LineupCodec.Decoded.Loaded)
-            assertEquals(ChannelState.On, chosen.lineup.stateOf(westerns))
-            val channels = chosen.lineup.channels.map { if (it.id == westerns) it.shelved() else it }
-            val shelved = chosen.lineup.copy(channels = channels)
-            store.inner.save(ACCOUNT, LineupCodec.encode(shelved, chosen.meta))
+    fun aRefreshSelectsAStarterThatStartsAtTheBoundary() {
+        val catalog = programmedCatalog(1, selects = true)
+        val library = fillingLibrary().sortedBy { it.item.id.value }
+        val shelved = withWesternsShelved(catalog)
+        val at = noon + 2 * hour
 
-            val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
-            fresh.refresh(ACCOUNT, LIBRARIES)
-            val waiting = fresh.loaded(ACCOUNT)?.lineup?.stateOf(westerns)
-            assertEquals(ChannelState.Shelf, waiting, "not in the middle of a day")
-            assertEquals(boundaryMs, storedMeta(store).replanFromMs, "it asks to plan again at the boundary")
+        val planned =
+            LineupPlanner.plan(shelved, SERVER, USER, 0, snapshot(at, library), noNames, at, boundaryMs, catalog)
 
-            nowMs = boundaryMs + 60_000L
-            val job = Job()
-            LineupRefresher(fresh, library, { LIBRARIES }, SyncActivity { MutableStateFlow(false) }, report = {})
-                .start(CoroutineScope(job))
-            try {
-                withTimeout(10_000L) {
-                    while (fresh.loaded(ACCOUNT)?.lineup?.stateOf(westerns) != ChannelState.On) delay(10)
-                    while (storedMeta(store).replanFromMs != null) delay(10)
-                }
-            } finally {
-                job.cancel()
-            }
-            assertEquals(
-                boundaryMs + 60_000L,
-                fresh
-                    .loaded(ACCOUNT)
-                    ?.lineup
-                    ?.channels
-                    ?.first { it.id == westerns }
-                    ?.onSinceMs,
-            )
+        val westerns = planned.channels.first { it.id == westernsId }
+        assertEquals(ChannelState.On, westerns.state)
+        assertEquals(boundaryMs, westerns.onSinceMs)
+        val days = LineupDays(catalog)
+
+        fun built(of: Lineup): List<ChannelDay> {
+            val scheduled = days.scheduled(of, at, null)
+            val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { snapshot(it, library) }
+            return days.days(of, scheduled, snapshots)
         }
+        val before = built(shelved)
+        val after = built(planned)
+        val day = after.dayOf(westernsId.value)
+        assertTrue(day.pool.isEmpty())
+        assertEquals(HiddenReason.EmptyToday, day.hidden, "out of the guide until it starts")
+        for (other in before) {
+            assertEquals(other.aired(), after.dayOf(other.channel.id.value).aired(), "${other.channel.id}")
+        }
+        val keys = shelved.keysAt(days, at)
+        val plannedKeys = planned.keysAt(days, at)
+        for (channel in shelved.channels.filter { it.id != westernsId }) {
+            assertEquals(keys[channel.id], plannedKeys[channel.id], "${channel.id}")
+        }
+        assertTrue(planned.curationBasis.let { it != null && westernsId !in it.on }, "today's on-set is kept")
+    }
 
-    private fun storedMeta(store: RecordingStore): RefreshMeta =
-        (LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT))) as LineupCodec.Decoded.Loaded).meta
+    // From the boundary it airs as a full member of the curation: the same day as a starter that had long been on.
+    @Test
+    fun fromTheBoundaryTheStarterAirsAsAFullMember() {
+        val catalog = programmedCatalog(1, selects = true)
+        val library = fillingLibrary().sortedBy { it.item.id.value }
+        val shelved = withWesternsShelved(catalog)
+        val at = noon + 2 * hour
+        val planned =
+            LineupPlanner.plan(shelved, SERVER, USER, 0, snapshot(at, library), noNames, at, boundaryMs, catalog)
+        val tomorrow = boundaryMs + hour
+        val rolled = planned.rolled(tomorrow)
+        val longOn =
+            rolled.copy(
+                channels = rolled.channels.map { if (it.id == westernsId) it.copy(onSinceMs = ADDED_MS) else it },
+            )
+        val days = LineupDays(catalog)
+
+        fun built(of: Lineup): List<ChannelDay> {
+            val scheduled = days.scheduled(of, tomorrow, null)
+            val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { snapshot(it, library) }
+            return days.days(of, scheduled, snapshots)
+        }
+        val started = built(rolled).dayOf(westernsId.value)
+        assertTrue(started.pool.isNotEmpty() && started.hidden == null)
+        assertEquals(built(longOn).dayOf(westernsId.value).aired(), started.aired())
+        assertTrue(started.weights.entries.any { it.second == 2 }, "its homes, weighted as homes")
+    }
+
+    @Test
+    fun aFutureStartRoundTripsThroughTheLineupFile() {
+        val catalog = programmedCatalog(1, selects = true)
+        val library = fillingLibrary().sortedBy { it.item.id.value }
+        val at = noon + 2 * hour
+        val planned =
+            LineupPlanner.plan(
+                withWesternsShelved(catalog),
+                SERVER,
+                USER,
+                0,
+                snapshot(at, library),
+                noNames,
+                at,
+                boundaryMs,
+                catalog,
+            )
+
+        val decoded = LineupCodec.decode(LineupCodec.encode(planned)) as LineupCodec.Decoded.Loaded
+
+        assertEquals(planned, decoded.lineup)
+        assertEquals(
+            boundaryMs,
+            decoded.lineup.channels
+                .first { it.id == westernsId }
+                .onSinceMs,
+        )
+    }
 
     private fun Lineup.stateOf(id: tv.stationbreak.core.model.ChannelId) = channels.first { it.id == id }.state
 

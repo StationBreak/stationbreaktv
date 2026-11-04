@@ -255,7 +255,7 @@ object LineupEdits {
             }
 
             is LineupEdit.SwitchOff -> {
-                switchOff(lineup, channel)
+                switchOff(lineup, channel, nowMs)
             }
 
             is LineupEdit.SetNumber -> {
@@ -464,12 +464,26 @@ object LineupEdits {
     private fun switchOff(
         lineup: Lineup,
         channel: LineupChannel,
+        nowMs: Long,
     ): EditOutcome {
         val onCount = lineup.channels.count { it.state == ChannelState.On }
         return when {
-            channel.state == ChannelState.UserHidden -> EditOutcome.Applied(lineup)
-            channel.state == ChannelState.On && onCount == 1 -> refused(EditRefusal.LastOn)
-            else -> hidden(lineup, channel)
+            channel.state == ChannelState.UserHidden -> {
+                EditOutcome.Applied(lineup)
+            }
+
+            channel.state == ChannelState.On && onCount == 1 -> {
+                refused(EditRefusal.LastOn)
+            }
+
+            // Switched on by the planner to start at the boundary: it never aired, so it goes back on the shelf.
+            channel.state == ChannelState.On && channel.onSinceMs > nowMs -> {
+                applied(lineup, channel.copy(state = ChannelState.Shelf, leavesAtMs = null, shelfReason = null))
+            }
+
+            else -> {
+                hidden(lineup, channel)
+            }
         }
     }
 

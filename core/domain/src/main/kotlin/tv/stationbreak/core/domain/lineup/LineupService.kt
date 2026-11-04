@@ -285,9 +285,8 @@ class LineupService internal constructor(
         // What is past at the read is taken off first (`rolled`); the changes this plan makes start at the next day
         // boundary, worked out here with the lineup's own offset and passed in (the engine knows no scheduler).
         val rolled = current?.rolled(nowMs)
-        val boundaryMs = nextBoundary(offsetFrom ?: rolled, nowMs)
-        val plan =
-            LineupPlanner.planned(
+        val planned =
+            LineupPlanner.plan(
                 rolled,
                 owner.server,
                 owner.user,
@@ -295,18 +294,14 @@ class LineupService internal constructor(
                 read.snapshot,
                 read.names,
                 nowMs,
-                boundaryMs,
+                nextBoundary(offsetFrom ?: rolled, nowMs),
                 catalog,
                 withoutCollections = read.giveUp,
                 kept = (kept + own).distinctBy { it.id },
                 // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
                 // keeps a current lineup's own).
                 useMyCollections = offsetFrom?.useMyCollections ?: true,
-                // The plan a deferred change waited for applies it (a switch-on, a re-resolve kept off today's
-                // curation): the boundary it was due at has passed.
-                applyDeferred = before.replanDue(nowMs),
             )
-        val planned = plan.lineup
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
             RefreshMeta(
@@ -314,7 +309,7 @@ class LineupService internal constructor(
                 collectionPassActedOn = taken ?: before.collectionPassActedOn,
                 plannedLibraries = libraries.map { it.value }.sorted(),
                 extrasFromMs = extrasBoundary(before.extrasFromMs, offsetFrom, newAccount, nowMs),
-                replanFromMs = plan.replanFromMs(boundaryMs),
+                replanFromMs = planned.replanFromMs(),
             )
         return planned to meta
     }

@@ -101,14 +101,8 @@ internal object PlannerSelection {
         val roles = HashMap<ChannelId, Role>()
         for (channel in channels) roleOf(channel, current.viewerChoicesKnown, p)?.let { roles[channel.id] = it }
         val room = LineupDefaults.CAP - channels.count { it.takesRoom(roles[it.id]) }
+        // Selected under the boundary's flag: a starter the selection switches on starts at the boundary.
         val atBoundary = select(lineup, channels, roles, p, p.household, room)
-        // A starter switched on now airs from now, so it must also be picked under today's flag when that differs.
-        val today =
-            if (p.householdToday == p.household) {
-                atBoundary
-            } else {
-                select(lineup, channels, roles, p, p.householdToday, room)
-            }
         val kept = keptReasons(lineup, channels, roles, p, atBoundary)
         return channels.map { channel ->
             when (roles[channel.id]) {
@@ -117,7 +111,7 @@ internal object PlannerSelection {
                 Role.OptIn -> leftOut(channel, ShelfReason.OptIn, p)
                 Role.Numberless -> leftOut(channel, ShelfReason.BelowCap, p)
                 Role.Kept -> leftOut(channel, kept.getValue(channel.id), p)
-                Role.Free -> applied(channel, atBoundary.selected, today.selected, p)
+                Role.Free -> applied(channel, atBoundary.selected, p)
             }
         }
     }
@@ -142,7 +136,7 @@ internal object PlannerSelection {
         return when {
             !planned -> null
             checkNotNull(source).edited -> if (channel.state == ChannelState.Shelf) Role.Kept else null
-            else -> roleOfPlanned(channel, checkNotNull(recipe), viewerChoicesKnown)
+            else -> roleOfPlanned(channel, checkNotNull(recipe), viewerChoicesKnown, p.nowMs)
         }
     }
 
@@ -151,11 +145,13 @@ internal object PlannerSelection {
         channel: LineupChannel,
         recipe: Recipe,
         viewerChoicesKnown: Boolean,
+        nowMs: Long,
     ): Role {
         val on = channel.state == ChannelState.On
         // A lineup upgraded from a file before version 3 cannot tell the viewer's switch-ons from the planner's: any
         // starter on the air (and not leaving, which only the planner sets) may be the viewer's, so none is shelved.
-        val inferred = !viewerChoicesKnown && on && channel.leavesAtMs == null
+        // A starter that starts at the boundary was switched on by the planner, never the viewer.
+        val inferred = !viewerChoicesKnown && on && channel.leavesAtMs == null && channel.onSinceMs <= nowMs
         val chosen = channel.chosenByViewer || inferred
         return when {
             chosen && on -> Role.Pinned
@@ -252,38 +248,36 @@ internal object PlannerSelection {
     private fun applied(
         channel: LineupChannel,
         atBoundary: Selected,
-        today: Selected,
         p: Planning,
     ): LineupChannel {
         val picked = channel.id in atBoundary.on
         val reason = atBoundary.shelf[channel.id] ?: ShelfReason.BelowCap
+        val starting = channel.state == ChannelState.On && channel.onSinceMs > p.nowMs
         return when {
             channel.state == ChannelState.On && picked -> {
                 pinned(channel)
+            }
+
+            starting -> {
+                // Chosen for the boundary by an earlier plan and not now: it never aired, so it goes back on the shelf.
+                channel.copy(state = ChannelState.Shelf, leavesAtMs = null, shelfReason = reason)
             }
 
             channel.state == ChannelState.On -> {
                 leftOut(channel, reason, p)
             }
 
-            picked && !p.switchOnNow -> {
-                // A themed refresh switches nothing on in the middle of a day (D1): the plan at the boundary does.
-                p.deferredToBoundary = true
-                leftOut(channel, channel.shelfReason ?: ShelfReason.BelowCap, p)
-            }
-
-            picked && channel.id in today.on -> {
+            picked -> {
+                // A refresh switches nothing on in the middle of a day (D1): the starter starts at the boundary, as
+                // one the selection leaves out leaves at it. Nothing of it airs before, so its rules apply at once.
                 val source = channel.source as ChannelSource.Starter
                 val recipe = checkNotNull(p.recipe(source.recipeKey))
-                // Nothing of a shelved starter airs today, so there is nothing to protect: the rules apply at once.
                 val next = source.withRulesNow(p.switchOnRules(recipe, source))
-                channel.copy(state = ChannelState.On, source = next, onSinceMs = p.nowMs, shelfReason = null)
+                channel.copy(state = ChannelState.On, source = next, onSinceMs = p.boundaryMs, shelfReason = null)
             }
 
             else -> {
-                // Picked for the boundary but not under today's flag: it waits for the plan at the boundary.
-                val why = if (picked) today.shelf[channel.id] ?: ShelfReason.BelowCap else reason
-                leftOut(channel, why, p)
+                leftOut(channel, reason, p)
             }
         }
     }
