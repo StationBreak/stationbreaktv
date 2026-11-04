@@ -13,6 +13,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import kotlin.time.Duration.Companion.seconds
@@ -66,6 +68,16 @@ class LiveChannelColdPressTest {
             c.press(FlipDirection.Up)
             assertEquals(ChannelTag(2, "Test Channel 2"), (c.r.state as LiveState.Choosing).target)
             assertTrue("nothing is tuned yet", c.r.tunes.isEmpty())
+        }
+
+    // A channel the planner switched on for the next boundary is On in the lineup but not on the air yet: the early
+    // list leaves it out, so a press before the day is built never lands on it.
+    @Test
+    fun theEarlyListSkipsAChannelThatStartsAtTheBoundary() =
+        runTest {
+            val c = cold { channels.startsAt[CH9] = T0 + 48 * HOUR }
+            c.press(FlipDirection.Up)
+            assertEquals(ChannelTag(2, "Test Channel 2"), (c.r.state as LiveState.Choosing).target)
         }
 
     @Test

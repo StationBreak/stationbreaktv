@@ -558,11 +558,15 @@ class LiveChannel(
     /** The lineup list as the channel card of a guide tune can use it: no last-channel read, no day built. */
     private suspend fun cardLineup(): FlipOrder = FlipOrder(onAirings(library.activeAccount().filterNotNull().first()))
 
+    // A channel the planner switched on for a later boundary (`onSince` after now) is not on the air yet, so a flip
+    // never lands on it.
     private suspend fun onAirings(account: LibraryAccount): List<ChannelAiring> =
         channels
             .channels(account)
-            .map { list -> list.filter { it.state == ChannelStatus.On && it.number != null } }
-            .first { it.isNotEmpty() }
+            .map { list ->
+                val now = clock.now()
+                list.filter { it.state == ChannelStatus.On && it.number != null && it.onSince <= now }
+            }.first { it.isNotEmpty() }
             .map { ChannelAiring(it.id, checkNotNull(it.number), it.name, it.onSince, null) }
 
     /** Where a sitting lands: the account, the channel with what is on it, and a kept place to return to on it. */

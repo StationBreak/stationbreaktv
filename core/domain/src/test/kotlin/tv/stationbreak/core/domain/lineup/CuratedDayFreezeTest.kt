@@ -103,6 +103,46 @@ class CuratedDayFreezeTest {
         assertTrue((later.channel(CuratedLibrary.laughsId.value).source as ChannelSource.Starter).previousRules != null)
     }
 
+    // A curated starter switched off at 14:00 holds no previous rules; a newer catalog's plan at 15:00 resolves it
+    // again. It is still in the basis, so it is a keeper: today's rules stay, and so does everyone else's today.
+    @Test
+    fun aSwitchOffThenANewerCatalogLeavesTheRestOfTodayAlone() {
+        val v1 = programmedCatalog(1)
+        val v2 =
+            programmedCatalog(2, change = {
+                if (it.key == "laughs") it.copy(sources = listOf(Source.Genre("Comedy"), Source.Genre("Crime"))) else it
+            })
+        val days = LineupDays(v1)
+        // The kids' leftovers is in the lineup already, so the newer catalog adds no channel that moves a policy. A
+        // plan of the same catalog first sets the stored starters back to back (the old-file fix, at once).
+        val kidsLeftovers = leftovers("kids-odds-and-ends", 99, "PG")
+        val base = CuratedLibrary.lineup().let { it.copy(channels = it.channels + kidsLeftovers) }
+        val planned = plan(base, noon + hour, v1)
+        val switched =
+            assertIs<EditOutcome.Applied>(
+                LineupEdits.apply(
+                    planned,
+                    LineupEdit.SwitchOff(CuratedLibrary.laughsId),
+                    noon + 2 * hour,
+                    boundaryMs,
+                    v1,
+                ),
+            ).lineup
+        assertTrue(switched.curationBasis.let { it != null && CuratedLibrary.laughsId in it.on })
+
+        val later = plan(switched, noon + 3 * hour, v2)
+
+        val at = noon + 3 * hour
+        val before = days.curatedDays(switched, at)
+        val after = days.curatedDays(later, at)
+        for (day in before) assertEquals(day.aired(), after.dayOf(day.channel.id.value).aired(), "${day.channel.id}")
+        val keys = switched.keysAt(days, at)
+        val laterKeys = later.keysAt(days, at)
+        for (channel in switched.channels.filter { it.id != CuratedLibrary.laughsId }) {
+            assertEquals(keys[channel.id], laterKeys[channel.id], "${channel.id}")
+        }
+    }
+
     @Test
     fun aReResolveBeyondTheCapTakesNewRulesAtOnce() {
         val genres = (0 until MANY).map { "Genre $it" }

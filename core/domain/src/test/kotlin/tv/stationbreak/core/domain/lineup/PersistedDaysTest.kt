@@ -159,7 +159,7 @@ class PersistedDaysTest {
     @Test
     fun savingDaysLaysOutNoneOfThem() {
         var layouts = 0
-        val counting = LineupDays(TestCatalog) { _, _ -> layouts++ }
+        val counting = LineupDays(TestCatalog, laidOut = { _, _ -> layouts++ })
         val days = built(scheduledAt(NOON_MS), counting)
         val kept = persisted()
 

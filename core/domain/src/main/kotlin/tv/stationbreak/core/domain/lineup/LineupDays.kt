@@ -97,8 +97,10 @@ internal class ChannelDay private constructor(
             laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
         ): ChannelDay {
             val dayPool = EpochPool.dayPool(pool, n, keeps)
-            val layout = layoutOf(settings, dayPool, n, films, weights, laidOut)
-            return ChannelDay(channel, name, settings, n, dayPool, films, weights, hidden, ceilingRank, layout)
+            // The weights of the titles the windowed day holds only: what the days file is checked against on read.
+            val dayWeights = weightsIn(weights, dayPool)
+            val layout = layoutOf(settings, dayPool, n, films, dayWeights, laidOut)
+            return ChannelDay(channel, name, settings, n, dayPool, films, dayWeights, hidden, ceilingRank, layout)
         }
     }
 
@@ -237,6 +239,8 @@ internal class Scheduled(
 internal class LineupDays(
     private val catalog: StarterCatalogView,
     private val laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
+    // Told when a leftovers channel's day is not its curated starters' day (never with the shipped timings).
+    private val claimsMismatch: () -> Unit = {},
 ) {
     private val ceilings = Ceilings(catalog)
     private val recipes: Map<String, Recipe> by lazy { catalog.recipes.associateBy { it.key } }
@@ -260,25 +264,37 @@ internal class LineupDays(
                 .sortedWith(CHANNEL_ORDER)
                 .mapNotNull { channel -> settingsOf(channel, lineup, atMs)?.let { channel to it } }
         // The curated starters scheduled on each day start: the on-set of that day, unless the basis holds it.
-        // A starter the planner switched on for the next boundary (`onSinceMs` after [atMs]) is not on the air yet:
-        // it has a day with nothing in it, and takes no part in that day's curation.
+        // A starter the planner switched on for a later boundary is not on the air on this day: it has a day with
+        // nothing in it, and takes no part in that day's curation ([startsLater]).
         val curatedOn = HashMap<Long, MutableList<ChannelId>>()
         for ((channel, settings) in ruled) {
-            val start = Epochs.epochStart(settings, Epochs.epochNumber(settings, atMs))
-            val started = channel.onSinceMs <= atMs
+            val n = Epochs.epochNumber(settings, atMs)
+            val start = Epochs.epochStart(settings, n)
+            val started = !startsLater(channel, settings, n)
             if (started && isCurated(channel, start)) curatedOn.getOrPut(start) { ArrayList() }.add(channel.id)
         }
         val curations = HashMap<Long, DayCuration>()
         return ruled.map { (channel, settings) ->
             val n = Epochs.epochNumber(settings, atMs)
             val start = Epochs.epochStart(settings, n)
-            val starting = channel.onSinceMs > atMs
+            val starting = startsLater(channel, settings, n)
             val reads = !starting && (channel.source is ChannelSource.Leftovers || isCurated(channel, start))
             val curation =
                 if (reads) curations.getOrPut(start) { curationOf(lineup, start, curatedOn[start].orEmpty()) } else null
             Scheduled(channel, settings, n, extrasFromMs != null && start >= extrasFromMs, curation, starting)
         }
     }
+
+    /**
+     * Whether [channel] starts on a later day than day [n] of [settings]: it was switched on (by the planner) for a
+     * boundary at or after the next day start. Decided by the day, never by the moment asked about, so every lookup of
+     * one day agrees: a viewer's switch-on in the middle of a day (`onSinceMs` now) is on the air that very day.
+     */
+    private fun startsLater(
+        channel: LineupChannel,
+        settings: SchedulerSettings,
+        n: Long,
+    ): Boolean = channel.onSinceMs >= Epochs.epochStart(settings, n + 1)
 
     /**
      * Whether [channel] is curated on the day that starts at [dayStartMs] (spec 23, F2): an unedited starter whose
@@ -424,13 +440,13 @@ internal class LineupDays(
     /**
      * [channel]'s play key in [lineup] for the day being played at [atMs], as a digest: it changes whenever this
      * channel's own inputs to that day change (a new play order, a reshuffle, other sources or filters, its pool policy
-     * in [lineup]; never a name or a number that changes no pool). An unedited starter's key holds the "Use my
-     * collections" flag in force that day and the flag set; a curated starter's also holds the curation in force that
-     * day (F8): the
-     * basis's on-set and flag while its boundary is ahead, else the curated on-set, with each member's rules for the
-     * day. So a switch or a flag change in the middle of a day, which waits for the boundary, moves no other channel's
-     * key until then. A leftovers channel's days also depend on what the other channels claim, so the guide compares
-     * the whole list of keys.
+     * in [lineup]; never a name or a number that changes no pool). A starter's key holds its rules in force that day
+     * (`rulesFor`), so new rules waiting for the boundary move it at the boundary. An unedited starter's key holds the
+     * "Use my collections" flag in force that day and the flag set; a curated starter's also holds the curation in
+     * force that day (F8): the basis's on-set and flag while its boundary is ahead, else the curated on-set, with each
+     * member's rules for the day. So a switch or a flag change in the middle of a day, which waits for the boundary,
+     * moves no other channel's key until then. A leftovers channel's days also depend on what the other channels
+     * claim, so the guide compares the whole list of keys.
      */
     fun playKeyOf(
         channel: LineupChannel,
@@ -460,7 +476,8 @@ internal class LineupDays(
         private val curations = HashMap<Long, String>()
 
         fun of(channel: LineupChannel): PlayKey {
-            val start = if (channel.isUneditedStarter()) dayStartOf(channel) else null
+            val day = if (channel.source is ChannelSource.Starter) dayOf(channel) else null
+            val start = day?.first?.takeIf { channel.isUneditedStarter() }
             // The flag in force today, and the flag set (a toggle moves the key, so the guide reloads the days after
             // the boundary); never the basis's boundary itself, which a switch elsewhere sets.
             val household =
@@ -472,16 +489,26 @@ internal class LineupDays(
                         ),
                     )
                 }
-            val inputs = channelInputs(channel, policyOf(channel, lineup), household)
-            val curated = start != null && channel.onSinceMs <= atMs && isCurated(channel, start)
+            // A starter's rules as in force on the day played: a change waiting for the boundary moves no key today.
+            val source = channel.source
+            val forDay =
+                if (day != null && source is ChannelSource.Starter) {
+                    channel.copy(source = source.withRulesNow(source.rulesFor(day.first)))
+                } else {
+                    channel
+                }
+            val inputs = channelInputs(forDay, policyOf(channel, lineup), household)
+            val curated = day != null && !day.second && isCurated(channel, day.first)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
             return PlayKey(sha256Hex(fields.toString().encodeToByteArray()))
         }
 
-        // The start of the day of [channel] that holds [atMs]; null when its settings are refused.
-        private fun dayStartOf(channel: LineupChannel): Long? {
+        // The start of the day of [channel] that holds [atMs], and whether it starts on a later day; null when its
+        // settings are refused.
+        private fun dayOf(channel: LineupChannel): Pair<Long, Boolean>? {
             val settings = settingsOf(channel, lineup, atMs) ?: return null
-            return Epochs.epochStart(settings, Epochs.epochNumber(settings, atMs))
+            val n = Epochs.epochNumber(settings, atMs)
+            return Epochs.epochStart(settings, n) to startsLater(channel, settings, n)
         }
 
         // A member of the day's on-set in the curation part: its ID, its rules for the day, and (as [channelInputs])
@@ -796,8 +823,8 @@ internal class LineupDays(
             val curatedCuts = curatedCutsOf(ruled.keys)
             for (s in inClaimOrder) {
                 beforeChannel()
-                checkClaimsFromStarters(s, curatedCuts)
-                val chain = chains.getOrPut(s.cut to s.curation) { ClaimChain(s.cut, s.curation, claimedByOn) }
+                val claims = claimsFor(s, curatedCuts)
+                val chain = chains.getOrPut(s.cut to claims?.second) { ClaimChain(s.cut, claims, claimedByOn) }
                 leftoversDays[s] = leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId)
             }
             return scheduled.map { checkNotNull(ruled[it] ?: leftoversDays[it]) }
@@ -813,29 +840,46 @@ internal class LineupDays(
             return cuts
         }
 
-        // A leftovers channel's day is the curated starters' day, and claims from their very curation.
-        private fun checkClaimsFromStarters(
+        // The cut and curation a leftovers channel claims from: the curated starters' own. Its day is theirs with every
+        // shipped timing (a test holds it); should it ever not be, that is reported and it claims from theirs (the one
+        // of the same day start, else the earliest), never failing the build.
+        private fun claimsFor(
             s: Scheduled,
             curatedCuts: Map<Cut, DayCuration>,
-        ) {
-            val starters = curatedCuts[s.cut]
-            check(starters == null || starters == s.curation) { "The leftovers claim from the starters' curation" }
-            check(curatedCuts.isEmpty() || s.cut in curatedCuts) { "The leftovers' day is the starters' day" }
+        ): Pair<Cut, DayCuration>? {
+            val curation = s.curation
+            val same = curatedCuts[s.cut]
+            return when {
+                curatedCuts.isEmpty() -> {
+                    curation?.let { s.cut to it }
+                }
+
+                same != null && same == curation -> {
+                    s.cut to same
+                }
+
+                else -> {
+                    claimsMismatch()
+                    val cut = curatedCuts.keys.firstOrNull { it.dayStartMs == s.dayStartMs } ?: curatedCuts.keys.min()
+                    cut to curatedCuts.getValue(cut)
+                }
+            }
         }
 
         /**
          * What the leftovers channels walked so far have claimed from one cut-off's snapshot, and how far that is. It
-         * starts from [claimedByOn], what the day's [curation] claims (before the basis's boundary the basis on-set's
-         * claims, scheduled today or not; from it the scheduled curated channels': A5, F5) and what is withheld.
+         * starts from [claimedByOn], what the day's curation ([claims]: its cut and curation) claims (before the
+         * basis's boundary the basis on-set's claims, scheduled today or not; from it the scheduled curated channels':
+         * A5, F5) and what is withheld.
          */
         private inner class ClaimChain(
             val cut: Cut,
-            curation: DayCuration?,
+            claims: Pair<Cut, DayCuration>?,
             claimedByOn: Set<CanonicalId>,
         ) {
             val claimed: MutableSet<CanonicalId> =
                 HashSet(claimedByOn).apply {
-                    if (curation != null) addAll(curated(cut, curation).claimed)
+                    if (claims != null) addAll(curated(claims.first, claims.second).claimed)
                     addAll(withheld(cut))
                 }
             var next = 0
@@ -917,7 +961,7 @@ internal class LineupDays(
             if (own != null) {
                 epoch = EpochPool.build(s.settings, own.items, s.n)
                 keeps = own.keeps
-                weights = weightsIn(own.weights, epoch)
+                weights = own.weights
             } else {
                 epoch = EpochPool.build(s.settings, withoutHomes(pool.items, day.homes), s.n)
                 keeps = TitleKeeps.NONE
@@ -933,7 +977,8 @@ internal class LineupDays(
         // A starter switched on for a later boundary: nothing airs before it starts, and it claims nothing.
         private fun startingDay(s: Scheduled): ChannelDay {
             epochPools[s] = emptyList()
-            // TODO(design partner): a reason of its own ("Starts at 6 AM") for a channel that starts at the boundary.
+            // TODO(design partner): a reason of its own ("Starts at 6 AM") for a channel that starts at the boundary,
+            // and what a viewer's SwitchOn of such a channel should do: today it keeps the start (it cannot air early).
             return dayOf(s, emptyList(), NO_FILMS, HiddenReason.EmptyToday, TitleKeeps.NONE, NO_WEIGHTS)
         }
 
@@ -1166,8 +1211,8 @@ private fun withoutHomes(
     return out
 }
 
-// [weights] of the titles [pool] holds only: a title none of whose items is in the day weighs nothing in it, and the
-// days file then holds no weight a reader would refuse.
+// [weights] of the titles [pool] (the windowed day pool) holds only: a title none of whose items is in the day weighs
+// nothing in it, and the days file then holds no weight a reader would refuse.
 private fun weightsIn(
     weights: TitleWeights,
     pool: List<ScheduleItem>,

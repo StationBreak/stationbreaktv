@@ -46,7 +46,7 @@ class TrimmedItemsStayClaimedTest {
 
     private val plain = laughsWith(rules("Laughs", Source.Genre("Comedy")))
     private val lineup = laughsWith(programmed("Laughs", Source.Genre("Comedy")))
-    private val days = LineupDays(TestCatalog) { _, _ -> }
+    private val days = LineupDays(TestCatalog)
 
     private fun snapshots(scheduled: List<Scheduled>) =
         scheduled.map { it.cutoffMs }.distinct().associateWith {

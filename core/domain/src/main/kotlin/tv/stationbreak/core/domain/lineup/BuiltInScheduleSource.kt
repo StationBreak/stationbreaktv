@@ -119,7 +119,12 @@ class BuiltInScheduleSource(
         val cutoffs: List<Long> get() = cuts.map { it.cutoffMs }.distinct()
     }
 
-    private val days = LineupDays(service.catalog) { n, ms -> laidOut(n, ms) }
+    private val days =
+        LineupDays(
+            service.catalog,
+            laidOut = { n, ms -> laidOut(n, ms) },
+            claimsMismatch = { service.reportEvent(LineupEvent.LeftoversClaimedFromAnotherDay) },
+        )
     private val lock = Any()
 
     // Access-ordered: the set least recently asked for is the one evicted.
