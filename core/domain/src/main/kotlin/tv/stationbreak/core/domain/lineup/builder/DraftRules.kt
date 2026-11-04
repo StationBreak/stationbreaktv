@@ -134,7 +134,8 @@ internal object DraftRules {
         }
     }
 
-    // The two curated tunables are read by any mode, so they stay while the viewer leaves the carried mode alone.
+    // The two curated tunables are checked in every mode (and read only by `curated`), so a copy keeps them while the
+    // viewer leaves the carried mode alone, and drops them when the mode changes.
     private fun ordered(
         carry: ChannelRules?,
         mode: OrderingMode,

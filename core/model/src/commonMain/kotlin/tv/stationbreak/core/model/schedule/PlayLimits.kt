@@ -58,13 +58,12 @@ data class RuntimeFilter(
         runtimeMs: Long,
         kind: ScheduleItemKind,
     ): Boolean {
-        val isEpisode = kind == ScheduleItemKind.Episode
-        return within(runtimeMs, minMs, maxMs) &&
-            if (isEpisode) {
-                within(runtimeMs, episodeMinMs, episodeMaxMs)
-            } else {
-                within(runtimeMs, movieMinMs, movieMaxMs)
+        val ofKind =
+            when (kind) {
+                ScheduleItemKind.Episode -> within(runtimeMs, episodeMinMs, episodeMaxMs)
+                ScheduleItemKind.Movie -> within(runtimeMs, movieMinMs, movieMaxMs)
             }
+        return within(runtimeMs, minMs, maxMs) && ofKind
     }
 
     private fun within(
