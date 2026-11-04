@@ -16,6 +16,9 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
+import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.RuntimeFilter
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.rules.FilterKind
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
@@ -30,9 +33,12 @@ import kotlin.test.assertTrue
  * leave out the fields the pool does not read (runtime, dates, season and episode numbers); the shared builders fill
  * them with valid defaults.
  */
+private const val MS_PER_MINUTE = 60_000L
+
 class PoolVectorsTest {
     private val cases = VectorJson.parse(PoolVectorFiles.pool).array("cases").objects()
     private val v2Cases = VectorJson.parse(PoolVectorFiles.poolV2).array("cases").objects()
+    private val v3Cases = VectorJson.parse(PoolVectorFiles.poolV3).array("cases").objects()
 
     @Test
     fun theFileHasTheCasesTheSpecAsks() {
@@ -70,6 +76,82 @@ class PoolVectorsTest {
         for (case in v2Cases) assertPool(case, formatVersion = 2)
     }
 
+    @Test
+    fun theVersion3FileHasTheCasesThePlanAsks() {
+        assertTrue(v3Cases.size >= 15, "at least 15 version 3 cases, has ${v3Cases.size}")
+        assertEquals(v3Cases.size, v3Cases.map { it.string("name") }.toSet().size, "case names are unique")
+        assertTrue(v3Cases.any { it["expectedAfterRuntime"] != null }, "some case has a runtime window")
+        assertTrue(v3Cases.any { it.objOrEmpty("franchises").isNotEmpty() }, "some case has franchises")
+    }
+
+    // The version 3 file: studio sources, the new filter parts, the per-kind runtime windows, and the franchise map.
+    // `expected` leaves the runtime part out; `expectedAfterRuntime` has it applied where the epoch's pool is cut.
+    @Test
+    fun everyV3CaseAgreesWithTheReference() {
+        for (case in v3Cases) assertPoolV3(case)
+    }
+
+    private fun assertPoolV3(case: JsonObject) {
+        val name = case.string("name")
+        val filters = (case["filters"] as? JsonObject)?.let(::filters)
+        val sources = case.array("sources").objects().map(::source)
+        val exclusions = case.array("exclusions").objects().map(::source)
+        val snapshot =
+            snapshot(
+                items = case.array("items").objects().map(::item),
+                series = case.array("series").objects().map(::series),
+                collections = case.array("collections").objects().map(::collection),
+                libraries = case.strings("libraries").map(::canon).toSet(),
+            )
+        val common = { mode: OrderingMode ->
+            rules(sources, exclusions, case.stringOrNull("maxRating"), 3, filters, Ordering(mode))
+        }
+        val rotation = common(OrderingMode.Rotation)
+        val pool = PoolEvaluator.evaluate(rotation, snapshot)
+        assertEquals(case.strings("expected"), pool.items.map { it.id.value }.sorted(), name)
+        val expectedFilms = case.objOrEmpty("films").mapValues { it.value.jsonPrimitive.content }
+        val films = GroupCollections.of(rotation, snapshot, pool.items)
+        assertEquals(expectedFilms, films.asStrings(pool.items), "films: $name")
+        val curated = GroupCollections.of(common(OrderingMode.Curated), snapshot, pool.items)
+        val expectedFranchises = case.objOrEmpty("franchises").mapValues { it.value.jsonPrimitive.content }
+        assertEquals(expectedFranchises, curated.asStrings(pool.items), "franchises: $name")
+        val afterRuntime = case["expectedAfterRuntime"] ?: return
+        val window = checkNotNull(runtimeWindow(case.obj("filters").obj("runtime"))) { "$name: no runtime window" }
+        val kept = pool.items.filter { window.admits(it.runtimeMs, it.kind) }
+        val expectedKept = afterRuntime.jsonArray.map { it.jsonPrimitive.content }
+        assertEquals(expectedKept, kept.map { it.id.value }.sorted(), "runtime: $name")
+    }
+
+    private fun JsonObject.objOrEmpty(name: String): JsonObject = this[name] as? JsonObject ?: JsonObject(emptyMap())
+
+    private fun JsonObject.stringsOrEmpty(name: String): List<String> = if (name in this) strings(name) else emptyList()
+
+    private fun FilmCollections.asStrings(items: List<ScheduleItem>): Map<String, String> =
+        items.mapNotNull { item -> this[item.id]?.let { item.id.value to it.value } }.toMap()
+
+    private fun runtimeWindow(o: JsonObject): RuntimeFilter? {
+        fun ms(
+            window: JsonObject?,
+            name: String,
+        ): Long? =
+            window
+                ?.get(name)
+                ?.jsonPrimitive
+                ?.content
+                ?.toLong()
+                ?.times(MS_PER_MINUTE)
+        val episode = o["episode"] as? JsonObject
+        val movie = o["movie"] as? JsonObject
+        return RuntimeFilter(
+            minMs = ms(o, "minMinutes"),
+            maxMs = ms(o, "maxMinutes"),
+            episodeMinMs = ms(episode, "minMinutes"),
+            episodeMaxMs = ms(episode, "maxMinutes"),
+            movieMinMs = ms(movie, "minMinutes"),
+            movieMaxMs = ms(movie, "maxMinutes"),
+        )
+    }
+
     private fun assertPool(
         case: JsonObject,
         formatVersion: Int,
@@ -101,12 +183,22 @@ class PoolVectorsTest {
 
     private fun filters(o: JsonObject): Filters {
         val years = o["years"] as? JsonObject
+        val runtime = o["runtime"] as? JsonObject
+        val episode = runtime?.get("episode") as? JsonObject
+        val movie = runtime?.get("movie") as? JsonObject
         return Filters(
             genres = o["genres"]?.let { list -> list.jsonArray.map { it.jsonPrimitive.content } },
             yearFrom = years?.intOrNull("from"),
             yearTo = years?.intOrNull("to"),
-            minRuntimeMinutes = null,
-            maxRuntimeMinutes = null,
+            minRuntimeMinutes = runtime?.intOrNull("minMinutes"),
+            maxRuntimeMinutes = runtime?.intOrNull("maxMinutes"),
+            tags = o["tags"]?.let { list -> list.jsonArray.map { it.jsonPrimitive.content } },
+            studios = o["studios"]?.let { list -> list.jsonArray.map { it.jsonPrimitive.content } },
+            notGenres = o["notGenres"]?.let { list -> list.jsonArray.map { it.jsonPrimitive.content } },
+            episodeMinRuntimeMinutes = episode?.intOrNull("minMinutes"),
+            episodeMaxRuntimeMinutes = episode?.intOrNull("maxMinutes"),
+            movieMinRuntimeMinutes = movie?.intOrNull("minMinutes"),
+            movieMaxRuntimeMinutes = movie?.intOrNull("maxMinutes"),
             kind = o.stringOrNull("kind")?.let { wire -> FilterKind.entries.single { it.wireName == wire } },
         )
     }
@@ -127,11 +219,19 @@ class PoolVectorsTest {
             "item" -> Source.Item(o.canonId("id"))
             "genre" -> Source.Genre(o.string("name"))
             "tag" -> Source.Tag(o.string("name"))
+            "studio" -> Source.Studio(o.string("name"))
             "yearRange" -> Source.YearRange(o.string("from").toInt(), o.string("to").toInt())
             else -> error("unknown source type $type")
         }
 
-    private fun item(o: JsonObject): RuleItem =
+    // A runtimeMs (a decimal string) is given only by the runtime cases; the builders' default stands otherwise.
+    private fun item(o: JsonObject): RuleItem {
+        val built = itemOf(o)
+        val runtimeMs = o.stringOrNull("runtimeMs")?.toLong() ?: return built
+        return built.copy(item = built.item.copy(runtimeMs = runtimeMs))
+    }
+
+    private fun itemOf(o: JsonObject): RuleItem =
         when (val kind = o.string("kind")) {
             "movie" -> {
                 movie(
@@ -141,6 +241,7 @@ class PoolVectorsTest {
                     genres = o.strings("genres"),
                     tags = o.strings("tags"),
                     year = o.intOrNull("productionYear"),
+                    studios = o.stringsOrEmpty("studios"),
                 )
             }
 
@@ -154,6 +255,7 @@ class PoolVectorsTest {
                     genres = o.strings("genres"),
                     tags = o.strings("tags"),
                     year = o.intOrNull("productionYear"),
+                    studios = o.stringsOrEmpty("studios"),
                 )
             }
 
@@ -163,7 +265,13 @@ class PoolVectorsTest {
         }
 
     private fun series(o: JsonObject): RuleSeries =
-        series(o.canonId("id"), o.stringOrNull("officialRating"), o.strings("genres"), o.strings("tags"))
+        series(
+            o.canonId("id"),
+            o.stringOrNull("officialRating"),
+            o.strings("genres"),
+            o.strings("tags"),
+            o.stringsOrEmpty("studios"),
+        )
 
     private fun collection(o: JsonObject): RuleCollection =
         collection(o.canonId("id"), o.ids("movies"), o.ids("episodes"), o.ids("series"), o.ids("seasons"))
