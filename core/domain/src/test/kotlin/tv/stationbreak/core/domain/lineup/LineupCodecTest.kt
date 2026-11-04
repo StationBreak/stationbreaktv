@@ -290,6 +290,32 @@ class LineupCodecTest {
         assertIs<ChannelSource.Starter>(first.channels[0].source)
     }
 
+    private val version3Text =
+        """{"formatVersion":3,"seed":"1",""" +
+            """"sources":[{"type":"studio","name":"Studio A"},{"type":"genre","name":"Comedy"}],""" +
+            """"ordering":{"mode":"curated","repeatGapMinutes":120},"filters":{"tags":["tag a"]},""" +
+            """"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""
+
+    @Test
+    fun aStarterWithV3RulesIsUsable() {
+        val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(version3Text))) }
+        val first = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+        val source = assertIs<ChannelSource.Starter>(first.channels[0].source)
+        assertEquals(3, source.rules.formatVersion)
+        val second = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(first))).lineup
+        assertEquals(first, second)
+        val custom = assertIs<LineupCodec.Decoded.Loaded>(decode(customWith(version3Text).toString())).lineup
+        assertEquals(3, assertIs<ChannelSource.Custom>(custom.channels[0].source).rules.formatVersion)
+    }
+
+    @Test
+    fun aFourthVersionRulesFileStaysUnusable() {
+        val fourth = version3Text.replace("\"formatVersion\":3", "\"formatVersion\":4")
+        val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(fourth))) }
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+        assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
+    }
+
     @Test
     fun aVersion2FileWithNoVersion2FeatureStaysUsable() {
         val text = """$version2Head,"timing":{"broadcastDay":{"utcOffsetMinutes":0}}}"""

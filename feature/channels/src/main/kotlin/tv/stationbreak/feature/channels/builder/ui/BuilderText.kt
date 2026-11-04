@@ -65,10 +65,10 @@ internal fun keptText(item: KeptItem): String =
     when (item) {
         is KeptItem.Order -> {
             stringResource(
-                if (item.mode == KeptOrder.Chronological) {
-                    R.string.builder_kept_order_chronological
-                } else {
-                    R.string.builder_kept_order_random_in_order
+                when (item.mode) {
+                    KeptOrder.Chronological -> R.string.builder_kept_order_chronological
+                    KeptOrder.RandomInOrder -> R.string.builder_kept_order_random_in_order
+                    KeptOrder.Curated -> R.string.builder_kept_order_curated
                 },
             )
         }
