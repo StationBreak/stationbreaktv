@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.KidStatus.isKidChannel
@@ -38,7 +39,8 @@ class KidAuditTest {
     // refuse, and a live-action family G film, which is not made for kids by any list).
     private val nearMisses = mutableSetOf<CanonicalId>()
 
-    // Made for kids, and over every kid ceiling: it may air on no channel at all (grown-up-hold-2).
+    // Made for kids, and over every kid ceiling (unrated, or rated R): no kid channel takes it, so a grown-up channel
+    // keeps it (grown-up-hold-2, option C).
     private val overEveryCeiling = mutableSetOf<CanonicalId>()
 
     // Made for kids by a list or the signal, and seeded as such: never on a grown-up channel.
@@ -78,6 +80,7 @@ class KidAuditTest {
             film("TV-G", "Animation", "Family")
             film(null, "Animation", "Family")
             madeForKidsSeeded += items.takeLast(3).map { entry -> entry.item.id }
+            overEveryCeiling += items.last().item.id
             film("PG", "Animation", "Family", nearMiss = true)
             film("PG-13", "Animation", "Family", "Comedy", nearMiss = true)
             film("R", "Animation", "Comedy")
@@ -132,7 +135,7 @@ class KidAuditTest {
         }
 
     @Test
-    fun noGrownUpStarterOrLeftoversAirsAnythingMadeForKids() =
+    fun noGrownUpStarterOrLeftoversAirsAnythingAKidChannelCouldTake() =
         runBlocking<Unit> {
             seed()
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
@@ -148,8 +151,11 @@ class KidAuditTest {
                         val entry = checkNotNull(byId[scheduled.id])
                         val show = scheduled.seriesId?.let { shows[it] }
                         val where = "${channelDay.name} day $day ${scheduled.id}"
-                        assertTrue(!KidHold.isMadeForKids(entry, show), "made for kids on a grown-up channel: $where")
-                        assertTrue(scheduled.id !in madeForKidsSeeded, "seeded kids title on grown-up: $where")
+                        assertTrue(!GrownUpHold.dropsFromGrownUp(entry, show), "a kid channel could take it: $where")
+                        assertTrue(
+                            scheduled.id !in madeForKidsSeeded || scheduled.id in overEveryCeiling,
+                            "seeded kids title a kid channel could take, on grown-up: $where",
+                        )
                         if (scheduled.id in liveActionFamilyG) familyAired++
                         audited++
                     }
@@ -160,19 +166,24 @@ class KidAuditTest {
         }
 
     @Test
-    fun aKidTitleThatFailsEveryCeilingAirsNowhere() =
+    fun aKidTitleThatFailsEveryCeilingAirsOnGrownUpChannelsOnly() =
         runBlocking<Unit> {
             seed()
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
             val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            var airedOnGrownUp = 0
             for (day in 0 until WEEK) {
                 for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
+                    val kid = isKidChannel(channelDay.channel)
                     for (scheduled in channelDay.pool) {
-                        assertTrue(scheduled.id !in overEveryCeiling, "${channelDay.name} day $day airs it")
+                        if (scheduled.id !in overEveryCeiling) continue
+                        assertTrue(!kid, "${channelDay.name} day $day is a kid channel and airs it")
+                        airedOnGrownUp++
                     }
                 }
             }
+            assertTrue(airedOnGrownUp > 0, "a title no kid channel can take aired nowhere")
         }
 
     private fun isGrownUpStarterOrLeftovers(channel: LineupChannel): Boolean =

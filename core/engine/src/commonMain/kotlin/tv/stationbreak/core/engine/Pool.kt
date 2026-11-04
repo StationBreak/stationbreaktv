@@ -52,8 +52,8 @@ data class Pool(
  * @property filteredOut items that matched a source, survived the exclusions and the hold, and were dropped by the
  *   rules' `filters` (genres, years, kind), before the ceiling. Always 0 for rules with no filters.
  * @property madeForKidsOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and
- *   were made for kids ([KidHold.isMadeForKids]: a children's rating, a kids genre, a kid studio or the
- *   animated-family signal), on a grown-up channel (ADR-0020). Always 0 under any other policy.
+ *   were dropped by [GrownUpHold.dropsFromGrownUp] (made for kids and passing the widest kid ceiling, so a kid
+ *   channel could take them), on a grown-up channel (ADR-0020). Always 0 under any other policy.
  */
 data class PoolCounts(
     val matchedBySource: List<Int>,

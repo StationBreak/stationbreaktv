@@ -70,23 +70,27 @@ app-side, like the kid hold.
 
 ## Addendum (2026-11-03, spec 23): `grown-up-hold-2`
 
-The grown-up hold now drops everything the kid hold calls made for kids, not only children's ratings. The two gates
-share one predicate: `PoolPolicy.GrownUp` removes, after the exclusions, every item for which `KidHold.isMadeForKids`
-is true (a kids genre, a kid studio, a children's rating, or the animated-family signal of `kid-hold-3`). Family-friendly
-titles that are not made for kids by those tests (a live-action family film rated PG, say) stay. The ladder ceiling
-still applies to what is left.
+The grown-up hold now follows the kid hold's made-for-kids test, not only children's ratings, and drops an item only
+when a kid channel could take it. `PoolPolicy.GrownUp` removes, after the exclusions, every item for which
+`GrownUpHold.dropsFromGrownUp` is true: `KidHold.isMadeForKids(entry, series)` (a kids genre, a kid studio, a children's
+rating, or the animated-family signal of `kid-hold-3`) and `KidHold.passesKidCeiling(entry, series, null)` (no ceiling
+is the widest kid ceiling, PG). Family-friendly titles that are not made for kids by those tests (a live-action family
+film rated PG, say) stay. A made-for-kids item that fails the widest kid ceiling (unrated, or rated above what a kid
+channel airs) also stays, and the grown-up channel's usual ladder ceiling applies to it. The kid side is unchanged.
 
-- **Version name.** `GrownUpHold.VERSION_NAME` is `grown-up-hold-2`. The gate now follows `KidHold.isMadeForKids`, so a
-  change to that predicate is a new version name of both holds. A day built under `grown-up-hold-1` is rebuilt.
-- **Counts.** `PoolCounts.childrensRatingOut` is renamed `madeForKidsOut`: it counts what the grown-up hold drops.
-  `HiddenReason.ChildrensRatingsOnly` keeps its name and its string.
+- **Reason.** A made-for-kids title a kid channel cannot take stays on grown-up channels until family channels (#576)
+  or parent library trust give it a home. Nothing airs nowhere because of the holds.
+- **Version name.** `GrownUpHold.VERSION_NAME` is `grown-up-hold-2`. The gate is built from `KidHold.isMadeForKids` and
+  `KidHold.passesKidCeiling`, so a change to either predicate is a new version name of both holds. A day built under
+  `grown-up-hold-1` is rebuilt. `grown-up-hold-2` has not shipped, so this rule is its definition, not a new version.
+- **Counts.** `PoolCounts.childrensRatingOut` is renamed `madeForKidsOut`: it counts what the grown-up hold drops, and
+  only that. `HiddenReason.ChildrensRatingsOnly` keeps its name and its string.
 - **The grown-up leftovers is `GrownUp`**, no longer `Open` (this replaces the table row and the reasoning in
-  decision 4). It claims what no other channel takes, and drops what is made for kids. A custom channel outside the
-  Kids band stays `Open`.
-- **Airing nowhere.** A title that is made for kids and fails every kid ceiling (a kids-genre film rated R, say) is held
-  out of every kid channel and dropped by every grown-up channel, so it airs nowhere. This is accepted: made-for-kids
-  content stays off grown-up channels, and a viewer who wants it can build a custom channel.
-- **Counted apart.** Made-for-kids titles that air nowhere are reported as `turnedAwayByBothHolds`, not as
-  "airing nowhere", which stays zero while the leftovers channels are on.
+  decision 4). It claims what no other channel takes, and drops what a kid channel could take. A custom channel outside
+  the Kids band stays `Open`.
+- **Airing nowhere.** With the holds as above, a made-for-kids title is dropped by a grown-up channel only if a kid
+  channel's widest ceiling accepts it, so the holds alone leave no title airing nowhere.
+  `turnedAwayByBothHolds` (made for kids, aired nowhere) is normally zero and stays as a guard; it can be above zero
+  when, for instance, no kid channel is on and the grown-up pools still drop the title.
 - **Applies at once.** Like `kid-hold-3`, this is safety policy: it applies at the update, and a programme on now can be
   cut once.

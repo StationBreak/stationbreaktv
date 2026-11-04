@@ -341,9 +341,8 @@ internal class LineupDays(
     /**
      * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no
      * channel's epoch pool (before the trim window), and not held back on purpose (opt-in recipes, hidden channels).
-     * Not counted here: titles made for kids ([turnedAwayByBothHolds]), which a grown-up channel never airs and a
-     * kid channel may refuse, so they can air nowhere by design. Zero for everything else while the leftovers
-     * channels are on.
+     * Not counted here: titles made for kids ([turnedAwayByBothHolds]), which are counted apart. Zero for everything
+     * else while the leftovers channels are on, and normally zero for those too (see [turnedAwayByBothHolds]).
      */
     fun airingNowhere(
         lineup: Lineup,
@@ -353,9 +352,10 @@ internal class LineupDays(
     ): Int = unaired(lineup, scheduled, snapshots, filteredSnapshots).first
 
     /**
-     * How many of the items [airingNowhere] would count are made for kids ([KidHold.isMadeForKids]): turned away by
-     * the grown-up hold, and by the kid table (or no kid channel is on). A separate count, not part of
-     * [airingNowhere]; the answer to "does anything air nowhere that should" stays separate from this by-design one.
+     * How many of the items [airingNowhere] would count are made for kids ([KidHold.isMadeForKids]): made for kids and
+     * aired nowhere. Under `grown-up-hold-2` (ADR-0020, option C) a grown-up pool drops only what a kid channel could
+     * take, so this is normally zero; it remains as a guard (it is not zero when, say, the grown-up leftovers is off
+     * and no kid channel is on). A separate count, not part of [airingNowhere].
      */
     fun turnedAwayByBothHolds(
         lineup: Lineup,

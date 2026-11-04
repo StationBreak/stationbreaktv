@@ -545,9 +545,9 @@ class LineupService internal constructor(
     }
 
     /**
-     * How many of the items [airingNowhereCount] leaves out air nowhere because they are made for kids: the grown-up
-     * hold drops them and no kid channel takes them (over every kid ceiling, or no kid channel is on). By design, so
-     * counted apart.
+     * How many of the items [airingNowhereCount] leaves out are made for kids and air nowhere. Under `grown-up-hold-2`
+     * (ADR-0020, option C) the grown-up hold drops only what a kid channel could take, so this is normally zero; it
+     * remains as a guard, counted apart.
      */
     internal suspend fun turnedAwayByBothHoldsCount(
         account: LibraryAccount,

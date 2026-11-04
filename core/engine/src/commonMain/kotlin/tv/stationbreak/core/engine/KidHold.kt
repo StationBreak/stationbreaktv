@@ -97,7 +97,9 @@ object KidHold {
 
     /**
      * The ratings that mean made for children, after `RatingLadder.normalise` (TV Parental Guidelines). Frozen under
-     * both [VERSION_NAME] and `GrownUpHold.VERSION_NAME`: a change to it is a new version name of each.
+     * both [VERSION_NAME] and `GrownUpHold.VERSION_NAME`: a change to it is a new version name of each. The grown-up
+     * gate (`GrownUpHold.dropsFromGrownUp`) is built from [isMadeForKids] and [passesKidCeiling], so a change to
+     * either of those is a new version name of both holds too.
      */
     val CHILDRENS_RATINGS: Set<String> = setOf("TV-Y", "TV-Y7", "TV-Y7-FV")
 

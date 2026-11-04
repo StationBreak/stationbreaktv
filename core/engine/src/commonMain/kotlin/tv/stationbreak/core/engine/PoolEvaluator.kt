@@ -28,8 +28,9 @@ import tv.stationbreak.core.rules.Source
  *
  * **Policies.** Under [PoolPolicy.KidsOnly] (a kid channel, spec 18), an item that survives the exclusions must also be
  * made for kids ([KidHold.isMadeForKids]) and passes the kid rating table ([KidHold.passesKidCeiling]) in place of the
- * ladder (ADR-0019). Under [PoolPolicy.GrownUp] it must not be made for kids ([KidHold.isMadeForKids], the same
- * predicate); the ladder applies as usual (ADR-0020). This is the app's narrowing, not rules-format behaviour: rules
+ * ladder (ADR-0019). Under [PoolPolicy.GrownUp] it must not be something a kid channel could take
+ * ([GrownUpHold.dropsFromGrownUp]: made for kids and passing the widest kid ceiling); the ladder applies as usual
+ * (ADR-0020). This is the app's narrowing, not rules-format behaviour: rules
  * format v1 knows nothing of it, and [PoolPolicy.Open] is exactly the evaluation above.
  *
  * **Filters.** The `genres`, `years` and `kind` parts of `rules.filters` apply to what remains after the exclusions and
@@ -144,7 +145,7 @@ object PoolEvaluator {
                 }
 
                 PoolPolicy.GrownUp -> {
-                    if (KidHold.isMadeForKids(entry, series)) madeForKidsOut++ else admit(entry, series)
+                    if (GrownUpHold.dropsFromGrownUp(entry, series)) madeForKidsOut++ else admit(entry, series)
                 }
             }
         }

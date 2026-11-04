@@ -12,6 +12,9 @@ sealed interface PoolPolicy {
     /** A kid channel: only what is made for kids ([KidHold.isMadeForKids]) under the kid rating table. */
     data object KidsOnly : PoolPolicy
 
-    /** A grown-up channel: nothing [KidHold.isMadeForKids] accepts; the ladder applies. */
+    /**
+     * A grown-up channel: nothing a kid channel could take ([GrownUpHold.dropsFromGrownUp]: made for kids and passing
+     * the widest kid ceiling); the ladder applies. Made-for-kids items no kid channel can take stay eligible.
+     */
     data object GrownUp : PoolPolicy
 }

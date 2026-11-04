@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolCounts
@@ -20,7 +21,8 @@ import tv.stationbreak.core.rules.RatingLadder
  * matched by source, `blockedByCeiling` and `episodesWithUnknownSeries` as `PoolEvaluator` counts them,
  * `collectionsSynced` from the snapshot, no unresolved entries. Under `PoolPolicy.KidsOnly`, an unclaimed item that
  * is not made for kids is dropped and counted in `heldOut`, and the kid rating table replaces the ladder; under
- * `PoolPolicy.GrownUp` an unclaimed item that is made for kids is dropped and counted in `madeForKidsOut`; both
+ * `PoolPolicy.GrownUp` an unclaimed item that `GrownUpHold.dropsFromGrownUp` accepts (made for kids and passing the
+ * widest kid ceiling) is dropped and counted in `madeForKidsOut`; both
  * as `PoolEvaluator` does.
  */
 object Leftovers {
@@ -87,7 +89,7 @@ object Leftovers {
                 }
 
                 PoolPolicy.GrownUp -> {
-                    if (KidHold.isMadeForKids(entry, series)) madeForKidsOut++ else admit(entry, series)
+                    if (GrownUpHold.dropsFromGrownUp(entry, series)) madeForKidsOut++ else admit(entry, series)
                 }
             }
         }
