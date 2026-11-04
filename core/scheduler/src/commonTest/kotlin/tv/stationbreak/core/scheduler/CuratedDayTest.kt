@@ -3,6 +3,7 @@ package tv.stationbreak.core.scheduler
 
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.Caps
 import tv.stationbreak.core.model.schedule.ScheduleContent.Program
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -46,29 +47,49 @@ class CuratedDayTest {
 
     @Test
     fun theGapRestartsEachDay() {
-        // Two series only: within a day they alternate (nothing is ready, the longest gap goes first), but the walk
-        // of the next day starts afresh with no memory of how the day before ended.
+        // Two series only, so within a day they take turns (nothing is ready, the longest gap goes first). A walk that
+        // carried its state over midnight would not start a day with the title that ended the one before while that
+        // title's gap (3 h) has not run out and the other is ready. Each day starts afresh, so on such a day the
+        // title that ended today starts tomorrow.
         val two = (1..2).flatMap { s -> (1..60).map { episodeOf(s, it, 40) } }
         val settings = settings(alignToGrid = false)
-        var carried = 0
+        var barredIfCarried = 0
         for (n in 0L..60L) {
             val today = buildDay(settings, two, n, noFilms(), noWeights(), noKeeps())
             val tomorrow = buildDay(settings, two, n + 1, noFilms(), noWeights(), noKeeps())
             val fresh = curatedRuns(two, Epochs.seedN(settings.seed, n + 1), noGroups(), settings)
+            val firstTomorrow = programs(tomorrow).first().itemId
             assertEquals(
                 fresh
                     .first()
                     .items
                     .first()
                     .id,
-                programs(tomorrow).first().itemId,
+                firstTomorrow,
                 "day ${n + 1}",
             )
-            val lastToday = two.first { it.id == programs(today).last().itemId }.seriesId
-            val firstTomorrow = two.first { it.id == programs(tomorrow).first().itemId }.seriesId
-            if (lastToday == firstTomorrow) carried++
+            val lastBlock = today.blocks.last { it.content is Program }
+            val lastToday = (lastBlock.content as Program).itemId
+            val sameSeries = two.first { it.id == lastToday }.seriesId == two.first { it.id == firstTomorrow }.seriesId
+            // The last title aired less than its gap before tomorrow starts, and the other series had its turn
+            // earlier: a carried walk would have to start tomorrow with the other series.
+            val gapOpen = tomorrow.startMs - lastBlock.startMs < settings.repeatGapMs
+            if (sameSeries && gapOpen) barredIfCarried++
         }
-        assertTrue(carried > 0, "a title that ends a day may start the next")
+        assertTrue(barredIfCarried > 0, "a day on which a carried gap would have chosen the other series")
+    }
+
+    @Test
+    fun cappedSettingsBesideCuratedAreIgnored() {
+        // A scheduler handed caps with the curated order (a rules file cannot say so) plays the day it would without
+        // them: the curated walk reads no caps.
+        val bare = settings(alignToGrid = true)
+        val capped = bare.copy(caps = Caps(1, 1))
+        for (n in 0L..5L) {
+            val without = buildDay(bare, pool(), n, noFilms(), noWeights(), noKeeps())
+            val with = buildDay(capped, pool(), n, noFilms(), noWeights(), noKeeps())
+            assertEquals(without.blocks, with.blocks, "day $n")
+        }
     }
 
     @Test
