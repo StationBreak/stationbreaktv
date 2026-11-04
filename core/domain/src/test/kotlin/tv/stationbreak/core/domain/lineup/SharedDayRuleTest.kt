@@ -6,15 +6,19 @@ import tv.stationbreak.core.domain.lineup.CuratedLibrary.channel
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
+import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupDay
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.curatedOn
 import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.model.ChannelId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -135,5 +139,38 @@ class SharedDayRuleTest {
         assertEquals(days.playKeysOf(lineup, noon + 1), days.playKeysOf(again, noon + 1))
         // Its days on disk still differ (`inputsOf` keeps every input of every day).
         assertNotEquals(days.inputsOf(lineup, null), days.inputsOf(again, null))
+    }
+
+    // A viewer's SwitchOn of a channel the planner switched on for the boundary airs it now (conventions: On means on
+    // now). It is then a viewer's mid-day switch-on: the pending basis keeps today's on-set, so it airs its pool less
+    // the basis's homes (#299) and every other channel's day and play key stay as they were.
+    @Test
+    fun switchingOnAChannelThatStartsAtTheBoundaryAirsItNowAndLeavesTheOthersAlone() {
+        val now = noon + 20 * 60_000L
+        val lineup =
+            lib
+                .lineup()
+                .with(lib.westernsId) { it.copy(onSinceMs = boundaryMs) }
+                .copy(curationBasis = CurationBasis(boundaryMs, setOf(lib.laughsId, lib.whodunitId), true))
+        val outcome = LineupEdits.apply(lineup, LineupEdit.SwitchOn(lib.westernsId), now, boundaryMs, TestCatalog)
+        val switched = assertIs<EditOutcome.Applied>(outcome).lineup
+
+        val westerns = switched.channel(lib.westernsId.value)
+        assertEquals(now, westerns.onSinceMs)
+        assertTrue(westerns.chosenByViewer)
+        assertEquals(lineup.curationBasis, switched.curationBasis, "today's on-set stays the basis's")
+        val before = days.curatedDays(lineup, now)
+        val after = days.curatedDays(switched, now)
+        assertTrue(before.dayOf(lib.westernsId.value).pool.isEmpty(), "it did not air before the switch-on")
+        assertTrue(after.dayOf(lib.westernsId.value).pool.isNotEmpty(), "it airs today")
+        val homedOnBasis = before.filter { it.channel.id in setOf(lib.laughsId, lib.whodunitId) }.flatMap { it.ids() }
+        assertTrue(after.dayOf(lib.westernsId.value).ids().none { it in homedOnBasis }, "less the basis's homes")
+        val keysBefore = days.playKeysOf(lineup, now)
+        val keysAfter = days.playKeysOf(switched, now)
+        for (day in before.filter { it.channel.id != lib.westernsId }) {
+            val id = day.channel.id
+            assertEquals(day.aired(), after.dayOf(id.value).aired(), "$id today")
+            assertEquals(keysBefore.getValue(id), keysAfter.getValue(id), "$id play key")
+        }
     }
 }

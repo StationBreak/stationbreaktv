@@ -985,8 +985,7 @@ internal class LineupDays(
         // A starter switched on for a later boundary: nothing airs before it starts, and it claims nothing.
         private fun startingDay(s: Scheduled): ChannelDay {
             epochPools[s] = emptyList()
-            // TODO(design partner): a reason of its own ("Starts at 6 AM") for a channel that starts at the boundary,
-            // and what a viewer's SwitchOn of such a channel should do: today it keeps the start (it cannot air early).
+            // TODO(design partner): a reason of its own ("Starts at 6 AM") for a channel that starts at the boundary.
             return dayOf(s, emptyList(), NO_FILMS, HiddenReason.EmptyToday, TitleKeeps.NONE, NO_WEIGHTS)
         }
 

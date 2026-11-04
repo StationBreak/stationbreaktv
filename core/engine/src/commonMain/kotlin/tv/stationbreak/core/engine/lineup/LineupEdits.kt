@@ -255,7 +255,7 @@ object LineupEdits {
             }
 
             is LineupEdit.SwitchOn -> {
-                switchOn(lineup, channel, edit.confirmedOptIn, nowMs, catalog)
+                switchOn(lineup, channel, edit.confirmedOptIn, nowMs, boundaryMs, catalog)
             }
 
             is LineupEdit.SwitchOff -> {
@@ -421,22 +421,38 @@ object LineupEdits {
         channel: LineupChannel,
     ): EditOutcome = EditOutcome.Applied(replaced(lineup, channel))
 
+    @Suppress("LongParameterList") // The edit's channel and confirmation, the time, the boundary and the catalog.
     private fun switchOn(
         lineup: Lineup,
         channel: LineupChannel,
         confirmedOptIn: Boolean,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome =
         when {
+            // Switched on by the planner to start at the boundary: the viewer pressing On expects it on now, so it
+            // airs from now, as any mid-day switch-on does (its pool less the basis's homes until the boundary).
+            channel.state == ChannelState.On && channel.startsAfter(LineupDay.endingAt(boundaryMs)) -> {
+                applied(lineup, channel.copy(onSinceMs = nowMs, leavesAtMs = null, shelfReason = null))
+            }
+
             // Already on but leaving: switching it on keeps it (the viewer's choice beats the planner's).
-            channel.state == ChannelState.On -> applied(lineup, channel.copy(leavesAtMs = null, shelfReason = null))
+            channel.state == ChannelState.On -> {
+                applied(lineup, channel.copy(leavesAtMs = null, shelfReason = null))
+            }
 
-            channel.source is ChannelSource.Unusable -> refused(EditRefusal.NotSwitchable)
+            channel.source is ChannelSource.Unusable -> {
+                refused(EditRefusal.NotSwitchable)
+            }
 
-            !confirmedOptIn && isOptIn(channel, catalog) -> refused(EditRefusal.OptInNotConfirmed)
+            !confirmedOptIn && isOptIn(channel, catalog) -> {
+                refused(EditRefusal.OptInNotConfirmed)
+            }
 
-            else -> switchedOn(lineup, channel, nowMs, catalog)
+            else -> {
+                switchedOn(lineup, channel, nowMs, catalog)
+            }
         }
 
     // A channel without a number gets one first, as the user's (an override), so its default stays empty.

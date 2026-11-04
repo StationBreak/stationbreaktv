@@ -10,6 +10,7 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -206,6 +207,21 @@ class LineupEditsTest {
         assertEquals(ChannelState.Shelf, after.byId(western).state)
         // One already on the air is still the last one on.
         assertEquals(EditRefusal.LastOn, refusal(lineupOf(starter("western", 310)), LineupEdit.SwitchOff(western)))
+    }
+
+    // A viewer's SwitchOn of a channel the planner switched on for the boundary puts it on the air now, as the
+    // viewer's choice.
+    @Test
+    fun switchOnOfAChannelStartingAtTheBoundaryAirsItNow() {
+        val starting = starter("western", 310).copy(onSinceMs = 99L + DAY_MS)
+        val lineup = lineupOf(starting, starter("mystery", 205))
+
+        val western = applied(lineup, LineupEdit.SwitchOn(this.western)).byId(this.western)
+
+        assertEquals(ChannelState.On, western.state)
+        assertEquals(99L, western.onSinceMs)
+        assertTrue(western.chosenByViewer)
+        assertFalse(western.startsAfter(LineupDay.endingAt(99L + DAY_MS)))
     }
 
     @Test
