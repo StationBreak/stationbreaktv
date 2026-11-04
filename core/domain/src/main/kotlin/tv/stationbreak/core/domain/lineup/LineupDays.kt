@@ -337,8 +337,9 @@ internal class LineupDays(
     }
 
     /**
-     * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no day
-     * pool, and not held back on purpose (opt-in recipes, hidden channels). Zero while the leftovers channels are on.
+     * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no
+     * channel's epoch pool (before the trim window), and not held back on purpose (opt-in recipes, hidden channels).
+     * Zero while the leftovers channels are on.
      */
     fun airingNowhere(
         lineup: Lineup,
