@@ -8192,7 +8192,7 @@ internal object PoolVectorFiles {
     val poolV3: String =
         """
         {
-          "description": "The version 3 pool, in the pool-v2.json case shape (see its description), for a file that says formatVersion 3. Items and series also carry studios: the server's studio names as sent (before the studio fold; a matcher folds both sides, and the fold is idempotent, so a client that cleans the names when it reads them gets the same result). Sources and exclusions may use type studio; filters may hold tags, studios, notGenres and runtime (with the version 3 episode and movie windows). expected is the pool as the pool evaluator gives it, without the runtime part of filters, which is applied where the epoch's pool is cut (The pool of an epoch). A case whose filters hold runtime also gives each item runtimeMs (decimal string) and expectedAfterRuntime, the pool after the runtime part too, with every other epoch condition taken as passed. films is the version 2 film-to-collection map (collections named in sources). franchises, in every case, is the franchise map of curated: each movie of the pool that is a member movie of any collection of the snapshot, mapped to the smallest such collection ID (32 ASCII bytes, unsigned); an empty object when none. Strings are written with \\u escapes for everything outside ASCII; one case has an unpaired surrogate escape in an item's studio name.",
+          "description": "The version 3 pool, in the pool-v2.json case shape (see its description), for a file that says formatVersion 3. Items and series also carry studios: the server's studio names as sent (before the studio fold; a matcher folds both sides, and the fold is idempotent, so a client that cleans the names when it reads them gets the same result). Sources and exclusions may use type studio; filters may hold tags, studios, notGenres and runtime (with the version 3 episode and movie windows). expected is the pool as the pool evaluator gives it, without the runtime part of filters, which is applied where the epoch's pool is cut (The pool of an epoch). A case whose filters hold runtime also gives each item runtimeMs (decimal string) and expectedAfterRuntime, the pool after the runtime part too, with every other epoch condition taken as passed. films is the version 2 film-to-collection map (collections named in sources). franchises, in every case, is the franchise map of curated: each movie of the pool that is a member movie of any collection of the snapshot whose name is a box set name, mapped to the smallest such collection ID (32 ASCII bytes, unsigned); an empty object when none. A snapshot collection carries a name (the server's name as sent, before any cleaning); a collection with no name field has no name. A box set name is one that, after the clean step of the studio fold and the ASCII fold, ends with a space and collection. Strings are written with \\u escapes for everything outside ASCII; one case has an unpaired surrogate escape in an item's studio name.",
           "source": "independent Python reference, not committed",
           "cases": [
             {
@@ -10342,8 +10342,8 @@ internal object PoolVectorFiles {
               "franchises": {}
             },
             {
-              "name": "franchise map: every collection of the snapshot is a candidate, not only the named ones (the films map stays empty)",
-              "note": "No collection is a source, so the version 2 films map is empty; the franchise map of curated still groups the films.",
+              "name": "franchise map: every box set of the snapshot is a candidate, not only the ones named in sources (the films map stays empty)",
+              "note": "Both collections have box set names (Set 4a1 Collection, Set 4b2 Collection). No collection is a source, so the version 2 films map is empty; the franchise map of curated still groups the films.",
               "libraries": [
                 "00000000000000000000000000001001"
               ],
@@ -10401,6 +10401,7 @@ internal object PoolVectorFiles {
               "collections": [
                 {
                   "id": "000000000000000000000000000004a1",
+                  "name": "Set 4a1 Collection",
                   "movies": [
                     "00000000000000000000000000000101",
                     "00000000000000000000000000000102"
@@ -10411,6 +10412,7 @@ internal object PoolVectorFiles {
                 },
                 {
                   "id": "000000000000000000000000000004b2",
+                  "name": "Set 4b2 Collection",
                   "movies": [
                     "00000000000000000000000000000103"
                   ],
@@ -10440,8 +10442,8 @@ internal object PoolVectorFiles {
               }
             },
             {
-              "name": "franchise map: a film in several collections maps to the smallest collection ID, named or not",
-              "note": "The films map (named collections only) gives ...04f2 to both films; the franchise map takes the smallest ID among all collections each film is in.",
+              "name": "franchise map: a film in several box sets maps to the smallest collection ID, named in sources or not",
+              "note": "All three collections have box set names. The films map (collections named in sources only) gives ...04f2 to both films; the franchise map takes the smallest ID among all the box sets each film is in.",
               "libraries": [
                 "00000000000000000000000000001001"
               ],
@@ -10487,6 +10489,7 @@ internal object PoolVectorFiles {
               "collections": [
                 {
                   "id": "000000000000000000000000000004f2",
+                  "name": "Set 4f2 Collection",
                   "movies": [
                     "00000000000000000000000000000101",
                     "00000000000000000000000000000102"
@@ -10497,6 +10500,7 @@ internal object PoolVectorFiles {
                 },
                 {
                   "id": "000000000000000000000000000004a1",
+                  "name": "Set 4a1 Collection",
                   "movies": [
                     "00000000000000000000000000000101"
                   ],
@@ -10506,6 +10510,7 @@ internal object PoolVectorFiles {
                 },
                 {
                   "id": "000000000000000000000000000004c3",
+                  "name": "Set 4c3 Collection",
                   "movies": [
                     "00000000000000000000000000000102",
                     "00000000000000000000000000000103"
@@ -10564,6 +10569,7 @@ internal object PoolVectorFiles {
               "collections": [
                 {
                   "id": "a0000000000000000000000000000000",
+                  "name": "Set A Collection",
                   "movies": [
                     "00000000000000000000000000000101"
                   ],
@@ -10573,6 +10579,7 @@ internal object PoolVectorFiles {
                 },
                 {
                   "id": "9fffffffffffffffffffffffffffffff",
+                  "name": "Set Nine Collection",
                   "movies": [
                     "00000000000000000000000000000101"
                   ],
@@ -10670,6 +10677,7 @@ internal object PoolVectorFiles {
               "collections": [
                 {
                   "id": "00000000000000000000000000000401",
+                  "name": "Set 401 Collection",
                   "movies": [],
                   "episodes": [
                     "00000000000000000000000000000203"
@@ -10683,6 +10691,7 @@ internal object PoolVectorFiles {
                 },
                 {
                   "id": "00000000000000000000000000000402",
+                  "name": "Set 402 Collection",
                   "movies": [
                     "00000000000000000000000000000101"
                   ],
@@ -10784,6 +10793,7 @@ internal object PoolVectorFiles {
               "collections": [
                 {
                   "id": "00000000000000000000000000000401",
+                  "name": "Set 401 Collection",
                   "movies": [
                     "00000000000000000000000000000101",
                     "00000000000000000000000000000102",
@@ -10827,7 +10837,7 @@ internal object PoolVectorFiles {
               }
             },
             {
-              "name": "franchise map: a collection that is only an exclusion or not in the snapshot maps nothing",
+              "name": "franchise map: a box set that is not in the snapshot maps nothing; a box set that is only an exclusion is a candidate but its films are out of the pool",
               "note": "Collection ...04ff is a source but not in the snapshot: it selects and groups nothing. Collection ...0402 is an exclusion: it removes ...0102, so that film is not in the pool and not in the map.",
               "libraries": [
                 "00000000000000000000000000001001"
@@ -10874,6 +10884,7 @@ internal object PoolVectorFiles {
               "collections": [
                 {
                   "id": "00000000000000000000000000000401",
+                  "name": "Set 401 Collection",
                   "movies": [
                     "00000000000000000000000000000101"
                   ],
@@ -10883,6 +10894,7 @@ internal object PoolVectorFiles {
                 },
                 {
                   "id": "00000000000000000000000000000402",
+                  "name": "Set 402 Collection",
                   "movies": [
                     "00000000000000000000000000000102"
                   ],
@@ -10914,6 +10926,762 @@ internal object PoolVectorFiles {
               "films": {},
               "franchises": {
                 "00000000000000000000000000000101": "00000000000000000000000000000401"
+              }
+            },
+            {
+              "name": "franchise map: a named box set groups its films",
+              "libraries": [
+                "00000000000000000000000000001001"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "name": "Space Saga Collection",
+                  "movies": [
+                    "00000000000000000000000000000101",
+                    "00000000000000000000000000000102"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103"
+              ],
+              "films": {},
+              "franchises": {
+                "00000000000000000000000000000101": "00000000000000000000000000000401",
+                "00000000000000000000000000000102": "00000000000000000000000000000401"
+              }
+            },
+            {
+              "name": "franchise map: an unnamed collection, an empty name and household names group nothing",
+              "note": "...0401 has no name field; ...0402's name is empty; the other three are household lists. None is a box set name, so no film is mapped.",
+              "libraries": [
+                "00000000000000000000000000001001"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000402",
+                  "name": "",
+                  "movies": [
+                    "00000000000000000000000000000102"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000403",
+                  "name": "Favourites",
+                  "movies": [
+                    "00000000000000000000000000000103"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000404",
+                  "name": "Weekend Watch List",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000405",
+                  "name": "Kids Picks",
+                  "movies": [
+                    "00000000000000000000000000000105"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000105"
+              ],
+              "films": {},
+              "franchises": {}
+            },
+            {
+              "name": "franchise map: a film in a box set and in a household list is grouped by the box set, even when the list's ID is smaller",
+              "note": "The household list ...0401 (Movie Night) is a source, so the version 2 films map uses it; it is not a box set name, so the franchise map passes over it and maps ...0101 and ...0102 to the box set ...04a2. ...0103 is only in the list: not mapped.",
+              "libraries": [
+                "00000000000000000000000000001001"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "name": "Movie Night",
+                  "movies": [
+                    "00000000000000000000000000000101",
+                    "00000000000000000000000000000102",
+                    "00000000000000000000000000000103"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "000000000000000000000000000004a2",
+                  "name": "Harbour Tales Collection",
+                  "movies": [
+                    "00000000000000000000000000000101",
+                    "00000000000000000000000000000102"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                },
+                {
+                  "type": "collection",
+                  "id": "00000000000000000000000000000401"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103"
+              ],
+              "films": {
+                "00000000000000000000000000000101": "00000000000000000000000000000401",
+                "00000000000000000000000000000102": "00000000000000000000000000000401",
+                "00000000000000000000000000000103": "00000000000000000000000000000401"
+              },
+              "franchises": {
+                "00000000000000000000000000000101": "000000000000000000000000000004a2",
+                "00000000000000000000000000000102": "000000000000000000000000000004a2"
+              }
+            },
+            {
+              "name": "franchise map: the \" collection\" suffix under the clean step and the ASCII fold (case, whitespace and fold edges)",
+              "note": "Each film is in one collection of its own. ...401 \"Box Set 1 Collection\": box set (the plain form); ...402 \"box set 1 COLLECTION \": box set (ASCII letters fold; the trailing space is trimmed); ...403 \"Collection\": not a box set (no space before collection); ...404 \" Collection\": not a box set (the leading space is trimmed, so nothing comes before collection); ...405 \"Box Set Collections\": not a box set (does not end with collection); ...406 \"Box Set Collection 2\": not a box set (something after collection); ...407 \"Box Set\\u00a0Collection\": not a box set (a no-break space is not U+0020); ...408 \"Box Set\\tCollection\": box set (a tab is written as a space by the clean step); ...409 \"Box Set\\u2028Collection\": box set (U+2028 is written as a space); ...40a \"Box Set  Collection\": box set (two spaces: it still ends with a space and collection); ...40b \"Box Set Collection\\u200b\\u00a0\": box set (the zero-width space is dropped and the no-break space trimmed); ...40c \"Box Set Coll\\u00adection\": box set (the soft hyphen is dropped); ...40d \"Box Set COLLECT\\u0130ON\": not a box set (U+0130 does not fold); ...40e \"Box Set Collecti\\u00f6n\": not a box set (o with diaeresis is not o); ...40f \"Box Set \\u200bCollection\": box set (the zero-width space after the space is dropped); ...410 \"Box Set\\u200b Collection\": box set (a dropped code point before the space); ...411 \"Box Set\\u3000Collection\": not a box set (U+3000 inside the name is not U+0020); ...412 \"BOX SET COLLECTION\\t\": box set (the trailing tab becomes a space and is trimmed).",
+              "libraries": [
+                "00000000000000000000000000001001"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000105",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000106",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000107",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000108",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000109",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "0000000000000000000000000000010a",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "0000000000000000000000000000010b",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "0000000000000000000000000000010c",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "0000000000000000000000000000010d",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "0000000000000000000000000000010e",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "0000000000000000000000000000010f",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000110",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000111",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                },
+                {
+                  "id": "00000000000000000000000000000112",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": []
+                }
+              ],
+              "series": [],
+              "collections": [
+                {
+                  "id": "00000000000000000000000000000401",
+                  "name": "Box Set 1 Collection",
+                  "movies": [
+                    "00000000000000000000000000000101"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000402",
+                  "name": "box set 1 COLLECTION ",
+                  "movies": [
+                    "00000000000000000000000000000102"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000403",
+                  "name": "Collection",
+                  "movies": [
+                    "00000000000000000000000000000103"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000404",
+                  "name": " Collection",
+                  "movies": [
+                    "00000000000000000000000000000104"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000405",
+                  "name": "Box Set Collections",
+                  "movies": [
+                    "00000000000000000000000000000105"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000406",
+                  "name": "Box Set Collection 2",
+                  "movies": [
+                    "00000000000000000000000000000106"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000407",
+                  "name": "Box Set\u00a0Collection",
+                  "movies": [
+                    "00000000000000000000000000000107"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000408",
+                  "name": "Box Set\tCollection",
+                  "movies": [
+                    "00000000000000000000000000000108"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000409",
+                  "name": "Box Set\u2028Collection",
+                  "movies": [
+                    "00000000000000000000000000000109"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "0000000000000000000000000000040a",
+                  "name": "Box Set  Collection",
+                  "movies": [
+                    "0000000000000000000000000000010a"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "0000000000000000000000000000040b",
+                  "name": "Box Set Collection\u200b\u00a0",
+                  "movies": [
+                    "0000000000000000000000000000010b"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "0000000000000000000000000000040c",
+                  "name": "Box Set Coll\u00adection",
+                  "movies": [
+                    "0000000000000000000000000000010c"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "0000000000000000000000000000040d",
+                  "name": "Box Set COLLECT\u0130ON",
+                  "movies": [
+                    "0000000000000000000000000000010d"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "0000000000000000000000000000040e",
+                  "name": "Box Set Collecti\u00f6n",
+                  "movies": [
+                    "0000000000000000000000000000010e"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "0000000000000000000000000000040f",
+                  "name": "Box Set \u200bCollection",
+                  "movies": [
+                    "0000000000000000000000000000010f"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000410",
+                  "name": "Box Set\u200b Collection",
+                  "movies": [
+                    "00000000000000000000000000000110"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000411",
+                  "name": "Box Set\u3000Collection",
+                  "movies": [
+                    "00000000000000000000000000000111"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                },
+                {
+                  "id": "00000000000000000000000000000412",
+                  "name": "BOX SET COLLECTION\t",
+                  "movies": [
+                    "00000000000000000000000000000112"
+                  ],
+                  "episodes": [],
+                  "series": [],
+                  "seasons": []
+                }
+              ],
+              "sources": [
+                {
+                  "type": "library",
+                  "id": "00000000000000000000000000001001"
+                }
+              ],
+              "exclusions": [],
+              "expected": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000102",
+                "00000000000000000000000000000103",
+                "00000000000000000000000000000104",
+                "00000000000000000000000000000105",
+                "00000000000000000000000000000106",
+                "00000000000000000000000000000107",
+                "00000000000000000000000000000108",
+                "00000000000000000000000000000109",
+                "0000000000000000000000000000010a",
+                "0000000000000000000000000000010b",
+                "0000000000000000000000000000010c",
+                "0000000000000000000000000000010d",
+                "0000000000000000000000000000010e",
+                "0000000000000000000000000000010f",
+                "00000000000000000000000000000110",
+                "00000000000000000000000000000111",
+                "00000000000000000000000000000112"
+              ],
+              "films": {},
+              "franchises": {
+                "00000000000000000000000000000101": "00000000000000000000000000000401",
+                "00000000000000000000000000000102": "00000000000000000000000000000402",
+                "00000000000000000000000000000108": "00000000000000000000000000000408",
+                "00000000000000000000000000000109": "00000000000000000000000000000409",
+                "0000000000000000000000000000010a": "0000000000000000000000000000040a",
+                "0000000000000000000000000000010b": "0000000000000000000000000000040b",
+                "0000000000000000000000000000010c": "0000000000000000000000000000040c",
+                "0000000000000000000000000000010f": "0000000000000000000000000000040f",
+                "00000000000000000000000000000110": "00000000000000000000000000000410",
+                "00000000000000000000000000000112": "00000000000000000000000000000412"
               }
             }
           ]
