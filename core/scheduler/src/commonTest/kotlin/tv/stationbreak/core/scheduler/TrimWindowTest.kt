@@ -104,14 +104,23 @@ class TrimWindowTest {
     }
 
     @Test
-    fun aRestoredPoolIsNotWindowedAgain() {
+    fun aRestoredDayEqualsAFreshBuildWithKeeps() {
         val settings = testSettings()
-        val windowed = EpochPool.build(settings, episodes(20, 20, 20, 20, 20, 20), 1L, keeps(40))
-        assertEquals(listOf(3, 4), windowed.map { checkNotNull(it.episodeNumber) }.sorted())
-        // A persisted pool is restored with NONE: it comes back as it was kept.
-        assertEquals(windowed, EpochPool.build(settings, windowed, 1L, noKeeps()))
-        val day = buildDay(settings, windowed, 1L, noFilms(), noWeights(), noKeeps())
-        val aired = day.blocks.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
-        assertEquals(windowed.map { it.id }.toSet(), aired.toSet())
+        val pool = EpochPool.build(settings, episodes(20, 20, 20, 20, 20, 20), 1L)
+        val fresh = buildDay(settings, pool, 1L, noFilms(), noWeights(), keeps(40))
+        // The day pool is the pool after the window; a day restored from it is built with NONE.
+        assertEquals(listOf(3, 4), fresh.pool.map { checkNotNull(it.episodeNumber) }.sorted())
+        val restored = buildDay(settings, fresh.pool, 1L, noFilms(), noWeights(), noKeeps())
+        assertEquals(fresh.blocks, restored.blocks)
+        assertEquals(fresh.pool, restored.pool)
+        val aired = restored.blocks.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
+        assertEquals(fresh.pool.map { it.id }.toSet(), aired.toSet())
+    }
+
+    @Test
+    fun thePublicPoolBuilderNeverWindows() {
+        val settings = testSettings()
+        val pool = EpochPool.build(settings, episodes(20, 20, 20, 20, 20, 20), 1L)
+        assertEquals(6, pool.size)
     }
 }

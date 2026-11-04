@@ -93,6 +93,7 @@ class WhatsOnTest {
                         ScheduleBlock(0L, 40L, ScheduleContent.Program(idOf('1'), 5_000L)),
                         ScheduleBlock(40L, 100L, ScheduleContent.Slate),
                     ),
+                pool = emptyList(),
                 plan = RunPlan(startRun = 0, regularRuns = 1, cycleRuns = 1),
             )
         assertEquals(5_017L, withOffset.whatsOn(17L, 0).offsetMs)

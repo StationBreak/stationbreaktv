@@ -10,7 +10,6 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.scheduler.EpochPool
 
@@ -53,6 +52,6 @@ internal fun ruledDayOf(
 ): RuledDay {
     val (ruled, policy) = ceilings.policyRules(rules, channel)
     val pool = evaluate(ruled, policy)
-    val day = EpochPool.build(settings, pool.items, n, TitleKeeps.NONE)
+    val day = EpochPool.build(settings, pool.items, n)
     return RuledDay(pool, day, GroupCollections.of(ruled, snapshot, day))
 }

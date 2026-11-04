@@ -42,14 +42,20 @@ object EpochPool {
         )
 
     /**
-     * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes), with the trim window of
-     * [keeps] applied last ([TrimWindow]). Throws [IllegalArgumentException] naming the ID when two inputs share one,
-     * whether or not either would be kept.
+     * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes), with no trim window.
+     * Throws [IllegalArgumentException] naming the ID when two inputs share one, whether or not either would be kept.
      *
-     * The window is applied only by the day build ([buildDay]), to the pool of the day. Every other caller (the pool of
-     * a ruled day, the leftovers, the check for items no channel airs, a restored pool) passes [TitleKeeps.NONE].
+     * The trim window is applied only by the day build ([buildDay]), through the internal overload; the public builder
+     * cannot window, so the pool of a ruled day, the leftovers and the check for items no channel airs never do.
      */
     fun build(
+        settings: SchedulerSettings,
+        items: List<ScheduleItem>,
+        n: Long,
+    ): List<ScheduleItem> = build(settings, items, n, TitleKeeps.NONE)
+
+    /** [build] with the trim window of [keeps] applied last ([TrimWindow]): for [buildDay] only. */
+    internal fun build(
         settings: SchedulerSettings,
         items: List<ScheduleItem>,
         n: Long,

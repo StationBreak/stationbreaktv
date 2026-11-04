@@ -37,6 +37,8 @@ class Day internal constructor(
     val startMs: Long,
     val endMs: Long,
     val blocks: List<ScheduleBlock>,
+    /** The pool the day was laid out from: the pool of epoch [n] after the trim window. Keep this one, not the input. */
+    val pool: List<ScheduleItem>,
     private val plan: RunPlan,
     // A test seam: called once per comparison of the binary search, so WhatsOnStepsTest counts steps without a
     // clock.
@@ -131,11 +133,12 @@ internal fun buildDayCounting(
     val groups = GroupRules(films, weights)
     val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), groups)
     if (cycle.isEmpty()) {
-        return Day(n, start, end, listOf(ScheduleBlock(start, end, ScheduleContent.Slate)), RunPlan(0, 0, 0), onCompare)
+        val slate = listOf(ScheduleBlock(start, end, ScheduleContent.Slate))
+        return Day(n, start, end, slate, pool, RunPlan(0, 0, 0), onCompare)
     }
     val startRun = Timeline.startRun(settings, cycle, start)
     val layout = Timeline.layout(settings, cycle, startRun, start, end, groups)
-    return Day(n, start, end, layout.blocks, RunPlan(startRun, layout.runsStarted, cycle.size), onCompare)
+    return Day(n, start, end, layout.blocks, pool, RunPlan(startRun, layout.runsStarted, cycle.size), onCompare)
 }
 
 /** The day's layout, step by step (spec 08, Unit 3). Pure functions of their inputs. */
