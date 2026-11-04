@@ -15,22 +15,26 @@ private const val MS_PER_SECOND = 1_000L
 private const val MS_PER_MINUTE = 60_000L
 private const val MINUTES_PER_HOUR = 60
 
+// The defaults of `ordering.repeatGapMinutes` and `ordering.pairUpToMinutes` (180 and 35 minutes) for a channel whose
+// rules have no `ordering` object: only `curated` reads them.
+private const val DEFAULT_REPEAT_GAP_MS = 10_800_000L
+private const val DEFAULT_PAIR_UP_MS = 2_100_000L
+
 /**
  * The scheduler's numbers for a channel: its ordering, seed and timing with the rules-format defaults applied
  * (`effective…`), so the defaults are written once, in `core:rules`. The caps are the caps in force
  * ([ChannelRules.effectiveCaps]: `rotation`, or a `shuffle` that has them), and the runtime filter is in milliseconds.
  */
-fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
-    // Format 3 is read and written here but not yet scheduled (spec 23, Task 7 removes this).
-    require(orderingMode != OrderingMode.Curated) { "format 3 is scheduled from Task 7" }
-    return settingsOf(
+fun ChannelRules.toSchedulerSettings(): SchedulerSettings =
+    settingsOf(
         orderingMode,
         seed,
         timing,
         caps = effectiveCaps?.let { Caps(it.effectiveSeries, it.effectiveFilm) },
         runtimeFilter = filters?.let { runtimeFilterOf(it) },
+        repeatGapMs = ordering?.let { it.effectiveRepeatGapMinutes * MS_PER_MINUTE } ?: DEFAULT_REPEAT_GAP_MS,
+        pairUpToMs = ordering?.let { it.effectivePairUpToMinutes * MS_PER_MINUTE } ?: DEFAULT_PAIR_UP_MS,
     )
-}
 
 private fun runtimeFilterOf(filters: Filters): RuntimeFilter? =
     if (!filters.hasAnyRuntime) {
@@ -46,12 +50,15 @@ private fun runtimeFilterOf(filters: Filters): RuntimeFilter? =
         )
     }
 
+@Suppress("LongParameterList") // The scheduler's fields, one for one.
 internal fun settingsOf(
     orderingMode: OrderingMode,
     seed: Seed,
     timing: Timing,
     caps: Caps?,
     runtimeFilter: RuntimeFilter?,
+    repeatGapMs: Long,
+    pairUpToMs: Long,
 ): SchedulerSettings =
     SchedulerSettings(
         orderingMode = orderingMode,
@@ -66,6 +73,8 @@ internal fun settingsOf(
         minRuntimeMs = timing.effectiveMinRuntimeSeconds * MS_PER_SECOND,
         caps = caps,
         runtimeFilter = runtimeFilter,
+        repeatGapMs = repeatGapMs,
+        pairUpToMs = pairUpToMs,
     )
 
 // The start is "HH:MM", already checked by BroadcastDay.

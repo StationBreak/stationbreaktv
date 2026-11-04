@@ -58,8 +58,8 @@ class TombstoneWindowTest {
             val a = device(base.items, deletedAt, delaysA)
             val b = device(base.items, deletedAt, delaysB)
 
-            val poolA = EpochPool.build(s, a, base.n).map { it.id }.toSet()
-            val poolB = EpochPool.build(s, b, base.n).map { it.id }.toSet()
+            val poolA = EpochPool.build(s, a, base.n, noKeeps()).map { it.id }.toSet()
+            val poolB = EpochPool.build(s, b, base.n, noKeeps()).map { it.id }.toSet()
             val disagree = (poolA - poolB) + (poolB - poolA)
             val inWindow =
                 deletedAt
@@ -72,7 +72,10 @@ class TombstoneWindowTest {
 
             if (inWindow.isEmpty()) {
                 agreeingDays++
-                assertEquals(buildDay(s, a, base.n, noFilms()).blocks, buildDay(s, b, base.n, noFilms()).blocks)
+                assertEquals(
+                    buildDay(s, a, base.n, noFilms(), noWeights(), noKeeps()).blocks,
+                    buildDay(s, b, base.n, noFilms(), noWeights(), noKeeps()).blocks,
+                )
             }
         }
         assertTrue(windowCases > 50, "the generator rarely reached a disagreement: $windowCases")
@@ -93,14 +96,14 @@ class TombstoneWindowTest {
             val seenAtOnce = items.map { if (it.id == idOf('2')) it.copy(deletedAtMs = d) else it }
             val seenLate = items.map { if (it.id == idOf('2')) it.copy(deletedAtMs = d + g) else it }
             return EpochPool
-                .build(s, seenAtOnce, 0L)
+                .build(s, seenAtOnce, 0L, noKeeps())
                 .map {
                     it.id.value
                         .first()
                         .toString()
                 }.toSet() to
                 EpochPool
-                    .build(s, seenLate, 0L)
+                    .build(s, seenLate, 0L, noKeeps())
                     .map {
                         it.id.value
                             .first()
@@ -124,8 +127,8 @@ class TombstoneWindowTest {
 
         // And a disagreement in the pool is a different lineup.
         fun deletedAt(at: Long) = items.map { if (it.id == idOf('2')) it.copy(deletedAtMs = at) else it }
-        val fromA = buildDay(s, deletedAt(cutoff - g), 0L, noFilms())
-        val fromB = buildDay(s, deletedAt(cutoff), 0L, noFilms())
+        val fromA = buildDay(s, deletedAt(cutoff - g), 0L, noFilms(), noWeights(), noKeeps())
+        val fromB = buildDay(s, deletedAt(cutoff), 0L, noFilms(), noWeights(), noKeeps())
         assertNotEquals(fromA.blocks, fromB.blocks)
     }
 }

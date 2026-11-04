@@ -23,6 +23,9 @@ import tv.stationbreak.core.model.Seed
  *   leaves out anything shorter, so a day holds at most `epochMs / minRuntimeMs` programs.
  * @property caps the play-in-a-row caps, or null when none are in force (the mode ignores them)
  * @property runtimeFilter the `filters.runtime` window, or null: an item outside it does not air
+ * @property repeatGapMs the shortest time before a title or franchise airs again under `curated` (0 to 24 h); other
+ *   orders never read it
+ * @property pairUpToMs the longest episode `curated` pairs with the next (1 minute to 24 h); other orders never read it
  * @property startMinuteOfDay when the broadcast day starts: minutes after midnight on the channel's clock, 0..1439.
  */
 data class SchedulerSettings(
@@ -38,6 +41,8 @@ data class SchedulerSettings(
     val minRuntimeMs: Long,
     val caps: Caps?,
     val runtimeFilter: RuntimeFilter?,
+    val repeatGapMs: Long,
+    val pairUpToMs: Long,
 ) {
     init {
         require(blockLength in MIN_BLOCK_LENGTH..MAX_BLOCK_LENGTH) { "A run is 1 to 100 items" }
@@ -49,6 +54,8 @@ data class SchedulerSettings(
         require(startMinuteOfDay % gridMinutes == 0) { "The start must be on the grid" }
         require(graceHours in 0..MAX_GRACE_HOURS) { "Grace is 0 to 48 hours" }
         require(minRuntimeMs in MIN_RUNTIME_MS..MAX_RUNTIME_MS) { "The minimum runtime is 1 second to 1 hour" }
+        require(repeatGapMs in 0..MAX_EPOCH_MS) { "The repeat gap is 0 to 1440 minutes" }
+        require(pairUpToMs in MS_PER_MINUTE..MAX_EPOCH_MS) { "The pair-up length is 1 to 1440 minutes" }
         require(orderingMode != OrderingMode.Rotation || caps != null) { "Rotation needs caps" }
         require(caps == null || epochHours == MAX_EPOCH_HOURS) { "Caps need a 24-hour epoch" }
     }

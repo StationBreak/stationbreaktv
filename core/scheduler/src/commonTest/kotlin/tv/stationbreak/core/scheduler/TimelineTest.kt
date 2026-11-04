@@ -33,6 +33,8 @@ class TimelineTest {
         items,
         0L,
         noFilms(),
+        noWeights(),
+        noKeeps(),
     )
 
     @Test
@@ -183,7 +185,7 @@ class TimelineTest {
                 startMinuteOfDay = 0,
                 minRuntimeMs = 1_000L,
             )
-        val built = buildDay(s, items, 0L, noFilms())
+        val built = buildDay(s, items, 0L, noFilms(), noWeights(), noKeeps())
         assertEquals(86_400, built.blocks.size)
         assertTrue(built.blocks.all { it.lengthMs == 1_000L })
         assertEquals(0L, built.blocks.first().startMs)

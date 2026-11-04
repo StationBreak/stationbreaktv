@@ -29,6 +29,8 @@ class SchedulerSettingsTest {
         minRuntimeMs: Long = 60_000L,
         caps: Caps? = null,
         runtimeFilter: RuntimeFilter? = null,
+        repeatGapMs: Long = 10_800_000L,
+        pairUpToMs: Long = 2_100_000L,
     ) = SchedulerSettings(
         orderingMode = orderingMode,
         seed = seed,
@@ -42,6 +44,8 @@ class SchedulerSettingsTest {
         minRuntimeMs = minRuntimeMs,
         caps = caps,
         runtimeFilter = runtimeFilter,
+        repeatGapMs = repeatGapMs,
+        pairUpToMs = pairUpToMs,
     )
 
     private fun rejects(build: () -> SchedulerSettings) {
@@ -117,7 +121,7 @@ class SchedulerSettingsTest {
 
     @Test
     fun theTypeHasNoDefaults() {
-        // Every constructor parameter is required: the only way to build one is to name all twelve fields.
+        // Every constructor parameter is required: the only way to build one is to name all fourteen fields.
         val s = settings()
         assertEquals(
             SchedulerSettings(
@@ -133,6 +137,8 @@ class SchedulerSettingsTest {
                 60_000L,
                 null,
                 null,
+                10_800_000L,
+                2_100_000L,
             ),
             s,
         )

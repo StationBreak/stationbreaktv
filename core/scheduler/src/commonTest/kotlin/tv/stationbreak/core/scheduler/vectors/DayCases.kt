@@ -23,6 +23,8 @@ import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.MS_MINUTE
 import tv.stationbreak.core.scheduler.buildDay
+import tv.stationbreak.core.scheduler.noKeeps
+import tv.stationbreak.core.scheduler.noWeights
 import tv.stationbreak.core.scheduler.vectors.VectorJson.array
 import tv.stationbreak.core.scheduler.vectors.VectorJson.obj
 import tv.stationbreak.core.scheduler.vectors.VectorJson.objects
@@ -59,8 +61,13 @@ internal object DayCases {
             minRuntimeMs = timing.getValue("minRuntimeSeconds").jsonPrimitive.int * MS_SECOND,
             caps = (this["caps"] as? JsonObject)?.caps(),
             runtimeFilter = (this["runtimeFilter"] as? JsonObject)?.runtimeFilter(),
+            repeatGapMs = DEFAULT_REPEAT_GAP_MS,
+            pairUpToMs = DEFAULT_PAIR_UP_MS,
         )
     }
+
+    private const val DEFAULT_REPEAT_GAP_MS = 10_800_000L
+    private const val DEFAULT_PAIR_UP_MS = 2_100_000L
 
     // An unknown mode is rejected like any other bad input.
     private fun orderingModeOf(wireName: String): OrderingMode =
@@ -156,7 +163,7 @@ internal object DayCases {
                     val items = case.array("items").objects().map { it.item() }
                     stage = "building the day"
                     val films = case.obj("settings")["films"].filmsOrNone()
-                    buildDay(settings, items, case.string("n").toLong(), films)
+                    buildDay(settings, items, case.string("n").toLong(), films, noWeights(), noKeeps())
                 }
             val error = thrown.exceptionOrNull()
             if (thrown.isSuccess) failures.add("[$name] input error: building should be rejected, but it built a day")
@@ -167,7 +174,15 @@ internal object DayCases {
         }
         val settings = case.obj("settings")
         val items = case.array("items").objects().map { it.item() }
-        val day = buildDay(settings.settings(), items, case.string("n").toLong(), settings["films"].filmsOrNone())
+        val day =
+            buildDay(
+                settings.settings(),
+                items,
+                case.string("n").toLong(),
+                settings["films"].filmsOrNone(),
+                noWeights(),
+                noKeeps(),
+            )
         val expectedBlocks = case.array("blocks").objects().map { it.block() }
         expect("blocks", expectedBlocks, day.blocks)
         for (query in case.array("queries").objects()) {

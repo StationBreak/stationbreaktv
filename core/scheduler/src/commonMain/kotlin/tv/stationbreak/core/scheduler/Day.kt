@@ -8,6 +8,8 @@ import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 
 /** What is on at one moment: the block, how far into the media, and the blocks that follow it in the same day. */
 data class OnAir(
@@ -86,21 +88,29 @@ private const val MAX_ITEMS = 1 shl 26
  * Builds day [n]. Throws [IllegalArgumentException], building nothing, when the input is out of range: 2^26 items or
  * more, a `createdAt` or `deletedAt` beyond +-2^52 ms, or a day whose start or end is. Filtering bad items is the
  * caller's job. [films] is the film-to-collection side input (the orders of rules format version 2 read it; an empty
- * map is every film on its own).
+ * map is every film on its own). [weights] and [keeps] are the side inputs of rules format version 3: how often a title
+ * comes round in `curated`, and how much of a series the day keeps (the trim window, applied once, here, to the pool
+ * of the day). [TitleWeights.NONE] and [TitleKeeps.NONE] give the day of a version 2 scheduler.
  */
+@Suppress("LongParameterList") // The day's inputs, one for one.
 fun buildDay(
     settings: SchedulerSettings,
     items: List<ScheduleItem>,
     n: Long,
     films: FilmCollections,
-): Day = buildDayCounting(settings, items, n, films, null)
+    weights: TitleWeights,
+    keeps: TitleKeeps,
+): Day = buildDayCounting(settings, items, n, films, weights, keeps, null)
 
 /** [buildDay] with a comparison counter injected into the day. A test seam, used by WhatsOnStepsTest. */
+@Suppress("LongParameterList") // buildDay's inputs plus the seam.
 internal fun buildDayCounting(
     settings: SchedulerSettings,
     items: List<ScheduleItem>,
     n: Long,
     films: FilmCollections,
+    weights: TitleWeights,
+    keeps: TitleKeeps,
     onCompare: (() -> Unit)?,
 ): Day {
     require(items.size < MAX_ITEMS) { "At most ${MAX_ITEMS - 1} items may be given, got ${items.size}" }
@@ -116,8 +126,8 @@ internal fun buildDayCounting(
             "Item ${item.id.value}: deletedAt is out of range"
         }
     }
-    val pool = EpochPool.build(settings, items, n)
-    val groups = GroupRules(films)
+    val pool = EpochPool.build(settings, items, n, keeps)
+    val groups = GroupRules(films, weights)
     val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), groups)
     if (cycle.isEmpty()) {
         return Day(n, start, end, listOf(ScheduleBlock(start, end, ScheduleContent.Slate)), RunPlan(0, 0, 0), onCompare)
@@ -154,9 +164,10 @@ internal object Timeline {
     ): List<Run> = Runs.cycle(settings, pool, seedN, groups).filter { slotMs(settings, it) <= settings.epochMs }
 
     /**
-     * The run a day starts at. `shuffle` starts at run 0, because each day has its own seed. The other modes start at
-     * the run of the channel's continuous playout (the cycle repeated forever, each run taking its slot, from the
-     * origin `-offsetMs`) that contains [dayStart]: with the prefix sums `Q[0] = 0 < ... < Q[B] = C` of the slots and
+     * The run a day starts at. `shuffle` and `curated` start at run 0, because each day has its own seed. The other
+     * modes start at the run of the channel's continuous playout (the cycle repeated forever, each run taking its
+     * slot, from the origin `-offsetMs`) that contains [dayStart]: with the prefix sums `Q[0] = 0 < ... < Q[B] = C` of
+     * the slots and
      * `pos = floorMod(dayStart + offsetMs, C)`, the largest `j` with `Q[j] <= pos`, found by binary search.
      */
     fun startRun(
@@ -164,7 +175,7 @@ internal object Timeline {
         cycle: List<Run>,
         dayStart: Long,
     ): Int {
-        if (settings.orderingMode == OrderingMode.Shuffle) return 0
+        if (settings.orderingMode == OrderingMode.Shuffle || settings.orderingMode == OrderingMode.Curated) return 0
         val prefix = LongArray(cycle.size + 1)
         for (i in cycle.indices) prefix[i + 1] = prefix[i] + slotMs(settings, cycle[i])
         val pos = (dayStart + settings.offsetMs).mod(prefix[cycle.size])
@@ -230,12 +241,12 @@ internal object Timeline {
     /**
      * The planned end of the day (single pass). Starting at the first item of the run that would not fit
      * ([unstarted]), visits at most `N` items of the cycle (`N` counts only the runs that were not left out). `shuffle`
-     * wraps; the other modes stop at the cycle's end, so an earlier episode is never replayed after a later one. Each
-     * item starts at the end of the previous block, moved to the next grid mark when aligned, and is placed when its
-     * start plus its actual runtime is no later than [dayEnd]. For the other modes, once an item of a group has been
-     * passed over no later item of that group is eligible. Rotation's group is the one [groups] gives (a collection is
-     * one group); the other modes' is the series or the item. Returns the blocks placed (with the slates for grid gaps
-     * before them); the caller adds the closing slate.
+     * and `curated` wrap; the other modes stop at the cycle's end, so an earlier episode is never replayed after a
+     * later one. Each item starts at the end of the previous block, moved to the next grid mark when aligned, and is
+     * placed when its start plus its actual runtime is no later than [dayEnd]. For the other modes, once an item of a
+     * group has been passed over no later item of that group is eligible. Rotation's group is the one [groups] gives (a
+     * collection is one group); the other modes' is the series or the item. Returns the blocks placed (with the slates
+     * for grid gaps before them); the caller adds the closing slate.
      */
     @Suppress("LongParameterList") // The same inputs as the layout, plus where the fill starts.
     private fun fillEnd(
@@ -248,7 +259,7 @@ internal object Timeline {
     ): List<ScheduleBlock> {
         val items = cycle.flatMap { it.items }
         val firstItem = (0 until unstarted).sumOf { cycle[it].items.size }
-        val wraps = settings.orderingMode == OrderingMode.Shuffle
+        val wraps = settings.orderingMode == OrderingMode.Shuffle || settings.orderingMode == OrderingMode.Curated
         val visits = if (wraps) items.size else items.size - firstItem
         val rotation = settings.orderingMode == OrderingMode.Rotation
         val passedOver = HashSet<CanonicalId>()

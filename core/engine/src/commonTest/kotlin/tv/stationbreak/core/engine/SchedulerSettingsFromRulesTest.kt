@@ -136,4 +136,26 @@ class SchedulerSettingsFromRulesTest {
     fun aVersion2FileWithNoV2FeatureStillGivesSettings() {
         assertEquals(OrderingMode.Shuffle, base.copy(formatVersion = 2).toSchedulerSettings().orderingMode)
     }
+
+    @Test
+    fun aCuratedChannelHasSettingsWithTheTunablesInMilliseconds() {
+        val curated = base.copy(formatVersion = 3, ordering = Ordering(OrderingMode.Curated))
+        val defaults = curated.toSchedulerSettings()
+        assertEquals(OrderingMode.Curated, defaults.orderingMode)
+        assertEquals(10_800_000L, defaults.repeatGapMs)
+        assertEquals(2_100_000L, defaults.pairUpToMs)
+        val tuned =
+            curated
+                .copy(ordering = Ordering(OrderingMode.Curated, repeatGapMinutes = 90, pairUpToMinutes = 50))
+                .toSchedulerSettings()
+        assertEquals(5_400_000L, tuned.repeatGapMs)
+        assertEquals(3_000_000L, tuned.pairUpToMs)
+    }
+
+    @Test
+    fun otherOrdersGetTheDefaultTunables() {
+        val s = base.toSchedulerSettings()
+        assertEquals(10_800_000L, s.repeatGapMs)
+        assertEquals(2_100_000L, s.pairUpToMs)
+    }
 }

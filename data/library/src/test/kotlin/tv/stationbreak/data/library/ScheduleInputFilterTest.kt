@@ -18,6 +18,8 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.ScheduleItemProblem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.buildDay
 import kotlin.time.Duration.Companion.hours
@@ -33,7 +35,22 @@ private val NO_FILMS = FilmCollections.of(emptyMap())
  */
 class ScheduleInputFilterTest {
     private val settings =
-        SchedulerSettings(OrderingMode.Shuffle, Seed(1uL), 1, true, 30, 24, 0, 360, 6, 60_000L, null, null)
+        SchedulerSettings(
+            OrderingMode.Shuffle,
+            Seed(1uL),
+            1,
+            true,
+            30,
+            24,
+            0,
+            360,
+            6,
+            60_000L,
+            null,
+            null,
+            10_800_000L,
+            2_100_000L,
+        )
     private val id = hexId(1)
     private val series = hexId(2)
     private val ok =
@@ -58,7 +75,7 @@ class ScheduleInputFilterTest {
                 seasonNumber = row.seasonNumber,
                 episodeNumber = row.episodeNumber,
             )
-        buildDay(settings, listOf(item), 0, NO_FILMS)
+        buildDay(settings, listOf(item), 0, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE)
         return item
     }
 
@@ -106,9 +123,19 @@ class ScheduleInputFilterTest {
             val notPositive = case.row.runtimeMs
             if (case.reason == DropReason.RuntimeMissing && notPositive != null) {
                 val item = direct(case.row.copy(runtimeMs = 5_400_000L, createdAtMs = -1_000L))
-                assertEquals("control: the pool takes it", 1, EpochPool.build(settings, listOf(item), 0).size)
+                assertEquals(
+                    "control: the pool takes it",
+                    1,
+                    EpochPool
+                        .build(
+                            settings,
+                            listOf(item),
+                            0,
+                            TitleKeeps.NONE,
+                        ).size,
+                )
                 val noRuntime = listOf(item.copy(runtimeMs = notPositive))
-                assertEquals(emptyList<ScheduleItem>(), EpochPool.build(settings, noRuntime, 0))
+                assertEquals(emptyList<ScheduleItem>(), EpochPool.build(settings, noRuntime, 0, TitleKeeps.NONE))
             } else {
                 assertThrows("${case.row} should be refused", Exception::class.java) { direct(case.row) }
             }
@@ -218,7 +245,7 @@ class ScheduleInputFilterTest {
             )
             assertEquals(null, result.dropped[DropReason.RejectedByScheduleItem])
             // No throw anywhere: the scheduler builds a day from exactly what came back.
-            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS).n)
+            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE).n)
         }
 
     @Test
@@ -248,7 +275,7 @@ class ScheduleInputFilterTest {
 
             assertEquals(listOf(hexId(11)), result.items.map { it.id.value })
             assertEquals(mapOf(DropReason.DuplicateId to 1), result.dropped)
-            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS).n)
+            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE).n)
         }
 
     @Test
@@ -279,7 +306,7 @@ class ScheduleInputFilterTest {
         clock.atMs(1.hours.inWholeMilliseconds)
         repository.put(ALICE, MOVIES, sitem(1, runtime = after.minutes).copy(dateCreated = old))
         val inputs = repository.scheduleInputs(ALICE, setOf(MOVIES), Instant.fromEpochMilliseconds(0))
-        return EpochPool.build(filtered, inputs.items, 0)
+        return EpochPool.build(filtered, inputs.items, 0, TitleKeeps.NONE)
     }
 
     @Test

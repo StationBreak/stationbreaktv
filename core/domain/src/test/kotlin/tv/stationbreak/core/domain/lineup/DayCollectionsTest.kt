@@ -22,6 +22,8 @@ import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
@@ -155,9 +157,27 @@ class DayCollectionsTest {
         val day = rotationDay()
 
         assertEquals(boxSetFilms.map { it.item.id to boxSet }, day.films.entries)
-        val ungrouped = buildDay(day.settings, day.pool, day.n, FilmCollections.of(emptyMap()))
+        val ungrouped =
+            buildDay(
+                day.settings,
+                day.pool,
+                day.n,
+                FilmCollections.of(emptyMap()),
+                TitleWeights.NONE,
+                TitleKeeps.NONE,
+            )
         assertNotEquals(ungrouped.blocks, day.day.blocks, "the grouping reaches the layout")
-        assertEquals(buildDay(day.settings, day.pool, day.n, day.films).blocks, day.day.blocks)
+        assertEquals(
+            buildDay(
+                day.settings,
+                day.pool,
+                day.n,
+                day.films,
+                TitleWeights.NONE,
+                TitleKeeps.NONE,
+            ).blocks,
+            day.day.blocks,
+        )
 
         // Film cap 1: within the first turn of every group, no two films of the box set are back to back.
         val order =

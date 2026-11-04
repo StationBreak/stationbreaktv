@@ -36,7 +36,7 @@ class LineupVectorsTest {
 
     @Test
     fun aTimeOutsideTheDayThrows() {
-        val day = buildDay(testSettings(), emptyList(), 0L, noFilms())
+        val day = buildDay(testSettings(), emptyList(), 0L, noFilms(), noWeights(), noKeeps())
         assertFailsWith<IllegalArgumentException> { day.whatsOn(day.endMs, 0) }
     }
 }

@@ -24,6 +24,8 @@ class WhatsOnTest {
             listOf(movie('1', 20), movie('2', 25), movie('3', 35)),
             0L,
             noFilms(),
+            noWeights(),
+            noKeeps(),
         )
 
     private fun minutes(m: Int) = m * MS_MINUTE
@@ -105,7 +107,15 @@ class WhatsOnTest {
 
     @Test
     fun anEmptyDayIsOneSlate() {
-        val empty = buildDay(testSettings(startMinuteOfDay = 0, epochHours = 2), emptyList(), 0L, noFilms())
+        val empty =
+            buildDay(
+                testSettings(startMinuteOfDay = 0, epochHours = 2),
+                emptyList(),
+                0L,
+                noFilms(),
+                noWeights(),
+                noKeeps(),
+            )
         val at = empty.whatsOn(minutes(61), 4)
         assertEquals("0-120", at.block.label())
         assertNull(at.offsetMs)
@@ -121,7 +131,7 @@ class WhatsOnTest {
                 epochHours = 1,
                 startMinuteOfDay = 0,
             )
-        val before1970 = buildDay(s, listOf(movie('1', 20)), -3L, noFilms())
+        val before1970 = buildDay(s, listOf(movie('1', 20)), -3L, noFilms(), noWeights(), noKeeps())
         assertEquals(minutes(-180), before1970.startMs)
         val at = before1970.whatsOn(minutes(-180) + minutes(25), 1)
         assertEquals(minutes(-160), at.block.startMs)
@@ -132,7 +142,7 @@ class WhatsOnTest {
     fun itAgreesWithALinearScanOnGeneratedDays() {
         forAllCases("whatsOn against a linear scan", 0x0A12uL) { gen ->
             val case = generateCase(gen)
-            val built = buildDay(case.settings, case.items, case.n, noFilms())
+            val built = buildDay(case.settings, case.items, case.n, noFilms(), noWeights(), noKeeps())
             val times =
                 built.blocks.flatMap { listOf(it.startMs, it.endMs - 1) } +
                     List(5) { built.startMs + (gen.nextULong() % (built.endMs - built.startMs).toULong()).toLong() }

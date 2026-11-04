@@ -5,6 +5,8 @@ import tv.stationbreak.core.scheduler.SeededGen
 import tv.stationbreak.core.scheduler.V2Fixture
 import tv.stationbreak.core.scheduler.V2Order
 import tv.stationbreak.core.scheduler.buildDay
+import tv.stationbreak.core.scheduler.noKeeps
+import tv.stationbreak.core.scheduler.noWeights
 import tv.stationbreak.core.scheduler.v2Fixture
 import kotlin.math.roundToLong
 import kotlin.test.Test
@@ -23,11 +25,21 @@ class PlayOrdersBenchmark {
     private fun medianBuildMs(order: V2Order): Double {
         val settings = order.settings(0x1234uL, aligned = false)
         var sink = 0
-        repeat(WARM_UP) { sink += buildDay(settings, fixture.items, DAY + it, fixture.films).blocks.size }
+        repeat(WARM_UP) {
+            sink +=
+                buildDay(
+                    settings,
+                    fixture.items,
+                    DAY + it,
+                    fixture.films,
+                    noWeights(),
+                    noKeeps(),
+                ).blocks.size
+        }
         val samples = DoubleArray(RUNS)
         for (i in 0 until RUNS) {
             val began = System.nanoTime()
-            sink += buildDay(settings, fixture.items, DAY + i, fixture.films).blocks.size
+            sink += buildDay(settings, fixture.items, DAY + i, fixture.films, noWeights(), noKeeps()).blocks.size
             samples[i] = (System.nanoTime() - began) / NS_PER_MS
         }
         samples.sort()

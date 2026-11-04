@@ -59,6 +59,9 @@ object RecipeResolver {
             timingAt(utcOffsetMinutes),
             caps = null,
             runtimeFilter = null,
+            // Never read: a leftovers channel shuffles.
+            repeatGapMs = 10_800_000L,
+            pairUpToMs = 2_100_000L,
         )
 
     private fun seedOf(

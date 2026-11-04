@@ -26,7 +26,7 @@ class EpochPoolTest {
         vararg items: ScheduleItem,
         n: Long = 0L,
         s: SchedulerSettings = settings,
-    ) = EpochPool.build(s, items.toList(), n).map { it.id.value.first() }
+    ) = EpochPool.build(s, items.toList(), n, noKeeps()).map { it.id.value.first() }
 
     @Test
     fun theCutoffIsEpochStartMinusGrace() {
@@ -97,14 +97,14 @@ class EpochPoolTest {
                 testItem(idOf('1'), runtimeMs = 999L, createdAtMs = LONG_AGO),
                 testItem(idOf('2'), runtimeMs = 1_000L, createdAtMs = LONG_AGO),
             )
-        assertEquals(listOf('2'), EpochPool.build(oneSecond, items, 0L).map { it.id.value.first() })
+        assertEquals(listOf('2'), EpochPool.build(oneSecond, items, 0L, noKeeps()).map { it.id.value.first() })
         val oneHour = testSettings(minRuntimeMs = 3_600_000L)
         val longer =
             listOf(
                 testItem(idOf('1'), runtimeMs = 3_599_999L, createdAtMs = LONG_AGO),
                 testItem(idOf('2'), runtimeMs = 3_600_000L, createdAtMs = LONG_AGO),
             )
-        assertEquals(listOf('2'), EpochPool.build(oneHour, longer, 0L).map { it.id.value.first() })
+        assertEquals(listOf('2'), EpochPool.build(oneHour, longer, 0L, noKeeps()).map { it.id.value.first() })
     }
 
     @Test
@@ -118,12 +118,12 @@ class EpochPoolTest {
                 testItem(idOf('4'), runtimeMs = 60 * MS_MINUTE + 1, createdAtMs = LONG_AGO),
                 testItem(idOf('5'), runtimeMs = 59_999L, createdAtMs = LONG_AGO),
             )
-        assertEquals(listOf('2', '3'), EpochPool.build(filtered, items, 0L).map { it.id.value.first() })
+        assertEquals(listOf('2', '3'), EpochPool.build(filtered, items, 0L, noKeeps()).map { it.id.value.first() })
         // A filter with only a maximum still leaves the 60 s minimum in force below it.
         val maxOnly = testSettings(runtimeFilter = RuntimeFilter(minMs = null, maxMs = 60 * MS_MINUTE))
         assertEquals(
             listOf('1', '2', '3'),
-            EpochPool.build(maxOnly, items, 0L).map { it.id.value.first() },
+            EpochPool.build(maxOnly, items, 0L, noKeeps()).map { it.id.value.first() },
         )
     }
 
@@ -143,7 +143,7 @@ class EpochPoolTest {
                 testItem(idOf('2'), runtimeMs = 45 * MS_MINUTE, createdAtMs = cutoff),
                 testItem(idOf('3'), runtimeMs = 20 * MS_MINUTE, createdAtMs = cutoff - 1),
             )
-        assertEquals(listOf('1'), EpochPool.build(filtered, items, 0L).map { it.id.value.first() })
+        assertEquals(listOf('1'), EpochPool.build(filtered, items, 0L, noKeeps()).map { it.id.value.first() })
     }
 
     @Test
@@ -214,21 +214,26 @@ class EpochPoolTest {
                 testItem(idOf('9'), deletedAtMs = cutoff - 1),
                 testItem(idOf('1'), deletedAtMs = cutoff),
             )
-        val pool = EpochPool.build(settings, items, 0L)
+        val pool = EpochPool.build(settings, items, 0L, noKeeps())
         assertEquals(listOf('1', 'c', 'f'), pool.map { it.id.value.first() })
         assertTrue(pool.zipWithNext().all { (x, y) -> x.id.value < y.id.value })
     }
 
     @Test
     fun anEmptyInputGivesAnEmptyPool() {
-        assertEquals(emptyList(), EpochPool.build(settings, emptyList(), 0L))
+        assertEquals(emptyList(), EpochPool.build(settings, emptyList(), 0L, noKeeps()))
     }
 
     @Test
     fun duplicateIdsAreRejectedWithAClearError() {
         val e =
             assertFailsWith<IllegalArgumentException> {
-                EpochPool.build(settings, listOf(testItem(idOf('1')), testItem(idOf('2')), testItem(idOf('1'))), 0L)
+                EpochPool.build(
+                    settings,
+                    listOf(testItem(idOf('1')), testItem(idOf('2')), testItem(idOf('1'))),
+                    0L,
+                    noKeeps(),
+                )
             }
         assertTrue(idOf('1').value in e.message.orEmpty(), e.message)
         assertTrue("uplicate" in e.message.orEmpty(), e.message)
@@ -238,20 +243,20 @@ class EpochPoolTest {
     fun duplicatesAreRejectedEvenWhenTheEpochWouldLeaveThemOut() {
         assertFailsWith<IllegalArgumentException> {
             val zero = testItem(idOf('1'), runtimeMs = 0L)
-            EpochPool.build(settings, listOf(zero, zero), 0L)
+            EpochPool.build(settings, listOf(zero, zero), 0L, noKeeps())
         }
     }
 
     @Test
     fun anInputInCanonicalOrderKeepsItsOrderAndOneOutOfOrderIsSorted() {
         val ordered = listOf(testItem(idOf('1')), testItem(idOf('2')), testItem(idOf('3')))
-        assertEquals(ordered, EpochPool.build(settings, ordered, 0L))
-        assertEquals(ordered, EpochPool.build(settings, listOf(ordered[2], ordered[0], ordered[1]), 0L))
+        assertEquals(ordered, EpochPool.build(settings, ordered, 0L, noKeeps()))
+        assertEquals(ordered, EpochPool.build(settings, listOf(ordered[2], ordered[0], ordered[1]), 0L, noKeeps()))
     }
 
     @Test
     fun aCopyAfterAnAscendingRunIsStillRejected() {
         val items = listOf(testItem(idOf('1')), testItem(idOf('2')), testItem(idOf('2')))
-        assertFailsWith<IllegalArgumentException> { EpochPool.build(settings, items, 0L) }
+        assertFailsWith<IllegalArgumentException> { EpochPool.build(settings, items, 0L, noKeeps()) }
     }
 }

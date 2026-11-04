@@ -6,6 +6,8 @@ import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.scheduler.Day
 import tv.stationbreak.core.scheduler.buildDay
+import tv.stationbreak.core.scheduler.noKeeps
+import tv.stationbreak.core.scheduler.noWeights
 import tv.stationbreak.core.scheduler.runtimeMsOrZero
 import tv.stationbreak.core.scheduler.shortRuntimeMs
 import tv.stationbreak.core.scheduler.syntheticScheduleItems
@@ -37,10 +39,10 @@ class WhatsOnBenchmark {
         val dayNumber = 30_000L
         // buildDay is timed too, for information: the caller builds a day once and then asks it many times.
         val builds = LongArray(BUILDS)
-        var day: Day = buildDay(settings, items, dayNumber, FilmCollections.of(emptyMap()))
+        var day: Day = buildDay(settings, items, dayNumber, FilmCollections.of(emptyMap()), noWeights(), noKeeps())
         for (i in 0 until BUILDS) {
             val began = System.nanoTime()
-            day = buildDay(settings, items, dayNumber, FilmCollections.of(emptyMap()))
+            day = buildDay(settings, items, dayNumber, FilmCollections.of(emptyMap()), noWeights(), noKeeps())
             builds[i] = System.nanoTime() - began
         }
         val span = day.endMs - day.startMs

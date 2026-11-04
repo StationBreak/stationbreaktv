@@ -26,6 +26,8 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
+import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.RatingLadder
@@ -95,7 +97,16 @@ private fun layoutOf(
 ): Lazy<Day> =
     lazy {
         val began = TimeSource.Monotonic.markNow()
-        buildDay(settings, pool, n, films).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
+        // The pool is already the pool of the day, trimmed once when it was worked out (ruledDayOf), or restored from
+        // disk as it was kept: it is laid out with NONE and never windowed again. Weights come with Task 21.
+        buildDay(
+            settings,
+            pool,
+            n,
+            films,
+            TitleWeights.NONE,
+            TitleKeeps.NONE,
+        ).also { laidOut(n, began.elapsedNow().inWholeMilliseconds) }
     }
 
 /** No film is in a collection: a leftovers channel's side map, and a channel whose ordering does not read one. */
@@ -314,7 +325,7 @@ internal class LineupDays(
             val items = build.snapshotOf(cut).items.map { it.item }
             val eligible =
                 group.distinctBy { EpochPool.inputsOf(it.settings) }.flatMapTo(HashSet()) { s ->
-                    EpochPool.build(s.settings, items, s.n).map { it.id }
+                    EpochPool.build(s.settings, items, s.n, TitleKeeps.NONE).map { it.id }
                 }
             nowhere += eligible - aired - build.withheld(cut) - build.hiddenLeftovers(cut)
         }
@@ -449,11 +460,21 @@ internal class LineupDays(
                 val before = leftovers[chain.next++]
                 val pool = leftoversPool(before, snapshot, chain.claimed)
                 val on = byId[before.id]
-                val items = if (on != null) EpochPool.build(on.settings, pool.items, on.n) else pool.items
+                val items =
+                    if (on != null) {
+                        EpochPool.build(
+                            on.settings,
+                            pool.items,
+                            on.n,
+                            TitleKeeps.NONE,
+                        )
+                    } else {
+                        pool.items
+                    }
                 items.mapTo(chain.claimed) { it.id }
             }
             val pool = leftoversPool(s.channel, snapshot, chain.claimed)
-            val day = EpochPool.build(s.settings, pool.items, s.n)
+            val day = EpochPool.build(s.settings, pool.items, s.n, TitleKeeps.NONE)
             return restore(s, day, NO_FILMS, hiddenReason(pool, day))
         }
 

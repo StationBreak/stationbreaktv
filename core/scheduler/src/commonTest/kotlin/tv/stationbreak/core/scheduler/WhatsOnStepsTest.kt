@@ -36,7 +36,16 @@ class WhatsOnStepsTest {
             )
         var comparisons = 0
         // A day long after every item was created, so the whole library is in the pool.
-        val day = buildDayCounting(settings, items, 30_000L, noFilms(), onCompare = { comparisons++ })
+        val day =
+            buildDayCounting(
+                settings,
+                items,
+                30_000L,
+                noFilms(),
+                noWeights(),
+                noKeeps(),
+                onCompare = { comparisons++ },
+            )
         val blocks = day.blocks.size
         assertTrue(blocks >= minimumBlocks, "the day has only $blocks blocks")
         val allowed = ceilLog2(blocks) + SLACK

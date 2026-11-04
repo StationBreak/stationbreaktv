@@ -4,6 +4,7 @@ package tv.stationbreak.core.scheduler
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
 
 /**
  * Which items count for epoch `n` (spec 08, Unit 1).
@@ -41,13 +42,18 @@ object EpochPool {
         )
 
     /**
-     * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes). Throws
-     * [IllegalArgumentException] naming the ID when two inputs share one, whether or not either would be kept.
+     * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes), with the trim window of
+     * [keeps] applied last ([TrimWindow]). Throws [IllegalArgumentException] naming the ID when two inputs share one,
+     * whether or not either would be kept.
+     *
+     * The window is applied exactly once, in the day build. A pool that was kept after a window is restored with
+     * [TitleKeeps.NONE], never windowed again.
      */
     fun build(
         settings: SchedulerSettings,
         items: List<ScheduleItem>,
         n: Long,
+        keeps: TitleKeeps,
     ): List<ScheduleItem> {
         // Input already in canonical order (every day pool and every snapshot is) is unique by construction: one
         // pass of comparisons stands in for the hash set and the sort, with the same result.
@@ -55,7 +61,8 @@ object EpochPool {
         if (!canonical) requireUniqueIds(items)
         val cutoff = Epochs.cutoff(settings, n)
         val kept = items.filter { isInPool(it, cutoff, settings) }
-        return if (canonical) kept else kept.sortedBy { it.id.value }
+        val ordered = if (canonical) kept else kept.sortedBy { it.id.value }
+        return TrimWindow.apply(ordered, n, keeps)
     }
 
     private fun isStrictlyAscending(items: List<ScheduleItem>): Boolean {

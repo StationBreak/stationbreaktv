@@ -55,7 +55,14 @@ class V2DayTest {
     private fun programs(
         settings: SchedulerSettings,
         films: FilmCollections,
-    ) = buildDay(settings, pool, 1L, films).blocks.map { (it.content as ScheduleContent.Program).itemId }
+    ) = buildDay(
+        settings,
+        pool,
+        1L,
+        films,
+        noWeights(),
+        noKeeps(),
+    ).blocks.map { (it.content as ScheduleContent.Program).itemId }
 
     @Test
     fun aMapGroupsFilmsInRotation() {
@@ -82,9 +89,25 @@ class V2DayTest {
     fun anInputErrorStillThrowsBeforeBuilding() {
         val settings = rotation(1)
 
-        assertFailsWith<IllegalArgumentException> { buildDay(settings, pool + films.first(), 1L, map) }
         assertFailsWith<IllegalArgumentException> {
-            buildDay(settings, listOf(films.first().copy(createdAtMs = Long.MAX_VALUE)), 1L, map)
+            buildDay(
+                settings,
+                pool + films.first(),
+                1L,
+                map,
+                noWeights(),
+                noKeeps(),
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            buildDay(
+                settings,
+                listOf(films.first().copy(createdAtMs = Long.MAX_VALUE)),
+                1L,
+                map,
+                noWeights(),
+                noKeeps(),
+            )
         }
     }
 
