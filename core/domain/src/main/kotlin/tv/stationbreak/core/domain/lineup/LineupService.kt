@@ -2,8 +2,13 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +21,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -49,6 +56,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.scheduler.Epochs
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.time.TimeSource
@@ -131,6 +139,10 @@ class LineupService internal constructor(
     internal val catalog: StarterCatalogView get() = seams.catalog
     private val days = LineupDays(seams.catalog)
 
+    // Background rolls (see [rollSoon]): their own scope, so a roll outlives the read that asked for it.
+    private val rollScope = CoroutineScope(SupervisorJob() + seams.rollDispatcher)
+    private val rolls = HashSet<Job>()
+
     // The play keys of the last few revisions, so a list is not hashed again for each emission of the same revision.
     private val playKeys = PlayKeyCache()
 
@@ -155,6 +167,9 @@ class LineupService internal constructor(
          * that this app must not write over.
          */
         @Volatile var writable = false
+
+        /** The boundary a background roll was last attempted for. Written under the service's [lock]. */
+        var rollTriedFor: Long? = null
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -261,7 +276,7 @@ class LineupService internal constructor(
         current: Lineup?,
         before: RefreshMeta,
         kept: List<LineupChannel> = emptyList(),
-        basis: Lineup? = current,
+        offsetFrom: Lineup? = current,
         newAccount: Boolean = false,
     ): Pair<Lineup, RefreshMeta> {
         // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
@@ -284,7 +299,7 @@ class LineupService internal constructor(
                 read.snapshot,
                 read.names,
                 nowMs,
-                nextBoundary(basis ?: rolled, nowMs),
+                nextBoundary(offsetFrom ?: rolled, nowMs),
                 catalog,
                 withoutCollections = read.giveUp,
                 kept = (kept + own).distinctBy { it.id },
@@ -295,7 +310,7 @@ class LineupService internal constructor(
                 plannedGeneration = read.generation,
                 collectionPassActedOn = taken ?: before.collectionPassActedOn,
                 plannedLibraries = libraries.map { it.value }.sorted(),
-                extrasFromMs = extrasBoundary(before.extrasFromMs, basis, newAccount, read.now.toEpochMilliseconds()),
+                extrasFromMs = extrasBoundary(before.extrasFromMs, offsetFrom, newAccount, nowMs),
             )
         return planned to meta
     }
@@ -641,41 +656,68 @@ class LineupService internal constructor(
     }
 
     /**
-     * [loaded], with what has become past taken off first ([rolled]): a starter that was to leave goes to the shelf,
-     * previous rules and a basis whose boundary has passed are dropped. The day turnover that the schedule source
-     * observes (its next read after a day start) is what calls this; it saves and publishes only when something
-     * changed, and never when the file may not be written (the days still follow `rulesFor` and `leavesAtMs`).
+     * Called by a reader (the schedule source) with the lineup it holds: when something in it is past ([rolled]), a
+     * roll is attempted in the background. It never waits and never blocks the caller: the days are right without it
+     * (`rulesFor`, `householdFor` and `leavesAtMs` give the days of the right rules), so this only tidies the stored
+     * lineup. One attempt is made per account and boundary: a session that cannot save, or a save that failed, is not
+     * tried on every read, and a lock that is busy is skipped (a refresh or an edit rolls under it anyway). The roll
+     * works from the held lineup and reads nothing from the store.
      */
-    internal suspend fun loadedRolled(account: LibraryAccount): Revisioned? {
-        val held = loaded(account) ?: return null
+    internal fun rollSoon(
+        account: LibraryAccount,
+        held: Revisioned,
+    ) {
         val nowMs = clock.now().toEpochMilliseconds()
-        return if (held.lineup.rolled(nowMs) === held.lineup) held else roll(account, nowMs) ?: held
+        val owner = ownerOf(account)
+        if (owner != null && held.lineup.rolled(nowMs) !== held.lineup) startRoll(entryOf(owner), owner, held, nowMs)
     }
 
-    private suspend fun roll(
-        account: LibraryAccount,
+    // One attempt per boundary (the first lookup to see it), started on the roll scope.
+    private fun startRoll(
+        entry: Entry,
+        owner: Owner,
+        held: Revisioned,
         nowMs: Long,
-    ): Revisioned? {
-        val owner = ownerOf(account) ?: return null
-        val entry = entryOf(owner)
-        return entry.mutex.withLock {
-            val start = startOf(owner, entry)
-            entry.writable = start.save
-            val held = reconciled(entry, start)
-            val lineup = held?.lineup ?: start.current
-            if (!entry.writable || lineup == null) {
-                noteWritable(entry)
-                return@withLock held
+    ) {
+        val boundary = nextBoundary(held.lineup, nowMs)
+        val first =
+            synchronized(lock) {
+                (entry.rollTriedFor != boundary).also { if (it) entry.rollTriedFor = boundary }
             }
-            val rolled = lineup.rolled(nowMs)
-            val meta = held?.meta ?: start.meta
-            if (rolled !== lineup && saveVerified(owner, rolled, meta)) {
-                publish(entry, rolled, meta)
-                entry.loaded = true
-            }
-            entry.state.value
+        if (first) {
+            rollAttempts.incrementAndGet()
+            val job = rollScope.launch { rollHeld(owner, entry, nowMs) }
+            synchronized(lock) { rolls += job }
+            job.invokeOnCompletion { synchronized(lock) { rolls -= job } }
         }
     }
+
+    // Under tryLock: the lineup is rolled from what is held now (re-checked here), saved, then published. A session
+    // that may not write does nothing; a failed save leaves the held lineup as it was.
+    private suspend fun rollHeld(
+        owner: Owner,
+        entry: Entry,
+        nowMs: Long,
+    ) {
+        if (!entry.mutex.tryLock()) return
+        try {
+            val held = entry.state.value
+            val rolled = held?.lineup?.rolled(nowMs)
+            val due = held != null && rolled !== held.lineup && held.writable && entry.writable
+            if (due && saveVerified(owner, checkNotNull(rolled), held.meta)) publish(entry, rolled, held.meta)
+        } finally {
+            entry.mutex.unlock()
+        }
+    }
+
+    /** For tests: waits for the background rolls started so far. */
+    internal suspend fun awaitRolls() = synchronized(lock) { rolls.toList() }.joinAll()
+
+    /** For tests: how many background rolls were started. */
+    internal val rollAttempts = AtomicInteger()
+
+    /** For tests: [account]'s lock, to show that a read never waits on it. */
+    internal fun lockOf(account: LibraryAccount): Mutex? = ownerOf(account)?.let { entryOf(it).mutex }
 
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> {
         val owner = ownerOf(account) ?: return flowOf(emptyList())
@@ -835,6 +877,7 @@ internal class LineupSeams(
     val encode: (Lineup, RefreshMeta) -> ByteArray = LineupCodec::encode,
     val timed: (Long) -> Unit = {},
     val derived: DayStore? = null,
+    val rollDispatcher: CoroutineDispatcher = Dispatchers.Default,
 )
 
 // A channel the viewer built: custom (a retired starter too), or one whose rules need a newer app but whose stored

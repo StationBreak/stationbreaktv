@@ -87,11 +87,21 @@ internal fun planOf(
     nowMs: Long = 1_000L,
     offset: Int = 0,
     names: CollectionNames = NO_NAMES,
-    boundaryMs: Long = nowMs + DAY_MS,
+    boundaryMs: Long = nextDayStart(nowMs, current?.utcOffsetMinutes ?: offset),
 ): Lineup = LineupPlanner.plan(current, SERVER, USER, offset, snapshot, names, nowMs, boundaryMs, catalog)
 
-/** A day, for tests that pick a boundary a day after now. */
+/** A day, and the hour the broadcast day starts at (06:00, offset 0), for tests that pick a boundary. */
 internal const val DAY_MS = 86_400_000L
+internal const val DAY_START_MS = 6 * 3_600_000L
+
+/** The first broadcast-day start (06:00 at offset 0) after [t]. */
+internal fun nextDayStart(
+    t: Long,
+    offsetMinutes: Int = 0,
+): Long {
+    val offsetMs = offsetMinutes * 60_000L
+    return ((t + offsetMs - DAY_START_MS).floorDiv(DAY_MS) + 1) * DAY_MS + DAY_START_MS - offsetMs
+}
 
 internal fun Lineup.channel(key: String): LineupChannel =
     channels.first { it.id == LineupIds.starter(key) || it.id == LineupIds.leftovers(key) }

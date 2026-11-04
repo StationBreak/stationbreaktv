@@ -257,7 +257,7 @@ internal class LineupDays(
         lineup: Lineup,
         extrasFromMs: Long?,
     ): String {
-        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it, policyOf(it, lineup)) }
+        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it, policyOf(it, lineup), lineup) }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         val inputs =
             JsonObject(
@@ -296,17 +296,34 @@ internal class LineupDays(
     private fun channelInputs(
         channel: LineupChannel,
         policy: PoolPolicy,
-    ): JsonObject =
-        JsonObject(
-            linkedMapOf(
+        lineup: Lineup,
+    ): JsonObject {
+        val fields =
+            linkedMapOf<String, JsonElement>(
                 "id" to JsonPrimitive(channel.id.value),
                 "state" to JsonPrimitive(channel.state.name),
                 "ceiling" to JsonPrimitive(ceilings.of(channel)),
                 "policy" to JsonPrimitive(nameOf(policy)),
                 "leavesAt" to JsonPrimitive(channel.leavesAtMs),
                 "source" to LineupCodec.sourceOf(unnamed(channel.source)),
+            )
+        // An unedited starter's days follow "Use my collections" (the flag, and the flag before the basis's boundary),
+        // so its play key does too; no other channel's days do.
+        val source = channel.source
+        if (source is ChannelSource.Starter && !source.edited) fields["household"] = householdInputs(lineup)
+        return JsonObject(fields)
+    }
+
+    private fun householdInputs(lineup: Lineup): JsonObject {
+        val basis = lineup.curationBasis
+        return JsonObject(
+            linkedMapOf(
+                "use" to JsonPrimitive(lineup.useMyCollections),
+                "basisFromMs" to JsonPrimitive(basis?.fromMs),
+                "basisHousehold" to JsonPrimitive(basis?.household),
             ),
         )
+    }
 
     /**
      * [channel]'s part of [inputsOf] in [lineup], as a digest: it changes whenever this channel's own inputs to the
@@ -318,7 +335,7 @@ internal class LineupDays(
         channel: LineupChannel,
         lineup: Lineup,
     ): PlayKey {
-        val inputs = channelInputs(channel, policyOf(channel, lineup)).toString()
+        val inputs = channelInputs(channel, policyOf(channel, lineup), lineup).toString()
         return PlayKey(sha256Hex(inputs.encodeToByteArray()))
     }
 
@@ -519,8 +536,17 @@ internal class LineupDays(
             cut: Cut,
             policy: PoolPolicy,
         ): Pool {
+            // Not the day start: two days of one cut-off with the same rules share a pool.
             val key =
-                EvaluationKey(cut, rules.sources, rules.effectiveExclusions, rules.filters, rules.maxRating, policy)
+                EvaluationKey(
+                    cut.cutoffMs,
+                    cut.extras,
+                    rules.sources,
+                    rules.effectiveExclusions,
+                    rules.filters,
+                    rules.maxRating,
+                    policy,
+                )
             evaluations[key]?.let { return it }
             evaluated()
             return PoolEvaluator.evaluate(rules, snapshotOf(cut), policy).also { evaluations[key] = it }
@@ -573,7 +599,9 @@ internal class LineupDays(
 
         // The rules a channel airs on the day that starts at [dayStartMs]: a starter's rules for that day, and for an
         // unedited one, without the household collections when the flag in force that day is off (null: nothing is
-        // left, a day with no source). A custom channel's rules are its own.
+        // left, a day with no source). A custom channel's rules are its own. A collection the snapshot lacks counts
+        // as household-only (`HouseholdSources.without`), so on a snapshot without a full collection pass a partial
+        // drop is silent; such collections resolve to nothing anyway, and a day with no source left says so.
         private fun rulesAt(
             channel: LineupChannel,
             dayStartMs: Long,
@@ -708,7 +736,8 @@ internal class LineupDays(
      * ceiling, and its policy, so channels under different policies with the same rules never share a pool.
      */
     private data class EvaluationKey(
-        val cut: Cut,
+        val cutoffMs: Long,
+        val extras: Boolean,
         val sources: List<Source>,
         val exclusions: List<Source>,
         val filters: Filters?,

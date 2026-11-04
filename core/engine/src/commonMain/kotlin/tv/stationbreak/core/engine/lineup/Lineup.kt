@@ -43,6 +43,9 @@ sealed interface ChannelSource {
             fromMs: Long,
         ): Starter = copy(previousRules = rules, rulesFromMs = fromMs)
 
+        /** This starter with [rules] at once and no previous rules: for a starter nothing of which airs today. */
+        fun withRulesNow(rules: ChannelRules): Starter = copy(rules = rules, previousRules = null, rulesFromMs = null)
+
         /** This starter with no previous rules and no boundary. */
         fun withoutPrevious(): Starter = copy(previousRules = null, rulesFromMs = null)
 

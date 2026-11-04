@@ -18,7 +18,7 @@ class BoundaryRulesTest {
     private val keys = listOf("alpha", "bravo", "charlie", "delta", "echo")
     private val base = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 110 + i * 10) })
     private val noon = 12 * 3_600_000L
-    private val boundary = noon + DAY_MS / 2
+    private val boundary = nextDayStart(noon)
 
     private fun fills(catalog: StarterCatalogView) = catalog.recipes.associate { it.key to QUALIFYING_ITEMS }
 
@@ -96,8 +96,8 @@ class BoundaryRulesTest {
 
     @Test
     fun thePlannerUsesTheBoundaryItIsGiven() {
-        val next = replan(first(), changed(), boundaryMs = 777_000L)
-        assertEquals(777_000L, next.channel("alpha").starter.rulesFromMs)
+        val next = replan(first(), changed(), boundaryMs = 3 * DAY_MS + DAY_START_MS)
+        assertEquals(3 * DAY_MS + DAY_START_MS, next.channel("alpha").starter.rulesFromMs)
     }
 
     @Test
@@ -107,6 +107,29 @@ class BoundaryRulesTest {
         assertFailsWith<IllegalArgumentException> { starterOf(old).withNewRules(timed, noon, boundary) }
         val edited = ChannelSource.Starter("alpha", edited = true, rules = old)
         assertFailsWith<IllegalArgumentException> { edited.withNewRules(old.copy(name = "Other"), noon, boundary) }
+    }
+
+    @Test
+    fun withNewRulesRequiresAFutureDayStartBoundary() {
+        val old = rulesOf("alpha")
+        val next = old.copy(sources = listOf(Source.Genre("other")))
+        assertFailsWith<IllegalArgumentException> { starterOf(old).withNewRules(next, boundary, boundary) }
+        assertFailsWith<IllegalArgumentException> { starterOf(old).withNewRules(next, noon, boundary - 3_600_000L) }
+        assertEquals(boundary, starterOf(old).withNewRules(next, noon, boundary).rulesFromMs)
+    }
+
+    @Test
+    fun aShelvedStarterSwitchedOnTakesItsNewRulesAtOnce() {
+        val shelved = first().withChannel("alpha") { it.copy(state = ChannelState.Shelf) }
+        val catalog = changed("bravo")
+        val next = replan(shelved, catalog).channel("alpha")
+        assertEquals(ChannelState.On, next.state)
+        assertNull(next.starter.previousRules)
+        assertNull(next.starter.rulesFromMs)
+        assertEquals(listOf<Source>(Source.Genre("bravo")), next.starter.rulesFor(noon).sources)
+        // A starter that stays on keeps today's rules until the boundary.
+        val stays = replan(first(), catalog).channel("alpha").starter
+        assertEquals(boundary, stays.rulesFromMs)
     }
 
     @Test

@@ -18,7 +18,8 @@ object HouseholdSources {
 
     /**
      * [rules] without the collection sources whose collection, named in [snapshot], is household-only; [rules] itself
-     * when none is dropped, and null when no source is left.
+     * when none is dropped, and null when no source is left. A collection the snapshot lacks (before a full collection
+     * pass) has no name and counts as household-only; it resolves to nothing then anyway.
      */
     fun without(
         rules: ChannelRules,

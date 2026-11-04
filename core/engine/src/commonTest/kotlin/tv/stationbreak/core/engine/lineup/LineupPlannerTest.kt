@@ -151,7 +151,7 @@ class LineupPlannerTest {
     @Test
     fun theFirstChoiceCanBeToldNotToWaitForTheCollectionPass() {
         val unsynced = libraryOf(fills(), collectionsSynced = false)
-        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, 1_000L + DAY_MS, base)
+        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, nextDayStart(1_000L), base)
         assertFalse(plain.finalised, "the default still waits")
 
         val told =
@@ -163,7 +163,7 @@ class LineupPlannerTest {
                 unsynced,
                 NO_NAMES,
                 1_000L,
-                1_000L + DAY_MS,
+                nextDayStart(1_000L),
                 base,
                 withoutCollections = true,
             )
@@ -525,7 +525,7 @@ class LineupPlannerTest {
                 version = 2,
             )
         val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
-        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, 9_000L + DAY_MS, v2)
+        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, nextDayStart(9_000L), v2)
         assertEquals(1, waiting.catalogVersion, "the default still waits")
         assertEquals(lineup.channels, waiting.channels)
 
@@ -538,7 +538,7 @@ class LineupPlannerTest {
                 unsynced,
                 NO_NAMES,
                 9_000L,
-                9_000L + DAY_MS,
+                nextDayStart(9_000L),
                 v2,
                 withoutCollections = true,
             )
@@ -568,7 +568,7 @@ class LineupPlannerTest {
                 unsynced,
                 NO_NAMES,
                 9_000L,
-                9_000L + DAY_MS,
+                nextDayStart(9_000L),
                 v2,
                 withoutCollections = true,
             )
@@ -654,7 +654,7 @@ class LineupPlannerTest {
     }
 
     private fun rankedFor(snapshot: RuleSnapshot): List<String> {
-        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L, 1_000L + DAY_MS)
+        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L, nextDayStart(1_000L))
         val candidates = base.recipes.map { it to planning.resolve(it) }
         return planning.ranked(candidates).map { it.key }
     }

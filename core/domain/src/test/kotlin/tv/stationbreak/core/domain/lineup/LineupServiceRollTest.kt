@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -11,11 +13,12 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertSame
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-/** What has become past is rolled on a read and saved once, and only then (spec 23, D1). */
+/**
+ * What has become past is rolled in the background, once per boundary, without ever making a read wait (spec 23, D1).
+ */
 class LineupServiceRollTest {
     private val library = CountingLibrary().apply { seed(fillingLibrary()) }
     private val store = RecordingStore()
@@ -40,14 +43,10 @@ class LineupServiceRollTest {
                 channels =
                     stored.lineup.channels.map {
                         val source = it.source
-                        when {
-                            it.id == laughs && source is ChannelSource.Starter -> {
-                                it.copy(source = source.withPrevious(old, dueMs), leavesAtMs = dueMs)
-                            }
-
-                            else -> {
-                                it
-                            }
+                        if (it.id == laughs && source is ChannelSource.Starter) {
+                            it.copy(source = source.withPrevious(old, dueMs), leavesAtMs = dueMs)
+                        } else {
+                            it
                         }
                     },
                 curationBasis = CurationBasis(dueMs, emptySet(), true),
@@ -56,37 +55,101 @@ class LineupServiceRollTest {
         return due
     }
 
+    private fun pastDue() {
+        now = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() + 7_200_000L)
+    }
+
+    private fun savedLineup(): Lineup {
+        val stored = LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT)))
+        return (stored as LineupCodec.Decoded.Loaded).lineup
+    }
+
     @Test
-    fun aReadRollsWhatIsPastAndSavesIt() =
+    fun aLookupRollsWhatIsPastInTheBackgroundAndSavesIt() =
         runBlocking<Unit> {
-            val due = storeDue(now.toEpochMilliseconds() + 3_600_000L)
-            now = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() + 7_200_000L)
+            storeDue(now.toEpochMilliseconds() + 3_600_000L)
+            pastDue()
             val service = newService()
-            val held = checkNotNull(service.loadedRolled(ACCOUNT))
-            val laughsNow = held.lineup.channels.first { it.id == laughs }
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+            val rolled = checkNotNull(service.lineup(ACCOUNT).value).lineup
+            val laughsNow = rolled.channels.first { it.id == laughs }
             assertEquals(ChannelState.Shelf, laughsNow.state)
             assertNull(laughsNow.leavesAtMs)
             assertNull((laughsNow.source as ChannelSource.Starter).previousRules)
-            assertNull(held.lineup.curationBasis)
-            val storedNow = LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT)))
-            val saved = (storedNow as LineupCodec.Decoded.Loaded).lineup
-            assertEquals(held.lineup, saved)
-            // Read again: nothing is past, so nothing is saved and the revision stays.
-            val saves = store.calls.count { it == "save" }
-            val again = checkNotNull(service.loadedRolled(ACCOUNT))
-            assertSame(held, again)
-            assertEquals(saves, store.calls.count { it == "save" })
-            assertEquals(ChannelState.On, due.channels.first { it.id == laughs }.state)
+            assertNull(rolled.curationBasis)
+            assertEquals(rolled, savedLineup())
+            // Nothing is past now: another lookup starts nothing.
+            val attempts = service.rollAttempts.get()
+            service.rollSoon(ACCOUNT, checkNotNull(service.lineup(ACCOUNT).value))
+            assertEquals(attempts, service.rollAttempts.get())
         }
 
     @Test
-    fun aReadBeforeTheBoundaryChangesNothing() =
+    fun aLookupBeforeTheBoundaryChangesNothing() =
         runBlocking<Unit> {
             val due = storeDue(now.toEpochMilliseconds() + 3_600_000L)
             val service = newService()
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+            assertEquals(0, service.rollAttempts.get())
+            assertEquals(due, checkNotNull(service.lineup(ACCOUNT).value).lineup)
+        }
+
+    @Test
+    fun aSessionThatCannotSaveMakesOneAttemptPerBoundary() =
+        runBlocking<Unit> {
+            storeDue(now.toEpochMilliseconds() + 3_600_000L)
+            pastDue()
+            val service = newService()
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            store.inner.failWrites = true
             val saves = store.calls.count { it == "save" }
-            val held = checkNotNull(service.loadedRolled(ACCOUNT))
-            assertEquals(due, held.lineup)
-            assertEquals(saves, store.calls.count { it == "save" })
+            repeat(25) { service.rollSoon(ACCOUNT, held) }
+            service.awaitRolls()
+            assertEquals(1, service.rollAttempts.get(), "however many lookups")
+            repeat(25) { service.rollSoon(ACCOUNT, held) }
+            service.awaitRolls()
+            assertEquals(1, service.rollAttempts.get())
+            assertEquals(saves + 1, store.calls.count { it == "save" }, "the failed save was tried once")
+            // The next boundary is another attempt.
+            now = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() + 86_400_000L)
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+            assertEquals(2, service.rollAttempts.get())
+        }
+
+    @Test
+    fun aLookupNeverWaitsOnAHeldLock() =
+        runBlocking<Unit> {
+            val due = storeDue(now.toEpochMilliseconds() + 3_600_000L)
+            pastDue()
+            val service = newService()
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            val lock = checkNotNull(service.lockOf(ACCOUNT))
+            lock.lock()
+            try {
+                service.rollSoon(ACCOUNT, held)
+                service.awaitRolls()
+            } finally {
+                lock.unlock()
+            }
+            assertEquals(due, checkNotNull(service.lineup(ACCOUNT).value).lineup, "skipped: a refresh rolls anyway")
+        }
+
+    @Test
+    fun concurrentLookupsAtTurnoverReadTheStoreNoMoreThanOnce() =
+        runBlocking<Unit> {
+            storeDue(now.toEpochMilliseconds() + 3_600_000L)
+            pastDue()
+            val service = newService()
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            val loads = store.calls.count { it == "load" }
+            (1..20).map { async { service.rollSoon(ACCOUNT, held) } }.awaitAll()
+            service.awaitRolls()
+            assertEquals(1, service.rollAttempts.get())
+            assertEquals(loads, store.calls.count { it == "load" }, "a roll works from the held lineup")
         }
 }

@@ -49,7 +49,7 @@ class LineupV3RoundTripTest {
         library,
         CollectionNames(emptyMap()),
         5_000L,
-        5_000L + 86_400_000L,
+        21_600_000L,
         catalog,
     )
 

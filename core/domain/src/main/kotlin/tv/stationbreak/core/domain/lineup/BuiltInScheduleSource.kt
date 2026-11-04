@@ -568,7 +568,9 @@ class BuiltInScheduleSource(
         libraries: Set<ItemId>,
         at: Instant,
     ): Lookup? {
-        val held = service.loadedRolled(account) ?: return null
+        val held = service.loaded(account) ?: return null
+        // Rolling what is past is tidying; the days are right without it, so it never delays a read.
+        service.rollSoon(account, held)
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
         return lookupOf(account, libraries, held, scheduled)
     }

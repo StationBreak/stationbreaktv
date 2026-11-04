@@ -168,6 +168,44 @@ class BoundaryDaysTest {
     }
 
     @Test
+    fun theHouseholdMovesAnUneditedStartersPlayKeyAndNoOthers() {
+        val custom = channel("mine", 600, ChannelState.On, ChannelSource.Custom(rules("Mine", Source.Genre("Crime"))))
+        val lineup = lineupOf(starter("laughs", 110, ChannelState.On, comedy), custom)
+        val toggled = lineup.copy(useMyCollections = false)
+        val cleared = toggled.copy(curationBasis = CurationBasis(boundary, emptySet(), true))
+
+        fun key(
+            of: Lineup,
+            id: String,
+        ) = days.playKeyOf(of.channels.first { it.id.value == id }, of)
+        val laughs = LineupIds.starter("laughs").value
+        assertNotEquals(key(lineup, laughs), key(toggled, laughs))
+        assertNotEquals(key(toggled, laughs), key(cleared, laughs))
+        assertEquals(key(lineup, "mine"), key(toggled, "mine"))
+        assertEquals(key(lineup, "mine"), key(cleared, "mine"))
+    }
+
+    @Test
+    fun twoDayStartsOfOneCutoffShareAPool() {
+        val base = rules("A", Source.Genre("Comedy"))
+        val grace = base.timing.effectiveGraceHours
+        // Another start an hour later with an hour more grace: the same cut-off, a different day start.
+        val later = rules("B", Source.Genre("Comedy"), timing = timing(start = "07:00").copy(graceHours = grace + 1))
+        val lineup =
+            lineupOf(
+                channel("a", 600, ChannelState.On, ChannelSource.Custom(base)),
+                channel("b", 610, ChannelState.On, ChannelSource.Custom(later)),
+            )
+        val scheduled = days.scheduled(lineup, noon, null)
+        assertEquals(1, scheduled.map { it.cutoffMs }.distinct().size)
+        assertEquals(2, scheduled.map { it.dayStartMs }.distinct().size)
+        var evaluations = 0
+        val snapshots = scheduled.associate { it.cutoffMs to snapshotOf(it.cutoffMs) }
+        days.days(lineup, scheduled, snapshots, evaluated = { evaluations++ })
+        assertEquals(1, evaluations)
+    }
+
+    @Test
     fun aLeavingChannelShowsAsShelfOnceDue() {
         val laughs = before.channels.first { it.id == LineupIds.starter("laughs") }
         val leaving: LineupChannel = laughs.copy(leavesAtMs = boundary)

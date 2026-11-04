@@ -300,7 +300,7 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.reason(BRAVO)) }
         compose
             .onNodeWithTag(ChannelsTags.reason(BRAVO), useUnmergedTree = true)
-            .assertTextContains("Everything that fits is filtered out by this channel", substring = true)
+            .assertTextContains("Everything that fits is filtered out", substring = true)
     }
 
     @Test

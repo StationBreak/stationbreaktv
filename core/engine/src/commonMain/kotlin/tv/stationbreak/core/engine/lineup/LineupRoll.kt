@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.ChannelRules
@@ -64,7 +65,10 @@ private fun LineupChannel.rolled(nowMs: Long): LineupChannel {
 }
 
 /**
- * This starter with [rules] as its rules, starting at [boundaryMs]. [rules] must keep the current timing (a timing
+ * This starter with [rules] as its rules, starting at [boundaryMs], for a starter that is on the air: nothing of one
+ * that is not on today (a shelved starter being switched on) needs protecting, so that one takes new rules at once
+ * ([ChannelSource.Starter.withRulesNow]). [boundaryMs] must be after [nowMs] and a broadcast-day start of the
+ * starter's own timing. [rules] must keep the current timing (a timing
  * change is not a re-resolve) and the starter must be unedited. Equal to the current rules: unchanged. While a
  * boundary is pending ([ChannelSource.Starter.rulesFromMs] after [nowMs]) the previous rules stay and the rules are
  * replaced, so a second change before the boundary does not show today a third version; a change back to the previous
@@ -77,6 +81,8 @@ internal fun ChannelSource.Starter.withNewRules(
 ): ChannelSource.Starter {
     require(!edited) { "Only an unedited starter follows new rules" }
     require(rules.timing == this.rules.timing) { "New rules keep the current timing" }
+    require(boundaryMs > nowMs) { "The boundary is after now" }
+    require(isDayStart(this.rules, boundaryMs)) { "The boundary is a broadcast-day start" }
     if (rules == this.rules) return this
     val pending = rulesFromMs.let { it != null && it > nowMs }
     return when {
@@ -84,6 +90,15 @@ internal fun ChannelSource.Starter.withNewRules(
         pending -> copy(rules = rules)
         else -> copy(rules = rules).withPrevious(this.rules, boundaryMs)
     }
+}
+
+// The epoch arithmetic of docs/rules-format.md ("Timing"): a day starts where (t + offset - start) is a whole epoch.
+private fun isDayStart(
+    rules: ChannelRules,
+    t: Long,
+): Boolean {
+    val settings = rules.toSchedulerSettings()
+    return (t + settings.offsetMs - settings.startMs).mod(settings.epochMs) == 0L
 }
 
 /**

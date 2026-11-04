@@ -18,9 +18,10 @@ import tv.stationbreak.core.rules.ChannelRules
  * - An unedited starter stored without `alignToGrid` is set to false (back to back) once, on the next start or
  *   refresh after the update (the refresher plans for it even when the library has not changed). What is on now
  *   changes at once, and each TV switches at its own next start, so two TVs can differ until both have started.
- * - Rules resolved again (on a synced call, from a newer catalog, or for a starter that switches on) start at the next
- *   broadcast-day start, the `boundaryMs` the caller gives: the starter keeps its previous rules for the days before it
- *   (`ChannelSource.Starter.withNewRules`), so today's schedule never changes under the viewer. A change of the curated
+ * - Rules resolved again (on a synced call or from a newer catalog) start at the next broadcast-day start, the
+ *   `boundaryMs` the caller gives: the starter keeps its previous rules for the days before it
+ *   (`ChannelSource.Starter.withNewRules`), so today's schedule never changes under the viewer. A shelved starter that
+ *   switches on takes its new rules at once, with no previous ones: nothing of it airs today. A change of the curated
  *   on-set is recorded in the lineup's basis the same way (`withBasisFor`). The exceptions apply at once: the back to
  *   back fix of an old file, and a viewer's reset.
  * - A starter the planner takes off for good stays on until the boundary (`leavesAtMs`) and then goes to the shelf
@@ -269,9 +270,10 @@ object LineupPlanner {
         return channels.map { channel ->
             val recipe = byId[channel.id] ?: return@map channel
             val source = channel.source as ChannelSource.Starter
-            // Seed and timing stay, as on a refresh; the resolved rules start at the boundary.
+            // Seed and timing stay, as on a refresh.
             val resolved = rules.getValue(recipe.key).copy(seed = source.rules.seed, timing = source.rules.timing)
-            val next = source.withNewRules(resolved, p.nowMs, p.boundaryMs)
+            // Nothing of a shelved starter airs today, so there is nothing to protect: the rules apply at once.
+            val next = source.withRulesNow(resolved)
             channel.copy(state = ChannelState.On, source = next, onSinceMs = p.nowMs, shelfReason = null)
         }
     }
