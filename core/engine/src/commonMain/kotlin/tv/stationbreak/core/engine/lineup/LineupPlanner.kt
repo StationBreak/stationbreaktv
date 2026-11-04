@@ -174,7 +174,16 @@ object LineupPlanner {
                 val recipe = p.recipe(source.recipeKey)
                 when {
                     recipe == null -> {
-                        if (newer) channel.copy(source = ChannelSource.Custom(source.rules)) else channel
+                        if (newer) {
+                            // A custom channel has no day to leave on and no shelf reason.
+                            channel.copy(
+                                source = ChannelSource.Custom(source.rules),
+                                leavesAtMs = null,
+                                shelfReason = null,
+                            )
+                        } else {
+                            channel
+                        }
                     }
 
                     source.edited || !(newer || rehinted(channel, p)) -> {

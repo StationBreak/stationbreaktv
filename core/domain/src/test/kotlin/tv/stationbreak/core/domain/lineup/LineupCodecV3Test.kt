@@ -9,13 +9,27 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import tv.stationbreak.core.engine.lineup.Anchor
+import tv.stationbreak.core.engine.lineup.AnchorKind
+import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
+import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupDefaults
+import tv.stationbreak.core.engine.lineup.NameMatcher
+import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.ShelfReason
+import tv.stationbreak.core.engine.lineup.Theme
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.LineupLimits
+import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.RulesWriter
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -215,25 +229,93 @@ class LineupCodecV3Test {
         assertEquals(listOf("starter:a", "starter:b", "starter:c"), written)
     }
 
+    // Every catalog starter resolved to the budget (collection IDs, 200-character non-ASCII studio names, a mix),
+    // the cap of them on with previousRules, both leftovers and five custom channels at 256 sources.
     @Test
     fun aWorstCaseLineupStaysUnderTheCap() {
-        val channels =
-            (1..STARTERS).map { n ->
-                val sources = (1..SOURCES).map { Source.Collection(id(n * 1000 + it)) }
-                val now = rules("Starter $n", *sources.toTypedArray())
-                val before = rules("Starter $n before", *sources.reversed().toTypedArray())
-                channel(
-                    "starter:s$n",
-                    100 + n,
-                    ChannelState.On,
-                    ChannelSource.Starter("s$n", edited = false, rules = now, previousRules = before, rulesFromMs = 1L),
-                )
+        val collections = CollectionNames((1..300).associate { id(0x1000 + it) to "Box Set  Collection" })
+        val library = LibraryNames(RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), true), collections)
+        val boxSets = Anchor(AnchorKind.Collection, NameMatcher.Prefix("box set"))
+        val longStudios = (1..60).map { Source.Studio("é".repeat(200) + it) }
+        val shapes =
+            listOf(
+                Theme(listOf(boxSets), emptyList(), null, false) to listOf(Source.Genre("Comedy")),
+                Theme(emptyList(), emptyList(), null, false) to listOf(Source.Genre("Comedy")) + longStudios,
+                Theme(listOf(boxSets), emptyList(), null, false) to
+                    listOf(Source.Genre("Comedy")) + longStudios.take(3),
+            )
+        val resolved =
+            shapes.mapIndexed { i, (theme, sources) ->
+                val recipe =
+                    Recipe(
+                        "shape$i",
+                        "Shape $i",
+                        "Synthetic.",
+                        Band.General,
+                        110,
+                        false,
+                        sources,
+                        emptyList(),
+                        null,
+                        OrderingMode.Curated,
+                        emptyList(),
+                        theme = theme,
+                    )
+                RecipeResolver.resolve(recipe, SERVER, 0, collections, library)
             }
+        resolved.forEach { assertTrue(fileBytes(it) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES) }
 
-        val size = LineupCodec.encode(lineupOf(*channels.toTypedArray())).size
+        val starters =
+            (1..RecipeResolver.MAX_CATALOG_STARTERS).map { n ->
+                val now = resolved[n % resolved.size].copy(name = "Starter $n")
+                val on = n <= LineupDefaults.CAP
+                val source =
+                    if (on) {
+                        val before = now.copy(name = "Before $n")
+                        ChannelSource.Starter("s$n", false, now, before, rulesFromMs = 1_792_000_000_000L)
+                    } else {
+                        ChannelSource.Starter("s$n", false, now)
+                    }
+                channel("starter:s$n", 1000 + n, if (on) ChannelState.On else ChannelState.Shelf, source)
+            }
+        val others =
+            listOf(leftovers("kids-odds-and-ends", 99, "PG"), leftovers("odds-and-ends", 199, null)) +
+                (1..5).map { n ->
+                    val many = (1..256).map { Source.Collection(id(n * 1000 + it)) }
+                    val mine = ChannelSource.Custom(rules("Mine $n", *many.toTypedArray()))
+                    channel("custom-$n", 600 + n, ChannelState.On, mine)
+                }
 
-        println("worst-case lineup file: $size bytes with $SOURCES sources per rules")
-        assertTrue(size <= FILE_CAP / 2, "the worst case takes $size bytes")
+        val starterBytes = LineupCodec.encode(lineupOf(*starters.toTypedArray())).size
+        val total = LineupCodec.encode(lineupOf(*(starters + others).toTypedArray())).size
+
+        println("worst case: starters $starterBytes bytes, whole file $total bytes of ${LineupLimits.MAX_FILE_BYTES}")
+        assertTrue(starterBytes <= LineupLimits.MAX_FILE_BYTES / 2, "the starters take $starterBytes bytes")
+        assertTrue(total <= LineupLimits.MAX_FILE_BYTES, "the whole file takes $total bytes")
+    }
+
+    private fun fileBytes(rules: ChannelRules): Int {
+        val text = JsonPrimitive(RulesWriter.write(rules)).toString()
+        return text.encodeToByteArray().size
+    }
+
+    @Test
+    fun anUnknownShelfReasonOnANonStarterIsIgnoredButNotOnAStarter() {
+        val lineup = lineupOf(starterChannel("a", 110), channel("custom-1", 600, ChannelState.On, custom()))
+        val odd = JsonPrimitive("someFutureReason")
+
+        val onCustom = tree(lineup).withChannel(1) { it.with("shelfReason", odd) }
+        assertEquals(lineup, loaded(onCustom.toString()).lineup)
+
+        val onStarter = tree(lineup).withChannel(0) { it.with("shelfReason", odd) }
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(onStarter.toString()))
+    }
+
+    // A new ShelfReason value (or any schema change) is a new file version: older apps must see NewerVersion.
+    @Test
+    fun theShelfReasonsArePinnedToTheFileVersion() {
+        assertEquals(listOf("Empty", "TooThin", "BelowCap", "OptIn"), ShelfReason.entries.map { it.name }, GUARD)
+        assertEquals(3, LineupCodec.VERSION, GUARD)
     }
 
     @Test
@@ -242,12 +324,6 @@ class LineupCodecV3Test {
     }
 
     private companion object {
-        const val STARTERS = 50
-
-        // The resolved-source cap for a starter (RecipeResolver.MAX_STARTER_SOURCES).
-        val SOURCES = RecipeResolver.MAX_STARTER_SOURCES
-
-        // LineupFiles.MAX_BYTES in data:settings: the largest lineup file the store reads or writes.
-        const val FILE_CAP = 1024 * 1024
+        const val GUARD = "A new ShelfReason value is a schema change: bump LineupCodec.VERSION and update this test"
     }
 }

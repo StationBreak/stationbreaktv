@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.engine.movie
 import tv.stationbreak.core.engine.series
 import tv.stationbreak.core.engine.snapshot
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
+import tv.stationbreak.core.rules.RulesWriter
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RecipeResolverThemeTest {
     private val collectionNames =
@@ -99,17 +103,64 @@ class RecipeResolverThemeTest {
         assertEquals(filters, rules.filters)
     }
 
+    // What the rules take in the lineup file: the rules text as a JSON string.
+    private fun fileBytes(rules: ChannelRules): Int {
+        val text = JsonPrimitive(RulesWriter.write(rules)).toString()
+        return text.encodeToByteArray().size
+    }
+
+    private val plainTheme = Theme(emptyList(), emptyList(), null, false)
+    private val comedy = listOf<Source>(Source.Genre("Comedy"))
+
+    private val manyCollections = (1..300).associate { idOf(0x1000 + it) to "Box Set  Collection" }
+    private val boxSets = Anchor(AnchorKind.Collection, NameMatcher.Prefix("box set"))
+
     @Test
-    fun aRecipeThatResolvesToMoreThanTheStarterCapKeepsTheFirst48() {
-        val many = (1..300).associate { idOf(0x1000 + it) to "Box Set  Collection" }
-        val anchor = Anchor(AnchorKind.Collection, NameMatcher.Prefix("box set"))
-        val theme = Theme(listOf(anchor), emptyList(), null, false)
-        val rules = resolve(themed(theme), CollectionNames(many))
-        assertEquals(RecipeResolver.MAX_STARTER_SOURCES, rules.sources.size)
-        assertEquals(48, rules.sources.size)
+    fun aRecipeThatResolvesToMoreSourcesThanTheBudgetKeepsTheFirstOnesThatFit() {
+        val theme = Theme(listOf(boxSets), emptyList(), null, false)
+        val rules = resolve(themed(theme), CollectionNames(manyCollections))
+        val kept = rules.sources.size
+        println("collection-ID sources that fit the budget: $kept")
+        assertTrue(kept in 2 until RecipeResolver.MAX_STARTER_SOURCES, "the byte budget binds before the count: $kept")
         assertEquals(Source.Genre("Comedy"), rules.sources.first())
         assertEquals(Source.Collection(idOf(0x1000 + 1)), rules.sources[1])
-        assertEquals(Source.Collection(idOf(0x1000 + 47)), rules.sources.last())
+        assertEquals(Source.Collection(idOf(0x1000 + kept - 1)), rules.sources.last())
+        assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+        // One more would not fit: the stop is the budget's, not an early one.
+        val one = rules.copy(sources = rules.sources + Source.Collection(idOf(0x1000 + kept)))
+        assertTrue(fileBytes(one) > RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+    }
+
+    @Test
+    fun thirtyCharacterStudioNamesFitTheBudgetAndAreCutBeforeAnchors() {
+        val studios = (1..100).map { Source.Studio("Studio ${it.toString().padStart(3, '0')} ".padEnd(30, 'x')) }
+        val theme = Theme(listOf(boxSets), emptyList(), null, false)
+        val rules = resolve(themed(theme, sources = comedy + studios), CollectionNames(manyCollections))
+        println("30-character studio sources that fit: ${rules.sources.count { it is Source.Studio }}")
+        assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+        assertTrue(rules.sources.size <= RecipeResolver.MAX_STARTER_SOURCES)
+        assertEquals(Source.Genre("Comedy"), rules.sources.first())
+        // The recipe's own sources come first and use the budget; the collection anchors after them are cut.
+        assertEquals(studios.take(rules.sources.size - 1), rules.sources.drop(1))
+        val alone = resolve(themed(plainTheme, sources = comedy + studios))
+        println("30-character studio sources alone: ${alone.sources.size - 1}")
+        assertEquals(rules.sources, alone.sources)
+    }
+
+    @Test
+    fun longNonAsciiStudioNamesStillFitTheBudget() {
+        val long = (1..40).map { Source.Studio("é".repeat(200) + it) }
+        val rules = resolve(themed(plainTheme, sources = comedy + long))
+        assertTrue(rules.sources.size >= 1)
+        assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES, "${fileBytes(rules)} bytes")
+    }
+
+    @Test
+    fun theSourceCountStillBoundsTinySources() {
+        val tiny = (1..100).map { Source.Tag("t$it") }
+        val rules = resolve(themed(Theme(emptyList(), emptyList(), null, false), sources = tiny))
+        assertTrue(rules.sources.size <= RecipeResolver.MAX_STARTER_SOURCES)
+        assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES)
     }
 
     @Test
@@ -193,8 +244,9 @@ class RecipeResolverThemeTest {
         val anchor = Anchor(AnchorKind.Collection, NameMatcher.Exact("box set 2"))
         val theme = Theme(listOf(anchor), listOf(NameMatcher.Prefix("studio ")), null, false)
         val rules = resolve(themed(theme), snap = big)
-        assertEquals(RecipeResolver.MAX_STARTER_SOURCES, rules.sources.size)
-        assertEquals(48, rules.sources.size)
+        assertTrue(rules.sources.size <= RecipeResolver.MAX_STARTER_SOURCES)
+        assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+        assertTrue(rules.sources.drop(2).all { it is Source.Studio }, "the anchor first, theme studios after")
         assertEquals(Source.Collection(idOf(4)), rules.sources[1])
     }
 }

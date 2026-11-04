@@ -158,27 +158,32 @@ object LineupEdits {
     }
 
     // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder).
+    // A ReplaceCustom marks only the channel it swapped with: the edited one is the viewer's own anyway.
     private fun markChoice(
         before: Lineup,
         edit: LineupEdit,
         outcome: EditOutcome,
     ): EditOutcome {
-        val viewerEdit =
-            edit is LineupEdit.SwitchOn ||
-                edit is LineupEdit.SwitchOff ||
-                edit is LineupEdit.SetNumber ||
-                edit is LineupEdit.ClearNumber
+        val marksSelf = marksItself(edit)
+        val viewerEdit = marksSelf || (edit is LineupEdit.ReplaceCustom && edit.swapWith != null)
         // An edit that changed nothing is not a choice.
         if (!viewerEdit || outcome !is EditOutcome.Applied || outcome.lineup == before) return outcome
         val old = before.channels.associateBy { it.id }
         val marked =
             outcome.lineup.channels.map {
                 val was = old[it.id]
-                val moved = was != null && (was.number != it.number || was.state != it.state)
-                if (it.id == edit.id || moved) it.copy(chosenByViewer = true) else it
+                val moved = was != null && it.id != edit.id && (was.number != it.number || was.state != it.state)
+                val own = marksSelf && it.id == edit.id
+                if (own || moved) it.copy(chosenByViewer = true) else it
             }
         return EditOutcome.Applied(outcome.lineup.copy(channels = marked))
     }
+
+    private fun marksItself(edit: LineupEdit): Boolean =
+        edit is LineupEdit.SwitchOn ||
+            edit is LineupEdit.SwitchOff ||
+            edit is LineupEdit.SetNumber ||
+            edit is LineupEdit.ClearNumber
 
     private fun applyTo(
         lineup: Lineup,
@@ -348,8 +353,20 @@ object LineupEdits {
         return when {
             channel.source !is ChannelSource.Custom -> refused(EditRefusal.NotCustom)
             channel.state == ChannelState.On && onCount == 1 -> refused(EditRefusal.LastOn)
-            else -> EditOutcome.Applied(lineup.copy(channels = lineup.channels.filter { it.id != channel.id }))
+            else -> EditOutcome.Applied(without(lineup, channel.id))
         }
+    }
+
+    // The lineup without the channel [id]; the curation basis forgets it too.
+    private fun without(
+        lineup: Lineup,
+        id: ChannelId,
+    ): Lineup {
+        val basis = lineup.curationBasis
+        return lineup.copy(
+            channels = lineup.channels.filter { it.id != id },
+            curationBasis = basis?.copy(on = basis.on - id),
+        )
     }
 
     private fun refused(refusal: EditRefusal): EditOutcome = EditOutcome.Refused(refusal)

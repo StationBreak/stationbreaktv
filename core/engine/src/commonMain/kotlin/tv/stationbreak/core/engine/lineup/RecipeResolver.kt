@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.engine.foldAscii
 import tv.stationbreak.core.engine.settingsOf
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.AutoSeed
@@ -12,7 +14,7 @@ import tv.stationbreak.core.rules.AutoSeedKind
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Ordering
-import tv.stationbreak.core.rules.RulesLimits
+import tv.stationbreak.core.rules.RulesWriter
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.rules.Timing
 
@@ -20,12 +22,20 @@ private const val LATEST_FORMAT = 3
 
 /** Turns a catalog recipe into the rules of a real channel. Pure: the same inputs give the same rules. */
 object RecipeResolver {
-    /**
-     * The most sources a resolved starter keeps. Lower than the rules format's own 256 ([RulesLimits.MAX_LIST_ENTRIES])
-     * because the lineup file holds a starter's rules twice (with `previousRules`): 50 starters at 48 sources of
-     * collection or title IDs encode to about 515 KB, under half of the 1 MiB file cap.
-     */
+    /** The most sources a resolved starter keeps, whatever the budget allows. */
     const val MAX_STARTER_SOURCES: Int = 48
+
+    /** Room for catalog starters in the lineup file: today's catalog has 97, shelved ones included. */
+    const val MAX_CATALOG_STARTERS: Int = 120
+
+    /**
+     * The most bytes a starter's rules take in the lineup file (the rules text as a JSON string, escapes included).
+     * The file holds every catalog starter's rules, and the rules again as `previousRules` for the switched-on ones, so
+     * half the file cap is shared by [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies; the other half is left for
+     * custom channels, the leftovers and the rest of the file.
+     */
+    const val STARTER_RULES_BUDGET_BYTES: Int =
+        (LineupLimits.MAX_FILE_BYTES / 2) / (MAX_CATALOG_STARTERS + LineupDefaults.CAP)
 
     /**
      * The rules for [recipe] on [serverId]. The sources are the recipe's own, then a collection source for every
@@ -38,8 +48,9 @@ object RecipeResolver {
      * matches (the household's own included; the day build drops those when "Use my collections" is off), the series
      * and films that match a title anchor, or a studio source; then a studio source for each studio of [names] a theme
      * studio matches. Anchors come before theme studios so the cap never cuts an anchor first. A source already present
-     * is dropped (studio sources by folded name), and at most [MAX_STARTER_SOURCES] are kept, the first ones. Its
-     * ordering is curated. The format version is the lowest the rules need.
+     * is dropped (studio sources by folded name), and the first ones that fit [MAX_STARTER_SOURCES] and [STARTER_RULES_BUDGET_BYTES]
+     * are kept (so theme studios are cut first). Its ordering is curated. The format version is the lowest the rules
+     * need.
      */
     fun resolve(
         recipe: Recipe,
@@ -49,7 +60,7 @@ object RecipeResolver {
         names: LibraryNames,
     ): ChannelRules {
         val theme = recipe.theme
-        val sources =
+        val candidates =
             if (theme == null) {
                 recipe.sources + hinted(recipe.collectionHints, collections)
             } else {
@@ -60,7 +71,7 @@ object RecipeResolver {
                 formatVersion = LATEST_FORMAT,
                 name = recipe.name,
                 seed = seedOf(serverId, recipe.key),
-                sources = sources,
+                sources = candidates.take(1),
                 exclusions = recipe.exclusions.ifEmpty { null },
                 maxRating = recipe.maxRating,
                 ordering = (if (theme == null) recipe.ordering else OrderingMode.Curated)?.let { Ordering(it) },
@@ -68,7 +79,36 @@ object RecipeResolver {
                 filler = null,
                 filters = recipe.filters,
             )
-        return rules.copy(formatVersion = rules.requiredVersion)
+        val fitted = rules.copy(sources = withinBudget(rules, candidates))
+        return fitted.copy(formatVersion = fitted.requiredVersion)
+    }
+
+    // The leading [candidates] that fit [MAX_STARTER_SOURCES] and [STARTER_RULES_BUDGET_BYTES], always at least the
+    // first. Each source's size is what appending it adds to the encoded rules, found from two small encodings (the
+    // rules with the first source alone, and with the first and this one), so the rules are never encoded whole per
+    // source and the sum is exact.
+    private fun withinBudget(
+        shell: ChannelRules,
+        candidates: List<Source>,
+    ): List<Source> {
+        if (candidates.size <= 1) return candidates
+        val first = candidates.first()
+        val base = fileBytes(shell)
+        var used = base
+        var count = 1
+        while (count < candidates.size && count < MAX_STARTER_SOURCES) {
+            val cost = fileBytes(shell.copy(sources = listOf(first, candidates[count]))) - base
+            if (used + cost > STARTER_RULES_BUDGET_BYTES) break
+            used += cost
+            count++
+        }
+        return candidates.take(count)
+    }
+
+    // What [rules] take in the lineup file: the rules text held as a JSON string.
+    private fun fileBytes(rules: ChannelRules): Int {
+        val text = JsonPrimitive(RulesWriter.write(rules)).toString()
+        return text.encodeToByteArray().size
     }
 
     private fun themed(
@@ -91,7 +131,7 @@ object RecipeResolver {
             }
         }
         for (matcher in theme.themeStudios) for (studio in names.studios(matcher)) addStudio(studio)
-        return out.take(MAX_STARTER_SOURCES)
+        return out.toList()
     }
 
     /**

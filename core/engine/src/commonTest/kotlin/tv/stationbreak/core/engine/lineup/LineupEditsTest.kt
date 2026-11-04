@@ -9,6 +9,7 @@ import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -270,6 +271,37 @@ class LineupEditsTest {
         assertTrue(after.byId(western).chosenByViewer)
         assertTrue(after.byId(mystery).chosenByViewer)
         assertTrue(!after.byId(LineupIds.starter("other")).chosenByViewer)
+    }
+
+    @Test
+    fun replaceCustomWithASwapMarksTheSwapHolder() {
+        val mine = custom("mine", 650, ChannelState.On)
+        val lineup = lineupOf(mine, custom("other", 651, ChannelState.On), starter("western", 310))
+        val edit = LineupEdit.ReplaceCustom(mine.id, someRules, 651, swapWith = ChannelId("custom:other"), kids = false)
+
+        val after = applied(lineup, edit)
+
+        assertEquals(650, after.byId(ChannelId("custom:other")).number)
+        assertTrue(after.byId(ChannelId("custom:other")).chosenByViewer)
+        assertTrue(!after.byId(western).chosenByViewer)
+    }
+
+    @Test
+    fun removingACustomChannelPrunesTheCurationBasis() {
+        val mine = custom("mine", 650, ChannelState.On)
+        val base = lineupOf(mine, starter("western", 310))
+        val lineup = base.copy(curationBasis = CurationBasis(5L, setOf(mine.id, western), household = false))
+
+        val after = applied(lineup, LineupEdit.RemoveCustom(mine.id))
+
+        assertEquals(setOf(western), after.curationBasis?.on)
+    }
+
+    @Test
+    fun onlyAStarterHoldsADayBoundaryFieldOrAShelfReason() {
+        assertFailsWith<IllegalArgumentException> { custom("a", 650).copy(leavesAtMs = 1L) }
+        assertFailsWith<IllegalArgumentException> { custom("a", 650).copy(shelfReason = ShelfReason.Empty) }
+        assertEquals(1L, starter("western", 310).copy(leavesAtMs = 1L).leavesAtMs)
     }
 
     @Test

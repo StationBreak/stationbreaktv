@@ -4,6 +4,7 @@ package tv.stationbreak.data.settings.lineup
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import tv.stationbreak.core.model.LineupLimits
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -41,7 +42,7 @@ internal interface LineupFiles {
 
     companion object {
         /** The largest lineup file the store will read: a bigger one is a fault, never data. */
-        const val MAX_BYTES = 1024 * 1024
+        const val MAX_BYTES = LineupLimits.MAX_FILE_BYTES
     }
 }
 

@@ -171,7 +171,9 @@ internal object LineupCodec {
             file.viewerChoicesKnown != null ||
             file.curationBasis != null ||
             file.channels.any {
-                it.chosenByViewer != null || it.leavesAtMs != null || it.shelfReason != null ||
+                it.chosenByViewer != null ||
+                    it.leavesAtMs != null ||
+                    (it.shelfReason != null && it.shelfReason !is JsonNull) ||
                     (it.source as? JsonObject)?.let { source ->
                         SourceCodec.PREVIOUS_RULES in source || SourceCodec.RULES_FROM_MS in source
                     } == true
@@ -196,7 +198,10 @@ internal object LineupCodec {
             source = SourceCodec.encode(channel.source),
             chosenByViewer = if (channel.chosenByViewer) true else null,
             leavesAtMs = channel.leavesAtMs.takeIf { channel.source is ChannelSource.Starter },
-            shelfReason = channel.shelfReason.takeIf { channel.source is ChannelSource.Starter }?.let(ReasonV1::of),
+            shelfReason =
+                channel.shelfReason
+                    .takeIf { channel.source is ChannelSource.Starter }
+                    ?.let { JsonPrimitive(REASON_NAMES.getValue(it)) },
         )
 
     // Throws IllegalArgumentException for a blank ID; decode turns that into Unreadable.
@@ -223,7 +228,7 @@ internal object LineupCodec {
                 },
             // Only a starter leaves the lineup or sits on the shelf for a reason.
             leavesAtMs = channel.leavesAtMs.takeIf { starter },
-            shelfReason = channel.shelfReason?.reason.takeIf { starter },
+            shelfReason = reasonOf(channel.shelfReason, starter),
         )
     }
 
@@ -459,29 +464,27 @@ private class ChannelV1(
     val source: JsonElement,
     val chosenByViewer: Boolean? = null,
     val leavesAtMs: Long? = null,
-    val shelfReason: ReasonV1? = null,
+    val shelfReason: JsonElement? = null,
 )
 
-@Serializable
-private enum class ReasonV1(
-    val reason: ShelfReason,
-) {
-    @SerialName("empty")
-    Empty(ShelfReason.Empty),
+// The wire names of the shelf reasons. A new value is a new version (see the class comment).
+private val REASON_NAMES =
+    mapOf(
+        ShelfReason.Empty to "empty",
+        ShelfReason.TooThin to "tooThin",
+        ShelfReason.BelowCap to "belowCap",
+        ShelfReason.OptIn to "optIn",
+    )
 
-    @SerialName("tooThin")
-    TooThin(ShelfReason.TooThin),
-
-    @SerialName("belowCap")
-    BelowCap(ShelfReason.BelowCap),
-
-    @SerialName("optIn")
-    OptIn(ShelfReason.OptIn),
-    ;
-
-    companion object {
-        fun of(reason: ShelfReason): ReasonV1 = entries.first { it.reason == reason }
-    }
+// The reason [element] names. On a starter an unknown or mistyped one throws (the file is unreadable); anywhere else
+// the field is ignored, so null.
+private fun reasonOf(
+    element: JsonElement?,
+    starter: Boolean,
+): ShelfReason? {
+    if (!starter || element == null || element is JsonNull) return null
+    val name = (element as? JsonPrimitive)?.takeIf { it.isString }?.content
+    return requireNotNull(REASON_NAMES.entries.firstOrNull { it.value == name }) { "An unknown shelf reason" }.key
 }
 
 @Serializable

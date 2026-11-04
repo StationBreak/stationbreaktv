@@ -105,6 +105,12 @@ data class LineupChannel(
     val leavesAtMs: Long? = null,
     val shelfReason: ShelfReason? = null,
 ) {
+    init {
+        require(source is ChannelSource.Starter || (leavesAtMs == null && shelfReason == null)) {
+            "Only a starter leaves the lineup or sits on the shelf for a reason"
+        }
+    }
+
     /** The number the channel is shown at, or null while it has none (it waits on the shelf for the user). */
     val number: Int? get() = numberOverride ?: defaultNumber
 }

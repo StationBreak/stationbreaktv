@@ -418,6 +418,27 @@ class ExtrasWiringTest {
         }
 
     @Test
+    fun aVersionTwoFileIsCopiedOnceUnderItsOwnTag() =
+        runBlocking<Unit> {
+            val files = CopyStore()
+            val old =
+                LineupCodec
+                    .encode(held())
+                    .decodeToString()
+                    .replace("\"version\":3", "\"version\":2")
+                    .encodeToByteArray()
+            files.inner.save(ACCOUNT, old)
+            val tv = LineupService(files, library, clock, { 0 }, { events += it }, TestCatalog)
+
+            tv.refresh(ACCOUNT, LIBRARIES)
+            tv.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(listOf("keepCopy:v2", "save", "save"), files.calls)
+            assertContentEquals(old, files.inner.keptCopy(ACCOUNT, "v2"))
+            assertEquals(null, files.inner.keptCopy(ACCOUNT, "v1"))
+        }
+
+    @Test
     fun aCurrentFileIsNotCopied() =
         runBlocking<Unit> {
             val files = CopyStore()
