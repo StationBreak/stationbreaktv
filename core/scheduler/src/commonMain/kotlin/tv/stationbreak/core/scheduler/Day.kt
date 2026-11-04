@@ -89,8 +89,9 @@ private const val MAX_ITEMS = 1 shl 26
  * more, a `createdAt` or `deletedAt` beyond +-2^52 ms, or a day whose start or end is. Filtering bad items is the
  * caller's job. [films] is the film-to-collection side input (the orders of rules format version 2 read it; an empty
  * map is every film on its own). [weights] and [keeps] are the side inputs of rules format version 3: how often a title
- * comes round in `curated`, and how much of a series the day keeps (the trim window, applied once, here, to the pool
- * of the day). [TitleWeights.NONE] and [TitleKeeps.NONE] give the day of a version 2 scheduler.
+ * comes round in `curated`, and how much of a series the day keeps (the trim window, applied only here, to the pool
+ * of the day; every other pool builder passes [TitleKeeps.NONE]). [TitleWeights.NONE] and [TitleKeeps.NONE] give the
+ * day of a version 2 scheduler.
  */
 @Suppress("LongParameterList") // The day's inputs, one for one.
 fun buildDay(

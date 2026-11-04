@@ -97,8 +97,9 @@ private fun layoutOf(
 ): Lazy<Day> =
     lazy {
         val began = TimeSource.Monotonic.markNow()
-        // The pool is already the pool of the day, trimmed once when it was worked out (ruledDayOf), or restored from
-        // disk as it was kept: it is laid out with NONE and never windowed again. Weights come with Task 21.
+        // The trim window is applied only here, by buildDay, to the day's pool. ruledDayOf and the other pool builders
+        // (leftovers, airingNowhere, a restored pool) pass TitleKeeps.NONE, so the pool arrives unwindowed. The keeps
+        // and the weights come with the curation wiring (Task 21); until then both are NONE.
         buildDay(
             settings,
             pool,

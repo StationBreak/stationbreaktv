@@ -46,8 +46,8 @@ object EpochPool {
      * [keeps] applied last ([TrimWindow]). Throws [IllegalArgumentException] naming the ID when two inputs share one,
      * whether or not either would be kept.
      *
-     * The window is applied exactly once, in the day build. A pool that was kept after a window is restored with
-     * [TitleKeeps.NONE], never windowed again.
+     * The window is applied only by the day build ([buildDay]), to the pool of the day. Every other caller (the pool of
+     * a ruled day, the leftovers, the check for items no channel airs, a restored pool) passes [TitleKeeps.NONE].
      */
     fun build(
         settings: SchedulerSettings,
