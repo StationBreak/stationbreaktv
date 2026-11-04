@@ -34,9 +34,6 @@ internal class Screen(
     private var choosing: LiveState.Choosing? = null
     private var committed = false
 
-    // False from the moment the video surface was lost until a frame is rendered on it again.
-    private var frameOnScreen = true
-
     // After a commit the old picture is gone (the tuner stops) until the new sitting writes its first state.
     private var stale = false
     private var handedOver = false
@@ -133,21 +130,8 @@ internal class Screen(
     /** True only while the sitting's picture is up: it is Watching, and no commit is waiting on the new sitting. */
     val pictureUp: Boolean get() = synchronized(this) { !stale && shown is LiveState.Watching }
 
-    /**
-     * True while a frame is actually on screen: [pictureUp], and the video surface has not been lost since the last
-     * rendered frame. What a card's background goes by (over the picture, or over snow); the overlays that need only
-     * the sitting's picture use [pictureUp].
-     */
-    val frameShown: Boolean get() = synchronized(this) { !stale && frameOnScreen && shown is LiveState.Watching }
-
     /** What is playing now, as it was tuned; null while no picture is up (tuning, or a commit not yet taken over). */
     val playingNow: Playing? get() = synchronized(this) { playing.takeIf { !stale && shown is LiveState.Watching } }
-
-    /** The video surface was destroyed or detached: nothing is on screen until [frameRendered]. */
-    fun surfaceLost() = synchronized(this) { frameOnScreen = false }
-
-    /** The player rendered a first frame (on a new tune or on a new surface): a picture is on screen. */
-    fun frameRendered() = synchronized(this) { frameOnScreen = true }
 
     fun compareAndSet(
         expect: LiveState,
