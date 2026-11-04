@@ -12,11 +12,12 @@ object KidStatus {
     fun policyOf(recipe: Recipe): PoolPolicy = if (isKidRecipe(recipe)) PoolPolicy.KidsOnly else PoolPolicy.GrownUp
 
     /**
-     * The policy a channel's pool is evaluated under (ADR-0019, ADR-0020): a kid channel (the kids leftovers included)
-     * is kids-only; any other starter, edited or not, and the grown-up leftovers channel are grown-up; a custom channel
-     * is open.
+     * The policy of [channel] on its own (ADR-0019, ADR-0020): a kid channel (the kids leftovers included) is
+     * kids-only; any other starter, edited or not, and the grown-up leftovers channel are grown-up; a custom channel
+     * is open. It ignores the grown-up leftovers fallback, so it is wrong for a leftovers channel: every pool and
+     * every inputs key must use [policyOf] with the lineup. Safe on its own only for a starter or custom channel.
      */
-    fun policyOf(channel: LineupChannel): PoolPolicy =
+    fun basePolicyOf(channel: LineupChannel): PoolPolicy =
         when {
             isKidChannel(channel) -> PoolPolicy.KidsOnly
             channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers -> PoolPolicy.GrownUp
@@ -33,7 +34,7 @@ object KidStatus {
         channel: LineupChannel,
         lineup: Lineup,
     ): PoolPolicy {
-        val policy = policyOf(channel)
+        val policy = basePolicyOf(channel)
         val grownUpLeftovers = policy == PoolPolicy.GrownUp && channel.source is ChannelSource.Leftovers
         return if (grownUpLeftovers && !hasKidLeftoversOn(lineup)) PoolPolicy.Open else policy
     }

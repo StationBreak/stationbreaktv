@@ -13,6 +13,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -228,5 +229,26 @@ class LineupDaysGrownUpHoldTest {
             assertEquals(emptySet(), days.getValue(odds.id.value).ids())
             assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
             assertEquals(0, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
+        }
+
+    @Test
+    fun theGrownUpLeftoversPlayKeyChangesWithKidsOddsAndEnds() {
+        val odds = leftovers("odds-and-ends", 199, null)
+        val kidsOn = leftovers("kids-odds-and-ends", 99, "PG")
+        val kidsOff = leftovers("kids-odds-and-ends", 99, "PG", ChannelState.Shelf)
+        val on = LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOn, odds))
+        val off = LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOff, odds))
+        assertNotEquals(on, off)
+        assertEquals(on, LineupDays(TestCatalog).playKeyOf(odds, lineupOf(kidsOn, odds)))
+    }
+
+    @Test
+    fun withBothLeftoversOffAKidFilmNoKidStarterMatchesIsTurnedAwayNotAiringNowhere() =
+        runBlocking<Unit> {
+            library.seed(movie(1, "Kids", rating = "G"))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(starterAt("drama", 150))))
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(1, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
         }
 }

@@ -135,7 +135,9 @@ class LineupService internal constructor(
 
     private fun playKeysOf(held: Revisioned): Map<ChannelId, PlayKey> =
         synchronized(playKeys) {
-            playKeys.getOrPut(held.revision) { held.lineup.channels.associate { it.id to days.playKeyOf(it) } }
+            playKeys.getOrPut(held.revision) {
+                held.lineup.channels.associate { it.id to days.playKeyOf(it, held.lineup) }
+            }
         }
 
     private class Entry {

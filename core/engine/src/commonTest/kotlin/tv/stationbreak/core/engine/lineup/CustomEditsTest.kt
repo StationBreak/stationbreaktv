@@ -118,7 +118,7 @@ class CustomEditsTest {
                 .byId(newId)
 
         assertTrue(KidStatus.isKidChannel(added))
-        assertEquals(PoolPolicyKidsOnly, KidStatus.policyOf(added))
+        assertEquals(PoolPolicyKidsOnly, KidStatus.basePolicyOf(added))
     }
 
     @Test
@@ -267,7 +267,7 @@ class CustomEditsTest {
 
         assertEquals(7, after.number)
         assertTrue(KidStatus.isKidChannel(after))
-        assertEquals(PoolPolicyKidsOnly, KidStatus.policyOf(after))
+        assertEquals(PoolPolicyKidsOnly, KidStatus.basePolicyOf(after))
     }
 
     @Test

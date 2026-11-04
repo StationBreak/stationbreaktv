@@ -11,6 +11,7 @@ import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.KidStatus.basePolicyOf
 import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
@@ -270,12 +271,16 @@ internal class LineupDays(
         )
 
     /**
-     * [channel]'s part of [inputsOf], as a digest: it changes whenever this channel's own inputs to the days change (a
-     * new play order, a reshuffle, other sources or filters; never a name or a number that changes no pool). A
-     * leftovers channel's days also depend on other channels, so the guide compares the whole list of keys.
+     * [channel]'s part of [inputsOf] in [lineup], as a digest: it changes whenever this channel's own inputs to the
+     * days change (a new play order, a reshuffle, other sources or filters, its pool policy in [lineup]; never a name
+     * or a number that changes no pool). A leftovers channel's days also depend on what the other channels claim, so
+     * the guide compares the whole list of keys.
      */
-    fun playKeyOf(channel: LineupChannel): PlayKey {
-        val inputs = channelInputs(channel, policyOf(channel)).toString()
+    fun playKeyOf(
+        channel: LineupChannel,
+        lineup: Lineup,
+    ): PlayKey {
+        val inputs = channelInputs(channel, policyOf(channel, lineup)).toString()
         return PlayKey(sha256Hex(inputs.encodeToByteArray()))
     }
 
@@ -585,7 +590,7 @@ internal class LineupDays(
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
                     PolicyRules(resolved, policyOf(recipe)),
-                    inLineup?.let(::rulesOf)?.let { PolicyRules(it, policyOf(inLineup)) },
+                    inLineup?.let(::rulesOf)?.let { PolicyRules(it, basePolicyOf(inLineup)) },
                 )
             }
 

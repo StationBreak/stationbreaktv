@@ -149,7 +149,7 @@ internal class LegacyLineupDays(
 
         private fun ruledDay(s: Scheduled): ChannelDay {
             val rules = checkNotNull(rulesOf(s.channel)).copy(maxRating = ceilingOf(s.channel))
-            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs), KidStatus.policyOf(s.channel))
+            val pool = PoolEvaluator.evaluate(rules, snapshots.getValue(s.cutoffMs), KidStatus.basePolicyOf(s.channel))
             return dayOf(s, pool)
         }
 
@@ -204,7 +204,7 @@ internal class LegacyLineupDays(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), KidStatus.policyOf(channel))
+        ): Pool = Leftovers.pool(snapshot, claimed, ceilingOf(channel), KidStatus.basePolicyOf(channel))
 
         // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it.
         private fun optInRules(): List<Pair<ChannelRules, PoolPolicy>> =
@@ -213,13 +213,13 @@ internal class LegacyLineupDays(
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
                 listOfNotNull(
                     resolved to KidStatus.policyOf(recipe),
-                    inLineup?.let(::rulesOf)?.let { it to KidStatus.policyOf(inLineup) },
+                    inLineup?.let(::rulesOf)?.let { it to KidStatus.basePolicyOf(inLineup) },
                 )
             }
 
         private fun hiddenRules(): List<Pair<ChannelRules, PoolPolicy>> =
             lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
-                rulesOf(channel)?.let { it.copy(maxRating = ceilingOf(channel)) to KidStatus.policyOf(channel) }
+                rulesOf(channel)?.let { it.copy(maxRating = ceilingOf(channel)) to KidStatus.basePolicyOf(channel) }
             }
     }
 

@@ -31,29 +31,29 @@ class KidStatusTest {
 
     @Test
     fun aKidStarterIsKidsOnly() {
-        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(starter("tots", 10)))
-        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(starter(kidKey, 150)))
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(starter("tots", 10)))
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(starter(kidKey, 150)))
     }
 
     @Test
     fun aGrownUpStarterIsGrownUpEditedOrNot() {
-        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(starter("alpha", 110)))
-        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(starter("alpha", 110, edited = true)))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(starter("alpha", 110)))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(starter("alpha", 110, edited = true)))
     }
 
     @Test
     fun aCustomChannelIsOpenOutsideTheKidsBandAndKidsOnlyInsideIt() {
         val rules = rulesOf("alpha")
-        assertEquals(PoolPolicy.Open, KidStatus.policyOf(channel(150, ChannelSource.Custom(rules))))
-        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(channel(20, ChannelSource.Custom(rules))))
+        assertEquals(PoolPolicy.Open, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rules))))
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(channel(20, ChannelSource.Custom(rules))))
     }
 
     @Test
     fun theKidsLeftoversIsKidsOnlyAndTheGrownUpLeftoversIsGrownUp() {
         val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
         val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
-        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(kids))
-        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds))
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(kids))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(odds))
     }
 
     @Test
@@ -74,6 +74,6 @@ class KidStatusTest {
 
     @Test
     fun aCustomChannelStaysOpen() {
-        assertEquals(PoolPolicy.Open, KidStatus.policyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
+        assertEquals(PoolPolicy.Open, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
     }
 }

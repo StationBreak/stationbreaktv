@@ -90,8 +90,10 @@ channel airs) also stays, and the grown-up channel's usual ladder ceiling applie
   grown-up leftovers is `Open` (`KidStatus.policyOf(channel, lineup)`). It claims what no other channel takes. With
   Kids' Odds & Ends On it drops what a kid channel could take (that channel airs it); with Kids' Odds & Ends not On
   it drops nothing for the hold, and its own ceiling still applies, so a made-for-kids title no kid starter matches
-  does not air nowhere. Grown-up starters keep the hold either way. The policy is part of the day's inputs and of
-  the persisted-day digest, so switching Kids' Odds & Ends on or off rebuilds the grown-up leftovers' days. A custom
+  does not air nowhere. Grown-up starters keep the hold either way. The policy (with the lineup applied) is part of
+  each channel's inputs: it is in the persisted-day digest (`LineupDays.inputsOf`) and in each channel's play key
+  (`LineupDays.playKeyOf(channel, lineup)`, the channel's part of that digest), so switching Kids' Odds & Ends on or
+  off rebuilds the grown-up leftovers' days and changes its play key. A custom
   channel outside the Kids band stays `Open`.
 - **A missing series.** An episode whose series ID is not in the snapshot fails the kid ceiling (`passesKidCeiling`),
   so no kid channel can take it and the grown-up hold keeps it.
