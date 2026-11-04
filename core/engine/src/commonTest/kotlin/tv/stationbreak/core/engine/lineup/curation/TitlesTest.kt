@@ -3,6 +3,7 @@ package tv.stationbreak.core.engine.lineup.curation
 
 import tv.stationbreak.core.engine.episode
 import tv.stationbreak.core.engine.idOf
+import tv.stationbreak.core.engine.lineup.CurationTables
 import tv.stationbreak.core.engine.movie
 import tv.stationbreak.core.engine.series
 import tv.stationbreak.core.engine.snapshot
@@ -14,6 +15,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TitlesTest {
+    // Studio names come from the tables, so no real name is written in a fixture.
+    private val animeStudio = CurationTables.ANIME_STUDIOS.first().folded
+    private val adultNetwork = CurationTables.ADULT_ANIMATION_NETWORKS.first().folded
+
     private fun titlesOf(
         items: List<RuleItem>,
         series: List<RuleSeries> = emptyList(),
@@ -39,7 +44,7 @@ class TitlesTest {
     fun animeByGenreTagOrAnimatedStudio() {
         val byGenre = movie(idOf(1), genres = listOf("Anime"))
         val byTag = movie(idOf(2), tags = listOf("Anime"))
-        val byStudio = movie(idOf(3), genres = listOf("Animation"), studios = listOf("Studio Ghibli"))
+        val byStudio = movie(idOf(3), genres = listOf("Animation"), studios = listOf(animeStudio))
         val plain = movie(idOf(4), genres = listOf("Animation"))
         val titles = titlesOf(listOf(byGenre, byTag, byStudio, plain))
         assertEquals(TitleFormat.Anime, titles.getValue(idOf(1)).format)
@@ -50,14 +55,14 @@ class TitlesTest {
 
     @Test
     fun aLiveActionFilmFromAnAnimeStudioIsLive() {
-        val film = movie(idOf(1), genres = listOf("Drama"), studios = listOf("Studio Ghibli"))
+        val film = movie(idOf(1), genres = listOf("Drama"), studios = listOf(animeStudio))
         assertEquals(TitleFormat.Live, titlesOf(listOf(film)).getValue(idOf(1)).format)
     }
 
     @Test
     fun adultAnimationByRatingOrNetwork() {
         val byRating = movie(idOf(1), genres = listOf("Animation"), rating = "TV-MA")
-        val byNetwork = movie(idOf(2), genres = listOf("Animation"), studios = listOf("Adult Swim"))
+        val byNetwork = movie(idOf(2), genres = listOf("Animation"), studios = listOf(adultNetwork))
         val kid = movie(idOf(3), genres = listOf("Animation"), rating = "TV-PG")
         val unrated = movie(idOf(4), genres = listOf("Animation"))
         val live = movie(idOf(5), genres = listOf("Drama"), rating = "TV-MA")
@@ -78,10 +83,21 @@ class TitlesTest {
         val ep = episode(idOf(10), s)
         val kidFilm = movie(idOf(2), rating = "TV-Y")
         val grownUpFilm = movie(idOf(3), rating = "R", genres = listOf("Drama"))
-        val titles = titlesOf(listOf(ep, kidFilm, grownUpFilm), listOf(kidSeries))
+        val animatedFamily = idOf(4)
+        val familySeries = series(animatedFamily, rating = "G", genres = listOf("Animation", "Family"))
+        val familyEp = episode(idOf(11), animatedFamily)
+        // A G-rated family drama: a kid channel's candidacy might take it, but the hold does not call it made for kids.
+        val familyDrama = movie(idOf(5), rating = "G", genres = listOf("Family", "Drama"))
+        val titles =
+            titlesOf(
+                listOf(ep, kidFilm, grownUpFilm, familyEp, familyDrama),
+                listOf(kidSeries, familySeries),
+            )
         assertTrue(titles.getValue(s).madeForKids)
         assertTrue(titles.getValue(idOf(2)).madeForKids)
         assertFalse(titles.getValue(idOf(3)).madeForKids)
+        assertTrue(titles.getValue(animatedFamily).madeForKids)
+        assertFalse(titles.getValue(idOf(5)).madeForKids)
     }
 
     @Test
@@ -90,5 +106,12 @@ class TitlesTest {
         val titles = titlesOf(listOf(episode(idOf(10), s, genres = listOf("Kids")), episode(idOf(11), s)))
         assertEquals(1, titles.size)
         assertTrue(titles.getValue(s).madeForKids)
+    }
+
+    @Test
+    fun aSeriesLessGroupIsNotForKidsWhenNoEpisodePasses() {
+        val s = idOf(1)
+        val titles = titlesOf(listOf(episode(idOf(10), s, genres = listOf("Drama")), episode(idOf(11), s)))
+        assertFalse(titles.getValue(s).madeForKids)
     }
 }

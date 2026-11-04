@@ -3,6 +3,7 @@ package tv.stationbreak.core.engine.lineup.curation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class FixedPointTest {
@@ -29,5 +30,11 @@ class FixedPointTest {
         assertEquals(6_553_600L, specificityQ16(0))
         assertEquals(3_276_800L, specificityQ16(2))
         assertEquals(2_184_533L, specificityQ16(6))
+    }
+
+    @Test
+    fun badInputsAreRefused() {
+        assertFailsWith<IllegalArgumentException> { log2Q16(0) }
+        assertFailsWith<IllegalArgumentException> { specificityQ16(-1) }
     }
 }
