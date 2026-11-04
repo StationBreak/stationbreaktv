@@ -237,6 +237,9 @@ internal object PlannerSelection {
             if (keptChannels.isNotEmpty() && memo != null && generation != null) {
                 ReasonsKey(
                     generation,
+                    p.snapshot.libraries
+                        .map { it.value }
+                        .sorted(),
                     p.snapshot.collectionsSynced,
                     p.catalog.version,
                     keptChannels.map { reasonInputOf(it, lineup, p, p.household) },
@@ -338,9 +341,12 @@ private data class ReasonInput(
 )
 
 // Everything the kept starters' reasons are worked out from, but for the library snapshot itself, which its
-// content generation stands for: compared whole, never hashed, so two keys are equal only when the inputs are.
+// content generation and libraries stand for: compared whole, never hashed, so two keys are equal only when the
+// inputs are.
 private data class ReasonsKey(
     val generation: Long,
+    // The libraries planned, sorted: another choice of libraries can read a snapshot of the same generation.
+    val libraries: List<String>,
     val collectionsSynced: Boolean,
     val catalogVersion: Int,
     val kept: List<ReasonInput>,

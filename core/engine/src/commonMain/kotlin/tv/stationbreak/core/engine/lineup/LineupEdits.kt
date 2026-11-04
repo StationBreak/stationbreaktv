@@ -431,14 +431,8 @@ object LineupEdits {
         catalog: StarterCatalogView,
     ): EditOutcome =
         when {
-            // Switched on by the planner to start at the boundary: the viewer pressing On expects it on now, so it
-            // airs from now, as any mid-day switch-on does (its pool less the basis's homes until the boundary).
-            channel.state == ChannelState.On && channel.startsAfter(LineupDay.endingAt(boundaryMs)) -> {
-                applied(lineup, channel.copy(onSinceMs = nowMs, leavesAtMs = null, shelfReason = null))
-            }
-
             // Already on but leaving: switching it on keeps it (the viewer's choice beats the planner's).
-            channel.state == ChannelState.On -> {
+            channel.state == ChannelState.On && !channel.startsAfter(LineupDay.endingAt(boundaryMs)) -> {
                 applied(lineup, channel.copy(leavesAtMs = null, shelfReason = null))
             }
 
@@ -446,8 +440,16 @@ object LineupEdits {
                 refused(EditRefusal.NotSwitchable)
             }
 
+            // Checked before anything goes on the air now, a channel starting at the boundary included: the consent
+            // gate is never passed by.
             !confirmedOptIn && isOptIn(channel, catalog) -> {
                 refused(EditRefusal.OptInNotConfirmed)
+            }
+
+            // Switched on by the planner to start at the boundary: the viewer pressing On expects it on now, so it
+            // airs from now, as any mid-day switch-on does (its pool less the basis's homes until the boundary).
+            channel.state == ChannelState.On -> {
+                applied(lineup, channel.copy(onSinceMs = nowMs, leavesAtMs = null, shelfReason = null))
             }
 
             else -> {

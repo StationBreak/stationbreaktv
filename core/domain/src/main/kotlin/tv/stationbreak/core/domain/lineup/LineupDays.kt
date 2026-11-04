@@ -1257,8 +1257,6 @@ private fun LineupChannel.isUneditedStarter(): Boolean {
     return source is ChannelSource.Starter && !source.edited
 }
 
-// Whether a channel with [this] leave time is still on at [atMs]: it has none, or it is after [atMs].
-
 /** Why a day is empty, in [HiddenReason]'s precedence; null when [day] has something. */
 internal fun hiddenReason(
     pool: Pool,

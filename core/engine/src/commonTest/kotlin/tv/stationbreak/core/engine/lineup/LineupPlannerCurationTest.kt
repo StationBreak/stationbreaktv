@@ -529,6 +529,15 @@ class LineupPlannerCurationTest {
         plan(again.withChannel("bravo") { it.chosenShelf(null) }, 2L, snapshot = grown)
         assertEquals(3, memo.homings, "another kept starter")
 
+        // Other libraries with the same generation (another choice of libraries) home again too.
+        plan(again, 2L, snapshot = grown)
+        assertEquals(4, memo.homings, "back to the lineup before")
+        val otherLibraries = grown.copy(libraries = grown.libraries + idOf(0x7777))
+        plan(again, 2L, snapshot = otherLibraries)
+        assertEquals(5, memo.homings, "the libraries are part of the inputs")
+        plan(again, 2L, snapshot = otherLibraries)
+        assertEquals(5, memo.homings)
+
         // No kept starter: no homing at all.
         val none = KeptReasonsMemo()
         plan(first(library), 1L, none)

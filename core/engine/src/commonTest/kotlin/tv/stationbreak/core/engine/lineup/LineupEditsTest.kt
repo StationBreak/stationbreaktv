@@ -224,6 +224,17 @@ class LineupEditsTest {
         assertFalse(western.startsAfter(LineupDay.endingAt(99L + DAY_MS)))
     }
 
+    // The consent gate comes first: an opt-in channel starting at the boundary is not put on the air without it.
+    @Test
+    fun switchOnOfAnOptInChannelStartingAtTheBoundaryStillNeedsTheConfirmation() {
+        val starting = starter("spicy", 330).copy(onSinceMs = 99L + DAY_MS)
+        val lineup = lineupOf(starting, starter("mystery", 205))
+        val spicy = LineupIds.starter("spicy")
+
+        assertEquals(EditRefusal.OptInNotConfirmed, refusal(lineup, LineupEdit.SwitchOn(spicy)))
+        assertEquals(99L, applied(lineup, LineupEdit.SwitchOn(spicy, confirmedOptIn = true)).byId(spicy).onSinceMs)
+    }
+
     @Test
     fun setNumberRefusesZeroAnd1000() {
         val lineup = lineupOf(starter("western", 310))
