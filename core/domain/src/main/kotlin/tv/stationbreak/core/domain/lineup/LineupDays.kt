@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolCounts
 import tv.stationbreak.core.engine.PoolEvaluator
@@ -340,28 +341,59 @@ internal class LineupDays(
     /**
      * How many items of the snapshots are eligible for a day of a switched-on channel and yet air nowhere: in no
      * channel's epoch pool (before the trim window), and not held back on purpose (opt-in recipes, hidden channels).
-     * Zero while the leftovers channels are on.
+     * Not counted here: titles made for kids ([turnedAwayByBothHolds]), which a grown-up channel never airs and a
+     * kid channel may refuse, so they can air nowhere by design. Zero for everything else while the leftovers
+     * channels are on.
      */
     fun airingNowhere(
         lineup: Lineup,
         scheduled: List<Scheduled>,
         snapshots: Map<Long, RuleSnapshot>,
         filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
-    ): Int {
+    ): Int = unaired(lineup, scheduled, snapshots, filteredSnapshots).first
+
+    /**
+     * How many of the items [airingNowhere] would count are made for kids ([KidHold.isMadeForKids]): turned away by
+     * the grown-up hold, and by the kid table (or no kid channel is on). A separate count, not part of
+     * [airingNowhere]; the answer to "does anything air nowhere that should" stays separate from this by-design one.
+     */
+    fun turnedAwayByBothHolds(
+        lineup: Lineup,
+        scheduled: List<Scheduled>,
+        snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
+    ): Int = unaired(lineup, scheduled, snapshots, filteredSnapshots).second
+
+    // The items that air nowhere, split: (not made for kids, made for kids).
+    private fun unaired(
+        lineup: Lineup,
+        scheduled: List<Scheduled>,
+        snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot>,
+    ): Pair<Int, Int> {
         val build = Build(lineup, snapshots, filteredSnapshots)
         // Trimmed items stay claimed (plan Resolution 24): the count reads the epoch pools, not the windowed day pools.
         build.days(scheduled)
         val aired = scheduled.flatMapTo(HashSet()) { s -> build.epochPoolOf(s).map { it.id } }
         val nowhere = HashSet<CanonicalId>()
+        val turnedAway = HashSet<CanonicalId>()
         for ((cut, group) in scheduled.groupBy { it.cut }) {
-            val items = build.snapshotOf(cut).items.map { it.item }
+            val snapshot = build.snapshotOf(cut)
+            val items = snapshot.items.map { it.item }
             val eligible =
                 group.distinctBy { EpochPool.inputsOf(it.settings) }.flatMapTo(HashSet()) { s ->
                     EpochPool.build(s.settings, items, s.n).map { it.id }
                 }
-            nowhere += eligible - aired - build.withheld(cut) - build.hiddenLeftovers(cut)
+            val left = eligible - aired - build.withheld(cut) - build.hiddenLeftovers(cut)
+            for (entry in snapshot.items) {
+                val id = entry.item.id
+                if (id !in left) continue
+                val seriesId = entry.item.seriesId
+                val series = if (seriesId == null) null else snapshot.series[seriesId]
+                if (KidHold.isMadeForKids(entry, series)) turnedAway += id else nowhere += id
+            }
         }
-        return nowhere.size
+        return nowhere.size to turnedAway.size
     }
 
     private fun settingsOf(

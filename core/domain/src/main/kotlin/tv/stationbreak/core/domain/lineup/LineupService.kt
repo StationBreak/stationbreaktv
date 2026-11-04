@@ -529,8 +529,9 @@ class LineupService internal constructor(
     /**
      * How many items of the [libraries] could air in a switched-on channel's day at [at] and yet air nowhere: in no
      * channel's day, and not held back on purpose (an opt-in recipe's or a hidden channel's). A check that the catalog
-     * does its job: zero while the leftovers channels are on. Zero while there is no lineup. Reads the library as the
-     * days are built (one `ruleSnapshot` per distinct cut-off).
+     * does its job: zero while the leftovers channels are on, apart from what is made for kids (see
+     * [turnedAwayByBothHoldsCount]). Zero while there is no lineup. Reads the library as the days are built (one
+     * `ruleSnapshot` per distinct cut-off).
      */
     internal suspend fun airingNowhereCount(
         account: LibraryAccount,
@@ -541,6 +542,22 @@ class LineupService internal constructor(
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
         val read = snapshotsOf(library, account, libraries, scheduled.map { it.cut }.distinct().sorted())
         return days.airingNowhere(held.lineup, scheduled, read.first, read.second)
+    }
+
+    /**
+     * How many of the items [airingNowhereCount] leaves out air nowhere because they are made for kids: the grown-up
+     * hold drops them and no kid channel takes them (over every kid ceiling, or no kid channel is on). By design, so
+     * counted apart.
+     */
+    internal suspend fun turnedAwayByBothHoldsCount(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        at: Instant,
+    ): Int {
+        val held = loaded(account) ?: return 0
+        val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
+        val read = snapshotsOf(library, account, libraries, scheduled.map { it.cut }.distinct().sorted())
+        return days.turnedAwayByBothHolds(held.lineup, scheduled, read.first, read.second)
     }
 
     /**

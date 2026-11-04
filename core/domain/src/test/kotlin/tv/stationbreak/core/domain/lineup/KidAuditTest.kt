@@ -123,7 +123,7 @@ class KidAuditTest {
                         assertTrue(KidHold.passesKidCeiling(entry, show, ceiling), "over its ceiling: $where")
                         assertTrue(scheduled.id !in nearMisses, "a seeded near miss on a kid channel: $where")
                         audited++
-                        if (KidHold.isAnimatedFamily(entry, show)) animatedFamilyAired++
+                        if (scheduled.id in madeForKidsSeeded) animatedFamilyAired++
                     }
                 }
             }

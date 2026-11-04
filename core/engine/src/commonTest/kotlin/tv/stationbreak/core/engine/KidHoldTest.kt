@@ -392,24 +392,43 @@ class KidHoldTest {
     }
 
     @Test
-    fun hasChildrensRatingReadsTheItemAndItsKnownSeries() {
-        assertTrue(KidHold.hasChildrensRating(film(rating = "TV-Y"), null))
-        assertTrue(KidHold.hasChildrensRating(film(rating = "TV-Y7"), null))
-        assertTrue(KidHold.hasChildrensRating(film(rating = "TV-Y7-FV"), null))
-        assertTrue(KidHold.hasChildrensRating(episodeOf(rating = "TV-PG"), show(rating = "TV-Y7")))
-        assertFalse(KidHold.hasChildrensRating(episodeOf(rating = "TV-PG"), null))
+    fun theChildrensRatingRuleReadsTheItemAndItsKnownSeries() {
+        assertTrue(KidHold.isMadeForKids(film(rating = "TV-Y"), null))
+        assertTrue(KidHold.isMadeForKids(film(rating = "TV-Y7"), null))
+        assertTrue(KidHold.isMadeForKids(film(rating = "TV-Y7-FV"), null))
+        assertTrue(KidHold.isMadeForKids(episodeOf(rating = "TV-PG"), show(rating = "TV-Y7")))
+        assertFalse(KidHold.isMadeForKids(episodeOf(rating = "TV-PG"), null))
         for (rating in listOf("TV-G", "G", "PG", "TV-PG", "TV-14", "PG-13", "R", "NR", "Approved", "", null)) {
-            assertFalse(KidHold.hasChildrensRating(film(rating = rating), null), "rating $rating")
+            assertFalse(KidHold.isMadeForKids(film(rating = rating), null), "rating $rating")
         }
     }
 
+    // The signal's lists are frozen under both hold versions: a change is a new version name of each.
     @Test
-    fun theMadeForKidsRatingsRuleIsTheSharedPredicate() {
-        for (rating in listOf("TV-Y", "TV-Y7", "TV-Y7-FV", "TV-G", "PG", null)) {
-            val item = film(rating = rating)
-            assertEquals(KidHold.hasChildrensRating(item, null), KidHold.isMadeForKids(item, null))
+    fun theAnimatedFamilyListsAreFrozenUnderBothHoldVersions() {
+        assertEquals("kid-hold-3", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-2", GrownUpHold.VERSION_NAME)
+        assertEquals("animation", AnimatedFamilySignal.GENRE_ANIMATION)
+        assertEquals("family", AnimatedFamilySignal.GENRE_FAMILY)
+        assertEquals(setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved"), AnimatedFamilySignal.RATINGS)
+        assertEquals(setOf("NR", "NOT RATED", "UNRATED"), AnimatedFamilySignal.UNRATED_SPELLINGS)
+    }
+
+    // The grown-up hold follows kid-hold's predicate, so the two version names move together: a pinned pair.
+    @Test
+    fun theHoldVersionNamesMoveTogether() {
+        assertEquals(
+            mapOf("kid-hold-3" to "grown-up-hold-2"),
+            mapOf(KidHold.VERSION_NAME to GrownUpHold.VERSION_NAME),
+        )
+    }
+
+    @Test
+    fun theUnratedSpellingsTrimAllWhitespace() {
+        val genres = listOf("Animation", "Family")
+        for (rating in listOf("\tUNRATED", " not rated\n", "\u000Bnr ")) {
+            assertTrue(KidHold.isAnimatedFamily(film(rating, genres = genres), null), "rating $rating")
         }
-        assertTrue(KidHold.isMadeForKids(episodeOf(rating = "TV-PG"), show(rating = "TV-Y")))
     }
 
     // --- kidsChoiceFor ---

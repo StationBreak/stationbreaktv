@@ -343,11 +343,13 @@ class BuiltInScheduleSourceTest {
 
             assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
 
-            // Without the leftovers channels the two orphans air nowhere; the opt-in item is held back on purpose.
+            // Without the leftovers channels the two orphans air nowhere; the kids' film is counted apart.
+            // The opt-in item is held back on purpose.
             val lineup = checkNotNull(service.lineup(ACCOUNT).value).lineup
             holding(lineup.copy(channels = lineup.channels.filter { it.source !is ChannelSource.Leftovers }))
             val fresh = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-            assertEquals(2, fresh.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(1, fresh.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(1, fresh.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
         }
 
     @Test

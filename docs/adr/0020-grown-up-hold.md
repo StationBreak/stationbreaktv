@@ -21,13 +21,13 @@ app-side, like the kid hold.
 
 1. **A pool policy, not a flag.** `PoolEvaluator.evaluate` takes a `PoolPolicy` (`core/engine`): `Open`, `KidsOnly` or
    `GrownUp`. `Open` is exactly the rules-format evaluation (the default). `KidsOnly` is the kid hold of ADR-0019,
-   unchanged. `GrownUp` removes, after the exclusions, every item for which `KidHold.hasChildrensRating` is true.
+   unchanged. `GrownUp` removes, after the exclusions, every item for which `KidHold.hasChildrensRating` is true (superseded by the 2026-11-03 addendum).
    The ladder ceiling still applies to what is left.
 2. **One predicate.** `KidHold.CHILDRENS_RATINGS` and `KidHold.hasChildrensRating(entry, series)` are the single
-   definition of a children's rating (the item's rating or its known series' rating, after normalisation).
+   definition of a children's rating (the item's rating or its known series' rating, after normalisation) (superseded by the 2026-11-03 addendum).
    `KidHold.isMadeForKids` uses the same predicate for its ratings rule, so the two gates cannot drift. `kid-hold-2`
    is unchanged.
-3. **Version name.** The grown-up gate is `grown-up-hold-1` (`GrownUpHold.VERSION_NAME`). It is frozen with
+3. **Version name.** The grown-up gate is `grown-up-hold-1` (`GrownUpHold.VERSION_NAME`) (superseded by the 2026-11-03 addendum). It is frozen with
    `CHILDRENS_RATINGS`: one test pins the set and names both hold versions, so a change to the set is a new version
    name of each.
 4. **Who gets which policy** (`KidStatus.policyOf`):
@@ -37,7 +37,7 @@ app-side, like the kid hold.
    | A kid channel (Kids band, or an ever-kid-safe key) including the kids' leftovers | `KidsOnly` |
    | Any other starter, edited or not | `GrownUp` |
    | A custom channel outside the Kids band | `Open` |
-   | The grown-up leftovers (Odds & Ends) | `Open` |
+   | The grown-up leftovers (Odds & Ends) | `Open` (superseded by the 2026-11-03 addendum: `GrownUp`) |
 
    A starter always keeps its policy (owner decision, 2026-10-29). Built-in channels can be switched on or off, and
    channel management (F2.4) may renumber or hide them, but their filters are not edited in place. A viewer who wants
@@ -46,7 +46,8 @@ app-side, like the kid hold.
    `GrownUp`, like an unedited one. The grown-up leftovers is `Open` on purpose: it is where items go that no other
    channel will take. The kid hold refuses some items (unrated, TV-PG) and the grown-up hold drops others
    (children's-rated); if the grown-up leftovers dropped the second set too, an item no channel airs could air
-   nowhere. Keeping it `Open` keeps "airing nowhere" at zero while both leftovers channels are on.
+   nowhere. Keeping it `Open` keeps "airing nowhere" at zero while both leftovers channels are on (superseded by the 2026-11-03
+   addendum).
 
 5. **Counts and reasons.** `PoolCounts.childrensRatingOut` counts what the grown-up hold drops; `heldOut` stays the
    kid hold's. A grown-up channel emptied by the hold is not "no matches": it reports the new
@@ -59,11 +60,12 @@ app-side, like the kid hold.
 ## Consequences
 
 - Grown-up starters can get thinner. A finalised lineup is not re-ranked, so a starter that is On stays On even if
-  the hold leaves it little to air; it shows `ChildrensRatingsOnly` when the hold empties it. New lineups rank on the held pool.
+  the hold leaves it little to air; it shows `ChildrensRatingsOnly` when the hold empties it. New lineups rank on the held pool (the hold is now
+  made-for-kids, per the 2026-11-03 addendum).
 - Where a dropped item lands. With both leftovers on (the default), Kids' Odds & Ends claims first, so a
   children's-rated item a grown-up starter drops lands on a kid channel or on Kids' Odds & Ends, where the kid hold
   admits it. Only items the kid table refuses (a TV-PG episode of a TV-Y7 series, say), or everything when Kids' Odds
-  & Ends is off, reach the grown-up Odds & Ends.
+  & Ends is off, reach the grown-up Odds & Ends (superseded by the 2026-11-03 addendum: it now drops them too).
 - Mixed app versions can disagree on grown-up starters during an update, as for kid channels (A-VER-1).
 
 ## Addendum (2026-11-03, spec 23): `grown-up-hold-2`
@@ -84,5 +86,7 @@ still applies to what is left.
 - **Airing nowhere.** A title that is made for kids and fails every kid ceiling (a kids-genre film rated R, say) is held
   out of every kid channel and dropped by every grown-up channel, so it airs nowhere. This is accepted: made-for-kids
   content stays off grown-up channels, and a viewer who wants it can build a custom channel.
+- **Counted apart.** Made-for-kids titles that air nowhere are reported as `turnedAwayByBothHolds`, not as
+  "airing nowhere", which stays zero while the leftovers channels are on.
 - **Applies at once.** Like `kid-hold-3`, this is safety policy: it applies at the update, and a programme on now can be
   cut once.

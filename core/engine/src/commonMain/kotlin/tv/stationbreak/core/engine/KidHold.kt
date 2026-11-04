@@ -168,7 +168,7 @@ object KidHold {
      * `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails. Tags never take part. A
      * null [series] contributes nothing.
      */
-    fun isAnimatedFamily(
+    internal fun isAnimatedFamily(
         entry: RuleItem,
         series: RuleSeries?,
     ): Boolean = AnimatedFamilySignal.holds(entry, series)
@@ -178,7 +178,7 @@ object KidHold {
      * predicate behind [isMadeForKids]'s ratings rule, so the rule and this one cannot drift. A null [series]
      * contributes nothing.
      */
-    fun hasChildrensRating(
+    private fun hasChildrensRating(
         entry: RuleItem,
         series: RuleSeries?,
     ): Boolean = isChildrensRating(entry.officialRating) || (series != null && isChildrensRating(series.officialRating))

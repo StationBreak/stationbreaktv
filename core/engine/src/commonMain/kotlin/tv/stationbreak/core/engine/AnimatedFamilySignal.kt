@@ -10,12 +10,17 @@ import tv.stationbreak.core.rules.RatingLadder
  * the folded genres and the ratings and nothing else. Its lists are frozen under `KidHold.VERSION_NAME`.
  */
 internal object AnimatedFamilySignal {
-    private const val GENRE_ANIMATION = "animation"
-    private const val GENRE_FAMILY = "family"
     private const val ASCII_CASE_OFFSET = 'a' - 'A'
 
-    /** The ladder names the signal accepts, besides a null, blank, `NR`, `NOT RATED` or `UNRATED` rating. */
-    private val RATINGS: Set<String> = setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved")
+    /** The two folded genre names the signal needs together. Pinned under both hold versions. */
+    internal const val GENRE_ANIMATION = "animation"
+    internal const val GENRE_FAMILY = "family"
+
+    /** The ladder names the signal accepts, besides a null, blank or unrated spelling. Pinned under both versions. */
+    internal val RATINGS: Set<String> = setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved")
+
+    /** The spellings of unrated, after ASCII upper-casing and trimming. Pinned under both hold versions. */
+    internal val UNRATED_SPELLINGS: Set<String> = setOf("NR", "NOT RATED", "UNRATED")
 
     /** The signal on [entry] and its known [series] (see [KidHold.isAnimatedFamily]). */
     fun holds(
@@ -56,7 +61,7 @@ internal object AnimatedFamilySignal {
         return when {
             rating == null || rating.isBlank() -> true
             name != null -> name in RATINGS
-            else -> upperAscii(rating.trim(' ')).let { it == "NR" || it == "NOT RATED" || it == "UNRATED" }
+            else -> upperAscii(rating.trim()) in UNRATED_SPELLINGS
         }
     }
 

@@ -115,7 +115,7 @@ class LineupDaysGrownUpHoldTest {
     }
 
     @Test
-    fun withKidsLeftoversOffWhatIsMadeForKidsAirsNowhere() =
+    fun withKidsLeftoversOffWhatIsMadeForKidsIsTurnedAway() =
         runBlocking<Unit> {
             seed()
             val lineup = lineupOf(starterAt("drama", 150), leftovers("odds-and-ends", 199, null))
@@ -126,7 +126,8 @@ class LineupDaysGrownUpHoldTest {
                     .channelDays(ACCOUNT, LIBRARIES, NOON)
                     .first { it.channel.id == LineupIds.leftovers("odds-and-ends") }
             assertEquals(emptySet(), odds.ids())
-            assertEquals(1, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(1, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
         }
 
     @Test
@@ -140,4 +141,20 @@ class LineupDaysGrownUpHoldTest {
         // Made for kids by its series, so the grown-up leftovers drops it, and the kid table refuses it: nowhere.
         assertEquals(emptySet(), days.getValue(odds.id.value).ids())
     }
+
+    @Test
+    fun aTitleBothHoldsTurnAwayIsCountedApartAndNotAsAiringNowhere() =
+        runBlocking<Unit> {
+            seedMixed()
+            val lineup =
+                lineupOf(
+                    starterAt("drama", 150),
+                    leftovers("kids-odds-and-ends", 99, "PG"),
+                    leftovers("odds-and-ends", 199, null),
+                )
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
+            assertEquals(1, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
+        }
 }

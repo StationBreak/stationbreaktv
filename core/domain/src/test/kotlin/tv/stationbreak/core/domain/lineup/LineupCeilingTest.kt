@@ -150,7 +150,7 @@ class LineupCeilingTest {
     }
 
     @Test
-    fun aCurrentKidSafeStarterRenumberedOutOfTheKidsBandKeepsItsRecipeCeiling() {
+    fun aGrownUpKeyWithAGCeilingRenumberedOutOfTheKidsBandKeepsItsRecipeCeiling() {
         seedGrownUpRatings()
         val moved = starter("toons", 150, ChannelState.On, dramas)
         assertEquals(setOf(id(1)), scheduledPool(lineupOf(moved), moved), "the recipe's ceiling is G")
