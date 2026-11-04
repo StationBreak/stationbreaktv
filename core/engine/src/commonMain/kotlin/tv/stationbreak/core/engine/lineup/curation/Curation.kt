@@ -54,6 +54,7 @@ class Homes internal constructor(
     private val titleIndex: Map<CanonicalId, Int>,
     private val homeOfTitle: Array<ChannelId?>,
     private val statsOf: Map<ChannelId, ChannelStats>,
+    private val candidatesOf: Map<ChannelId, Int>,
 ) {
     /** The home channel of [title], or null when no channel has it as a candidate. */
     fun homeOf(title: CanonicalId): ChannelId? {
@@ -65,6 +66,15 @@ class Homes internal constructor(
     fun stats(channel: ChannelId): ChannelStats {
         val stats = statsOf[channel]
         return requireNotNull(stats) { "The channel was not one of the curated channels" }
+    }
+
+    /**
+     * How many titles [channel] has as candidates: the titles of its airable pool that the anime rule admits. Zero
+     * means nothing fits the channel at all; it does not depend on which other channels were curated with it.
+     */
+    fun candidates(channel: ChannelId): Int {
+        val count = candidatesOf[channel]
+        return requireNotNull(count) { "The channel was not one of the curated channels" }
     }
 }
 
@@ -82,20 +92,49 @@ object Curation {
     fun homes(
         snapshot: RuleSnapshot,
         channels: List<CurationChannel>,
-    ): Homes = CurationRun(snapshot, channels).homes()
+    ): Homes = CurationHoming(snapshot, channels).homes(null)
+
+    /** A homing over [channels] that works out their lanes once and homes any subset of them. */
+    internal fun homing(
+        snapshot: RuleSnapshot,
+        channels: List<CurationChannel>,
+    ): Homing = CurationHoming(snapshot, channels)
 
     /** The curated pools of the switched-on channels [on]: homes over [on], then guests, keeps and weights. */
     fun pools(
         snapshot: RuleSnapshot,
         on: List<CurationChannel>,
-    ): Map<ChannelId, CuratedPool> = CurationRun(snapshot, on).pools()
+    ): Map<ChannelId, CuratedPool> = CurationRun(LaneBuilder(snapshot, sortedChannels(on))).pools()
+}
+
+/**
+ * Homes a subset of the channels it was built over. A channel's lane (candidates, hours, anchors, scores) depends only
+ * on the channel and the snapshot, never on the other channels, so the lanes are built once and a subset re-runs only
+ * the homing and the stats.
+ */
+internal interface Homing {
+    /** The homes over [channels], or over every channel when null. Channels it was not built over are ignored. */
+    fun homes(channels: Set<ChannelId>?): Homes
+}
+
+private class CurationHoming(
+    snapshot: RuleSnapshot,
+    channels: List<CurationChannel>,
+) : Homing {
+    private val built = LaneBuilder(snapshot, sortedChannels(channels))
+
+    override fun homes(channels: Set<ChannelId>?): Homes {
+        val lanes =
+            if (channels == null) built.lanes else built.lanes.filter { it.channel.id in channels }.toTypedArray()
+        return CurationRun(built, lanes).homes()
+    }
 }
 
 // A guest's packed sort key keeps its index in the low bits: far more than any channel's candidates.
 private const val GUEST_BITS = 24
 private const val GUEST_MASK = (1L shl GUEST_BITS) - 1
 
-private val CHANNEL_ORDER =
+internal val CHANNEL_ORDER =
     Comparator<CurationChannel> { a, b ->
         val byNumber = a.number.compareTo(b.number)
         if (byNumber != 0) byNumber else a.id.value.compareTo(b.id.value)
@@ -110,11 +149,9 @@ private fun sortedChannels(channels: List<CurationChannel>): List<CurationChanne
 
 /** One run of the curation over a fixed channel list: everything is worked out once, in plain loops. */
 private class CurationRun(
-    snapshot: RuleSnapshot,
-    channels: List<CurationChannel>,
+    private val built: LaneBuilder,
+    private val lanes: Array<Lane> = built.lanes,
 ) {
-    private val built = LaneBuilder(snapshot, sortedChannels(channels))
-    private val lanes = built.lanes
     private val titles = built.titles
 
     // The run's marks, parallel to each lane's candidates.
@@ -172,8 +209,12 @@ private class CurationRun(
         val homeIds = arrayOfNulls<ChannelId>(titles.size)
         for (t in titles.indices) if (homeLane[t] >= 0) homeIds[t] = lanes[homeLane[t]].channel.id
         val stats = LinkedHashMap<ChannelId, ChannelStats>(lanes.size * 2)
-        for (l in lanes.indices) stats[lanes[l].channel.id] = statsOf(l)
-        return Homes(built.titleIndex, homeIds, stats)
+        val candidates = HashMap<ChannelId, Int>(lanes.size * 2)
+        for (l in lanes.indices) {
+            stats[lanes[l].channel.id] = statsOf(l)
+            candidates[lanes[l].channel.id] = lanes[l].cand.size
+        }
+        return Homes(built.titleIndex, homeIds, stats, candidates)
     }
 
     // members = the whole candidate list on a kid or guest-only channel (what it can air), the homes on any other.

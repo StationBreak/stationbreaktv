@@ -5,7 +5,10 @@ import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.RuleSnapshot
 
-/** The starters chosen to be on, and why each other candidate is on the shelf. */
+/**
+ * The starters chosen to be on, and why each other candidate is on the shelf. Both are in channel-number order (ties
+ * by ID), pinned channels that were not candidates and opt-in IDs that were not candidates last, in ID order.
+ */
 class Selected(
     val on: Set<ChannelId>,
     val shelf: Map<ChannelId, ShelfReason>,
@@ -17,6 +20,14 @@ class Selected(
  * over the chosen set and drops any chosen channel that no longer qualifies. At most [CurationDefaults.ROUNDS] rounds;
  * after the last, the set stands. Integer arithmetic only; ties go to the lower channel number, so input order never
  * matters.
+ *
+ * The drop never happens with the real homing, so the rounds do not repeat: removing channels only adds homes. A
+ * channel's lane (its candidates, hours, anchors and scores) does not depend on the other channels, and a title's home
+ * is its best-fitting candidate channel, ties to the lower number. Over a subset that still holds a title's old home,
+ * that home is still the best; where the old home is gone, the title moves to another channel of the subset, which can
+ * only gain. A kid or guest-only channel counts every candidate whatever the homes. So a chosen channel's titles,
+ * hours and anchors never fall, and it still qualifies. The loop stays as a safety net, and a property test holds the
+ * claim over generated libraries.
  */
 object Selection {
     /**
@@ -30,7 +41,7 @@ object Selection {
         pinned: Set<ChannelId>,
         optIn: Set<ChannelId>,
         room: Int,
-    ): Selected = select(snapshot, candidates, pinned, optIn, room, Curation::homes)
+    ): Selected = select(snapshot, candidates, pinned, optIn, room, Curation::homing)
 
     @Suppress("LongParameterList") // The public five plus the homing, which a test replaces.
     internal fun select(
@@ -39,35 +50,46 @@ object Selection {
         pinned: Set<ChannelId>,
         optIn: Set<ChannelId>,
         room: Int,
-        homesOf: (RuleSnapshot, List<CurationChannel>) -> Homes,
+        homingOf: (RuleSnapshot, List<CurationChannel>) -> Homing,
     ): Selected {
         val places = room.coerceAtLeast(0)
         var all = candidates.filter { it.id in pinned || it.id !in optIn }
+        // The lanes are built once: every later homing is of a subset of these channels.
+        val homing = homingOf(snapshot, all)
         var on: Set<ChannelId> = pinned
         var scores: Map<ChannelId, Long> = emptyMap()
+        var first: Homes? = null
         var rounds = 0
         var settled = false
         while (!settled && rounds < CurationDefaults.ROUNDS) {
             rounds++
-            val homes = homesOf(snapshot, all)
+            val homes = homing.homes(idsOf(all))
+            if (first == null) first = homes
             scores = scoresOf(all, pinned, homes)
             on = pinned + top(all, scores, places)
             val chosen = all.filter { it.id in on }
             // Everything chosen means the same channels as the first homing: no need to work it out again.
-            val homesOn = if (chosen.size == all.size) homes else homesOf(snapshot, chosen)
+            val homesOn = if (chosen.size == all.size) homes else homing.homes(idsOf(chosen))
             val bad = HashSet<ChannelId>()
             for (c in chosen) if (c.id !in pinned && !homesOn.stats(c.id).qualifies) bad.add(c.id)
             if (bad.isNotEmpty()) all = all.filter { it.id !in bad }
             settled = bad.isEmpty()
         }
-        return Selected(on, shelfOf(candidates, on, optIn, scores))
+        val order = candidates.sortedWith(CHANNEL_ORDER)
+        return Selected(onInOrder(order, on), shelfOf(order, on, optIn, scores, first))
     }
 
     /** min(capped, 80 h) in 36 s units (a hundredth of an hour), 1500 per anchor to 4, 100 per title to 30. */
     internal fun channelScore(s: ChannelStats): Long =
         minOf(s.cappedMs, CurationDefaults.SCORE_HOURS_CAP_MS) / SCORE_MS_UNIT +
-            ANCHOR_POINTS * minOf(s.anchors, MAX_ANCHORS) +
-            TITLE_POINTS * minOf(s.titles, MAX_TITLES)
+            CurationDefaults.SCORE_ANCHOR_POINTS * minOf(s.anchors, CurationDefaults.SCORE_ANCHOR_CAP) +
+            CurationDefaults.SCORE_TITLE_POINTS * minOf(s.titles, CurationDefaults.SCORE_TITLE_CAP)
+
+    private fun idsOf(channels: List<CurationChannel>): Set<ChannelId> {
+        val ids = HashSet<ChannelId>(channels.size * 2)
+        for (c in channels) ids.add(c.id)
+        return ids
+    }
 
     private fun scoresOf(
         all: List<CurationChannel>,
@@ -93,41 +115,44 @@ object Selection {
         val ordered =
             scored.sortedWith { a, b ->
                 val byScore = scores.getValue(b.id).compareTo(scores.getValue(a.id))
-                when {
-                    byScore != 0 -> byScore
-                    a.number != b.number -> a.number.compareTo(b.number)
-                    else -> a.id.value.compareTo(b.id.value)
-                }
+                if (byScore != 0) byScore else CHANNEL_ORDER.compare(a, b)
             }
         return ordered.take(places).map { it.id }
     }
 
-    // Off the lineup: opt-in, else nothing fits at all, else it qualified but missed the room, else too thin.
+    private fun onInOrder(
+        order: List<CurationChannel>,
+        on: Set<ChannelId>,
+    ): Set<ChannelId> {
+        val out = LinkedHashSet<ChannelId>()
+        for (c in order) if (c.id in on) out.add(c.id)
+        for (id in on.sortedBy { it.value }) out.add(id)
+        return out
+    }
+
+    // Off the lineup: opt-in, else no candidate title at all, else it qualified but missed the room, else too thin.
     private fun shelfOf(
-        candidates: List<CurationChannel>,
+        order: List<CurationChannel>,
         on: Set<ChannelId>,
         optIn: Set<ChannelId>,
         scores: Map<ChannelId, Long>,
+        first: Homes?,
     ): Map<ChannelId, ShelfReason> {
         val shelf = LinkedHashMap<ChannelId, ShelfReason>()
-        for (c in candidates) {
+        for (c in order) {
             if (c.id in on) continue
             shelf[c.id] =
                 when {
                     c.id in optIn -> ShelfReason.OptIn
-                    c.pool.isEmpty() -> ShelfReason.Empty
+                    first == null || first.candidates(c.id) == 0 -> ShelfReason.Empty
                     c.id in scores -> ShelfReason.BelowCap
                     else -> ShelfReason.TooThin
                 }
         }
         // An opt-in starter the caller did not pass as a candidate is still on the shelf for being opt-in.
-        for (id in optIn) if (id !in on && id !in shelf) shelf[id] = ShelfReason.OptIn
+        for (id in optIn.sortedBy { it.value }) if (id !in on && id !in shelf) shelf[id] = ShelfReason.OptIn
         return shelf
     }
 
     private const val SCORE_MS_UNIT = 36_000L
-    private const val ANCHOR_POINTS = 1_500L
-    private const val MAX_ANCHORS = 4
-    private const val TITLE_POINTS = 100L
-    private const val MAX_TITLES = 30
 }

@@ -31,6 +31,12 @@ object CurationDefaults {
     /** The most hours a channel's score counts: 80 hours, in ms. */
     const val SCORE_HOURS_CAP_MS: Long = 288_000_000L
 
+    /** A channel's score: 1500 an anchor up to 4 anchors, and 100 a title up to 30 titles. */
+    const val SCORE_ANCHOR_POINTS: Long = 1_500L
+    const val SCORE_ANCHOR_CAP: Int = 4
+    const val SCORE_TITLE_POINTS: Long = 100L
+    const val SCORE_TITLE_CAP: Int = 30
+
     /** The weight of an anchor title, a home title and a guest title. */
     const val WEIGHT_ANCHOR: Int = 3
     const val WEIGHT_HOME: Int = 2
