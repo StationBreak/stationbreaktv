@@ -316,7 +316,10 @@ The scheduler's item fields (see Building the schedule, Inputs and outputs) come
   series are the `Name` of each entry of the server's `Studios`, in the server's order: an entry whose name is missing, or
   is longer than 256 UTF-16 code units, is dropped; every other name is cleaned as the studio fold says (see String
   matching) and is dropped if nothing is left; and only the first 16 names that remain are kept. A client **must** follow
-  this, because a `studio` source and the `studios` filter compare against exactly these names.
+  this, because a `studio` source and the `studios` filter compare against exactly these names. The limits of 16 names and of
+  256 code units belong to this conversion from the server's data and nowhere else: a pool evaluator is given the studio
+  lists of the snapshot as they are and does not apply either limit. It applies the studio fold (see String matching) to
+  **both** sides when it compares, and the fold is idempotent, so a name that has already been cleaned compares the same.
 - A collection's members **must** be read as rule 2 says (member movies, member episodes, episodes of member series and
   episodes of member seasons, with no recursion into nested collections).
 
@@ -837,12 +840,15 @@ Ordering (`180` and `35` minutes, that is `10800000` and `2100000` ms) when the 
 **The side inputs.**
 
 - **The franchise map.** Every collection in the library snapshot is a candidate (not only the collections named in
-  `sources`); a collection that is not in the snapshot groups nothing. A film (a movie of the pool) that is a **member
+  `sources`, and including a collection that `exclusions` only exclude); a collection that is not in the snapshot groups
+  nothing. A film (a movie of the pool) that is a **member
   movie** of at least one such collection is mapped to the collection with the **smallest canonical ID** (compared as the
   32 ASCII bytes, unsigned) among those it is a member of. Episodes are never mapped. The map is worked out from the as-of
   library snapshot (see The pool of an epoch).
 - **The weights.** A map from a title ID to a whole number from 1 to 3. A title that is not in it has weight 1. A rules file
-  read on its own gives every title weight 1.
+  read on its own gives every title weight 1. The title of an item is the series ID of an episode that has one, else the item's
+  own ID, so a film's title is its own ID. The ID of a collection is not the title of anything, so a weight given for a
+  collection ID has no effect; the weight of a franchise group is the largest weight among its films' titles (step 3 below).
 
 **The walk.** `curated` is the order of the walk below, cut into runs as the walk emits them.
 
@@ -865,8 +871,9 @@ Ordering (`180` and `35` minutes, that is `10800000` and `2100000` ms) when the 
       `clock - last(g) >= repeatGapMs`.
    2. If at least one live group is ready, choose among the ready groups the one with the smallest `pass`; ties go to the
       smaller `key(g)` (unsigned), then to the smaller group ID bytes (unsigned). If none is ready, choose among all live
-      groups the one with the smallest `last(g)` (the one that aired longest ago), with the same ties after it: the smaller
-      `pass`, then the smaller `key(g)`, then the smaller group ID bytes.
+      groups the one with the smallest `last(g)` (the one that aired longest ago; every live group has aired by then, because a
+      group that has not is ready), with the same ties after it: `pass` only separates groups whose `last(g)` is equal, then
+      the smaller `key(g)`, then the smaller group ID bytes.
    3. Let `x` be the first member in the chosen group's queue. The **run** is `[x]`, except that it is `[x, y]` when the
       chosen group is a series group, at least two members are left in its queue, `y` is the second of them, and both
       `runtimeMs(x)` and `runtimeMs(y)` are at most `pairUpToMs`. (A film, a franchise group and a group of one never pair.)
@@ -891,7 +898,9 @@ airtime; the part of the pass that comes from the key is a jitter of at most 90 
 
 The repeat gap is measured on the walk's own `clock`, which starts at `0` at the start of the walk, and the walk is made
 afresh for each day: the gap restarts at the start of each day, and two titles that end one day and start the next can
-air close together. Runs that can never fit a day are left out as for every mode (see Left-out runs), after the walk.
+air close together. Runs that can never fit a day are left out as for every mode (see Left-out runs), after the walk: the walk does not know
+the length of the epoch, so it makes every run of the pool, and its `clock` and the passes count the slot of a run that is
+afterwards left out like any other; the left-out runs are then removed from the list of runs and the walk is not made again.
 
 Worked example. `alignToGrid` is true on a 30-minute grid, both tunables are the defaults, every weight is 1, and every
 epoch is long enough. Series `A` has four 22-minute episodes a1 to a4 (in queue order), series `B` has two 45-minute episodes
@@ -1023,12 +1032,17 @@ filled in from the rules first; the scheduler has none of its own.
 - `caps`: none, or the `series` and `film` caps, each 1 to 10. A scheduler always gets both values: the rules layer fills
   in the defaults (3 and 1), the scheduler has none of its own. They are present, and so in force, for `rotation` (which
   always carries them) and for a capped `shuffle`. The rules layer drops `caps` for the other modes, so a scheduler is not given
-  them there; one that is ignores them in the order and checks them like any caps (so `epochHours` must be 24 below);
+  them there; one that is ignores them in the order and checks them like any caps (so `epochHours` must be 24 below). This
+  holds for `curated` too: a rules file with `curated` and `caps` is invalid (see Ordering), so the rules layer never gives
+  caps to a `curated` scheduler, but a scheduler that is handed caps beside `curated` ignores them in the order and does not
+  fail because of them;
 - `runtimeFilter`: none, or a window `minMs` and/or `maxMs` in milliseconds (`minMinutes * 60000`, `maxMinutes * 60000`)
   and, in version 3, a window `episodeMinMs`/`episodeMaxMs` for episodes and a window `movieMinMs`/`movieMaxMs` for movies,
   each part given or not: a pool condition, see The pool of an epoch;
 - `repeatGapMs` and `pairUpToMs`: `repeatGapMinutes * 60000` and `pairUpToMinutes * 60000`, with the defaults `10800000` and
-  `2100000` filled in by the rules layer. A scheduler always gets both; only `curated` reads them;
+  `2100000` filled in by the rules layer. A scheduler always gets both; only `curated` reads them. A scheduler accepts
+  `repeatGapMs` from 0 to 86400000 and `pairUpToMs` from 60000 to 86400000 inclusive, as whole milliseconds: it does not
+  require a whole number of minutes (the rules layer always gives one), and a value outside its range is an input error;
 - `seed`: the channel seed, an unsigned 64-bit number;
 - `blockLength`: items per run, 1 to 100 (not read by `rotation`);
 - `alignToGrid`: true or false;
@@ -1045,7 +1059,8 @@ a capped `shuffle`, or `curated` (which reads the franchise map of `curated` ins
 movie of any collection of the library snapshot, mapped to the smallest such collection ID), and every other mode ignores it.
 A scheduler also takes two more **side inputs** (version 3): the **weights**, a map from a title ID to a whole number from 1 to
 3 (only `curated` reads them; a title that is absent has weight 1), and the **keeps**, a map from a series ID to a cap in
-whole milliseconds, 1 or more (every mode applies them; see the trim window in The pool of an epoch). An empty map and an absent
+whole milliseconds, 1 or more, with no upper bound (0 or less is an input error; every mode applies them; see the trim window in
+The pool of an epoch). An empty map and an absent
 map are the same, and a scheduler that is given none of them gives the same day as a version 2 scheduler.
 
 From these: `offsetMs`, `startMs` and `epochMs` as in Timing, and
@@ -1161,7 +1176,9 @@ milliseconds, `minMs <= runtimeMs` and `runtimeMs <= maxMs`, each only when give
 bounds `episodeMinMs` and `episodeMaxMs` that are given, and a movie the bounds `movieMinMs` and `movieMaxMs` that are given,
 in the same way and at the same cut-off; the window of the other kind never touches an item. An item the filter rejects is not
 in the pool of day `n` (see Filters). The other filters need no time and are applied when the pool is evaluated, as the
-sources are.
+sources are. The `runtime` filter is not: it is applied here, where the epoch's pool is cut, so the pool that evaluating the
+sources, the exclusions and the other filters gives is the pool **before** the runtime part, and the pool of day `n` is that
+set cut by the conditions above and then by the `runtime` filter.
 
 **The trim window** (version 3). After the pool of day `n` is cut by the conditions above (the four conditions and the
 runtime filter), the side input `keeps` (a map from a series ID, a title ID, to a cap in whole milliseconds, 1 or more; absent
@@ -1183,7 +1200,9 @@ series ID `T` that is in `keeps` and is the series ID of at least one episode of
 
 Movies, episodes that have no series ID, and every series that has no entry in `keeps` are untouched, and so is a `keeps`
 entry whose ID is not the series ID of any episode of the pool. The count `k` is worked out from the episodes that are in the pool
-(the runtimes at the cut-off, every other condition already applied), so it can change from day to day; the window moves
+(the runtimes at the cut-off, every other condition already applied: `s`, `k`, `start` and the sums are worked out on the pool
+after the four conditions and after the runtime filter with its per-kind windows, so an episode they left out is neither in
+`s` nor in a sum), so it can change from day to day; the window moves
 with `n`, so over `ceil(s / k)` days with the same pool every episode of the series is kept at least once. The day number
 `n` makes two consecutive days keep adjacent windows. The pool is a set: the order its items are listed in plays no part.
 
@@ -1823,7 +1842,8 @@ is applied to the name in the rules **and** to each studio name of the item or s
 as exact sequences of Unicode code points. The studio fold is **clean**, then fold:
 
 1. **Clean.** Go through the name by code point and write a new name:
-   1. a surrogate that is not half of a pair is dropped;
+   1. a surrogate that is not half of a pair is dropped (in the name of the rules and in each studio name of an item or a
+      series alike; a name that is only such surrogates is then empty, see below);
    2. U+0009, U+000A, U+000D, U+2028 and U+2029 are written as one U+0020 (space);
    3. a code point in the **dropped set** is dropped. The dropped set is U+0000 to U+001F (the controls not named in step 2),
       U+007F to U+009F, U+00AD, U+0600 to U+0605, U+061C, U+06DD, U+070F, U+0890 to U+0891, U+08E2, U+180E, U+200B, U+200E to
