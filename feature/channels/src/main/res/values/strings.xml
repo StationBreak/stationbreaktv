@@ -125,6 +125,8 @@
     <string name="builder_kept_order_random_in_order">Order: shows in turn, in order</string>
     <string name="builder_kept_order_curated">Order: programmed</string>
     <string name="builder_kept_years">Years %1$d to %2$d, as a source</string>
+    <string name="builder_kept_studio">Studio %1$s, as a source</string>
+    <string name="builder_kept_studio_left_out">Studio %1$s, left out</string>
     <string name="builder_kept_block_length">%1$d in a row</string>
     <string name="builder_kept_back_to_back_off">Back to back is off</string>
     <string name="builder_kept_filler">Filler</string>

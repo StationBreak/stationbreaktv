@@ -85,8 +85,6 @@ enum class OnlyKind { Films, Shows }
 data class KeptSettings(
     val fromName: String?,
     val items: List<KeptItem>,
-    /** How many studio sources (rules format 3) the copy keeps: sources too, which count toward the format's 256. */
-    val hiddenSources: Int = 0,
 )
 
 sealed interface KeptItem {
@@ -97,6 +95,16 @@ sealed interface KeptItem {
     data class YearsSource(
         val from: Int,
         val to: Int,
+    ) : KeptItem
+
+    /** A studio source (rules format 3): the builder has no studio picker; it counts as a source. */
+    data class StudioSource(
+        val name: String,
+    ) : KeptItem
+
+    /** A studio exclusion (rules format 3): it counts as a left-out item. */
+    data class StudioExclusion(
+        val name: String,
     ) : KeptItem
 
     data class BlockLength(
@@ -226,7 +234,7 @@ data class ChannelDraft(
     private fun listsProblem(): DraftProblem? =
         when {
             sources.size + keptSources() > MAX_LIST -> DraftProblem.TooManySources
-            leaveOut.size > MAX_LIST -> DraftProblem.TooManyLeftOut
+            leaveOut.size + keptLeftOut() > MAX_LIST -> DraftProblem.TooManyLeftOut
             filters.genres.size > MAX_LIST -> DraftProblem.TooManyGenres
             else -> null
         }
@@ -235,10 +243,11 @@ data class ChannelDraft(
     fun hasPool(): Boolean = sources.isNotEmpty() || keptSources() > 0
 
     // The year ranges and studio sources a copy carries are sources of the rules too: they count toward the 256.
-    private fun keptSources(): Int {
-        val years = kept?.items.orEmpty().count { it is KeptItem.YearsSource }
-        return years + (kept?.hiddenSources ?: 0)
-    }
+    private fun keptSources(): Int = kept?.items.orEmpty().count(::isKeptSource)
+
+    private fun isKeptSource(item: KeptItem) = item is KeptItem.YearsSource || item is KeptItem.StudioSource
+
+    private fun keptLeftOut(): Int = kept?.items.orEmpty().count { it is KeptItem.StudioExclusion }
 
     /** The kept items that are still in force: the viewer has not chosen an order or caps that replace them. */
     val keptInForce: List<KeptItem>

@@ -77,6 +77,14 @@ internal fun keptText(item: KeptItem): String =
             stringResource(R.string.builder_kept_years, item.from, item.to)
         }
 
+        is KeptItem.StudioSource -> {
+            stringResource(R.string.builder_kept_studio, item.name)
+        }
+
+        is KeptItem.StudioExclusion -> {
+            stringResource(R.string.builder_kept_studio_left_out, item.name)
+        }
+
         is KeptItem.BlockLength -> {
             stringResource(R.string.builder_kept_block_length, item.n)
         }

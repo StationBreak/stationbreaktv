@@ -271,13 +271,11 @@ internal object DraftRules {
             filmCap = if (uncapped) null else caps?.effectiveFilm ?: ChannelDraft.DEFAULT_FILM_CAP,
             kids = number != null && number in Band.Kids.numbers,
             number = number,
-            kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name, it, hiddenStudios(rules)) },
+            kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name, it) },
             numberChosen = false,
             seed = rules.seed,
         )
     }
-
-    private fun hiddenStudios(rules: ChannelRules): Int = rules.sources.count { it is Source.Studio }
 
     private fun draftFiltersOf(rules: ChannelRules): DraftFilters {
         val filters = rules.filters
@@ -325,7 +323,7 @@ internal object DraftRules {
                 OrderingMode.Curated -> items += KeptItem.Order(KeptOrder.Curated)
                 else -> Unit
             }
-            rules.sources.filterIsInstance<Source.YearRange>().forEach { items += KeptItem.YearsSource(it.from, it.to) }
+            items += sourceItemsOf(rules)
             if (rules.orderingMode == OrderingMode.Shuffle && rules.effectiveCaps == null) items += KeptItem.NoCaps
             val epoch = rules.timing.effectiveEpochHours
             if (epoch != EPOCH_HOURS) items += KeptItem.EpochHours(epoch)
@@ -336,14 +334,29 @@ internal object DraftRules {
             return items
         }
 
-        // Anything left that the builder would write differently: extras, a year-range or studio source or exclusion,
+        // The sources and exclusions the builder has no picker for: year ranges, studios.
+        private fun sourceItemsOf(rules: ChannelRules): List<KeptItem> {
+            val items = ArrayList<KeptItem>()
+            for (source in rules.sources) {
+                when (source) {
+                    is Source.YearRange -> items += KeptItem.YearsSource(source.from, source.to)
+                    is Source.Studio -> items += KeptItem.StudioSource(source.name)
+                    else -> Unit
+                }
+            }
+            for (excluded in rules.effectiveExclusions) {
+                if (excluded is Source.Studio) items += KeptItem.StudioExclusion(excluded.name)
+            }
+            return items
+        }
+
+        // Anything left that the builder would write differently: extras, a year-range exclusion,
         // a theme filter or per-kind runtime, a curated tunable, a filler object that does nothing, or timing the
         // builder writes otherwise.
         private fun hasOtherSettings(rules: ChannelRules): Boolean =
             hasExtras(rules) ||
                 timingDiffers(rules.timing) ||
-                rules.effectiveExclusions.any { it is Source.YearRange || it is Source.Studio } ||
-                rules.sources.any { it is Source.Studio } ||
+                rules.effectiveExclusions.any { it is Source.YearRange } ||
                 rules.filters?.usesVersion3 == true ||
                 rules.ordering?.let { it.repeatGapMinutes != null || it.pairUpToMinutes != null } == true ||
                 (rules.filler != null && rules.fillerMode == FillerMode.None)

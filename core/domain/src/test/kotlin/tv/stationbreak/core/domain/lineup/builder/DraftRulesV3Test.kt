@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.BroadcastDay
@@ -93,7 +95,10 @@ class DraftRulesV3Test {
 
         val draft = fromRules(themed)
 
-        assertTrue(KeptItem.OtherSettings in assertNotNull(draft.kept).items)
+        val items = assertNotNull(draft.kept).items
+        assertTrue(KeptItem.OtherSettings in items, "the theme filters have no control")
+        assertTrue(KeptItem.StudioSource("Studio A") in items)
+        assertTrue(KeptItem.StudioExclusion("Studio B") in items)
         assertEquals(listOf<DraftSource>(DraftSource.Genre("Comedy", "Comedy")), draft.sources)
         assertTrue(draft.hasPool(), "a studio source is a pool the builder cannot show")
         val back = toRules(draft, themed)
@@ -116,6 +121,34 @@ class DraftRulesV3Test {
 
         assertNull(draft.problem())
         assertEquals(onlyStudio, toRules(draft, onlyStudio))
+    }
+
+    @Test
+    fun studioSourcesAndExclusionsCountTowardTheLimits() {
+        val sources = (1..256).map { Source.Studio("Studio $it") }
+        val full = fromRules(rules(sources = sources, ordering = null))
+        assertEquals(emptyList(), full.sources)
+        assertNull(full.problem())
+        val genre = listOf(DraftSource.Genre("Comedy", "Comedy"))
+        assertEquals(DraftProblem.TooManySources, full.copy(sources = genre).problem())
+        val left = fromRules(rules(ordering = null, exclusions = sources))
+        assertNull(left.problem())
+        val over = left.copy(leaveOut = listOf(DraftSource.Genre("Horror", "Horror")))
+        assertEquals(DraftProblem.TooManyLeftOut, over.problem())
+    }
+
+    @Test
+    fun aCuratedCopySwitchedToShuffleIsWrittenAsV2WithItsOrderingExtrasKept() {
+        val extras = JsonObject(mapOf("future" to JsonPrimitive(1)))
+        val curated = rules(ordering = Ordering(OrderingMode.Curated, repeatGapMinutes = 90, extras = extras))
+
+        val written = toRules(fromRules(curated).copy(order = PlayOrder.Shuffle), curated)
+
+        assertEquals(2, written.formatVersion)
+        assertEquals(OrderingMode.Shuffle, written.orderingMode)
+        assertNull(written.ordering?.repeatGapMinutes)
+        assertEquals(extras, written.ordering?.extras)
+        assertEquals(ChannelDraft.DEFAULT_SERIES_CAP, written.ordering?.caps?.series)
     }
 
     @Test
