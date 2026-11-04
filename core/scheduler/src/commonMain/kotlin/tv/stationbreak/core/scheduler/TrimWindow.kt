@@ -17,7 +17,8 @@ import tv.stationbreak.core.model.schedule.TitleKeeps
 internal object TrimWindow {
     /**
      * [pool] with the window of day [n] applied, in canonical ID order. The same [pool] when [keeps] is empty. The
-     * window is applied only inside [buildDay]; the pool it kept ([Day.pool]) is restored with [TitleKeeps.NONE].
+     * window is applied by [EpochPool.dayPool] (which [buildDay] uses, and which a day that keeps its pool calls when
+     * the day is made); a pool that was kept after it is built again with [TitleKeeps.NONE].
      */
     fun apply(
         pool: List<ScheduleItem>,
