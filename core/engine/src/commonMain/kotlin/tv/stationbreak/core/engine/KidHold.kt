@@ -164,8 +164,8 @@ object KidHold {
      * Animation and Family, and the rating is one that means G or unrated. The rating is the effective one (the
      * entry's own, or the series' when the own is null or blank), and a known series with a rating must pass too, as
      * [passesKidCeiling] reads an episode. It passes when null or blank; or after `RatingLadder.normalise` it is `G`,
-     * `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and trimmed, it is `NR` or
-     * `NOT RATED`. Anything else, a PG or above, a name off the ladder, fails. Tags never take part. A null [series]
+     * `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and trimmed, it is `NR`,
+     * `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails. Tags never take part. A null [series]
      * contributes nothing.
      */
     fun isAnimatedFamily(

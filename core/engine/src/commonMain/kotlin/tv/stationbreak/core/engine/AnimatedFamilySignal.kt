@@ -14,7 +14,7 @@ internal object AnimatedFamilySignal {
     private const val GENRE_FAMILY = "family"
     private const val ASCII_CASE_OFFSET = 'a' - 'A'
 
-    /** The ladder names the signal accepts, besides a null, blank, `NR` or `NOT RATED` rating. */
+    /** The ladder names the signal accepts, besides a null, blank, `NR`, `NOT RATED` or `UNRATED` rating. */
     private val RATINGS: Set<String> = setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved")
 
     /** The signal on [entry] and its known [series] (see [KidHold.isAnimatedFamily]). */
@@ -56,7 +56,7 @@ internal object AnimatedFamilySignal {
         return when {
             rating == null || rating.isBlank() -> true
             name != null -> name in RATINGS
-            else -> upperAscii(rating.trim(' ')).let { it == "NR" || it == "NOT RATED" }
+            else -> upperAscii(rating.trim(' ')).let { it == "NR" || it == "NOT RATED" || it == "UNRATED" }
         }
     }
 

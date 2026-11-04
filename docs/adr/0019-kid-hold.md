@@ -164,7 +164,7 @@ grown-up films. Family alone stays rejected (decision 1 above): a live-action fa
 together include Animation and Family, and the rating is G-like or unrated. The rating is the effective one (the
 item's own, or the series' when the own is null or blank), and a known series with a rating must pass too, as
 `passesKidCeiling` reads an episode. It passes when it is null or blank, or after `RatingLadder.normalise` is `G`,
-`TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`, or (ASCII upper-cased, trimmed) is `NR` or `NOT RATED`. It uses
+`TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`, or (ASCII upper-cased, trimmed) is `NR`, `NOT RATED` or `UNRATED`. It uses
 only genres and ratings, which every server has; tags, library names and folder layout never take part.
 `isMadeForKids` is the `kid-hold-2` test or this signal. `isSeriesMadeForKids(series)` applies the same lists to a
 series alone, for the curation's tone; it is not a hold of its own. The lists and `passesKidCeiling` are unchanged.

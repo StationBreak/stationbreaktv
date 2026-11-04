@@ -240,7 +240,7 @@ class KidHoldTest {
 
     @Test
     fun anUnratedAnimatedFamilyFilmIsMadeForKidsButFailsEveryCeiling() {
-        for (r in listOf(null, "", "  ", "NR", "not rated", "Approved")) {
+        for (r in listOf(null, "", "  ", "NR", "not rated", "Approved", "Unrated", " UNRATED ")) {
             val f = film(r, genres = animatedFamily)
             assertTrue(KidHold.isMadeForKids(f, null), r.toString())
             for (c in KidHold.CEILING_CHOICES + listOf(null)) {
@@ -251,7 +251,7 @@ class KidHoldTest {
 
     @Test
     fun anAnimatedFamilyPg13FilmIsNot() {
-        for (r in listOf("PG", "PG-13", "TV-PG", "TV-14", "R", "TV-MA", "NC-17", "Unrated", "12A", "X")) {
+        for (r in listOf("PG", "PG-13", "TV-PG", "TV-14", "R", "TV-MA", "NC-17", "12A", "X")) {
             assertFalse(KidHold.isMadeForKids(film(r, genres = animatedFamily), null), r)
         }
     }
