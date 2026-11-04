@@ -31,18 +31,24 @@
     <string name="channels_save_failed">Couldn\'t save that change. Try again.</string>
     <string name="channels_failed">Something went wrong. Nothing was changed.</string>
     <string name="channels_libraries_unavailable">Your library choices can\'t be read right now. Nothing was changed.</string>
+    <string name="channels_use_my_collections">Use my collections</string>
+    <!-- Provisional copy, for the design partner to settle. -->
+    <string name="channels_use_my_collections_hint">Built-in channels can use collections you made. Changes start at 6 AM.</string>
+    <string name="channels_switch_on">On</string>
+    <string name="channels_switch_off">Off</string>
     <string name="channels_reset">Reset channels</string>
     <string name="channels_reset_confirm">Reset channels? Your numbers and switched-off channels on this TV will be lost.</string>
     <string name="channels_reset_action">Reset</string>
     <string name="channels_choosing">Choosing channels…</string>
     <string name="channels_reset_not_chosen">Channels will be chosen after the next library check.</string>
     <string name="channels_reason_collections">Still reading your collections</string>
+    <string name="channels_reason_household_off">Needs \"Use my collections\", which is off</string>
     <string name="channels_reason_no_matches">Nothing in your libraries fits this channel</string>
-    <string name="channels_reason_not_for_kids">Nothing here is made for kids</string>
-    <string name="channels_reason_childrens_only">Only children\'s shows fit; they air on the kids channels</string>
-    <string name="channels_reason_all_excluded">Everything that fits is excluded by this channel</string>
-    <string name="channels_reason_all_filtered">Everything that fits is filtered out by this channel</string>
-    <string name="channels_reason_ceiling">Everything that fits is above this channel\'s rating limit</string>
+    <string name="channels_reason_not_for_kids">No rated kids\' titles fit this channel</string>
+    <string name="channels_reason_childrens_only">Kids\' titles air on the kids channels</string>
+    <string name="channels_reason_all_excluded">Everything that fits is excluded</string>
+    <string name="channels_reason_all_filtered">Everything that fits is filtered out</string>
+    <string name="channels_reason_ceiling">All above the rating limit, or unrated</string>
     <string name="channels_reason_empty_today">Nothing to air today; back when there is</string>
 
     <!-- placeholder: design partner -->

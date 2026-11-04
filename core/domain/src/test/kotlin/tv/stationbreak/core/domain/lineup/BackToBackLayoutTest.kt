@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
@@ -14,6 +16,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.model.schedule.TitleWeights
+import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.scheduler.buildDay
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -55,9 +58,16 @@ class BackToBackLayoutTest {
         assertEquals(blocks.first().endMs, blocks[1].startMs, "the next run starts when the first ends")
     }
 
+    private fun firstStarter(): ChannelRules {
+        val none = CollectionNames(emptyMap())
+        val library = LibraryNames(RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), true), none)
+        return RecipeResolver.resolve(StarterCatalog.recipes.first(), server, 0, none, library)
+    }
+
     @Test
     fun aResolvedStarterRunsBackToBack() {
-        val rules = RecipeResolver.resolve(StarterCatalog.recipes.first(), server, 0, CollectionNames(emptyMap()))
+        val rules =
+            firstStarter()
         assertEquals(false, rules.timing.alignToGrid)
         val settings = rules.toSchedulerSettings()
         assertFalse(settings.alignToGrid)
@@ -73,7 +83,8 @@ class BackToBackLayoutTest {
 
     @Test
     fun rulesThatOmitAlignToGridStillAlignToTheGrid() {
-        val resolved = RecipeResolver.resolve(StarterCatalog.recipes.first(), server, 0, CollectionNames(emptyMap()))
+        val resolved =
+            firstStarter()
         val omitted = resolved.copy(timing = resolved.timing.copy(alignToGrid = null))
         val settings = omitted.toSchedulerSettings()
         assertTrue(settings.alignToGrid)

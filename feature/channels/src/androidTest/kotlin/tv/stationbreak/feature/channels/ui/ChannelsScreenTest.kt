@@ -10,11 +10,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onChild
 import androidx.compose.ui.test.onNodeWithTag
@@ -48,6 +50,7 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
@@ -111,8 +114,10 @@ private class Lineup(
     initial: List<ChannelSummary>,
     private val access: LineupAccess,
 ) : ChannelRepository,
-    ChannelEditor {
+    ChannelEditor,
+    HouseholdSetting {
     val list = MutableStateFlow(initial)
+    val household = MutableStateFlow(true)
     val changes = CopyOnWriteArrayList<ChannelChange>()
 
     val resets = AtomicInteger()
@@ -123,6 +128,8 @@ private class Lineup(
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = list
 
     override fun activeChannels(): Flow<List<ChannelSummary>> = list
+
+    override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = household
 
     override fun access(account: LibraryAccount): Flow<LineupAccess> = flowOf(access)
 
@@ -159,6 +166,10 @@ private class Lineup(
 
             is ChannelChange.ClearNumber -> {
                 Unit
+            }
+
+            is ChannelChange.UseMyCollections -> {
+                household.value = change.on
             }
         }
         return ChangeResult.Done
@@ -219,7 +230,7 @@ class ChannelsScreenTest {
         lineup = Lineup(lineup(extra), access)
         currentNow.value = current
         runBlocking { library.useAccount(account) }
-        vm = ChannelsViewModel(library, lineup, lineup, schedule, clock, work)
+        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, clock, work)
         val builderVm =
             BuilderViewModel(library, builder, FakeCatalogPicker(), FakeChannelPreviews(), lineup, clock, work)
         compose.setContent {
@@ -300,7 +311,7 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.reason(BRAVO)) }
         compose
             .onNodeWithTag(ChannelsTags.reason(BRAVO), useUnmergedTree = true)
-            .assertTextContains("Everything that fits is filtered out by this channel", substring = true)
+            .assertTextContains("Everything that fits is filtered out", substring = true)
     }
 
     @Test
@@ -520,6 +531,26 @@ class ChannelsScreenTest {
         pressTogether(Pad.Select, Pad.Select, Pad.Select)
         assertEquals(listOf(ALPHA), tuned.toList())
         assertEquals(0, closed)
+    }
+
+    @Test
+    fun theToggleRowIsFocusableAndFlips() {
+        show(null)
+        // The list starts on New; the "Use my collections" switch is the stop above it.
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
+        press(Pad.Up)
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertIsSelected()
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertIsOn()
+        press(Pad.Select)
+        until { lineup.changes.isNotEmpty() && !lineup.household.value }
+        assertEquals(listOf<ChannelChange>(ChannelChange.UseMyCollections(false)), lineup.changes.toList())
+        until { compose.onAllNodes(hasTestTag(ChannelsTags.HOUSEHOLD) and isOff()).fetchSemanticsNodes().isNotEmpty() }
+        press(Pad.Select)
+        until { lineup.household.value }
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertIsSelected()
+        // Down leaves it for New again.
+        press(Pad.Down)
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected()
     }
 
     @Test

@@ -44,9 +44,18 @@ class RecipeResolverTest {
     )
 
     @Test
+    fun everyStarterResolvesAgainstAnEmptyLibraryAtFormatOne() {
+        for (r in StarterCatalog.recipes) {
+            val rules = RecipeResolver.resolve(r, server, 0, noCollections, NO_LIBRARY)
+            assertEquals(1, rules.formatVersion, r.key)
+            assertEquals(r.sources, rules.sources, r.key)
+        }
+    }
+
+    @Test
     fun resolveSetsNameSeedSourcesCeilingAndTiming() {
         val r = recipe(maxRating = "PG", band = Band.Kids, number = 10, ordering = OrderingMode.Chronological)
-        val rules = RecipeResolver.resolve(r, server, -300, noCollections)
+        val rules = RecipeResolver.resolve(r, server, -300, noCollections, NO_LIBRARY)
         assertEquals("Test Channel", rules.name)
         assertEquals(AutoSeed.derive(server.value, AutoSeedKind.Recipe, "test-channel"), rules.seed)
         assertEquals(r.sources, rules.sources)
@@ -61,7 +70,7 @@ class RecipeResolverTest {
 
     @Test
     fun noOrderingLeavesTheFieldOut() {
-        assertNull(RecipeResolver.resolve(recipe(), server, 0, noCollections).ordering)
+        assertNull(RecipeResolver.resolve(recipe(), server, 0, noCollections, NO_LIBRARY).ordering)
     }
 
     @Test
@@ -70,7 +79,7 @@ class RecipeResolverTest {
             CollectionNames(
                 mapOf(idOf(3) to "KAIJU", idOf(1) to "kaiju", idOf(2) to "Other", idOf(4) to "Kaiju"),
             )
-        val rules = RecipeResolver.resolve(recipe(hints = listOf("Kaiju", "kaiju")), server, 0, names)
+        val rules = RecipeResolver.resolve(recipe(hints = listOf("Kaiju", "kaiju")), server, 0, names, NO_LIBRARY)
         val hinted = listOf(1, 3, 4).map { Source.Collection(idOf(it)) }
         assertEquals(recipe().sources + hinted, rules.sources)
     }
@@ -78,7 +87,7 @@ class RecipeResolverTest {
     @Test
     fun noMatchingCollectionAddsNothing() {
         val names = CollectionNames(mapOf(idOf(1) to "Other"))
-        val rules = RecipeResolver.resolve(recipe(hints = listOf("Kaiju")), server, 0, names)
+        val rules = RecipeResolver.resolve(recipe(hints = listOf("Kaiju")), server, 0, names, NO_LIBRARY)
         assertEquals(recipe().sources, rules.sources)
     }
 
@@ -87,7 +96,7 @@ class RecipeResolverTest {
         val kids = StarterCatalog.recipes.filter { it.kidSafe }
         assertTrue(kids.isNotEmpty())
         for (kid in kids) {
-            val rules = RecipeResolver.resolve(kid, server, 0, noCollections)
+            val rules = RecipeResolver.resolve(kid, server, 0, noCollections, NO_LIBRARY)
             val items = badItemsMatching(kid)
             val snap = snapshot(items = items.sortedBy { it.item.id.value })
             // Not vacuous: without the ceiling the recipe's sources do select the items.
@@ -121,7 +130,7 @@ class RecipeResolverTest {
     fun leftoversSettingsEqualsAnEquivalentResolvedRecipe() {
         val left = StarterCatalog.leftovers.first { it.number == 199 }
         val equivalent = recipe().copy(key = left.key, ordering = null)
-        val expected = RecipeResolver.resolve(equivalent, server, 345, noCollections).toSchedulerSettings()
+        val expected = RecipeResolver.resolve(equivalent, server, 345, noCollections, NO_LIBRARY).toSchedulerSettings()
         assertEquals(expected, RecipeResolver.leftoversSettings(left, server, 345))
     }
 

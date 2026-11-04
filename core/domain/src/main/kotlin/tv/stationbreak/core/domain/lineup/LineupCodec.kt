@@ -10,10 +10,13 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.longOrNull
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.BroadcastDay
@@ -22,15 +25,29 @@ import tv.stationbreak.core.rules.RulesResult
 import tv.stationbreak.core.rules.RulesWriter
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 2` ([VERSION]). Only `core:domain` reads or
- * writes it. A version-1 file is read as it is (its meta has no `extrasFromMs`, which reads as null); it is written
- * back as version 2, and the service keeps a copy of the old bytes first (`LineupStore.keepCopy`).
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 3` ([VERSION]). Only `core:domain` reads or
+ * writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`, which reads as null;
+ * before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each channel's `chosenByViewer`
+ * is inferred from its state and overrides); it is written back as version 3, and the service keeps a copy of the old
+ * bytes first (`LineupStore.keepCopy`). Version 3 added `useMyCollections`, `viewerChoicesKnown`, `curationBasis`,
+ * the channel fields `chosenByViewer`, `leavesAtMs` and `shelfReason`, and the starter source fields `previousRules`
+ * and `rulesFromMs`, and the meta field `replanFromMs`. A field of version 3 in an older file makes it
+ * [Decoded.Unreadable].
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
- * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a version-1 file with an
- * unknown key or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside, never silently trimmed). The
- * rules of a starter or custom channel are a rules-format file (version 1 to 3) held as a JSON string; they are read
- * and written by the rules codec, so they keep their extras (the fields this app does not know) but not their bytes.
+ * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
+ * or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside).
+ *
+ * What is rejected and what is dropped: an unknown key or value, and a field of a later version in an older file,
+ * make the file [Decoded.Unreadable]. A few values this app could have written itself are read leniently and dropped
+ * instead, so a save writes them back without them: `leavesAtMs` and `shelfReason` on a channel that is not a starter
+ * (version 3; only a starter has them), a `previousRules` without its `rulesFromMs` or the other way round, or
+ * `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
+ * as JSON `null` in a version 1 or 2 file (read as absent).
+ *
+ * The rules of a starter or custom channel are a rules-format file (version 1 to 3) held as a JSON string; they are
+ * read and written by the rules codec, so they keep their extras (the fields this app does not know) but not their
+ * bytes.
  *
  * One bad channel never discards the rest: when a channel's `source` cannot be used (its rules fail [RulesReader] or
  * need a newer app, a leftovers ceiling is not on the rating ladder, a field is missing or of the wrong type), that
@@ -45,13 +62,13 @@ import tv.stationbreak.core.rules.RulesWriter
  * Beside the lineup the file may hold a `meta` object, the refresher's bookkeeping about the lineup ([RefreshMeta]).
  * Version 1 gained it before any release shipped, so it is an optional key and not a new version: a file without it
  * loads with an empty [RefreshMeta], and an unknown key inside it is [Decoded.Unreadable] like any other. Version 2
- * added the meta field `extrasFromMs`.
+ * added the meta field `extrasFromMs`. The meta field `replanFromMs` came with version 3, before it shipped.
  *
  * Decoding never throws.
  */
 internal object LineupCodec {
     /** The schema version this app reads and writes. */
-    const val VERSION = 2
+    const val VERSION = 3
 
     /** What [decode] found. */
     sealed interface Decoded {
@@ -81,6 +98,7 @@ internal object LineupCodec {
         lineup: Lineup,
         meta: RefreshMeta = RefreshMeta(),
     ): ByteArray {
+        val ids = lineup.channels.mapTo(HashSet()) { it.id }
         val file =
             FileV1(
                 version = VERSION,
@@ -91,6 +109,9 @@ internal object LineupCodec {
                 finalised = lineup.finalised,
                 channels = lineup.channels.map(::channelOf),
                 meta = MetaV1.of(meta),
+                useMyCollections = if (lineup.useMyCollections) null else false,
+                viewerChoicesKnown = if (lineup.viewerChoicesKnown) null else false,
+                curationBasis = lineup.curationBasis?.let { BasisV1.of(it, ids) },
             )
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
@@ -134,13 +155,41 @@ internal object LineupCodec {
         val server = CanonicalId.parseCanonicalOrNull(file.serverId)
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
         if (server == null || user == null || !validOffset(file.utcOffsetMinutes)) return Decoded.Unreadable
-        val channels = file.channels.map(::channelOf)
-        val lineup = Lineup.ofOrNull(server, user, file.catalogVersion, file.utcOffsetMinutes, file.finalised, channels)
+        val inferred = fileVersion < 3
+        val channels = file.channels.map { channelOf(it, inferred) }
+        val ids = channels.mapTo(HashSet()) { it.id }
+        val lineup =
+            Lineup.ofOrNull(
+                server,
+                user,
+                file.catalogVersion,
+                file.utcOffsetMinutes,
+                file.finalised,
+                channels,
+                useMyCollections = file.useMyCollections ?: true,
+                curationBasis = file.curationBasis?.basis(ids),
+                viewerChoicesKnown = !inferred && file.viewerChoicesKnown != false,
+            )
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
-        // Version 1 is strict: the field belongs to version 2, so a version-1 file with it was not written by this app.
-        val strayField = fileVersion < 2 && meta.extrasFromMs != null
+        // Older versions are strict: a field of a later version in them was not written by this app.
+        val strayField =
+            (fileVersion < 2 && meta.extrasFromMs != null) ||
+                (inferred && (hasVersion3Field(file) || meta.replanFromMs != null))
         return if (lineup != null && !strayField) Decoded.Loaded(lineup, meta, fileVersion) else Decoded.Unreadable
     }
+
+    private fun hasVersion3Field(file: FileV1): Boolean =
+        file.useMyCollections != null ||
+            file.viewerChoicesKnown != null ||
+            file.curationBasis != null ||
+            file.channels.any {
+                it.chosenByViewer != null ||
+                    it.leavesAtMs != null ||
+                    (it.shelfReason != null && it.shelfReason !is JsonNull) ||
+                    (it.source as? JsonObject)?.let { source ->
+                        SourceCodec.PREVIOUS_RULES in source || SourceCodec.RULES_FROM_MS in source
+                    } == true
+            }
 
     private fun validOffset(minutes: Int): Boolean =
         try {
@@ -159,19 +208,41 @@ internal object LineupCodec {
             state = StateV1.of(channel.state),
             onSinceMs = channel.onSinceMs,
             source = SourceCodec.encode(channel.source),
+            chosenByViewer = if (channel.chosenByViewer) true else null,
+            leavesAtMs = channel.leavesAtMs.takeIf { channel.source is ChannelSource.Starter },
+            shelfReason =
+                channel.shelfReason
+                    .takeIf { channel.source is ChannelSource.Starter }
+                    ?.let { JsonPrimitive(REASON_NAMES.getValue(it)) },
         )
 
     // Throws IllegalArgumentException for a blank ID; decode turns that into Unreadable.
-    private fun channelOf(channel: ChannelV1) =
-        LineupChannel(
+    private fun channelOf(
+        channel: ChannelV1,
+        inferChoice: Boolean,
+    ): LineupChannel {
+        val state = channel.state.state
+        val source = SourceCodec.decode(channel.source)
+        val starter = source is ChannelSource.Starter
+        return LineupChannel(
             id = ChannelId(channel.id),
             defaultNumber = channel.defaultNumber,
             numberOverride = channel.numberOverride,
             nameOverride = channel.nameOverride,
-            state = channel.state.state,
-            source = SourceCodec.decode(channel.source),
+            state = state,
+            source = source,
             onSinceMs = channel.onSinceMs,
+            chosenByViewer =
+                if (inferChoice) {
+                    state == ChannelState.UserHidden || channel.numberOverride != null || channel.nameOverride != null
+                } else {
+                    channel.chosenByViewer == true
+                },
+            // Only a starter leaves the lineup or sits on the shelf for a reason.
+            leavesAtMs = channel.leavesAtMs.takeIf { starter },
+            shelfReason = reasonOf(channel.shelfReason, starter),
         )
+    }
 
     private val WHOLE = Regex("^-?(0|[1-9][0-9]*)$")
 }
@@ -203,10 +274,12 @@ private object SourceCodec {
     private const val RULES = "rules"
     private const val MAX_RATING = "maxRating"
     private const val MAX_DEPTH = 32
+    const val PREVIOUS_RULES = "previousRules"
+    const val RULES_FROM_MS = "rulesFromMs"
 
     private val keys =
         mapOf(
-            "starter" to setOf(KIND, KEY, EDITED, RULES),
+            "starter" to setOf(KIND, KEY, EDITED, RULES, PREVIOUS_RULES, RULES_FROM_MS),
             "leftovers" to setOf(KIND, KEY, MAX_RATING),
             CUSTOM_KIND to setOf(KIND, RULES),
         )
@@ -214,14 +287,20 @@ private object SourceCodec {
     fun encode(source: ChannelSource): JsonElement =
         when (source) {
             is ChannelSource.Starter -> {
-                JsonObject(
-                    linkedMapOf(
+                val fields =
+                    linkedMapOf<String, JsonElement>(
                         KIND to JsonPrimitive("starter"),
                         KEY to JsonPrimitive(source.recipeKey),
                         EDITED to JsonPrimitive(source.edited),
                         RULES to JsonPrimitive(RulesWriter.write(source.rules)),
-                    ),
-                )
+                    )
+                val previous = source.previousRules
+                val from = source.rulesFromMs
+                if (previous != null && from != null) {
+                    fields[PREVIOUS_RULES] = JsonPrimitive(RulesWriter.write(previous))
+                    fields[RULES_FROM_MS] = JsonPrimitive(from)
+                }
+                JsonObject(fields)
             }
 
             is ChannelSource.Leftovers -> {
@@ -291,7 +370,15 @@ private object SourceCodec {
         val key = fields.string(KEY)
         val edited = (fields[EDITED] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
         val rules = rulesOf(fields)
-        return if (key != null && edited != null && rules != null) ChannelSource.Starter(key, edited, rules) else null
+        if (key == null || edited == null || rules == null) return null
+        // The old rules and their boundary go together; old rules this app cannot read drop both (E5).
+        val previous = fields.string(PREVIOUS_RULES)?.let(RulesReader::read) as? RulesResult.Ok
+        val from = (fields[RULES_FROM_MS] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull
+        return if (previous != null && from != null) {
+            ChannelSource.Starter(key, edited, rules, previous.rules, from)
+        } else {
+            ChannelSource.Starter(key, edited, rules)
+        }
     }
 
     private fun leftovers(fields: JsonObject): ChannelSource? {
@@ -323,7 +410,39 @@ private class FileV1(
     val finalised: Boolean,
     val channels: List<ChannelV1>,
     val meta: MetaV1? = null,
+    val useMyCollections: Boolean? = null,
+    val viewerChoicesKnown: Boolean? = null,
+    val curationBasis: BasisV1? = null,
 )
+
+@Serializable
+private class BasisV1(
+    val fromMs: Long,
+    val on: List<String>,
+    val household: Boolean,
+) {
+    /** The basis, keeping only the IDs of channels of the lineup ([ids]). */
+    fun basis(ids: Set<ChannelId>): CurationBasis {
+        val known = on.mapNotNull { raw -> raw.takeIf { it.isNotBlank() }?.let(::ChannelId)?.takeIf { it in ids } }
+        return CurationBasis(fromMs, known.toSet(), household)
+    }
+
+    companion object {
+        /** Written sorted by ID, and only IDs of channels of the lineup. */
+        fun of(
+            basis: CurationBasis,
+            ids: Set<ChannelId>,
+        ): BasisV1 =
+            BasisV1(
+                basis.fromMs,
+                basis.on
+                    .filter { it in ids }
+                    .map { it.value }
+                    .sorted(),
+                basis.household,
+            )
+    }
+}
 
 @Serializable
 private class MetaV1(
@@ -331,8 +450,10 @@ private class MetaV1(
     val collectionPassActedOn: Long? = null,
     val plannedLibraries: List<String>? = null,
     val extrasFromMs: Long? = null,
+    val replanFromMs: Long? = null,
 ) {
-    val refreshMeta get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries, extrasFromMs)
+    val refreshMeta
+        get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries, extrasFromMs, replanFromMs)
 
     companion object {
         /** Null for an empty [meta], so a file with nothing to say holds no `meta` key. */
@@ -340,7 +461,13 @@ private class MetaV1(
             if (meta == RefreshMeta()) {
                 null
             } else {
-                MetaV1(meta.plannedGeneration, meta.collectionPassActedOn, meta.plannedLibraries, meta.extrasFromMs)
+                MetaV1(
+                    meta.plannedGeneration,
+                    meta.collectionPassActedOn,
+                    meta.plannedLibraries,
+                    meta.extrasFromMs,
+                    meta.replanFromMs,
+                )
             }
     }
 }
@@ -355,7 +482,30 @@ private class ChannelV1(
     val state: StateV1,
     val onSinceMs: Long,
     val source: JsonElement,
+    val chosenByViewer: Boolean? = null,
+    val leavesAtMs: Long? = null,
+    val shelfReason: JsonElement? = null,
 )
+
+// The wire names of the shelf reasons. A new value is a new version (see the class comment).
+private val REASON_NAMES =
+    mapOf(
+        ShelfReason.Empty to "empty",
+        ShelfReason.TooThin to "tooThin",
+        ShelfReason.BelowCap to "belowCap",
+        ShelfReason.OptIn to "optIn",
+    )
+
+// The reason [element] names. On a starter an unknown or mistyped one throws (the file is unreadable); anywhere else
+// the field is ignored, so null.
+private fun reasonOf(
+    element: JsonElement?,
+    starter: Boolean,
+): ShelfReason? {
+    if (!starter || element == null || element is JsonNull) return null
+    val name = (element as? JsonPrimitive)?.takeIf { it.isString }?.content
+    return requireNotNull(REASON_NAMES.entries.firstOrNull { it.value == name }) { "An unknown shelf reason" }.key
+}
 
 @Serializable
 private enum class StateV1(

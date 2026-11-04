@@ -2,6 +2,8 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.engine.GrownUpHold
@@ -11,15 +13,19 @@ import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.HouseholdSources
 import tv.stationbreak.core.engine.lineup.KidStatus.basePolicyOf
 import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
+import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.householdFor
+import tv.stationbreak.core.engine.lineup.rulesFor
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -133,13 +139,16 @@ internal val NO_FILMS: FilmCollections = FilmCollections.of(emptyMap())
 /**
  * A snapshot a day is built from: the cut-off it is read at, and whether the extras filter was applied to it. Two days
  * of one cut-off can differ in the second (the filter starts at a day start, and days of other timing start elsewhere),
- * and then they are two snapshots.
+ * and then they are two snapshots. [dayStartMs] is when the day starts: the rules of a starter and the "Use my
+ * collections" flag are those of that day, so what the leftovers withhold is worked out per day start. The snapshot
+ * itself is read by [cutoffMs] and [extras] alone.
  */
 internal data class Cut(
     val cutoffMs: Long,
     val extras: Boolean,
+    val dayStartMs: Long,
 ) : Comparable<Cut> {
-    override fun compareTo(other: Cut): Int = compareValuesBy(this, other, { it.cutoffMs }, { it.extras })
+    override fun compareTo(other: Cut): Int = compareValuesBy(this, other, Cut::cutoffMs, Cut::extras, Cut::dayStartMs)
 }
 
 /**
@@ -155,8 +164,11 @@ internal class Scheduled(
     /** The day's cut-off (`S - G`): the library snapshot the day is built from is read at it. */
     val cutoffMs: Long get() = Epochs.cutoff(settings, n)
 
+    /** When the day starts, in milliseconds since 1970. */
+    val dayStartMs: Long get() = Epochs.epochStart(settings, n)
+
     /** The snapshot the day is built from. */
-    val cut: Cut get() = Cut(cutoffMs, extras)
+    val cut: Cut get() = Cut(cutoffMs, extras, dayStartMs)
 }
 
 /**
@@ -202,6 +214,8 @@ internal class LineupDays(
     /**
      * The channels of [lineup] that are scheduled at [atMs], in number order. Reads nothing. A day is filtered of
      * extras when its start is at or after [extrasFromMs] (the account's `RefreshMeta.extrasFromMs`; null is never).
+     * A channel that leaves the lineup at or before [atMs] ([LineupChannel.leavesAtMs]) is no longer on. A starter's
+     * settings are those of the rules for the day that holds [atMs] (`rulesFor`), not today's newest.
      */
     fun scheduled(
         lineup: Lineup,
@@ -209,10 +223,10 @@ internal class LineupDays(
         extrasFromMs: Long?,
     ): List<Scheduled> =
         lineup.channels
-            .filter { it.state == ChannelState.On && it.number != null }
+            .filter { it.state == ChannelState.On && it.number != null && it.leavesAtMs.isAfter(atMs) }
             .sortedWith(CHANNEL_ORDER)
             .mapNotNull { channel ->
-                settingsOf(channel, lineup)?.let {
+                settingsOf(channel, lineup, atMs)?.let {
                     val n = Epochs.epochNumber(it, atMs)
                     Scheduled(channel, it, n, extrasFromMs != null && Epochs.epochStart(it, n) >= extrasFromMs)
                 }
@@ -231,7 +245,10 @@ internal class LineupDays(
      * - the order the leftovers channels claim in ([claimOrder]: ceilinged first, then by number), the one other place
      *   numbers count;
      * - [extrasFromMs], when the extras filter starts to apply (the account's `RefreshMeta.extrasFromMs`; every caller
-     *   passes the account's value): it decides, with the day's start, which days are filtered.
+     *   passes the account's value): it decides, with the day's start, which days are filtered;
+     * - the day-boundary inputs (spec 23): "Use my collections" (`household`), the curation basis (`basis`), each
+     *   channel's `leavesAt`, and a starter's previous rules and their boundary (inside its source). Not
+     *   `chosenByViewer`, `shelfReason` or `viewerChoicesKnown`: no day depends on them.
      *
      * Numbers and names that change neither are left out: a renumber or a swap on one side of the Kids band keeps every
      * built day. The day's channel and name are read from the current lineup ([rebound]).
@@ -240,7 +257,7 @@ internal class LineupDays(
         lineup: Lineup,
         extrasFromMs: Long?,
     ): String {
-        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it, policyOf(it, lineup)) }
+        val channels = lineup.channels.sortedBy { it.id.value }.map { channelInputs(it, policyOf(it, lineup), lineup) }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         val inputs =
             JsonObject(
@@ -250,25 +267,63 @@ internal class LineupDays(
                     "channels" to JsonArray(channels),
                     "claims" to JsonArray(claims),
                     "extrasFrom" to JsonPrimitive(extrasFromMs),
+                    "household" to JsonPrimitive(lineup.useMyCollections),
+                    "basis" to basisInputs(lineup),
                 ),
             )
         return sha256Hex(inputs.toString().encodeToByteArray())
+    }
+
+    // The curation basis in [inputsOf]: what the days before its boundary were worked out from.
+    private fun basisInputs(lineup: Lineup): JsonElement {
+        val basis = lineup.curationBasis ?: return JsonNull
+        return JsonObject(
+            linkedMapOf(
+                "fromMs" to JsonPrimitive(basis.fromMs),
+                "household" to JsonPrimitive(basis.household),
+                "on" to
+                    JsonArray(
+                        basis.on
+                            .map { it.value }
+                            .sorted()
+                            .map { JsonPrimitive(it) },
+                    ),
+            ),
+        )
     }
 
     // What one channel contributes to [inputsOf]: the one definition of "its days would change".
     private fun channelInputs(
         channel: LineupChannel,
         policy: PoolPolicy,
-    ): JsonObject =
-        JsonObject(
-            linkedMapOf(
+        lineup: Lineup,
+    ): JsonObject {
+        val fields =
+            linkedMapOf<String, JsonElement>(
                 "id" to JsonPrimitive(channel.id.value),
                 "state" to JsonPrimitive(channel.state.name),
                 "ceiling" to JsonPrimitive(ceilings.of(channel)),
                 "policy" to JsonPrimitive(nameOf(policy)),
+                "leavesAt" to JsonPrimitive(channel.leavesAtMs),
                 "source" to LineupCodec.sourceOf(unnamed(channel.source)),
+            )
+        // An unedited starter's days follow "Use my collections" (the flag, and the flag before the basis's boundary),
+        // so its play key does too; no other channel's days do.
+        val source = channel.source
+        if (source is ChannelSource.Starter && !source.edited) fields["household"] = householdInputs(lineup)
+        return JsonObject(fields)
+    }
+
+    private fun householdInputs(lineup: Lineup): JsonObject {
+        val basis = lineup.curationBasis
+        return JsonObject(
+            linkedMapOf(
+                "use" to JsonPrimitive(lineup.useMyCollections),
+                "basisFromMs" to JsonPrimitive(basis?.fromMs),
+                "basisHousehold" to JsonPrimitive(basis?.household),
             ),
         )
+    }
 
     /**
      * [channel]'s part of [inputsOf] in [lineup], as a digest: it changes whenever this channel's own inputs to the
@@ -280,7 +335,7 @@ internal class LineupDays(
         channel: LineupChannel,
         lineup: Lineup,
     ): PlayKey {
-        val inputs = channelInputs(channel, policyOf(channel, lineup)).toString()
+        val inputs = channelInputs(channel, policyOf(channel, lineup), lineup).toString()
         return PlayKey(sha256Hex(inputs.encodeToByteArray()))
     }
 
@@ -406,13 +461,16 @@ internal class LineupDays(
         return nowhere.size to turnedAway.size
     }
 
+    // A starter's settings are those of the rules for the day that holds [atMs]. Its rules and previous rules share one
+    // timing, so the day is the same under either; the rules for it then decide the rest.
     private fun settingsOf(
         channel: LineupChannel,
         lineup: Lineup,
+        atMs: Long,
     ): SchedulerSettings? =
         try {
             when (val source = channel.source) {
-                is ChannelSource.Starter -> source.rules.toSchedulerSettings()
+                is ChannelSource.Starter -> starterSettings(source, atMs)
                 is ChannelSource.Custom -> source.rules.toSchedulerSettings()
                 is ChannelSource.Leftovers -> leftoversSettings(source, lineup)
                 is ChannelSource.Unusable -> null
@@ -421,6 +479,15 @@ internal class LineupDays(
             // Settings the scheduler refuses: the channel is not scheduled rather than the whole lineup failing.
             null
         }
+
+    private fun starterSettings(
+        source: ChannelSource.Starter,
+        atMs: Long,
+    ): SchedulerSettings {
+        val current = source.rules.toSchedulerSettings()
+        val start = Epochs.epochStart(current, Epochs.epochNumber(current, atMs))
+        return source.rulesFor(start).toSchedulerSettings()
+    }
 
     // The catalog's recipe while the key is in it. A retired key keeps the same settings: they depend only on the
     // key, the server and the lineup's offset, so a stand-in recipe with that key gives them.
@@ -469,8 +536,17 @@ internal class LineupDays(
             cut: Cut,
             policy: PoolPolicy,
         ): Pool {
+            // Not the day start: two days of one cut-off with the same rules share a pool.
             val key =
-                EvaluationKey(cut, rules.sources, rules.effectiveExclusions, rules.filters, rules.maxRating, policy)
+                EvaluationKey(
+                    cut.cutoffMs,
+                    cut.extras,
+                    rules.sources,
+                    rules.effectiveExclusions,
+                    rules.filters,
+                    rules.maxRating,
+                    policy,
+                )
             evaluations[key]?.let { return it }
             evaluated()
             return PoolEvaluator.evaluate(rules, snapshotOf(cut), policy).also { evaluations[key] = it }
@@ -521,9 +597,38 @@ internal class LineupDays(
             var next = 0
         }
 
+        // The rules a channel airs on the day that starts at [dayStartMs]: a starter's rules for that day, and for an
+        // unedited one, without the household collections when the flag in force that day is off (null: nothing is
+        // left, a day with no source). A custom channel's rules are its own. A collection the snapshot lacks counts
+        // as household-only (`HouseholdSources.without`), so on a snapshot without a full collection pass a partial
+        // drop is silent; such collections resolve to nothing anyway, and a day with no source left says so.
+        private fun rulesAt(
+            channel: LineupChannel,
+            dayStartMs: Long,
+            snapshot: RuleSnapshot,
+        ): ChannelRules? =
+            when (val source = channel.source) {
+                is ChannelSource.Starter -> {
+                    val rules = source.rulesFor(dayStartMs)
+                    if (source.edited || lineup.householdFor(dayStartMs)) {
+                        rules
+                    } else {
+                        HouseholdSources.without(rules, snapshot)
+                    }
+                }
+
+                is ChannelSource.Custom -> {
+                    source.rules
+                }
+
+                is ChannelSource.Leftovers, is ChannelSource.Unusable -> {
+                    null
+                }
+            }
+
         private fun ruledDay(s: Scheduled): ChannelDay {
-            val rules = checkNotNull(rulesOf(s.channel))
             val snapshot = snapshotOf(s.cut)
+            val rules = rulesAt(s.channel, s.dayStartMs, snapshot) ?: return householdOffDay(s, snapshot)
             val ruled =
                 ruledDayOf(ceilings, rules, s.channel, snapshot, s.settings, s.n) { r, policy ->
                     evaluate(r, s.cut, policy)
@@ -531,6 +636,18 @@ internal class LineupDays(
             epochPools[s] = ruled.day
             // The window keeps at least one episode of each series, so emptiness (and its reason) is unchanged by it.
             return dayOf(s, ruled.day, ruled.films, hiddenReason(ruled.pool, ruled.day), keepsFor(s))
+        }
+
+        // An unedited starter whose sources are all household collections, on a day the flag is off: nothing to air.
+        private fun householdOffDay(
+            s: Scheduled,
+            snapshot: RuleSnapshot,
+        ): ChannelDay {
+            epochPools[s] = emptyList()
+            // Without a full collection pass the names are not known yet, so the emptiness may be only that.
+            val synced = snapshot.collectionsSynced
+            val reason = if (synced) HiddenReason.HouseholdCollectionsOff else HiddenReason.CollectionsNotSynced
+            return dayOf(s, emptyList(), NO_FILMS, reason, TitleKeeps.NONE)
         }
 
         private fun leftoversDay(
@@ -562,7 +679,7 @@ internal class LineupDays(
         /** What no leftovers channel may air from the [cut]'s snapshot: opt-in and hidden channels' pools. */
         fun withheld(cut: Cut): Set<CanonicalId> =
             withheldBy.getOrPut(cut) {
-                val rules = optInRules() + hiddenRules()
+                val rules = optInRules(cut) + hiddenRules(cut)
                 rules.flatMapTo(HashSet()) { (r, policy) -> evaluate(r, cut, policy).items.map { it.id } }
             }
 
@@ -581,24 +698,36 @@ internal class LineupDays(
             claimed: Set<CanonicalId>,
         ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel, lineup))
 
-        // Every opt-in recipe of the catalog, as resolved without collection hints and as the lineup holds it. Each is
-        // evaluated under its policy: the resolved recipe by its recipe, the lineup's channel by its channel. The
-        // ceiling is as today.
-        private fun optInRules(): List<PolicyRules> =
-            catalog.recipes.filter { it.optIn }.flatMap { recipe ->
-                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, lineup.utcOffsetMinutes, NO_NAMES)
+        // Every opt-in recipe of the catalog, as resolved against the cut's snapshot (its collection names and library
+        // names, as the planner resolves them) and as the lineup holds it. Each is evaluated under its policy: the
+        // resolved recipe by its recipe, the lineup's channel by its channel. The ceiling is as today.
+        private fun optInRules(cut: Cut): List<PolicyRules> {
+            val snapshot = snapshotOf(cut)
+            val collections = collectionNamesOf(snapshot)
+            val names = LibraryNames(snapshot, collections)
+            return catalog.recipes.filter { it.optIn }.flatMap { recipe ->
+                val offset = lineup.utcOffsetMinutes
+                val resolved = RecipeResolver.resolve(recipe, lineup.serverId, offset, collections, names)
                 val inLineup = lineup.channels.firstOrNull { it.id == LineupIds.starter(recipe.key) }
+                // The flag in force on the day counts here too: an opt-in channel withholds what it would air.
+                val household = lineup.householdFor(cut.dayStartMs)
+                val resolvedForDay = if (household) resolved else HouseholdSources.without(resolved, snapshot)
                 listOfNotNull(
-                    PolicyRules(resolved, policyOf(recipe)),
-                    inLineup?.let(::rulesOf)?.let { PolicyRules(it, basePolicyOf(inLineup)) },
+                    resolvedForDay?.let { PolicyRules(it, policyOf(recipe)) },
+                    inLineup?.let { rulesAt(it, cut.dayStartMs, snapshot) }?.let {
+                        PolicyRules(it, basePolicyOf(inLineup))
+                    },
                 )
             }
+        }
 
         // A hidden channel is evaluated as it would air if shown: under its scheduled ceiling and its own policy.
-        private fun hiddenRules(): List<PolicyRules> =
-            lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
-                rulesOf(channel)?.let { ceilings.policyRules(it, channel) }
+        private fun hiddenRules(cut: Cut): List<PolicyRules> {
+            val snapshot = snapshotOf(cut)
+            return lineup.channels.filter { it.state == ChannelState.UserHidden }.mapNotNull { channel ->
+                rulesAt(channel, cut.dayStartMs, snapshot)?.let { ceilings.policyRules(it, channel) }
             }
+        }
     }
 
     /**
@@ -607,7 +736,8 @@ internal class LineupDays(
      * ceiling, and its policy, so channels under different policies with the same rules never share a pool.
      */
     private data class EvaluationKey(
-        val cut: Cut,
+        val cutoffMs: Long,
+        val extras: Boolean,
         val sources: List<Source>,
         val exclusions: List<Source>,
         val filters: Filters?,
@@ -622,8 +752,6 @@ internal class LineupDays(
             .sortedWith(compareBy<LineupChannel> { ceilings.of(it) == null }.then(CHANNEL_ORDER))
 
     private companion object {
-        val NO_NAMES = CollectionNames(emptyMap())
-
         /** A grown-up leftovers number, for the stand-in recipe of a retired leftovers key. */
         const val RETIRED_NUMBER = 199
     }
@@ -640,17 +768,13 @@ private fun nameOf(policy: PoolPolicy): String =
 // [source] without the name its rules may carry: a name never reaches a pool.
 private fun unnamed(source: ChannelSource): ChannelSource =
     when (source) {
-        is ChannelSource.Starter -> source.copy(rules = source.rules.copy(name = null))
+        is ChannelSource.Starter -> source.mapRules { it.copy(name = null) }
         is ChannelSource.Custom -> source.copy(rules = source.rules.copy(name = null))
         is ChannelSource.Leftovers, is ChannelSource.Unusable -> source
     }
 
-private fun rulesOf(channel: LineupChannel): ChannelRules? =
-    when (val source = channel.source) {
-        is ChannelSource.Starter -> source.rules
-        is ChannelSource.Custom -> source.rules
-        is ChannelSource.Leftovers, is ChannelSource.Unusable -> null
-    }
+// Whether a channel with [this] leave time is still on at [atMs]: it has none, or it is after [atMs].
+private fun Long?.isAfter(atMs: Long): Boolean = this == null || this > atMs
 
 /** Why a day is empty, in [HiddenReason]'s precedence; null when [day] has something. */
 internal fun hiddenReason(
@@ -681,3 +805,14 @@ private fun emptyPoolReason(counts: PoolCounts): HiddenReason =
         counts.filteredOut > 0 -> HiddenReason.AllFilteredOut
         else -> HiddenReason.AllExcluded
     }
+
+/**
+ * The names of the collections [snapshot] holds, by ID, as of the snapshot's cut-off: what a themed recipe's collection
+ * anchors and a recipe's hints are matched against, so a day build resolves them as the planner does. A collection with
+ * no name has none here.
+ */
+internal fun collectionNamesOf(snapshot: RuleSnapshot): CollectionNames {
+    val names = HashMap<CanonicalId, String>()
+    for ((id, collection) in snapshot.collections) collection.name?.let { names[id] = it }
+    return CollectionNames(names)
+}

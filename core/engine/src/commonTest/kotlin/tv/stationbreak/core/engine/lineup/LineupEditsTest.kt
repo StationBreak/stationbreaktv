@@ -9,6 +9,7 @@ import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -48,7 +49,7 @@ class LineupEditsTest {
     private fun apply(
         lineup: Lineup,
         edit: LineupEdit,
-    ): EditOutcome = LineupEdits.apply(lineup, edit, 99L, catalog)
+    ): EditOutcome = LineupEdits.apply(lineup, edit, 99L, 99L + DAY_MS, catalog)
 
     private fun applied(
         lineup: Lineup,
@@ -242,6 +243,89 @@ class LineupEditsTest {
     }
 
     @Test
+    fun everyViewerEditMarksTheChannel() {
+        val edits =
+            listOf(
+                starter("western", 310, ChannelState.Shelf) to { id: ChannelId -> LineupEdit.SwitchOn(id) },
+                starter("western", 310) to { id: ChannelId -> LineupEdit.SwitchOff(id) },
+                starter("western", 310) to { id: ChannelId -> LineupEdit.SetNumber(id, 350) },
+                starter("western", 310, override = 350) to { id: ChannelId -> LineupEdit.ClearNumber(id) },
+            )
+        for ((channel, edit) in edits) {
+            val lineup = lineupOf(channel, starter("mystery", 205))
+            assertTrue(!lineup.byId(western).chosenByViewer)
+
+            val after = applied(lineup, edit(western))
+
+            assertTrue(after.byId(western).chosenByViewer, "${edit(western)} marks the channel")
+            assertTrue(!after.byId(mystery).chosenByViewer, "${edit(western)} leaves the others")
+        }
+    }
+
+    @Test
+    fun aSwapMarksBothChannels() {
+        val lineup = lineupOf(starter("western", 310), starter("mystery", 205), starter("other", 300))
+
+        val after = applied(lineup, LineupEdit.SetNumber(western, 205, swapWith = mystery))
+
+        assertTrue(after.byId(western).chosenByViewer)
+        assertTrue(after.byId(mystery).chosenByViewer)
+        assertTrue(!after.byId(LineupIds.starter("other")).chosenByViewer)
+    }
+
+    @Test
+    fun replaceCustomWithASwapMarksTheSwapHolder() {
+        val mine = custom("mine", 650, ChannelState.On)
+        val lineup = lineupOf(mine, custom("other", 651, ChannelState.On), starter("western", 310))
+        val edit = LineupEdit.ReplaceCustom(mine.id, someRules, 651, swapWith = ChannelId("custom:other"), kids = false)
+
+        val after = applied(lineup, edit)
+
+        assertEquals(650, after.byId(ChannelId("custom:other")).number)
+        assertTrue(after.byId(ChannelId("custom:other")).chosenByViewer)
+        assertTrue(!after.byId(western).chosenByViewer)
+    }
+
+    @Test
+    fun useMyCollectionsSetsTheFlagAndTheBasis() {
+        val lineup = lineupOf(starter("western", 310), starter("mystery", 205))
+        val after = applied(lineup, LineupEdit.UseMyCollections(false))
+
+        assertEquals(false, after.useMyCollections)
+        assertEquals(CurationBasis(99L + DAY_MS, emptySet(), household = true), after.curationBasis)
+        assertEquals(true, after.householdFor(99L + DAY_MS - 1))
+        assertEquals(false, after.householdFor(99L + DAY_MS))
+        assertEquals(lineup.channels, after.channels, "no channel changes, and none is marked as chosen")
+        val back = applied(after, LineupEdit.UseMyCollections(true))
+        assertEquals(true, back.useMyCollections)
+        assertEquals(after.curationBasis, back.curationBasis, "the pending basis is kept, so today is not changed")
+    }
+
+    @Test
+    fun theSameValueChangesNothing() {
+        val lineup = lineupOf(starter("western", 310))
+        assertEquals(lineup, applied(lineup, LineupEdit.UseMyCollections(true)))
+    }
+
+    @Test
+    fun removingACustomChannelPrunesTheCurationBasis() {
+        val mine = custom("mine", 650, ChannelState.On)
+        val base = lineupOf(mine, starter("western", 310))
+        val lineup = base.copy(curationBasis = CurationBasis(5L, setOf(mine.id, western), household = false))
+
+        val after = applied(lineup, LineupEdit.RemoveCustom(mine.id))
+
+        assertEquals(setOf(western), after.curationBasis?.on)
+    }
+
+    @Test
+    fun onlyAStarterHoldsADayBoundaryFieldOrAShelfReason() {
+        assertFailsWith<IllegalArgumentException> { custom("a", 650).copy(leavesAtMs = 1L) }
+        assertFailsWith<IllegalArgumentException> { custom("a", 650).copy(shelfReason = ShelfReason.Empty) }
+        assertEquals(1L, starter("western", 310).copy(leavesAtMs = 1L).leavesAtMs)
+    }
+
+    @Test
     fun swapWithAChannelThatNoLongerHoldsTheNumberIsRefused() {
         val lineup = lineupOf(starter("western", 310), starter("mystery", 205), starter("other", 300))
         val other = LineupIds.starter("other")
@@ -317,7 +401,7 @@ class LineupEditsTest {
             var lineup = randomLineup(gen)
             repeat(EDITS) {
                 val edit = randomEdit(gen, lineup)
-                when (val outcome = LineupEdits.apply(lineup, edit, 7L, catalog)) {
+                when (val outcome = LineupEdits.apply(lineup, edit, 7L, 7L + DAY_MS, catalog)) {
                     is EditOutcome.Applied -> {
                         // Building a Lineup checks the invariants; this also checks nothing else was lost.
                         val ids = lineup.channels.map { c -> c.id }
@@ -362,7 +446,7 @@ class LineupEditsTest {
     private fun randomEdit(
         gen: SeededGen,
         lineup: Lineup,
-    ): LineupEdit {
+    ): LineupEdit.ChannelEdit {
         val ids = lineup.channels.map { it.id } + ChannelId("ghost")
         val id = gen.pick(ids)
         val holders = lineup.channels.filter { it.number != null }
@@ -386,7 +470,7 @@ class LineupEditsTest {
     // the edited one only by a replace without the kids flag.
     private fun assertKidStatusKept(
         before: Lineup,
-        edit: LineupEdit,
+        edit: LineupEdit.ChannelEdit,
         after: Lineup,
     ) {
         val lost =
@@ -403,7 +487,7 @@ class LineupEditsTest {
     // What an applied custom edit must have kept: the stored seed through a replace, only the seed through a reseed.
     private fun assertCustomEdit(
         before: Lineup,
-        edit: LineupEdit,
+        edit: LineupEdit.ChannelEdit,
         after: Lineup,
     ) {
         val old = before.channels.firstOrNull { it.id == edit.id }

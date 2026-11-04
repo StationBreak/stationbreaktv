@@ -237,6 +237,15 @@ internal abstract class LibraryDao {
         userId: String,
     ): List<String>
 
+    @Query(
+        "SELECT DISTINCT s.name FROM item_studio s JOIN item i ON i.serverId = s.serverId AND i.userId = s.userId " +
+            "AND i.itemId = s.itemId WHERE s.serverId = :serverId AND s.userId = :userId AND i.deletedAtMs IS NULL",
+    )
+    abstract suspend fun liveStudioNames(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
     // [pattern] is bound, never joined into the text; likePattern escapes it for the ESCAPE clause.
     @Query(
         "SELECT itemId AS id, name AS name, productionYear AS year FROM item WHERE serverId = :serverId " +

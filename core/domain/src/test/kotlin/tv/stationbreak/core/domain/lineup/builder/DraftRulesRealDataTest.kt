@@ -2,9 +2,11 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import tv.stationbreak.core.domain.lineup.SERVER
+import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.OrderingCaps
 import tv.stationbreak.core.rules.RulesReader
@@ -42,7 +44,14 @@ class DraftRulesRealDataTest {
         val recipes = StarterCatalog.recipes
         assertTrue(recipes.size > 20, "the catalog is read")
         for (recipe in recipes) {
-            val rules = RecipeResolver.resolve(recipe, SERVER, 60, names)
+            val rules =
+                RecipeResolver.resolve(
+                    recipe,
+                    SERVER,
+                    60,
+                    names,
+                    LibraryNames(RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), true), names),
+                )
             assertEquals(asWritten(rules), roundTrip(rules), recipe.key)
         }
     }

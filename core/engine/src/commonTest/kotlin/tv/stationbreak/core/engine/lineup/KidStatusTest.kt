@@ -21,7 +21,7 @@ class KidStatusTest {
         edited: Boolean = false,
     ) = channel(number, ChannelSource.Starter(key, edited, rulesOf(key)))
 
-    private fun rulesOf(key: String) = RecipeResolver.resolve(recipeOf(key, 110), SERVER, 0, NO_NAMES)
+    private fun rulesOf(key: String) = RecipeResolver.resolve(recipeOf(key, 110), SERVER, 0, NO_NAMES, NO_LIBRARY)
 
     @Test
     fun aKidRecipeIsKidsOnlyAndAnyOtherRecipeIsGrownUp() {

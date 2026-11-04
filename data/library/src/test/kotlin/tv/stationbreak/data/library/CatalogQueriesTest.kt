@@ -23,12 +23,14 @@ class CatalogQueriesTest {
 
     private var run = 0L
 
+    @Suppress("LongParameterList") // A test builder: every field has a default.
     private fun movie(
         n: Int,
         name: String,
         genres: List<String> = emptyList(),
         tags: List<String> = emptyList(),
         year: Int? = null,
+        studios: List<String> = emptyList(),
     ) = MediaItem(
         ItemId(hexId(0x1000 + n)),
         name,
@@ -39,6 +41,7 @@ class CatalogQueriesTest {
         productionYear = year,
         genres = genres,
         tags = tags,
+        studios = studios,
     )
 
     private fun show(
@@ -46,7 +49,8 @@ class CatalogQueriesTest {
         name: String,
         genres: List<String> = emptyList(),
         tags: List<String> = emptyList(),
-    ) = SeriesInfo(ItemId(hexId(0x5000 + n)), name, null, genres, tags)
+        studios: List<String> = emptyList(),
+    ) = SeriesInfo(ItemId(hexId(0x5000 + n)), name, null, genres, tags, studios)
 
     private fun episode(
         n: Int,
@@ -106,6 +110,18 @@ class CatalogQueriesTest {
 
             assertEquals(listOf("A-tag", "b-tag", "c-tag"), repository.distinctTags(ALICE))
             assertTrue(repository.distinctTags(BOB).isEmpty())
+        }
+
+    @Test
+    fun distinctStudiosCoverItemsAndSeries() =
+        runBlocking<Unit> {
+            save(
+                movies = listOf(movie(1, "Film A", studios = listOf("Studio B", "Studio A"))),
+                shows = listOf(show(1, "Show A", studios = listOf("Studio B", "Studio C"))),
+            )
+
+            assertEquals(listOf("Studio A", "Studio B", "Studio C"), repository.distinctStudios(ALICE))
+            assertTrue(repository.distinctStudios(BOB).isEmpty())
         }
 
     @Test

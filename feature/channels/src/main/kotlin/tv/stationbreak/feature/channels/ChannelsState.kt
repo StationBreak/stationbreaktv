@@ -71,6 +71,9 @@ internal sealed interface ChannelsFocus {
         val id: ChannelId,
     ) : ChannelsFocus
 
+    /** The "Use my collections" switch row at the top of the list. */
+    data object Household : ChannelsFocus
+
     /** The New channel row above the first group. */
     data object New : ChannelsFocus
 
@@ -99,6 +102,8 @@ internal data class ChannelsUi(
     val builder: BuilderMode? = null,
     /** A New, Copy or Edit press is waiting for the lineup to be known (whether it can be changed). */
     val gettingReady: Boolean = false,
+    /** The lineup's "Use my collections" flag: on until the lineup says otherwise. */
+    val useMyCollections: Boolean = true,
 ) {
     companion object {
         val Empty =

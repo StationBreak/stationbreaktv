@@ -569,6 +569,8 @@ class BuiltInScheduleSource(
         at: Instant,
     ): Lookup? {
         val held = service.loaded(account) ?: return null
+        // Rolling what is past is tidying; the days are right without it, so it never delays a read.
+        service.rollSoon(account, held)
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
         return lookupOf(account, libraries, held, scheduled)
     }
@@ -995,7 +997,8 @@ internal suspend fun snapshotsOf(
 ): Pair<Map<Long, RuleSnapshot>, Map<Long, RuleSnapshot>> {
     val plain = HashMap<Long, RuleSnapshot>()
     val filtered = HashMap<Long, RuleSnapshot>()
-    for (cut in cuts) {
+    // Two cuts that differ only in the day they start on read the same snapshot.
+    for (cut in cuts.distinctBy { it.cutoffMs to it.extras }) {
         val read = library.ruleSnapshot(account, libraries, Instant.fromEpochMilliseconds(cut.cutoffMs))
         if (cut.extras) filtered[cut.cutoffMs] = ExtrasFilter.filter(read).snapshot else plain[cut.cutoffMs] = read
     }

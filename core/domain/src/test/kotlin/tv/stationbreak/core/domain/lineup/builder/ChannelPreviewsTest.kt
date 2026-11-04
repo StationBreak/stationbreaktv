@@ -80,7 +80,7 @@ class ChannelPreviewsTest {
     private val previews = BuiltInChannelPreviews(service, library, shared) { LIBRARIES }
     private val keyLabels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String> =
         { _, sources -> sources.associateWith { it.key } }
-    private val builder = ChannelBuildManager(service, { Seed(1uL) }, { "built" }, keyLabels)
+    private val builder = ChannelBuildManager(service, { Seed(1uL) }, { "built" }, keyLabels) { _, _ -> emptyMap() }
     private val libraryItem = ItemId(LIBRARY_ID.value)
 
     init {

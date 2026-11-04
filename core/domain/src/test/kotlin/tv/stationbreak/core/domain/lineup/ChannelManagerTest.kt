@@ -71,6 +71,19 @@ class ChannelManagerTest {
         }
 
     @Test
+    fun theHouseholdSwitchIsAChangeOfTheLineupNotOfAChannel() =
+        runBlocking<Unit> {
+            seed(lineup())
+
+            assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.UseMyCollections(false)))
+
+            val after = checkNotNull(service.lineup(ACCOUNT).value).lineup
+            assertEquals(false, after.useMyCollections)
+            assertTrue(after.channels.none { it.chosenByViewer })
+            assertEquals(false, service.useMyCollections(ACCOUNT).first())
+        }
+
+    @Test
     fun aFailedSaveIsReported() =
         runBlocking<Unit> {
             seed(lineup())
@@ -203,7 +216,7 @@ class ChannelManagerTest {
     @Test
     fun resetReportsNotEditableForANewerAppsFile() =
         runBlocking<Unit> {
-            val newer = """{"version":3}""".encodeToByteArray()
+            val newer = """{"version":4}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
             service.refresh(ACCOUNT, LIBRARIES)
 

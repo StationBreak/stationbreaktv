@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Source
 
 /** What a shipped recipe promised: its number, band, opt-in flag and ceiling, and a [fingerprint] of what it airs. */
@@ -53,6 +59,8 @@ internal fun fingerprintOf(recipe: Recipe): String {
             append("]ordering[")
             append(recipe.ordering?.wireName?.let(::text) ?: "-")
             append("]")
+            recipe.filters?.let { append("filters[").append(canonicalOf(it)).append("]") }
+            recipe.theme?.let { append("theme[").append(canonicalOf(it)).append("]") }
         }
     return fnv1a64(canonical)
 }
@@ -126,6 +134,79 @@ private fun canonicalOf(source: Source): String {
         }
     return "$body;"
 }
+
+private fun canonicalOf(filters: Filters): String =
+    buildString {
+        val lists = listOf("g" to filters.genres, "t" to filters.tags, "s" to filters.studios, "n" to filters.notGenres)
+        for ((label, names) in lists) {
+            append(label).append('[')
+            names?.forEach { append(text(it)) }
+            append(names?.let { "]" } ?: "-]")
+        }
+        append("years").append(filters.yearFrom).append(':').append(filters.yearTo)
+        append("run").append(filters.minRuntimeMinutes).append(':').append(filters.maxRuntimeMinutes)
+        append("ep").append(filters.episodeMinRuntimeMinutes).append(':').append(filters.episodeMaxRuntimeMinutes)
+        append("mv").append(filters.movieMinRuntimeMinutes).append(':').append(filters.movieMaxRuntimeMinutes)
+        append("kind").append(filters.kind?.wireName?.let(::text) ?: "-")
+        append("extras").append(canonicalOf(filters.extras))
+        append("yearsExtras").append(canonicalOf(filters.yearsExtras))
+        append("runtimeExtras").append(canonicalOf(filters.runtimeExtras))
+        append("episodeRuntimeExtras").append(canonicalOf(filters.episodeRuntimeExtras))
+        append("movieRuntimeExtras").append(canonicalOf(filters.movieRuntimeExtras))
+    }
+
+// JSON with object keys in sorted order, every text length-prefixed.
+private fun canonicalOf(element: JsonElement): String =
+    when (element) {
+        is JsonObject -> {
+            element.entries
+                .sortedBy { it.key }
+                .joinToString(",", "{", "}") { text(it.key) + canonicalOf(it.value) }
+        }
+
+        is JsonArray -> {
+            element.joinToString(",", "[", "]") { canonicalOf(it) }
+        }
+
+        is JsonNull -> {
+            "null"
+        }
+
+        is JsonPrimitive -> {
+            if (element.isString) "s" + text(element.content) else "p" + text(element.content)
+        }
+    }
+
+private fun canonicalOf(matcher: NameMatcher): String =
+    when (matcher) {
+        is NameMatcher.Exact -> "exact" + text(matcher.folded)
+        is NameMatcher.Prefix -> "prefix" + text(matcher.folded)
+        is NameMatcher.Contains -> "contains" + text(matcher.folded)
+        is NameMatcher.Word -> "word" + text(matcher.folded)
+    }
+
+private fun kindTag(kind: AnchorKind): String =
+    when (kind) {
+        AnchorKind.Collection -> "collection"
+        AnchorKind.Title -> "title"
+        AnchorKind.Studio -> "studio"
+    }
+
+private fun canonicalOf(theme: Theme): String =
+    buildString {
+        append("anchors[")
+        theme.anchors.forEach { append(kindTag(it.kind)).append(canonicalOf(it.match)) }
+        append("]studios[")
+        theme.themeStudios.forEach { append(canonicalOf(it)) }
+        append("]format").append(
+            when (theme.format) {
+                null -> "-"
+                FormatPromise.Films -> "films"
+                FormatPromise.ShortSeries -> "short-series"
+            },
+        )
+        append("anime").append(theme.animeOnly)
+    }
 
 // A text with its UTF-8 byte length in front, so the canonical string cannot be read two ways.
 private fun text(value: String): String = "${value.encodeToByteArray().size}:$value"

@@ -57,7 +57,7 @@ class CustomEditsTest {
     private fun apply(
         lineup: Lineup,
         edit: LineupEdit,
-    ) = LineupEdits.apply(lineup, edit, 99L, catalog)
+    ) = LineupEdits.apply(lineup, edit, 99L, 99L + DAY_MS, catalog)
 
     private fun applied(
         lineup: Lineup,

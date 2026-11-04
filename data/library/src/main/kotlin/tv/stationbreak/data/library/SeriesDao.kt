@@ -65,6 +65,15 @@ internal abstract class SeriesDao {
         userId: String,
     ): List<String>
 
+    @Query(
+        "SELECT DISTINCT studios FROM series WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NULL",
+    )
+    abstract suspend fun liveStudioColumns(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
     // [pattern] is bound, never joined into the text; see likePattern.
     @Query(
         "SELECT seriesId AS id, name AS name, NULL AS year FROM series WHERE serverId = :serverId " +

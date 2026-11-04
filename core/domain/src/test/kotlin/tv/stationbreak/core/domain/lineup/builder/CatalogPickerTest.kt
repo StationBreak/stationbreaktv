@@ -194,6 +194,32 @@ class CatalogPickerTest {
         }
 
     @Test
+    fun aStudioStoredFoldedIsShownWithTheSpellingTheLibraryHolds() =
+        runBlocking<Unit> {
+            val first = film(1, "Film One").copy(studios = listOf("STUDIO A"))
+            val second = film(2, "Film Two").copy(studios = listOf("Studio A", "Studio B"))
+            repository.seed(ACCOUNT, movies.id, first, second)
+            val labels = SourceLabels(repository) { server }
+
+            val shown = labels.studios(ACCOUNT, listOf("studio a", "studio b", "studio unknown"))
+
+            val expected =
+                mapOf("studio a" to "STUDIO A", "studio b" to "Studio B", "studio unknown" to "studio unknown")
+            assertEquals(expected, shown)
+        }
+
+    // A spelling cached before the sync cleaned studio names is compared and shown cleaned.
+    @Test
+    fun aStudioSpellingIsComparedAndShownCleaned() =
+        runBlocking<Unit> {
+            val padded = film(1, "Film One").copy(studios = listOf(" Studio A\t"))
+            repository.seed(ACCOUNT, movies.id, padded)
+            val labels = SourceLabels(repository) { server }
+
+            assertEquals(mapOf("studio a" to "Studio A"), labels.studios(ACCOUNT, listOf("studio a")))
+        }
+
+    @Test
     fun sourceLabelsFallBackToTheKeyWhenTheServerCannotBeReached() =
         runBlocking<Unit> {
             server = null

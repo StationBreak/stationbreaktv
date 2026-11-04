@@ -61,6 +61,7 @@ class ChannelBuildManagerTest {
             { Seed(1_000uL + drawn++.toULong()) },
             { "id${++ids}" },
             { _, sources -> sources.associateWith { "Label ${it.key}" } },
+            { _, _ -> emptyMap() },
         )
 
     private val laughs = LineupIds.starter("laughs")
@@ -337,6 +338,24 @@ class ChannelBuildManagerTest {
             assertEquals(before, stored().channel(id), "the built-in is untouched")
         }
 
+    @Test
+    fun aFoldedStudioOfACopiedStarterIsShownWithTheHeldSpelling() =
+        runBlocking<Unit> {
+            val plain = rules("Westerns", Source.Genre("Western"))
+            val withStudio = plain.copy(sources = plain.sources + Source.Studio("studio a"), formatVersion = 3)
+            seed(starter("westerns", 220, ChannelState.On, withStudio))
+            val shown =
+                ChannelBuildManager(service, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, names ->
+                    names.associateWith { if (it == "studio a") "Studio A" else it }
+                }
+
+            val opened = assertIs<OpenResult.Opened>(shown.open(ACCOUNT, LineupIds.starter("westerns"), copy = true))
+
+            assertTrue(KeptItem.StudioSource("Studio A") in assertNotNull(opened.draft.kept).items)
+            val unknown = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, LineupIds.starter("westerns"), copy = true))
+            assertTrue(KeptItem.StudioSource("studio a") in assertNotNull(unknown.draft.kept).items, "shown as stored")
+        }
+
     // #560: the stored rules of a copy carry the copy's own name, never the original's, so an edit names nobody.
     @Test
     fun editingASavedCopyDoesNotNameTheCopyAsWhereItsSettingsWereKeptFrom() =
@@ -489,7 +508,7 @@ class ChannelBuildManagerTest {
     @Test
     fun aNewerAppsFileIsNotEditable() =
         runBlocking<Unit> {
-            store.inner.save(ACCOUNT, """{"version":3,"whatever":"a newer app wrote"}""".encodeToByteArray())
+            store.inner.save(ACCOUNT, """{"version":4,"whatever":"a newer app wrote"}""".encodeToByteArray())
             service.refresh(ACCOUNT, LIBRARIES)
 
             val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, kids = false)))
@@ -526,7 +545,8 @@ class ChannelBuildManagerTest {
                     { events += it },
                     TestCatalog,
                 )
-            val failing = ChannelBuildManager(broken, { Seed(1uL) }, { "x" }) { _, _ -> emptyMap() }
+            val failing =
+                ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, _ -> emptyMap() }
 
             val result = failing.delete(ACCOUNT, laughs)
 
@@ -548,7 +568,8 @@ class ChannelBuildManagerTest {
                     { events += it },
                     TestCatalog,
                 )
-            val failing = ChannelBuildManager(broken, { Seed(1uL) }, { "x" }) { _, _ -> emptyMap() }
+            val failing =
+                ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, _ -> emptyMap() }
 
             assertEquals(OpenResult.Failed, failing.open(ACCOUNT, laughs, copy = true))
             seed()
@@ -589,6 +610,7 @@ class ChannelBuildManagerTest {
                     LineupService(store, library, clock, { 0 }, { events += it }, retiring),
                     { Seed(1uL) },
                     { "x" },
+                    { _, _ -> emptyMap() },
                     { _, _ -> emptyMap() },
                 )
             // Toons default to 10 and have been moved to 20; 601 is a custom channel's.

@@ -44,6 +44,7 @@ class LineupPlannerKeptTest {
             libraryOf(fills),
             NO_NAMES,
             1_000L,
+            1_000L + DAY_MS,
             catalog,
             kept = kept,
         )

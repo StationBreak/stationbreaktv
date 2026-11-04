@@ -162,6 +162,32 @@ class FileLineupStoreTest {
         }
 
     @Test
+    fun theFirstV3SaveKeepsTheV2Bytes() =
+        runBlocking {
+            val two = byteArrayOf(2, 2)
+            store.save(one, two)
+
+            assertTrue(store.keepCopy(one, "v2"))
+            store.save(one, byteArrayOf(3, 3, 3))
+
+            assertArrayEquals(two, files.held["$serverA/$userOne.json.v2.bak"])
+            assertArrayEquals(byteArrayOf(3, 3, 3), store.load(one).bytesOrNull())
+        }
+
+    @Test
+    fun aVersionOneFileUpgradesStraightToThree() =
+        runBlocking {
+            store.save(one, bytes)
+
+            // The service names the copy after the version it read, once, before the first version-3 save.
+            assertTrue(store.keepCopy(one, "v1"))
+            store.save(one, byteArrayOf(3, 3, 3))
+
+            assertEquals(listOf(bakName), files.held.keys.filter { it.endsWith(".bak") })
+            assertArrayEquals(bytes, files.held[bakName])
+        }
+
+    @Test
     fun laterSavesKeepNoMoreBackups() =
         runBlocking {
             store.save(one, bytes)

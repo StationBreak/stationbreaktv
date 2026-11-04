@@ -56,6 +56,14 @@ internal suspend fun distinctTags(
     user: String,
 ): List<String> = packedNames(dao.liveTagNames(server, user), series.liveTagColumns(server, user))
 
+/** The distinct studios of the live items and series, as [distinctGenres]. */
+internal suspend fun distinctStudios(
+    dao: LibraryDao,
+    series: SeriesDao,
+    server: String,
+    user: String,
+): List<String> = packedNames(dao.liveStudioNames(server, user), series.liveStudioColumns(server, user))
+
 // A damaged packed column is skipped, never thrown: a picker lists what it can read.
 private fun packedNames(
     rows: List<String>,

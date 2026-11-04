@@ -17,6 +17,9 @@ object ChannelsTags {
     const val MESSAGE = "channels:message"
     const val RESET = "channels:reset"
 
+    /** The "Use my collections" switch row at the top of the list. */
+    const val HOUSEHOLD = "channels:household"
+
     /** The New channel row above the first group. */
     const val NEW_CHANNEL = "channels:new"
     const val CHOOSING = "channels:choosing"

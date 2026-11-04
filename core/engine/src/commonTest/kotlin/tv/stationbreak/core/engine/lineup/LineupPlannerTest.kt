@@ -60,7 +60,7 @@ class LineupPlannerTest {
         assertEquals(USER, lineup.userId)
         val r30 = lineup.channel("r30").starter
         assertFalse(r30.edited)
-        assertEquals(RecipeResolver.resolve(catalog.recipes[30], SERVER, 0, NO_NAMES), r30.rules)
+        assertEquals(RecipeResolver.resolve(catalog.recipes[30], SERVER, 0, NO_NAMES, NO_LIBRARY), r30.rules)
     }
 
     @Test
@@ -151,11 +151,22 @@ class LineupPlannerTest {
     @Test
     fun theFirstChoiceCanBeToldNotToWaitForTheCollectionPass() {
         val unsynced = libraryOf(fills(), collectionsSynced = false)
-        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base)
+        val plain = LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, nextDayStart(1_000L), base)
         assertFalse(plain.finalised, "the default still waits")
 
         val told =
-            LineupPlanner.plan(null, SERVER, USER, 0, unsynced, NO_NAMES, 1_000L, base, withoutCollections = true)
+            LineupPlanner.plan(
+                null,
+                SERVER,
+                USER,
+                0,
+                unsynced,
+                NO_NAMES,
+                1_000L,
+                nextDayStart(1_000L),
+                base,
+                withoutCollections = true,
+            )
         assertTrue(told.finalised)
         assertEquals(five.map { it.first }.toSet() + "tots" + "kids-odds" + "odds", told.onKeys())
     }
@@ -338,7 +349,8 @@ class LineupPlannerTest {
         assertEquals(ChannelState.On, scifi.state)
         assertEquals(330, scifi.number)
         assertEquals(5_000L, scifi.onSinceMs)
-        assertEquals(RecipeResolver.resolve(catalog.recipes.last(), SERVER, 0, NO_NAMES), scifi.starter.rules)
+        val expected = RecipeResolver.resolve(catalog.recipes.last(), SERVER, 0, NO_NAMES, NO_LIBRARY)
+        assertEquals(expected, scifi.starter.rules)
         // Nothing else moved.
         assertEquals(lineup.channels.filter { it.id != scifi.id }, next.channels.filter { it.id != scifi.id })
     }
@@ -513,12 +525,23 @@ class LineupPlannerTest {
                 version = 2,
             )
         val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
-        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2)
+        val waiting = LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, nextDayStart(9_000L), v2)
         assertEquals(1, waiting.catalogVersion, "the default still waits")
         assertEquals(lineup.channels, waiting.channels)
 
         val told =
-            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+            LineupPlanner.plan(
+                lineup,
+                SERVER,
+                USER,
+                0,
+                unsynced,
+                NO_NAMES,
+                9_000L,
+                nextDayStart(9_000L),
+                v2,
+                withoutCollections = true,
+            )
         assertEquals(2, told.catalogVersion)
         assertEquals(
             excluded,
@@ -537,7 +560,18 @@ class LineupPlannerTest {
         val lineup = firstLineup(v1, extra = mapOf("kaiju" to QUALIFYING_ITEMS))
         val unsynced = libraryOf(fills(catalog = v2), collectionsSynced = false)
         val told =
-            LineupPlanner.plan(lineup, SERVER, USER, 0, unsynced, NO_NAMES, 9_000L, v2, withoutCollections = true)
+            LineupPlanner.plan(
+                lineup,
+                SERVER,
+                USER,
+                0,
+                unsynced,
+                NO_NAMES,
+                9_000L,
+                nextDayStart(9_000L),
+                v2,
+                withoutCollections = true,
+            )
         assertEquals(2, told.catalogVersion)
         assertEquals(
             kaiju.sources,
@@ -620,7 +654,7 @@ class LineupPlannerTest {
     }
 
     private fun rankedFor(snapshot: RuleSnapshot): List<String> {
-        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L)
+        val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L, nextDayStart(1_000L))
         val candidates = base.recipes.map { it to planning.resolve(it) }
         return planning.ranked(candidates).map { it.key }
     }

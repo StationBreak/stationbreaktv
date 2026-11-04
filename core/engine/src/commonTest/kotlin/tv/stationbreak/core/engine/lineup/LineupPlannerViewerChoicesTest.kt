@@ -22,7 +22,7 @@ class LineupPlannerViewerChoicesTest {
         lineup: Lineup,
         edit: LineupEdit,
         catalog: StarterCatalogView = base,
-    ): Lineup = assertIs<EditOutcome.Applied>(LineupEdits.apply(lineup, edit, 50L, catalog)).lineup
+    ): Lineup = assertIs<EditOutcome.Applied>(LineupEdits.apply(lineup, edit, 50L, 50L + DAY_MS, catalog)).lineup
 
     private fun replan(
         lineup: Lineup,

@@ -26,11 +26,12 @@ internal fun LineupChannel.displayName(catalog: StarterCatalogView): String =
 internal fun LineupChannel.summary(
     catalog: StarterCatalogView,
     playKey: PlayKey,
+    nowMs: Long,
 ) = ChannelSummary(
     id = id,
     number = number,
     name = displayName(catalog),
-    state = state.domain,
+    state = shownState(nowMs).domain,
     kind = source.kind,
     onSince = Instant.fromEpochMilliseconds(onSinceMs),
     defaultNumber = defaultNumber,
@@ -38,6 +39,10 @@ internal fun LineupChannel.summary(
     optIn = isOptIn(catalog),
     playKey = playKey,
 )
+
+/** The state a viewer sees at [nowMs]: a channel whose leave time has come is on the shelf, as `rolled` makes it. */
+private fun LineupChannel.shownState(nowMs: Long): ChannelState =
+    if (state == ChannelState.On && leavesAtMs.let { it != null && it <= nowMs }) ChannelState.Shelf else state
 
 private fun LineupChannel.isOptIn(catalog: StarterCatalogView): Boolean {
     val starter = source as? ChannelSource.Starter ?: return false

@@ -29,6 +29,9 @@ internal val SERVER: CanonicalId = idOf(0x5E)
 internal val USER: CanonicalId = idOf(0x5F)
 internal val NO_NAMES: CollectionNames = CollectionNames(emptyMap())
 
+/** A library that holds no names: what a recipe without a theme resolves against. */
+internal val NO_LIBRARY: LibraryNames = LibraryNames(snapshot(), NO_NAMES)
+
 /** Each fixture item runs 30 minutes, so this many items make exactly the qualifying 12 hours. */
 internal const val QUALIFYING_ITEMS = 24
 
@@ -84,7 +87,21 @@ internal fun planOf(
     nowMs: Long = 1_000L,
     offset: Int = 0,
     names: CollectionNames = NO_NAMES,
-): Lineup = LineupPlanner.plan(current, SERVER, USER, offset, snapshot, names, nowMs, catalog)
+    boundaryMs: Long = nextDayStart(nowMs, current?.utcOffsetMinutes ?: offset),
+): Lineup = LineupPlanner.plan(current, SERVER, USER, offset, snapshot, names, nowMs, boundaryMs, catalog)
+
+/** A day, and the hour the broadcast day starts at (06:00, offset 0), for tests that pick a boundary. */
+internal const val DAY_MS = 86_400_000L
+internal const val DAY_START_MS = 6 * 3_600_000L
+
+/** The first broadcast-day start (06:00 at offset 0) after [t]. */
+internal fun nextDayStart(
+    t: Long,
+    offsetMinutes: Int = 0,
+): Long {
+    val offsetMs = offsetMinutes * 60_000L
+    return ((t + offsetMs - DAY_START_MS).floorDiv(DAY_MS) + 1) * DAY_MS + DAY_START_MS - offsetMs
+}
 
 internal fun Lineup.channel(key: String): LineupChannel =
     channels.first { it.id == LineupIds.starter(key) || it.id == LineupIds.leftovers(key) }

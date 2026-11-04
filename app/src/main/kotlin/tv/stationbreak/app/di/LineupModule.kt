@@ -34,6 +34,7 @@ import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelManager
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
@@ -133,6 +134,10 @@ internal object LineupModule {
     @Provides
     fun channelRepository(service: LineupService): ChannelRepository = service
 
+    /** The "Use my collections" flag, read by the Channels screen. */
+    @Provides
+    fun householdSetting(service: LineupService): HouseholdSetting = service
+
     /** How features change the lineup (spec 21): through the service's lock, with the libraries the viewer chose. */
     @Provides
     @Singleton
@@ -185,7 +190,7 @@ internal object LineupModule {
         server: MediaServer,
     ): ChannelBuilder {
         val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
-        return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke)
+        return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke, labels::studios)
     }
 
     /**

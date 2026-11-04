@@ -125,12 +125,12 @@ class LineupCodecTest {
 
     @Test
     fun theFileSaysVersionOne() {
-        assertEquals(JsonPrimitive(2), tree()["version"])
+        assertEquals(JsonPrimitive(3), tree()["version"])
     }
 
     @Test
     fun newerVersionDecodesAsNewerVersion() {
-        assertEquals(LineupCodec.Decoded.NewerVersion(3), decode("""{"version":3,"anything":["new"]}"""))
+        assertEquals(LineupCodec.Decoded.NewerVersion(4), decode("""{"version":4,"anything":["new"]}"""))
         // A newer file is newer even when the rest is not what this version expects.
         assertEquals(LineupCodec.Decoded.NewerVersion(7), decode("""{"version":7}"""))
         assertEquals(
@@ -353,12 +353,23 @@ class LineupCodecTest {
     fun aVersionOneFileReadsWithNoExtrasBoundary() {
         val meta = RefreshMeta(plannedGeneration = 4L, collectionPassActedOn = 5L, plannedLibraries = listOf("a"))
         val text = LineupCodec.encode(full, meta).decodeToString()
-        val one = text.replace("\"version\":2", "\"version\":1")
+        val one = text.replace("\"version\":3", "\"version\":1")
         assertTrue(one != text, "the fixture is a version-1 file")
 
         val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(one))
 
-        assertEquals(full, loaded.lineup)
+        // An older file has no viewer choices: they are inferred from the state and the overrides.
+        val inferred =
+            full.copy(
+                viewerChoicesKnown = false,
+                channels =
+                    full.channels.map {
+                        val chosen =
+                            it.state == ChannelState.UserHidden || it.numberOverride != null || it.nameOverride != null
+                        it.copy(chosenByViewer = chosen)
+                    },
+            )
+        assertEquals(inferred, loaded.lineup)
         assertEquals(meta, loaded.meta)
         assertEquals(null, loaded.meta.extrasFromMs)
         assertEquals(1, loaded.fileVersion)
@@ -370,7 +381,7 @@ class LineupCodecTest {
     fun aVersionOneFileWithAnExtrasBoundaryIsUnreadable() {
         val text = LineupCodec.encode(full, RefreshMeta(extrasFromMs = 5L)).decodeToString()
 
-        assertEquals(LineupCodec.Decoded.Unreadable, decode(text.replace("\"version\":2", "\"version\":1")))
+        assertEquals(LineupCodec.Decoded.Unreadable, decode(text.replace("\"version\":3", "\"version\":1")))
     }
 
     @Test

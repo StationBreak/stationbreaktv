@@ -30,6 +30,14 @@ sealed interface ChannelChange {
         val id: ChannelId,
         val swapWith: ChannelId? = null,
     ) : ChannelChange
+
+    /**
+     * "Use my collections" on or off (spec 23): with it off, built-in channels stop using the collections the household
+     * made. It starts at the next day boundary. Not a channel's change: no channel counts as chosen by it.
+     */
+    data class UseMyCollections(
+        val on: Boolean,
+    ) : ChannelChange
 }
 
 /** Why a change was not made. */

@@ -3,6 +3,7 @@ package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.AutoSeed
+import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.rules.Source
 
@@ -43,6 +44,8 @@ data class Recipe(
     val maxRating: String?,
     val ordering: OrderingMode?,
     val collectionHints: List<String>,
+    val filters: Filters? = null,
+    val theme: Theme? = null,
 ) {
     init {
         require(AutoSeed.isValidRecipeKey(key)) { "The recipe key is not valid" }
@@ -51,11 +54,31 @@ data class Recipe(
         require(maxRating == null || maxRating in RatingLadder.names) { "The rating ceiling is not on the ladder" }
         if (kidSafe) require(atMostPg(maxRating)) { "A kid-safe recipe has a ceiling of PG or lower" }
         require(sources.isNotEmpty()) { "A recipe needs a source" }
-        require((sources + exclusions).all(::isPortable)) { "A recipe uses genre, tag and year range sources only" }
+        require((sources + exclusions).all(::isPortable)) { "A recipe uses genre, tag, studio, year range" }
+        if (theme != null) {
+            require(ordering == OrderingMode.Curated) { "A themed recipe is programmed (curated)" }
+            require(collectionHints.isEmpty()) { "A themed recipe has no collection hints" }
+        }
     }
 
     /** True for the Kids band. */
     val kidSafe: Boolean get() = band == Band.Kids
+
+    /** True when the channel is programmed: its order is curated. */
+    val curated: Boolean get() = ordering == OrderingMode.Curated
+
+    /** True for a guest-only channel: one of its sources is a year range (a decade). */
+    val guestOnly: Boolean get() = sources.any { it is Source.YearRange }
+
+    /** The genres the recipe is about: its genre sources, then the genres of its filters, once each, in order. */
+    val themeGenres: List<String> by lazy {
+        (sources.filterIsInstance<Source.Genre>().map { it.name } + filters?.genres.orEmpty()).distinct()
+    }
+
+    /** The tags the recipe is about: its tag sources, then the tags of its filters, once each, in order. */
+    val themeTags: List<String> by lazy {
+        (sources.filterIsInstance<Source.Tag>().map { it.name } + filters?.tags.orEmpty()).distinct()
+    }
 }
 
 private fun atMostPg(rating: String?): Boolean {
@@ -65,7 +88,7 @@ private fun atMostPg(rating: String?): Boolean {
 
 private fun isPortable(source: Source): Boolean =
     when (source) {
-        is Source.Genre, is Source.Tag, is Source.YearRange -> true
+        is Source.Genre, is Source.Tag, is Source.YearRange, is Source.Studio -> true
         else -> false
     }
 
