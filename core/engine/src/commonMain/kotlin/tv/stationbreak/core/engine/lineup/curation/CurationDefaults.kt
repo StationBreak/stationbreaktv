@@ -2,7 +2,7 @@
 package tv.stationbreak.core.engine.lineup.curation
 
 /** The curation's tunables: safe defaults in one place. Later curation tasks read them. */
-object CurationDefaults {
+internal object CurationDefaults {
     /** The least a channel must air in a day to be worth a number: 12 hours. */
     const val MIN_USABLE_MS: Long = 43_200_000L
 

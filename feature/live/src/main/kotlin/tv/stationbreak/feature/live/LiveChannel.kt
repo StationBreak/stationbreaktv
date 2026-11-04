@@ -559,7 +559,8 @@ class LiveChannel(
     private suspend fun cardLineup(): FlipOrder = FlipOrder(onAirings(library.activeAccount().filterNotNull().first()))
 
     // A channel the planner switched on for a later boundary (`onSince` after now) is not on the air yet, so a flip
-    // never lands on it.
+    // never lands on it. `onSince` is ahead only for such a channel, and then it is the next day start, so this is the
+    // day build's rule (`ChannelSummary.onSince`).
     private suspend fun onAirings(account: LibraryAccount): List<ChannelAiring> =
         channels
             .channels(account)

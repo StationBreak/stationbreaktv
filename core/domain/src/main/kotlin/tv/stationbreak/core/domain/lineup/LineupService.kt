@@ -39,6 +39,7 @@ import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.EditOutcome
+import tv.stationbreak.core.engine.lineup.KeptReasonsMemo
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
@@ -165,6 +166,9 @@ class LineupService internal constructor(
 
         /** The boundaries the background roll and the re-plan signal were last made for ([rollSoon]). */
         val boundaries = BoundaryMemo()
+
+        /** The kept starters' reasons of the last plan, so an unchanged plan skips their homing. Used under [mutex]. */
+        val keptReasons = KeptReasonsMemo()
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -301,6 +305,8 @@ class LineupService internal constructor(
                 // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
                 // keeps a current lineup's own).
                 useMyCollections = offsetFrom?.useMyCollections ?: true,
+                snapshotGeneration = read.generation,
+                keptReasons = entryOf(owner).keptReasons,
             )
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =

@@ -419,6 +419,31 @@ class LineupPlannerMigrationTest {
         assertEquals(ChannelState.On, next.channel("alpha").state)
     }
 
+    // PR 5 final round, item 4: the budget is measured on the larger of the two copies a keeper can end up holding.
+    // A starter whose current rules fit but whose pending previous rules do not keeps no copy either: it takes the new
+    // rules at once and drops the oversized one, so the file bound holds.
+    @Test
+    fun aStarterWhosePreviousRulesAreOverThePerCopyBudgetKeepsNoCopy() {
+        val oversized = rules((0 until 200).map { Source.Tag("an over-long tag of a much older rules file $it") })
+        assertTrue(RecipeResolver.fileBytes(oversized) > RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+        val lineup =
+            before().withChannel("alpha") {
+                val previous = oversized.copy(timing = it.starter.rules.timing)
+                it.copy(source = it.starter.withPrevious(previous, boundary))
+            }
+        val ownBytes = RecipeResolver.fileBytes(lineup.channel("alpha").starter.rules)
+        assertTrue(ownBytes <= RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+
+        val next = swap(lineup)
+
+        val alpha = next.channel("alpha").starter
+        assertNull(alpha.previousRules)
+        assertNull(alpha.rulesFromMs)
+        assertTrue(Source.Genre("alpha v3") in alpha.rules.sources, "it takes the new rules at once")
+        // A starter within the budget on both counts still keeps today's rules until the boundary.
+        assertEquals(boundary, next.channel("bravo").starter.rulesFromMs)
+    }
+
     // The opt-in starter's holdback keeps its copy before an ordinary hidden starter's, whatever their numbers. 120
     // starters leave room for 50 keepers: the 48 on the air and two more, which go to the opt-in one and the first
     // hidden one by number; the second hidden one takes the new rules at once.

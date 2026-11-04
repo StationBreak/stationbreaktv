@@ -9,7 +9,7 @@ import tv.stationbreak.core.model.RuleSnapshot
  * The starters chosen to be on, and why each other candidate is on the shelf. Both are in channel-number order (ties
  * by ID), pinned channels that were not candidates and opt-in IDs that were not candidates last, in ID order.
  */
-class Selected(
+internal class Selected(
     val on: Set<ChannelId>,
     val shelf: Map<ChannelId, ShelfReason>,
 )
@@ -29,7 +29,7 @@ class Selected(
  * hours and anchors never fall, and it still qualifies. The loop stays as a safety net, and a property test holds the
  * claim over generated libraries.
  */
-object Selection {
+internal object Selection {
     /**
      * [candidates] are the channels in play (their pools under their own policy); [pinned] are on whatever their
      * stats and never dropped; [optIn] channels are on only when pinned, and are left out of the rounds otherwise, so

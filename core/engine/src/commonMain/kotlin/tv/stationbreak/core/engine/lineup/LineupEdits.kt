@@ -167,10 +167,11 @@ object LineupEdits {
         val outcome =
             when (edit) {
                 is LineupEdit.UseMyCollections -> EditOutcome.Applied(lineup.copy(useMyCollections = edit.on))
-                is LineupEdit.ChannelEdit -> applyChannelEdit(lineup, edit, nowMs, catalog)
+                is LineupEdit.ChannelEdit -> applyChannelEdit(lineup, edit, nowMs, boundaryMs, catalog)
             }
         return if (outcome is EditOutcome.Applied) {
-            EditOutcome.Applied(lineup.withBasisFor(outcome.lineup, nowMs, boundaryMs))
+            val keys = catalog.recipes.mapTo(HashSet()) { it.key }
+            EditOutcome.Applied(lineup.withBasisFor(outcome.lineup, nowMs, boundaryMs, keys))
         } else {
             outcome
         }
@@ -180,13 +181,14 @@ object LineupEdits {
         lineup: Lineup,
         edit: LineupEdit.ChannelEdit,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome {
         val channel = lineup.channels.firstOrNull { it.id == edit.id }
         return when {
             edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
             channel == null -> refused(EditRefusal.UnknownChannel)
-            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, catalog))
+            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, boundaryMs, catalog))
         }
     }
 
@@ -226,11 +228,13 @@ object LineupEdits {
             edit is LineupEdit.SetNumber ||
             edit is LineupEdit.ClearNumber
 
+    @Suppress("LongParameterList") // The edit, its lineup and channel, the time, the boundary and the catalog.
     private fun applyTo(
         lineup: Lineup,
         channel: LineupChannel,
         edit: LineupEdit.ChannelEdit,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome =
         when (edit) {
@@ -255,7 +259,7 @@ object LineupEdits {
             }
 
             is LineupEdit.SwitchOff -> {
-                switchOff(lineup, channel, nowMs)
+                switchOff(lineup, channel, boundaryMs)
             }
 
             is LineupEdit.SetNumber -> {
@@ -461,10 +465,11 @@ object LineupEdits {
         return applied(lineup, hidden)
     }
 
+    // Today is the day that ends at [boundaryMs] ([LineupDay.endingAt]).
     private fun switchOff(
         lineup: Lineup,
         channel: LineupChannel,
-        nowMs: Long,
+        boundaryMs: Long,
     ): EditOutcome {
         val onCount = lineup.channels.count { it.state == ChannelState.On }
         return when {
@@ -472,13 +477,14 @@ object LineupEdits {
                 EditOutcome.Applied(lineup)
             }
 
-            channel.state == ChannelState.On && onCount == 1 -> {
-                refused(EditRefusal.LastOn)
+            // Switched on by the planner to start at the boundary: it never aired, so it goes back on the shelf.
+            // Checked before the last-on rule: it is not on the air yet, so switching it off takes nothing off it.
+            channel.state == ChannelState.On && channel.startsAfter(LineupDay.endingAt(boundaryMs)) -> {
+                applied(lineup, channel.copy(state = ChannelState.Shelf, leavesAtMs = null, shelfReason = null))
             }
 
-            // Switched on by the planner to start at the boundary: it never aired, so it goes back on the shelf.
-            channel.state == ChannelState.On && channel.onSinceMs > nowMs -> {
-                applied(lineup, channel.copy(state = ChannelState.Shelf, leavesAtMs = null, shelfReason = null))
+            channel.state == ChannelState.On && onCount == 1 -> {
+                refused(EditRefusal.LastOn)
             }
 
             else -> {

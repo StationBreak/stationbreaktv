@@ -12,7 +12,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.rules.RatingLadder
 
 /** How a title is made: live action, animation, or anime. */
-enum class TitleFormat { Live, Animation, Anime }
+internal enum class TitleFormat { Live, Animation, Anime }
 
 /**
  * One title the curation homes: a series (all its episodes together) or a film or series-less episode. Names are the

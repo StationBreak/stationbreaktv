@@ -22,6 +22,7 @@ import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.LibraryNames
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.LineupDay
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.RecipeResolver
@@ -31,12 +32,14 @@ import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.engine.lineup.curation.CurationChannel
 import tv.stationbreak.core.engine.lineup.curation.Homes
 import tv.stationbreak.core.engine.lineup.householdFor
+import tv.stationbreak.core.engine.lineup.isCuratedOn
+import tv.stationbreak.core.engine.lineup.leavesBy
 import tv.stationbreak.core.engine.lineup.rulesFor
+import tv.stationbreak.core.engine.lineup.startsAfter
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
-import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -248,36 +251,35 @@ internal class LineupDays(
     /**
      * The channels of [lineup] that are scheduled at [atMs], in number order. Reads nothing. A day is filtered of
      * extras when its start is at or after [extrasFromMs] (the account's `RefreshMeta.extrasFromMs`; null is never).
-     * A channel that leaves the lineup at or before [atMs] ([LineupChannel.leavesAtMs]) is no longer on; one that
-     * starts after [atMs] ([LineupChannel.onSinceMs], a planner switch-on for the boundary) is [Scheduled.starting],
-     * with an empty day (`HiddenReason.EmptyToday`, so the guide leaves it out until it starts). A starter's settings
-     * are those of the rules for the day that holds [atMs] (`rulesFor`), not today's newest.
+     * Whether a channel is on the air on that day is the engine's shared rule, decided by the day and never by the
+     * moment asked about, so every lookup of one day agrees: a channel that leaves the lineup by the day's start
+     * ([leavesBy]) is not scheduled; one that starts on a later day ([startsAfter], a planner switch-on for the
+     * boundary) is [Scheduled.starting], with an empty day (`HiddenReason.EmptyToday`, so the guide leaves it out until
+     * it starts); which starters are curated is [isCuratedOn], as the planner reads it. A starter's settings are those
+     * of the rules for the day that holds [atMs] (`rulesFor`), not today's newest.
      */
     fun scheduled(
         lineup: Lineup,
         atMs: Long,
         extrasFromMs: Long?,
     ): List<Scheduled> {
-        val ruled =
-            lineup.channels
-                .filter { it.state == ChannelState.On && it.number != null && it.leavesAtMs.isAfter(atMs) }
-                .sortedWith(CHANNEL_ORDER)
-                .mapNotNull { channel -> settingsOf(channel, lineup, atMs)?.let { channel to it } }
-        // The curated starters scheduled on each day start: the on-set of that day, unless the basis holds it.
+        val ruled = ruledAt(lineup, atMs)
+        // The curated starters on the air on each day start: the on-set of that day, unless the basis holds it.
         // A starter the planner switched on for a later boundary is not on the air on this day: it has a day with
-        // nothing in it, and takes no part in that day's curation ([startsLater]).
+        // nothing in it, and takes no part in that day's curation.
         val curatedOn = HashMap<Long, MutableList<ChannelId>>()
         for ((channel, settings) in ruled) {
-            val n = Epochs.epochNumber(settings, atMs)
-            val start = Epochs.epochStart(settings, n)
-            val started = !startsLater(channel, settings, n)
-            if (started && isCurated(channel, start)) curatedOn.getOrPut(start) { ArrayList() }.add(channel.id)
+            val day = lineupDayOf(settings, atMs)
+            if (!channel.startsAfter(day) && isCurated(channel, day.startMs)) {
+                curatedOn.getOrPut(day.startMs) { ArrayList() }.add(channel.id)
+            }
         }
         val curations = HashMap<Long, DayCuration>()
         return ruled.map { (channel, settings) ->
             val n = Epochs.epochNumber(settings, atMs)
-            val start = Epochs.epochStart(settings, n)
-            val starting = startsLater(channel, settings, n)
+            val day = lineupDayOf(settings, atMs)
+            val start = day.startMs
+            val starting = channel.startsAfter(day)
             val reads = !starting && (channel.source is ChannelSource.Leftovers || isCurated(channel, start))
             val curation =
                 if (reads) curations.getOrPut(start) { curationOf(lineup, start, curatedOn[start].orEmpty()) } else null
@@ -285,32 +287,26 @@ internal class LineupDays(
         }
     }
 
-    /**
-     * Whether [channel] starts on a later day than day [n] of [settings]: it was switched on (by the planner) for a
-     * boundary at or after the next day start. Decided by the day, never by the moment asked about, so every lookup of
-     * one day agrees: a viewer's switch-on in the middle of a day (`onSinceMs` now) is on the air that very day.
-     */
-    private fun startsLater(
-        channel: LineupChannel,
-        settings: SchedulerSettings,
-        n: Long,
-    ): Boolean = channel.onSinceMs >= Epochs.epochStart(settings, n + 1)
+    // The channels of [lineup] on, numbered, with settings, and not gone by the day of each that holds [atMs]
+    // ([leavesBy]), in number order, each with its settings.
+    private fun ruledAt(
+        lineup: Lineup,
+        atMs: Long,
+    ): List<Pair<LineupChannel, SchedulerSettings>> {
+        val ruled = ArrayList<Pair<LineupChannel, SchedulerSettings>>()
+        for (channel in lineup.channels.sortedWith(CHANNEL_ORDER)) {
+            val numberedOn = channel.state == ChannelState.On && channel.number != null
+            val settings = if (numberedOn) settingsOf(channel, lineup, atMs) else null
+            if (settings != null && !channel.leavesBy(lineupDayOf(settings, atMs))) ruled += channel to settings
+        }
+        return ruled
+    }
 
-    /**
-     * Whether [channel] is curated on the day that starts at [dayStartMs] (spec 23, F2): an unedited starter whose
-     * rules for that day are in the curated order and whose recipe is in the catalog (the curation reads the recipe).
-     * Any other channel, a custom one, an edited starter and a leftovers channel, airs its own pool.
-     */
+    // [channel] curated on the day that starts at [dayStartMs]: the engine's shared rule with this catalog's recipes.
     private fun isCurated(
         channel: LineupChannel,
         dayStartMs: Long,
-    ): Boolean {
-        val source = channel.source
-        return source is ChannelSource.Starter &&
-            !source.edited &&
-            source.rulesFor(dayStartMs).orderingMode == OrderingMode.Curated &&
-            source.recipeKey in recipes
-    }
+    ): Boolean = channel.isCuratedOn(dayStartMs, recipes.keys)
 
     // The curation of the day that starts at [dayStartMs]: the basis's on-set and flag before its boundary (A5),
     // else the curated starters scheduled that day ([scheduledOn]) and the flag in force.
@@ -401,10 +397,15 @@ internal class LineupDays(
 
     // What one channel contributes to [inputsOf] and to its play key: the one definition of "its days would change".
     // [household] is an unedited starter's "Use my collections" part (its days follow the flag), null for any other.
+    // [starting] is null for [inputsOf], which covers every day: the channel's leave time and when it started. For a
+    // play key, which covers the one day played, it is whether the channel starts on a later day ([startsAfter]):
+    // neither the leave time nor the moment of a switch-on changes that day (a leave at the boundary, or a switch off
+    // and on again, moves no key until the boundary).
     private fun channelInputs(
         channel: LineupChannel,
         policy: PoolPolicy,
         household: JsonElement?,
+        starting: Boolean? = null,
     ): JsonObject {
         val fields =
             linkedMapOf<String, JsonElement>(
@@ -412,11 +413,14 @@ internal class LineupDays(
                 "state" to JsonPrimitive(channel.state.name),
                 "ceiling" to JsonPrimitive(ceilings.of(channel)),
                 "policy" to JsonPrimitive(nameOf(policy)),
-                "leavesAt" to JsonPrimitive(channel.leavesAtMs),
-                "source" to LineupCodec.sourceOf(unnamed(channel.source)),
             )
+        if (starting == null) fields["leavesAt"] = JsonPrimitive(channel.leavesAtMs)
+        fields["source"] = LineupCodec.sourceOf(unnamed(channel.source))
         // When a channel on the air started, or starts (a later boundary): its days before then are empty.
-        if (channel.state == ChannelState.On) fields["onSince"] = JsonPrimitive(channel.onSinceMs)
+        if (channel.state == ChannelState.On) {
+            fields[if (starting == null) "onSince" else "starting"] =
+                if (starting == null) JsonPrimitive(channel.onSinceMs) else JsonPrimitive(starting)
+        }
         if (household != null) fields["household"] = household
         return JsonObject(fields)
     }
@@ -440,13 +444,16 @@ internal class LineupDays(
     /**
      * [channel]'s play key in [lineup] for the day being played at [atMs], as a digest: it changes whenever this
      * channel's own inputs to that day change (a new play order, a reshuffle, other sources or filters, its pool policy
-     * in [lineup]; never a name or a number that changes no pool). A starter's key holds its rules in force that day
-     * (`rulesFor`), so new rules waiting for the boundary move it at the boundary. An unedited starter's key holds the
-     * "Use my collections" flag in force that day and the flag set; a curated starter's also holds the curation in
-     * force that day (F8): the basis's on-set and flag while its boundary is ahead, else the curated on-set, with each
-     * member's rules for the day. So a switch or a flag change in the middle of a day, which waits for the boundary,
-     * moves no other channel's key until then. A leftovers channel's days also depend on what the other channels
-     * claim, so the guide compares the whole list of keys.
+     * in [lineup]; never a name or a number that changes no pool). It holds only what changes that day: a starter's
+     * rules in force that day (`rulesFor`), so new rules waiting for the boundary move it at the boundary; whether the
+     * channel starts on a later day, never its leave time (a starter leaving at the boundary keeps its key until
+     * then) or the moment it was switched on. An unedited starter's key holds the "Use my collections" flag in force
+     * that day, never the flag set for later days; a curated starter's also holds the curation in force that day (F8):
+     * the basis's on-set and flag while its boundary is ahead, else the curated on-set, with each member's rules for
+     * the day. So a switch, a leave or a flag change in the middle of a day, which waits for the boundary, moves no
+     * key until then; at the boundary the background roll writes a new revision and the keys are worked out for the
+     * new day. A leftovers channel's days also depend on what the other channels claim, so the guide compares the
+     * whole list of keys.
      */
     fun playKeyOf(
         channel: LineupChannel,
@@ -476,19 +483,11 @@ internal class LineupDays(
         private val curations = HashMap<Long, String>()
 
         fun of(channel: LineupChannel): PlayKey {
-            val day = if (channel.source is ChannelSource.Starter) dayOf(channel) else null
+            val day = dayOf(channel)
             val start = day?.first?.takeIf { channel.isUneditedStarter() }
-            // The flag in force today, and the flag set (a toggle moves the key, so the guide reloads the days after
-            // the boundary); never the basis's boundary itself, which a switch elsewhere sets.
-            val household =
-                start?.let {
-                    JsonObject(
-                        linkedMapOf(
-                            "use" to JsonPrimitive(lineup.useMyCollections),
-                            "today" to JsonPrimitive(lineup.householdFor(it)),
-                        ),
-                    )
-                }
+            // The flag in force today only: a toggle waits for the boundary, where the roll's new revision moves the
+            // key; never the basis's boundary itself, which a switch elsewhere sets.
+            val household = start?.let { JsonObject(linkedMapOf("today" to JsonPrimitive(lineup.householdFor(it)))) }
             // A starter's rules as in force on the day played: a change waiting for the boundary moves no key today.
             val source = channel.source
             val forDay =
@@ -497,7 +496,7 @@ internal class LineupDays(
                 } else {
                     channel
                 }
-            val inputs = channelInputs(forDay, policyOf(channel, lineup), household)
+            val inputs = channelInputs(forDay, policyOf(channel, lineup), household, day?.second ?: false)
             val curated = day != null && !day.second && isCurated(channel, day.first)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
             return PlayKey(sha256Hex(fields.toString().encodeToByteArray()))
@@ -507,8 +506,8 @@ internal class LineupDays(
         // settings are refused.
         private fun dayOf(channel: LineupChannel): Pair<Long, Boolean>? {
             val settings = settingsOf(channel, lineup, atMs) ?: return null
-            val n = Epochs.epochNumber(settings, atMs)
-            return Epochs.epochStart(settings, n) to startsLater(channel, settings, n)
+            val day = lineupDayOf(settings, atMs)
+            return day.startMs to channel.startsAfter(day)
         }
 
         // A member of the day's on-set in the curation part: its ID, its rules for the day, and (as [channelInputs])
@@ -716,6 +715,15 @@ internal class LineupDays(
             // Settings the scheduler refuses: the channel is not scheduled rather than the whole lineup failing.
             null
         }
+
+    // The broadcast day of [settings] that holds [atMs], for the engine's shared day predicates.
+    private fun lineupDayOf(
+        settings: SchedulerSettings,
+        atMs: Long,
+    ): LineupDay {
+        val n = Epochs.epochNumber(settings, atMs)
+        return LineupDay(Epochs.epochStart(settings, n), Epochs.epochStart(settings, n + 1))
+    }
 
     private fun starterSettings(
         source: ChannelSource.Starter,
@@ -1251,7 +1259,6 @@ private fun LineupChannel.isUneditedStarter(): Boolean {
 }
 
 // Whether a channel with [this] leave time is still on at [atMs]: it has none, or it is after [atMs].
-private fun Long?.isAfter(atMs: Long): Boolean = this == null || this > atMs
 
 /** Why a day is empty, in [HiddenReason]'s precedence; null when [day] has something. */
 internal fun hiddenReason(

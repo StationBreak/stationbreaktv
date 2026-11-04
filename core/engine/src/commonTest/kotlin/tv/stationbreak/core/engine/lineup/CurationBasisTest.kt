@@ -88,11 +88,18 @@ class CurationBasisTest {
         assertEquals(ChannelState.On, alpha.state)
     }
 
+    // Today's on-set is the shared one (`curatedOn`): a channel leaving at the boundary is on the air today, so it is
+    // in it. Kept on by the renumber, it is in tomorrow's too: the on-sets agree and no basis is needed (the old rule
+    // left it out of today's and recorded a basis without it, which would have changed today's curation).
     @Test
-    fun renumberingALeavingChannelWithoutABasisRecordsOne() {
+    fun renumberingALeavingChannelWithoutABasisKeepsTodaysOnSet() {
         val leaving =
             curated().withChannel("alpha") { it.copy(leavesAtMs = boundary, shelfReason = ShelfReason.BelowCap) }
+        val recipeKeys = base.recipes.mapTo(HashSet()) { it.key }
+        val today = leaving.curatedOn(LineupDay.endingAt(boundary), recipeKeys)
+        assertTrue(LineupIds.starter("alpha") in today)
         val renumbered = apply(leaving, LineupEdit.SetNumber(LineupIds.starter("alpha"), 311))
-        assertEquals(boundary, renumbered.curationBasis?.fromMs)
+        assertNull(renumbered.curationBasis)
+        assertEquals(today, renumbered.curatedOn(LineupDay.endingAt(boundary), recipeKeys))
     }
 }

@@ -23,6 +23,8 @@ private const val LATEST_FORMAT = 3
 // The two quotes around a JSON string.
 private const val QUOTES = 2
 
+private const val MS_PER_HOUR = 3_600_000L
+
 /** Turns a catalog recipe into the rules of a real channel. Pure: the same inputs give the same rules. */
 object RecipeResolver {
     /** The most sources a resolved starter keeps, whatever the budget allows. */
@@ -163,6 +165,12 @@ object RecipeResolver {
             // A leftovers channel shuffles: it has no curated tuning.
             curated = null,
         )
+
+    /**
+     * How long one broadcast day of a resolved starter or a leftovers channel is, in milliseconds: the timing every
+     * one of them resolves to ([LineupDefaults.DAY_START], the format's epoch). The lineup's day ([LineupDay]).
+     */
+    internal val DAY_MS: Long = timingAt(0).effectiveEpochHours * MS_PER_HOUR
 
     private fun seedOf(
         serverId: CanonicalId,

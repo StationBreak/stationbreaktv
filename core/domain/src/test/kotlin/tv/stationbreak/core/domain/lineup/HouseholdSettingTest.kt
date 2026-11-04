@@ -8,6 +8,7 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
@@ -184,25 +185,31 @@ class HouseholdSettingTest {
             assertEquals(serverIds, poolAt(held(), tomorrow))
         }
 
+    // A play key holds only what changes the day played (PR 5 final round, item 2): a toggle waits for the boundary,
+    // so today's key stays; the day after it, as the roll leaves the lineup, has another key, and the guide reloads.
     @Test
-    fun togglingMovesTheStartersPlayKeySoTheGuideReloads() =
+    fun togglingKeepsTodaysPlayKeyAndMovesTheKeyFromTheBoundary() =
         runBlocking<Unit> {
             seed()
+            val laughs = LineupIds.starter("laughs")
             val before =
                 service
                     .channels(ACCOUNT)
                     .first()
-                    .first { it.id == LineupIds.starter("laughs") }
+                    .first { it.id == laughs }
                     .playKey
 
             toggle(false)
 
-            val after =
+            val today =
                 service
                     .channels(ACCOUNT)
                     .first()
-                    .first { it.id == LineupIds.starter("laughs") }
+                    .first { it.id == laughs }
                     .playKey
-            assertNotEquals(before, after)
+            assertEquals(before, today, "the toggle starts at the boundary")
+            val rolled = held().rolled(tomorrow)
+            val channel = rolled.channels.first { it.id == laughs }
+            assertNotEquals(before, days.playKeyOf(channel, rolled, tomorrow), "the day after the boundary differs")
         }
 }

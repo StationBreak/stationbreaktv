@@ -465,6 +465,76 @@ class LineupPlannerCurationTest {
         assertEquals(ChannelState.Shelf, next.channel("echo").state, "the viewer's shelf choice holds")
     }
 
+    // PR 5 final round, item 3: an opt-in starter the viewer touched (switched off, or renumbered) and that waits on
+    // the shelf is still off for being opt-in: it shows that reason, never one from the homing (it would qualify here).
+    @Test
+    fun aShelvedOptInStarterTheViewerTouchedShowsOptIn() {
+        val late = themed(recipeOf("late", 520, optIn = true))
+        val withLate = selecting(catalog.recipes + late)
+        val library = libraryOf(fills("late" to QUALIFYING_ITEMS))
+        val lineup = first(library, withLate)
+        val touched = lineup.withChannel("late") { it.chosenShelf(null) }
+        val renumbered = lineup.withChannel("late") { it.copy(numberOverride = 525, chosenByViewer = true) }
+
+        assertEquals(ShelfReason.OptIn, replan(touched, library, withLate).channel("late").shelfReason)
+        assertEquals(ShelfReason.OptIn, replan(renumbered, library, withLate).channel("late").shelfReason)
+    }
+
+    // PR 5 final round, item 8: the kept starters' reasons are worked out by a homing; with a memo and the snapshot's
+    // generation, a plan whose inputs to them are those of the plan before reuses its reasons and skips the homing.
+    @Test
+    fun theKeptReasonsAreReusedWhileNothingTheyReadChanges() {
+        val library = libraryOf(fills())
+        val lineup =
+            first(library)
+                .withChannel("echo") { it.chosenShelf(ShelfReason.Empty) }
+                .withChannel("dup") { it.chosenShelf(null) }
+        val memo = KeptReasonsMemo()
+
+        fun plan(
+            current: Lineup,
+            generation: Long?,
+            m: KeptReasonsMemo? = memo,
+            snapshot: RuleSnapshot = library,
+        ): Lineup =
+            LineupPlanner.plan(
+                current,
+                SERVER,
+                USER,
+                0,
+                snapshot,
+                NO_NAMES,
+                noon,
+                boundary,
+                catalog,
+                snapshotGeneration = generation,
+                keptReasons = m,
+            )
+
+        val once = plan(lineup, 1L)
+        assertEquals(1, memo.homings)
+        val twice = plan(once, 1L)
+        assertEquals(1, memo.homings, "nothing they read changed: no homing")
+        assertEquals(once, twice)
+        // The same reasons as a plan with no memo.
+        assertEquals(plan(lineup, null, null), once)
+        assertEquals(ShelfReason.BelowCap, once.channel("echo").shelfReason)
+        assertEquals(ShelfReason.TooThin, once.channel("dup").shelfReason)
+
+        // A new generation (the library changed) homes again, and so does a change of a kept starter.
+        val grown = libraryOf(fills("dup" to QUALIFYING_ITEMS))
+        val again = plan(twice, 2L, snapshot = grown)
+        assertEquals(2, memo.homings)
+        assertEquals(plan(twice, null, null, grown), again)
+        plan(again.withChannel("bravo") { it.chosenShelf(null) }, 2L, snapshot = grown)
+        assertEquals(3, memo.homings, "another kept starter")
+
+        // No kept starter: no homing at all.
+        val none = KeptReasonsMemo()
+        plan(first(library), 1L, none)
+        assertEquals(0, none.homings)
+    }
+
     // While a newer catalog waits for a collection pass over a lineup already selected, nothing switches on or off.
     @Test
     fun aWaitingCatalogHoldsTheOnSet() {
