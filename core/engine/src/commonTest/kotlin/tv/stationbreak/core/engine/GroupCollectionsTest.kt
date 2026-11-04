@@ -211,15 +211,20 @@ class GroupCollectionsTest {
         assertNull(mapOf(curatedRules(), snap, film1, film2)[film2.item.id])
     }
 
+    private fun named(name: String) =
+        snapshot(
+            items = listOf(film1),
+            collections = listOf(collection(small, name = name, movies = setOf(film1.item.id))),
+        )
+
     @Test
     fun theNameEndsInCollectionAfterAsciiFoldAndTrim() {
         for (name in listOf("box set 1 COLLECTION", "  Box Set 1 Collection \u00A0", "A Collection")) {
-            val snap = snapshot(items = listOf(film1), collections = listOf(collection(small, name = name, movies = setOf(film1.item.id))))
-            assertEquals(small, mapOf(curatedRules(), snap, film1)[film1.item.id], name)
+            assertEquals(small, mapOf(curatedRules(), named(name), film1)[film1.item.id], name)
         }
-        for (name in listOf("Collection", "Box Set Collections", "Box Set Collection 2", "Box Set\u00A0Collection", "")) {
-            val snap = snapshot(items = listOf(film1), collections = listOf(collection(small, name = name, movies = setOf(film1.item.id))))
-            assertNull(mapOf(curatedRules(), snap, film1)[film1.item.id], name)
+        val notBoxSets = listOf("Collection", "Box Set Collections", "Box Set Collection 2", "Box Set\u00A0Collection")
+        for (name in notBoxSets + "") {
+            assertNull(mapOf(curatedRules(), named(name), film1)[film1.item.id], name)
         }
     }
 

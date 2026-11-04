@@ -57,8 +57,8 @@ object GroupCollections {
     }
 
     /**
-     * Whether a collection name is a box set's for the franchise map (docs/rules-format.md, "curated"): under the studio
-     * clean (which trims) and the ASCII fold, it ends with a space and `collection`. No name is not one.
+     * Whether a collection name is a box set's for the franchise map (docs/rules-format.md, "curated"): under the
+     * studio clean (which trims) and the ASCII fold, it ends with a space and `collection`. No name is not one.
      */
     fun isBoxSet(name: String?): Boolean = name != null && foldNameAscii(cleanStudioName(name)).endsWith(" collection")
 }

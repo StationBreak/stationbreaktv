@@ -102,6 +102,7 @@ internal fun series(
     studios: List<String> = emptyList(),
 ): RuleSeries = RuleSeries(id = id, officialRating = rating, genres = genres, tags = tags, studios = studios)
 
+@Suppress("LongParameterList") // A test builder: every field has a default.
 internal fun collection(
     id: CanonicalId,
     movies: Set<CanonicalId> = emptySet(),
@@ -109,7 +110,8 @@ internal fun collection(
     series: Set<CanonicalId> = emptySet(),
     seasons: Set<CanonicalId> = emptySet(),
     name: String? = null,
-): RuleCollection = RuleCollection(id = id, movies = movies, episodes = episodes, series = series, seasons = seasons, name = name)
+): RuleCollection =
+    RuleCollection(id = id, movies = movies, episodes = episodes, series = series, seasons = seasons, name = name)
 
 /** Items are kept in the order given: the builder does not sort, because the evaluator must keep that order. */
 internal fun snapshot(
