@@ -98,6 +98,17 @@ class BoundaryRulesTest {
     fun thePlannerUsesTheBoundaryItIsGiven() {
         val next = replan(first(), changed(), boundaryMs = 3 * DAY_MS + DAY_START_MS)
         assertEquals(3 * DAY_MS + DAY_START_MS, next.channel("alpha").starter.rulesFromMs)
+        // A starter the selection drops leaves at the boundary given (a themed catalog; "alpha" is empty now).
+        val themed =
+            TestCatalog(
+                base.recipes.map {
+                    it.copy(ordering = OrderingMode.Curated, theme = Theme(emptyList(), emptyList(), null, false))
+                },
+            )
+        val lineup = planOf(null, libraryOf(fills(themed)), themed)
+        val emptied = libraryOf(fills(themed) + ("alpha" to 0))
+        val dropped = planOf(lineup, emptied, themed, nowMs = noon, boundaryMs = 3 * DAY_MS + DAY_START_MS)
+        assertEquals(3 * DAY_MS + DAY_START_MS, dropped.channel("alpha").leavesAtMs)
     }
 
     // The viewer can switch on past the cap; the file is sized for LineupDefaults.CAP previous copies. Only the first
