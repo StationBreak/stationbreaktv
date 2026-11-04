@@ -15,6 +15,8 @@ import kotlin.test.assertTrue
  * is built. `settings(...)` below spells every field out on purpose.
  */
 class SchedulerSettingsTest {
+    private val tuning = CuratedTuning(10_800_000L, 2_100_000L)
+
     @Suppress("LongParameterList") // Mirrors the type: every field is given, none is defaulted.
     private fun settings(
         orderingMode: OrderingMode = OrderingMode.Shuffle,
@@ -29,8 +31,7 @@ class SchedulerSettingsTest {
         minRuntimeMs: Long = 60_000L,
         caps: Caps? = null,
         runtimeFilter: RuntimeFilter? = null,
-        repeatGapMs: Long = 10_800_000L,
-        pairUpToMs: Long = 2_100_000L,
+        curated: CuratedTuning? = tuning.takeIf { orderingMode == OrderingMode.Curated },
     ) = SchedulerSettings(
         orderingMode = orderingMode,
         seed = seed,
@@ -44,12 +45,32 @@ class SchedulerSettingsTest {
         minRuntimeMs = minRuntimeMs,
         caps = caps,
         runtimeFilter = runtimeFilter,
-        repeatGapMs = repeatGapMs,
-        pairUpToMs = pairUpToMs,
+        curated = curated,
     )
 
     private fun rejects(build: () -> SchedulerSettings) {
         assertFailsWith<IllegalArgumentException> { build() }
+    }
+
+    @Test
+    fun theCuratedTuningIsRequiredExactlyWithTheCuratedOrder() {
+        settings(OrderingMode.Curated)
+        rejects { settings(OrderingMode.Curated, curated = null) }
+        for (mode in OrderingMode.entries.filter { it != OrderingMode.Curated }) {
+            val caps = if (mode == OrderingMode.Rotation) Caps(3, 1) else null
+            settings(mode, caps = caps, curated = null)
+            rejects { settings(mode, caps = caps, curated = tuning) }
+        }
+    }
+
+    @Test
+    fun theCuratedTuningHasItsRanges() {
+        CuratedTuning(0L, 60_000L)
+        CuratedTuning(86_400_000L, 86_400_000L)
+        assertFailsWith<IllegalArgumentException> { CuratedTuning(-1L, 60_000L) }
+        assertFailsWith<IllegalArgumentException> { CuratedTuning(86_400_001L, 60_000L) }
+        assertFailsWith<IllegalArgumentException> { CuratedTuning(0L, 59_999L) }
+        assertFailsWith<IllegalArgumentException> { CuratedTuning(0L, 86_400_001L) }
     }
 
     @Test
@@ -121,7 +142,7 @@ class SchedulerSettingsTest {
 
     @Test
     fun theTypeHasNoDefaults() {
-        // Every constructor parameter is required: the only way to build one is to name all fourteen fields.
+        // Every constructor parameter is required: the only way to build one is to name all thirteen fields.
         val s = settings()
         assertEquals(
             SchedulerSettings(
@@ -137,8 +158,7 @@ class SchedulerSettingsTest {
                 60_000L,
                 null,
                 null,
-                10_800_000L,
-                2_100_000L,
+                null,
             ),
             s,
         )

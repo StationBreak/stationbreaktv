@@ -32,12 +32,13 @@ internal class RunPlan(
 )
 
 /** One built day (epoch [n]): contiguous half-open blocks that cover exactly `[startMs, endMs)`. */
+@Suppress("LongParameterList") // The day's facts, one for one.
 class Day internal constructor(
     val n: Long,
     val startMs: Long,
     val endMs: Long,
     val blocks: List<ScheduleBlock>,
-    /** The pool the day was laid out from: the pool of epoch [n] after the trim window. Keep this one, not the input. */
+    /** The pool the day was laid out from: the pool of epoch [n] after the trim window. Keep this, not the input. */
     val pool: List<ScheduleItem>,
     private val plan: RunPlan,
     // A test seam: called once per comparison of the binary search, so WhatsOnStepsTest counts steps without a

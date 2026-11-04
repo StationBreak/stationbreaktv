@@ -27,8 +27,7 @@ class StandInTest {
             60_000L,
             null,
             null,
-            10_800_000L,
-            2_100_000L,
+            null,
         )
     private val hour = 3_600_000L
     private val pool = (1..12).map { item(it, runtimeMs = hour) }

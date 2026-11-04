@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.CuratedTuning
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleBlock
@@ -48,8 +49,9 @@ internal object DayCases {
         val timing = obj("timing")
         val day = timing.obj("broadcastDay")
         val (hours, minutes) = day.string("start").split(":").map { it.toInt() }
+        val mode = orderingModeOf(obj("ordering").string("mode"))
         return SchedulerSettings(
-            orderingMode = orderingModeOf(obj("ordering").string("mode")),
+            orderingMode = mode,
             seed = Seed(string("seed").toULong()),
             blockLength = timing.getValue("blockLength").jsonPrimitive.int,
             // A case may omit alignToGrid: the version 1 default is true.
@@ -63,8 +65,11 @@ internal object DayCases {
             caps = (this["caps"] as? JsonObject)?.caps(),
             runtimeFilter = (this["runtimeFilter"] as? JsonObject)?.runtimeFilter(),
             // The curated tunables are decimal strings in ms, given in every curated case (and read by no other mode).
-            repeatGapMs = optional("repeatGapMs")?.toLong() ?: DEFAULT_REPEAT_GAP_MS,
-            pairUpToMs = optional("pairUpToMs")?.toLong() ?: DEFAULT_PAIR_UP_MS,
+            curated =
+                CuratedTuning(
+                    optional("repeatGapMs")?.toLong() ?: DEFAULT_REPEAT_GAP_MS,
+                    optional("pairUpToMs")?.toLong() ?: DEFAULT_PAIR_UP_MS,
+                ).takeIf { mode == OrderingMode.Curated },
         )
     }
 

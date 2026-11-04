@@ -46,7 +46,7 @@ internal class WalkStep(
 /**
  * The runs of the `curated` order (docs/rules-format.md, "curated") for [pool] on the day with the seed [seedN]:
  * every group of the pool takes turns, the group with the least airtime first, no group again within
- * `settings.repeatGapMs` while another can go, episodes of at most `settings.pairUpToMs` in pairs. Whole numbers
+ * `curated.repeatGapMs` while another can go, episodes of at most `curated.pairUpToMs` in pairs. Whole numbers
  * only; the result is a function of the pool as a set, the seed, the group rules and the settings.
  */
 internal fun curatedRuns(
@@ -106,14 +106,15 @@ internal fun walkGroups(
         if (groups[index].queue.isNotEmpty()) ready.push(index)
     }
     val runs = ArrayList<Run>()
+    val tuning = checkNotNull(settings.curated) { "The curated order needs its tuning" }
     var clock = 0L
     while (remaining > 0) {
         // A group that aired long enough ago is ready again; the one that aired longest ago is the first to be.
-        while (waiting.size > 0 && clock - state.last[waiting.peek()] >= settings.repeatGapMs) ready.push(waiting.pop())
+        while (waiting.size > 0 && clock - state.last[waiting.peek()] >= tuning.repeatGapMs) ready.push(waiting.pop())
         val readyNow = if (onStep != null) ready.members().map { groups[it].id } else emptyList()
         val relaxed = ready.size == 0
         val chosen = if (relaxed) waiting.pop() else ready.pop()
-        val run = state.take(chosen, settings.pairUpToMs)
+        val run = state.take(chosen, tuning.pairUpToMs)
         runs.add(run)
         remaining -= run.items.size
         state.last[chosen] = clock

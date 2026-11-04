@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.CuratedTuning
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -24,14 +25,18 @@ private const val MINUTES_PER_HOUR = 60
 fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
     // Rules with no `ordering` object take the tunables' defaults from core:rules too (only `curated` reads them).
     val tunables = ordering ?: Ordering(orderingMode)
+    val curated =
+        CuratedTuning(
+            repeatGapMs = tunables.effectiveRepeatGapMinutes * MS_PER_MINUTE,
+            pairUpToMs = tunables.effectivePairUpToMinutes * MS_PER_MINUTE,
+        ).takeIf { orderingMode == OrderingMode.Curated }
     return settingsOf(
         orderingMode,
         seed,
         timing,
         caps = effectiveCaps?.let { Caps(it.effectiveSeries, it.effectiveFilm) },
         runtimeFilter = filters?.let { runtimeFilterOf(it) },
-        repeatGapMs = tunables.effectiveRepeatGapMinutes * MS_PER_MINUTE,
-        pairUpToMs = tunables.effectivePairUpToMinutes * MS_PER_MINUTE,
+        curated = curated,
     )
 }
 
@@ -56,8 +61,7 @@ internal fun settingsOf(
     timing: Timing,
     caps: Caps?,
     runtimeFilter: RuntimeFilter?,
-    repeatGapMs: Long,
-    pairUpToMs: Long,
+    curated: CuratedTuning?,
 ): SchedulerSettings =
     SchedulerSettings(
         orderingMode = orderingMode,
@@ -72,8 +76,7 @@ internal fun settingsOf(
         minRuntimeMs = timing.effectiveMinRuntimeSeconds * MS_PER_SECOND,
         caps = caps,
         runtimeFilter = runtimeFilter,
-        repeatGapMs = repeatGapMs,
-        pairUpToMs = pairUpToMs,
+        curated = curated,
     )
 
 // The start is "HH:MM", already checked by BroadcastDay.

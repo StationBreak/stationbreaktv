@@ -112,11 +112,11 @@ class CuratedWalkTest {
         for (run in runs) {
             val group = groups.groupId(run.items.first())
             val earlier = last[group]
-            if (earlier != null && clock - earlier < settings.repeatGapMs) {
+            if (earlier != null && clock - earlier < checkNotNull(settings.curated).repeatGapMs) {
                 for ((other, count) in left) {
                     if (other == group || count == 0) continue
                     val seen = last[other]
-                    val waiting = seen != null && clock - seen < settings.repeatGapMs
+                    val waiting = seen != null && clock - seen < checkNotNull(settings.curated).repeatGapMs
                     assertTrue(waiting, "$label: $other was ready at $clock")
                 }
             }

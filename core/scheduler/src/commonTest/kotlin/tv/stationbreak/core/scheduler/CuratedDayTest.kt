@@ -73,7 +73,7 @@ class CuratedDayTest {
             val sameSeries = two.first { it.id == lastToday }.seriesId == two.first { it.id == firstTomorrow }.seriesId
             // The last title aired less than its gap before tomorrow starts, and the other series had its turn
             // earlier: a carried walk would have to start tomorrow with the other series.
-            val gapOpen = tomorrow.startMs - lastBlock.startMs < settings.repeatGapMs
+            val gapOpen = tomorrow.startMs - lastBlock.startMs < checkNotNull(settings.curated).repeatGapMs
             if (sameSeries && gapOpen) barredIfCarried++
         }
         assertTrue(barredIfCarried > 0, "a day on which a carried gap would have chosen the other series")

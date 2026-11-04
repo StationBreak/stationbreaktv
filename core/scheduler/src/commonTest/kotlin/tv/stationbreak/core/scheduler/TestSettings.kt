@@ -4,6 +4,7 @@ package tv.stationbreak.core.scheduler
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.CuratedTuning
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -49,8 +50,7 @@ internal fun testSettings(
     minRuntimeMs = minRuntimeMs,
     caps = caps,
     runtimeFilter = runtimeFilter,
-    repeatGapMs = repeatGapMs,
-    pairUpToMs = pairUpToMs,
+    curated = CuratedTuning(repeatGapMs, pairUpToMs).takeIf { orderingMode == OrderingMode.Curated },
 )
 
 /** No film belongs to a collection: the v1 tests' side input. */

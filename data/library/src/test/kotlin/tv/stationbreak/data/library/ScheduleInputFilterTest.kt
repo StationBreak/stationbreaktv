@@ -48,8 +48,7 @@ class ScheduleInputFilterTest {
             60_000L,
             null,
             null,
-            10_800_000L,
-            2_100_000L,
+            null,
         )
     private val id = hexId(1)
     private val series = hexId(2)
@@ -126,16 +125,10 @@ class ScheduleInputFilterTest {
                 assertEquals(
                     "control: the pool takes it",
                     1,
-                    EpochPool
-                        .build(
-                            settings,
-                            listOf(item),
-                            0,
-                            TitleKeeps.NONE,
-                        ).size,
+                    EpochPool.build(settings, listOf(item), 0).size,
                 )
                 val noRuntime = listOf(item.copy(runtimeMs = notPositive))
-                assertEquals(emptyList<ScheduleItem>(), EpochPool.build(settings, noRuntime, 0, TitleKeeps.NONE))
+                assertEquals(emptyList<ScheduleItem>(), EpochPool.build(settings, noRuntime, 0))
             } else {
                 assertThrows("${case.row} should be refused", Exception::class.java) { direct(case.row) }
             }
@@ -306,7 +299,7 @@ class ScheduleInputFilterTest {
         clock.atMs(1.hours.inWholeMilliseconds)
         repository.put(ALICE, MOVIES, sitem(1, runtime = after.minutes).copy(dateCreated = old))
         val inputs = repository.scheduleInputs(ALICE, setOf(MOVIES), Instant.fromEpochMilliseconds(0))
-        return EpochPool.build(filtered, inputs.items, 0, TitleKeeps.NONE)
+        return EpochPool.build(filtered, inputs.items, 0)
     }
 
     @Test

@@ -140,8 +140,7 @@ class TombstoneHeldRuntimeTest {
                     60_000L,
                     null,
                     null,
-                    10_800_000L,
-                    2_100_000L,
+                    null,
                 )
             val cutoff = 0L
             repository.select(ALICE, setOf(MOVIES))

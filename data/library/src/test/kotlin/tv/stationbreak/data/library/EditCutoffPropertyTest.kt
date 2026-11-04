@@ -282,8 +282,7 @@ class EditCutoffPropertyTest {
             minRuntimeMs = 1_000L + gen.nextLong(3_599_000L),
             caps = null,
             runtimeFilter = null,
-            repeatGapMs = 10_800_000L,
-            pairUpToMs = 2_100_000L,
+            curated = null,
         )
     }
 
