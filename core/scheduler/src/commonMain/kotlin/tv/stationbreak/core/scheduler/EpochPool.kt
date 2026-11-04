@@ -44,22 +44,11 @@ object EpochPool {
     /**
      * The pool of epoch [n] from [items], in canonical ID order (ascending, as 32 ASCII bytes), with no trim window.
      * Throws [IllegalArgumentException] naming the ID when two inputs share one, whether or not either would be kept.
-     *
-     * The trim window is applied only by the day build ([buildDay]), through the internal overload; the public builder
-     * cannot window, so the pool of a ruled day, the leftovers and the check for items no channel airs never do.
      */
     fun build(
         settings: SchedulerSettings,
         items: List<ScheduleItem>,
         n: Long,
-    ): List<ScheduleItem> = build(settings, items, n, TitleKeeps.NONE)
-
-    /** [build] with the trim window of [keeps] applied last ([TrimWindow]): for [buildDay] only. */
-    internal fun build(
-        settings: SchedulerSettings,
-        items: List<ScheduleItem>,
-        n: Long,
-        keeps: TitleKeeps,
     ): List<ScheduleItem> {
         // Input already in canonical order (every day pool and every snapshot is) is unique by construction: one
         // pass of comparisons stands in for the hash set and the sort, with the same result.
@@ -67,9 +56,27 @@ object EpochPool {
         if (!canonical) requireUniqueIds(items)
         val cutoff = Epochs.cutoff(settings, n)
         val kept = items.filter { isInPool(it, cutoff, settings) }
-        val ordered = if (canonical) kept else kept.sortedBy { it.id.value }
-        return TrimWindow.apply(ordered, n, keeps)
+        return if (canonical) kept else kept.sortedBy { it.id.value }
     }
+
+    /**
+     * The pool of the day: [pool] (the result of [build]) with the trim window of [keeps] applied ([TrimWindow]); [pool]
+     * itself when [keeps] is empty. It is cheap (no layout), so a caller that keeps the day's pool, on disk too, can
+     * work it out when the day is made. A pool that was kept after the window is built again with [TitleKeeps.NONE].
+     */
+    fun dayPool(
+        pool: List<ScheduleItem>,
+        n: Long,
+        keeps: TitleKeeps,
+    ): List<ScheduleItem> = TrimWindow.apply(pool, n, keeps)
+
+    /** [build] and then [dayPool]: for the tests of the window. */
+    internal fun build(
+        settings: SchedulerSettings,
+        items: List<ScheduleItem>,
+        n: Long,
+        keeps: TitleKeeps,
+    ): List<ScheduleItem> = dayPool(build(settings, items, n), n, keeps)
 
     private fun isStrictlyAscending(items: List<ScheduleItem>): Boolean {
         for (index in 1 until items.size) {

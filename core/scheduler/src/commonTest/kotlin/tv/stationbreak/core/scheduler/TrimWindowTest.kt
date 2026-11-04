@@ -118,6 +118,16 @@ class TrimWindowTest {
     }
 
     @Test
+    fun theDayPoolIsTheWindowOfThePoolAndBuildDayUsesIt() {
+        val settings = testSettings()
+        val pool = EpochPool.build(settings, episodes(20, 20, 20, 20, 20, 20), 1L)
+        val windowed = EpochPool.dayPool(pool, 1L, keeps(40))
+        assertEquals(listOf(3, 4), windowed.map { checkNotNull(it.episodeNumber) }.sorted())
+        assertEquals(pool, EpochPool.dayPool(pool, 1L, noKeeps()))
+        assertEquals(windowed, buildDay(settings, pool, 1L, noFilms(), noWeights(), keeps(40)).pool)
+    }
+
+    @Test
     fun thePublicPoolBuilderNeverWindows() {
         val settings = testSettings()
         val pool = EpochPool.build(settings, episodes(20, 20, 20, 20, 20, 20), 1L)

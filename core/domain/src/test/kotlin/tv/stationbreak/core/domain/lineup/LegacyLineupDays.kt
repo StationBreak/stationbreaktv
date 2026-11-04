@@ -23,6 +23,7 @@ import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.scheduler.Day
@@ -176,7 +177,8 @@ internal class LegacyLineupDays(
             val ceilingRank = RatingLadder.rankOf(ceilingOf(s.channel))
             val name = s.channel.displayName(catalog)
             val hidden = hiddenReason(pool, day)
-            return ChannelDay(s.channel, name, s.settings, s.n, day, NO_FILMS, hidden, ceilingRank, laidOut)
+            val keeps = TitleKeeps.NONE
+            return ChannelDay.of(s.channel, name, s.settings, s.n, day, NO_FILMS, hidden, ceilingRank, keeps, laidOut)
         }
 
         /** What no leftovers channel may air from the [cutoff]'s snapshot: opt-in and hidden channels' pools. */

@@ -130,7 +130,7 @@ internal fun buildDayCounting(
             "Item ${item.id.value}: deletedAt is out of range"
         }
     }
-    val pool = EpochPool.build(settings, items, n, keeps)
+    val pool = EpochPool.dayPool(EpochPool.build(settings, items, n), n, keeps)
     val groups = GroupRules(films, weights)
     val cycle = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), groups)
     if (cycle.isEmpty()) {

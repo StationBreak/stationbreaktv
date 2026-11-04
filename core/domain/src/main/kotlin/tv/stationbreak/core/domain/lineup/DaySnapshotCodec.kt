@@ -256,13 +256,13 @@ internal object DaySnapshotCodec {
         val collections = LinkedHashMap<CanonicalId, Int>()
         // The distinct items in canonical-ID order (an ID held at two cut-offs in two versions keeps both).
         val distinct = LinkedHashSet<ScheduleItem>()
-        days.forEach { distinct += it.persistedPool }
+        days.forEach { distinct += it.pool }
         val table = distinct.sortedBy { it.id.value }
         val rowOf = HashMap<ScheduleItem, Int>(table.size * 2)
         table.forEachIndexed { row, item -> rowOf[item] = row }
         val pools =
             days.map { day ->
-                val pool = day.persistedPool
+                val pool = day.pool
                 val rows = IntArray(pool.size) { i -> rowOf.getValue(pool[i]) }
                 val films = filmRows(day, rowOf, collections)
                 if (isAscending(rows)) {
@@ -300,7 +300,7 @@ internal object DaySnapshotCodec {
         collections: MutableMap<CanonicalId, Int>,
     ): List<List<Int>>? {
         if (day.films.isEmpty) return null
-        val pool = day.persistedPool.associateBy { it.id }
+        val pool = day.pool.associateBy { it.id }
         return day.films.entries.map { (film, collection) ->
             val item = requireNotNull(pool[film]) { "A film of the map is in the day's pool" }
             listOf(rowOf.getValue(item), collections.getOrPut(collection) { collections.size })
