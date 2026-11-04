@@ -121,6 +121,24 @@ class LineupCodecV3Test {
         assertEquals(LineupCodec.Decoded.Unreadable, decode(previousText))
     }
 
+    // The meta field `replanFromMs` came with version 3: an older file that has it was not written by this app.
+    @Test
+    fun aVersionOneOrTwoFileWithAReplanBoundaryIsUnreadable() {
+        val lineup = lineupOf(starterChannel("a", 110))
+        val meta = RefreshMeta(4L, 5L, listOf("library-1"), extrasFromMs = null, replanFromMs = 9_000L)
+        val three = Json.parseToJsonElement(LineupCodec.encode(lineup, meta).decodeToString()).jsonObject
+        assertEquals(meta, loaded(three.toString()).meta)
+        for (version in 1..2) {
+            val older = three.with("version", JsonPrimitive(version))
+            assertEquals(LineupCodec.Decoded.Unreadable, decode(older.toString()), "version $version")
+            // Without it, the same file reads.
+            val metaWithout = JsonObject(older.getValue("meta").jsonObject - "replanFromMs")
+            val read = loaded(older.with("meta", metaWithout).toString())
+            assertEquals(lineup.copy(viewerChoicesKnown = false), read.lineup, "version $version")
+            assertNull(read.meta.replanFromMs)
+        }
+    }
+
     @Test
     fun everyNewFieldRoundTrips() {
         val a = starterChannel("a", 110, previous = true).copy(chosenByViewer = true, leavesAtMs = 9_000L)

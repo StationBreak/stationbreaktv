@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.rules.Source
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -137,6 +141,67 @@ class LineupServiceRollTest {
                 lock.unlock()
             }
             assertEquals(due, checkNotNull(service.lineup(ACCOUNT).value).lineup, "skipped: a refresh rolls anyway")
+            // The busy lock did not use up the boundary's attempt: a later lookup rolls.
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+            assertEquals(2, service.rollAttempts.get())
+            assertNull(checkNotNull(service.lineup(ACCOUNT).value).lineup.curationBasis)
+            assertEquals(checkNotNull(service.lineup(ACCOUNT).value).lineup, savedLineup())
+        }
+
+    @Test
+    fun aHeldLineupThatMayNotBeSavedStartsNoRoll() =
+        runBlocking<Unit> {
+            storeDue(now.toEpochMilliseconds() + 3_600_000L)
+            pastDue()
+            val service = newService()
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            repeat(5) { service.rollSoon(ACCOUNT, held.copy(writable = false)) }
+            service.awaitRolls()
+            assertEquals(0, service.rollAttempts.get())
+        }
+
+    // The stored lineup has nothing to roll, but its household change has reached its boundary.
+    private fun storeReplanDue(dueMs: Long) {
+        runBlocking { newService().refresh(ACCOUNT, LIBRARIES) }
+        val stored = (LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT))) as LineupCodec.Decoded.Loaded)
+        val meta = stored.meta.copy(replanFromMs = dueMs)
+        runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(stored.lineup, meta)) }
+    }
+
+    @Test
+    fun aDueReplanIsSignalledOncePerBoundaryWhileNothingHoldsTheLock() =
+        runBlocking<Unit> {
+            storeReplanDue(now.toEpochMilliseconds() + 3_600_000L)
+            pastDue()
+            val service = newService()
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            val signals = AtomicInteger()
+            val listening =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    service.replanRequests.collect { signals.incrementAndGet() }
+                }
+            val lock = checkNotNull(service.lockOf(ACCOUNT))
+
+            lock.lock()
+            try {
+                service.rollSoon(ACCOUNT, held)
+                yield()
+            } finally {
+                lock.unlock()
+            }
+            assertEquals(0, signals.get(), "something holds the lock: it plans")
+            repeat(5) {
+                service.rollSoon(ACCOUNT, held)
+                yield()
+            }
+            assertEquals(1, signals.get(), "nothing to roll, but the change is due: once, however many lookups")
+            assertEquals(0, service.rollAttempts.get())
+            now = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() + 86_400_000L)
+            service.rollSoon(ACCOUNT, held)
+            yield()
+            assertEquals(2, signals.get(), "still due at the next boundary: once more")
+            listening.cancel()
         }
 
     @Test

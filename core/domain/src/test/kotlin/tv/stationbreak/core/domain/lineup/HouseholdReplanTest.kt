@@ -10,19 +10,25 @@ import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.Band
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -236,4 +242,93 @@ class HouseholdReplanTest {
             assertEquals(ChannelState.On, houseState())
             assertEquals(false, checkNotNull(service.loaded(ACCOUNT)).lineup.useMyCollections)
         }
+
+    private suspend fun held(): Lineup = checkNotNull(service.loaded(ACCOUNT)).lineup
+
+    // A setting survives a plan: switched off before the first choice, it stays off through the re-plan and through
+    // the first choice once the collections are in, which ranks under it.
+    @Test
+    fun turningItOffBeforeTheFirstChoiceSticksThroughThePlans() =
+        runBlocking<Unit> {
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertFalse(held().finalised)
+
+            assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.UseMyCollections(false)))
+            assertFalse(held().useMyCollections, "kept by the re-plan of the switch")
+
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            service.refresh(ACCOUNT, LIBRARIES)
+            val chosen = held()
+            assertTrue(chosen.finalised)
+            assertFalse(chosen.useMyCollections)
+            assertEquals(ChannelState.Shelf, chosen.state(houseId), "chosen with the household's collections off")
+            val saved = (LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT))) as LineupCodec.Decoded.Loaded)
+            assertFalse(saved.lineup.useMyCollections)
+        }
+
+    // A reset replaces the channels, not the settings: the flag is carried from the lineup it replaces, as the extras
+    // boundary is, and applies at once (a reset is the viewer's).
+    @Test
+    fun aResetWithTheFlagOffKeepsItOff() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.UseMyCollections(false)))
+
+            assertEquals(ResetResult.Chosen, manager.reset(ACCOUNT))
+
+            val reset = held()
+            assertFalse(reset.useMyCollections)
+            assertNull(reset.curationBasis)
+            assertEquals(ChannelState.Shelf, reset.state(houseId), "planned with the household's collections off")
+            // And on stays on.
+            assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.UseMyCollections(true)))
+            assertEquals(ResetResult.Chosen, manager.reset(ACCOUNT))
+            assertTrue(held().useMyCollections)
+        }
+
+    // KNOWN EFFECT, pinned on purpose; Task 21 (spec 23, PR 5) changes it, and this test with it. A starter whose
+    // switch-on a household change kept waiting for the boundary is switched on by the plan at that boundary, after
+    // the new day has begun: it airs from now, so what it airs leaves the leftovers' current day at once. Task 21 has
+    // the leftovers claim from the basis on-set until the boundary instead.
+    @Test
+    fun knownEffectADeferredSwitchOnMovesTheLeftoversCurrentDayOnce() {
+        val names = CollectionNames(mapOf(boxSet to "Box Set 2"))
+
+        fun snapshotAt(cutoff: Long) =
+            RuleSnapshot(
+                cutoff,
+                setOf(LIBRARY_ID),
+                fillingLibrary() + films,
+                emptyMap(),
+                mapOf(boxSet to RuleCollection(boxSet, filmIds, emptySet(), emptySet(), emptySet(), "Box Set 2")),
+                collectionsSynced = true,
+            )
+        val noonMs = NOON.toEpochMilliseconds()
+        val first = LineupPlanner.plan(null, SERVER, USER, 0, snapshotAt(noonMs), names, noonMs, boundary, catalog)
+        assertEquals(ChannelState.On, first.state(houseId))
+        // At the boundary: the flag is on again, the basis is past (rolled), and the starter still waits on the shelf.
+        val waiting = first.copy(channels = first.channels.map { if (it.id == houseId) it.shelved() else it })
+        val atMs = boundary + 60_000L
+        val planned =
+            LineupPlanner.plan(waiting, SERVER, USER, 0, snapshotAt(atMs), names, atMs, boundary + DAY_MS, catalog)
+        assertEquals(ChannelState.On, planned.state(houseId))
+
+        val days = LineupDays(catalog)
+
+        fun leftoversToday(lineup: Lineup): Set<CanonicalId> {
+            val scheduled = days.scheduled(lineup, atMs, null)
+            val snapshots = scheduled.map { it.cutoffMs }.distinct().associateWith { snapshotAt(it) }
+            return days
+                .days(lineup, scheduled, snapshots)
+                .filter { it.channel.source is ChannelSource.Leftovers }
+                .flatMapTo(HashSet()) { day -> day.pool.map { it.id } }
+        }
+        assertTrue(leftoversToday(waiting).containsAll(filmIds), "before the plan the leftovers air the box set today")
+        assertTrue(leftoversToday(planned).none { it in filmIds }, "after it, today's leftovers lose them at once")
+    }
+
+    private companion object {
+        const val DAY_MS = 86_400_000L
+    }
 }

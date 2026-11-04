@@ -36,6 +36,11 @@ fun Lineup.householdFor(dayStartMs: Long): Boolean {
  * Dropping a starter's previous rules changes its day key once (they sit inside its source, which feeds every day
  * key), so its days rebuild. That is accepted and deterministic: the rules for every day after the boundary are the
  * same before and after.
+ *
+ * [nowMs] is the device clock. A clock that jumps forward (set wrong, then put right) rolls what is pending early:
+ * the new rules, the leaving starters and the new on-set and flag then apply from that moment instead of at their
+ * boundary. That is accepted: it is deterministic (the same lineup and time give the same result on every TV) and
+ * recoverable (nothing is lost; the next plan works from what the lineup holds then).
  */
 fun Lineup.rolled(nowMs: Long): Lineup {
     val basis = curationBasis
@@ -81,9 +86,10 @@ internal fun ChannelSource.Starter.withNewRules(
 ): ChannelSource.Starter {
     require(!edited) { "Only an unedited starter follows new rules" }
     require(rules.timing == this.rules.timing) { "New rules keep the current timing" }
+    if (rules == this.rules) return this
+    // Checked only for a change: no change needs a boundary.
     require(boundaryMs > nowMs) { "The boundary is after now" }
     require(isDayStart(this.rules, boundaryMs)) { "The boundary is a broadcast-day start" }
-    if (rules == this.rules) return this
     val pending = rulesFromMs.let { it != null && it > nowMs }
     return when {
         pending && rules == previousRules -> copy(rules = rules).withoutPrevious()
@@ -92,8 +98,13 @@ internal fun ChannelSource.Starter.withNewRules(
     }
 }
 
-// The epoch arithmetic of docs/rules-format.md ("Timing"): a day starts where (t + offset - start) is a whole epoch.
-private fun isDayStart(
+/**
+ * Whether [t] is the start of a broadcast day of [rules]' timing, by the epoch arithmetic of docs/rules-format.md
+ * ("Timing"): a day starts where (t + offset - start) is a whole epoch. The offset is the fixed one the rules hold, so
+ * a daylight-saving change moves nothing. Public so `core:domain`, which sees the scheduler's `Epochs`, can check it
+ * against `Epochs.epochStart`; the engine itself does not depend on the scheduler.
+ */
+fun isDayStart(
     rules: ChannelRules,
     t: Long,
 ): Boolean {

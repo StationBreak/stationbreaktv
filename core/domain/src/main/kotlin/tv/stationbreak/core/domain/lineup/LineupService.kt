@@ -143,8 +143,7 @@ class LineupService internal constructor(
     private val days = LineupDays(seams.catalog)
 
     // Background rolls (see [rollSoon]): their own scope, so a roll outlives the read that asked for it.
-    private val rollScope = CoroutineScope(SupervisorJob() + seams.rollDispatcher)
-    private val rolls = HashSet<Job>()
+    private val rolls = BackgroundRolls(seams.rollDispatcher)
 
     // The play keys of the last few revisions, so a list is not hashed again for each emission of the same revision.
     private val playKeys = PlayKeyCache()
@@ -171,8 +170,8 @@ class LineupService internal constructor(
          */
         @Volatile var writable = false
 
-        /** The boundary a background roll was last attempted for. Written under the service's [lock]. */
-        var rollTriedFor: Long? = null
+        /** The boundaries the background roll and the re-plan signal were last made for ([rollSoon]). */
+        val boundaries = BoundaryMemo()
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -306,6 +305,9 @@ class LineupService internal constructor(
                 catalog,
                 withoutCollections = read.giveUp,
                 kept = (kept + own).distinctBy { it.id },
+                // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
+                // keeps a current lineup's own).
+                useMyCollections = offsetFrom?.useMyCollections ?: true,
             )
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
@@ -446,11 +448,11 @@ class LineupService internal constructor(
                     val before = held?.meta ?: start.meta
                     // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
                     // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
-                    val (edited, replanMeta) = replanned(owner, account, edit, outcome, libraries, before)
+                    val replan = replanned(owner, account, edit, outcome, libraries, before)
+                    val edited = replan.outcome
                     // Only a plan clears a pending re-plan: an edit that did not plan keeps the one that was due.
-                    val planned = replanMeta !== before
                     val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
-                    val meta = if (planned) replanMeta else before.copy(replanFromMs = kept)
+                    val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
                     if (saveVerified(owner, edited.lineup, meta)) {
                         publish(entry, edited.lineup, meta)
@@ -474,17 +476,17 @@ class LineupService internal constructor(
         outcome: EditOutcome.Applied,
         libraries: Set<ItemId>?,
         before: RefreshMeta,
-    ): Pair<EditOutcome.Applied, RefreshMeta> {
-        if (edit !is LineupEdit.UseMyCollections || libraries.isNullOrEmpty()) return outcome to before
+    ): Replan {
+        if (edit !is LineupEdit.UseMyCollections || libraries.isNullOrEmpty()) return Replan(outcome, before, false)
         return try {
             val read = readForPlan(account, libraries)
             val (planned, meta) = plannedFrom(owner, read, libraries, outcome.lineup, before)
-            EditOutcome.Applied(planned) to meta
+            Replan(EditOutcome.Applied(planned), meta, planned = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             report(LineupEvent.RefreshFailed)
-            outcome to before
+            Replan(outcome, before, planned = false)
         }
     }
 
@@ -706,70 +708,83 @@ class LineupService internal constructor(
      * Called by a reader (the schedule source) with the lineup it holds: when something in it is past ([rolled]), a
      * roll is attempted in the background. It never waits and never blocks the caller: the days are right without it
      * (`rulesFor`, `householdFor` and `leavesAtMs` give the days of the right rules), so this only tidies the stored
-     * lineup. One attempt is made per account and boundary: a session that cannot save, or a save that failed, is not
-     * tried on every read, and a lock that is busy is skipped (a refresh or an edit rolls under it anyway). The roll
+     * lineup. One attempt is made per account and boundary, checked before anything is rolled: a session that may not
+     * save starts none, and a save that failed is not tried on every read. An attempt that finds the lock busy (a
+     * refresh or an edit holds it, and rolls under it anyway) does not count, so a later lookup tries again. The roll
      * works from the held lineup and reads nothing from the store.
+     *
+     * A household change that has reached its boundary ([RefreshMeta.replanDue]) is said to the refresher
+     * ([replanRequests]) while nothing holds the lock, once per boundary, whether or not there is anything to roll:
+     * the refresher plans, never this lookup.
      */
     internal fun rollSoon(
         account: LibraryAccount,
         held: Revisioned,
     ) {
+        val owner = ownerOf(account) ?: return
+        val entry = entryOf(owner)
         val nowMs = clock.now().toEpochMilliseconds()
-        val owner = ownerOf(account)
-        if (owner != null && held.lineup.rolled(nowMs) !== held.lineup) {
-            startRoll(entryOf(owner), owner, held, nowMs, account)
+        val replanDue = held.meta.replanDue(nowMs)
+        val canSave = held.writable && entry.writable
+        if (replanDue || canSave) {
+            val boundary = nextBoundary(held.lineup, nowMs)
+            if (replanDue) signalReplan(entry, account, boundary)
+            // Cheap checks first, so a lineup that cannot be saved is not copied (`rolled`) on every lookup.
+            val untried = canSave && !entry.boundaries.rollTried(boundary)
+            val due = untried && held.lineup.rolled(nowMs) !== held.lineup
+            // One attempt per boundary: the first lookup to see it starts it.
+            if (due && entry.boundaries.firstRoll(boundary)) rolls.launch { rollHeld(owner, entry, nowMs, boundary) }
         }
     }
 
-    // One attempt per boundary (the first lookup to see it), started on the roll scope.
-    private fun startRoll(
+    // At most once per boundary, and only while nothing holds the lock (a refresh or an edit under way plans anyway,
+    // and a later lookup asks again if the change is still due).
+    private fun signalReplan(
         entry: Entry,
-        owner: Owner,
-        held: Revisioned,
-        nowMs: Long,
         account: LibraryAccount,
+        boundary: Long,
     ) {
-        val boundary = nextBoundary(held.lineup, nowMs)
-        val first =
-            synchronized(lock) {
-                (entry.rollTriedFor != boundary).also { if (it) entry.rollTriedFor = boundary }
-            }
-        if (first) {
-            rollAttempts.incrementAndGet()
-            val job = rollScope.launch { rollHeld(owner, entry, nowMs, account) }
-            synchronized(lock) { rolls += job }
-            job.invokeOnCompletion { synchronized(lock) { rolls -= job } }
-        }
+        if (!entry.mutex.isLocked && entry.boundaries.firstSignal(boundary)) replans.tryEmit(account)
     }
 
     // Under tryLock: the lineup is rolled from what is held now (re-checked here), saved, then published. A session
-    // that may not write does nothing; a failed save leaves the held lineup as it was.
+    // that may not write does nothing; a failed save leaves the held lineup as it was. A busy lock un-records the
+    // attempt, so a later lookup tries again. Anything else that throws is reported: the roll scope has no handler.
+    @Suppress("TooGenericExceptionCaught") // Any failure of a background roll: report it, the days are right anyway.
     private suspend fun rollHeld(
         owner: Owner,
         entry: Entry,
         nowMs: Long,
-        account: LibraryAccount,
+        boundary: Long,
     ) {
-        if (!entry.mutex.tryLock()) return
-        val replan: Boolean
+        if (!entry.mutex.tryLock()) {
+            entry.boundaries.rollSkipped(boundary)
+            return
+        }
         try {
             val held = entry.state.value
             val rolled = held?.lineup?.rolled(nowMs)
+            // The roll never does the first version-3 write: a lineup decoded from a version 1 or 2 file has none of
+            // the fields `rolled` clears (no leavesAtMs, previous rules or basis), so it comes back unchanged and is
+            // not saved here; the first save of a new version is a refresh's or an edit's, which keep the old file's
+            // copy first. It relies on `entry.writable` as the last `startOf` under the lock set it: this roll reads
+            // nothing from the store and never sets it.
             val due = held != null && rolled !== held.lineup && held.writable && entry.writable
             if (due && saveVerified(owner, checkNotNull(rolled), held.meta)) publish(entry, rolled, held.meta)
-            // A household change at its boundary: say so; the refresher plans, never this try-lock.
-            replan = held != null && held.meta.replanDue(nowMs)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            report(LineupEvent.SaveFailed)
         } finally {
             entry.mutex.unlock()
         }
-        if (replan) replans.tryEmit(account)
     }
 
     /** For tests: waits for the background rolls started so far. */
-    internal suspend fun awaitRolls() = synchronized(lock) { rolls.toList() }.joinAll()
+    internal suspend fun awaitRolls() = rolls.await()
 
     /** For tests: how many background rolls were started. */
-    internal val rollAttempts = AtomicInteger()
+    internal val rollAttempts: AtomicInteger get() = rolls.started
 
     /** For tests: [account]'s lock, to show that a read never waits on it. */
     internal fun lockOf(account: LibraryAccount): Mutex? = ownerOf(account)?.let { entryOf(it).mutex }
@@ -929,6 +944,60 @@ internal sealed interface Saved<out T> {
 
     /** A reset could not read the library; nothing changed. */
     data object Unavailable : Saved<Nothing>
+}
+
+/** An edit's outcome, its meta, and whether it was [planned] again (only a plan sets the meta afresh). */
+private class Replan(
+    val outcome: EditOutcome.Applied,
+    val meta: RefreshMeta,
+    val planned: Boolean,
+)
+
+/**
+ * Which boundary an account's background roll and its re-plan signal were last made for, so each is made at most
+ * once per boundary. A roll that found the lock busy is taken back ([rollSkipped]), so a later lookup tries again.
+ */
+private class BoundaryMemo {
+    private var rollTriedFor: Long? = null
+    private var replanSignalledFor: Long? = null
+
+    @Synchronized
+    fun rollTried(boundary: Long): Boolean = rollTriedFor == boundary
+
+    /** True for the first roll of [boundary], which it records. */
+    @Synchronized
+    fun firstRoll(boundary: Long): Boolean = (rollTriedFor != boundary).also { if (it) rollTriedFor = boundary }
+
+    @Synchronized
+    fun rollSkipped(boundary: Long) {
+        if (rollTriedFor == boundary) rollTriedFor = null
+    }
+
+    /** True for the first re-plan signal of [boundary], which it records. */
+    @Synchronized
+    fun firstSignal(boundary: Long): Boolean {
+        val first = replanSignalledFor != boundary
+        if (first) replanSignalledFor = boundary
+        return first
+    }
+}
+
+/** The background rolls: their own scope, so a roll outlives the read that asked for it, and a count for tests. */
+private class BackgroundRolls(
+    dispatcher: CoroutineDispatcher,
+) {
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private val jobs = HashSet<Job>()
+    val started = AtomicInteger()
+
+    fun launch(roll: suspend () -> Unit) {
+        started.incrementAndGet()
+        val job = scope.launch { roll() }
+        synchronized(jobs) { jobs += job }
+        job.invokeOnCompletion { synchronized(jobs) { jobs -= job } }
+    }
+
+    suspend fun await() = synchronized(jobs) { jobs.toList() }.joinAll()
 }
 
 /**

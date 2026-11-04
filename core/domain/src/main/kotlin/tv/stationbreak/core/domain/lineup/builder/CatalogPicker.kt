@@ -9,6 +9,7 @@ import tv.stationbreak.core.engine.lineup.NameMatcher
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.cleanStudioName
 import tv.stationbreak.core.model.foldNameAscii
 
 /** One row of a picker: the [key] the rules store and the [label] the viewer sees. */
@@ -163,7 +164,9 @@ class SourceLabels(
     ): Map<String, String> {
         if (names.isEmpty()) return emptyMap()
         val held = HashMap<String, String>()
-        for (spelling in repository.distinctStudios(account)) {
+        for (raw in repository.distinctStudios(account)) {
+            // A name cached before the sync cleaned studio names is compared and shown as the sync now stores it.
+            val spelling = cleanStudioName(raw)
             val key = NameMatcher.fold(spelling)
             val known = held[key]
             if (known == null || spelling < known) held[key] = spelling

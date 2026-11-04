@@ -23,6 +23,26 @@ object RulesWriter {
 
     fun write(rules: ChannelRules): String = json.encodeToString(JsonElement.serializer(), tree(rules)) + "\n"
 
+    /** What [write] puts between two entries of the `sources` list. */
+    const val SOURCE_SEPARATOR: String = ",\n"
+
+    /**
+     * The text [source] takes as one entry of the `sources` list in [write]'s output, indent included and without
+     * the [SOURCE_SEPARATOR] before or after it. Rules with one more source are written [SOURCE_SEPARATOR] plus this
+     * longer, so a caller can add up the size of rules source by source without writing them whole each time.
+     */
+    fun sourceEntry(source: Source): String {
+        // A list in a list puts the entry at the depth of the `sources` entries: the top-level object, then the list.
+        val nested = JsonArray(listOf(JsonArray(listOf(source(source)))))
+        return json
+            .encodeToString(JsonElement.serializer(), nested)
+            .removePrefix(NESTED_OPEN)
+            .removeSuffix(NESTED_CLOSE)
+    }
+
+    private const val NESTED_OPEN = "[\n  [\n"
+    private const val NESTED_CLOSE = "\n  ]\n]"
+
     private fun tree(rules: ChannelRules): JsonObject =
         obj(rules.extras) {
             put("formatVersion", JsonPrimitive(rules.formatVersion))

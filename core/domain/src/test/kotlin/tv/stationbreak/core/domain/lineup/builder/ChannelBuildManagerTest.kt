@@ -61,6 +61,7 @@ class ChannelBuildManagerTest {
             { Seed(1_000uL + drawn++.toULong()) },
             { "id${++ids}" },
             { _, sources -> sources.associateWith { "Label ${it.key}" } },
+            { _, _ -> emptyMap() },
         )
 
     private val laughs = LineupIds.starter("laughs")
@@ -544,7 +545,8 @@ class ChannelBuildManagerTest {
                     { events += it },
                     TestCatalog,
                 )
-            val failing = ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() })
+            val failing =
+                ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, _ -> emptyMap() }
 
             val result = failing.delete(ACCOUNT, laughs)
 
@@ -566,7 +568,8 @@ class ChannelBuildManagerTest {
                     { events += it },
                     TestCatalog,
                 )
-            val failing = ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() })
+            val failing =
+                ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, _ -> emptyMap() }
 
             assertEquals(OpenResult.Failed, failing.open(ACCOUNT, laughs, copy = true))
             seed()
@@ -607,6 +610,7 @@ class ChannelBuildManagerTest {
                     LineupService(store, library, clock, { 0 }, { events += it }, retiring),
                     { Seed(1uL) },
                     { "x" },
+                    { _, _ -> emptyMap() },
                     { _, _ -> emptyMap() },
                 )
             // Toons default to 10 and have been moved to 20; 601 is a custom channel's.

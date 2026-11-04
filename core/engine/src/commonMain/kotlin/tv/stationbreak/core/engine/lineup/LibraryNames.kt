@@ -10,7 +10,8 @@ import tv.stationbreak.core.rules.Source
 /**
  * The names a library holds, which a themed recipe is matched against: collections by name (from [collections]),
  * studios, and titles (series and films) from [snapshot]. Every answer is in a fixed order, so equal inputs in any
- * order give equal answers. Names are folded once each, here; no regex.
+ * order give equal answers. Names are folded once each, here, on the first call that needs them, and the folded
+ * names are reused by every later call; no regex.
  */
 class LibraryNames(
     private val snapshot: RuleSnapshot,
@@ -37,21 +38,28 @@ class LibraryNames(
         out
     }
 
-    // The folded studio names (studio clean, then ASCII fold) held by items and series.
-    private val studioKeys: Set<String> by lazy {
+    // The folded studio names (studio clean, then ASCII fold) held by items and series, once each, in ascending order.
+    private val studioKeys: List<String> by lazy {
         val out = HashSet<String>()
         for (entry in snapshot.items) addStudios(out, entry.studios)
         for (series in snapshot.series.values) addStudios(out, series.studios)
+        out.sorted()
+    }
+
+    // The collections in [collections]' ID order with their folded names; a null name is not held.
+    private val collectionNames: List<Pair<CanonicalId, String>> by lazy {
+        val out = ArrayList<Pair<CanonicalId, String>>()
+        for (id in collections.ids) {
+            val name = collections[id]
+            if (name != null) out.add(id to NameMatcher.fold(name))
+        }
         out
     }
 
     /** The IDs of the collections whose name [match]es, in ascending ID order. */
     fun collections(match: NameMatcher): List<CanonicalId> {
         val out = ArrayList<CanonicalId>()
-        for (id in collections.ids) {
-            val name = collections[id]
-            if (name != null && match.matches(NameMatcher.fold(name))) out.add(id)
-        }
+        for (pair in collectionNames) if (match.matches(pair.second)) out.add(pair.first)
         return out
     }
 
@@ -63,7 +71,6 @@ class LibraryNames(
     fun studios(match: NameMatcher): List<String> {
         val keys = ArrayList<String>()
         for (key in studioKeys) if (match.matches(key)) keys.add(key)
-        keys.sort()
         return keys
     }
 

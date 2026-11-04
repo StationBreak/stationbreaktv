@@ -136,6 +136,48 @@ class BoundaryRulesTest {
     fun withNewRulesLeavesTheStarterAloneWhenNothingChanged() {
         val source = starterOf(rulesOf("alpha"))
         assertSame(source, source.withNewRules(source.rules, noon, boundary))
+        // No change needs no boundary: one that is past, or not a day start, is not checked.
+        assertSame(source, source.withNewRules(source.rules, boundary, boundary))
+        assertSame(source, source.withNewRules(source.rules, noon, boundary - 3_600_000L))
+    }
+
+    // The lineup file is sized for one previous copy per switched-on starter (`STARTER_RULES_BUDGET_BYTES`): a
+    // re-resolve over a full shelf, hidden starters included, leaves previous rules on switched-on starters only.
+    @Test
+    fun aReResolveLeavesPreviousRulesOnlyOnSwitchedOnStarters() {
+        val first = first()
+        val stale = first.channel("alpha").starter.rules
+
+        // Bravo waits on the shelf with no number (so it is not switched on), charlie and delta are hidden; each still
+        // carries previous rules from earlier in the day, as a starter switched off after a re-resolve does.
+        val previous = { channel: LineupChannel -> channel.starter.withPrevious(stale, boundary) }
+
+        fun LineupChannel.stale(state: ChannelState) = copy(state = state, source = previous(this))
+        val lineup =
+            first
+                .withChannel("bravo") { it.stale(ChannelState.Shelf).copy(defaultNumber = null) }
+                .withChannel("charlie") { it.stale(ChannelState.UserHidden) }
+                .withChannel("delta") { it.stale(ChannelState.UserHidden) }
+        val genreNew = listOf<Source>(Source.Genre("new"))
+        val catalog = TestCatalog(base.recipes.map { recipeOf(it.key, it.number, sources = genreNew) }, version = 2)
+
+        val next = replan(lineup, catalog)
+
+        for (channel in next.channels) {
+            val source = channel.source as? ChannelSource.Starter ?: continue
+            if (channel.state != ChannelState.On) {
+                assertNull(source.previousRules, channel.id.value)
+                assertNull(source.rulesFromMs, channel.id.value)
+            }
+            assertEquals(genreNew, source.rules.sources, "${channel.id.value} takes them now")
+        }
+        assertEquals(boundary, next.channel("alpha").starter.rulesFromMs, "a starter on the air waits for the boundary")
+        val notOn = next.channels.filter { it.state != ChannelState.On && it.source is ChannelSource.Starter }
+        assertEquals(setOf("bravo", "charlie", "delta"), notOn.map { it.id.value.substringAfter(':') }.toSet())
+        // A plan that resolves nothing again (no newer catalog; a hidden starter is not re-hinted) drops them too.
+        val quiet = replan(lineup, TestCatalog(base.recipes, version = 1))
+        assertNull(quiet.channel("charlie").starter.previousRules)
+        assertNull(quiet.channel("delta").starter.previousRules)
     }
 
     @Test

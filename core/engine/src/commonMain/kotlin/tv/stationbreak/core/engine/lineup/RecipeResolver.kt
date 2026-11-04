@@ -20,6 +20,9 @@ import tv.stationbreak.core.rules.Timing
 
 private const val LATEST_FORMAT = 3
 
+// The two quotes around a JSON string.
+private const val QUOTES = 2
+
 /** Turns a catalog recipe into the rules of a real channel. Pure: the same inputs give the same rules. */
 object RecipeResolver {
     /** The most sources a resolved starter keeps, whatever the budget allows. */
@@ -85,20 +88,18 @@ object RecipeResolver {
     }
 
     // The leading [candidates] that fit [MAX_STARTER_SOURCES] and [STARTER_RULES_BUDGET_BYTES], always at least the
-    // first. Each source's size is what appending it adds to the encoded rules, found from two small encodings (the
-    // rules with the first source alone, and with the first and this one), so the rules are never encoded whole per
-    // source and the sum is exact.
+    // first. The rules with the first source alone ([shell]) are measured once; each further source adds its own entry
+    // and the separator before it (`RulesWriter.sourceEntry`), measured on its own as the file escapes it, so the
+    // sizes add up exactly and the rules are never written whole per source.
     private fun withinBudget(
         shell: ChannelRules,
         candidates: List<Source>,
     ): List<Source> {
         if (candidates.size <= 1) return candidates
-        val first = candidates.first()
-        val base = fileBytes(shell)
-        var used = base
+        var used = fileBytes(shell)
         var count = 1
         while (count < candidates.size && count < MAX_STARTER_SOURCES) {
-            val cost = fileBytes(shell.copy(sources = listOf(first, candidates[count]))) - base
+            val cost = escapedBytes(RulesWriter.SOURCE_SEPARATOR + RulesWriter.sourceEntry(candidates[count]))
             if (used + cost > STARTER_RULES_BUDGET_BYTES) break
             used += cost
             count++
@@ -107,10 +108,11 @@ object RecipeResolver {
     }
 
     // What [rules] take in the lineup file: the rules text held as a JSON string.
-    private fun fileBytes(rules: ChannelRules): Int {
-        val text = JsonPrimitive(RulesWriter.write(rules)).toString()
-        return text.encodeToByteArray().size
-    }
+    private fun fileBytes(rules: ChannelRules): Int = escapedBytes(RulesWriter.write(rules)) + QUOTES
+
+    // The bytes [text] takes inside a JSON string, its quotes left out. Escaping goes character by character, so the
+    // escaped parts of a text add up to the escaped whole.
+    private fun escapedBytes(text: String): Int = JsonPrimitive(text).toString().encodeToByteArray().size - QUOTES
 
     private fun themed(
         recipe: Recipe,

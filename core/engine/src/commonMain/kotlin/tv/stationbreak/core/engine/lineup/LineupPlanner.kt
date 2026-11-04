@@ -20,10 +20,20 @@ import tv.stationbreak.core.rules.ChannelRules
  *   changes at once, and each TV switches at its own next start, so two TVs can differ until both have started.
  * - Rules resolved again (on a synced call or from a newer catalog) start at the next broadcast-day start, the
  *   `boundaryMs` the caller gives: the starter keeps its previous rules for the days before it
- *   (`ChannelSource.Starter.withNewRules`), so today's schedule never changes under the viewer. A shelved starter that
- *   switches on takes its new rules at once, with no previous ones: nothing of it airs today. A change of the curated
+ *   (`ChannelSource.Starter.withNewRules`), so today's schedule never changes under the viewer. A change of the curated
  *   on-set is recorded in the lineup's basis the same way (`withBasisFor`). The exceptions apply at once: the back to
  *   back fix of an old file, and a viewer's reset.
+ * - Only a switched-on starter keeps previous rules. One that is not on (on the shelf, or hidden by the viewer) takes
+ *   new rules at once and has any previous ones dropped on every plan (`withRulesNow`): nothing of it airs today, and
+ *   so the lineup file holds at most one previous copy per switched-on starter (the bound
+ *   `RecipeResolver.STARTER_RULES_BUDGET_BYTES` is sized for). A shelved starter that switches on takes its new rules
+ *   at once too. What a hidden starter's rules hold back from the leftovers (the items it would air) can therefore
+ *   shift once in the middle of a day, after a plan that resolves it again or drops its previous rules.
+ * - A starter switched on in the middle of a day airs from now (`onSinceMs`), so what it airs leaves the leftovers'
+ *   current day at once: the leftovers' day moves once. That includes the starter a "Use my collections" change kept
+ *   waiting for its boundary (it must fill under today's flag and tomorrow's): the plan at that boundary switches it
+ *   on, and the leftovers' new day, already begun, moves. Task 21 (spec 23, PR 5) has the leftovers claim from the
+ *   basis on-set until the boundary instead.
  * - A starter the planner takes off for good stays on until the boundary (`leavesAtMs`) and then goes to the shelf
  *   (`Lineup.rolled`); the steps that set it come with the curation (spec 23).
  * - While a newer catalog waits for a full collection pass, a shelved starter that switches on is resolved from the
@@ -70,6 +80,10 @@ object LineupPlanner {
      * starters are left off, never a kept channel. The leftovers channels are exempt: they are always switched on
      * (the "Odds and ends" decision), so the lineup can hold more than the cap when the kept channels alone fill it.
      * A finalised lineup ignores [kept]: it is planned from its own channels.
+     *
+     * "Use my collections" is a setting, and a plan keeps it: a lineup not yet finalised keeps its own flag and basis
+     * through its first choice, and ranks under them. A lineup planned from nothing ([current] null) takes
+     * [useMyCollections] (a reset passes the flag of the lineup it replaces; a new account has the default, on).
      */
     @Suppress("LongParameterList")
     fun plan(
@@ -84,14 +98,31 @@ object LineupPlanner {
         catalog: StarterCatalogView = StarterCatalog,
         withoutCollections: Boolean = false,
         kept: List<LineupChannel> = emptyList(),
+        useMyCollections: Boolean = true,
     ): Lineup {
         if (current != null) {
             require(current.serverId == serverId && current.userId == userId) { "The lineup is another account's" }
             if (catalog.version < current.catalogVersion) return current
         }
         return if (current == null || !current.finalised) {
-            val planning = Planning(serverId, standardOffsetMinutes, snapshot, collections, catalog, nowMs, boundaryMs)
-            firstChoice(planning, userId, withoutCollections, kept)
+            // The flag and basis a first choice keeps: the unfinalised lineup's own, else the one given.
+            val held = current ?: Lineup(serverId, userId, catalog.version, standardOffsetMinutes, false, emptyList())
+            val setting = if (current == null) held.copy(useMyCollections = useMyCollections) else held
+            val household = setting.householdFor(boundaryMs)
+            val today = setting.householdFor(nowMs)
+            val planning =
+                Planning(
+                    serverId,
+                    standardOffsetMinutes,
+                    snapshot,
+                    collections,
+                    catalog,
+                    nowMs,
+                    boundaryMs,
+                    household,
+                    today,
+                )
+            firstChoice(planning, userId, withoutCollections, kept, setting)
         } else {
             val offset = current.utcOffsetMinutes
             val household = current.householdFor(boundaryMs)
@@ -107,8 +138,19 @@ object LineupPlanner {
         userId: CanonicalId,
         withoutCollections: Boolean,
         kept: List<LineupChannel>,
+        setting: Lineup,
     ): Lineup {
-        val unfinalised = Lineup(p.serverId, userId, p.catalog.version, p.offset, false, ordered(kept))
+        val unfinalised =
+            Lineup(
+                p.serverId,
+                userId,
+                p.catalog.version,
+                p.offset,
+                false,
+                ordered(kept),
+                useMyCollections = setting.useMyCollections,
+                curationBasis = setting.curationBasis,
+            )
         return if (p.snapshot.collectionsSynced || withoutCollections) chosen(p, unfinalised, kept) else unfinalised
     }
 
@@ -202,13 +244,27 @@ object LineupPlanner {
                         }
                     }
 
-                    source.edited || !(newer || rehinted(channel, p)) -> {
+                    source.edited -> {
                         channel
+                    }
+
+                    !(newer || rehinted(channel, p)) -> {
+                        // Not resolved again. One that is not on keeps no previous rules (see the known effects).
+                        val on = channel.state == ChannelState.On
+                        if (on) channel else channel.copy(source = source.withoutPrevious())
                     }
 
                     else -> {
                         val rules = p.resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
-                        channel.copy(source = source.withNewRules(rules, p.nowMs, p.boundaryMs))
+                        // Only a starter on the air keeps today's rules until the boundary; nothing of one that is
+                        // not on airs today, so it takes them at once and the file holds no second copy of it.
+                        val next =
+                            if (channel.state == ChannelState.On) {
+                                source.withNewRules(rules, p.nowMs, p.boundaryMs)
+                            } else {
+                                source.withRulesNow(rules)
+                            }
+                        channel.copy(source = next)
                     }
                 }
             }
@@ -296,8 +352,7 @@ internal class Planning(
     val catalog: StarterCatalogView,
     val nowMs: Long,
     val boundaryMs: Long,
-    // The "Use my collections" flag in force for the days the ranking decides (`Lineup.householdFor`); a first
-    // choice has the default, on.
+    // The "Use my collections" flag in force for the days the ranking decides (`Lineup.householdFor`).
     val household: Boolean = true,
     // The flag in force today: a starter switched on airs from now, so it must fill today as well (`withRulesNow`).
     val householdToday: Boolean = household,
@@ -305,9 +360,14 @@ internal class Planning(
     private val recipes = catalog.recipes.associateBy { it.key }
     private val names by lazy { LibraryNames(snapshot, collections) }
 
+    // Each recipe is resolved once per plan, whichever step asks first. Read by key only, never iterated.
+    private val resolved = HashMap<String, ChannelRules>()
+
     fun recipe(key: String): Recipe? = recipes[key]
 
-    fun resolve(recipe: Recipe): ChannelRules = RecipeResolver.resolve(recipe, serverId, offset, collections, names)
+    /** The rules of [recipe], resolved on the first call for its key and the same rules on every later call. */
+    fun resolve(recipe: Recipe): ChannelRules =
+        resolved.getOrPut(recipe.key) { RecipeResolver.resolve(recipe, serverId, offset, collections, names) }
 
     /**
      * The number each catalog channel takes in a first choice around [kept]: its default, unless a kept channel holds

@@ -24,7 +24,8 @@ import java.util.Random
 /**
  * Builds channels through [LineupService], under its lock (spec 22): every number is worked out inside the edit, and
  * [newSeed] is drawn only for a blank draft, a copy and a reshuffle, never by a create or a save. [newId] gives the
- * unique part of a new channel's ID. [labels] gives the words a viewer sees for the sources of a channel being opened.
+ * unique part of a new channel's ID. [labels] gives the words a viewer sees for the sources of a channel being opened,
+ * and [studioNames] the spelling shown for each studio its rules hold folded (`SourceLabels.studios`).
  */
 @Suppress("TooManyFunctions") // The port's seven, and the steps they share.
 class ChannelBuildManager(
@@ -32,7 +33,7 @@ class ChannelBuildManager(
     private val newSeed: NewSeed,
     private val newId: () -> String,
     private val labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
-    private val studioNames: StudioNames = { _, _ -> emptyMap() },
+    private val studioNames: StudioNames,
 ) : ChannelBuilder {
     override suspend fun blank(
         account: LibraryAccount,

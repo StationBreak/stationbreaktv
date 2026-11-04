@@ -208,6 +208,17 @@ class CatalogPickerTest {
             assertEquals(expected, shown)
         }
 
+    // A spelling cached before the sync cleaned studio names is compared and shown cleaned.
+    @Test
+    fun aStudioSpellingIsComparedAndShownCleaned() =
+        runBlocking<Unit> {
+            val padded = film(1, "Film One").copy(studios = listOf(" Studio A\t"))
+            repository.seed(ACCOUNT, movies.id, padded)
+            val labels = SourceLabels(repository) { server }
+
+            assertEquals(mapOf("studio a" to "Studio A"), labels.studios(ACCOUNT, listOf("studio a")))
+        }
+
     @Test
     fun sourceLabelsFallBackToTheKeyWhenTheServerCannotBeReached() =
         runBlocking<Unit> {

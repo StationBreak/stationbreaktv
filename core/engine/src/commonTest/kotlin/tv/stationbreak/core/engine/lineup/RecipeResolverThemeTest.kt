@@ -155,6 +155,19 @@ class RecipeResolverThemeTest {
         assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES, "${fileBytes(rules)} bytes")
     }
 
+    // Each source is measured on its own: names the file escapes (quotes, backslashes) and non-ASCII still add up to
+    // the exact size of the whole, so the cut is at the budget and not before it.
+    @Test
+    fun escapedNamesAreMeasuredSourceBySource() {
+        val odd = (1..80).map { Source.Studio("Studio \"$it\" \\ é".padEnd(40, 'q')) }
+        val rules = resolve(themed(plainTheme, sources = comedy + odd))
+        val kept = rules.sources.size
+        assertTrue(kept in 2 until odd.size, "kept $kept")
+        assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES, "${fileBytes(rules)} bytes")
+        val one = rules.copy(sources = rules.sources + odd[kept - 1])
+        assertTrue(fileBytes(one) > RecipeResolver.STARTER_RULES_BUDGET_BYTES, "${fileBytes(one)} bytes")
+    }
+
     @Test
     fun theSourceCountStillBoundsTinySources() {
         val tiny = (1..100).map { Source.Tag("t$it") }
