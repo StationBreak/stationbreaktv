@@ -290,8 +290,12 @@ class ChannelsScreenTest {
         compose.waitForIdle()
     }
 
+    // The unmerged tree: a row speaks as one node (`clearAndSetSemantics`), so its reason lines are only found there.
     private fun exists(tag: String): Boolean {
-        val nodes = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes(atLeastOneRootRequired = false)
+        val nodes =
+            compose
+                .onAllNodes(hasTestTag(tag), useUnmergedTree = true)
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
         return nodes.isNotEmpty()
     }
 
