@@ -26,6 +26,7 @@ import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
@@ -47,6 +48,7 @@ internal fun summary(
     default: Int? = number,
     kid: Boolean = false,
     optIn: Boolean = false,
+    shelfReason: ShelfReason? = null,
 ) = ChannelSummary(
     id,
     number,
@@ -58,6 +60,7 @@ internal fun summary(
     kid,
     optIn,
     PlayKey("test"),
+    shelfReason,
 )
 
 internal class FakeChannels(

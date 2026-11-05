@@ -98,6 +98,18 @@ class BoundaryRulesTest {
     fun thePlannerUsesTheBoundaryItIsGiven() {
         val next = replan(first(), changed(), boundaryMs = 3 * DAY_MS + DAY_START_MS)
         assertEquals(3 * DAY_MS + DAY_START_MS, next.channel("alpha").starter.rulesFromMs)
+        // A starter the selection drops leaves at the boundary given (a themed catalog; "alpha" is empty now).
+        val themed =
+            TestCatalog(
+                base.recipes.map {
+                    it.copy(ordering = OrderingMode.Curated, theme = Theme(emptyList(), emptyList(), null, false))
+                },
+                selectsByIdentity = true,
+            )
+        val lineup = planOf(null, libraryOf(fills(themed)), themed)
+        val emptied = libraryOf(fills(themed) + ("alpha" to 0))
+        val dropped = planOf(lineup, emptied, themed, nowMs = noon, boundaryMs = 3 * DAY_MS + DAY_START_MS)
+        assertEquals(3 * DAY_MS + DAY_START_MS, dropped.channel("alpha").leavesAtMs)
     }
 
     // The viewer can switch on past the cap; the file is sized for LineupDefaults.CAP previous copies. Only the first
@@ -199,10 +211,11 @@ class BoundaryRulesTest {
         assertSame(source, source.withNewRules(source.rules, noon, boundary - 3_600_000L))
     }
 
-    // The lineup file is sized for one previous copy per switched-on starter (`STARTER_RULES_BUDGET_BYTES`): a
-    // re-resolve over a full shelf, hidden starters included, leaves previous rules on switched-on starters only.
+    // The lineup file is sized for the keepers' previous copies (`STARTER_RULES_BUDGET_BYTES`): a re-resolve over a
+    // full shelf leaves previous rules on switched-on starters, and on hidden ones (the leftovers withhold their pools
+    // under their rules for the day, Task 23), never on a starter that waits on the shelf.
     @Test
-    fun aReResolveLeavesPreviousRulesOnlyOnSwitchedOnStarters() {
+    fun aReResolveLeavesPreviousRulesOnlyOnSwitchedOnAndWithholdingStarters() {
         val first = first()
         val stale = first.channel("alpha").starter.rules
 
@@ -223,19 +236,24 @@ class BoundaryRulesTest {
 
         for (channel in next.channels) {
             val source = channel.source as? ChannelSource.Starter ?: continue
-            if (channel.state != ChannelState.On) {
-                assertNull(source.previousRules, channel.id.value)
-                assertNull(source.rulesFromMs, channel.id.value)
-            }
-            assertEquals(genreNew, source.rules.sources, "${channel.id.value} takes them now")
+            assertEquals(genreNew, source.rules.sources, "${channel.id.value} has them")
         }
         assertEquals(boundary, next.channel("alpha").starter.rulesFromMs, "a starter on the air waits for the boundary")
+        val bravo = next.channel("bravo").starter
+        assertNull(bravo.previousRules, "a shelved starter airs and withholds nothing: it takes them now")
+        assertNull(bravo.rulesFromMs)
+        for (key in listOf("charlie", "delta")) {
+            val hidden = next.channel(key).starter
+            assertEquals(stale, hidden.rulesFor(noon), "$key withholds today what it withheld before")
+            assertEquals(boundary, hidden.rulesFromMs, key)
+        }
         val notOn = next.channels.filter { it.state != ChannelState.On && it.source is ChannelSource.Starter }
         assertEquals(setOf("bravo", "charlie", "delta"), notOn.map { it.id.value.substringAfter(':') }.toSet())
-        // A plan that resolves nothing again (no newer catalog; a hidden starter is not re-hinted) drops them too.
+        // A plan that resolves nothing again (no newer catalog; a hidden starter is not re-hinted) keeps them.
         val quiet = replan(lineup, TestCatalog(base.recipes, version = 1))
-        assertNull(quiet.channel("charlie").starter.previousRules)
-        assertNull(quiet.channel("delta").starter.previousRules)
+        assertEquals(stale, quiet.channel("charlie").starter.previousRules)
+        assertEquals(stale, quiet.channel("delta").starter.previousRules)
+        assertNull(quiet.channel("bravo").starter.previousRules)
     }
 
     @Test
@@ -262,6 +280,7 @@ class BoundaryRulesTest {
         val outcome = LineupEdits.apply(lineup, LineupEdit.SwitchOn(LineupIds.starter("alpha")), noon, boundary, base)
         val alpha = assertIs<EditOutcome.Applied>(outcome).lineup.channel("alpha")
         assertNull(alpha.leavesAtMs)
+        assertNull(alpha.shelfReason)
         assertEquals(ChannelState.On, alpha.state)
         assertTrue(alpha.chosenByViewer)
     }

@@ -119,7 +119,12 @@ class BuiltInScheduleSource(
         val cutoffs: List<Long> get() = cuts.map { it.cutoffMs }.distinct()
     }
 
-    private val days = LineupDays(service.catalog) { n, ms -> laidOut(n, ms) }
+    private val days =
+        LineupDays(
+            service.catalog,
+            laidOut = { n, ms -> laidOut(n, ms) },
+            claimsMismatch = { service.reportEvent(LineupEvent.LeftoversClaimedFromAnotherDay) },
+        )
     private val lock = Any()
 
     // Access-ordered: the set least recently asked for is the one evicted.
@@ -680,7 +685,7 @@ class BuiltInScheduleSource(
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             keep(key, result, epoch)
-            if (disk != null) save(account, disk, result)
+            if (disk != null) save(account, disk, result, Wanted(revision, key, atMs))
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
             val allocated = Reading(probes.allocatedBytes()) - allocBefore
@@ -773,14 +778,26 @@ class BuiltInScheduleSource(
         while (kept.size > KEPT) kept.remove(kept.keys.first())
     }
 
+    // The days a build made for a revision, at a moment, under a key: what [save] checks they are still wanted for.
+    private class Wanted(
+        val revision: Long,
+        val key: Key,
+        val atMs: Long,
+    )
+
     // Written in the source's scope, so a caller is never held up by it and a cancelled caller does not stop it, and on
-    // [saveDispatcher], at background priority, so it never competes with a tune for the CPU.
+    // [saveDispatcher], at background priority, so it never competes with a tune for the CPU. Only days the current
+    // lineup still wants are written: those of a revision that is current, or whose key a newer revision has (a
+    // renumber after the build's last checkpoint, [stillWanted]; the disk key is made of that key's inputs, so the
+    // file is the newer revision's too, and without this a renumber would leave it unwritten until the next build).
     private fun save(
         account: LibraryAccount,
         disk: DayKey,
         result: List<ChannelDay>,
+        wanted: Wanted,
     ) {
-        val to = persisted ?: return
+        val current = isCurrent(account, wanted.revision) || stillWanted(account, wanted.key, wanted.atMs) != null
+        val to = persisted?.takeIf { current } ?: return
         val job = buildScope.launch(saveDispatcher, start = CoroutineStart.LAZY) { to.save(account, disk, result) }
         synchronized(lock) { saves += job }
         job.invokeOnCompletion { synchronized(lock) { saves -= job } }

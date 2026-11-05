@@ -39,6 +39,7 @@ import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.EditOutcome
+import tv.stationbreak.core.engine.lineup.KeptReasonsMemo
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
@@ -145,15 +146,8 @@ class LineupService internal constructor(
     // Background rolls (see [rollSoon]): their own scope, so a roll outlives the read that asked for it.
     private val rolls = BackgroundRolls(seams.rollDispatcher)
 
-    // The play keys of the last few revisions, so a list is not hashed again for each emission of the same revision.
+    // The play keys of the last few revisions and days ([PlayKeyCache]).
     private val playKeys = PlayKeyCache()
-
-    private fun playKeysOf(held: Revisioned): Map<ChannelId, PlayKey> =
-        synchronized(playKeys) {
-            playKeys.getOrPut(held.revision) {
-                held.lineup.channels.associate { it.id to days.playKeyOf(it, held.lineup) }
-            }
-        }
 
     private class Entry {
         val mutex = Mutex()
@@ -172,6 +166,9 @@ class LineupService internal constructor(
 
         /** The boundaries the background roll and the re-plan signal were last made for ([rollSoon]). */
         val boundaries = BoundaryMemo()
+
+        /** The kept starters' reasons of the last plan, so an unchanged plan skips their homing. Used under [mutex]. */
+        val keptReasons = KeptReasonsMemo()
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -308,6 +305,8 @@ class LineupService internal constructor(
                 // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
                 // keeps a current lineup's own).
                 useMyCollections = offsetFrom?.useMyCollections ?: true,
+                snapshotGeneration = read.generation,
+                keptReasons = entryOf(owner).keptReasons,
             )
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
@@ -796,7 +795,9 @@ class LineupService internal constructor(
             emitAll(entryOf(owner).state)
         }.map { held ->
             val nowMs = clock.now().toEpochMilliseconds()
-            val keys = held?.let(::playKeysOf).orEmpty()
+            val day = held?.let { nextBoundary(it.lineup, nowMs) } ?: 0L
+            val found = held?.let { playKeys.keysOf(it.revision, day) { days.playKeysOf(it.lineup, nowMs) } }
+            val keys = found.orEmpty()
             held
                 ?.lineup
                 ?.channels
@@ -1051,14 +1052,3 @@ private val NO_SERVER: CanonicalId = CanonicalId.parse("0".repeat(32))
 private const val MS_PER_DAY = 86_400_000L
 
 private const val STAND_IN_KEY = "boundary"
-
-private const val PLAY_KEY_REVISIONS = 8
-
-private typealias PlayKeys = Map<ChannelId, PlayKey>
-
-private const val PLAY_KEY_LOAD = 0.75f
-
-// Most recently used last; the oldest goes when there are more than [PLAY_KEY_REVISIONS].
-private class PlayKeyCache : LinkedHashMap<Long, PlayKeys>(PLAY_KEY_REVISIONS, PLAY_KEY_LOAD, true) {
-    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, PlayKeys>): Boolean = size > PLAY_KEY_REVISIONS
-}

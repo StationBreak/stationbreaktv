@@ -18,11 +18,12 @@ class LineupPlannerViewerChoicesTest {
     private fun firstLineup(catalog: StarterCatalogView = base): Lineup =
         planOf(null, libraryOf(fills(catalog)), catalog).also { assertTrue(it.finalised) }
 
+    // After the first choice (made at 1,000): a switch-off of a channel that has started hides it.
     private fun edit(
         lineup: Lineup,
         edit: LineupEdit,
         catalog: StarterCatalogView = base,
-    ): Lineup = assertIs<EditOutcome.Applied>(LineupEdits.apply(lineup, edit, 50L, 50L + DAY_MS, catalog)).lineup
+    ): Lineup = assertIs<EditOutcome.Applied>(LineupEdits.apply(lineup, edit, 2_000L, 2_000L + DAY_MS, catalog)).lineup
 
     private fun replan(
         lineup: Lineup,

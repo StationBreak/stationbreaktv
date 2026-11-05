@@ -17,7 +17,6 @@ import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.SchedulerSettings
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.buildDay
@@ -393,11 +392,10 @@ class EditCutoffPropertyTest {
                     history.n,
                     NO_FILMS,
                     TitleWeights.NONE,
-                    TitleKeeps.NONE,
                 ).blocks
             assertEquals(
                 "the day built",
-                buildDay(history.settings, dayNCut, history.n, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE).blocks,
+                buildDay(history.settings, dayNCut, history.n, NO_FILMS, TitleWeights.NONE).blocks,
                 built,
             )
 

@@ -10,6 +10,7 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -192,6 +193,46 @@ class LineupEditsTest {
     fun switchOffRefusesTheLastOnChannel() {
         val lineup = lineupOf(starter("western", 310), starter("mystery", 205, ChannelState.Shelf))
         assertEquals(EditRefusal.LastOn, refusal(lineup, LineupEdit.SwitchOff(western)))
+    }
+
+    // PR 5 final round, item 6: a channel the planner switched on for the boundary is not on the air yet, so switching
+    // it off takes nothing off the air: it goes back on the shelf even when it is the only channel switched on.
+    @Test
+    fun switchOffOfAChannelStartingAtTheBoundaryIsAllowedWhenItIsTheOnlyOneOn() {
+        val starting = starter("western", 310).copy(onSinceMs = 99L + DAY_MS)
+        val lineup = lineupOf(starting, starter("mystery", 205, ChannelState.Shelf))
+
+        val after = applied(lineup, LineupEdit.SwitchOff(western))
+
+        assertEquals(ChannelState.Shelf, after.byId(western).state)
+        // One already on the air is still the last one on.
+        assertEquals(EditRefusal.LastOn, refusal(lineupOf(starter("western", 310)), LineupEdit.SwitchOff(western)))
+    }
+
+    // A viewer's SwitchOn of a channel the planner switched on for the boundary puts it on the air now, as the
+    // viewer's choice.
+    @Test
+    fun switchOnOfAChannelStartingAtTheBoundaryAirsItNow() {
+        val starting = starter("western", 310).copy(onSinceMs = 99L + DAY_MS)
+        val lineup = lineupOf(starting, starter("mystery", 205))
+
+        val western = applied(lineup, LineupEdit.SwitchOn(this.western)).byId(this.western)
+
+        assertEquals(ChannelState.On, western.state)
+        assertEquals(99L, western.onSinceMs)
+        assertTrue(western.chosenByViewer)
+        assertFalse(western.startsAfter(LineupDay.endingAt(99L + DAY_MS)))
+    }
+
+    // The consent gate comes first: an opt-in channel starting at the boundary is not put on the air without it.
+    @Test
+    fun switchOnOfAnOptInChannelStartingAtTheBoundaryStillNeedsTheConfirmation() {
+        val starting = starter("spicy", 330).copy(onSinceMs = 99L + DAY_MS)
+        val lineup = lineupOf(starting, starter("mystery", 205))
+        val spicy = LineupIds.starter("spicy")
+
+        assertEquals(EditRefusal.OptInNotConfirmed, refusal(lineup, LineupEdit.SwitchOn(spicy)))
+        assertEquals(99L, applied(lineup, LineupEdit.SwitchOn(spicy, confirmedOptIn = true)).byId(spicy).onSinceMs)
     }
 
     @Test

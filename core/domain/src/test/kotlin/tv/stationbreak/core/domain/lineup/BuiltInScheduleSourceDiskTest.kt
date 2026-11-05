@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.ItemId
 import java.util.Collections
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -252,6 +253,47 @@ class BuiltInScheduleSourceDiskTest {
         val next = Process()
         runBlocking { next.service.forget(ACCOUNT) }
         assertTrue(disk.files.isEmpty())
+    }
+
+    // PR 5 final round, item 5: a renumber that lands after the build's last check (here: between working the days out
+    // and writing them) leaves the key the same, so the days are still the lineup's and are written.
+    @Test
+    fun aRenumberAfterTheLastCheckStillWritesTheDays() {
+        val service = LineupService(lineups, library, clock, { 0 }, {}, LineupSeams(TestCatalog, derived = disk))
+        runBlocking { service.refresh(ACCOUNT, LIBRARIES) }
+        val events = Collections.synchronizedList(mutableListOf<DaySnapshotEvent>())
+        var reads = 0
+        val laughs = LineupIds.starter("laughs")
+        // The second reading of the thread's CPU time is taken right after the days are worked out, before the save.
+        val probes =
+            BuildProbes(
+                threadCpuNanos = {
+                    if (++reads == 2) {
+                        runBlocking { assertIs<Saved.Ok<*>>(service.edit(ACCOUNT, LineupEdit.SetNumber(laughs, 150))) }
+                    }
+                    0L
+                },
+            )
+        val source =
+            BuiltInScheduleSource(
+                service,
+                library,
+                probes = probes,
+                persisted = PersistedDays(disk, "1:100", { events += it }),
+            ) { LIBRARIES }
+
+        runBlocking { source.channelDays(ACCOUNT, LIBRARIES, NOON).also { source.awaitSaves() } }
+
+        assertEquals(2, reads)
+        assertEquals(
+            150,
+            runBlocking { service.loaded(ACCOUNT) }
+                ?.lineup
+                ?.channels
+                ?.first { it.id == laughs }
+                ?.number,
+        )
+        assertTrue(events.any { it is DaySnapshotEvent.Saved }, "the renumbered lineup's days were written")
     }
 
     private companion object {

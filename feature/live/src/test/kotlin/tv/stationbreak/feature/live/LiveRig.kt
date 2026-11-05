@@ -380,10 +380,13 @@ class FakeChannels : ChannelRepository {
 
     override fun activeChannels(): Flow<List<ChannelSummary>> = flow
 
+    /** Channels switched on for a later boundary: their `onSince`, a time ahead. */
+    val startsAt = mutableMapOf<ChannelId, Long>()
+
     fun publish(vararg ids: Pair<ChannelId, Int>) {
         flow.value =
             ids.map { (id, number) ->
-                val since = Instant.fromEpochMilliseconds(T0)
+                val since = Instant.fromEpochMilliseconds(startsAt[id] ?: T0)
                 ChannelSummary(
                     id,
                     number,

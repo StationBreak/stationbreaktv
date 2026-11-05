@@ -12,8 +12,7 @@ import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Source
 
 // The catalog-3 recipes (spec 23): a themed, curated version of every starter channel, with the same key, number,
-// band, ceiling and opt-in as the live catalog. They are built here but not yet live: [StarterCatalog] stays at
-// version 2 until the catalog swap.
+// band, ceiling and opt-in as catalog version 2. They are the live catalog's recipes ([StarterCatalog] version 3).
 //
 // Anchors and theme studios are rules sources, so a kid channel's anchors still pass its kid hold and its ceiling. A
 // recipe's anchors are ordered most important first, because the resolver keeps the leading ones that fit the
@@ -54,7 +53,10 @@ private fun filters(
 /** The kids' genres every grown-up recipe leaves out (as in catalog version 2). */
 private val KIDS_GENRE_EXCLUSIONS: List<Source> = KidHold.KIDS_GENRES.map { Source.Genre(it) }
 
-/** What a grown-up recipe other than an anime channel also leaves out. */
+/**
+ * What a grown-up recipe other than an anime channel or an opt-in one also leaves out. An opt-in recipe keeps catalog
+ * 2's exclusions exactly: what it holds back from the leftovers never narrows (adult-tagged anime stays held back).
+ */
 private val ANIME_EXCLUSIONS: List<Source> = listOf(Source.Genre("Anime"), Source.Tag("anime"))
 
 @Suppress("LongParameterList")
@@ -84,7 +86,7 @@ private fun recipe(
         exclusions =
             when {
                 band == Band.Kids -> emptyList()
-                animeOnly -> KIDS_GENRE_EXCLUSIONS
+                animeOnly || optIn -> KIDS_GENRE_EXCLUSIONS
                 else -> KIDS_GENRE_EXCLUSIONS + ANIME_EXCLUSIONS
             },
         maxRating = rating,
@@ -1060,7 +1062,7 @@ private val premiumBand: List<Recipe> =
             key = "after-hours",
             name = "After Hours",
             says = "Adults only, and only if you ask for it.",
-            sources = tags("adult", "erotic", "18+", "erotica"),
+            sources = genres("Adult", "Erotic", "Erotica") + tags("adult", "erotic", "18+", "erotica"),
             optIn = true,
         ),
         recipe(

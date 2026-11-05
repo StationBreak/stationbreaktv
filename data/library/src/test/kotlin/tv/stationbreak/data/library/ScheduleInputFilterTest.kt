@@ -18,7 +18,6 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.ScheduleItemProblem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.buildDay
@@ -74,7 +73,7 @@ class ScheduleInputFilterTest {
                 seasonNumber = row.seasonNumber,
                 episodeNumber = row.episodeNumber,
             )
-        buildDay(settings, listOf(item), 0, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE)
+        buildDay(settings, listOf(item), 0, NO_FILMS, TitleWeights.NONE)
         return item
     }
 
@@ -238,7 +237,7 @@ class ScheduleInputFilterTest {
             )
             assertEquals(null, result.dropped[DropReason.RejectedByScheduleItem])
             // No throw anywhere: the scheduler builds a day from exactly what came back.
-            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE).n)
+            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS, TitleWeights.NONE).n)
         }
 
     @Test
@@ -268,7 +267,7 @@ class ScheduleInputFilterTest {
 
             assertEquals(listOf(hexId(11)), result.items.map { it.id.value })
             assertEquals(mapOf(DropReason.DuplicateId to 1), result.dropped)
-            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS, TitleWeights.NONE, TitleKeeps.NONE).n)
+            assertEquals(0L, buildDay(settings, result.items, 0, NO_FILMS, TitleWeights.NONE).n)
         }
 
     @Test

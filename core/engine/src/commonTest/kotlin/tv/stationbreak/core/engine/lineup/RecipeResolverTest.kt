@@ -45,9 +45,21 @@ class RecipeResolverTest {
 
     @Test
     fun everyStarterResolvesAgainstAnEmptyLibraryAtFormatOne() {
-        for (r in StarterCatalog.recipes) {
+        // Catalog 2's recipes, which lineups from before the swap hold, are plain: format 1.
+        for (r in CATALOG_V2_RECIPES) {
             val rules = RecipeResolver.resolve(r, server, 0, noCollections, NO_LIBRARY)
             assertEquals(1, rules.formatVersion, r.key)
+            assertEquals(r.sources, rules.sources, r.key)
+        }
+    }
+
+    @Test
+    fun everyCatalogThreeStarterResolvesAgainstAnEmptyLibraryAtFormatThree() {
+        // With no names in the library no anchor or theme studio adds a source.
+        for (r in StarterCatalog.recipes) {
+            val rules = RecipeResolver.resolve(r, server, 0, noCollections, NO_LIBRARY)
+            assertEquals(3, rules.formatVersion, r.key)
+            assertEquals(OrderingMode.Curated, rules.orderingMode, r.key)
             assertEquals(r.sources, rules.sources, r.key)
         }
     }
@@ -99,11 +111,14 @@ class RecipeResolverTest {
             val rules = RecipeResolver.resolve(kid, server, 0, noCollections, NO_LIBRARY)
             val items = badItemsMatching(kid)
             val snap = snapshot(items = items.sortedBy { it.item.id.value })
-            // Not vacuous: without the ceiling the recipe's sources do select the items.
-            val open = PoolEvaluator.evaluate(rules.copy(maxRating = null, exclusions = null), snap)
+            // Not vacuous: without the ceiling (and the filters) the recipe's sources do select the items.
+            val open = PoolEvaluator.evaluate(rules.copy(maxRating = null, exclusions = null, filters = null), snap)
             assertEquals(items.size, open.items.size, "${kid.key}: the synthetic items must match the sources")
             val pool = PoolEvaluator.evaluate(rules, snap)
             assertEquals(emptyList(), pool.items, "${kid.key}: the ceiling must block every bad item")
+            // The ceiling alone, not a filter of the recipe (catalog 3 has some), blocks them.
+            val unfiltered = PoolEvaluator.evaluate(rules.copy(filters = null), snap)
+            assertEquals(emptyList(), unfiltered.items, "${kid.key}: the ceiling alone blocks every bad item")
         }
     }
 

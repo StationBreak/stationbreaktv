@@ -49,7 +49,6 @@ import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
-import tv.stationbreak.core.model.schedule.TitleKeeps
 import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.Ordering
@@ -589,7 +588,7 @@ class ChannelPreviewsTest {
         val settings = rules("X", Source.Genre("Comedy")).toSchedulerSettings()
         val n = Epochs.epochNumber(settings, NOON.toEpochMilliseconds())
         val items = (1..3).map { movieItem(it) }
-        val layout = buildDay(settings, items, n, FilmCollections.of(emptyMap()), TitleWeights.NONE, TitleKeeps.NONE)
+        val layout = buildDay(settings, items, n, FilmCollections.of(emptyMap()), TitleWeights.NONE)
 
         val all = airedFrom(layout, items, null)
         val middle = layout.blocks[2]

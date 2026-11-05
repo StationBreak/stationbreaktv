@@ -22,6 +22,7 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus.UserHidden
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
+import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.builder.BuilderMode
 
@@ -61,6 +62,43 @@ class ChannelsViewModelTest {
             rig.schedule.channel(C, 9, emptyList(), HiddenReason.NoMatches)
             rig.open(this)
             assertEquals(listOf(HiddenReason.EmptyToday, null, null), rig.ui.rows.map { it.reason })
+        }
+
+    @Test
+    fun aShelvedRowShowsItsReason() =
+        channelsTest(
+            listOf(
+                summary(A, 5),
+                summary(B, 7, Shelf, shelfReason = ShelfReason.BelowCap),
+                // On today and leaving at the next day start: the reason the planner stored.
+                summary(C, 9, shelfReason = ShelfReason.TooThin),
+                summary(D, null, Shelf, shelfReason = ShelfReason.OptIn),
+            ),
+        ) { rig ->
+            rig.open(this)
+            val reasons = rig.ui.rows.associate { it.id to it.shelfReason }
+            assertEquals(ShelfReason.BelowCap, reasons[B])
+            assertEquals(ShelfReason.TooThin, reasons[C])
+            assertEquals(ShelfReason.OptIn, reasons[D])
+        }
+
+    // On (leaving) and Shelf rows show the reason their summary carries; a switched-off row shows none.
+    @Test
+    fun onAndShelfRowsShowTheirReasonAndAnOffRowNone() =
+        channelsTest(
+            listOf(
+                summary(A, 5, On, shelfReason = ShelfReason.Empty),
+                summary(B, 7, UserHidden, shelfReason = ShelfReason.TooThin),
+                summary(C, 9, Shelf, shelfReason = ShelfReason.BelowCap),
+                summary(D, 11, On),
+            ),
+        ) { rig ->
+            rig.open(this)
+            val reasons = rig.ui.rows.associate { it.id to it.shelfReason }
+            assertEquals(ShelfReason.Empty, reasons[A])
+            assertNull(reasons[B])
+            assertEquals(ShelfReason.BelowCap, reasons[C])
+            assertNull(reasons[D])
         }
 
     @Test

@@ -378,6 +378,67 @@ class LineupCodecV3Test {
         assertTrue(total <= LineupLimits.MAX_FILE_BYTES, "the whole file takes $total bytes")
     }
 
+    // The withholding keepers (spec 23, D1): 97 starters at the budget, 62 of them hidden with rules of their own, and
+    // a newer catalog that changes every recipe, with and without 23 recipes it adds. The plan keeps previous copies
+    // for the hidden starters up to the room, and the file stays within its bounds.
+    @Test
+    fun hiddenStartersKeepingTodaysRulesStayUnderTheCapAfterAPlan() {
+        // 06:00 UTC, a day start of the starters' timing: the plan resolves them again with new rules from it.
+        val boundary = 1_791_957_600_000L
+        val starters =
+            (1..97).map { n ->
+                val state =
+                    when {
+                        n <= 30 -> ChannelState.On
+                        n <= 92 -> ChannelState.UserHidden
+                        else -> ChannelState.Shelf
+                    }
+                val source = ChannelSource.Starter("s$n", false, resolved(n))
+                channel("starter:s$n", 1000 + n, state, source).copy(chosenByViewer = state != ChannelState.Shelf)
+            }
+        val others =
+            listOf(leftovers("kids-odds-and-ends", 99, "PG"), leftovers("odds-and-ends", 199, null)) + customChannels()
+        val lineup = lineupOf(*(starters + others).toTypedArray())
+        val synced = RuleSnapshot(0L, emptySet(), emptyList(), emptyMap(), emptyMap(), collectionsSynced = true)
+        for (recipes in listOf(97, RecipeResolver.MAX_CATALOG_STARTERS)) {
+            val newer =
+                object : StarterCatalogView by TestCatalog {
+                    override val version = 2
+                    override val recipes: List<Recipe> =
+                        (1..recipes).map { n ->
+                            val r = worstRecipe(n)
+                            r.copy(sources = r.sources + Source.Genre("New"))
+                        }
+                }
+
+            val planned =
+                LineupPlanner.plan(
+                    lineup,
+                    lineup.serverId,
+                    lineup.userId,
+                    0,
+                    synced,
+                    worstCollections,
+                    boundary - 3_600_000L,
+                    boundary,
+                    newer,
+                )
+
+            val held = planned.channels.mapNotNull { it.source as? ChannelSource.Starter }
+            val copies = held.map { it.rules } + held.mapNotNull { it.previousRules }
+            val hiddenKept =
+                planned.channels.count {
+                    it.state == ChannelState.UserHidden && (it.source as ChannelSource.Starter).previousRules != null
+                }
+            assertTrue(hiddenKept >= 20, "$recipes recipes: $hiddenKept hidden keepers")
+            assertTrue(copies.size <= RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.CAP, "${copies.size} copies")
+            for (rules in copies) assertTrue(fileBytes(rules) <= RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+            val total = LineupCodec.encode(planned, RefreshMeta(4L, 5L, (1..10).map { "library-$it" }, 6L)).size
+            println("hidden keepers, $recipes recipes: ${copies.size} copies, file $total")
+            assertTrue(total <= LineupLimits.MAX_FILE_BYTES, "the whole file takes $total bytes")
+        }
+    }
+
     // [rules] with tag sources added (the longest that still fits, one after another), then a longer name for the last
     // few bytes: a copy that sits at the budget.
     private fun paddedToBudget(rules: ChannelRules): ChannelRules {

@@ -167,10 +167,11 @@ object LineupEdits {
         val outcome =
             when (edit) {
                 is LineupEdit.UseMyCollections -> EditOutcome.Applied(lineup.copy(useMyCollections = edit.on))
-                is LineupEdit.ChannelEdit -> applyChannelEdit(lineup, edit, nowMs, catalog)
+                is LineupEdit.ChannelEdit -> applyChannelEdit(lineup, edit, nowMs, boundaryMs, catalog)
             }
         return if (outcome is EditOutcome.Applied) {
-            EditOutcome.Applied(lineup.withBasisFor(outcome.lineup, nowMs, boundaryMs))
+            val keys = catalog.recipes.mapTo(HashSet()) { it.key }
+            EditOutcome.Applied(lineup.withBasisFor(outcome.lineup, nowMs, boundaryMs, keys))
         } else {
             outcome
         }
@@ -180,17 +181,19 @@ object LineupEdits {
         lineup: Lineup,
         edit: LineupEdit.ChannelEdit,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome {
         val channel = lineup.channels.firstOrNull { it.id == edit.id }
         return when {
             edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
             channel == null -> refused(EditRefusal.UnknownChannel)
-            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, catalog))
+            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, boundaryMs, catalog))
         }
     }
 
-    // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder).
+    // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder); a
+    // marked channel on the air stops leaving.
     // A ReplaceCustom marks only the channel it swapped with: the edited one is the viewer's own anyway.
     private fun markChoice(
         before: Lineup,
@@ -207,7 +210,14 @@ object LineupEdits {
                 val was = old[it.id]
                 val moved = was != null && it.id != edit.id && (was.number != it.number || was.state != it.state)
                 val own = marksSelf && it.id == edit.id
-                if (own || moved) it.copy(chosenByViewer = true) else it
+                when {
+                    !own && !moved -> it
+
+                    // The viewer's choice beats the planner's: a channel on the air no longer leaves.
+                    it.state == ChannelState.On -> it.copy(chosenByViewer = true, leavesAtMs = null, shelfReason = null)
+
+                    else -> it.copy(chosenByViewer = true)
+                }
             }
         return EditOutcome.Applied(outcome.lineup.copy(channels = marked))
     }
@@ -218,11 +228,13 @@ object LineupEdits {
             edit is LineupEdit.SetNumber ||
             edit is LineupEdit.ClearNumber
 
+    @Suppress("LongParameterList") // The edit, its lineup and channel, the time, the boundary and the catalog.
     private fun applyTo(
         lineup: Lineup,
         channel: LineupChannel,
         edit: LineupEdit.ChannelEdit,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome =
         when (edit) {
@@ -243,11 +255,11 @@ object LineupEdits {
             }
 
             is LineupEdit.SwitchOn -> {
-                switchOn(lineup, channel, edit.confirmedOptIn, nowMs, catalog)
+                switchOn(lineup, channel, edit.confirmedOptIn, nowMs, boundaryMs, catalog)
             }
 
             is LineupEdit.SwitchOff -> {
-                switchOff(lineup, channel)
+                switchOff(lineup, channel, boundaryMs)
             }
 
             is LineupEdit.SetNumber -> {
@@ -409,22 +421,40 @@ object LineupEdits {
         channel: LineupChannel,
     ): EditOutcome = EditOutcome.Applied(replaced(lineup, channel))
 
+    @Suppress("LongParameterList") // The edit's channel and confirmation, the time, the boundary and the catalog.
     private fun switchOn(
         lineup: Lineup,
         channel: LineupChannel,
         confirmedOptIn: Boolean,
         nowMs: Long,
+        boundaryMs: Long,
         catalog: StarterCatalogView,
     ): EditOutcome =
         when {
             // Already on but leaving: switching it on keeps it (the viewer's choice beats the planner's).
-            channel.state == ChannelState.On -> applied(lineup, channel.copy(leavesAtMs = null))
+            channel.state == ChannelState.On && !channel.startsAfter(LineupDay.endingAt(boundaryMs)) -> {
+                applied(lineup, channel.copy(leavesAtMs = null, shelfReason = null))
+            }
 
-            channel.source is ChannelSource.Unusable -> refused(EditRefusal.NotSwitchable)
+            channel.source is ChannelSource.Unusable -> {
+                refused(EditRefusal.NotSwitchable)
+            }
 
-            !confirmedOptIn && isOptIn(channel, catalog) -> refused(EditRefusal.OptInNotConfirmed)
+            // Checked before anything goes on the air now, a channel starting at the boundary included: the consent
+            // gate is never passed by.
+            !confirmedOptIn && isOptIn(channel, catalog) -> {
+                refused(EditRefusal.OptInNotConfirmed)
+            }
 
-            else -> switchedOn(lineup, channel, nowMs, catalog)
+            // Switched on by the planner to start at the boundary: the viewer pressing On expects it on now, so it
+            // airs from now, as any mid-day switch-on does (its pool less the basis's homes until the boundary).
+            channel.state == ChannelState.On -> {
+                applied(lineup, channel.copy(onSinceMs = nowMs, leavesAtMs = null, shelfReason = null))
+            }
+
+            else -> {
+                switchedOn(lineup, channel, nowMs, catalog)
+            }
         }
 
     // A channel without a number gets one first, as the user's (an override), so its default stays empty.
@@ -453,15 +483,31 @@ object LineupEdits {
         return applied(lineup, hidden)
     }
 
+    // Today is the day that ends at [boundaryMs] ([LineupDay.endingAt]).
     private fun switchOff(
         lineup: Lineup,
         channel: LineupChannel,
+        boundaryMs: Long,
     ): EditOutcome {
         val onCount = lineup.channels.count { it.state == ChannelState.On }
         return when {
-            channel.state == ChannelState.UserHidden -> EditOutcome.Applied(lineup)
-            channel.state == ChannelState.On && onCount == 1 -> refused(EditRefusal.LastOn)
-            else -> hidden(lineup, channel)
+            channel.state == ChannelState.UserHidden -> {
+                EditOutcome.Applied(lineup)
+            }
+
+            // Switched on by the planner to start at the boundary: it never aired, so it goes back on the shelf.
+            // Checked before the last-on rule: it is not on the air yet, so switching it off takes nothing off it.
+            channel.state == ChannelState.On && channel.startsAfter(LineupDay.endingAt(boundaryMs)) -> {
+                applied(lineup, channel.copy(state = ChannelState.Shelf, leavesAtMs = null, shelfReason = null))
+            }
+
+            channel.state == ChannelState.On && onCount == 1 -> {
+                refused(EditRefusal.LastOn)
+            }
+
+            else -> {
+                hidden(lineup, channel)
+            }
         }
     }
 

@@ -53,4 +53,10 @@ enum class LineupEvent {
 
     /** A channel build (create, save, reshuffle, delete) failed, not for the lineup's rules. Nothing was changed. */
     BuildFailed,
+
+    /**
+     * A leftovers channel's day was not its curated starters' day (never with the shipped timings): it claimed from
+     * theirs, and the day was built all the same.
+     */
+    LeftoversClaimedFromAnotherDay,
 }

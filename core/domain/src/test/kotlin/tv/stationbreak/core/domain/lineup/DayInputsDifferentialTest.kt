@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
@@ -10,6 +11,8 @@ import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.ShelfReason
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleSnapshot
@@ -102,6 +105,9 @@ class DayInputsDifferentialTest {
             leftovers("odds-and-ends", 199, null),
         )
 
+    private val programmedToons = programmed("Toons", Source.Genre("Animation")).copy(maxRating = "G")
+    private val programmedWhodunit = programmed("Whodunit", Source.Genre("Crime"), Source.Genre("Comedy"))
+
     private val fixtures: List<Lineup> =
         listOf(
             lineupOf(
@@ -126,6 +132,16 @@ class DayInputsDifferentialTest {
                 leftovers("odds-and-ends", 199, null, ChannelState.UserHidden),
             ),
             v2Fixture,
+            // Programmed starters (spec 23): their days are curated together, so an edit of one can move another.
+            lineupOf(
+                starter("toons", 10, ChannelState.On, programmedToons),
+                starter("laughs", 110, ChannelState.On, programmed("Laughs", Source.Genre("Comedy"))),
+                starter("whodunit", 210, ChannelState.On, programmedWhodunit),
+                starter("westerns", 220, ChannelState.Shelf, programmed("Westerns", Source.Genre("Western"))),
+                starter("frights", 310, ChannelState.UserHidden, programmed("Frights", Source.Genre("Horror"))),
+                leftovers("kids-odds-and-ends", 99, "PG"),
+                leftovers("odds-and-ends", 199, null),
+            ),
         )
 
     private val numbers = listOf(5, 50, 98, 99, 100, 120, 150, 199, 210, 250, 600, 999)
@@ -195,7 +211,7 @@ class DayInputsDifferentialTest {
         return days.days(lineup, scheduled, snapshots).associate { day ->
             day.channel.id.value to
                 "pool=${day.pool.map { it.id.value }} hidden=${day.hidden} settings=${day.settings} " +
-                "n=${day.n} ceiling=${day.ceilingRank} films=${day.films.entries}"
+                "n=${day.n} ceiling=${day.ceilingRank} films=${day.films.entries} weights=${day.weights.entries}"
         }
     }
 
@@ -245,6 +261,20 @@ class DayInputsDifferentialTest {
                     },
             )
         assertNotEquals(base, digest(previous), "previous rules")
+    }
+
+    @Test
+    fun catalogAndCurationVersionsAreInTheDigest() {
+        val lineup = fixtures.last()
+        val inputs = days.inputsJsonOf(lineup, null)
+        assertEquals(JsonPrimitive(TestCatalog.version), inputs["catalog"])
+        assertEquals(JsonPrimitive(Curation.VERSION_NAME), inputs["curation"])
+        val newer =
+            object : StarterCatalogView by TestCatalog {
+                override val version: Int = TestCatalog.version + 1
+            }
+        assertNotEquals(digest(lineup), LineupDays(newer).inputsOf(lineup, null))
+        assertTrue(describe(lineup).values.any { "weights=[(" in it }, "a curated day has weights to compare")
     }
 
     @Test

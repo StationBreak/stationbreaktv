@@ -13,6 +13,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.schedule.TitleWeights
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -37,6 +38,7 @@ internal data class DayKey(
     val catalog: Int,
     val utcOffsetMinutes: Int,
     val inputs: String,
+    val curation: String,
     val cutoffs: List<Long>,
     val channels: List<String>,
     val days: List<Long>,
@@ -52,7 +54,7 @@ internal data class DayKey(
             DaySnapshotMiss.Generation to (generation == other.generation),
             DaySnapshotMiss.Catalog to (catalog == other.catalog),
             DaySnapshotMiss.Offset to (utcOffsetMinutes == other.utcOffsetMinutes),
-            DaySnapshotMiss.Lineup to (inputs == other.inputs),
+            DaySnapshotMiss.Lineup to (inputs == other.inputs && curation == other.curation),
             DaySnapshotMiss.Cutoffs to (cutoffs == other.cutoffs),
             DaySnapshotMiss.Channels to (channels == other.channels && days == other.days),
         ).firstOrNull { (_, same) -> !same }?.first
@@ -79,6 +81,9 @@ internal data class DayKey(
  * index into a table of them. Nothing else of a day is kept: the channel, its name, settings, epoch and ceiling come
  * from the lineup, which the key pins. A day that has a film-to-collection map also lists it, as pairs of an item row
  * and a row of the body's one table of collection IDs; a reader checks that each film is a movie of that day's pool.
+ * A curated day that has weights lists them, as pairs of a row of the body's one table of title IDs and the weight
+ * (1 to 3); a reader checks each title is listed once. The keeps are never written: the day pool is already windowed,
+ * and a restore applies no window ([LineupDays.restore]).
  *
  * **Any** change to what is written still bumps [VERSION], so the miss is reported as `Format`.
  *
@@ -89,11 +94,13 @@ internal data class DayKey(
 @OptIn(ExperimentalSerializationApi::class)
 internal object DaySnapshotCodec {
     /**
-     * 5: a day may hold its film-to-collection map (`films`, with one table of collection IDs in the body). 4: the key
-     * holds the digest of the day inputs (`inputs`), its channels and the body's days are in ID order, and each day
-     * names its channel.
+     * 6 (spec 23): a curated day may hold its weights (`weights`, with one table of title IDs in the body), the key
+     * holds the digest of the days' curations (`curation`), and the curated pools, keeps and weights are live, so a
+     * file of 5 is never read. 5: a day may hold its film-to-collection map (`films`, with one table of collection IDs
+     * in the body). 4: the key holds the digest of the day inputs (`inputs`), its channels and the body's days are in
+     * ID order, and each day names its channel.
      */
-    const val VERSION = 5
+    const val VERSION = 6
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
     private const val MAX_HEADER = 256 * 1024
@@ -157,14 +164,15 @@ internal object DaySnapshotCodec {
     }
 
     /**
-     * One day of a file: the ID of the channel it is for, its day pool, its film-to-collection map and why it is empty,
-     * if it is.
+     * One day of a file: the ID of the channel it is for, its day pool, its film-to-collection map, why it is empty, if
+     * it is, and its curated weights.
      */
     class StoredDay(
         val channel: String,
         val pool: List<ScheduleItem>,
         val films: FilmCollections,
         val hidden: HiddenReason?,
+        val weights: TitleWeights,
     )
 
     /**
@@ -183,9 +191,11 @@ internal object DaySnapshotCodec {
         // An item is made once, however many pools hold it.
         val items = body.items.map { it.item(series) }
         val collections = body.collections.map(::idOf)
+        val titles = body.titles.map(::idOf)
         return body.days.map { day ->
             val pool = poolOf(day, items)
-            StoredDay(day.channel, pool, filmsOf(day, items, pool, collections), day.hidden)
+            val films = filmsOf(day, items, pool, collections)
+            StoredDay(day.channel, pool, films, day.hidden, weightsOf(day, titles, pool))
         }
     }
 
@@ -254,6 +264,7 @@ internal object DaySnapshotCodec {
 
     private fun bodyOf(days: List<ChannelDay>): BodyV2 {
         val collections = LinkedHashMap<CanonicalId, Int>()
+        val titles = LinkedHashMap<CanonicalId, Int>()
         // The distinct items in canonical-ID order (an ID held at two cut-offs in two versions keeps both).
         val distinct = LinkedHashSet<ScheduleItem>()
         days.forEach { distinct += it.pool }
@@ -265,13 +276,14 @@ internal object DaySnapshotCodec {
                 val pool = day.pool
                 val rows = IntArray(pool.size) { i -> rowOf.getValue(pool[i]) }
                 val films = filmRows(day, rowOf, collections)
+                val weights = weightRows(day, titles)
                 if (isAscending(rows)) {
                     val set = BitSet(table.size)
                     rows.forEach(set::set)
                     val bits = Base64.encode(set.toByteArray())
-                    DayV2(day.channel.id.value, bits = bits, hidden = day.hidden, films = films)
+                    DayV2(day.channel.id.value, bits = bits, hidden = day.hidden, films = films, weights = weights)
                 } else {
-                    DayV2(day.channel.id.value, rows = rows, hidden = day.hidden, films = films)
+                    DayV2(day.channel.id.value, rows = rows, hidden = day.hidden, films = films, weights = weights)
                 }
             }
         val series = LinkedHashMap<CanonicalId, Int>()
@@ -290,7 +302,13 @@ internal object DaySnapshotCodec {
                     episodeNumber = item.episodeNumber,
                 )
             }
-        return BodyV2(series.keys.map { it.value }, rows, pools, collections.keys.map { it.value })
+        return BodyV2(
+            series.keys.map { it.value },
+            rows,
+            pools,
+            collections.keys.map { it.value },
+            titles.keys.map { it.value },
+        )
     }
 
     // The day's map as [item row, collection row] pairs, ascending by film ID; null when the day has none.
@@ -308,6 +326,36 @@ internal object DaySnapshotCodec {
     }
 }
 
+// The weights of a day: each a title of the table and of the day's own pool, once, at a weight of 1 to 3. Anything
+// else is a fault, so a file whose checksum is right still never weights a title the channel does not air.
+private fun weightsOf(
+    day: DayV2,
+    titles: List<CanonicalId>,
+    pool: List<ScheduleItem>,
+): TitleWeights {
+    val pairs = day.weights ?: return TitleWeights.NONE
+    val aired = HashSet<CanonicalId>(pool.size * 2)
+    for (item in pool) aired.add(item.groupId)
+    val map = HashMap<CanonicalId, Int>(pairs.size * 2)
+    for (pair in pairs) {
+        if (pair.size != 2) throw IOException("A weight is a pair")
+        val title = titles[rowIn(pair[0], titles.size)]
+        val weight = pair[1]
+        val sound = weight in TitleWeights.MIN_WEIGHT..TitleWeights.MAX_WEIGHT && title in aired
+        if (!sound || map.put(title, weight) != null) throw IOException("A title's weight, once")
+    }
+    return TitleWeights.of(map)
+}
+
+// The day's weights as [title row, weight] pairs, ascending by title ID; null when the day has none.
+private fun weightRows(
+    day: ChannelDay,
+    titles: MutableMap<CanonicalId, Int>,
+): List<List<Int>>? {
+    if (day.weights.isEmpty) return null
+    return day.weights.entries.map { (title, weight) -> listOf(titles.getOrPut(title) { titles.size }, weight) }
+}
+
 /** The header line: the format first (read before anything else), the body's CRC-32, and the key. */
 @Serializable
 private class HeaderV2(
@@ -322,6 +370,7 @@ private class BodyV2(
     val items: List<ItemV2>,
     val days: List<DayV2>,
     val collections: List<String> = emptyList(),
+    val titles: List<String> = emptyList(),
 )
 
 /**
@@ -359,7 +408,8 @@ private class ItemV2(
 
 /**
  * One channel's day: the channel's ID, its pool as a bitset of table rows (Base64) or as row numbers, its empty
- * reason, and the film-to-collection map as `[item row, collection row]` pairs (absent when the day has none).
+ * reason, the film-to-collection map as `[item row, collection row]` pairs and the weights as `[title row, weight]`
+ * pairs (each absent when the day has none).
  */
 @Serializable
 private class DayV2(
@@ -368,6 +418,7 @@ private class DayV2(
     val rows: IntArray? = null,
     val hidden: HiddenReason? = null,
     val films: List<List<Int>>? = null,
+    val weights: List<List<Int>>? = null,
 )
 
 private const val MOVIE = 0

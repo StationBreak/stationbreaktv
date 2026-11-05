@@ -107,7 +107,9 @@ data class CurationBasis(
 /**
  * One channel of a [Lineup]. Its [id] is permanent and separate from its [number], so renumbering never breaks
  * favourites. [numberOverride] and [nameOverride] are the user's and do not detach a starter from the catalog.
- * [onSinceMs] is when the channel was last switched on (for a channel that was never on, when it joined the lineup).
+ * [onSinceMs] is when the channel was last switched on (for a channel that was never on, when it joined the lineup); a
+ * starter the planner switched on for the next boundary has that boundary, a time ahead, and is not on the air until
+ * then (as [leavesAtMs] in reverse).
  * [chosenByViewer] is true once the viewer switched the channel on or off or gave it a number. [leavesAtMs] is when an
  * untouched starter the planner dropped goes to the shelf, and [shelfReason] why it is there (starters only).
  */

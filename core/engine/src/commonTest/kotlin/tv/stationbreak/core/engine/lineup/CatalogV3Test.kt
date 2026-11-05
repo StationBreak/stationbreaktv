@@ -18,25 +18,44 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CatalogV3Test {
     private val v3 = CATALOG_V3_RECIPES
-    private val v2 = StarterCatalog.recipes
+
+    // Catalog 2's recipes, which catalog 3 replaced.
+    private val v2 = CATALOG_V2_RECIPES
     private val animeOnlyKeys = setOf("tokyo-after-school", "giant-robot-hour", "power-level", "cherry-blossom-hour")
 
     private fun recipe(key: String): Recipe = checkNotNull(v3.firstOrNull { it.key == key }) { "no recipe $key" }
 
-    private fun genreNames(r: Recipe): List<String> =
-        r.sources.filterIsInstance<Source.Genre>().map { it.name } + r.filters?.genres.orEmpty()
-
+    // An opt-in recipe's sources are exempt (as exclusions are, Resolution 7): what it holds back from the leftovers
+    // must be broad, and scrapers disagree on the spelling, so it keeps every non-TMDB genre catalog 2 gave it. Its
+    // filters are not exempt.
     @Test
     fun everyGenreIsATmdbGenreOrAnime() {
         for (r in v3) {
-            for (name in genreNames(r)) {
+            val sources = if (r.optIn) emptyList() else r.sources.filterIsInstance<Source.Genre>().map { it.name }
+            for (name in sources + r.filters?.genres.orEmpty()) {
                 assertTrue(name in TMDB_GENRES || name == "Anime", "${r.key} has genre $name")
             }
+        }
+    }
+
+    // What an opt-in recipe holds back from the leftovers never narrows at the swap: it keeps every catalog-2 source,
+    // excludes nothing catalog 2 did not, and filters no more than catalog 2 did.
+    @Test
+    fun theOptInRecipesKeepEveryCatalogTwoSource() {
+        val optIn = v2.filter { it.optIn }
+        assertTrue(optIn.isNotEmpty())
+        for (old in optIn) {
+            val new = recipe(old.key)
+            assertTrue(new.optIn, old.key)
+            assertTrue(new.sources.containsAll(old.sources), "${old.key} lost ${old.sources - new.sources.toSet()}")
+            val added = new.exclusions - old.exclusions.toSet()
+            assertTrue(added.isEmpty(), "${old.key} excludes more: $added")
+            // No filter where catalog 2 had none (one, if catalog 2 had it, must be the same).
+            assertTrue(new.filters == null || new.filters == old.filters, "${old.key} filters more")
         }
     }
 
@@ -145,21 +164,18 @@ class CatalogV3Test {
         assertTrue(v3.all { it.collectionHints.isEmpty() })
     }
 
+    // What catalog 2 promised, as frozen in its manifest, and in catalog order.
     @Test
-    fun keysNumbersBandsCeilingsAndOptInMatchTheLiveCatalog() {
+    fun keysNumbersBandsCeilingsAndOptInMatchCatalogTwo() {
         assertEquals(v2.map { it.key }, v3.map { it.key })
-        for ((old, new) in v2.zip(v3)) {
-            assertEquals(old.number, new.number, old.key)
-            assertEquals(old.band, new.band, old.key)
-            assertEquals(old.maxRating, new.maxRating, old.key)
-            assertEquals(old.optIn, new.optIn, old.key)
+        assertEquals(CATALOG_MANIFEST_V2.recipes.keys, v3.map { it.key }.toSet())
+        for (new in v3) {
+            val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
+            assertEquals(old.number, new.number, new.key)
+            assertEquals(old.band, new.band, new.key)
+            assertEquals(old.maxRating, new.maxRating, new.key)
+            assertEquals(old.optIn, new.optIn, new.key)
         }
-    }
-
-    @Test
-    fun theLiveCatalogIsStillVersionTwo() {
-        assertEquals(2, StarterCatalog.VERSION)
-        assertNull(StarterCatalog.recipes.firstOrNull { it.theme != null })
     }
 
     @Test
@@ -172,7 +188,8 @@ class CatalogV3Test {
             }
             assertTrue(r.exclusions.containsAll(kidsGenres), "${r.key} lets a kids' genre in")
             val excludesAnime = Source.Genre("Anime") in r.exclusions && Source.Tag("anime") in r.exclusions
-            assertEquals(r.key !in animeOnlyKeys, excludesAnime, r.key)
+            // An opt-in recipe keeps catalog 2's exclusions exactly: its holdback never narrows.
+            assertEquals(r.key !in animeOnlyKeys && !r.optIn, excludesAnime, r.key)
         }
     }
 
@@ -196,7 +213,7 @@ class CatalogV3Test {
     @Test
     fun everyKidRecipeStaysKidSafe() {
         for (new in v3.filter { it.kidSafe }) {
-            val old = checkNotNull(StarterCatalog.recipe(new.key))
+            val old = v2.single { it.key == new.key }
             assertEquals(old.maxRating, new.maxRating, new.key)
             assertTrue(
                 new.theme

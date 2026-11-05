@@ -6,6 +6,8 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
 import java.lang.management.ManagementFactory
 import kotlin.test.Test
@@ -114,7 +116,75 @@ class PersistedDaysSizeTest {
         assertTrue(readBytes < buildBytes, "reading allocated $readBytes bytes, building $buildBytes")
     }
 
+    // Programmed starters (spec 23) over films and series: the days carry weights and windowed series, and the file
+    // still stays well under the cap.
+    @Test
+    fun theFileOfACuratedFiftyChannelDayStaysUnderTheCap() {
+        val episodes =
+            (0 until SERIES).flatMap { s ->
+                val series = id(SERIES_IDS + s * (EPISODES + 1))
+                (1..EPISODES).map { e ->
+                    RuleItem(
+                        ScheduleItem(
+                            id(SERIES_IDS + s * (EPISODES + 1) + e),
+                            ScheduleItemKind.Episode,
+                            1_800_000L,
+                            ADDED_MS,
+                            null,
+                            null,
+                            2001,
+                            series,
+                            1,
+                            e,
+                        ),
+                        LIBRARY_ID,
+                        null,
+                        "TV-14",
+                        listOf(genres[s % genres.size]),
+                        emptyList(),
+                    )
+                }
+            }
+        val items = (library(ITEMS / 2) + episodes).sortedBy { it.item.id.value }
+        val curated =
+            lineup.copy(
+                channels =
+                    lineup.channels.map {
+                        val source = it.source
+                        if (source is ChannelSource.Starter) {
+                            val rules = source.rules
+                            val sources = rules.sources.toTypedArray()
+                            it.copy(source = source.copy(rules = programmed(rules.name.orEmpty(), *sources)))
+                        } else {
+                            it
+                        }
+                    },
+            )
+        val scheduled = lineupDays.scheduled(curated, NOON.toEpochMilliseconds(), null)
+        val snapshots =
+            scheduled.map { it.cutoffMs }.distinct().associateWith {
+                RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
+            }
+        val store = MemoryDayStore()
+        val persisted = PersistedDays(store, "1:1")
+        val inputs = lineupDays.inputsOf(curated, null)
+        val offset = curated.utcOffsetMinutes
+        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1, offset, inputs, TestCatalog.version, scheduled)
+        val built = lineupDays.days(curated, scheduled, snapshots)
+        assertTrue(runBlocking { persisted.save(ACCOUNT, key, built) })
+        val read = runBlocking { persisted.load(ACCOUNT, key, scheduled, lineupDays::restore) }
+
+        val fileBytes = store.only().second.size
+        println("PersistedDaysSize curated channels=${scheduled.size} items=${items.size} fileKb=${fileBytes / KB}")
+        assertTrue(built.any { !it.weights.isEmpty }, "a day has weights")
+        assertEquals(describe(built), describe(checkNotNull(read)))
+        assertTrue(fileBytes < CAP_BYTES, "the file is $fileBytes bytes")
+    }
+
     private companion object {
+        const val SERIES = 400
+        const val EPISODES = 25
+        const val SERIES_IDS = 100_000
         const val ITEMS = 20_000
         const val CUSTOMS = 42
         const val FIFTY = 48

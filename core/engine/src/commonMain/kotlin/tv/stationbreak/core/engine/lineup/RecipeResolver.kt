@@ -23,6 +23,8 @@ private const val LATEST_FORMAT = 3
 // The two quotes around a JSON string.
 private const val QUOTES = 2
 
+private const val MS_PER_HOUR = 3_600_000L
+
 /** Turns a catalog recipe into the rules of a real channel. Pure: the same inputs give the same rules. */
 object RecipeResolver {
     /** The most sources a resolved starter keeps, whatever the budget allows. */
@@ -33,9 +35,12 @@ object RecipeResolver {
 
     /**
      * The most bytes one copy of a starter's rules takes in the lineup file (the rules text as a JSON string, escapes
-     * included). The file holds the rules of every catalog starter, and the rules again as `previousRules` for at most
-     * [LineupDefaults.CAP] of them (the planner keeps previous rules only on the first [LineupDefaults.CAP] switched-on
-     * starters by number, however many the viewer switches on): [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies,
+     * included). The file holds the rules of every catalog starter, and the rules again as `previousRules` for its
+     * keepers (the planner gives a previous copy only to them: the protected starters, then the switched-on starters
+     * by number, together at most [LineupDefaults.CAP] however many the viewer switches on, then the hidden and
+     * opt-in starters whose pools the leftovers withhold, up to [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] less the
+     * starters in the lineup; any other starter takes new rules at once and holds no copy): at most
+     * [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies,
      * so all those copies together total at most half the file cap. The channel envelopes (IDs, numbers, state), the
      * leftovers, the custom channels, the curation basis and the meta sit in the other half; this bounds the copies
      * only, not each starter's whole entry.
@@ -109,8 +114,11 @@ object RecipeResolver {
         return candidates.take(count)
     }
 
-    // What [rules] take in the lineup file: the rules text held as a JSON string.
-    private fun fileBytes(rules: ChannelRules): Int = escapedBytes(RulesWriter.write(rules)) + QUOTES
+    /**
+     * What [rules] take in the lineup file: the rules text held as a JSON string, the size
+     * [STARTER_RULES_BUDGET_BYTES] bounds.
+     */
+    internal fun fileBytes(rules: ChannelRules): Int = escapedBytes(RulesWriter.write(rules)) + QUOTES
 
     // The bytes [text] takes inside a JSON string, its quotes left out. Escaping goes character by character, so the
     // escaped parts of a text add up to the escaped whole.
@@ -157,6 +165,12 @@ object RecipeResolver {
             // A leftovers channel shuffles: it has no curated tuning.
             curated = null,
         )
+
+    /**
+     * How long one broadcast day of a resolved starter or a leftovers channel is, in milliseconds: the timing every
+     * one of them resolves to ([LineupDefaults.DAY_START], the format's epoch). The lineup's day ([LineupDay]).
+     */
+    internal val DAY_MS: Long = timingAt(0).effectiveEpochHours * MS_PER_HOUR
 
     private fun seedOf(
         serverId: CanonicalId,

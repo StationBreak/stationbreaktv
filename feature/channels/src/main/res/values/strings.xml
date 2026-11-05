@@ -34,6 +34,10 @@
     <string name="channels_use_my_collections">Use my collections</string>
     <!-- Provisional copy, for the design partner to settle. -->
     <string name="channels_use_my_collections_hint">Built-in channels can use collections you made. Changes start at 6 AM.</string>
+    <string name="channels_shelf_empty">Nothing in your libraries fits this channel yet</string>
+    <string name="channels_shelf_thin">Too little fits here once every show has its best home</string>
+    <string name="channels_shelf_below_cap">Fits, but stronger channels filled the lineup</string>
+    <string name="channels_shelf_opt_in">Only on if you switch it on</string>
     <string name="channels_switch_on">On</string>
     <string name="channels_switch_off">Off</string>
     <string name="channels_reset">Reset channels</string>

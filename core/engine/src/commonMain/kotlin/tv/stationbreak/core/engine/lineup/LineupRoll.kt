@@ -2,8 +2,6 @@
 package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.engine.toSchedulerSettings
-import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.ChannelRules
 
 // The day-boundary machinery (spec 23, D1, F2): what the planner and the edits change for an unedited starter, for the
@@ -114,29 +112,27 @@ fun isDayStart(
 
 /**
  * [change], a lineup made from [this] at [nowMs], with the basis that keeps the days before [boundaryMs] as they were
- * when its curated on-set or "Use my collections" differs from [this]'s. A basis still pending is kept (the days
- * before its boundary are already those of the oldest on-set), and so is [change] when neither differs.
+ * when its curated on-set or "Use my collections" differs from [this]'s. The on-sets are the shared ones
+ * ([curatedOn], with [recipeKeys], the catalog's recipe keys): [this]'s of today (the day that ends at [boundaryMs])
+ * and [change]'s of the day that starts at [boundaryMs], so a starter that starts at the boundary is only in the second
+ * and one that leaves at it only in the first. A basis still pending is kept (the days before its boundary are already
+ * those of the oldest on-set), and so is [change] when neither differs.
  */
 internal fun Lineup.withBasisFor(
     change: Lineup,
     nowMs: Long,
     boundaryMs: Long,
+    recipeKeys: Set<String>,
 ): Lineup {
     val pending = curationBasis.let { it != null && it.fromMs > nowMs }
-    val before = curatedOnSet()
-    val differs = before != change.curatedOnSet() || useMyCollections != change.useMyCollections
-    if (pending || !differs) return change
-    return change.copy(curationBasis = CurationBasis(boundaryMs, before, useMyCollections))
+    // Worked out only when no basis is pending (nearly every edit and plan of a day after its first change).
+    val before = if (pending) null else curatedOn(LineupDay.endingAt(boundaryMs), recipeKeys)
+    val differs =
+        before != null &&
+            (
+                before != change.curatedOn(LineupDay.startingAt(boundaryMs), recipeKeys) ||
+                    useMyCollections != change.useMyCollections
+            )
+    val basis = if (differs) CurationBasis(boundaryMs, checkNotNull(before), useMyCollections) else null
+    return if (basis != null) change.copy(curationBasis = basis) else change
 }
-
-// The channels the curation homes titles on: on, not leaving, unedited starters whose rules are programmed.
-private fun Lineup.curatedOnSet(): Set<ChannelId> =
-    channels
-        .filter { channel ->
-            val source = channel.source
-            channel.state == ChannelState.On &&
-                channel.leavesAtMs == null &&
-                source is ChannelSource.Starter &&
-                !source.edited &&
-                source.rules.orderingMode == OrderingMode.Curated
-        }.mapTo(HashSet()) { it.id }
