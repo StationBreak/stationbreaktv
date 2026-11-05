@@ -145,27 +145,30 @@ class VideoFrameTest {
         val destroyed = AtomicInteger()
         val changed = AtomicInteger()
         // Made and watched before the composition has it, so its first creation is counted too.
-        val view = SurfaceView(compose.activity)
-        view.holder.addCallback(
-            object : SurfaceHolder.Callback {
-                override fun surfaceCreated(holder: SurfaceHolder) {
-                    created.incrementAndGet()
-                }
+        // A SurfaceView needs a looper to be made, so both happen on the main thread.
+        val view = compose.runOnUiThread { SurfaceView(compose.activity) }
+        compose.runOnUiThread {
+            view.holder.addCallback(
+                object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(holder: SurfaceHolder) {
+                        created.incrementAndGet()
+                    }
 
-                override fun surfaceChanged(
-                    holder: SurfaceHolder,
-                    format: Int,
-                    width: Int,
-                    height: Int,
-                ) {
-                    changed.incrementAndGet()
-                }
+                    override fun surfaceChanged(
+                        holder: SurfaceHolder,
+                        format: Int,
+                        width: Int,
+                        height: Int,
+                    ) {
+                        changed.incrementAndGet()
+                    }
 
-                override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    destroyed.incrementAndGet()
-                }
-            },
-        )
+                    override fun surfaceDestroyed(holder: SurfaceHolder) {
+                        destroyed.incrementAndGet()
+                    }
+                },
+            )
+        }
         surface = view
         compose.setContent {
             StationBreakTheme {
