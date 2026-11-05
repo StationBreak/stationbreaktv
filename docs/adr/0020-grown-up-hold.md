@@ -7,6 +7,7 @@
   2026-10-29)
 - **Amends:** [ADR-0019](0019-kid-hold.md) §7 and §8, [ADR-0002](0002-determinism-scope.md) §2
 - **Informs:** spec 18, ASSUMPTIONS A-VER-1
+- **See also:** [ADR-0023](0023-lineup-curation.md), which builds on the 2026-11-03 addendum below (lineup curation, spec 23)
 
 ## Context
 
@@ -92,7 +93,7 @@ channel airs) also stays, and the grown-up channel's usual ladder ceiling applie
   it drops nothing for the hold, and its own ceiling still applies, so a made-for-kids title no kid starter matches
   does not air nowhere. Grown-up starters keep the hold either way. The policy (with the lineup applied) is part of
   each channel's inputs: it is in the persisted-day digest (`LineupDays.inputsOf`) and in each channel's play key
-  (`LineupDays.playKeyOf(channel, lineup)`, the channel's part of that digest), so switching Kids' Odds & Ends on or
+  (`LineupDays.playKeyOf(channel, lineup, atMs)`, the channel's part of that digest for the day being played), so switching Kids' Odds & Ends on or
   off rebuilds the grown-up leftovers' days and changes its play key. A custom
   channel outside the Kids band stays `Open`.
 - **A missing series.** An episode whose series ID is not in the snapshot fails the kid ceiling (`passesKidCeiling`),

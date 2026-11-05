@@ -186,7 +186,8 @@ three things that version 2 cannot say, and a lineup that changes for existing r
 version 3 feature in a file that says 1 or 2 is an unknown kind (`studio`, `curated`: unsupported) or an unknown field (the
 filters and tunables: kept and ignored). **A builder or other writer writes the lowest version its features need**, so a
 channel that uses no version 3 feature stays a version 2 (or 1) file byte for byte and older apps keep reading it. The
-catalog that uses version 3 is a later step of spec 23; no shipped rules use it yet.
+starter catalog 3 uses version 3 ([ADR-0023](0023-lineup-curation.md)), and the curation step supplies the weights and the
+trim window's `keeps`.
 
 **Consequences.**
 
