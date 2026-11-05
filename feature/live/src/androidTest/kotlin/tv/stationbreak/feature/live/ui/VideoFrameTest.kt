@@ -42,12 +42,17 @@ class VideoFrameTest {
     private var density = 1f
     private lateinit var surface: SurfaceView
 
+    private fun hostBox(): Modifier =
+        Modifier
+            .requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp)
+            .onGloballyPositioned { host = it.boundsInWindow() }
+
     private fun showFull() {
         compose.setContent {
             StationBreakTheme {
                 density = LocalDensity.current.density
                 surface = remember { SurfaceView(compose.activity) }
-                Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).onGloballyPositioned { host = it.boundsInWindow() }) {
+                Box(hostBox()) {
                     LiveScreen(LiveState.Watching(null)) { VideoFrame(surface, aspect.value) }
                 }
             }
@@ -59,7 +64,7 @@ class VideoFrameTest {
             StationBreakTheme {
                 density = LocalDensity.current.density
                 surface = remember { SurfaceView(compose.activity) }
-                Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).onGloballyPositioned { host = it.boundsInWindow() }) {
+                Box(hostBox()) {
                     LiveScreen(LiveState.Watching(null), guide = { Box(Modifier.fillMaxSize()) }) {
                         VideoFrame(surface, aspect.value)
                     }
@@ -165,7 +170,7 @@ class VideoFrameTest {
         compose.setContent {
             StationBreakTheme {
                 density = LocalDensity.current.density
-                Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).onGloballyPositioned { host = it.boundsInWindow() }) {
+                Box(hostBox()) {
                     LiveScreen(
                         LiveState.Watching(null),
                         guide = if (guideOpen.value) ({ Box(Modifier.fillMaxSize()) }) else null,
