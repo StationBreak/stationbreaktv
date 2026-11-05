@@ -22,7 +22,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -88,6 +90,8 @@ class LiveDestinationLifecycleTest {
         private val number: Int,
     ) : VideoPlayer {
         override val events: SharedFlow<PlayerEvent> = MutableSharedFlow()
+
+        override val videoAspect: StateFlow<Float?> = MutableStateFlow(null)
 
         override fun play(source: PlayerSource): Long = 0
 

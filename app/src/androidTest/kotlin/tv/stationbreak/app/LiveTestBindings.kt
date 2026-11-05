@@ -3,7 +3,9 @@ package tv.stationbreak.app
 
 import android.view.SurfaceView
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
@@ -23,6 +25,8 @@ internal object LiveTestBindings {
 /** A player that plays nothing and reports nothing. */
 private class NoOpPlayer : VideoPlayer {
     override val events: SharedFlow<PlayerEvent> = MutableSharedFlow()
+
+    override val videoAspect: StateFlow<Float?> = MutableStateFlow(null)
 
     override fun play(source: PlayerSource): Long = 0
 

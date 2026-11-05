@@ -144,6 +144,15 @@ internal class LiveViewModel
         /** The transport while the viewer is behind or paused; null while live (spec 20). */
         val transport: StateFlow<TransportView?> = shownTransport.asStateFlow()
 
+        private val shownAspect = MutableStateFlow<Float?>(null)
+
+        /**
+         * The picture's shape (width over height) as the current period's player reports it; null until a size is
+         * known. Kept across flips, a stop and the next sitting's player until a new size arrives, so the surface is
+         * never stretched in between.
+         */
+        val videoAspect: StateFlow<Float?> = shownAspect.asStateFlow()
+
         private val guide = GuideSwitch()
 
         /**
@@ -339,11 +348,14 @@ internal class LiveViewModel
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
                     val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
                     val transportMirror = launch { machine.transport.collect { shownTransport.value = it } }
+                    val aspectMirror =
+                        launch { player.videoAspect.collect { size -> if (size != null) shownAspect.value = size } }
                     machine.run(commands.receiveAsFlow(), resume)
                     // run() returns only when the session ended.
                     mirror.cancel()
                     infoMirror.cancel()
                     transportMirror.cancel()
+                    aspectMirror.cancel()
                 }
                 ended = machine.state.value == LiveState.SignedOut
                 if (!ended) shown.value = machine.state.value

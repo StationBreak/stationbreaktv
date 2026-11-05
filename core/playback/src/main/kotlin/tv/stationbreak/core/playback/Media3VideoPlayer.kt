@@ -14,6 +14,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -24,6 +25,7 @@ import androidx.media3.exoplayer.audio.AudioSink
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
@@ -93,6 +95,9 @@ class Media3VideoPlayer(
         )
     override val events: SharedFlow<PlayerEvent> = flow
 
+    private val aspect = VideoAspectHolder()
+    override val videoAspect: StateFlow<Float?> = aspect.aspect
+
     private val nextGeneration = AtomicLong()
 
     /** The generation of the play now on the player; set on its looper, so events and plays agree. */
@@ -123,6 +128,11 @@ class Media3VideoPlayer(
 
     init {
         exo.addAnalyticsListener(Analytics())
+        exo.addListener(
+            object : Player.Listener {
+                override fun onVideoSizeChanged(videoSize: VideoSize) = aspect.onVideoSize(videoSize)
+            },
+        )
     }
 
     /** The Media3 player, for this module's instrumented tests. The app attaches a surface through [attach]. */

@@ -3,7 +3,9 @@ package tv.stationbreak.feature.live.ui
 
 import android.view.SurfaceView
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
@@ -14,6 +16,11 @@ import kotlin.time.Duration.Companion.seconds
 internal class RecordingPlayer : VideoPlayer {
     val log = mutableListOf<String>()
     override val events: SharedFlow<PlayerEvent> = MutableSharedFlow()
+
+    /** What the player reports as the picture's shape; a test sets it. */
+    val aspect = MutableStateFlow<Float?>(null)
+
+    override val videoAspect: StateFlow<Float?> = aspect
 
     override fun play(source: PlayerSource): Long {
         log += "play"
