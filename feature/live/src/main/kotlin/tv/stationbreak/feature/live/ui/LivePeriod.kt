@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live.ui
 import android.view.SurfaceView
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
@@ -64,6 +65,8 @@ internal class LivePeriod(
 
     private inner class Guarded : VideoPlayer {
         override val events: SharedFlow<PlayerEvent> get() = inner.events
+
+        override val videoAspect: StateFlow<Float?> get() = inner.videoAspect
 
         // A play after the leave is dropped: its generation is one no event ever carries.
         override fun play(source: PlayerSource): Long = if (left.get()) NO_GENERATION else inner.play(source)

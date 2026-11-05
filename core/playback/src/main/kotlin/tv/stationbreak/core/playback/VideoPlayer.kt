@@ -3,6 +3,7 @@ package tv.stationbreak.core.playback
 
 import android.view.SurfaceView
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Duration
 
 /**
@@ -122,6 +123,14 @@ sealed interface PlayerEvent {
 /** One player for the host's lifetime: [play] replaces what is playing, [stop] ends it, [release] ends the player. */
 interface VideoPlayer {
     val events: SharedFlow<PlayerEvent>
+
+    /**
+     * The shape the picture is shown in: width over height, with the pixel shape applied (an anamorphic 720x480 with a
+     * 32:27 pixel is 16:9). Null until the first size is known. The last value is kept across plays, a stop and a
+     * flip until the next item reports its size, so a screen sized by it never falls back to stretching. Rotation is
+     * not applied here: rendering to a surface turns the picture itself, and Media3 then reports none left to apply.
+     */
+    val videoAspect: StateFlow<Float?>
 
     /**
      * Starts [source], replacing what is playing, and returns the generation of this play. Every event the play

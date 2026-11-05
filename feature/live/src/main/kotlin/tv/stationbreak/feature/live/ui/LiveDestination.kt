@@ -25,7 +25,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.DpRect
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.OnUserLeaveHintProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -91,6 +90,7 @@ internal fun LiveRoot(
     val guideOpen by viewModel.guideOpen.collectAsStateWithLifecycle()
     val transport by viewModel.transport.collectAsStateWithLifecycle()
     val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
+    val aspect by viewModel.videoAspect.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -129,7 +129,7 @@ internal fun LiveRoot(
         },
         // The machine's own clock, which the transport view's times are in.
         nowMs = viewModel::nowMs,
-    ) { AndroidView(factory = { surface }) }
+    ) { VideoFrame(surface, aspect) }
 }
 
 /**

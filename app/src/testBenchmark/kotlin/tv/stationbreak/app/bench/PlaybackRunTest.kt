@@ -8,7 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -38,6 +40,8 @@ private class ScriptedPlayer(
 ) : VideoPlayer {
     private val flow = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 256)
     override val events: SharedFlow<PlayerEvent> = flow
+
+    override val videoAspect: StateFlow<Float?> = MutableStateFlow(null)
     private var generation = 0L
     var stops = 0
 

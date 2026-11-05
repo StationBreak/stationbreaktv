@@ -8,7 +8,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -77,6 +79,8 @@ class TunePortAdapterTest {
     private class QuietPlayer : VideoPlayer {
         private val flow = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 64)
         override val events: SharedFlow<PlayerEvent> = flow
+
+        override val videoAspect: StateFlow<Float?> = MutableStateFlow(null)
         var generation = 0L
         var plays = 0
         var stops = 0

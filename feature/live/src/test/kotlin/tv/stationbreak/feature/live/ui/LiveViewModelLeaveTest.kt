@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -115,4 +116,40 @@ class LiveViewModelLeaveTest {
             assertEquals(2, s.server.count("start"))
             assertEquals(1, s.server.count("stopped"))
         }
+
+    @Test
+    fun theVideoShapeIsKeptAcrossAFlipAndANewSittingUntilANewSizeArrives() =
+        runTest {
+            val s = setup()
+            assertNull(s.vm.videoAspect.value)
+            val first = RecordingPlayer()
+            backgroundScope.launch { s.sit(first) }
+            advanceTimeBy(45.seconds)
+            runCurrent()
+            first.aspect.value = FOUR_THREE
+            runCurrent()
+            assertEquals(FOUR_THREE, s.vm.videoAspect.value)
+
+            // A flip or a stop: the player has no news, the screen keeps the shape.
+            first.aspect.value = null
+            runCurrent()
+            assertEquals(FOUR_THREE, s.vm.videoAspect.value)
+
+            // The next sitting's player starts without a size; still the last shape, until its own arrives.
+            s.vm.leave()
+            runCurrent()
+            val second = RecordingPlayer()
+            backgroundScope.launch { s.sit(second) }
+            advanceTimeBy(45.seconds)
+            runCurrent()
+            assertEquals(FOUR_THREE, s.vm.videoAspect.value)
+            second.aspect.value = SCOPE
+            runCurrent()
+            assertEquals(SCOPE, s.vm.videoAspect.value)
+        }
+
+    private companion object {
+        const val FOUR_THREE = 4f / 3f
+        const val SCOPE = 2.39f
+    }
 }

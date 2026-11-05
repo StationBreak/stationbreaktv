@@ -9,7 +9,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
@@ -45,6 +47,8 @@ internal class Step(
 internal class FakeVideoPlayer : VideoPlayer {
     private val flow = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = 64)
     override val events: SharedFlow<PlayerEvent> = flow
+
+    override val videoAspect: StateFlow<Float?> = MutableStateFlow(null)
     val played = mutableListOf<PlayerSource>()
     var stops = 0
     var generation = 0L
