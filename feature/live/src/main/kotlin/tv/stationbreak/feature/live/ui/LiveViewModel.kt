@@ -348,6 +348,7 @@ internal class LiveViewModel
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
                     val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
                     val transportMirror = launch { machine.transport.collect { shownTransport.value = it } }
+                    // The real player never returns to null (it keeps the last shape); the filter is for fakes.
                     val aspectMirror =
                         launch { player.videoAspect.collect { size -> if (size != null) shownAspect.value = size } }
                     machine.run(commands.receiveAsFlow(), resume)

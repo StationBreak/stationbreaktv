@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
@@ -18,13 +20,13 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.LiveState
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The video surface keeps the picture's shape (#599): a 4:3 picture is pillarboxed and a 2.39:1 one letterboxed in the
@@ -44,7 +46,7 @@ class VideoFrameTest {
         compose.setContent {
             StationBreakTheme {
                 density = LocalDensity.current.density
-                surface = SurfaceView(compose.activity)
+                surface = remember { SurfaceView(compose.activity) }
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).onGloballyPositioned { host = it.boundsInWindow() }) {
                     LiveScreen(LiveState.Watching(null)) { VideoFrame(surface, aspect.value) }
                 }
@@ -56,7 +58,7 @@ class VideoFrameTest {
         compose.setContent {
             StationBreakTheme {
                 density = LocalDensity.current.density
-                surface = SurfaceView(compose.activity)
+                surface = remember { SurfaceView(compose.activity) }
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).onGloballyPositioned { host = it.boundsInWindow() }) {
                     LiveScreen(LiveState.Watching(null), guide = { Box(Modifier.fillMaxSize()) }) {
                         VideoFrame(surface, aspect.value)
@@ -132,15 +134,66 @@ class VideoFrameTest {
     }
 
     @Test
-    fun theSurfaceIsTheSameViewWhenTheShapeChanges() {
-        showFull()
-        val before = surface
+    fun theSurfaceIsNeverMadeAgainWhenTheShapeOrTheBoxChanges() {
+        val guideOpen = mutableStateOf(false)
+        val created = AtomicInteger()
+        val destroyed = AtomicInteger()
+        val changed = AtomicInteger()
+        // Made and watched before the composition has it, so its first creation is counted too.
+        val view = SurfaceView(compose.activity)
+        view.holder.addCallback(
+            object : SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: SurfaceHolder) {
+                    created.incrementAndGet()
+                }
+
+                override fun surfaceChanged(
+                    holder: SurfaceHolder,
+                    format: Int,
+                    width: Int,
+                    height: Int,
+                ) {
+                    changed.incrementAndGet()
+                }
+
+                override fun surfaceDestroyed(holder: SurfaceHolder) {
+                    destroyed.incrementAndGet()
+                }
+            },
+        )
+        surface = view
+        compose.setContent {
+            StationBreakTheme {
+                density = LocalDensity.current.density
+                Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).onGloballyPositioned { host = it.boundsInWindow() }) {
+                    LiveScreen(
+                        LiveState.Watching(null),
+                        guide = if (guideOpen.value) ({ Box(Modifier.fillMaxSize()) }) else null,
+                    ) { VideoFrame(view, aspect.value) }
+                }
+            }
+        }
+        compose.waitUntil(TIMEOUT_MS) { created.get() == 1 && changed.get() >= 1 }
+        val changesBefore = changed.get()
+
         aspect.value = FOUR_THREE
         compose.waitForIdle()
         aspect.value = SCOPE
         compose.waitForIdle()
-        assertSame(before, surface)
-        assertEquals(true, surface.isAttachedToWindow)
+        guideOpen.value = true
+        compose.waitForIdle()
+        aspect.value = FOUR_THREE
+        compose.waitForIdle()
+        guideOpen.value = false
+        compose.waitForIdle()
+        aspect.value = null
+        compose.waitForIdle()
+
+        // Resizing the view tells the holder (surfaceChanged); it never takes the surface down or makes it again.
+        compose.waitUntil(TIMEOUT_MS) { changed.get() > changesBefore }
+        assertEquals("surfaceCreated", 1, created.get())
+        assertEquals("surfaceDestroyed", 0, destroyed.get())
+        assertEquals(true, view.isAttachedToWindow)
     }
 
     private companion object {
@@ -149,5 +202,6 @@ class VideoFrameTest {
         const val FOUR_THREE = 4f / 3f
         const val SCOPE = 2.39f
         const val TOLERANCE = 0.02f
+        const val TIMEOUT_MS = 5_000L
     }
 }
