@@ -221,8 +221,11 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   collections that are not deleted, by ID; it is a planning read, never used to build a day. `collectionPassCompleted(account)`
   emits the start time of the latest whole collection pass (null until one completes, and a pass that stops part-way does
   not signal), so the lineup refresher waits for the collections and not for `lastSuccess`.
-- **Cache schema version 6** (`LibraryDatabase.VERSION`). 4 added the item history, 5 added series, 6 added collections. A
-  schema change drops and rebuilds the cache, and the schema is exported to `data/library/schemas/`.
+- **Cache schema version 9** (`LibraryDatabase.VERSION`). 4 added the item history, 5 added series, 6 added collections;
+  7 added `sync_meta` (spec 12), 8 added studios and `backfillPending` (spec 18, migrated), and 9 added a name to the
+  item, series and collection version tables (spec 23, migrated with a backfill from the current rows). From version 7 on
+  the cache migrates. A file of version 6 or older, or one newer than the code, is dropped and rebuilt, and that also drops
+  the signed-in account. The schema is exported to `data/library/schemas/`.
 - **Unit tests run Room on the JVM** over `androidx.sqlite:sqlite-bundled-jvm`, a test-only dependency that carries a native
   SQLite for the build machine. It is never in an APK. The instrumented test on the API 25 emulator runs the same schema on the
   platform SQLite.
@@ -238,7 +241,21 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   channels, versioned), `LineupDefaults` (the 12-hour fill minimum, the cap of 50, the finalise threshold of 5, the 06:00 day
   start) and `LineupPlanner`, a pure function from the current lineup, the library snapshot and the collection names to the
   next lineup. It never touches storage.
-- **`core:domain` `lineup` package** owns the lineup in memory. `LineupCodec` is the stored form (compact JSON, `"version": 1`;
+- **`core:engine` `lineup.curation` package (spec 23, [ADR-0023](adr/0023-lineup-curation.md))** is the cross-channel step
+  that makes the lineup feel programmed. It is pure, integer-only code, with no floating point and no random numbers.
+  - `Titles`: the series or film that the curation homes, with its tone (made for kids, adult animation, and a format).
+  - `FitScore`: the integer score of a title on a channel (fixed point, 16 fraction bits).
+  - `Curation`: one home per title, guests, the weights (3, 2, 1) and the keeps that feed the scheduler's trim window.
+    The planner (for selection) and `LineupDays` (for each day) run the same code. The planner reads the plan's snapshot
+    without rating ceilings, and a day reads the snapshot at its cut-off under its ceilings.
+  - `Selection`: chooses the starters to switch on by identity, and gives every other one its shelf reason.
+  - `CurationDefaults`: the tunables in one place (12 usable hours, 6 titles (4 for kids), the 25% share cap, the 30% guest limit, the
+    score caps).
+  The tables it reads (anchors, theme studios, anime studios) are in `CurationTables`, beside the catalog-3 recipes.
+- **`core:engine` `LineupDay`** (the `lineup` package) is one broadcast day, with the day-boundary predicates the planner,
+  the edits and the day build all read: `startsAfter`, `leavesBy`, `isOnAirOn` and `isCuratedOn`. A change waits for the next
+  day start, and "starting" and "leaving" are decided by the day, never by the moment asked.
+- **`core:domain` `lineup` package** owns the lineup in memory. `LineupCodec` is the stored form (compact JSON, `"version": 3` since spec 23;
   a newer file is left alone and an unreadable one is set aside, never overwritten). `LineupService` is the one place that
   loads, plans and saves an account's lineup, under one lock per account, and implements `ChannelRepository` (the lineup as
   features see it). `LineupRefresher` calls `LineupService.refresh` at start when the lineup is absent, unfinalised or behind
@@ -329,8 +346,9 @@ map. Only Rotation and capped Shuffle read it; the other orders ignore it.
 Rules format version 3 adds two more side inputs of the same kind, both in `core:model` and both built only by `of`:
 `TitleWeights` (a title ID to a weight of 1 to 3, read by `curated`) and `TitleKeeps` (a series ID to a cap in
 milliseconds, the trim window). The franchise map of `curated` is a `FilmCollections` too, built from the collections of
-the snapshot whose names are box set names. The trim window is applied only inside `buildDay`; the day pool that is kept
-on disk is the pool after it (`Day.pool`) and is restored with no keeps.
+the snapshot whose names are box set names. The trim window (`EpochPool.dayPool`) is applied once, when a fresh day is made
+in `core:domain`; the day pool that is kept on disk is the pool after it and is restored with no keeps. The curation
+step (above, `lineup.curation`) is what works out the weights and the keeps.
 
 ### Dependency graph (allowed edges)
 

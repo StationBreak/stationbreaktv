@@ -1222,6 +1222,11 @@ minutes (3600000 ms). The prefix sums are 22, 44 and 88 minutes, so `k = 2` (the
 `-1`, `floorMod(-2, 4) = 2`, so `e[2]` and `e[3]`. With a cap of 20 minutes even the first episode is over the cap, so `k = 1`
 and one episode is kept each day, `e[floorMod(n, 4)]`.
 
+Non-normative: in StationBreak the `keeps` come from the lineup curation step ([ADR-0023](adr/0023-lineup-curation.md)).
+It gives a cap to every series that would take more than a quarter of the channel's curated hours (the cap is at least one hour), so the
+share cap becomes this window. A client that works out its own `keeps` agrees with another client only if both work out the
+same ones; the format fixes what the window does with them, not how they are chosen.
+
 1. **Added before the cut-off.** An item created inside the grace window waits for the next epoch. The server stamps
    `createdAt`, so two devices that have synced the library past `S - G` agree.
 2. **Deleted at or after the cut-off.** An item deleted shortly before `S` still airs in day `n`, so the lineup does not
