@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Environment
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
@@ -210,17 +214,37 @@ class GuideScreenshotTest {
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         assertNotNull("no screenshot", bitmap)
         val context = InstrumentationRegistry.getInstrumentation().context
-        // External files, as the first-sync proof does, and a copy in the test package's private files. The API 25
-        // emulator's shell cannot list another app's external dir; `run-as` can read the private copy.
+        // The package's own external files, as the first-sync proof does. connectedAndroidTest then uninstalls the
+        // test package and that directory goes with it, so a second copy is written on shared storage, which the
+        // shell can still pull.
         val external = File(checkNotNull(context.getExternalFilesDir(null)), SCREENSHOT_DIR)
-        val internal = File(context.filesDir, SCREENSHOT_DIR)
-        for (directory in listOf(external, internal)) {
-            directory.mkdirs()
+        val shared = File(Environment.getExternalStorageDirectory(), SCREENSHOT_DIR)
+        grantPublicStorage(context.packageName)
+        for (directory in listOf(external, shared)) {
+            assertTrue("could not create $directory", directory.mkdirs() || directory.isDirectory)
             val file = File(directory, name)
             file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it)) }
             assertTrue("$name is empty", file.length() > 0)
             Log.i(LOG_TAG, "wrote ${file.absolutePath} (${file.length()} bytes)")
         }
+    }
+
+    /** Shell grant: a target of 34 does not receive this at install, and API 25 has no UiAutomation grant. */
+    private fun grantPublicStorage(packageName: String) {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val grantedAlready =
+            context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                PackageManager.PERMISSION_GRANTED
+        if (grantedAlready) return
+        val granted =
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(
+                "pm grant $packageName ${Manifest.permission.WRITE_EXTERNAL_STORAGE}",
+            )
+        ParcelFileDescriptor.AutoCloseInputStream(granted).use { it.readBytes() }
+        assertEquals(
+            PackageManager.PERMISSION_GRANTED,
+            context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+        )
     }
 
     private companion object {
