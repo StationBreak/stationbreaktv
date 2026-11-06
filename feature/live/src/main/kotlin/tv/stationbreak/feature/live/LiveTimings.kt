@@ -48,10 +48,10 @@ import kotlin.time.Duration.Companion.seconds
  *   player folded it into a seek already pending), and still be taken as that seek's (spec 20).
  * @property holdRearmMin the shortest re-armed wait of the behind play's media-time hold (spec 20): once a wait has
  *   fired short (the media running slower than the clock), the next waits at least this long, so it never spins.
+ * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  * @property boundaryCardAfter how long a block boundary waits on the schedule before the ident card shows (#608): a
  *   read that answers sooner cuts straight to the next block, with no card; a slow one (days being rebuilt) reads as a
  *   station break, not a stall.
- * @property flipLogSize how many flips [LiveChannel.flips] keeps, the newest last.
  */
 data class LiveTimings(
     val bannerLinger: Duration = 4.seconds,
@@ -67,7 +67,6 @@ data class LiveTimings(
     val flipRepeatEvery: Duration = 250.milliseconds,
     val flipReleaseFallback: Duration = 1.seconds,
     val flipLogSize: Int = 50,
-    val boundaryCardAfter: Duration = 400.milliseconds,
     val keyRepeatTimeout: Duration = DEFAULT_KEY_REPEAT_TIMEOUT,
     val pauseReportMax: Duration = DEFAULT_PAUSE_REPORT_MAX,
     val stepBack: Duration = 10.seconds,
@@ -76,6 +75,7 @@ data class LiveTimings(
     val goLiveWait: Duration = 20.seconds,
     val seekLandingSlack: Duration = 2.seconds,
     val holdRearmMin: Duration = 250.milliseconds,
+    val boundaryCardAfter: Duration = 400.milliseconds,
 ) {
     init {
         require(flipReleaseFallback > keyRepeatTimeout) { "flipReleaseFallback must outlast the key-repeat timeout" }

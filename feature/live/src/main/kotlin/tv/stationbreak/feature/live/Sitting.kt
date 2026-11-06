@@ -233,6 +233,8 @@ internal class Sitting(
                 previous?.let { left ->
                     launch {
                         delay(timings.boundaryCardAfter)
+                        // Only a picture gives way: a card already up (ident, slate) stays.
+                        if (state.value !is LiveState.Watching && state.value !is LiveState.Tuning) return@launch
                         tuner.stop(session)
                         heldBlockStartMs = null
                         state.value = LiveState.Ident(null, left.tag())
