@@ -19,6 +19,7 @@ import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.PlaybackRequest
+import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
@@ -55,6 +56,7 @@ class FakeMediaServer : MediaServer {
     var libraryItemIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
     var librarySeriesResult: ServerResult<SeriesPage> = ServerResult.Failure(MediaServerError.Unknown())
     var librarySeriesIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
+    var seriesByIdResult: ServerResult<SeriesInfo?> = ServerResult.Failure(MediaServerError.Unknown())
     var collectionsResult: ServerResult<CollectionPage> = ServerResult.Failure(MediaServerError.Unknown())
     var collectionIdsResult: ServerResult<ItemIdPage> = ServerResult.Failure(MediaServerError.Unknown())
     var collectionMembersResult: ServerResult<CollectionMemberPage> = ServerResult.Failure(MediaServerError.Unknown())
@@ -109,6 +111,9 @@ class FakeMediaServer : MediaServer {
 
     /** The library, start index and limit of each [librarySeriesIds] call. */
     val librarySeriesIdsCalls = mutableListOf<Triple<Library, Int, Int>>()
+
+    /** The ID of each [seriesById] call. */
+    val seriesByIdCalls = mutableListOf<ItemId>()
 
     /** Each [collections] call: start index, limit and the changed-since moment. */
     val collectionsCalls = mutableListOf<Triple<Int, Int, Instant?>>()
@@ -259,6 +264,14 @@ class FakeMediaServer : MediaServer {
         require(startIndex >= 0 && limit in 1..MediaServer.MAX_PAGE_SIZE) { "Bad page request" }
         librarySeriesIdsCalls += Triple(library, startIndex, limit)
         return librarySeriesIdsResult
+    }
+
+    override suspend fun seriesById(
+        session: Session,
+        id: ItemId,
+    ): ServerResult<SeriesInfo?> {
+        seriesByIdCalls += id
+        return seriesByIdResult
     }
 
     override suspend fun collections(

@@ -81,6 +81,7 @@ class StayCurrentRunner(
 
     // What a walk could not find, kept across runs in this process.
     private val unfindable = UnfindableIds()
+    private val hiddenSeries = HiddenSeriesMemory()
 
     /** How the last purge of this process ended, or null if none has run: the record of a skip or a failure. */
     internal var lastPurge: PurgeOutcome? = null
@@ -201,7 +202,15 @@ class StayCurrentRunner(
             return report.skipped(plan, Skip.AccountChanged)
         }
         runningNow.value = true
-        val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
+        val engine =
+            StayCurrentEngine(
+                repository,
+                server,
+                clock,
+                unfindable = unfindable,
+                report = report,
+                hiddenMemory = hiddenSeries,
+            )
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val generationBefore = repository.generationOrNull(account)
         val began = timeSource.markNow()

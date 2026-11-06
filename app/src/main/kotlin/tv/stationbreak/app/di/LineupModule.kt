@@ -128,6 +128,7 @@ internal object LineupModule {
                 probe?.onRefreshed()
             },
             derived = days,
+            unknownSeries = { Log.i(TAG, "UnknownSeriesEpisodes=$it") },
         )
     }
 

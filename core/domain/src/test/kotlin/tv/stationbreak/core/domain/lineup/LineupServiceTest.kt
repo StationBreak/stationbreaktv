@@ -19,9 +19,13 @@ import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -68,6 +72,39 @@ class LineupServiceTest {
 
             assertEquals(2, durations.size)
             assertTrue(durations.all { it >= 0 })
+        }
+
+    @Test
+    fun eachRefreshReportsHowManyEpisodesNameASeriesTheLibraryLacks() =
+        runBlocking<Unit> {
+            val counts = mutableListOf<Int>()
+            val seams = LineupSeams(TestCatalog, unknownSeries = { counts += it })
+            val counting = LineupService(store, library, clock, { offset }, { events += it }, seams)
+            val orphanedSeries = id(900)
+            val episodes =
+                (1..3).map { n ->
+                    val scheduled =
+                        ScheduleItem(
+                            id(800 + n),
+                            ScheduleItemKind.Episode,
+                            1_800_000L,
+                            ADDED_MS,
+                            null,
+                            null,
+                            2000,
+                            orphanedSeries,
+                            1,
+                            n,
+                        )
+                    RuleItem(scheduled, LIBRARY_ID, null, "TV-14", listOf("Drama"), emptyList())
+                }
+            library.delegate.seedRule(ACCOUNT, *episodes.toTypedArray())
+
+            counting.refresh(ACCOUNT, LIBRARIES)
+            library.delegate.seedSeries(ACCOUNT, RuleSeries(orphanedSeries, "TV-14", listOf("Drama"), emptyList()))
+            counting.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(listOf(3, 0), counts)
         }
 
     private fun storedMeta(account: LibraryAccount = ACCOUNT): RefreshMeta? =

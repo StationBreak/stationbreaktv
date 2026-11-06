@@ -45,6 +45,7 @@ internal sealed interface SyncOutcome {
  * rest of the library). A page that will not decode is halved until it is one item, and that item is skipped, up to
  * [maxSkippedItems]: decoding is strict by design, so one malformed item must not stop a library.
  */
+@Suppress("LongParameterList") // The sync's knobs, and where its counts-only log lines go.
 internal class FirstSyncEngine(
     private val repository: RoomLibraryRepository,
     private val server: MediaServer,
@@ -52,6 +53,7 @@ internal class FirstSyncEngine(
     private val pageSize: Int = MediaServer.MAX_PAGE_SIZE,
     private val margin: Duration = DEFAULT_MARGIN,
     private val maxSkippedItems: Int = MAX_SKIPPED_ITEMS,
+    private val report: (String) -> Unit = {},
 ) {
     /** How the collection pass at the end of the last run ended, or null if it did not get that far. */
     internal var lastCollectionPass: CollectionResult? = null
@@ -173,8 +175,21 @@ internal class FirstSyncEngine(
             if (seriesWalked != null) return seriesWalked
             val seriesCaught = readSeries(library, since, limit)
             if (seriesCaught != null) return seriesCaught
+            val hiddenFailed = readHiddenSeries(library)
+            if (hiddenFailed != null) return hiddenFailed
             repository.markFetched(account, library.id)
             return null
+        }
+
+        // The series the library's episodes name that the server's series list left out (issue 604): read by ID, once
+        // each, after the list's own. A series the server fails on is only counted and left for a later pass; only a
+        // session-level failure (an expired session, a server that cannot be reached) fails the sync.
+        private suspend fun readHiddenSeries(library: Library): SyncOutcome? {
+            val missing = repository.unstoredReferencedSeries(account, library)
+            val read =
+                server.readHiddenSeries(session, repository, account, library, missing, HiddenSeriesMemory(), false)
+            if (read.asked > 0) report(read.line())
+            return read.failure?.let { fail(it) }
         }
 
         /**

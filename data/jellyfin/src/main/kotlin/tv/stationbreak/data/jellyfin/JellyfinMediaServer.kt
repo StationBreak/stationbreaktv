@@ -30,6 +30,7 @@ import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.Scheme
+import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
@@ -233,6 +234,11 @@ class JellyfinMediaServer internal constructor(
         startIndex: Int,
         limit: Int,
     ): ServerResult<ItemIdPage> = media.librarySeriesIds(session, library, startIndex, limit)
+
+    override suspend fun seriesById(
+        session: Session,
+        id: ItemId,
+    ): ServerResult<SeriesInfo?> = media.seriesById(session, id)
 
     override suspend fun collections(
         session: Session,

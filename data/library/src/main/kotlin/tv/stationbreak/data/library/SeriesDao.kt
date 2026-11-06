@@ -127,6 +127,13 @@ internal abstract class SeriesDao {
         libraryId: String,
     ): List<String>
 
+    // Every live series the account has, in any library.
+    @Query("SELECT seriesId FROM series WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL")
+    abstract suspend fun allLiveIds(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
     // Every series the account has, live or tombstoned, in any library: the primary key's own prefix.
     @Query("SELECT seriesId FROM series WHERE serverId = :serverId AND userId = :userId")
     abstract suspend fun allIds(

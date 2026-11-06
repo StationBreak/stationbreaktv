@@ -135,6 +135,18 @@ class PagedMediaServer(
     /** The series of each library, for [librarySeries] and [librarySeriesIds]. A library with none has no series. */
     val seriesSources = mutableMapOf<ItemId, SeriesSource>()
 
+    /**
+     * Series the server holds but its series lists leave out (two series items with one provider id): reachable only
+     * by ID through [seriesById]. An ID in neither map is not a series ([seriesById] answers null).
+     */
+    val hiddenSeriesSources = mutableMapOf<ItemId, SeriesInfo>()
+
+    /** The ID of every [seriesById] call, in order. */
+    val seriesByIdCalls = mutableListOf<ItemId>()
+
+    /** Runs before each [seriesById] call is served. Return an error to fail the call, or null to serve it. */
+    var respondToSeriesById: (ItemId) -> MediaServerError? = { null }
+
     /** The account's BoxSets and their members, for [collections], [collectionIds] and [collectionMembers]. */
     var collectionSource = CollectionSource()
 
@@ -238,6 +250,16 @@ class PagedMediaServer(
         val all = seriesSources[library.id]?.series.orEmpty()
         val ids = all.drop(startIndex).take(limit).map { it.id }
         return ServerResult.Success(ItemIdPage(startIndex, if (startIndex == 0) all.size else null, ids))
+    }
+
+    override suspend fun seriesById(
+        session: Session,
+        id: ItemId,
+    ): ServerResult<SeriesInfo?> {
+        seriesByIdCalls += id
+        respondToSeriesById(id)?.let { return ServerResult.Failure(it) }
+        val listed = seriesSources.values.firstNotNullOfOrNull { source -> source.series.firstOrNull { it.id == id } }
+        return ServerResult.Success(hiddenSeriesSources[id] ?: listed)
     }
 
     override suspend fun collections(

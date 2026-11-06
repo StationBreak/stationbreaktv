@@ -481,6 +481,21 @@ class RoomLibraryRepository internal constructor(
         return seriesDao.tombstonedIds(server, user, library.value).map(::ItemId)
     }
 
+    /** The IDs of the series the live episodes of [library] name, whether or not the series is stored (issue 604). */
+    internal suspend fun referencedSeriesIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return dao.referencedSeriesIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of the live series the account has, in any library. */
+    internal suspend fun liveSeriesIdsAnywhere(account: LibraryAccount): List<ItemId> {
+        val (server, user) = account.keys()
+        return seriesDao.allLiveIds(server, user).map(::ItemId)
+    }
+
     /** The IDs of every series the account has, live or tombstoned, in any library. */
     internal suspend fun allSeriesIds(account: LibraryAccount): List<ItemId> {
         val (server, user) = account.keys()

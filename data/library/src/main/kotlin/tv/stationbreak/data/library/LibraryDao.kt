@@ -192,6 +192,17 @@ internal abstract class LibraryDao {
         libraryId: String,
     ): List<String>
 
+    // The distinct series the live episodes of [libraryId] name, listed or not (issue 604).
+    @Query(
+        "SELECT DISTINCT seriesId FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId AND deletedAtMs IS NULL AND seriesId IS NOT NULL ORDER BY seriesId",
+    )
+    abstract suspend fun referencedSeriesIds(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ): List<String>
+
     // The names of the live items among [ids] (at most MAX_VARIABLES of them), with the live series' name (spec 14).
     @Query(
         "SELECT item.itemId AS itemId, item.kind AS kind, item.name AS name, series.name AS seriesName, " +
