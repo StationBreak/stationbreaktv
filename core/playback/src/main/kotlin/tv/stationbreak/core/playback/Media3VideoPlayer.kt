@@ -232,7 +232,11 @@ class Media3VideoPlayer(
             drawOn(exo)
         }
 
-    /** Draws the front on [surface] instead of a view; for this module's instrumented tests. */
+    /**
+     * Draws the front on [surface] instead of a view; for this module's instrumented tests only (`internal` is the
+     * guard: `androidx.annotation`'s `@VisibleForTesting` is not on this module's classpath, and adding a dependency
+     * for it is not worth it).
+     */
     internal fun attachSurface(surface: Surface?) =
         onPlayerThread {
             surfaceView = null
@@ -490,7 +494,9 @@ class Media3VideoPlayer(
             }
         if (reason != WarmReason.None || next == null) {
             if (decision.swap) {
+                // decide() thought it ready, but the player is not: a failure of this standby, toward the breaker.
                 WarmLog.line("fallback reason=${reason.label} ageMs=${decision.ageMs} ${WarmLog.memoryFields()}")
+                warmState.fail(reason)
             }
             coldAt(generation, reason, decision)
             return null
@@ -501,13 +507,19 @@ class Media3VideoPlayer(
         return Handover(key, decision.ageMs, detachMs)
     }
 
-    /** Records play [generation] as cold for [reason], and drops a held standby it could not use. Looper only. */
+    /**
+     * Records play [generation] as cold for [reason], and drops a held standby it could not use. With warming off
+     * (switched off at run time, or the breaker just opened) the standby player itself is freed, not only its codec:
+     * no standby will be started again for this player, so keeping it would only hold memory. Looper only.
+     */
     private fun coldAt(
         generation: Long,
         reason: WarmReason,
         decision: Decision,
     ) {
-        if (warmState.held != null) {
+        if (warmState.disabled) {
+            releaseStandby("disabled")
+        } else if (warmState.held != null) {
             stopStandby()
             warmState.dropped(reason.label)
         }
@@ -544,7 +556,12 @@ class Media3VideoPlayer(
         return detachMs
     }
 
-    /** Starts the new front (the standby that was) from [source]'s start, with its picks and its sound. Looper only. */
+    /**
+     * Starts the new front (the standby that was) from [source]'s start, with its picks and its sound. Looper only.
+     * By design the play's [AvTimings] then lack the ready and video-decoder steps (`av.ready`, `av.videoDecoder`):
+     * both happened while it was the standby, before this play began. A warm flip is measured by [warmOutcome] and
+     * the tune's time to playing instead.
+     */
     private fun startSwapped(
         source: PlayerSource,
         generation: Long,
@@ -813,6 +830,8 @@ class Media3VideoPlayer(
                 if (onScreen != null && output !== onScreen) return
                 swapShown = null
                 WarmLog.line("swap shown playToFrameMs=${clock() - shown.second}")
+                // Belt and braces: the shape as of the first frame on screen, should no size event follow the swap.
+                aspect.onVideoSize(exo.videoSize)
             }
             emit(PlayerEvent.FirstFrame(clock(), active, skips.sincePlay()))
         }

@@ -169,7 +169,9 @@ internal class WarmStandby(
         val readyMs = if (ready != null) ready - startedAt else 0L
         val reason = coldReason(key, now)
         val swap = reason == WarmReason.None
-        if (!swap) log(withFields("fallback reason=${reason.label} ageMs=$ageMs", fallbackFields))
+        // A cold flip with no standby at all is no fallback: there was nothing to fall back from.
+        val nothingHeld = held == null && reason == WarmReason.Mismatch
+        if (!swap && !nothingHeld) log(withFields("fallback reason=${reason.label} ageMs=$ageMs", fallbackFields))
         return Decision(swap, reason, ageMs, readyMs)
     }
 

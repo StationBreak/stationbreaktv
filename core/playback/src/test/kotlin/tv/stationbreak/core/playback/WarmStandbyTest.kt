@@ -391,4 +391,30 @@ class WarmStandbyTest {
         s.decide("w2")
         assertTrue(logs.any { it.startsWith("fallback ") && it.endsWith(" javaKb=1") })
     }
+
+    @Test
+    fun mismatchWithNothingHeldLogsNoFallback() {
+        val s = standby()
+        val decision = s.decide("w1")
+        assertFalse(decision.swap)
+        assertEquals(WarmReason.Mismatch, decision.reason)
+        assertTrue("logged $logs", logs.none { it.startsWith("fallback") })
+    }
+
+    @Test
+    fun aReadyStandbyThePlayerCannotUseCountsTowardTheBreaker() {
+        // The player's own check at the swap (an error not yet delivered, or not READY): fail, then drop.
+        val s = standby(WarmConfig(warmMaxFailures = 3))
+        repeat(3) { n ->
+            val key = "w$n"
+            assertEquals(Request.Start, s.request(key))
+            s.onStateReady(key, s.epoch)
+            s.onDecoderUp(key, 10, s.epoch)
+            assertTrue(s.decide(key).swap)
+            s.fail(WarmReason.NotReady)
+            s.dropped(WarmReason.NotReady.label)
+        }
+        assertTrue(s.disabled)
+        assertEquals("disabled", skipReason(s.request("w9")))
+    }
 }

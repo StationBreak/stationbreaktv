@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -312,10 +313,14 @@ class WarmSwapTest {
         val generation = player.play(sourceAt(2.seconds, "w1"))
         await<PlayerEvent.Playing> { it.generation == generation }
         val expected = WIDTH.toFloat() / HEIGHT
-        assertEquals(expected, player.videoAspect.value!!, ASPECT_DELTA)
+        // The size reaches the screen with the first frame on it, which may follow Playing.
+        val shown =
+            runBlocking { withTimeoutOrNull(ASPECT_WAIT) { player.videoAspect.first { it != null } } }
+        assertNotNull("no shape within $ASPECT_WAIT of the swap", shown)
+        assertEquals("the new front's shape", expected, shown ?: 0f, ASPECT_DELTA)
         // The old front's stop reports no size the screen takes.
         Thread.sleep(SETTLE_MS)
-        assertEquals(expected, player.videoAspect.value!!, ASPECT_DELTA)
+        assertEquals("the shape after the old front stopped", expected, player.videoAspect.value ?: 0f, ASPECT_DELTA)
     }
 
     @Test
@@ -379,6 +384,9 @@ class WarmSwapTest {
         /** How far a play may run between its start and the Playing event, beyond the swap tolerance. */
         val FIRST_PLAY_SLACK = 500.milliseconds
         const val SETTLE_MS = 1_000L
+        val ASPECT_WAIT = 5.seconds
+
+        /** The surface matches the fixture `h264-aac-10s.mp4` (320x240, see assets/README.md); 4:3 is its shape. */
         const val WIDTH = 320
         const val HEIGHT = 240
         const val MAX_IMAGES = 3
