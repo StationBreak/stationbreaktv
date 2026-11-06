@@ -497,7 +497,10 @@ internal class LineupDays(
                 } else {
                     channel
                 }
-            val inputs = channelInputs(forDay, policyOf(channel, lineup), household, day?.second ?: false)
+            // The policy of the day played: a kids leftovers channel that starts later is off for it (#623).
+            val policy =
+                day?.let { policyOf(channel, lineup, LineupDay.startingAt(it.first)) } ?: policyOf(channel, lineup)
+            val inputs = channelInputs(forDay, policy, household, day?.second ?: false)
             val curated = day != null && !day.second && isCurated(channel, day.first)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
             return PlayKey(sha256Hex(fields.toString().encodeToByteArray()))
@@ -1188,7 +1191,7 @@ internal class LineupDays(
                 val on = byId[before.id]
                 // A channel that starts at a later boundary airs nothing today, so it claims nothing (#620).
                 if (on?.starting == true) continue
-                val pool = leftoversPool(before, snapshot, chain.claimed)
+                val pool = leftoversPool(before, snapshot, chain.claimed, chain.cut)
                 val items =
                     if (on != null) {
                         EpochPool.build(on.settings, pool.items, on.n)
@@ -1197,7 +1200,7 @@ internal class LineupDays(
                     }
                 items.mapTo(chain.claimed) { it.id }
             }
-            val pool = leftoversPool(s.channel, snapshot, chain.claimed)
+            val pool = leftoversPool(s.channel, snapshot, chain.claimed, chain.cut)
             val day = EpochPool.build(s.settings, pool.items, s.n)
             epochPools[s] = day
             // A leftovers channel is never curated: no keeps, no weights.
@@ -1274,15 +1277,23 @@ internal class LineupDays(
             val snapshot = snapshotOf(cut)
             val claimed = withheld(cut)
             return leftovers.filter { it.state == ChannelState.UserHidden }.flatMapTo(HashSet()) { channel ->
-                leftoversPool(channel, snapshot, claimed).items.map { it.id }
+                leftoversPool(channel, snapshot, claimed, cut).items.map { it.id }
             }
         }
 
+        // The pool under the policy of the day of [cut]: a kids leftovers channel that starts later is off (#623).
         private fun leftoversPool(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel, lineup))
+            cut: Cut,
+        ): Pool =
+            Leftovers.pool(
+                snapshot,
+                claimed,
+                ceilings.of(channel),
+                policyOf(channel, lineup, LineupDay.startingAt(cut.dayStartMs)),
+            )
 
         // Every opt-in recipe of the catalog, as the lineup holds it on the day (its rules for that day: the rules in
         // force, so a catalog swap or a re-resolve waiting for the boundary withholds today what it withheld before,

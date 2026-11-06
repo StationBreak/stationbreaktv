@@ -29,19 +29,46 @@ object KidStatus {
      * leftovers is open, not grown-up, while no kid leftovers channel is switched on in [lineup] (ADR-0020). Nothing
      * then takes the made-for-kids items the kid starters do not match, so the grown-up leftovers keeps them (under its
      * own ceiling) and the holds leave nothing airing nowhere. Grown-up starters keep the hold either way.
+     *
+     * Not day-scoped: it counts a kid leftovers channel that starts later as on. For one day's holds (a pool, a play
+     * key) use the overload with the [LineupDay]; this one is for what spans every day (the inputs key).
      */
     fun policyOf(
         channel: LineupChannel,
         lineup: Lineup,
+    ): PoolPolicy = policyOf(channel, hasKidLeftoversOn(lineup))
+
+    /**
+     * [policyOf] for the holds of [day] (D1, #623): a kid leftovers channel that starts after [day] airs nothing and
+     * claims nothing on it (#620), so it does not count as on, and the grown-up leftovers is open for the day. From
+     * its boundary it counts again.
+     */
+    fun policyOf(
+        channel: LineupChannel,
+        lineup: Lineup,
+        day: LineupDay,
+    ): PoolPolicy = policyOf(channel, hasKidLeftoversOn(lineup, day))
+
+    private fun policyOf(
+        channel: LineupChannel,
+        kidLeftoversOn: Boolean,
     ): PoolPolicy {
         val policy = basePolicyOf(channel)
         val grownUpLeftovers = policy == PoolPolicy.GrownUp && channel.source is ChannelSource.Leftovers
-        return if (grownUpLeftovers && !hasKidLeftoversOn(lineup)) PoolPolicy.Open else policy
+        return if (grownUpLeftovers && !kidLeftoversOn) PoolPolicy.Open else policy
     }
 
-    /** Whether [lineup] has a kid leftovers channel (Kids' Odds & Ends) switched on. */
-    fun hasKidLeftoversOn(lineup: Lineup): Boolean =
-        lineup.channels.any { it.source is ChannelSource.Leftovers && it.state == ChannelState.On && isKidChannel(it) }
+    /** Whether [lineup] has a kid leftovers channel (Kids' Odds & Ends) switched on, whenever it starts. */
+    fun hasKidLeftoversOn(lineup: Lineup): Boolean = lineup.channels.any { isKidLeftoversOn(it) }
+
+    /** Whether [lineup] has a kid leftovers channel switched on and started by [day]: one that starts later is off. */
+    fun hasKidLeftoversOn(
+        lineup: Lineup,
+        day: LineupDay,
+    ): Boolean = lineup.channels.any { isKidLeftoversOn(it) && !it.startsAfter(day) }
+
+    private fun isKidLeftoversOn(channel: LineupChannel): Boolean =
+        channel.source is ChannelSource.Leftovers && channel.state == ChannelState.On && isKidChannel(channel)
 
     /** A kid recipe: in the Kids band, or a key that was ever kid-safe. */
     fun isKidRecipe(recipe: Recipe): Boolean {

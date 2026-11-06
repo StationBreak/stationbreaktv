@@ -73,6 +73,23 @@ class KidStatusTest {
     }
 
     @Test
+    fun aKidLeftoversThatStartsAfterTheDayIsOffForThatDaysPolicy() {
+        fun lineupOf(vararg channels: LineupChannel) = Lineup(SERVER, USER, 1, 0, true, channels.toList())
+        val today = LineupDay(0L, 1_000L)
+        val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
+        val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
+        val starting = kids.copy(onSinceMs = today.endMs)
+        // Starting later: off today (open), on from its boundary; started: on.
+        assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds, lineupOf(starting, odds), today))
+        val tomorrow = LineupDay.startingAt(today.endMs)
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(starting, odds), tomorrow))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(kids, odds), today))
+        // The channel's own and a starter's policy do not depend on the day; the day-less one still counts it as on.
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(starting, lineupOf(starting, odds), today))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(starting, odds)))
+    }
+
+    @Test
     fun aCustomChannelStaysOpen() {
         assertEquals(PoolPolicy.Open, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
     }
