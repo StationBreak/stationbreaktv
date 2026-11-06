@@ -671,6 +671,7 @@ class BuiltInScheduleSource(
             val look = disk != null && shouldLook(account, key, generation)
             val restored = if (look) fromDisk(account, disk, scheduled, checkpoint) else null
             val diskMs = if (look) began.elapsedNow().inWholeMilliseconds else -1L
+            val reuseBegan = TimeSource.Monotonic.markNow()
             val dayInputs = days.dayInputsOf(lineup, scheduled, atMs)
             if (restored != null) {
                 keep(key, restored, epoch, generation, dayInputs)
@@ -681,6 +682,7 @@ class BuiltInScheduleSource(
                 synchronized(lock) {
                     remembered.reusable(key.account, key.libraries, generation, scheduled, dayInputs)
                 }
+            val reuseMs = reuseBegan.elapsedNow().inWholeMilliseconds
             val snapshotsBegan = TimeSource.Monotonic.markNow()
             val outcomes = ArrayList<SnapshotCache.Found>()
             val read = snapshotsFor(account, key, generation, checkpoint, outcomes, cutsToRead(scheduled, reused.keys))
@@ -690,8 +692,17 @@ class BuiltInScheduleSource(
             // days() never suspends, so it runs start to end on this one thread: its CPU time is that thread's.
             val threadBefore = probes.threadCpuNanos()
             var evaluations = 0
+            // The days finished when the lineup moves on mid-build are right for the inputs they were built from.
+            val done = ArrayList<ChannelDay>()
             val result =
-                days.days(lineup, scheduled, read.plain, read.filtered, checkpoint, reused) { evaluations++ }
+                try {
+                    days.days(lineup, scheduled, read.plain, read.filtered, checkpoint, reused, { done += it }) {
+                        evaluations++
+                    }
+                } catch (stale: StaleBuild) {
+                    keep(key, done, epoch, generation, dayInputs, whole = false)
+                    throw stale
+                }
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             keep(key, result, epoch, generation, dayInputs)
@@ -710,7 +721,7 @@ class BuiltInScheduleSource(
                     scheduled.firstOrNull()?.n ?: -1,
                     totalMs,
                     snapshotsMs,
-                    totalMs - snapshotsMs - maxOf(diskMs, 0),
+                    totalMs - snapshotsMs - maxOf(diskMs, 0) - reuseMs,
                     result.size,
                     poolsCpuMs = threadCpuMs(threadBefore, threadAfter),
                     snapshotsProcCpuMs = afterSnapshots.cpuMs - before.cpuMs,
@@ -723,6 +734,7 @@ class BuiltInScheduleSource(
                     diskMs = diskMs,
                     inputsMs = wanted.inputsMs,
                     reused = reused.size,
+                    reuseMs = reuseMs,
                 ),
             )
             return result
@@ -778,17 +790,19 @@ class BuiltInScheduleSource(
         return restored
     }
 
-    // Kept, and remembered for the next lineup to take over from (#589); not when the account's days were forgotten
-    // while the build ran ([forget]).
+    // Remembered for the next lineup to take over from (#589) and, when [whole] (the build finished), kept under [key];
+    // not when the account's days were forgotten while the build ran ([forget]).
     private fun keep(
         key: Key,
         result: List<ChannelDay>,
         epoch: Int,
         generation: Long,
         inputs: Map<ChannelId, LineupDays.DayInput>,
+        whole: Boolean = true,
     ) = synchronized(lock) {
         if (epoch != forgets) return@synchronized
         remembered.remember(key.account, key.libraries, generation, inputs, result)
+        if (!whole) return@synchronized
         kept[key] = result
         while (kept.size > KEPT) kept.remove(kept.keys.first())
     }
@@ -927,6 +941,8 @@ class BuiltInScheduleSource(
  *   per lineup: the same number for every build of that lineup, -1 when unknown.
  * - [reused] is how many of the [channels]' days were taken over from an earlier build of another lineup, not built
  *   (#589): the lineup change left their inputs alone.
+ * - [reuseMs] is the time it took to work out each channel's day inputs and match them to the remembered days; it is
+ *   not part of [poolsMs].
  * - [diskMs] is the time spent looking for the days on disk ([PersistedDays]): the whole build on a `disk` hit, the
  *   failed look on a miss, and -1 when the disk was not looked at.
  */
@@ -948,6 +964,7 @@ class DayBuild(
     val diskMs: Long = -1,
     val inputsMs: Long = -1,
     val reused: Int = 0,
+    val reuseMs: Long = -1,
 )
 
 /**

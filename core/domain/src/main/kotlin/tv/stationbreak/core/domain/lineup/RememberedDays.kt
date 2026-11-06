@@ -13,7 +13,10 @@ import tv.stationbreak.core.model.ItemId
  * account, the libraries, the library's content generation, the channel and its epoch) with the [LineupDays.DayInput]
  * it was made from, and is taken over only for an equal input from the very same library state. Anything else is built.
  *
- * Not thread-safe: the caller holds its own lock. At most [CAPACITY] days are kept, least recently used out first.
+ * Not thread-safe: the caller holds its own lock. What is kept is bounded to what a lineup can take over from: a build
+ * drops the days of the same account and libraries from another content generation (they can never match again) and
+ * those of a day that ended a whole day before its own oldest began; and at most three days of each channel of the
+ * build are kept (today, tomorrow, one more), least recently used out first, so a TV short of memory pins no dead days.
  */
 internal class RememberedDays {
     private data class Where(
@@ -29,7 +32,7 @@ internal class RememberedDays {
         val day: ChannelDay,
     )
 
-    private val made = LinkedHashMap<Where, Made>(CAPACITY, 0.75f, true)
+    private val made = LinkedHashMap<Where, Made>(INITIAL_SIZE, 0.75f, true)
 
     /**
      * The days of [scheduled] that can be taken over, by channel: made from the library [generation] for an input equal
@@ -51,7 +54,7 @@ internal class RememberedDays {
         return found
     }
 
-    /** Files [result], the days built from the library [generation] for [inputs]. */
+    /** Files [result], days built from the library [generation] for [inputs]; drops what can no longer match. */
     fun remember(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -59,21 +62,37 @@ internal class RememberedDays {
         inputs: Map<ChannelId, LineupDays.DayInput>,
         result: List<ChannelDay>,
     ) {
+        if (result.isEmpty()) return
+        // Another generation of this library can never match again; an old day has no lineup left to take it over.
+        val oldest = result.minOf { it.epochStartMs }
+        made.entries.removeAll {
+            val k = it.key
+            k.account == account && k.libraries == libraries &&
+                (k.generation != generation || it.value.day.endsBefore(oldest))
+        }
         for (day in result) {
             val input = inputs[day.channel.id] ?: continue
             made[Where(account, libraries, generation, day.channel.id, day.n)] = Made(input, day)
         }
-        while (made.size > CAPACITY) made.remove(made.keys.first())
+        val capacity = inputs.size * DAYS_KEPT
+        while (made.size > capacity) made.remove(made.keys.first())
     }
+
+    /** For tests: how many days are remembered. */
+    val size: Int get() = made.size
 
     /** Drops the days of the accounts [of] is true for. */
     fun forget(of: (LibraryAccount) -> Boolean) {
         made.keys.removeAll { of(it.account) }
     }
 
+    // Whether this day ended at least a whole epoch of its own before [startMs].
+    private fun ChannelDay.endsBefore(startMs: Long): Boolean = epochStartMs + 2 * settings.epochMs <= startMs
+
     private companion object {
-        /** Today and tomorrow of a lineup of a few dozen channels, for a few revisions. */
-        const val CAPACITY = 512
+        /** Today, tomorrow, and one more of every channel of a build. */
+        const val DAYS_KEPT = 3
+        const val INITIAL_SIZE = 64
     }
 }
 

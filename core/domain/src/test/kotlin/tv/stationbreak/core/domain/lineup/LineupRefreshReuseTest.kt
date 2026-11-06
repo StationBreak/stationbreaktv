@@ -30,8 +30,9 @@ class LineupRefreshReuseTest {
     private val now = NOON.toEpochMilliseconds() + 2 * hour
     private val noNames = CollectionNames(emptyMap())
 
-    // Catalog 2 as a ranked catalog (its recipes are not programmed); catalog 3 selects by identity, programs every
-    // recipe, and adds a channel.
+    // Catalog 2 as a ranked catalog (the installed lineup was planned with it); catalog 3 selects by identity, programs
+    // every recipe, and adds a channel. Every build here is of catalog 3, as after an upgrade: the app's catalog is the
+    // new one from its first build, and only the plan under it comes later.
     private val v2 =
         object : StarterCatalogView by TestCatalog {
             override val version: Int = 2
@@ -119,7 +120,7 @@ class LineupRefreshReuseTest {
     fun theBuildAfterACatalogSwapWorksOutOnlyTheChannelsTheSwapMoves() {
         val first = plan(rankedLineup(), now - hour, v2)
         val swapped = plan(first, now, v3)
-        val (_, served) = build(v2, first)
+        val (_, served) = build(v3, first)
 
         val (reusing, _) = build(v3, swapped, from = served)
         val (full, _) = build(v3, swapped)
@@ -164,11 +165,11 @@ class LineupRefreshReuseTest {
     @Test
     fun aChannelWhoseRulesForTodayChangedIsBuiltAndSoAreTheLeftoversThatClaimFromIt() {
         val first = plan(rankedLineup(), now - hour, v2)
-        val (_, served) = build(v2, first)
+        val (_, served) = build(v3, first)
         val edited = withCustomRules(first, "Documentary")
 
-        val (reusing, _) = build(v2, edited, from = served)
-        val (full, _) = build(v2, edited)
+        val (reusing, _) = build(v3, edited, from = served)
+        val (full, _) = build(v3, edited)
 
         val custom = ChannelId("custom-1")
         assertTrue(custom !in reusing.reused, "the edited channel is built")

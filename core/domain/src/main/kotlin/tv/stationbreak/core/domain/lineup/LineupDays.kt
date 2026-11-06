@@ -572,7 +572,7 @@ internal class LineupDays(
      */
     internal data class DayInput(
         val key: PlayKey,
-        val server: Any,
+        val server: CanonicalId,
         val offset: Int,
         val settings: SchedulerSettings,
         val n: Long,
@@ -580,7 +580,31 @@ internal class LineupDays(
         val starting: Boolean,
         val curation: DayCuration?,
         val recipes: List<Recipe?>,
-        val claims: List<Any?>?,
+        val claims: ClaimsInput?,
+    )
+
+    /**
+     * What a leftovers channel's day reads of the rest of the lineup: [channels] (see [ClaimedChannel]), the order the
+     * leftovers claim in ([claimOrder]), the household flag of the day (the opt-in recipes read it), and the catalog's
+     * opt-in recipes ([optIn]: those not followed as an unedited starter are resolved from the catalog).
+     */
+    internal data class ClaimsInput(
+        val channels: List<ClaimedChannel>,
+        val claimOrder: List<ChannelId>,
+        val household: Boolean,
+        val optIn: List<Recipe>,
+    )
+
+    /** One channel as a leftovers day reads it: its play key, its rules for the day, and its scheduled day if any. */
+    internal data class ClaimedChannel(
+        val id: ChannelId,
+        val key: PlayKey,
+        val rules: ChannelRules?,
+        val settings: SchedulerSettings?,
+        val n: Long?,
+        val cut: Cut?,
+        val starting: Boolean?,
+        val curation: DayCuration?,
     )
 
     /** The [DayInput] of every channel of [scheduled], for [lineup] at [atMs] (the moment [scheduled] is for). */
@@ -596,6 +620,7 @@ internal class LineupDays(
         val onAir = scheduled.associateBy { it.channel.id }
         val optIn = catalog.recipes.filter { it.optIn }
         val optInIds = optIn.mapTo(HashSet()) { LineupIds.starter(it.key) }
+        val claiming = claimOrder(lineup).mapTo(HashSet()) { it.id }
         val out = LinkedHashMap<ChannelId, DayInput>()
         for (s in scheduled) {
             val members = s.curation?.on.orEmpty()
@@ -606,12 +631,13 @@ internal class LineupDays(
                     null
                 } else {
                     // What a leftovers day reads of a channel: one that airs, one the user hid, an opt-in recipe's, a
-                    // member of its curation. Not one that is off, on the shelf, or starting later (and not opt-in).
+                    // member of its curation, and every leftovers channel that claims (a starting one claims too).
+                    // Not one that is off, on the shelf, or starting later and none of those.
                     val relevant =
                         lineup.channels.filter {
                             val on = onAir[it.id]
                             (on != null && !on.starting) || it.state == ChannelState.UserHidden ||
-                                it.id in optInIds || it.id in members
+                                it.id in optInIds || it.id in members || it.id in claiming
                         }
                     claimsOf(lineup, s, relevant.sortedBy { it.id.value }, onAir, key, optIn)
                 }
@@ -632,9 +658,7 @@ internal class LineupDays(
         return out
     }
 
-    // A leftovers day's reads of the rest of the lineup, as values: each relevant channel's play key and scheduled
-    // day, the order the leftovers claim in, the household flag of the day (the opt-in recipes read it), and the opt-in
-    // recipes of the catalog (those not followed as an unedited starter are resolved from it).
+    // A leftovers day's reads of the rest of the lineup, as values ([ClaimsInput]).
     @Suppress("LongParameterList") // What the leftovers day reads, one for one.
     private fun claimsOf(
         lineup: Lineup,
@@ -643,18 +667,28 @@ internal class LineupDays(
         onAir: Map<ChannelId, Scheduled>,
         key: (LineupChannel) -> PlayKey,
         optIn: List<Recipe>,
-    ): List<Any?> {
+    ): ClaimsInput {
         val channels =
             relevant.map {
                 val on = onAir[it.id]
-                listOf(key(it), on?.settings, on?.n, on?.cut, on?.starting, on?.curation)
+                val rules =
+                    when (val source = it.source) {
+                        is ChannelSource.Starter -> source.rulesFor(s.dayStartMs)
+                        is ChannelSource.Custom -> source.rules
+                        is ChannelSource.Leftovers, is ChannelSource.Unusable -> null
+                    }?.copy(name = null)
+                ClaimedChannel(
+                    it.id,
+                    key(it),
+                    rules,
+                    on?.settings,
+                    on?.n,
+                    on?.cut,
+                    on?.starting,
+                    on?.curation,
+                )
             }
-        return listOf(
-            channels,
-            claimOrder(lineup).map { it.id },
-            lineup.householdFor(s.dayStartMs),
-            optIn,
-        )
+        return ClaimsInput(channels, claimOrder(lineup).map { it.id }, lineup.householdFor(s.dayStartMs), optIn)
     }
 
     private fun recipeOf(channel: LineupChannel?): Recipe? {
@@ -688,7 +722,8 @@ internal class LineupDays(
      * The days of [scheduled] (from [scheduled] for [lineup]), each from `snapshots[cutoffMs]`, or from
      * `filteredSnapshots[cutoffMs]` (the same snapshot with the extras taken out) for a day with [Scheduled.extras].
      * [beforeChannel] is called before each channel's day is worked out; a caller that has stopped needing the days
-     * throws from it. [evaluated] is called once per `PoolEvaluator.evaluate` run, to count them. A channel in
+     * throws from it. [finished] is told each day that was built (not a reused one) as soon as it is.
+     * [evaluated] is called once per `PoolEvaluator.evaluate` run, to count them. A channel in
      * [reused] is given that day, as the channel [scheduled] shows it, and nothing of it is worked out: the caller
      * vouches that its [DayInput] and the library are those the day was built from (#589). A snapshot is needed only
      * for the cut of a day that is built, and for every cut when a leftovers channel's day is (its claims read them).
@@ -701,8 +736,12 @@ internal class LineupDays(
         filteredSnapshots: Map<Long, RuleSnapshot> = emptyMap(),
         beforeChannel: () -> Unit = {},
         reused: Map<ChannelId, ChannelDay> = emptyMap(),
+        finished: (ChannelDay) -> Unit = {},
         evaluated: () -> Unit = {},
-    ): List<ChannelDay> = Build(lineup, snapshots, filteredSnapshots, evaluated).days(scheduled, beforeChannel, reused)
+    ): List<ChannelDay> {
+        val build = Build(lineup, snapshots, filteredSnapshots, evaluated)
+        return build.days(scheduled, beforeChannel, reused, finished)
+    }
 
     /**
      * The day of [s] as a day kept on disk ([PersistedDays]) is made back into: [pool] is the day pool as it was kept
@@ -861,8 +900,10 @@ internal class LineupDays(
      * One computation over one lineup and its snapshots. Pools are worked out once each.
      *
      * Any new read of the lineup here (a field of a channel or of the lineup, or a new place a number or a name counts)
-     * must be added to [inputsOf] too, or two lineups that build different days would share the kept ones.
-     * `DayInputsDifferentialTest` checks the two agree over every edit.
+     * must be added to [inputsOf] AND to [DayInput] (or [ClaimsInput]) too, or two lineups that build different days
+     * would share the kept ones, and a stale day taken over from an earlier build would be written to disk under the
+     * new lineup's key. `DayInputsDifferentialTest` checks [inputsOf] over every edit; `DayInputReuseTest` checks
+     * [DayInput] and drops each of its fields in turn to show a test fails for it.
      */
     private inner class Build(
         private val lineup: Lineup,
@@ -927,11 +968,12 @@ internal class LineupDays(
             scheduled: List<Scheduled>,
             beforeChannel: () -> Unit = {},
             reused: Map<ChannelId, ChannelDay> = emptyMap(),
+            finished: (ChannelDay) -> Unit = {},
         ): List<ChannelDay> {
             val ruled = HashMap<Scheduled, ChannelDay>()
             for (s in scheduled.filter { it.channel.source !is ChannelSource.Leftovers }) {
                 beforeChannel()
-                ruled[s] = reused[s.channel.id]?.let { reuse(s, it) } ?: builtDay(s)
+                ruled[s] = reused[s.channel.id]?.let { reuse(s, it) } ?: builtDay(s).also(finished)
             }
             // The leftovers claim exactly (F5): the epoch pool of every channel that is on and not curated, and per
             // cut the curated claims of the day's curation ([ClaimChain]). Trimmed items stay claimed (plan Resolution
@@ -959,7 +1001,7 @@ internal class LineupDays(
                     reused[s.channel.id]?.let { reuse(s, it) } ?: run {
                         val claims = claimsFor(s, curatedCuts)
                         val chain = chains.getOrPut(s.cut to claims?.second) { ClaimChain(s.cut, claims, claimedByOn) }
-                        leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId)
+                        leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId).also(finished)
                     }
             }
             return scheduled.map { checkNotNull(ruled[it] ?: leftoversDays[it]) }

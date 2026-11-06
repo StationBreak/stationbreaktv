@@ -2,10 +2,11 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupIds
-import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.rules.Source
 import java.util.Collections
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,24 +28,8 @@ class BuiltInScheduleSourceReuseTest {
         }
     private val builds = Collections.synchronizedList(mutableListOf<DayBuild>())
 
-    // The catalog the service plans with: catalog 2 until a test swaps it.
-    private class Swappable(
-        var current: StarterCatalogView,
-    ) : StarterCatalogView {
-        override val version get() = current.version
-        override val recipes get() = current.recipes
-        override val leftovers get() = current.leftovers
-        override val retiredNumbers get() = current.retiredNumbers
-        override val retiredKeys get() = current.retiredKeys
-        override val selectsByIdentity get() = current.selectsByIdentity
-    }
-
-    private val catalog =
-        Swappable(
-            object : StarterCatalogView by TestCatalog {
-                override val version: Int = 2
-            },
-        )
+    // The app's catalog from its first build on, as after an upgrade: catalog 3, with one more channel than catalog 2.
+    private val catalog = programmedCatalog(3, selects = true)
     private val service = LineupService(store, counting, clock, { 0 }, {}, catalog)
     private val chosen: Set<ItemId> = LIBRARIES
     private val source = BuiltInScheduleSource(service, counting, built = { builds += it }) { chosen }
@@ -52,6 +37,26 @@ class BuiltInScheduleSourceReuseTest {
     init {
         runBlocking { counting.delegate.useAccount(ACCOUNT) }
         counting.seed(fillingLibrary())
+    }
+
+    // The lineup the previous version of the app left, planned with catalog 2.
+    private fun holdingOlder() {
+        // As the previous version wrote its rules: back to back (alignToGrid false), as the swap's previous rules say.
+        fun written(
+            name: String,
+            vararg sources: Source,
+            maxRating: String? = null,
+        ) = rules(name, *sources, maxRating = maxRating).let { it.copy(timing = it.timing.copy(alignToGrid = false)) }
+        val older =
+            lineupOf(
+                starter("toons", 10, ChannelState.On, written("Toons", Source.Genre("Animation"), maxRating = "G")),
+                starter("laughs", 110, ChannelState.On, written("Laughs", Source.Genre("Comedy"))),
+                starter("whodunit", 210, ChannelState.On, written("Whodunit", Source.Genre("Crime"))),
+                starter("westerns", 220, ChannelState.On, written("Westerns", Source.Genre("Western"))),
+                leftovers("kids-odds-and-ends", 99, "PG"),
+                leftovers("odds-and-ends", 199, null),
+            ).copy(catalogVersion = 2)
+        runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(older)) }
     }
 
     private fun refresh() = runBlocking { service.refresh(ACCOUNT, LIBRARIES) }
@@ -70,6 +75,7 @@ class BuiltInScheduleSourceReuseTest {
 
     @Test
     fun anEditThatMovesOneChannelBuildsOnlyThatChannelAndWhatClaimsFromIt() {
+        holdingOlder()
         refresh()
         days()
         switchOff("laughs")
@@ -89,6 +95,7 @@ class BuiltInScheduleSourceReuseTest {
 
     @Test
     fun aChangeToTheLibraryTakesNothingOver() {
+        holdingOlder()
         refresh()
         days()
         counting.seed(movie(900, "Comedy", rating = "R"))
@@ -103,11 +110,11 @@ class BuiltInScheduleSourceReuseTest {
     // and only what the swap really changes for today is built again.
     @Test
     fun theBuildAfterACatalogSwapTakesOverTheDaysOfTheChannelsAlreadyOnTheAir() {
-        refresh()
-        days()
-        catalog.current = programmedCatalog(3, selects = true)
+        holdingOlder()
+        val before = days()
         refresh()
         val second = days()
+        assertTrue(before.isNotEmpty())
 
         assertEquals(2, builds.size, "a build for each lineup")
         val last = builds.last()
