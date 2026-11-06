@@ -235,7 +235,7 @@ internal object LineupModule {
                         "snapshotsProcCpuMs=${it.snapshotsProcCpuMs} " +
                         "poolsProcCpuMs=${it.poolsProcCpuMs} gcCount=${it.gcCount} gcBlockMs=${it.gcBlockMs} " +
                         "snapshot=${it.snapshot} evaluations=${it.evaluations} allocKb=${it.allocKb} " +
-                        "diskMs=${it.diskMs} inputsMs=${it.inputsMs}",
+                        "diskMs=${it.diskMs} inputsMs=${it.inputsMs} reused=${it.reused} reuseMs=${it.reuseMs}",
                 )
             },
             laidOut = { day, ms -> Log.i(TAG, "DayLayout day=$day ms=$ms") },
