@@ -163,6 +163,13 @@ class WarmSwapTest {
             }
         }
 
+    private fun linesWithin(window: Duration): List<String> =
+        runBlocking {
+            val out = mutableListOf<String>()
+            withTimeoutOrNull(window) { while (true) out += lines.receive() }
+            out
+        }
+
     private fun eventsWithin(window: Duration): List<PlayerEvent> =
         runBlocking {
             val out = mutableListOf<PlayerEvent>()
@@ -430,6 +437,8 @@ class WarmSwapTest {
         }
         val handle = player.warm(sourceAt(4.seconds))
         awaitLine("skipped ", "key=$handle", "reason=disabled")
+        player.warm(sourceAt(4.seconds))
+        assertTrue("disabled was said twice", linesWithin(1.seconds).none { it.startsWith("skipped") })
         assertNull("warming is paused for the visit", standby())
         val generation = player.play(sourceAt(4.seconds, handle))
         assertEquals(WarmReason.Disabled, decidedThenPlaying(generation).first.reason)

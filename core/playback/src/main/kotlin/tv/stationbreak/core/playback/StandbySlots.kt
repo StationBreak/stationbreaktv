@@ -103,9 +103,8 @@ internal class StandbySlots(
     /** The source the standby was last started with, for a video-only retry. */
     private var standbySource: PlayerSource? = null
 
-    /** Polls [WarmStandby.evaluate] while a standby is being built. */
+    /** Acts on [WarmStandby.evaluate] at the standby's next deadline ([scheduleCheck]). */
     private val standbyCheck = Runnable { checkStandby() }
-    private val checkEveryMs = minOf(config.warmDecoderGraceMs, config.warmReadyTimeoutMs)
 
     /** Set by [release]: no standby is built or started after it. */
     private var released = false
@@ -123,9 +122,9 @@ internal class StandbySlots(
         source: PlayerSource,
     ) {
         if (released) return
-        when (val request = state.request(key)) {
+        when (state.request(key)) {
+            // WarmStandby logs the skip.
             is Request.Skip -> {
-                WarmLog.line("skipped key=$key reason=${request.reason}")
                 if (state.disabled) releaseStandby("disabled")
             }
 
@@ -230,20 +229,29 @@ internal class StandbySlots(
                 .build()
         slot.exo.setMediaItem(mediaItem(source, WARM_ID + epoch), source.playerStart.inWholeMilliseconds)
         slot.exo.prepare()
-        handler.removeCallbacks(standbyCheck)
-        handler.postDelayed(standbyCheck, checkEveryMs)
+        scheduleCheck()
         WarmLog.line(
             "prepare key=${state.held} startMs=${source.playerStart.inWholeMilliseconds} " +
                 "audio=${if (audioOn) "on" else "off"}",
         )
     }
 
-    /** Acts on the standby's verdict while it is being built; polls again while it is pending. */
+    /**
+     * One check, exactly at the standby's next deadline ([WarmStandby.nextCheckInMs]): the ready timeout from the
+     * start, then the decoder grace from ready to play. Moved whenever the standby's state changes; none once it is
+     * ready or failed.
+     */
+    private fun scheduleCheck() {
+        handler.removeCallbacks(standbyCheck)
+        state.nextCheckInMs()?.let { handler.postDelayed(standbyCheck, it) }
+    }
+
+    /** Acts on the standby's verdict at a deadline; one still pending (a clock edge) is checked again at the next. */
     private fun checkStandby() {
         if (state.held == null) return
         when (state.evaluate()) {
             Verdict.Pending -> {
-                handler.postDelayed(standbyCheck, checkEveryMs)
+                scheduleCheck()
             }
 
             // Ready: nothing more to watch; the swap decision reads it.
@@ -389,7 +397,10 @@ internal class StandbySlots(
         ) {
             val epoch = epochOf(eventTime) ?: return
             val warmState = this@StandbySlots.state
-            if (state == Player.STATE_READY) warmState.held?.let { warmState.onStateReady(it, epoch) }
+            if (state != Player.STATE_READY) return
+            warmState.held?.let { warmState.onStateReady(it, epoch) }
+            // The decoder grace starts now.
+            scheduleCheck()
         }
 
         override fun onVideoDecoderInitialized(
@@ -400,6 +411,8 @@ internal class StandbySlots(
         ) {
             val epoch = epochOf(eventTime) ?: return
             state.held?.let { state.onDecoderUp(it, initializationDurationMs, epoch) }
+            // Ready now (no check left), or still waiting for READY.
+            scheduleCheck()
         }
 
         override fun onPlayerError(

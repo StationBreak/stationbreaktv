@@ -444,7 +444,78 @@ class WarmStandbyTest {
         // The reason is the device check's: the denylist, a missing decoder, Media3's list, or a check that failed.
         val s = standby(deviceCannot = { "deviceCheck" })
         assertEquals("disabled", skipReason(s.request("w1")))
-        assertEquals(listOf("disabled reason=deviceCheck failures=0"), logs)
+        assertEquals(listOf("disabled reason=deviceCheck failures=0", "skipped key=w1 reason=disabled"), logs)
         assertTrue(s.disabled)
+    }
+
+    @Test
+    fun theOnlyCheckBeforeReadyIsTheReadyTimeout() {
+        val s = standby()
+        assertNull("nothing held, nothing to check", s.nextCheckInMs())
+        s.request("w1")
+        assertEquals(15_000L, s.nextCheckInMs())
+        now += 4_000
+        assertEquals(11_000L, s.nextCheckInMs())
+    }
+
+    @Test
+    fun onceReadyTheDecoderGraceIsChecked() {
+        val s = standby()
+        s.request("w1")
+        now += 2_000
+        s.onStateReady("w1")
+        assertEquals(1_500L, s.nextCheckInMs())
+        now += 1_500
+        assertEquals(0L, s.nextCheckInMs())
+        assertEquals(Verdict.DecoderMissing, s.evaluate())
+    }
+
+    @Test
+    fun theTimeoutComesFirstWhenItIsSooner() {
+        val s = standby()
+        s.request("w1")
+        now += 14_000
+        s.onStateReady("w1")
+        assertEquals(1_000L, s.nextCheckInMs())
+        now += 1_000
+        assertEquals(Verdict.TimedOut, s.evaluate())
+    }
+
+    @Test
+    fun aReadyOrFailedStandbyNeedsNoCheck() {
+        val s = standby()
+        s.request("w1")
+        s.onStateReady("w1")
+        s.onDecoderUp("w1", 10)
+        assertNull(s.nextCheckInMs())
+        s.request("w2")
+        s.fail(WarmReason.Timeout)
+        assertNull(s.nextCheckInMs())
+    }
+
+    @Test
+    fun anAudioRetryStartsTheTimeoutAgain() {
+        val s = standby()
+        s.request("w1")
+        now += 5_000
+        assertEquals(ErrorAction.RetryVideoOnly, s.onError("w1", audio = true))
+        assertEquals(15_000L, s.nextCheckInMs())
+    }
+
+    @Test
+    fun aDisabledSkipIsSaidOncePerPlayer() {
+        // The warm calls go on while warming is off; the line would repeat on every flip with nothing new to say.
+        val s = standby(WarmConfig(warmNextDecoder = false))
+        repeat(3) { n -> assertEquals("disabled", skipReason(s.request("w$n"))) }
+        assertEquals(listOf("skipped key=w0 reason=disabled"), logs.filter { it.startsWith("skipped") })
+    }
+
+    @Test
+    fun anAlreadyWarmSkipIsSaidEachTime() {
+        val s = standby()
+        s.request("w1")
+        s.request("w1")
+        s.request("w1")
+        assertEquals(2, logs.count { it == "skipped key=w1 reason=alreadyWarm" })
     }
 }

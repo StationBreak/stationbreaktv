@@ -86,6 +86,7 @@ internal class WarmStandby(
     val disabled: Boolean get() = !config.warmOn(switches) || deviceOff || breakerOpen || trimPaused
 
     private var audioFailed = false
+    private var disabledSaid = false
     private var deviceChecked = false
     private var deviceOff = false
     private var breakerOpen = false
@@ -97,8 +98,27 @@ internal class WarmStandby(
     private var decoderInitMs: Long? = null
     private var readyAt: Long? = null
 
+    /**
+     * Whether to start a standby for [key]. A skip is logged (`skipped key reason`); `disabled` once per instance
+     * (the player), as warming stays off for its life and the warm calls go on.
+     */
+    fun request(key: String): Request = startOrSkip(key).also { if (it is Request.Skip) saySkipped(key, it) }
+
+    /**
+     * When to call [evaluate] next, in ms from now: the decoder grace once the standby is ready to play, else the
+     * ready timeout, whichever comes first (0 when one has passed); null when there is nothing to watch (none held,
+     * ready, or failed). The player checks once at that time instead of polling.
+     */
+    fun nextCheckInMs(): Long? {
+        if (held == null || failReason != null || readyAt != null) return null
+        val now = clock()
+        val timeoutIn = startedAt + config.warmReadyTimeoutMs - now
+        val graceIn = stateReadyAt?.let { it + config.warmDecoderGraceMs - now } ?: timeoutIn
+        return minOf(timeoutIn, graceIn).coerceAtLeast(0)
+    }
+
     @Suppress("ReturnCount") // Each early return is a reason not to start a standby.
-    fun request(key: String): Request {
+    private fun startOrSkip(key: String): Request {
         if (!config.warmOn(switches) || breakerOpen || trimPaused) return DISABLED
         if (!deviceChecked) {
             deviceChecked = true
@@ -245,6 +265,17 @@ internal class WarmStandby(
     /** Memory trim: no more warming until a new instance is constructed (the next visit). */
     fun pauseForVisit() {
         trimPaused = true
+    }
+
+    private fun saySkipped(
+        key: String,
+        skip: Request.Skip,
+    ) {
+        if (skip == DISABLED) {
+            if (disabledSaid) return
+            disabledSaid = true
+        }
+        log("skipped key=$key reason=${skip.reason}")
     }
 
     private fun markReadyIfBoth() {
