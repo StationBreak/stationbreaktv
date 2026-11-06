@@ -13,7 +13,7 @@ class WarmStandbyTest {
 
     private fun standby(
         config: WarmConfig = WarmConfig(),
-        deviceCannot: () -> Boolean = { false },
+        deviceCannot: () -> String? = { null },
     ) = WarmStandby(config, WarmSwitches.None, deviceCannot, { now }, { logs += it })
 
     private fun skipReason(request: Request): String = (request as Request.Skip).reason
@@ -296,7 +296,11 @@ class WarmStandbyTest {
     @Test
     fun deviceListOffsAtFirstRequest() {
         var calls = 0
-        val s = standby(deviceCannot = { calls++ >= 0 })
+        val s =
+            standby(deviceCannot = {
+                calls++
+                "deviceList"
+            })
         assertEquals("disabled", skipReason(s.request("w1")))
         assertEquals("disabled", skipReason(s.request("w1")))
         assertEquals(1, calls)
@@ -368,7 +372,7 @@ class WarmStandbyTest {
 
     @Test
     fun disabledOnTheDeviceListOnceAsked() {
-        val s = standby(deviceCannot = { true })
+        val s = standby(deviceCannot = { "deviceList" })
         s.request("w1")
         assertTrue(s.disabled)
     }
@@ -379,7 +383,7 @@ class WarmStandbyTest {
             WarmStandby(
                 WarmConfig(),
                 WarmSwitches.None,
-                { false },
+                { null },
                 { now },
                 { logs += it },
                 StandbyFields(ready = { "framesDecoded=3" }, fallback = { "javaKb=1" }),
@@ -433,5 +437,14 @@ class WarmStandbyTest {
         s.dropped(decision.reason.label)
         assertFalse("a changed source opened the breaker", s.disabled)
         assertTrue(s.decide("w1").reason == WarmReason.Mismatch)
+    }
+
+    @Test
+    fun aDeviceThatCannotSaysWhy() {
+        // The reason is the device check's: the denylist, a missing decoder, Media3's list, or a check that failed.
+        val s = standby(deviceCannot = { "deviceCheck" })
+        assertEquals("disabled", skipReason(s.request("w1")))
+        assertEquals(listOf("disabled reason=deviceCheck failures=0"), logs)
+        assertTrue(s.disabled)
     }
 }

@@ -93,7 +93,9 @@ class Media3VideoPlayer(
 
             override fun drawOn(target: ExoPlayer) = this@Media3VideoPlayer.drawOn(target)
 
-            override fun deviceCannot(): Boolean = deviceCannotWarm(context)
+            override fun deviceCannot(): String? = DeviceWarmth.of(context).cannot(warm.warmDeviceDenylist)
+
+            override fun decoderMissing() = DeviceWarmth.of(context).markDecoderMissing()
         }
 
     private val handler: Handler
@@ -640,14 +642,6 @@ class Media3VideoPlayer(
 
         /** The prefix of the warm handles [warm] issues; the player's counter follows it. */
         const val WARM_HANDLE = "w"
-
-        /** The no-surface decoder list's answer, once per process: reading it builds a renderer. */
-        @Volatile var deviceCannot: Boolean? = null
-
-        fun deviceCannotWarm(context: Context): Boolean {
-            val known = deviceCannot
-            return known ?: NoSurfaceDecoders.deviceCannot(context).also { deviceCannot = it }
-        }
 
         /** The tag live TV's measurement lines use, so a device run collects this line with them. */
         const val MEMORY_LOG_TAG = "SBLIVE"

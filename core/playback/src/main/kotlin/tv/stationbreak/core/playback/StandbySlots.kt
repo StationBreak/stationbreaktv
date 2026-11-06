@@ -43,8 +43,11 @@ internal interface SlotHost {
     /** Puts the app's output (a view or a bare surface) on [target]; with none, clears [target]'s. */
     fun drawOn(target: ExoPlayer)
 
-    /** True when this device cannot run a decoder without a surface (asked once per player). */
-    fun deviceCannot(): Boolean
+    /** Why this device cannot warm ([DeviceWarmth]), or null when it can; asked once per player. */
+    fun deviceCannot(): String?
+
+    /** The runtime probe found no decoder behind a ready standby: kept for the process ([DeviceWarmth]). */
+    fun decoderMissing()
 }
 
 /** What the hand-over logs. */
@@ -250,6 +253,7 @@ internal class StandbySlots(
 
             Verdict.DecoderMissing -> {
                 state.decoderMissing()
+                host.decoderMissing()
                 stopStandby()
                 releaseStandby("disabled")
             }

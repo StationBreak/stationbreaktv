@@ -18,6 +18,7 @@ class WarmConfigTest {
         assertEquals(1_500L, config.warmDecoderGraceMs)
         assertEquals(250L, config.warmSeekToleranceMs)
         assertEquals(3, config.warmMaxFailures)
+        assertEquals(setOf("AFTJMST12"), config.warmDeviceDenylist)
     }
 
     @Test

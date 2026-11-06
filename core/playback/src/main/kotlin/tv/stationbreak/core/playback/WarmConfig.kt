@@ -4,6 +4,8 @@ package tv.stationbreak.core.playback
 /**
  * The spec 24 tunables for keeping the next channel's decoder warm: values only, with safe defaults; nothing here is
  * hard-coded where it is used. A debug build's device-side switches over them are [WarmSwitches].
+ * [warmDeviceDenylist] lists the device models (`Build.MODEL`) that never warm, whatever Media3's own list says: the
+ * Insignia (AFTJMST12), which cannot run a decoder without a surface.
  */
 data class WarmConfig(
     val warmNextDecoder: Boolean = true,
@@ -13,6 +15,7 @@ data class WarmConfig(
     val warmDecoderGraceMs: Long = 1_500,
     val warmSeekToleranceMs: Long = 250,
     val warmMaxFailures: Int = 3,
+    val warmDeviceDenylist: Set<String> = setOf("AFTJMST12"),
 ) {
     init {
         require(warmHoldBufferMs > 0) { "warmHoldBufferMs must be positive" }

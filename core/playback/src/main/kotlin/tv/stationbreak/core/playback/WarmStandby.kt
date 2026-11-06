@@ -51,7 +51,8 @@ internal class StandbyFields(
 /**
  * Spec 24: the pure decisions of the warm standby (one hidden, muted player preparing the next channel): whether to
  * build one, when it is ready, when it has failed, the circuit breaker and whether a flip can swap to it. No Android
- * or Media3 types; the clock is injected. [deviceCannot] is asked at most once (the no-surface-decoder list).
+ * or Media3 types; the clock is injected. [deviceCannot] is asked at most once: it gives the reason this device
+ * cannot warm ([DeviceWarmth]), or null when it can.
  * [switches] are the device-side switches over [config] (debug builds).
  * Not thread-safe: call from the playback thread.
  *
@@ -65,7 +66,7 @@ internal class StandbyFields(
 internal class WarmStandby(
     private val config: WarmConfig,
     private val switches: WarmSwitches,
-    private val deviceCannot: () -> Boolean,
+    private val deviceCannot: () -> String?,
     private val clock: () -> Long,
     private val log: (String) -> Unit = WarmLog::line,
     private val fields: StandbyFields = StandbyFields(),
@@ -101,8 +102,9 @@ internal class WarmStandby(
         if (!config.warmOn(switches) || breakerOpen || trimPaused) return DISABLED
         if (!deviceChecked) {
             deviceChecked = true
-            deviceOff = deviceCannot()
-            if (deviceOff) log("disabled reason=deviceList failures=$failures")
+            val reason = deviceCannot()
+            deviceOff = reason != null
+            if (reason != null) log("disabled reason=$reason failures=$failures")
         }
         if (deviceOff) return DISABLED
         if (held == key && failReason == null) return Request.Skip("alreadyWarm")
