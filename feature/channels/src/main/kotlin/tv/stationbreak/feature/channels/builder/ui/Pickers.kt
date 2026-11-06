@@ -91,15 +91,16 @@ private sealed interface SourceLine {
     }
 }
 
+// The order is sourceFocusOrder's, which the D-pad walks: the filters first, then the search line, then the entries.
 private fun linesOf(ui: BuilderUi): List<SourceLine> =
     buildList {
+        add(SourceLine.Narrow)
+        if (ui.narrow != null) NarrowRowKind.entries.forEach { add(SourceLine.NarrowValue(it)) }
         if (ui.tab == SourceKindTab.Pick) add(SourceLine.Search)
         when (val view = ui.entries) {
             is PickerView.Entries -> view.rows.forEach { add(SourceLine.Entry(it)) }
             else -> add(SourceLine.Note(view))
         }
-        add(SourceLine.Narrow)
-        if (ui.narrow != null) NarrowRowKind.entries.forEach { add(SourceLine.NarrowValue(it)) }
     }
 
 private fun SourceLine.isFocus(focus: BuilderFocus?): Boolean =

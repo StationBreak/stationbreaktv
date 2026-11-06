@@ -30,7 +30,7 @@ internal fun navigate(
         BuilderFocus.Search -> fromSearch(view, move)
         is BuilderFocus.Entry -> fromEntry(view, focus, move)
         BuilderFocus.Narrow -> fromNarrow(view, move)
-        is BuilderFocus.NarrowRow -> fromNarrowRow(focus, move)
+        is BuilderFocus.NarrowRow -> fromNarrowRow(view, focus, move)
         BuilderFocus.Next -> fromNext(view, move)
         is BuilderFocus.PlayRow -> inList(view.playRows, focus.row, move, BuilderFocus::PlayRow) ?: onNext(focus, move)
         is BuilderFocus.NameRow -> inList(view.nameRows, focus.row, move, BuilderFocus::NameRow) ?: focus
@@ -73,24 +73,36 @@ private fun fromSearch(
     move: PanelMove,
 ): BuilderFocus =
     when (move) {
-        PanelMove.Down -> view.entryKeys.firstOrNull()?.let { BuilderFocus.Entry(it) } ?: BuilderFocus.Narrow
         PanelMove.Left -> BuilderFocus.Tab(SourceKindTab.Pick)
-        else -> BuilderFocus.Search
+        PanelMove.Right -> BuilderFocus.Search
+        else -> fromSourceList(view, BuilderFocus.Search, move)
     }
 
 private fun fromEntry(
     view: NavView,
     focus: BuilderFocus.Entry,
     move: PanelMove,
+): BuilderFocus =
+    when (move) {
+        PanelMove.Left -> BuilderFocus.Tab(view.tab)
+        PanelMove.Right -> focus
+        else -> fromSourceList(view, focus, move)
+    }
+
+// The Sources list's vertical keys: one line up or down in [sourceFocusOrder]. Up off the top (the Narrow line) goes
+// to the tab row, as Up off the top of any list does; Down off the bottom goes to Next, the footer under the list.
+private fun fromSourceList(
+    view: NavView,
+    focus: BuilderFocus,
+    move: PanelMove,
 ): BuilderFocus {
-    val at = view.entryKeys.indexOf(focus.key)
+    val order = sourceFocusOrder(view)
+    val at = order.indexOf(focus)
     return when {
-        move == PanelMove.Left -> BuilderFocus.Tab(view.tab)
-        move == PanelMove.Right -> focus
-        move == PanelMove.Up && at > 0 -> BuilderFocus.Entry(view.entryKeys[at - 1])
-        move == PanelMove.Up -> if (view.tab == SourceKindTab.Pick) BuilderFocus.Search else focus
-        at in 0 until view.entryKeys.lastIndex -> BuilderFocus.Entry(view.entryKeys[at + 1])
-        else -> BuilderFocus.Narrow
+        at < 0 -> order.first()
+        move == PanelMove.Up -> order.getOrNull(at - 1) ?: BuilderFocus.Tab(view.tab)
+        move == PanelMove.Down -> order.getOrNull(at + 1) ?: BuilderFocus.Next
+        else -> focus
     }
 }
 
@@ -99,35 +111,26 @@ private fun fromNarrow(
     move: PanelMove,
 ): BuilderFocus =
     when (move) {
-        PanelMove.Up -> view.entryKeys.lastOrNull()?.let { BuilderFocus.Entry(it) } ?: BuilderFocus.Tab(view.tab)
-        PanelMove.Down -> if (view.narrowOpen) BuilderFocus.NarrowRow(NarrowRowKind.Genres) else BuilderFocus.Next
         PanelMove.Left -> BuilderFocus.Tab(view.tab)
         PanelMove.Right -> BuilderFocus.Next
+        else -> fromSourceList(view, BuilderFocus.Narrow, move)
     }
 
 private fun fromNarrowRow(
+    view: NavView,
     focus: BuilderFocus.NarrowRow,
     move: PanelMove,
-): BuilderFocus {
-    val rows = NarrowRowKind.entries
-    return when {
-        !move.vertical -> focus
-        move == PanelMove.Up && focus.row.ordinal == 0 -> BuilderFocus.Narrow
-        move == PanelMove.Up -> BuilderFocus.NarrowRow(rows[focus.row.ordinal - 1])
-        focus.row.ordinal == rows.lastIndex -> BuilderFocus.Next
-        else -> BuilderFocus.NarrowRow(rows[focus.row.ordinal + 1])
-    }
-}
+): BuilderFocus = if (move.vertical) fromSourceList(view, focus, move) else focus
 
 private fun fromNext(
     view: NavView,
     move: PanelMove,
 ): BuilderFocus =
     when {
-        move == PanelMove.Up && view.step == BuilderStep.Play -> BuilderFocus.PlayRow(view.playRows.last())
+        view.step == BuilderStep.Play && move == PanelMove.Up -> BuilderFocus.PlayRow(view.playRows.last())
         view.step == BuilderStep.Play -> BuilderFocus.Next
-        move == PanelMove.Up && view.narrowOpen -> BuilderFocus.NarrowRow(NarrowRowKind.entries.last())
-        move == PanelMove.Up || move == PanelMove.Left -> BuilderFocus.Narrow
+        move == PanelMove.Up -> sourceFocusOrder(view).last()
+        move == PanelMove.Left -> BuilderFocus.Narrow
         else -> BuilderFocus.Next
     }
 
@@ -153,3 +156,17 @@ private fun <T> inList(
         else -> null
     }
 }
+
+/**
+ * The lines of the Sources list the D-pad stops on, top to bottom. The rule is filters first, then the metadata
+ * sources: Narrow down comes first, with its rows under it when open; the Pick tab's search line is next; the tab's
+ * entries come last. A new filter kind goes in the filter block, so it lands at the top too. The list draws in this
+ * order.
+ */
+internal fun sourceFocusOrder(view: NavView): List<BuilderFocus> =
+    buildList {
+        add(BuilderFocus.Narrow)
+        if (view.narrowOpen) NarrowRowKind.entries.forEach { add(BuilderFocus.NarrowRow(it)) }
+        if (view.tab == SourceKindTab.Pick) add(BuilderFocus.Search)
+        view.entryKeys.forEach { add(BuilderFocus.Entry(it)) }
+    }
