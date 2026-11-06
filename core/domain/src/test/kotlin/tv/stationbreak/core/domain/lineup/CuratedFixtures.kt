@@ -6,6 +6,8 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.Recipe
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleItem
@@ -25,6 +27,20 @@ internal fun programmed(
     name: String,
     vararg sources: Source,
 ): ChannelRules = rules(name, *sources).copy(formatVersion = 3, ordering = Ordering(OrderingMode.Curated))
+
+/** The test catalog as [version], every recipe in the curated order; [change] edits a recipe, [extra] adds some. */
+internal fun programmedCatalog(
+    version: Int,
+    selects: Boolean = false,
+    change: (Recipe) -> Recipe = { it },
+    extra: List<Recipe> = emptyList(),
+): StarterCatalogView =
+    object : StarterCatalogView by TestCatalog {
+        override val version: Int = version
+        override val selectsByIdentity: Boolean = selects
+        override val recipes: List<Recipe> =
+            (TestCatalog.recipes + extra).map { change(it.copy(ordering = OrderingMode.Curated)) }
+    }
 
 internal object CuratedLibrary {
     const val HALF_HOUR_MS = 1_800_000L
