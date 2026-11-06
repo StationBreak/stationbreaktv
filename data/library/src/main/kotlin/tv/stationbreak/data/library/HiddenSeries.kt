@@ -133,6 +133,7 @@ internal suspend fun MediaServer.readHiddenSeries(
             when (val read = seriesById(session, id)) {
                 is ServerResult.Failure -> {
                     val error = read.error
+                    if (error !is MediaServerError.Timeout) timeouts = 0
                     when {
                         // One slow read is that series' problem; a second in a row says the server is not answering.
                         error is MediaServerError.Timeout && ++timeouts < 2 -> unknown += id

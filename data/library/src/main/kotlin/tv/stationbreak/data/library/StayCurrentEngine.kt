@@ -143,7 +143,7 @@ private class HiddenSeries(
 private fun listsNothing(
     ready: Decision.Ready?,
     live: Set<ItemId>,
-): Boolean = ready != null && ready.list.ids.isEmpty() && live.isNotEmpty()
+): Boolean = ready != null && ready.listedNothing && live.isNotEmpty()
 
 // The series a reconcile tombstones: those the list lacks and the by-ID reads do not keep. With an empty list for a
 // library that had series, only the hidden ones the server itself twice said are not there.
@@ -159,12 +159,16 @@ private fun goneSeries(
 /** One page of an ID listing, from a start index and a count: the item listing or the series listing. */
 private typealias IdLister = suspend (start: Int, count: Int) -> ServerResult<ItemIdPage>
 
-/** What one complete, guarded ID read of items or series decided: what is [gone], and what is [returning]. */
+/**
+ * What one complete, guarded ID read of items or series decided: what is [gone], and what is [returning].
+ * [listedNothing] is set when either read of the list came back empty.
+ */
 private sealed interface Decision {
     class Ready(
         val list: IdList,
         val gone: Set<ItemId>,
         val returning: Set<ItemId>,
+        val listedNothing: Boolean = false,
     ) : Decision
 
     /** The read failed or was suspect: [outcome] is what the pass ends as, and nothing is to be written for it. */
@@ -596,6 +600,7 @@ internal class StayCurrentEngine(
             // Nothing at all, for a library that had rows, is more likely a server fault than an emptied library.
             if (first.ids.isEmpty() && suspectLive.isNotEmpty()) return Decision.Stop(suspect())
             var gone = if (first.trusted) live - first.ids else emptySet()
+            var listedNothing = first.ids.isEmpty()
             if (gone.isNotEmpty()) {
                 // A shift that leaves the size unchanged looks sound once: only what a second read also lacks is gone.
                 val again =
@@ -604,9 +609,10 @@ internal class StayCurrentEngine(
                         is IdsRead.Complete -> read.list
                     }
                 if (again.ids.isEmpty() && suspectLive.isNotEmpty()) return Decision.Stop(suspect())
+                listedNothing = listedNothing || again.ids.isEmpty()
                 gone = if (again.trusted) gone - again.ids else emptySet()
             }
-            return Decision.Ready(first, gone, tombstoned intersect first.ids)
+            return Decision.Ready(first, gone, tombstoned intersect first.ids, listedNothing)
         }
 
         // The whole list or nothing: a failure part way, a page that adds nothing, or a list far past its total fails.

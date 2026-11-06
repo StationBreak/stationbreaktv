@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.ListLibrarySource
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.PagedCall
 import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.SeriesSource
 import tv.stationbreak.core.domain.SyncFailure
@@ -376,5 +377,48 @@ class HiddenSeriesFailureTest {
             assertEquals(SyncOutcome.Completed, result.outcome)
             assertEquals(0, result.summary.seriesTombstoned)
             assertTrue(repository.currentSeries(ALICE).none { it.deletedAtMs != null })
+        }
+
+    @Test
+    fun aSecondListReadThatComesBackEmptyTombstonesNothing() =
+        runBlocking {
+            firstSync()
+
+            fun firstPageOfAnIdRead(call: PagedCall) = call.series && call.idsOnly && call.startIndex == 0
+            server.respond = { call ->
+                if (firstPageOfAnIdRead(call) && call.library == libA) {
+                    val reads = server.calls.count { firstPageOfAnIdRead(it) && it.library == libA }
+                    val list = server.seriesSources.getValue(libA.id).series
+                    // The first read lacks the unnamed "Quiet"; the second lists nothing at all.
+                    if (reads == 1) list.removeAll { it.id == quiet }
+                    if (reads == 2) list.clear()
+                }
+                null
+            }
+            server.hiddenSeriesSources[listedA] = info(listedA, "Listed")
+
+            val result = reconcile()
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), result.outcome)
+            assertEquals(0, result.summary.seriesTombstoned)
+            assertTrue(repository.currentSeries(ALICE).none { it.deletedAtMs != null })
+        }
+
+    @Test
+    fun anyAnswerBetweenTwoTimeoutsResetsTheCount() =
+        runBlocking {
+            val flaky = ItemId(hexId(0x4001))
+            episodesA.items += episode(0x1500, flaky, libA)
+            server.hiddenSeriesSources[flaky] = info(flaky, "Flaky")
+            server.respondToSeriesById = {
+                when (it) {
+                    bad -> MediaServerError.Timeout()
+                    flaky -> MediaServerError.ServerError()
+                    hiddenA -> MediaServerError.Timeout()
+                    else -> null
+                }
+            }
+
+            assertEquals(SyncOutcome.Completed, firstSync())
         }
 }
