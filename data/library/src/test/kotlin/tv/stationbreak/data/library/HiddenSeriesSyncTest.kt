@@ -202,7 +202,7 @@ class HiddenSeriesSyncTest {
     fun aFailedDirectReadInAReconcileTombstonesNothingAndFailsLikeAnyTransientFailure() =
         runBlocking {
             firstSync()
-            server.respondToSeriesById = { MediaServerError.Timeout() }
+            server.respondToSeriesById = { MediaServerError.ConnectionRefused() }
             val before = repository.currentSeries(ALICE)
 
             val result = reconcile()
@@ -219,7 +219,7 @@ class HiddenSeriesSyncTest {
     @Test
     fun aFailedDirectReadInTheFirstSyncFailsItAndTheRetryFinishesTheJob() =
         runBlocking {
-            server.respondToSeriesById = { MediaServerError.Timeout() }
+            server.respondToSeriesById = { MediaServerError.ConnectionRefused() }
 
             assertEquals(SyncOutcome.Failed(SyncFailure.Network), firstSync())
 

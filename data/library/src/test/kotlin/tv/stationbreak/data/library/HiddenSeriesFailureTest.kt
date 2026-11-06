@@ -37,6 +37,7 @@ class HiddenSeriesFailureTest {
     private val hiddenA = ItemId(hexId(0x5002))
     private val hiddenB = ItemId(hexId(0x5102))
     private val listedA = ItemId(hexId(0x5001))
+    private val quiet = ItemId(hexId(0x5000))
     private val episodesA = ListLibrarySource(mutableListOf())
     private val episodesB = ListLibrarySource(mutableListOf())
     private val server = PagedMediaServer(listOf(libA, libB), mapOf(libA.id to episodesA, libB.id to episodesB))
@@ -48,7 +49,7 @@ class HiddenSeriesFailureTest {
         episodesA.items += (1..3).map { episode(0x1200 + it, hiddenA, libA) }
         episodesB.items += (1..3).map { episode(0x2000 + it, hiddenB, libB) }
         episodesB.items += episode(0x2100, hiddenB, libB)
-        server.seriesSources[libA.id] = SeriesSource(mutableListOf(info(listedA, "Listed")))
+        server.seriesSources[libA.id] = SeriesSource(mutableListOf(info(listedA, "Listed"), info(quiet, "Quiet")))
         server.hiddenSeriesSources[hiddenA] = info(hiddenA, "Hidden A")
         server.hiddenSeriesSources[hiddenB] = info(hiddenB, "Hidden B")
         server.hiddenSeriesSources[bad] = info(bad, "Bad")
@@ -284,5 +285,96 @@ class HiddenSeriesFailureTest {
             engine.incremental(session, ALICE, both)
 
             assertEquals(ids[HIDDEN_LOOKUPS_PER_PASS], server.seriesByIdCalls[before])
+        }
+
+    @Test
+    fun aSeriesThatAlwaysTimesOutDoesNotStopAnyPass() =
+        runBlocking {
+            server.respondToSeriesById = { if (it == bad) MediaServerError.Timeout() else null }
+
+            assertEquals(SyncOutcome.Completed, firstSync())
+            assertNotNull(repository.lastSuccess(ALICE))
+            assertNull(row(bad))
+            assertEquals("Hidden A", row(hiddenA)?.name)
+            clock.instant += 1.hours
+            assertEquals(SyncOutcome.Completed, stay().incremental(session, ALICE, both).outcome)
+            assertEquals(clock.nowMs, repository.lastSuccess(ALICE)?.toEpochMilliseconds())
+            assertEquals(SyncOutcome.Completed, reconcile().outcome)
+        }
+
+    @Test
+    fun twoDifferentSeriesTimingOutBackToBackFailThePass() =
+        runBlocking {
+            server.respondToSeriesById = { MediaServerError.Timeout() }
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Network), firstSync())
+        }
+
+    @Test
+    fun aSeriesTheServerAnswersWithUndecodableJsonIsUnknownNotFatal() =
+        runBlocking {
+            server.respondToSeriesById = { if (it == bad) MediaServerError.NotJellyfin() else null }
+
+            assertEquals(SyncOutcome.Completed, firstSync())
+
+            assertNull(row(bad))
+            assertEquals("Hidden A", row(hiddenA)?.name)
+        }
+
+    @Test
+    fun oneServerErrorAmongManyNotFoundsStillTombstonesNothing() =
+        runBlocking {
+            firstSync()
+            server.hiddenSeriesSources.clear()
+            server.respondToSeriesById = { if (it == bad) MediaServerError.ServerError() else null }
+
+            val result = reconcile()
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(0, result.summary.seriesTombstoned)
+            assertTrue(repository.currentSeries(ALICE).none { it.deletedAtMs != null })
+        }
+
+    @Test
+    fun anEmptySeriesListOnceTombstonesNoSeriesAndStillReadsTheHiddenOnes() =
+        runBlocking {
+            firstSync()
+            server.seriesSources
+                .getValue(libA.id)
+                .series
+                .clear()
+            // The list is empty, but the server still has every show by ID.
+            server.hiddenSeriesSources[listedA] = info(listedA, "Listed")
+            server.hiddenSeriesSources[quiet] = info(quiet, "Quiet")
+            val readsBefore = server.seriesByIdCalls.size
+
+            val result = reconcile()
+
+            // "Quiet" is a listed series no episode names: more likely a server fault than an emptied library.
+            assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), result.outcome)
+            assertEquals(0, result.summary.seriesTombstoned)
+            assertTrue(repository.currentSeries(ALICE).none { it.deletedAtMs != null })
+            assertTrue(server.seriesByIdCalls.size > readsBefore)
+        }
+
+    @Test
+    fun anEmptySeriesListWhenEveryStoredSeriesIsNamedByEpisodesTombstonesNothing() =
+        runBlocking {
+            server.seriesSources
+                .getValue(libA.id)
+                .series
+                .removeAll { it.id == quiet }
+            firstSync()
+            server.seriesSources
+                .getValue(libA.id)
+                .series
+                .clear()
+            server.hiddenSeriesSources[listedA] = info(listedA, "Listed")
+
+            val result = reconcile()
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(0, result.summary.seriesTombstoned)
+            assertTrue(repository.currentSeries(ALICE).none { it.deletedAtMs != null })
         }
 }

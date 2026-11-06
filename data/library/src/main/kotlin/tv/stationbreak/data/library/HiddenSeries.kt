@@ -24,8 +24,9 @@ internal const val HIDDEN_LOOKUPS_PER_PASS = 200
  * reason of that one series (the server's own error for it): nothing is stored for it and any stored copy is kept.
  * Anything asked for and in none of those (past the cap, or after a [failure]) is unknown too. [failure] is a
  * session-level error (an expired session, a server that cannot be reached) that stopped the reads: it is the only
- * thing that fails a pass. [suspect] is set when every series asked about came back absent: more likely a server fault
- * than a library of deleted shows, so none is called absent.
+ * thing that fails a pass. [suspect] is set when some came back absent and none was
+ * found at all: more likely a server fault than a library of deleted shows, so none is called absent. A timeout fails
+ * a pass only as the second read in a row.
  */
 @Suppress("LongParameterList") // One field per count of the log line.
 internal class HiddenSeriesRead(
@@ -122,6 +123,7 @@ internal suspend fun MediaServer.readHiddenSeries(
     val resolved = LinkedHashSet<ItemId>()
     val unknown = LinkedHashSet<ItemId>()
     var failure: MediaServerError? = null
+    var timeouts = 0
 
     // One round of reads: the IDs the server answered null for. A series-level failure makes the ID unknown.
     suspend fun round(ids: Collection<ItemId>): LinkedHashSet<ItemId> {
@@ -130,10 +132,19 @@ internal suspend fun MediaServer.readHiddenSeries(
             if (failure != null) break
             when (val read = seriesById(session, id)) {
                 is ServerResult.Failure -> {
-                    if (read.error.isSessionLevel()) failure = read.error else unknown += id
+                    val error = read.error
+                    when {
+                        // One slow read is that series' problem; a second in a row says the server is not answering.
+                        error is MediaServerError.Timeout && ++timeouts < 2 -> unknown += id
+
+                        error.isSessionLevel() -> failure = error
+
+                        else -> unknown += id
+                    }
                 }
 
                 is ServerResult.Success -> {
+                    timeouts = 0
                     val info = read.value
                     if (info == null) {
                         missing += id
@@ -151,7 +162,7 @@ internal suspend fun MediaServer.readHiddenSeries(
     if (found.isNotEmpty()) repository.upsertSeries(account, library.id, found)
     // Only a pair of reads that both found nothing makes a series absent; one that was not read twice is unknown.
     val settled = if (failure == null) missing else emptySet()
-    val suspect = confirmAbsent && settled.isNotEmpty() && settled.size == wanted.size
+    val suspect = confirmAbsent && settled.isNotEmpty() && resolved.isEmpty()
     val absent = if (suspect) emptySet() else settled
     val remembered = if (confirmAbsent) absent else absent + memory.absent(account, library.id)
     memory.remember(account, library.id, remembered)
