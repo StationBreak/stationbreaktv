@@ -182,7 +182,8 @@ internal data class DayCuration(
  * [curation] is the curation of the day for a curated starter (what it airs is cut from it) and for a leftovers
  * channel (what it claims from it), and null for any other channel: it travels with the day, and the days' key on
  * disk hashes it (`PersistedDays.keyOf`). [starting] is a channel switched on for a later boundary
- * (`LineupChannel.onSinceMs` after the moment asked about): its day is empty, as `leavesAtMs` in reverse.
+ * (`LineupChannel.onSinceMs` after the moment asked about): its day is empty, and a leftovers channel that starts
+ * later claims nothing either, as `leavesAtMs` in reverse.
  */
 internal class Scheduled(
     val channel: LineupChannel,
@@ -631,8 +632,9 @@ internal class LineupDays(
                     null
                 } else {
                     // What a leftovers day reads of a channel: one that airs, one the user hid, an opt-in recipe's, a
-                    // member of its curation, and every leftovers channel that claims (a starting one claims too).
-                    // Not one that is off, on the shelf, or starting later and none of those.
+                    // member of its curation, and every leftovers channel in the claim order (one that starts later
+                    // claims nothing today, which its [ClaimedChannel.starting] says). Not one that is off, on the
+                    // shelf, or starting later and none of those.
                     val relevant =
                         lineup.channels.filter {
                             val on = onAir[it.id]
@@ -998,7 +1000,10 @@ internal class LineupDays(
             for (s in inClaimOrder) {
                 beforeChannel()
                 leftoversDays[s] =
-                    reused[s.channel.id]?.let { reuse(s, it) } ?: run {
+                    reused[s.channel.id]?.let { reuse(s, it) } ?: if (s.starting) {
+                        // Starts at a later boundary: an empty day today, and it takes no place in the chain (#620).
+                        startingDay(s).also(finished)
+                    } else {
                         val claims = claimsFor(s, curatedCuts)
                         val chain = chains.getOrPut(s.cut to claims?.second) { ClaimChain(s.cut, claims, claimedByOn) }
                         leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId).also(finished)
@@ -1180,8 +1185,10 @@ internal class LineupDays(
             // The channels before this one claim in turn, each against what the ones before it took.
             while (chain.next < position) {
                 val before = leftovers[chain.next++]
-                val pool = leftoversPool(before, snapshot, chain.claimed)
                 val on = byId[before.id]
+                // A channel that starts at a later boundary airs nothing today, so it claims nothing (#620).
+                if (on?.starting == true) continue
+                val pool = leftoversPool(before, snapshot, chain.claimed)
                 val items =
                     if (on != null) {
                         EpochPool.build(on.settings, pool.items, on.n)
