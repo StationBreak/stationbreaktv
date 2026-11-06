@@ -65,17 +65,17 @@ largest part of the dependency set.
 - **The guard is a tripwire, not a wall.** It scans `.github/` and the Gradle properties files for the patterns
   above, so it catches the mistakes and shortcuts that loosen verification. It can't stop a pull request that
   changes the guard itself, or one that turns verification off in a way it doesn't look for (an obfuscated
-  command, a setting in a file outside its scope). The owner's review of every diff under `.github/` (ADR-0012, CI gates
-  advisory until the visibility flip, decision 1) is the real control; the guard makes the common ways to get it
-  wrong fail loudly.
+  command, a setting in a file outside its scope). The owner's review of every diff under `.github/` (ADR-0012,
+  amended 2026-11-06) is what catches a pull request that replaces the guard. A failing `checks` job cannot merge.
+  The guard makes the common ways to get it wrong fail loudly.
 
 ## Mitigations
 
 - Renovate waits 3 days after a release before proposing it (`minimumReleaseAge`), which gives the community time
   to spot a bad one.
 - The owner reviews every change to `gradle/verification-metadata.xml` before merging, including in Renovate's
-  pull requests (amended 2026-10-16, see below) (ADR-0011, debug build signing, item 6; ADR-0012, CI gates advisory until the visibility
-  flip). The review compares each new checksum with the `.sha256` file the
+  pull requests (amended 2026-10-16, see below) (ADR-0011, debug build signing, item 6; ADR-0012, amended 2026-11-06).
+  The review compares each new checksum with the `.sha256` file the
   publishing repository lists (see CONTRIBUTING.md).
 - OSV-Scanner reads the file, so known-vulnerable versions are reported. Findings that existed at the baseline
   are ignored one by one in `gradle/osv-scanner.toml`, each with a reason and an `ignoreUntil` review date; the file
@@ -94,8 +94,8 @@ commits the result with a sign-off. The owner reads the diff and merges. CI neve
 - Every Renovate dependency update takes a manual step before it can merge.
 - A dependency's checksum changing for the same version fails the build, naming the artifact.
 - A change to `gradle/osv-scanner.toml` can silence a finding, as a change to `.github/` can disable a gate, so
-  the owner reviews it before merge, like `.github/**` (ADR-0012, CI gates advisory until the visibility flip,
-  decision 1).
+  the owner reviews it before merge, like `.github/**`. Both paths are in CODEOWNERS (ADR-0012, amended 2026-11-06),
+  so GitHub requests the owner's review. The ruleset does not require that review: the owner is the only maintainer.
 - The file is large and machine-generated. Its diff is reviewed by checksum, not read for meaning.
 
 ## Amendment (2026-10-16): who reviews the metadata diff

@@ -1,0 +1,12 @@
+# Gate-changing paths. GitHub requests a review from the owner.
+#
+# The main ruleset does not require that review. The owner is the only maintainer, and GitHub will not let the
+# pull request author approve their own pull request, so a required code-owner review would deadlock every change
+# on these paths, including Renovate's metadata updates. The request is the signal to read the diff before merging:
+# a pull request can turn a required job into a skip, and a skip satisfies the ruleset (ADR-0012, amended 2026-11-06).
+
+/.github/                          @PCritchfield
+/.gitleaks.toml                    @PCritchfield
+/renovate.json                     @PCritchfield
+/gradle/verification-metadata.xml  @PCritchfield
+/gradle/osv-scanner.toml           @PCritchfield
