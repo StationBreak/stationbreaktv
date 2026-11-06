@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -36,7 +37,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,7 +51,9 @@ import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.BroadcastFocus
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.drawBroadcastFocus
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
@@ -70,7 +72,9 @@ private val CompactBelow = 80.dp
 internal val EllipsisFrom = 32.dp
 internal const val ELLIPSIS = "…"
 private val ProgramStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)
-private val SlateStyle = TextStyle(fontSize = 16.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal)
+
+/** The "…" on a slate, in the same mono face and letter spacing as its "OFF AIR" plate (not italic). */
+private val SlateStyle = mono(16.sp, LETTER_SPACING.sp)
 
 /**
  * The "…" laid out once for the whole grid (a program's style and a slate's), so a cell only draws it, in its own
@@ -98,9 +102,14 @@ internal fun rememberEllipsisMarks(): EllipsisMarks {
 }
 
 private val EpisodeFrom = 160.dp
-private val RingWidth = 3.dp
 private val TextStart = 10.dp
-private val TextEnd = 4.dp
+
+/**
+ * Room after a title that ends inside the viewport. The focus plate takes the ring plus the ink gap on that edge, and
+ * a focused title is Ink, so anything past the fill disappears on the gap. The same inset focused or not: a focus move
+ * only recolours the title, it does not lay it out again.
+ */
+private val TextEnd = BroadcastFocus.ringWidth + BroadcastFocus.ringGap
 private val ChevronInset = 6.dp
 private val ChevronSize = 5.dp
 private val ChevronRoom = 14.dp
@@ -214,8 +223,9 @@ internal data class CellMarks(
  * One cell, placed by time from the origin. It reads only whether it is the focused cell (derived from [focusOf] by
  * identity: channel and start), so a focus move recomposes the cell it left and the one it reached, and a horizontal
  * page recomposes none: [viewportOf] is read only while laying out (the sticky title) and drawing (the ring and the
- * chevrons). Fill, ring, slate dashes and chevrons are drawn; nothing animates or scales. A compact cell writes
- * no title, focused or not (the details panel names the focused cell), only a "…" if it has room ([EllipsisFrom]).
+ * chevrons). Fill, ring, slate dashes and chevrons are drawn. A cell does not scale ([BroadcastFocus.CELL_SCALE]): a
+ * scale would reflow the row. A compact cell writes no title, focused or not (the details panel names the focused
+ * cell), only a "…" if it has room ([EllipsisFrom]).
  */
 @Suppress("LongParameterList") // One cell's identity, place and the three readers it needs.
 @Composable
@@ -232,7 +242,11 @@ internal fun GuideCellView(
     }
     LocalCellComposed.current?.invoke(channel, cell.startMs)
     val copy = programCopy()
-    val title = cellTitle(cell, copy)
+    // Both are always read, so a cell that changes kind does not change which composables run. A slate on the grid is
+    // the "OFF AIR" plate; the panel keeps [cellTitle]'s "Off air until".
+    val spoken = cellTitle(cell, copy)
+    val offAir = stringResource(R.string.guide_off_air)
+    val title = if (cell.kind == CellKind.Slate) offAir.uppercase() else spoken
     // Read here, in composition, so the cell whose "on now" flips (and only it) composes again and its semantics with
     // it; the description itself is put together only when something asks for the semantics (a screen reader, a
     // test), not in every cell's composition.
@@ -293,7 +307,7 @@ private fun Modifier.stickyText(
         layout(constraints.maxWidth, text.height) { text.placeRelative(start, 0) }
     }
 
-/** The cell's title (and "S2 E5" when it is 20 minutes or more wide), or a slate's "Off air until". */
+/** The cell's title (and "S2 E5" when it is 20 minutes or more wide), or a slate's "OFF AIR". */
 @Composable
 private fun CellText(
     cell: GuideCell,
@@ -305,7 +319,7 @@ private fun CellText(
     val slate = cell.kind == CellKind.Slate
     val main =
         when {
-            focused -> BroadcastColors.Ink
+            focused -> BroadcastFocus.content
             slate -> BroadcastColors.Ground
             else -> BroadcastColors.Cream
         }
@@ -316,7 +330,7 @@ private fun CellText(
     val minor =
         when {
             numbers == null -> Color.Unspecified
-            focused -> BroadcastColors.Ink
+            focused -> BroadcastFocus.content
             else -> BroadcastColors.Ground
         }
     val text =
@@ -330,7 +344,7 @@ private fun CellText(
         text = text,
         modifier = modifier,
         color = main,
-        style = if (slate) SlateStyle else ProgramStyle,
+        style = if (slate) mono(16.sp, LETTER_SPACING.sp) else ProgramStyle,
         maxLines = 1,
         softWrap = false,
         overflow = TextOverflow.Ellipsis,
@@ -374,8 +388,8 @@ private fun DrawScope.drawEllipsis(
 }
 
 /**
- * The cell's look, drawn: Cream at 8% (a slate: a dashed Ground border instead), or when [focused] Accent with a 3 dp
- * White ring inside the part of the cell in view, so the row's clip can never cut it. Chevrons mark a program running
+ * The cell's look, drawn: Cream at 8% (a slate: a dashed Ground border instead), or when [focused] the [BroadcastFocus]
+ * plate inside the part of the cell in view, so the row's clip can never cut the ring. Chevrons mark a program running
  * on past either edge of the viewport, at that edge, unless it is focused; they read [viewportOf] while drawing. A
  * compact cell has no chevrons; one with no title in view draws [ellipsis] (a "…" laid out once, null for a cell with
  * no title) centred in the part in view.
@@ -388,7 +402,6 @@ private fun Modifier.cellLook(
     focused: () -> Boolean,
 ): Modifier =
     drawWithCache {
-        val ring = RingWidth.toPx()
         val dashWidth = 1.5.dp.toPx()
         val dash = Stroke(dashWidth, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())))
         val chevron = Stroke(width = 2.dp.toPx())
@@ -415,16 +428,10 @@ private fun Modifier.cellLook(
             val marks = place.marks(at, isFocused)
             when {
                 isFocused -> {
-                    drawRect(BroadcastColors.Accent)
                     marks.ring?.let {
                         val from = it.start.toPx()
                         val to = it.endInclusive.toPx()
-                        drawRect(
-                            Color.White,
-                            Offset(from + ring / 2, ring / 2),
-                            Size(to - from - ring, size.height - ring),
-                            style = Stroke(ring),
-                        )
+                        drawBroadcastFocus(from, 0f, to - from, size.height)
                     }
                 }
 
@@ -441,7 +448,7 @@ private fun Modifier.cellLook(
                     drawRect(BroadcastColors.Cream.copy(alpha = TINT_ALPHA))
                 }
             }
-            val mark = if (isFocused) BroadcastColors.Ink else BroadcastColors.Cream
+            val mark = if (isFocused) BroadcastFocus.content else BroadcastColors.Cream
             val from = place.visibleLeft(at).toPx() - inset
             val to = place.visibleRight(at).toPx() - inset
             if (marks.earlier) translate(left = from) { drawPath(left, mark, style = chevron) }

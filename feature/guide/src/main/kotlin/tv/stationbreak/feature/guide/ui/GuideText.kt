@@ -25,7 +25,10 @@ internal fun channelLine(
     name: String,
 ) = "$number · $name"
 
-/** What a cell is called: its display title, "Off air until 8:30 PM" for a slate, nothing for a lost program. */
+/**
+ * What the panel and the info overlay call a cell: its display title, "Off air until 8:30 PM" for a slate, nothing for
+ * a lost program. A slate on the grid itself is the "OFF AIR" plate, not this line.
+ */
 @Composable
 internal fun cellTitle(
     cell: GuideCell,

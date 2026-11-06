@@ -161,9 +161,10 @@ class DetailsPanelTest {
     }
 
     private companion object {
-        // The guide's panel on a 960 x 540 dp screen: the band left of the picture, less the Channels button's row.
+        // The guide's panel on a 960 x 540 dp screen: the band left of the picture, less the menu row (a 40 dp button
+        // and the gap above it).
         const val PANEL_WIDTH_DP = 502
-        const val PANEL_HEIGHT_DP = 162
+        const val PANEL_HEIGHT_DP = 150
 
         const val MIN = 60_000L
         const val STEP_MS = 50L

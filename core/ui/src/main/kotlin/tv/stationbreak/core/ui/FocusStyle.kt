@@ -19,11 +19,11 @@ import androidx.tv.material3.ClickableSurfaceScale
 import androidx.tv.material3.MaterialTheme
 
 /**
- * The one focus treatment (spec 05, Adorabelle's 10-foot defaults): a scale-up plus an outline of 3 dp or more, the
- * same on every focusable thing, so the user can always see where the D-pad is. A button inverts its fill when focused,
- * so its ring is the theme's mid-tone `border` colour; a surface that keeps its fill (the address field) uses
- * `primary`.
- * `ContrastTest` pins both at 3:1 or better against everything they touch.
+ * The tv-material focus treatment still used by onboarding, the banner and the channel screen (spec 05): a scale-up
+ * plus an outline. A button inverts its fill when focused, so its ring is the theme's mid-tone `border` colour; a
+ * surface that keeps its fill (the address field) uses `primary`. The guide paints [BroadcastFocus] instead, and
+ * these screens keep this until they move onto it. `ContrastTest` pins both rings at 3:1 or better against what they
+ * touch.
  */
 object FocusStyle {
     internal val OutlineWidth = 3.dp
