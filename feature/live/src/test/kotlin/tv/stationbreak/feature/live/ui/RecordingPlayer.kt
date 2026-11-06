@@ -59,4 +59,17 @@ internal class RecordingPlayer : VideoPlayer {
     override fun release() {
         log += "release"
     }
+
+    override fun warm(source: PlayerSource): String {
+        log += "warm"
+        return "w1"
+    }
+
+    override fun dropWarm(key: String) {
+        log += "dropWarm:$key"
+    }
+
+    override fun trimMemory(level: Int) {
+        log += "trim:$level"
+    }
 }

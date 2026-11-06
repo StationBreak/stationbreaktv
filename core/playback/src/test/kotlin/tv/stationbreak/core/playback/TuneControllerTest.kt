@@ -119,6 +119,23 @@ internal class FakeVideoPlayer : VideoPlayer {
     override fun attach(surface: SurfaceView?) = Unit
 
     override fun release() = Unit
+
+    /** The sources [warm] was given, in order; the handle of each is `w` and its 1-based place. */
+    val warmed = mutableListOf<PlayerSource>()
+
+    override fun warm(source: PlayerSource): String {
+        warmed += source
+        calls += "warm"
+        return "w${warmed.size}"
+    }
+
+    override fun dropWarm(key: String) {
+        calls += "dropWarm:$key"
+    }
+
+    override fun trimMemory(level: Int) {
+        calls += "trim:$level"
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

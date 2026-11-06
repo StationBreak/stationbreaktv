@@ -22,9 +22,9 @@ import kotlin.time.Duration
  * Before any of that, [keep] is given the [machine]'s paused place ([LiveChannel.kept]; null unless paused), or, with
  * no machine yet, the [resume] place this period was given, so the ViewModel can hold it across the stop.
  *
- * [player] is what the tuner is given: once left, every call on it is dropped, so a tune still unwinding, the tuner's
- * own stop and the host's release can neither start sound again nor reach the released player. A second [leave] does
- * nothing.
+ * [player] is what the tuner is given: once left, every call on it is dropped (the spec 24 warm calls too), so a tune
+ * still unwinding, the tuner's own stop and the host's release can neither start sound again nor reach the released
+ * player. A second [leave] does nothing.
  */
 internal class LivePeriod(
     private val inner: VideoPlayer,
@@ -63,6 +63,7 @@ internal class LivePeriod(
         return leaving
     }
 
+    @Suppress("TooManyFunctions") // One override per VideoPlayer member: each goes through the left check.
     private inner class Guarded : VideoPlayer {
         override val events: SharedFlow<PlayerEvent> get() = inner.events
 
@@ -106,9 +107,23 @@ internal class LivePeriod(
         override fun release() {
             if (left.compareAndSet(false, true)) inner.release()
         }
+
+        // Spec 24: the warm calls go through the same check, so none reaches the player once it is released.
+        override fun warm(source: PlayerSource): String = if (left.get()) NO_HANDLE else inner.warm(source)
+
+        override fun dropWarm(key: String) {
+            if (!left.get()) inner.dropWarm(key)
+        }
+
+        override fun trimMemory(level: Int) {
+            if (!left.get()) inner.trimMemory(level)
+        }
     }
 
     private companion object {
         const val NO_GENERATION = -1L
+
+        /** The handle of a warm after the leave: no player issues it (their counters start at 1), so it never swaps. */
+        const val NO_HANDLE = "w0"
     }
 }

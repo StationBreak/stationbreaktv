@@ -114,6 +114,16 @@ sealed interface PlayerEvent {
         val positionMs: Long,
     ) : PlayerEvent
 
+    /**
+     * Spec 24: what became of the warm standby at the play [generation]. Sent once by every play that was given a
+     * [PlayerSource.warmKey], from inside that play on the player's looper, and before any other event of the play; a
+     * play with no key sends none (the caller knows it gave none).
+     */
+    data class WarmDecided(
+        override val generation: Long,
+        val outcome: WarmOutcome,
+    ) : PlayerEvent
+
     companion object {
         /** A number the player could not give. */
         const val NOT_KNOWN = -1L
@@ -121,8 +131,9 @@ sealed interface PlayerEvent {
 }
 
 /**
- * What became of the warm standby at the play that returned a generation (spec 24). [swapped] is true when the play
- * was a hand-over to the standby; then [reason] is `None`. Otherwise [reason] says why the play was cold. [ageMs] is
+ * What became of the warm standby at a play given a warm key ([PlayerEvent.WarmDecided], spec 24). [swapped] is true
+ * when the play was a hand-over to the standby; then [reason] is `None`. Otherwise [reason] says why the play was
+ * cold; the player only gives the reasons [WarmReason] marks as the player's. [ageMs] is
  * how long the standby had been ready (or, not ready, since it was asked for), [readyMs] how long it took to become
  * ready (0 if it never did) and [detachMs] how long the old front took to let go of the surface (0 when cold).
  */
@@ -207,27 +218,21 @@ interface VideoPlayer {
     fun seekable(generation: Long): Boolean
 
     /**
-     * Spec 24: prepares [source] under [key] on a hidden, muted, paused standby player, so a later [play] of a source
-     * with that [PlayerSource.warmKey] hands the surface over to it. Replaces a standby held for another key; does not
-     * touch what is playing. Runs on the player's looper. A player that cannot warm does nothing.
+     * Spec 24: prepares [source] on a hidden, muted, paused standby player, and returns the handle the player issued
+     * for it: `w<n>`, from the player's own counter, never derived from the source. A later [play] of that source
+     * stamped with it (`source.copy(warmKey = handle)`) hands the surface over to the standby when it is ready. Each
+     * call issues a new handle and replaces a standby held for another; it does not touch what is playing. Returns at
+     * once; the work runs on the player's looper. A player that cannot warm still issues a handle: the play stamped
+     * with it is cold, and [PlayerEvent.WarmDecided] says why.
      */
-    fun warm(
-        key: String,
-        source: PlayerSource,
-    ) = Unit
+    fun warm(source: PlayerSource): String
 
-    /** Drops the standby if it is held for [key] (not yet played); nothing otherwise. */
-    fun dropWarm(key: String) = Unit
-
-    /**
-     * What became of the standby at the play that returned [generation]; null when that play has not run on the
-     * player yet, is too old to be kept, or the player cannot warm. Set on the looper inside the play, so it is final.
-     */
-    fun warmOutcome(generation: Long): WarmOutcome? = null
+    /** Drops the standby if it is held for the handle [key] (not yet played); nothing otherwise. */
+    fun dropWarm(key: String)
 
     /**
      * A memory trim signal (`ComponentCallbacks2`): at the running-moderate level or above the standby is released and
      * warming is paused for the rest of this player's life (the visit).
      */
-    fun trimMemory(level: Int) = Unit
+    fun trimMemory(level: Int)
 }

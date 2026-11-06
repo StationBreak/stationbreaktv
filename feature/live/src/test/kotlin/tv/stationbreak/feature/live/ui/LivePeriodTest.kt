@@ -20,12 +20,14 @@ import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.Place
 import tv.stationbreak.feature.live.ReportFacts
 import tv.stationbreak.feature.live.Rig
 import tv.stationbreak.feature.live.report.RecordingServer
+import java.lang.reflect.Modifier
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -127,6 +129,45 @@ class LivePeriodTest {
             assertFalse(period.player.seekable(3))
         }
 
+    @Test
+    fun leaveDropsWarmCalls() =
+        runTest {
+            // Spec 24: before the leave each warm call reaches the player; after it none does (the player is released).
+            val inner = RecordingPlayer()
+            val period = LivePeriod(inner, Job(), null) {}
+
+            assertEquals("w1", period.player.warm(source))
+            period.player.dropWarm("w1")
+            period.player.trimMemory(TRIM_RUNNING_MODERATE)
+            assertEquals(listOf("warm", "dropWarm:w1", "trim:5"), inner.log)
+
+            period.leave()
+            val afterLeave = inner.log.toList()
+            val handle = period.player.warm(source)
+            period.player.dropWarm(handle)
+            period.player.trimMemory(TRIM_RUNNING_MODERATE)
+            assertEquals(afterLeave, inner.log)
+            assertTrue("a handle no player issues: $handle", handle.matches(Regex("w\\d+")) && handle != "w1")
+        }
+
+    @Test
+    fun theGuardedPlayerOverridesEveryVideoPlayerMember() {
+        // A member the guard does not override would run the interface's default on the guard (or not compile): every
+        // call must go through the left check, so none may be missed when VideoPlayer grows.
+        val guarded = LivePeriod(RecordingPlayer(), Job(), null) {}.player.javaClass
+        val declared =
+            guarded.declaredMethods
+                .filterNot { it.isSynthetic || it.isBridge }
+                .map { it.name to it.parameterTypes.toList() }
+                .toSet()
+        val missing =
+            VideoPlayer::class.java.methods
+                .filterNot { Modifier.isStatic(it.modifiers) }
+                .map { it.name to it.parameterTypes.toList() }
+                .filterNot { it in declared }
+        assertTrue("LivePeriod's guarded player does not override $missing", missing.isEmpty())
+    }
+
     /** CH7 joined at minute 10 and paused [pauseAtMs] in ([before] runs just before the pause); the rig and run. */
     private suspend fun TestScope.pausedRig(
         pauseAtMs: Long,
@@ -192,4 +233,9 @@ class LivePeriodTest {
             assertEquals(given.copy(untended = true), kept)
             assertEquals(listOf("stop", "attach(null)", "release"), inner.log)
         }
+
+    private companion object {
+        /** `ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE`. */
+        const val TRIM_RUNNING_MODERATE = 5
+    }
 }

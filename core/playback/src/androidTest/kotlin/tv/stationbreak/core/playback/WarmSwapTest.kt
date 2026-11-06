@@ -177,16 +177,35 @@ class WarmSwapTest {
         return generation
     }
 
-    /** Warms [key] at [start] and waits for its `ready` line; returns when the warm was asked for. */
-    private fun warmReady(
-        key: String,
-        start: Duration,
-    ): Long {
-        val askedAt = SystemClock.elapsedRealtime()
-        player.warm(key, sourceAt(start, key))
-        awaitLine("ready ", "key=$key")
-        return askedAt
+    /** Warms the clip at [start] and waits for its `ready` line; returns the handle the player issued. */
+    private fun warmReady(start: Duration): String {
+        val handle = player.warm(sourceAt(start))
+        awaitLine("ready ", "key=$handle")
+        return handle
     }
+
+    /**
+     * Reads the events of play [generation] up to its Playing, and returns its warm decision with it. The decision
+     * must be the first of the play's events.
+     */
+    private fun decidedThenPlaying(generation: Long): Pair<WarmOutcome, PlayerEvent.Playing> =
+        runBlocking {
+            withTimeout(WAIT) {
+                var outcome: WarmOutcome? = null
+                var playing: PlayerEvent.Playing? = null
+                while (playing == null) {
+                    val event = seen.receive()
+                    if (event.generation != generation) continue
+                    when (event) {
+                        is PlayerEvent.WarmDecided -> outcome = event.outcome
+                        is PlayerEvent.Playing -> playing = event
+                        else -> Unit
+                    }
+                    assertNotNull("$event came before the warm decision", outcome)
+                }
+                checkNotNull(outcome) to checkNotNull(playing)
+            }
+        }
 
     private fun <T> onMainValue(read: () -> T): T {
         var value: T? = null
@@ -201,41 +220,66 @@ class WarmSwapTest {
 
     @Test
     fun standbyReachesReadySurfaceless() {
-        player.warm("w1", sourceAt(2.seconds, "w1"))
-        // No play has been made: there is no outcome to read yet.
-        assertNull(player.warmOutcome(1L))
-        val ready = awaitLine("ready ", "key=w1")
+        val handle = player.warm(sourceAt(2.seconds))
+        val ready = awaitLine("ready ", "key=$handle")
         assertTrue(ready, Regex("""readyMs=\d+ decoderInitMs=\d+""").containsMatchIn(ready))
         assertTrue(ready, ready.contains("framesDecoded="))
         assertTrue(ready, ready.contains("standbyBufKb="))
         assertNotNull(standby())
         assertNotSame("the standby is not the front", front(), standby())
-        // The standby is hidden: none of its events reach the player's stream.
+        // The standby is hidden: none of its events reach the player's stream, and no play means no warm decision.
         assertTrue(eventsWithin(1.seconds).isEmpty())
+    }
+
+    @Test
+    fun warmHandlesComeFromThePlayer() {
+        // The player's own counter, never the caller's or the source's.
+        assertEquals("w1", player.warm(sourceAt(2.seconds)))
+        assertEquals("w2", player.warm(sourceAt(2.seconds, key = "w9")))
+        awaitLine("ready ", "key=w2")
+    }
+
+    @Test
+    fun aKeylessPlaySendsNoWarmDecision() {
+        val generation = player.play(sourceAt(Duration.ZERO))
+        val before =
+            runBlocking {
+                withTimeout(WAIT) {
+                    val out = mutableListOf<PlayerEvent>()
+                    while (out.none { it is PlayerEvent.Playing && it.generation == generation }) out += seen.receive()
+                    out
+                }
+            }
+        assertTrue("a warm decision for a keyless play: $before", before.none { it is PlayerEvent.WarmDecided })
     }
 
     @Test
     fun swapShowsFrameAtLivePosition() {
         coldPlaying()
-        val askedAt = warmReady("w1", 2.seconds)
+        val askedAt = SystemClock.elapsedRealtime()
+        val handle = warmReady(2.seconds)
         val elapsed = (SystemClock.elapsedRealtime() - askedAt).milliseconds
         val start = 2.seconds + elapsed
-        val generation = player.play(sourceAt(start, "w1"))
-        // The frame on the surface and Playing may come in either order.
+        val generation = player.play(sourceAt(start, handle))
+        // The frame on the surface and Playing may come in either order; the warm decision comes first.
+        var outcome: WarmOutcome? = null
         var playing: PlayerEvent.Playing? = null
         var framed = false
         runBlocking {
             withTimeout(WAIT) {
                 while (playing == null || !framed) {
-                    when (val event = seen.receive()) {
-                        is PlayerEvent.Playing -> if (event.generation == generation) playing = playing ?: event
-                        is PlayerEvent.FirstFrame -> if (event.generation == generation) framed = true
+                    val event = seen.receive()
+                    if (event.generation != generation) continue
+                    when (event) {
+                        is PlayerEvent.WarmDecided -> outcome = event.outcome
+                        is PlayerEvent.Playing -> playing = playing ?: event
+                        is PlayerEvent.FirstFrame -> framed = true
                         else -> Unit
                     }
+                    assertNotNull("$event came before the warm decision", outcome)
                 }
             }
         }
-        val outcome = player.warmOutcome(generation)
         assertNotNull(outcome)
         assertTrue("not swapped: $outcome", outcome!!.swapped)
         assertEquals(WarmReason.None, outcome.reason)
@@ -248,10 +292,10 @@ class WarmSwapTest {
     @Test
     fun noSeekWithinTolerance() {
         coldPlaying()
-        warmReady("w1", 3.seconds)
+        val handle = warmReady(3.seconds)
         // The standby sits paused at 3 s: a play from there is within the tolerance and is not seeked.
-        val generation = player.play(sourceAt(3.seconds, "w1"))
-        val swap = awaitLine("swap ", "key=w1")
+        val generation = player.play(sourceAt(3.seconds, handle))
+        val swap = awaitLine("swap ", "key=$handle")
         assertTrue(swap, swap.contains("seek=false"))
         val playing = await<PlayerEvent.Playing> { it.generation == generation }
         val off = (playing.position - 3.seconds).absoluteValue
@@ -262,25 +306,24 @@ class WarmSwapTest {
     fun oldFrontIsNextStandby() {
         coldPlaying()
         val formerFront = front()
-        warmReady("w1", 2.seconds)
+        val first = warmReady(2.seconds)
         val warmed = standby()
-        val generation = player.play(sourceAt(2.seconds, "w1"))
+        val generation = player.play(sourceAt(2.seconds, first))
         await<PlayerEvent.Playing> { it.generation == generation }
         assertSame("the standby is the front now", warmed, front())
         assertSame("the old front is the standby now", formerFront, standby())
-        warmReady("w2", 4.seconds)
-        assertSame("w2 warmed on the former front", formerFront, standby())
-        val third = player.play(sourceAt(4.seconds, "w2"))
-        await<PlayerEvent.Playing> { it.generation == third }
-        assertTrue(player.warmOutcome(third)!!.swapped)
+        val second = warmReady(4.seconds)
+        assertSame("the second warmed on the former front", formerFront, standby())
+        val third = player.play(sourceAt(4.seconds, second))
+        assertTrue(decidedThenPlaying(third).first.swapped)
         assertSame(formerFront, front())
     }
 
     @Test
     fun transportFollowsFront() {
         val old = coldPlaying()
-        warmReady("w1", 1.seconds)
-        val generation = player.play(sourceAt(1.seconds, "w1"))
+        val handle = warmReady(1.seconds)
+        val generation = player.play(sourceAt(1.seconds, handle))
         await<PlayerEvent.Playing> { it.generation == generation }
         val newFront = front()
         val oldFront = standby()!!
@@ -307,10 +350,10 @@ class WarmSwapTest {
     @Test
     fun aspectFollowsFront() {
         // No front play: the only picture is the standby's, and while hidden its size is not the screen's.
-        warmReady("w1", 2.seconds)
+        val handle = warmReady(2.seconds)
         Thread.sleep(SETTLE_MS)
         assertNull("a hidden standby set the shape", player.videoAspect.value)
-        val generation = player.play(sourceAt(2.seconds, "w1"))
+        val generation = player.play(sourceAt(2.seconds, handle))
         await<PlayerEvent.Playing> { it.generation == generation }
         val expected = WIDTH.toFloat() / HEIGHT
         // The size reaches the screen with the first frame on it, which may follow Playing.
@@ -325,23 +368,23 @@ class WarmSwapTest {
 
     @Test
     fun mismatchIsCold() {
+        // Two quick flips: the second warm replaced the first, so a play with the first handle is cold.
         coldPlaying()
         val before = front()
-        warmReady("w1", 2.seconds)
-        val generation = player.play(sourceAt(2.seconds, "w9"))
-        await<PlayerEvent.Playing> { it.generation == generation }
-        val outcome = player.warmOutcome(generation)
-        assertNotNull(outcome)
-        assertFalse(outcome!!.swapped)
+        val first = warmReady(2.seconds)
+        val second = warmReady(4.seconds)
+        val generation = player.play(sourceAt(2.seconds, first))
+        val (outcome, _) = decidedThenPlaying(generation)
+        assertFalse(outcome.swapped)
         assertEquals(WarmReason.Mismatch, outcome.reason)
         assertSame("a cold play stays on the front", before, front())
-        awaitLine("dropped ", "key=w1")
+        awaitLine("dropped ", "key=$second")
     }
 
     @Test
     fun releaseOnStopLeavesNoCodec() {
         coldPlaying()
-        warmReady("w1", 2.seconds)
+        warmReady(2.seconds)
         val counters: List<DecoderCounters> =
             onMainValue {
                 listOfNotNull(player.player.videoDecoderCounters, player.standbyPlayer?.videoDecoderCounters)
@@ -360,7 +403,7 @@ class WarmSwapTest {
     @Suppress("DEPRECATION") // The platform's running-moderate level (5), the threshold spec 24 names.
     fun trimReleasesStandby() {
         coldPlaying()
-        warmReady("w1", 2.seconds)
+        warmReady(2.seconds)
         val held = standby()!!
         val counters = onMainValue { held.videoDecoderCounters }
         player.trimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE)
@@ -370,12 +413,11 @@ class WarmSwapTest {
             it.ensureUpdated()
             assertTrue("the standby's codec is still held", it.decoderReleaseCount >= it.decoderInitCount)
         }
-        player.warm("w2", sourceAt(4.seconds, "w2"))
-        awaitLine("skipped ", "key=w2", "reason=disabled")
+        val handle = player.warm(sourceAt(4.seconds))
+        awaitLine("skipped ", "key=$handle", "reason=disabled")
         assertNull("warming is paused for the visit", standby())
-        val generation = player.play(sourceAt(4.seconds, "w2"))
-        await<PlayerEvent.Playing> { it.generation == generation }
-        assertEquals(WarmReason.Disabled, player.warmOutcome(generation)!!.reason)
+        val generation = player.play(sourceAt(4.seconds, handle))
+        assertEquals(WarmReason.Disabled, decidedThenPlaying(generation).first.reason)
     }
 
     private companion object {

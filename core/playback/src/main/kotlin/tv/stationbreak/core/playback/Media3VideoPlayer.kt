@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
@@ -146,8 +145,8 @@ class Media3VideoPlayer(
 
     private val nextGeneration = AtomicLong()
 
-    /** The warm outcome of each recent play, by generation; written on the looper inside [play]. */
-    private val outcomes = ConcurrentHashMap<Long, WarmOutcome>()
+    /** The source of the warm handles ([warm]): `w1`, `w2`, ... */
+    private val warmHandles = AtomicLong()
 
     /** The generation whose first frame on screen ends a warm hand-over, and when its play was called. Looper only. */
     private var swapShown: Pair<Long, Long>? = null
@@ -237,16 +236,15 @@ class Media3VideoPlayer(
         val calledAt = clock()
         onPlayerThread {
             // Spec 24: a ready standby for this source's key takes the surface first and becomes the front.
-            outcomes.keys.removeAll { it <= generation - KEPT_OUTCOMES }
-            val key = source.warmKey
-            val taken = key?.let { slots.take(it) }
-            outcomes[generation] = taken?.outcome ?: WarmOutcome(false, WarmReason.NoHandle, 0L, 0L, 0L)
+            val taken = source.warmKey?.let { slots.take(it) }
             val swap = taken?.handover
             // The new front's shape, if it already knows it; else the last one stays until it reports one.
             if (swap != null) aspect.onVideoSize(exo.videoSize)
             active = generation
             // In the same step as `active`, so a reader on another thread never sees the old play under the new number.
             published = Published(generation, source.playerStart.inWholeMilliseconds, false)
+            // The play's first event: a hand-over's start may report others at once. `published` is this play's.
+            taken?.let { flow.tryEmit(PlayerEvent.WarmDecided(generation, it.outcome)) }
             av.begin(generation, calledAt)
             current = source
             tracksApplied = false
@@ -292,22 +290,21 @@ class Media3VideoPlayer(
             publish()
         }
 
-    override fun warm(
-        key: String,
-        source: PlayerSource,
-    ) = onPlayerThread { slots.warm(key, source) }
+    override fun warm(source: PlayerSource): String {
+        val handle = WARM_HANDLE + warmHandles.incrementAndGet()
+        onPlayerThread { slots.warm(handle, source) }
+        return handle
+    }
 
     override fun dropWarm(key: String) = onPlayerThread { slots.drop(key) }
-
-    override fun warmOutcome(generation: Long): WarmOutcome? = outcomes[generation]
 
     override fun trimMemory(level: Int) = onPlayerThread { slots.trim(level) }
 
     /**
      * Starts the new front (the standby that was) from [source]'s start, with its picks and its sound. Looper only.
      * By design the play's [AvTimings] then lack the ready and video-decoder steps (`av.ready`, `av.videoDecoder`):
-     * both happened while it was the standby, before this play began. A warm flip is measured by [warmOutcome] and
-     * the tune's time to playing instead.
+     * both happened while it was the standby, before this play began. A warm flip is measured by
+     * [PlayerEvent.WarmDecided] and the tune's time to playing instead.
      */
     private fun startSwapped(
         source: PlayerSource,
@@ -641,8 +638,8 @@ class Media3VideoPlayer(
         const val NO_POSITION = -1L
         const val US_PER_MS = 1_000L
 
-        /** How many plays' warm outcomes are kept for [warmOutcome]. */
-        const val KEPT_OUTCOMES = 16L
+        /** The prefix of the warm handles [warm] issues; the player's counter follows it. */
+        const val WARM_HANDLE = "w"
 
         /** The no-surface decoder list's answer, once per process: reading it builds a renderer. */
         @Volatile var deviceCannot: Boolean? = null
