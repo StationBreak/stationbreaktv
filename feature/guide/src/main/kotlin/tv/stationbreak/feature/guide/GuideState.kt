@@ -59,6 +59,9 @@ internal enum class GuideMenuEntry {
     /** Opens channel management. */
     Channels,
 
+    /** Opens the guide's Dark and Light choice. Channels and Exit are unchanged. */
+    Settings,
+
     /** Leaves live TV, as Back does from the menu row. */
     Exit,
 }
@@ -85,6 +88,9 @@ internal sealed interface GuideEvent {
 
     /** Select on the Channels entry: the guide shows channel management over itself. */
     data object OpenChannels : GuideEvent
+
+    /** Select on the Settings entry: the guide shows its Dark and Light choice. */
+    data object OpenSettings : GuideEvent
 
     /** Select on the Exit entry: leave live TV, the way Back from the menu row does. */
     data object Exit : GuideEvent

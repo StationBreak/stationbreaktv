@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import android.content.res.Resources
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
@@ -20,10 +21,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
@@ -50,10 +51,7 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
-import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.BroadcastFocus
 import tv.stationbreak.core.ui.ProgramText
-import tv.stationbreak.core.ui.drawBroadcastFocus
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
@@ -71,10 +69,10 @@ private val CompactBelow = 80.dp
  */
 internal val EllipsisFrom = 32.dp
 internal const val ELLIPSIS = "…"
-private val ProgramStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)
+private val ProgramStyle = guideText(19.sp, FontWeight.Medium)
 
-/** The "…" on a slate, in the same mono face and letter spacing as its "OFF AIR" plate (not italic). */
-private val SlateStyle = mono(16.sp, LETTER_SPACING.sp)
+/** The "…" on a slate, in the same face as its "OFF AIR" plate. */
+private val SlateStyle = guideText(19.sp, FontWeight.SemiBold)
 
 /**
  * The "…" laid out once for the whole grid (a program's style and a slate's), so a cell only draws it, in its own
@@ -102,19 +100,16 @@ internal fun rememberEllipsisMarks(): EllipsisMarks {
 }
 
 private val EpisodeFrom = 160.dp
-private val TextStart = 10.dp
+private val TextStart = 12.dp
 
 /**
- * Room after a title that ends inside the viewport. The focus plate takes the ring plus the ink gap on that edge, and
- * a focused title is Ink, so anything past the fill disappears on the gap. The same inset focused or not: a focus move
- * only recolours the title, it does not lay it out again.
+ * Room after a title that ends inside the viewport, clear of the card's rounded end. The same inset focused or not:
+ * the focus fill extends in the draw and does not move the title.
  */
-private val TextEnd = BroadcastFocus.ringWidth + BroadcastFocus.ringGap
+private val TextEnd = 12.dp
 private val ChevronInset = 6.dp
 private val ChevronSize = 5.dp
 private val ChevronRoom = 14.dp
-private const val TINT_ALPHA = 0.08f
-private const val DASH_ALPHA = 0.6f
 
 /**
  * Called with a cell's channel and start each time that cell composes. Tests count compositions with it; null (the
@@ -191,8 +186,8 @@ internal class CellPlace(
 
     /**
      * What the cell draws over its fill with the viewport at [viewportStartMs], [focused] or not: see [CellMarks]. The
-     * ring goes round the part of the cell that is in view, so a cell cut by either edge of the time columns has a
-     * closed ring inside them (and so inside the safe area); that edge is the ring's, and its chevron is not drawn.
+     * focus fill covers the part of the cell that is in view, so a cell cut by either edge of the time columns has a
+     * closed end inside them (and so inside the safe area); that edge is the fill's, and its chevron is not drawn.
      */
     fun marks(
         viewportStartMs: Long,
@@ -210,8 +205,8 @@ internal class CellPlace(
 }
 
 /**
- * What a cell draws over its fill, in its own coordinates (inside its 1 dp inset): the focus [ring]'s left and right
- * edges when it is focused, and the "‹" ([earlier]) and "›" ([later]) chevrons at the viewport's edges.
+ * What a cell draws over its fill, in its own coordinates (inside its 1 dp inset): the focus fill's left and right
+ * edges when it is focused ([ring]), and the "‹" ([earlier]) and "›" ([later]) chevrons at the viewport's edges.
  */
 internal data class CellMarks(
     val ring: ClosedRange<Dp>?,
@@ -222,10 +217,10 @@ internal data class CellMarks(
 /**
  * One cell, placed by time from the origin. It reads only whether it is the focused cell (derived from [focusOf] by
  * identity: channel and start), so a focus move recomposes the cell it left and the one it reached, and a horizontal
- * page recomposes none: [viewportOf] is read only while laying out (the sticky title) and drawing (the ring and the
- * chevrons). Fill, ring, slate dashes and chevrons are drawn. A cell does not scale ([BroadcastFocus.CELL_SCALE]): a
- * scale would reflow the row. A compact cell writes no title, focused or not (the details panel names the focused
- * cell), only a "…" if it has room ([EllipsisFrom]).
+ * page recomposes none: [viewportOf] is read only while laying out (the sticky title) and drawing (the fill and the
+ * chevrons). The card and its focus fill are drawn. A cell does not scale ([CONTENT_SCALE]): a scale would reflow the
+ * row. A compact cell writes no title, focused or not (the details panel names the focused cell), only a "…" if it has
+ * room ([EllipsisFrom]).
  */
 @Suppress("LongParameterList") // One cell's identity, place and the three readers it needs.
 @Composable
@@ -233,6 +228,7 @@ internal fun GuideCellView(
     channel: ChannelId,
     cell: GuideCell,
     place: CellPlace,
+    alternate: Boolean,
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
@@ -258,14 +254,32 @@ internal fun GuideCellView(
     val is24h = is24Hour()
     val marks = LocalEllipsisMarks.current
     val mark = if (cell.kind == CellKind.Slate) marks?.slate else marks?.program
+    val colors = LocalGuideColors.current
+    // The fill animates. The title does not: its weight stays put, so a focus move recolours it and does not lay it
+    // out again.
+    val focusAmount by animateFloatAsState(
+        targetValue = if (focused) 1f else 0f,
+        animationSpec = guideFocusMotion(),
+        label = "guideCellFocus",
+    )
+    val slate = cell.kind == CellKind.Slate
     Box(
         Modifier
             .offset(x = place.x)
             .width(place.width)
             .fillMaxHeight()
             .padding(CellInset)
-            .cellLook(cell.kind == CellKind.Slate, place, viewportOf, mark.takeIf { title.isNotEmpty() }) { focused }
-            .testTag(GuideTags.cell(channel, cell.startMs))
+            .cellLook(
+                CellPaint(
+                    resting = if (alternate) colors.cardAlternate else colors.card,
+                    colors = colors,
+                    slate = slate,
+                    focusAmount = { focusAmount },
+                ),
+                place,
+                viewportOf,
+                mark.takeIf { title.isNotEmpty() },
+            ).testTag(GuideTags.cell(channel, cell.startMs))
             // The description carries the title, so the title Text's own semantics are cleared from the merged tree
             // (a screen reader would otherwise read the cell, then the title again). The tag stays outside, so it is
             // kept; the unmerged tree still has the Text node.
@@ -316,22 +330,18 @@ private fun CellText(
     focused: Boolean,
     modifier: Modifier,
 ) {
+    val colors = LocalGuideColors.current
     val slate = cell.kind == CellKind.Slate
-    val main =
-        when {
-            focused -> BroadcastFocus.content
-            slate -> BroadcastColors.Ground
-            else -> BroadcastColors.Cream
-        }
+    val resting = if (slate) colors.textSecondary else colors.programmeText
+    val main = if (focused) colors.focusText else resting
     val numbers =
         cell.info?.takeIf { it.kind == ScheduleItemKind.Episode && place.width >= EpisodeFrom }?.let(::numbersOf)
-    // The title's colour is the text's own, not a span of it: a focus move changes only that, which is drawn, so the
-    // text is not laid out again. The numbers keep a span of their own colour, so a cell that shows them is.
+    // The numbers keep a span of their own colour. The title's colour is the text's own.
     val minor =
         when {
             numbers == null -> Color.Unspecified
-            focused -> BroadcastFocus.content
-            else -> BroadcastColors.Ground
+            focused -> colors.focusText
+            else -> colors.textSecondary
         }
     val text =
         remember(title, numbers, minor) {
@@ -344,7 +354,8 @@ private fun CellText(
         text = text,
         modifier = modifier,
         color = main,
-        style = if (slate) mono(16.sp, LETTER_SPACING.sp) else ProgramStyle,
+        // One style focused or not: a move recolours the title and does not lay it out again.
+        style = if (slate) SlateStyle else ProgramStyle,
         maxLines = 1,
         softWrap = false,
         overflow = TextOverflow.Ellipsis,
@@ -387,23 +398,27 @@ private fun DrawScope.drawEllipsis(
     drawText(ellipsis, color, Offset(centre - ellipsis.size.width / 2, top))
 }
 
+/** What a cell paints: its resting fill, the theme, and how far the focus fill has grown. */
+private class CellPaint(
+    val resting: Color,
+    val colors: GuideColors,
+    val slate: Boolean,
+    val focusAmount: () -> Float,
+)
+
 /**
- * The cell's look, drawn: Cream at 8% (a slate: a dashed Ground border instead), or when [focused] the [BroadcastFocus]
- * plate inside the part of the cell in view, so the row's clip can never cut the ring. Chevrons mark a program running
- * on past either edge of the viewport, at that edge, unless it is focused; they read [viewportOf] while drawing. A
- * compact cell has no chevrons; one with no title in view draws [ellipsis] (a "…" laid out once, null for a cell with
- * no title) centred in the part in view.
+ * The cell's card, drawn. Focus amount 0 is the resting card and 1 is the filled focus, extended in the draw, with
+ * no ring. Chevrons mark a program running on past either edge of the viewport, at that edge, unless it is focused;
+ * they read [viewportOf] while drawing. A compact cell has no chevrons; one with no title in view draws [ellipsis]
+ * (a "…" laid out once, null for a cell with no title) centred in the part in view.
  */
 private fun Modifier.cellLook(
-    slate: Boolean,
+    paint: CellPaint,
     place: CellPlace,
     viewportOf: () -> Long,
     ellipsis: TextLayoutResult?,
-    focused: () -> Boolean,
 ): Modifier =
     drawWithCache {
-        val dashWidth = 1.5.dp.toPx()
-        val dash = Stroke(dashWidth, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())))
         val chevron = Stroke(width = 2.dp.toPx())
         val edge = ChevronInset.toPx()
         val inset = CellInset.toPx()
@@ -422,39 +437,18 @@ private fun Modifier.cellLook(
                 lineTo(-edge, middle)
                 lineTo(-edge - half, middle + half)
             }
+        val restingMark = if (paint.slate) paint.colors.textSecondary else paint.colors.programmeText
         onDrawBehind {
-            val isFocused = focused()
+            val amount = paint.focusAmount()
+            val isFocused = amount > 0f
+            drawGuideCard(paint.colors, paint.resting, amount)
             val at = viewportOf()
             val marks = place.marks(at, isFocused)
-            when {
-                isFocused -> {
-                    marks.ring?.let {
-                        val from = it.start.toPx()
-                        val to = it.endInclusive.toPx()
-                        drawBroadcastFocus(from, 0f, to - from, size.height)
-                    }
-                }
-
-                slate -> {
-                    drawRect(
-                        BroadcastColors.Ground.copy(alpha = DASH_ALPHA),
-                        Offset(dashWidth / 2, dashWidth / 2),
-                        Size(size.width - dashWidth, size.height - dashWidth),
-                        style = dash,
-                    )
-                }
-
-                else -> {
-                    drawRect(BroadcastColors.Cream.copy(alpha = TINT_ALPHA))
-                }
-            }
-            val mark = if (isFocused) BroadcastFocus.content else BroadcastColors.Cream
+            val mark = lerp(restingMark, paint.colors.focusText, amount)
             val from = place.visibleLeft(at).toPx() - inset
             val to = place.visibleRight(at).toPx() - inset
             if (marks.earlier) translate(left = from) { drawPath(left, mark, style = chevron) }
             if (marks.later) translate(left = to) { drawPath(right, mark, style = chevron) }
-            // As the cell's title would be: Ink focused, a slate's Ground, else Cream.
-            val ellipsisColor = if (slate && !isFocused) BroadcastColors.Ground else mark
-            if (ellipsis != null) drawEllipsis(ellipsis, place.ellipsisIn(at), ellipsisColor, inset)
+            if (ellipsis != null) drawEllipsis(ellipsis, place.ellipsisIn(at), mark, inset)
         }
     }

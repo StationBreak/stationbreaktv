@@ -21,9 +21,9 @@ import androidx.tv.material3.MaterialTheme
 /**
  * The tv-material focus treatment still used by onboarding, the banner and the channel screen (spec 05): a scale-up
  * plus an outline. A button inverts its fill when focused, so its ring is the theme's mid-tone `border` colour; a
- * surface that keeps its fill (the address field) uses `primary`. The guide paints [BroadcastFocus] instead, and
- * these screens keep this until they move onto it. `ContrastTest` pins both rings at 3:1 or better against what they
- * touch.
+ * surface that keeps its fill (the address field) uses `primary`. The guide paints its own filled focus instead, and
+ * these screens keep this until they move onto that treatment. `ContrastTest` pins both rings at 3:1 or better against
+ * what they touch.
  */
 object FocusStyle {
     internal val OutlineWidth = 3.dp

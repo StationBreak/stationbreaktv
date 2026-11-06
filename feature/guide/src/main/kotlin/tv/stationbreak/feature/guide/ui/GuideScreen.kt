@@ -4,11 +4,13 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -23,14 +25,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
@@ -42,7 +53,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.ScreenLayout
@@ -121,6 +131,8 @@ internal fun GuideScreen(
     info: CellDetails?,
     current: ChannelId?,
     pictureHole: DpRect,
+    themeOpen: Boolean = false,
+    themeChoice: GuideTheme = GuideTheme.Dark,
     modifier: Modifier = Modifier,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
@@ -142,7 +154,8 @@ internal fun GuideScreen(
         BoxWithConstraints(modifier.fillMaxSize().testTag(GuideTags.SCREEN)) {
             val geometry =
                 remember(maxWidth, maxHeight, pictureHole) { GuideGeometry(DpSize(maxWidth, maxHeight), pictureHole) }
-            Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole) })
+            val colors = LocalGuideColors.current
+            Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole, colors) })
             Column(
                 Modifier
                     .offset(geometry.safe.left, geometry.safe.top)
@@ -152,7 +165,11 @@ internal fun GuideScreen(
                 // the time are shown once. Its place is kept, so the grid does not move.
                 // The menu row takes the foot of that band, so the grid and the picture stay where they are.
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
-                if (info == null) DetailsPanel(panel, nowOf, panelSize) else Spacer(panelSize)
+                when {
+                    info != null -> Spacer(panelSize)
+                    themeOpen -> GuideThemePanel(themeChoice, panelSize)
+                    else -> DetailsPanel(panel, nowOf, panelSize)
+                }
                 GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf))
@@ -164,16 +181,29 @@ internal fun GuideScreen(
     }
 }
 
-/** The ground of the guide: Ink everywhere, except the [hole] live TV laid its picture in. */
-private fun DrawScope.ground(hole: DpRect) {
-    val left = hole.left.toPx()
-    val top = hole.top.toPx()
-    val right = hole.right.toPx()
-    val bottom = hole.bottom.toPx()
-    drawRect(BroadcastColors.Ink, size = Size(size.width, top))
-    drawRect(BroadcastColors.Ink, Offset(0f, bottom), Size(size.width, size.height - bottom))
-    drawRect(BroadcastColors.Ink, Offset(0f, top), Size(left, bottom - top))
-    drawRect(BroadcastColors.Ink, Offset(right, top), Size(size.width - right, bottom - top))
+/**
+ * The ground of the guide: a diagonal from [GuideColors.pageGradientStart] to [GuideColors.page] across the first 60%,
+ * then [GuideColors.page]. The [hole] live TV laid its picture in is left clear. The picture itself stays dark.
+ */
+private fun DrawScope.ground(
+    hole: DpRect,
+    colors: GuideColors,
+) {
+    val brush =
+        Brush.linearGradient(
+            0f to colors.pageGradientStart,
+            0.6f to colors.page,
+            1f to colors.page,
+            start = Offset.Zero,
+            end = Offset(size.width, size.height),
+        )
+    val cleared =
+        Path().apply {
+            addRect(Rect(hole.left.toPx(), hole.top.toPx(), hole.right.toPx(), hole.bottom.toPx()))
+        }
+    clipPath(cleared, clipOp = ClipOp.Difference) {
+        drawRect(brush)
+    }
 }
 
 /** What the grid reads from the snapshot on its own, outside composition where it can. */
@@ -257,8 +287,8 @@ private fun Message(
         Text(
             text = stringResource(text),
             modifier = Modifier.testTag(tag),
-            style = TextStyle(fontSize = 18.sp),
-            color = BroadcastColors.Ground,
+            style = guideText(18.sp, FontWeight.Medium),
+            color = LocalGuideColors.current.textSecondary,
         )
     }
 }
@@ -290,8 +320,8 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
  * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to
  * its channel), "OK Info" on a later program, nothing for OK on a later slate, and "Back Exit live TV", since
  * leaving from the guide is the one thing no one would guess, which becomes "Back To what's playing" while the focus
- * is off the playing channel's cell and "Back To the menu" on it. Key names in Cream, what they do in Ground.
- * Recomposes only when the kind of the focused cell changes.
+ * is off the playing channel's cell and "Back To the menu" on it. Key names sit on the key pill; what they do is
+ * secondary. Recomposes only when the kind of the focused cell changes.
  */
 @Composable
 private fun HintRow(
@@ -319,19 +349,44 @@ private fun HintRow(
             HintKind.Info -> stringResource(R.string.guide_hint_info)
             HintKind.BackOnly -> null
         }
-    val text =
-        buildAnnotatedString {
-            if (action != null) {
-                withStyle(SpanStyle(color = BroadcastColors.Cream)) { append(ok) }
-                withStyle(SpanStyle(color = BroadcastColors.Ground)) { append(" $action$HINT_SPACE") }
-            }
-            withStyle(SpanStyle(color = BroadcastColors.Cream)) { append(back) }
-            withStyle(SpanStyle(color = BroadcastColors.Ground)) { append(" $exit") }
+    val spoken =
+        buildString {
+            if (action != null) append("$ok $action$HINT_SPACE")
+            append("$back $exit")
         }
+    val colors = LocalGuideColors.current
+    val actionStyle = guideText(16.sp, FontWeight.Medium)
+    Row(
+        Modifier
+            .height(HintHeight)
+            .fillMaxWidth()
+            .drawBehind {
+                drawRect(colors.hintDivider, size = Size(size.width, 1.dp.toPx()))
+            }.testTag(GuideTags.HINT)
+            .clearAndSetSemantics { text = AnnotatedString(spoken) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (action != null) {
+            HintKey(ok)
+            Text(text = " $action", style = actionStyle, color = colors.textSecondary, maxLines = 1)
+            Spacer(Modifier.width(12.dp))
+        }
+        HintKey(back)
+        Text(text = " $exit", style = actionStyle, color = colors.textSecondary, maxLines = 1)
+    }
+}
+
+@Composable
+private fun HintKey(label: String) {
+    val colors = LocalGuideColors.current
     Text(
-        text = text,
-        modifier = Modifier.height(HintHeight).testTag(GuideTags.HINT),
-        style = mono(16.sp),
+        text = label,
+        modifier =
+            Modifier
+                .drawBehind { drawGuidePill(colors.keyHintPill) }
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+        style = guideText(16.sp, FontWeight.SemiBold),
+        color = colors.textPrimary,
         maxLines = 1,
     )
 }

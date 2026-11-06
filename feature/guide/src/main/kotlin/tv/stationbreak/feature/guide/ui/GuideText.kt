@@ -5,19 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.TextUnit
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
-import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import java.time.ZoneId
-
-/** The letter spacing of the guide's capitals (channel lines, the NOW chip), in sp. */
-internal const val LETTER_SPACING = 1.5f
 
 /** "3 · Test Channel": the channel line of the panel and the overlay. */
 internal fun channelLine(
@@ -69,14 +62,3 @@ internal fun is24Hour(): Boolean {
             .is24HourFormat(context)
     }
 }
-
-/** Space Mono Bold at [size]: labels, times and channel numbers. */
-internal fun mono(
-    size: TextUnit,
-    letterSpacing: TextUnit = TextUnit.Unspecified,
-) = TextStyle(
-    fontFamily = BroadcastType.Mono,
-    fontWeight = FontWeight.Bold,
-    fontSize = size,
-    letterSpacing = letterSpacing,
-)

@@ -11,20 +11,24 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -33,27 +37,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
 import tv.stationbreak.feature.guide.GuideModel
+import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.SLOT_MS
 import tv.stationbreak.feature.guide.indexOf
 import java.time.Instant
 import java.time.ZoneId
 
 private val TickMarkHeight = 8.dp
-private val NowLineWidth = 2.dp
-private val NowMarkWidth = 10.dp
-private val PlayingBarWidth = 4.dp
+private val NowLineWidth = 1.5.dp
+private val NowChipHeight = 21.dp
+private val NowChipGap = 4.dp
+
+/** Room to the left of the rail for the timeline NOW chip, so it does not cover a time label. */
+private val NowChipLead = 56.dp
+private val TimelineLabelWidth = 96.dp
+private val PlayingBarWidth = 3.dp
+private val FocusTickWidth = 3.dp
+private val FocusTickHeight = 16.dp
 private val NumberWidth = 36.dp
 private val LabelGap = 6.dp
-
-/** Cream over the focused row. Light enough that the cells' own fills still read, and drawn, not composed. */
-private const val ROW_TINT_ALPHA = 0.06f
-private val RowTint = BroadcastColors.Cream.copy(alpha = ROW_TINT_ALPHA)
 
 /**
  * The clock strip over [GUIDE_VISIBLE_ROWS] rows from [firstVisibleRow] (the vertical window the model chooses),
@@ -75,10 +82,11 @@ internal fun GuideGrid(
 ) {
     val last = minOf(firstVisibleRow + GUIDE_VISIBLE_ROWS, model.rows.size)
     val ellipsis = rememberEllipsisMarks()
+    val colors = LocalGuideColors.current
     Box(
         modifier
             .testTag(GuideTags.GRID)
-            .focusedRowTint(model, firstVisibleRow, focusOf)
+            .focusedRowTint(model, firstVisibleRow, focusOf, colors)
             .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
     ) {
         CompositionLocalProvider(LocalEllipsisMarks provides ellipsis) {
@@ -89,7 +97,16 @@ internal fun GuideGrid(
                     key(row.channel) {
                         Row(Modifier.height(RowHeight)) {
                             ChannelCell(row.number, row.name, playing = row.channel == current)
-                            GuideRowCells(row.channel, row.cells, model.originMs, geometry, focusOf, viewportOf, nowOf)
+                            GuideRowCells(
+                                row.channel,
+                                row.cells,
+                                index % 2 == 1,
+                                model.originMs,
+                                geometry,
+                                focusOf,
+                                viewportOf,
+                                nowOf,
+                            )
                         }
                     }
                 }
@@ -110,6 +127,7 @@ internal fun GuideGrid(
 private fun GuideRowCells(
     channel: ChannelId,
     cells: List<GuideCell>,
+    alternate: Boolean,
     originMs: Long,
     geometry: GuideGeometry,
     focusOf: () -> GuideFocus?,
@@ -122,7 +140,7 @@ private fun GuideRowCells(
                 key(cell.startMs) {
                     val place =
                         remember(cell, originMs, geometry) { CellPlace(cell.startMs, cell.endMs, originMs, geometry) }
-                    GuideCellView(channel, cell, place, focusOf, viewportOf, nowOf)
+                    GuideCellView(channel, cell, place, alternate, focusOf, viewportOf, nowOf)
                 }
             }
         },
@@ -138,9 +156,9 @@ private fun GuideRowCells(
 }
 
 /**
- * The channel column: the number in Accent, then the name, each cut with an ellipsis when it does not fit. A bar at
- * the left edge marks the channel playing. The focused row's tint is not drawn here: one rect on the grid reads the
- * focus while it draws, so a move does not recompose this cell.
+ * The channel column: the number, then the name, each cut with an ellipsis when it does not fit. A bar at the left
+ * edge marks the channel playing. The row wash and the orange tick are drawn on the grid, so a focus move does not
+ * recompose this cell.
  */
 @Composable
 private fun ChannelCell(
@@ -148,17 +166,19 @@ private fun ChannelCell(
     name: String,
     playing: Boolean,
 ) {
+    val colors = LocalGuideColors.current
     Row(
         Modifier
             .width(ChannelColumnWidth)
             .fillMaxHeight()
             .drawBehind {
                 if (playing) {
-                    val inset = 1.dp.toPx()
-                    drawRect(
-                        BroadcastColors.Accent,
+                    val inset = (1.dp + GuideCardInset).toPx()
+                    drawRoundRect(
+                        colors.accent,
                         Offset(0f, inset),
                         Size(PlayingBarWidth.toPx(), size.height - 2 * inset),
+                        CornerRadius(PlayingBarWidth.toPx() / 2f),
                     )
                 }
             }.padding(start = 10.dp, end = 8.dp),
@@ -167,16 +187,16 @@ private fun ChannelCell(
         Text(
             text = number.toString(),
             modifier = Modifier.width(NumberWidth),
-            style = mono(16.sp),
-            color = BroadcastColors.Accent,
+            style = guideFigures(17.sp, FontWeight.SemiBold),
+            color = colors.textSecondary,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = name,
-            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-            color = BroadcastColors.Cream,
+            style = guideText(18.sp, FontWeight.Medium),
+            color = colors.channelText,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -198,15 +218,19 @@ private fun ClockStrip(
     val nowMs = nowOf() ?: viewportStartMs
     val zone = remember { ZoneId.systemDefault() }
     val is24h = is24Hour()
+    val colors = LocalGuideColors.current
+    val time = guideFigures(17.sp, FontWeight.Medium)
     Row(Modifier.height(ClockHeight).testTag(GuideTags.CLOCK), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = ProgramText.dayTime(nowMs, zone, is24h),
             modifier = Modifier.width(ChannelColumnWidth).padding(start = 10.dp),
-            style = mono(16.sp),
-            color = BroadcastColors.Cream,
+            style = time,
+            color = colors.textSecondary,
             maxLines = 1,
         )
         Box(Modifier.width(geometry.viewportWidth).fillMaxHeight()) {
+            val nowInView = nowMs in viewportStartMs until viewportStartMs + geometry.spanMs
+            val nowX = geometry.widthOf(nowMs - viewportStartMs)
             var dayBefore = dayOf(nowMs, zone)
             var tick = viewportStartMs
             while (tick < viewportStartMs + geometry.spanMs) {
@@ -219,20 +243,25 @@ private fun ClockStrip(
                     }
                 dayBefore = day
                 val x = geometry.widthOf(tick - viewportStartMs)
+                val labelLeft = x + LabelGap
+                val underChip =
+                    nowInView && labelLeft < nowX && labelLeft + TimelineLabelWidth > nowX - NowChipLead
                 Box(
                     Modifier
                         .offset(x = x)
                         .align(Alignment.BottomStart)
                         .size(1.dp, TickMarkHeight)
-                        .background(BroadcastColors.Ground),
+                        .background(colors.textSecondary),
                 )
-                Text(
-                    text = label,
-                    modifier = Modifier.offset(x = x + LabelGap).align(Alignment.CenterStart),
-                    style = mono(16.sp),
-                    color = BroadcastColors.Ground,
-                    maxLines = 1,
-                )
+                if (!underChip) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.offset(x = labelLeft).align(Alignment.CenterStart),
+                        style = time,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                    )
+                }
                 tick += SLOT_MS
             }
         }
@@ -240,21 +269,36 @@ private fun ClockStrip(
 }
 
 /**
- * Cream at [ROW_TINT_ALPHA] across one row, the channel column and the time columns together. [focusOf] is read here,
- * in the draw phase, so a focus move redraws this rect and recomposes no row. Nothing is drawn while the focus is on
- * the menu (that reader returns null) or on a row that is not in the window.
+ * The focused-row wash, and a short accent tick at its left. [focusOf] is read here, in the draw phase, so a focus
+ * move redraws this and recomposes no programme cell. Nothing is drawn while the focus is on the menu (that reader
+ * returns null) or on a row that is not in the window.
  */
 private fun Modifier.focusedRowTint(
     model: GuideModel,
     firstVisibleRow: Int,
     focusOf: () -> GuideFocus?,
+    colors: GuideColors,
 ): Modifier =
     drawBehind {
         val focus = focusOf() ?: return@drawBehind
         val row = model.indexOf(focus)?.first ?: return@drawBehind
         val band = focusedRowBand(row, firstVisibleRow, model.rows.size) ?: return@drawBehind
         val top = ClockHeight.toPx() + RowHeight.toPx() * band
-        drawRect(RowTint, Offset(0f, top), Size(size.width, RowHeight.toPx()))
+        val height = RowHeight.toPx()
+        drawRoundRect(
+            colors.focusedRowWash,
+            Offset(0f, top),
+            Size(size.width, height),
+            CornerRadius(GuideCardRadius.toPx()),
+        )
+        val tickW = FocusTickWidth.toPx()
+        val tickH = FocusTickHeight.toPx()
+        drawRoundRect(
+            colors.accent,
+            Offset(2.dp.toPx(), top + (height - tickH) / 2f),
+            Size(tickW, tickH),
+            CornerRadius(tickW / 2f),
+        )
     }
 
 /**
@@ -277,9 +321,9 @@ private fun dayOf(
 ) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
 
 /**
- * The "now" line: 2 dp of Cream down the grid with an Accent mark in the clock strip, one for the whole grid. The time
- * and the viewport are read in its offset (layout phase) and its drawing, so the minute and a page move it without
- * composing it; it is not drawn while now is outside the visible time range.
+ * The now rail: a NOW chip in the clock strip and a line through the gaps between cards, not through their titles.
+ * The time and the viewport are read in its offset (layout phase) and its drawing, so the minute and a page move it
+ * without composing the grid. The chip is composed only while now is inside the visible time range.
  */
 @Composable
 private fun NowLine(
@@ -289,28 +333,49 @@ private fun NowLine(
     rows: Int,
 ) {
     fun from(): Long? = nowOf()?.let { it - viewportOf() }?.takeIf { it >= 0 && it < geometry.spanMs }
+    val shown by remember(nowOf, viewportOf, geometry) { derivedStateOf { from() != null } }
+    val colors = LocalGuideColors.current
+    // The chip sits to the left of the rail. Time labels start to the right of their tick, so a chip centred on the
+    // rail covers the label when now falls on one.
+    val lead = NowChipLead
     Box(
         Modifier
             .offset {
-                val x = ChannelColumnWidth + geometry.widthOf(from() ?: 0L) - NowMarkWidth / 2
+                val x = ChannelColumnWidth + geometry.widthOf(from() ?: 0L) - lead
                 IntOffset(x.roundToPx(), 0)
-            }.size(NowMarkWidth, ClockHeight + RowHeight * rows)
+            }.size(lead + NowChipGap, ClockHeight + RowHeight * rows)
             .testTag(GuideTags.NOW_LINE)
             .drawBehind {
                 if (from() == null) return@drawBehind
-                val centre = size.width / 2
+                val at = lead.toPx()
                 val line = NowLineWidth.toPx()
-                drawRect(BroadcastColors.Cream, Offset(centre - line / 2, 0f), Size(line, size.height))
-                val mark = size.width
-                val top = ClockHeight.toPx() - mark / 2
-                val triangle =
-                    Path().apply {
-                        moveTo(0f, top)
-                        lineTo(mark, top)
-                        lineTo(centre, top + mark / 2)
-                        close()
-                    }
-                drawPath(triangle, BroadcastColors.Accent)
+                val rail = colors.nowLine.copy(alpha = colors.nowRailAlpha)
+                val gutter = (1.dp + GuideCardInset).toPx()
+                val clock = ClockHeight.toPx()
+                val row = RowHeight.toPx()
+                drawRect(rail, Offset(at - line / 2, 0f), Size(line, clock))
+                repeat(rows) { index ->
+                    val top = clock + row * index
+                    drawRect(rail, Offset(at - line / 2, top), Size(line, gutter))
+                    drawRect(rail, Offset(at - line / 2, top + row - gutter), Size(line, gutter))
+                }
             },
-    )
+    ) {
+        if (shown) {
+            Text(
+                text = stringResource(R.string.guide_now).uppercase(),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(end = NowChipGap)
+                        .height(NowChipHeight)
+                        .clip(RoundedCornerShape(NowChipHeight / 2))
+                        .background(colors.nowChipFill)
+                        .padding(horizontal = 8.dp),
+                style = guideText(16.sp, FontWeight.Bold),
+                color = colors.nowChipText,
+                maxLines = 1,
+            )
+        }
+    }
 }

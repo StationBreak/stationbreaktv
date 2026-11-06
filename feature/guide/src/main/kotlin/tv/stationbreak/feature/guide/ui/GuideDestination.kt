@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,7 +64,21 @@ fun GuideDestination(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
-    GuideRoot(viewModel, opening, pictureHole, onTune, channels, modifier, viewModel.measure)
+    val themes = rememberGuideThemeStore()
+    val theme by themes.theme.collectAsStateWithLifecycle()
+    CompositionLocalProvider(LocalGuideColors provides theme.colors) {
+        GuideRoot(
+            viewModel,
+            opening,
+            pictureHole,
+            onTune,
+            channels,
+            modifier,
+            viewModel.measure,
+            theme,
+            themes::choose,
+        )
+    }
 }
 
 /**
@@ -96,6 +111,8 @@ internal fun GuideRoot(
     channels: ChannelsSlot,
     modifier: Modifier = Modifier,
     measure: Boolean = false,
+    theme: GuideTheme = GuideTheme.Dark,
+    onTheme: (GuideTheme) -> Unit = {},
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -144,23 +161,22 @@ internal fun GuideRoot(
     val managing = managingSince != NOT_MANAGING
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val leave by rememberUpdatedState { backs?.onBackPressed() }
+    var settingsOpen by remember(viewModel, openedAtNanos) { mutableStateOf(false) }
+    var themeChoice by remember { mutableStateOf(theme) }
+    LaunchedEffect(theme) { themeChoice = theme }
+    val chooseTheme = rememberUpdatedState(onTheme)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
-            when (event) {
-                is GuideEvent.Tune -> {
-                    tune(event.channel)
-                }
-
-                // Exit takes the way Back takes from the menu row: the activity's.
-                GuideEvent.Exit -> {
-                    leave()
-                }
-
-                GuideEvent.OpenChannels -> {
+            handleGuideEvent(
+                event,
+                tune = { tune(it) },
+                leave = { leave() },
+                openChannels = {
                     viewModel.channelsOpened()
                     managingSince = System.nanoTime().coerceAtLeast(1L)
-                }
-            }
+                },
+                openSettings = { settingsOpen = true },
+            )
         }
     }
     val info by viewModel.info.collectAsStateWithLifecycle()
@@ -181,14 +197,32 @@ internal fun GuideRoot(
             info = info,
             current = current,
             pictureHole = pictureHole,
+            themeOpen = settingsOpen,
+            themeChoice = themeChoice,
             modifier =
                 Modifier
                     // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
                     .graphicsLayer { alpha = if (managing) 0f else 1f }
                     .then(if (managing) Modifier.clearAndSetSemantics {} else Modifier)
                     .focusRequester(keys)
-                    .onKeyEvent { managing || guideKey(it, move, viewModel::select, back) }
-                    .focusable(),
+                    .onKeyEvent {
+                        guideRootKey(
+                            it,
+                            managing = managing,
+                            settingsOpen = settingsOpen,
+                            settings = { event ->
+                                settingsKey(
+                                    event,
+                                    onChoice = { next ->
+                                        themeChoice = next
+                                        chooseTheme.value(next)
+                                    },
+                                    onClose = { settingsOpen = false },
+                                )
+                            },
+                            grid = { event -> guideKey(event, move, viewModel::select, back) },
+                        )
+                    }.focusable(),
         )
         if (managing) {
             channels(current, managingSince, pictureHole) { tuneTo ->
@@ -208,6 +242,56 @@ internal fun GuideRoot(
 }
 
 private const val NOT_MANAGING = 0L
+
+/** What a one-off guide event asks the screen to do. Exit takes the way Back takes from the menu row. */
+private fun handleGuideEvent(
+    event: GuideEvent,
+    tune: (ChannelId) -> Unit,
+    leave: () -> Unit,
+    openChannels: () -> Unit,
+    openSettings: () -> Unit,
+) {
+    when (event) {
+        is GuideEvent.Tune -> tune(event.channel)
+        GuideEvent.Exit -> leave()
+        GuideEvent.OpenChannels -> openChannels()
+        GuideEvent.OpenSettings -> openSettings()
+    }
+}
+
+/** Keys for the guide: the slot has them while it shows, Settings has them while its choice is open. */
+private fun guideRootKey(
+    event: KeyEvent,
+    managing: Boolean,
+    settingsOpen: Boolean,
+    settings: (KeyEvent) -> Boolean,
+    grid: (KeyEvent) -> Boolean,
+): Boolean =
+    when {
+        managing -> true
+        settingsOpen -> settings(event)
+        else -> grid(event)
+    }
+
+/** Keys while Dark and Light are open: they move the choice, and Back or Select closes it. The grid does not move. */
+private fun settingsKey(
+    event: KeyEvent,
+    onChoice: (GuideTheme) -> Unit,
+    onClose: () -> Unit,
+): Boolean {
+    val direction = directionOf(event.key)
+    val handled = event.key == Key.Back || direction != null || event.key in SELECT_KEYS
+    if (!handled) return false
+    val down = event.type == KeyEventType.KeyDown
+    when {
+        event.key == Key.Back -> if (event.type == KeyEventType.KeyUp) onClose()
+        !down -> Unit
+        direction == GuideDirection.Left || direction == GuideDirection.Up -> onChoice(GuideTheme.Dark)
+        direction == GuideDirection.Right || direction == GuideDirection.Down -> onChoice(GuideTheme.Light)
+        event.key in SELECT_KEYS && event.nativeKeyEvent.repeatCount == 0 -> onClose()
+    }
+    return true
+}
 
 /**
  * The guide's keys, all consumed so the focus never leaves the grid: the D-pad moves the focus (auto-repeat included,

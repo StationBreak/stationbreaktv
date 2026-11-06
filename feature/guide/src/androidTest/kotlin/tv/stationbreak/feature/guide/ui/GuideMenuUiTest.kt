@@ -264,6 +264,7 @@ class GuideMenuUiTest {
         back()
         awaitOnChannels()
         press(Key.DirectionRight)
+        press(Key.DirectionRight)
         exit().assertIsSelected()
         channels().assertIsNotSelected()
         assertEquals(0, exits)
@@ -276,6 +277,7 @@ class GuideMenuUiTest {
     fun downFromExitReturnsToThePlayingCell() {
         showReady()
         back()
+        press(Key.DirectionRight)
         press(Key.DirectionRight)
         exit().assertIsSelected()
         press(Key.DirectionDown)

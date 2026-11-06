@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -20,8 +20,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -29,7 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,8 +39,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.guide.CellDetails
@@ -48,14 +48,16 @@ import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
 import kotlin.time.Duration.Companion.milliseconds
 
-private val ChipPadding = 6.dp
-private const val PROGRESS_TRACK_ALPHA = 0.35f
+private val ChipPadding = 8.dp
+private val ChipRadius = (20f / 3f).dp
+private val ProgressHeight = (4f / 1.5f).dp
+private val ProgressRadius = (2f / 1.5f).dp
 
 // One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
 // ellipsis reads better than one clipped mid-line.
 private const val OVERVIEW_LINES_WITH_EPISODE = 1
 private const val OVERVIEW_LINES = 2
-private val OVERVIEW_LINE_HEIGHT = 22.sp
+private val OVERVIEW_LINE_HEIGHT = 24.sp
 private const val DESCRIBE_AFTER_MS = 150L
 
 /**
@@ -118,28 +120,29 @@ private fun ColumnScope.PanelLines(
     val copy = programCopy()
     val cell = details.cell
     val episode = remember(cell, copy) { episodeLine(cell, copy) }
+    val colors = LocalGuideColors.current
     Text(
-        text = channelLine(details.channelNumber, details.channelName).uppercase(),
+        text = channelLine(details.channelNumber, details.channelName),
         modifier = Modifier.testTag(GuideTags.PANEL_CHANNEL),
-        style = mono(16.sp, LETTER_SPACING.sp),
-        color = BroadcastColors.Accent,
+        style = guideFigures(17.sp, FontWeight.SemiBold),
+        color = colors.textSecondary,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
     Text(
         text = cellTitle(cell, copy),
         modifier = Modifier.fillMaxWidth().testTag(GuideTags.PANEL_TITLE),
-        style = TextStyle(fontFamily = BroadcastType.Display, fontSize = 28.sp, lineHeight = 30.sp),
-        color = BroadcastColors.Cream,
-        maxLines = 2,
+        style = guideText(40.sp, FontWeight.SemiBold),
+        color = colors.textPrimary,
+        maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
     episode?.let {
         Text(
             text = it,
             modifier = Modifier.testTag(GuideTags.PANEL_EPISODE),
-            style = mono(16.sp),
-            color = BroadcastColors.Ground,
+            style = guideText(17.sp, FontWeight.Medium),
+            color = colors.textSupporting,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -169,8 +172,8 @@ private fun ColumnScope.Overview(
             Text(
                 text = text,
                 modifier = Modifier.testTag(GuideTags.PANEL_OVERVIEW),
-                style = TextStyle(fontSize = 16.sp, lineHeight = OVERVIEW_LINE_HEIGHT),
-                color = BroadcastColors.Cream,
+                style = guideText(18.sp, FontWeight.Normal).copy(lineHeight = OVERVIEW_LINE_HEIGHT),
+                color = LocalGuideColors.current.textSupporting,
                 maxLines = lines,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -189,6 +192,8 @@ private fun TimeRow(
     val zone = remember { ZoneId.systemDefault() }
     val is24h = is24Hour()
     val slot = ProgramText.slotOn(cell.startMs, cell.endMs, nowMs, zone, is24h)
+    val colors = LocalGuideColors.current
+    val time = guideFigures(17.sp, FontWeight.Medium)
     Row(
         Modifier.testTag(GuideTags.PANEL_TIME),
         verticalAlignment = Alignment.CenterVertically,
@@ -199,22 +204,23 @@ private fun TimeRow(
                 text = stringResource(R.string.guide_now).uppercase(),
                 modifier =
                     Modifier
-                        .background(BroadcastColors.Accent)
-                        .padding(horizontal = ChipPadding, vertical = 1.dp),
-                style = mono(14.sp, LETTER_SPACING.sp),
-                color = BroadcastColors.Ink,
+                        .clip(RoundedCornerShape(ChipRadius))
+                        .drawBehind { drawRect(colors.nowChipFill) }
+                        .padding(horizontal = ChipPadding, vertical = 2.dp),
+                style = guideText(16.sp, FontWeight.Bold),
+                color = colors.nowChipText,
                 maxLines = 1,
             )
         }
-        Text(text = slot, style = mono(16.sp), color = BroadcastColors.Ground, maxLines = 1)
+        Text(text = slot, style = time, color = colors.textSecondary, maxLines = 1)
         when {
             onNow -> {
                 val left = ProgramText.minutesUntil(cell.endMs, nowMs)
                 Text(
                     text = copy.minutesLeft(left),
                     modifier = OutsideTheLiveRegion,
-                    style = mono(16.sp),
-                    color = BroadcastColors.Ground,
+                    style = time,
+                    color = colors.textSecondary,
                     maxLines = 1,
                 )
             }
@@ -224,8 +230,8 @@ private fun TimeRow(
                 Text(
                     text = copy.startsIn(soon),
                     modifier = OutsideTheLiveRegion,
-                    style = mono(16.sp),
-                    color = BroadcastColors.Cream,
+                    style = time,
+                    color = colors.textPrimary,
                     maxLines = 1,
                 )
             }
@@ -233,23 +239,29 @@ private fun TimeRow(
     }
 }
 
-/** How far through its slot a program on now is: 4 dp, the banner's colours. */
+/** How far through its slot a program on now is. */
 @Composable
 private fun Progress(
     startMs: Long,
     endMs: Long,
     nowMs: Long,
 ) {
+    val colors = LocalGuideColors.current
     val done = if (endMs <= startMs) 0f else ((nowMs - startMs).toFloat() / (endMs - startMs)).coerceIn(0f, 1f)
     Box(
         Modifier
             .fillMaxWidth()
-            .height(4.dp)
+            .height(ProgressHeight)
             .then(OutsideTheLiveRegion)
             .testTag(GuideTags.PANEL_PROGRESS)
             .drawBehind {
-                drawRect(BroadcastColors.Ground.copy(alpha = PROGRESS_TRACK_ALPHA))
-                drawRect(BroadcastColors.Accent, size = Size(size.width * done, size.height))
+                val radius = CornerRadius(ProgressRadius.toPx())
+                drawRoundRect(colors.progressTrack, cornerRadius = radius)
+                drawRoundRect(
+                    colors.progressFill,
+                    size = Size(size.width * done, size.height),
+                    cornerRadius = radius,
+                )
             },
     )
 }
