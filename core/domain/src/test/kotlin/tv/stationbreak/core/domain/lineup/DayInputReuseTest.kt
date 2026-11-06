@@ -195,7 +195,7 @@ class DayInputReuseTest {
             leftovers("odds-and-ends", 199, null),
         )
 
-    // The same, with a leftovers channel that starts at the next boundary: it claims all the same.
+    // The same, with a leftovers channel that starts at the next boundary: it airs and claims nothing today (#620).
     private val bareStarting =
         lineupOf(
             channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(rules("Mine", Source.Genre("Horror")))),
@@ -405,14 +405,14 @@ class DayInputReuseTest {
     }
 
     @Test
-    fun aLeftoversChannelThatStartsLaterStillClaimsInTheOrder() {
+    fun aLeftoversChannelThatStartsLaterIsReadAsStartingByTheOthersClaims() {
         val old = full(Side(v3, ranked, noon))
         val later = withChannel(ranked, "leftovers:retired-odds") { it.copy(onSinceMs = noon + 18 * hour) }
         val side = full(Side(v3, later, noon))
         assertNotEquals(
             old.inputs[LineupIds.leftovers("odds-and-ends")]?.claims,
             side.inputs[LineupIds.leftovers("odds-and-ends")]?.claims,
-            "a leftovers channel that starts later is one the others' claims read",
+            "whether a leftovers channel starts later is something the others' claims read",
         )
     }
 
