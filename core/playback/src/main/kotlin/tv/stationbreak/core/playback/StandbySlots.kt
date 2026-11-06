@@ -232,6 +232,10 @@ internal class StandbySlots(
     ) {
         val epoch = state.epoch
         val audioOn = state.audioOn
+        // A standby that holds media (a replaced one) is stopped first. Media3 keeps a flushable codec across a new
+        // item (disabling a renderer only flushes it; a stop resets it), so no decoder would come up for this start
+        // and the probe would take a working decoder for a missing one.
+        if (slot.exo.playbackState != Player.STATE_IDLE) slot.exo.stop()
         slot.holding.set(true)
         slot.exo.volume = 0f
         slot.exo.playWhenReady = false
