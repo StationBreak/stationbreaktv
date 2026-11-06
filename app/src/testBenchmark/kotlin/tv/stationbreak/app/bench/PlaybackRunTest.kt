@@ -35,6 +35,7 @@ import tv.stationbreak.core.playback.VideoPlayer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+@Suppress("TooManyFunctions") // A fake of the whole VideoPlayer: one override per member.
 private class ScriptedPlayer(
     private val scope: CoroutineScope,
 ) : VideoPlayer {
