@@ -160,11 +160,17 @@ internal class StandbySlots(
     }
 
     /**
-     * The swap decision for [key]. On a swap the surface moves to the standby, which becomes the [front], and the
-     * [Taken.handover] is set; otherwise it is null, and a held standby the play could not use is dropped.
+     * The swap decision for a play of [source] with the handle [key]. The handle is bound to the source: a standby
+     * holding [key] but built from another source ([sameStandbySource]: the start position and the handle aside) is a
+     * [WarmReason.Mismatch], and the play is cold. On a swap the surface moves to the standby, which becomes the
+     * [front], and the [Taken.handover] is set; otherwise it is null, and a held standby the play could not use is
+     * dropped.
      */
-    fun take(key: String): Taken {
-        val decision = state.decide(key)
+    fun take(
+        key: String,
+        source: PlayerSource,
+    ): Taken {
+        val decision = state.decide(key, sameStandbySource(standbySource, source))
         val next = spare
         val reason =
             when {

@@ -382,6 +382,21 @@ class WarmSwapTest {
     }
 
     @Test
+    fun aChangedSourceIsCold() {
+        // The handle is the standby's, but the play's source is not the one it was built from (an item replaced):
+        // cold, never a picture of the other source.
+        coldPlaying()
+        val before = front()
+        val handle = warmReady(2.seconds)
+        val generation = player.play(sourceAt(2.seconds, handle, path = "/replaced.mp4"))
+        val (outcome, _) = decidedThenPlaying(generation)
+        assertFalse(outcome.swapped)
+        assertEquals(WarmReason.Mismatch, outcome.reason)
+        assertSame("a cold play stays on the front", before, front())
+        awaitLine("dropped ", "reason=mismatch", "key=$handle")
+    }
+
+    @Test
     fun releaseOnStopLeavesNoCodec() {
         coldPlaying()
         warmReady(2.seconds)

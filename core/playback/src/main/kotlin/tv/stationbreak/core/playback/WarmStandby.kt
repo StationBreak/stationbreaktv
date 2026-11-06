@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import kotlin.time.Duration
+
+/**
+ * True when a play of [play] may use a standby built from [held]: the same source in every respect (address, kind,
+ * subtitles, track choices) but the start position, which moves with live time between the warm and the flip, and the
+ * warm handle stamped on it. A route that fell back or an item that was replaced is another source, so the handle alone
+ * never decides a hand-over.
+ */
+internal fun sameStandbySource(
+    held: PlayerSource?,
+    play: PlayerSource,
+): Boolean = held != null && held.normalised() == play.normalised()
+
+private fun PlayerSource.normalised(): PlayerSource = copy(playerStart = Duration.ZERO, warmKey = null)
+
 /** What [WarmStandby.request] decided: build a standby, or skip with a fixed reason name. */
 internal sealed interface Request {
     data object Start : Request
@@ -169,12 +184,20 @@ internal class WarmStandby(
         openBreaker("decoderMissing")
     }
 
-    fun decide(key: String?): Decision {
+    /**
+     * Whether a play with handle [key] may swap to the standby. [sameSource] is false when the play's source is not
+     * the one the standby was built from ([sameStandbySource]): then it is a [WarmReason.Mismatch], as for another
+     * key, and not a failure of the standby.
+     */
+    fun decide(
+        key: String?,
+        sameSource: Boolean = true,
+    ): Decision {
         val now = clock()
         val ready = readyAt
         val ageMs = (now - (ready ?: startedAt)).coerceAtLeast(0)
         val readyMs = if (ready != null) ready - startedAt else 0L
-        val reason = coldReason(key, now)
+        val reason = coldReason(key, sameSource, now)
         val swap = reason == WarmReason.None
         // A cold flip with no standby at all is no fallback: there was nothing to fall back from.
         val nothingHeld = held == null && reason == WarmReason.Mismatch
@@ -184,13 +207,14 @@ internal class WarmStandby(
 
     private fun coldReason(
         key: String?,
+        sameSource: Boolean,
         now: Long,
     ): WarmReason {
         val failed = failReason
         return when {
             key == null -> WarmReason.NoHandle
             !config.warmOn(switches) || breakerOpen || deviceOff || trimPaused -> WarmReason.Disabled
-            held == null || key != held -> WarmReason.Mismatch
+            held == null || key != held || !sameSource -> WarmReason.Mismatch
             failed != null -> failed
             readyAt != null -> WarmReason.None
             now - startedAt >= config.warmReadyTimeoutMs -> WarmReason.Timeout

@@ -220,10 +220,11 @@ interface VideoPlayer {
     /**
      * Spec 24: prepares [source] on a hidden, muted, paused standby player, and returns the handle the player issued
      * for it: `w<n>`, from the player's own counter, never derived from the source. A later [play] of that source
-     * stamped with it (`source.copy(warmKey = handle)`) hands the surface over to the standby when it is ready. Each
-     * call issues a new handle and replaces a standby held for another; it does not touch what is playing. Returns at
-     * once; the work runs on the player's looper. A player that cannot warm still issues a handle: the play stamped
-     * with it is cold, and [PlayerEvent.WarmDecided] says why.
+     * stamped with it (`source.copy(warmKey = handle)`) hands the surface over to the standby when it is ready. The
+     * handle is bound to the source: a play of another source with it (anything but the start position differs) is
+     * cold, a [WarmReason.Mismatch]. Each call issues a new handle and replaces a standby held for another; it does
+     * not touch what is playing. Returns at once; the work runs on the player's looper. A player that cannot warm
+     * still issues a handle: the play stamped with it is cold, and [PlayerEvent.WarmDecided] says why.
      */
     fun warm(source: PlayerSource): String
 

@@ -417,4 +417,21 @@ class WarmStandbyTest {
         assertTrue(s.disabled)
         assertEquals("disabled", skipReason(s.request("w9")))
     }
+
+    @Test
+    fun aSourceThatChangedIsAMismatch() {
+        // The handle is the standby's, but the source it was built from is not this play's (a route fell back, an
+        // item was replaced): cold, logged as a fallback, and not the standby's failure.
+        val s = standby(WarmConfig(warmMaxFailures = 1))
+        s.request("w1")
+        s.onStateReady("w1")
+        s.onDecoderUp("w1", 10)
+        val decision = s.decide("w1", sameSource = false)
+        assertFalse(decision.swap)
+        assertEquals(WarmReason.Mismatch, decision.reason)
+        assertTrue("logged $logs", logs.any { it.startsWith("fallback reason=mismatch") })
+        s.dropped(decision.reason.label)
+        assertFalse("a changed source opened the breaker", s.disabled)
+        assertTrue(s.decide("w1").reason == WarmReason.Mismatch)
+    }
 }

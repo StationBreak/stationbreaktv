@@ -236,7 +236,7 @@ class Media3VideoPlayer(
         val calledAt = clock()
         onPlayerThread {
             // Spec 24: a ready standby for this source's key takes the surface first and becomes the front.
-            val taken = source.warmKey?.let { slots.take(it) }
+            val taken = source.warmKey?.let { slots.take(it, source) }
             val swap = taken?.handover
             // The new front's shape, if it already knows it; else the last one stays until it reports one.
             if (swap != null) aspect.onVideoSize(exo.videoSize)
