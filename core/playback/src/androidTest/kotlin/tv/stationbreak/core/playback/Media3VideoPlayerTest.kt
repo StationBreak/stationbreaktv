@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import android.content.Context
 import android.os.SystemClock
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -60,11 +61,18 @@ class Media3VideoPlayerTest {
         server.start()
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             player =
-                Media3VideoPlayer(
-                    ApplicationProvider.getApplicationContext(),
-                    DefaultHttpDataSource.Factory(),
-                    SystemClock::elapsedRealtime,
-                )
+                ApplicationProvider.getApplicationContext<Context>().let { context ->
+                    // A fresh device check per test: a verdict kept by one test must not reach the next.
+                    Media3VideoPlayer(
+                        context,
+                        DefaultHttpDataSource.Factory(),
+                        SystemClock::elapsedRealtime,
+                        PlaybackBuffering(),
+                        WarmConfig(),
+                        WarmSwitches.None,
+                        DeviceWarmth.fresh(context),
+                    )
+                }
         }
         // Listening starts before any play, so no event is missed.
         scope.launch { player.events.collect { seen.trySend(it) } }

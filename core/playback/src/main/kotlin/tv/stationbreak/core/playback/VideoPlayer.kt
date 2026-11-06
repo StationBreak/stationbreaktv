@@ -219,12 +219,21 @@ interface VideoPlayer {
 
     /**
      * Spec 24: prepares [source] on a hidden, muted, paused standby player, and returns the handle the player issued
-     * for it: `w<n>`, from the player's own counter, never derived from the source. A later [play] of that source
-     * stamped with it (`source.copy(warmKey = handle)`) hands the surface over to the standby when it is ready. The
-     * handle is bound to the source: a play of another source with it (anything but the start position differs) is
-     * cold, a [WarmReason.Mismatch]. Each call issues a new handle and replaces a standby held for another; it does
-     * not touch what is playing. Returns at once; the work runs on the player's looper. A player that cannot warm
-     * still issues a handle: the play stamped with it is cold, and [PlayerEvent.WarmDecided] says why.
+     * for it: `w<n>`, from the player's own counter (from 1), never derived from the source. A later [play] of that
+     * source stamped with it (`source.copy(warmKey = handle)`) hands the surface over to the standby when it is ready.
+     * The handle is bound to the source: a play of another source with it (anything but the start position differs)
+     * is cold, a [WarmReason.Mismatch].
+     *
+     * Idempotent per source: warming the source the standby already holds (the start aside), while it has not
+     * failed, returns the same handle and prepares nothing again. Another source gets a new handle and replaces the
+     * held standby. It does not touch what is playing. Returns at once; the work runs on the player's looper. A
+     * player that cannot warm still issues a handle: the play stamped with it is cold, and [PlayerEvent.WarmDecided]
+     * says why.
+     *
+     * Call [warm] and [play] from the same thread (the main thread, the player's looper): from another thread a warm
+     * is posted to the looper, so it can land after a [play] that runs at once, and that play is a silent cold
+     * [WarmReason.Mismatch]. The same-handle answer is exact only on the looper; from another thread each call issues
+     * a new handle.
      */
     fun warm(source: PlayerSource): String
 
@@ -236,4 +245,9 @@ interface VideoPlayer {
      * warming is paused for the rest of this player's life (the visit).
      */
     fun trimMemory(level: Int)
+
+    companion object {
+        /** A warm handle no player issues (their counters start at 1): a play stamped with it is never warm. */
+        const val NO_WARM_HANDLE = "w0"
+    }
 }

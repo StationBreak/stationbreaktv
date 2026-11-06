@@ -70,6 +70,9 @@ internal class Taken(
  * stays on the front. The role is structural: the front's listeners ([SlotHost.frontAnalytics],
  * [SlotHost.frontListener]) are on the front ExoPlayer only and the standby's listener on the standby only; a
  * hand-over moves both. The decisions themselves are [WarmStandby]'s. Looper only.
+ *
+ * The player's `play` must not be called from inside a Media3 listener callback on its own ExoPlayers: a hand-over
+ * stops one of them and moves the listeners, which a callback still being delivered on that player would straddle.
  */
 @UnstableApi
 @Suppress("TooManyFunctions") // The standby's life (start, check, errors, drop, release, hand-over) shares one state.
@@ -114,6 +117,18 @@ internal class StandbySlots(
     init {
         front.exo.addAnalyticsListener(host.frontAnalytics)
         front.exo.addListener(host.frontListener)
+    }
+
+    /**
+     * A warm of [source]: the held handle when the standby already holds that source (the start aside) and has not
+     * failed, with nothing prepared again; otherwise a new handle from [issue], which replaces the held standby.
+     */
+    fun warmOrReuse(
+        source: PlayerSource,
+        issue: () -> String,
+    ): String {
+        if (!released) state.reuseFor(sameStandbySource(standbySource, source))?.let { return it }
+        return issue().also { warm(it, source) }
     }
 
     /** Starts [source] on the standby under [key], unless [WarmStandby.request] skips it. */

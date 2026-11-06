@@ -87,12 +87,16 @@ internal class DeviceWarmth(
 
         /** The one of this process. It keeps the application context only (never an activity's). */
         @UnstableApi
-        fun of(context: Context): DeviceWarmth =
-            process ?: synchronized(this) {
-                process ?: run {
-                    val app = runCatching { context.applicationContext }.getOrNull() ?: context
-                    DeviceWarmth({ Build.MODEL }, { NoSurfaceDecoders.listed(app) }).also { process = it }
-                }
-            }
+        fun of(context: Context): DeviceWarmth {
+            process?.let { return it }
+            return synchronized(this) { process ?: fresh(context).also { process = it } }
+        }
+
+        /** A new one, with its own kept answers: for tests, which must not share the process's. */
+        @UnstableApi
+        fun fresh(context: Context): DeviceWarmth {
+            val app = runCatching { context.applicationContext }.getOrNull() ?: context
+            return DeviceWarmth({ Build.MODEL }, { NoSurfaceDecoders.listed(app) })
+        }
     }
 }

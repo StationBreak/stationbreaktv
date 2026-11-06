@@ -147,7 +147,7 @@ class LivePeriodTest {
             period.player.dropWarm(handle)
             period.player.trimMemory(TRIM_RUNNING_MODERATE)
             assertEquals(afterLeave, inner.log)
-            assertTrue("a handle no player issues: $handle", handle.matches(Regex("w\\d+")) && handle != "w1")
+            assertEquals("a handle no player issues", VideoPlayer.NO_WARM_HANDLE, handle)
         }
 
     @Test

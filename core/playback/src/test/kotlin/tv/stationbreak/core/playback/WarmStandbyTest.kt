@@ -518,4 +518,45 @@ class WarmStandbyTest {
         s.request("w1")
         assertEquals(2, logs.count { it == "skipped key=w1 reason=alreadyWarm" })
     }
+
+    @Test
+    fun theSameSourceAgainReusesTheHeldHandle() {
+        // A second warm of the source already held keeps the handle and does not prepare again.
+        val s = standby()
+        s.request("w1")
+        assertEquals("w1", s.reuseFor(sameSource = true))
+        assertEquals("w1", s.held)
+        assertTrue(logs.contains("skipped key=w1 reason=alreadyWarm"))
+        assertNull("another source is a new standby", s.reuseFor(sameSource = false))
+    }
+
+    @Test
+    fun aFailedOrDisabledStandbyIsNotReused() {
+        val s = standby()
+        assertNull("nothing held", s.reuseFor(sameSource = true))
+        s.request("w1")
+        s.fail(WarmReason.Timeout)
+        assertNull("failed", s.reuseFor(sameSource = true))
+        val off = standby(WarmConfig(warmMaxFailures = 1))
+        off.request("w1")
+        off.pauseForVisit()
+        assertNull("disabled", off.reuseFor(sameSource = true))
+    }
+
+    @Test
+    fun twoPlayersShareTheDecoderMissingLatch() {
+        // One DeviceWarmth for the process: the probe failing on one player turns warming off for the next one.
+        val device = DeviceWarmth({ "AFTKRT" }) { false }
+        val denylist = WarmConfig().warmDeviceDenylist
+        val first = standby(deviceCannot = { device.cannot(denylist) })
+        val second = standby(deviceCannot = { device.cannot(denylist) })
+        assertEquals(Request.Start, first.request("w1"))
+        first.onStateReady("w1")
+        now += 1_500
+        assertEquals(Verdict.DecoderMissing, first.evaluate())
+        first.decoderMissing()
+        device.markDecoderMissing()
+        assertEquals("disabled", skipReason(second.request("w1")))
+        assertTrue(logs.contains("disabled reason=decoderMissing failures=0"))
+    }
 }

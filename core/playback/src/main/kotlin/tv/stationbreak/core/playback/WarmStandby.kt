@@ -105,6 +105,17 @@ internal class WarmStandby(
     fun request(key: String): Request = startOrSkip(key).also { if (it is Request.Skip) saySkipped(key, it) }
 
     /**
+     * The held handle when a warm of the same source ([sameSource], see [sameStandbySource]) can reuse it: a standby
+     * is held, has not failed, and warming is on. It is logged as an `alreadyWarm` skip and nothing is prepared again.
+     * Null when the warm needs a new standby (and a new handle).
+     */
+    fun reuseFor(sameSource: Boolean): String? {
+        val key = held ?: return null
+        val usable = failReason == null && !disabled
+        return if (usable && sameSource) key.also { request(it) } else null
+    }
+
+    /**
      * When to call [evaluate] next, in ms from now: the decoder grace once the standby is ready to play, else the
      * ready timeout, whichever comes first (0 when one has passed); null when there is nothing to watch (none held,
      * ready, or failed). The player checks once at that time instead of polling.

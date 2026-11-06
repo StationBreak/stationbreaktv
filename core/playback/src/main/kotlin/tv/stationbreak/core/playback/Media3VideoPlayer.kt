@@ -61,15 +61,26 @@ import kotlin.time.Duration.Companion.milliseconds
  * leaves Media3's own default. A null subtitle pick with no separate subtitle turns text tracks off.
  */
 @UnstableApi
-@Suppress("TooManyFunctions") // The one player: its transport and its picks stay together (the slots: StandbySlots).
-class Media3VideoPlayer(
+@Suppress("TooManyFunctions", "LongParameterList") // The one player: transport and picks (the slots: StandbySlots).
+class Media3VideoPlayer internal constructor(
     private val context: Context,
     private val dataSource: DataSource.Factory,
     private val clock: () -> Long,
-    private val buffering: PlaybackBuffering = PlaybackBuffering(),
-    private val warm: WarmConfig = WarmConfig(),
-    private val warmSwitches: WarmSwitches = WarmSwitches.None,
+    private val buffering: PlaybackBuffering,
+    private val warm: WarmConfig,
+    private val warmSwitches: WarmSwitches,
+    // Whether this device may warm: the process's one (DeviceWarmth.of) outside tests, which need a fresh one each.
+    device: DeviceWarmth,
 ) : VideoPlayer {
+    constructor(
+        context: Context,
+        dataSource: DataSource.Factory,
+        clock: () -> Long,
+        buffering: PlaybackBuffering = PlaybackBuffering(),
+        warm: WarmConfig = WarmConfig(),
+        warmSwitches: WarmSwitches = WarmSwitches.None,
+    ) : this(context, dataSource, clock, buffering, warm, warmSwitches, DeviceWarmth.of(context))
+
     init {
         // Before ExoPlayer exists: Media3's own error logs can quote a playlist line with a token.
         silenceMedia3Logging()
@@ -93,9 +104,9 @@ class Media3VideoPlayer(
 
             override fun drawOn(target: ExoPlayer) = this@Media3VideoPlayer.drawOn(target)
 
-            override fun deviceCannot(): String? = DeviceWarmth.of(context).cannot(warm.warmDeviceDenylist)
+            override fun deviceCannot(): String? = device.cannot(warm.warmDeviceDenylist)
 
-            override fun decoderMissing() = DeviceWarmth.of(context).markDecoderMissing()
+            override fun decoderMissing() = device.markDecoderMissing()
         }
 
     private val handler: Handler
@@ -292,11 +303,19 @@ class Media3VideoPlayer(
             publish()
         }
 
+    /**
+     * On the looper (the main thread, where the app calls it) the answer is exact: the same source as the held
+     * standby gets its handle back. From another thread the looper cannot be asked, so a new handle is issued and the
+     * standby is built again for it.
+     */
     override fun warm(source: PlayerSource): String {
-        val handle = WARM_HANDLE + warmHandles.incrementAndGet()
+        if (Looper.myLooper() == handler.looper) return slots.warmOrReuse(source, ::issueHandle)
+        val handle = issueHandle()
         onPlayerThread { slots.warm(handle, source) }
         return handle
     }
+
+    private fun issueHandle(): String = WARM_HANDLE + warmHandles.incrementAndGet()
 
     override fun dropWarm(key: String) = onPlayerThread { slots.drop(key) }
 

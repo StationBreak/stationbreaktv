@@ -109,7 +109,10 @@ internal class LivePeriod(
         }
 
         // Spec 24: the warm calls go through the same check, so none reaches the player once it is released.
-        override fun warm(source: PlayerSource): String = if (left.get()) NO_HANDLE else inner.warm(source)
+        override fun warm(source: PlayerSource): String {
+            if (left.get()) return VideoPlayer.NO_WARM_HANDLE
+            return inner.warm(source)
+        }
 
         override fun dropWarm(key: String) {
             if (!left.get()) inner.dropWarm(key)
@@ -122,8 +125,5 @@ internal class LivePeriod(
 
     private companion object {
         const val NO_GENERATION = -1L
-
-        /** The handle of a warm after the leave: no player issues it (their counters start at 1), so it never swaps. */
-        const val NO_HANDLE = "w0"
     }
 }

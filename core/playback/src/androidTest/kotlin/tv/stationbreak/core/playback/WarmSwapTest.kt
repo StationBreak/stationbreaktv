@@ -2,6 +2,7 @@
 package tv.stationbreak.core.playback
 
 import android.content.ComponentCallbacks2
+import android.content.Context
 import android.graphics.ImageFormat
 import android.media.ImageReader
 import android.os.Handler
@@ -81,12 +82,17 @@ class WarmSwapTest {
             }
         server.start()
         onMain {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            // A fresh device check per test: a verdict kept by one test (a missing decoder) must not reach the next.
             player =
                 Media3VideoPlayer(
-                    ApplicationProvider.getApplicationContext(),
+                    context,
                     DefaultHttpDataSource.Factory(),
                     SystemClock::elapsedRealtime,
-                    warm = config,
+                    PlaybackBuffering(),
+                    config,
+                    WarmSwitches.None,
+                    DeviceWarmth.fresh(context),
                 )
             player.attachSurface(reader.surface)
         }
@@ -244,6 +250,21 @@ class WarmSwapTest {
         assertEquals("w1", player.warm(sourceAt(2.seconds)))
         assertEquals("w2", player.warm(sourceAt(2.seconds, key = "w9")))
         awaitLine("ready ", "key=w2")
+    }
+
+    @Test
+    fun warmingTheSameSourceTwiceKeepsOneStandby() {
+        coldPlaying()
+        val first = player.warm(sourceAt(2.seconds))
+        awaitLine("ready ", "key=$first")
+        // On the looper, as the app calls it: the same source (another start) is the same standby.
+        val second = onMainValue { player.warm(sourceAt(3.seconds)) }
+        assertEquals("the same handle", first, second)
+        val again = linesWithin(1.seconds)
+        assertTrue("prepared again: $again", again.none { it.startsWith("prepare ") })
+        assertTrue("not said: $again", again.any { it == "skipped key=$first reason=alreadyWarm" })
+        val generation = player.play(sourceAt(2.seconds, second))
+        assertTrue("not swapped", decidedThenPlaying(generation).first.swapped)
     }
 
     @Test
