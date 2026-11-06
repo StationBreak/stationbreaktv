@@ -201,7 +201,7 @@ class StayCurrentRunner(
             return report.skipped(plan, Skip.AccountChanged)
         }
         runningNow.value = true
-        val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable)
+        val engine = StayCurrentEngine(repository, server, clock, unfindable = unfindable, report = report)
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val generationBefore = repository.generationOrNull(account)
         val began = timeSource.markNow()

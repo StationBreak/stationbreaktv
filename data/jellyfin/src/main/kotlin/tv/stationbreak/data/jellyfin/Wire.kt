@@ -163,6 +163,12 @@ internal class SeriesDto(
     @SerialName("Studios") val studios: List<StudioDto?>? = null,
 )
 
+/** The kind of an item, read by the by-id series call to check that what came back is a series. */
+@Serializable
+internal class ItemTypeDto(
+    @SerialName("Type") val type: String? = null,
+)
+
 /** One studio of an item or series: only the name is read. [studiosOf] drops a null studio or one with no name. */
 @Serializable
 internal class StudioDto(

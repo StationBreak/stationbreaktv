@@ -138,6 +138,7 @@ class PortSignatureTest {
                 "libraryItemIds",
                 "librarySeries",
                 "librarySeriesIds",
+                "seriesById",
                 "collections",
                 "collectionIds",
                 "collectionMembers",

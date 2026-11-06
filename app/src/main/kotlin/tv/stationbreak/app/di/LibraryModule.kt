@@ -2,6 +2,7 @@
 package tv.stationbreak.app.di
 
 import android.content.Context
+import android.util.Log
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -78,5 +79,5 @@ internal object LibraryModule {
         sessions: SessionRepository,
         server: MediaServer,
         repository: RoomLibraryRepository,
-    ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System)
+    ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System) { Log.i("Sync", it) }
 }

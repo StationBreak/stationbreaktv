@@ -178,6 +178,33 @@ internal class MediaCalls(
         limit: Int,
     ): ServerResult<ItemIdPage> = idListing(session, library, startIndex, limit, SERIES_TYPE)
 
+    /**
+     * One series by its id as the signed-in user (`GET /Users/{userId}/Items/{id}`). A by-id read still answers for a
+     * series the list queries collapse away. A 404, or an item of another type, is "no such series" (null).
+     */
+    suspend fun seriesById(
+        session: Session,
+        id: ItemId,
+    ): ServerResult<SeriesInfo?> {
+        val path = "Users/${session.userId.value}/Items/${id.value}"
+        val endpoint = Endpoint.get(path, listOf("fields" to SERIES_FIELDS))
+        return when (val answer = calls.send(session, endpoint)) {
+            is ServerResult.Failure -> {
+                if (answer.error is MediaServerError.NotFound) ServerResult.Success(null) else answer
+            }
+
+            is ServerResult.Success -> {
+                Wire.parse(answer.value, ItemTypeDto.serializer()).flatMap { typed ->
+                    if (typed.type != SERIES_TYPE) {
+                        ServerResult.Success(null)
+                    } else {
+                        Wire.parse(answer.value, SeriesDto.serializer()).flatMap { convert { toSeriesInfo(it) } }
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun collections(
         session: Session,
         startIndex: Int,

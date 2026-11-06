@@ -15,6 +15,7 @@ import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.PlaybackRequest
+import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.SeriesPage
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerInfo
@@ -202,6 +203,17 @@ interface MediaServer {
         startIndex: Int,
         limit: Int,
     ): ServerResult<ItemIdPage>
+
+    /**
+     * One series read directly by its [id], or null when the server has no such series (a missing item, or one that is
+     * not a series). The server's series lists can leave a series out when it holds the same show twice (two series
+     * items with one provider id), yet still answers for it by id, so this finds a series that episodes reference and
+     * [librarySeries] never returns. Only a failure to ask or to read the answer is an error.
+     */
+    suspend fun seriesById(
+        session: Session,
+        id: ItemId,
+    ): ServerResult<SeriesInfo?>
 
     /**
      * One page of the collections (BoxSets) the signed-in account can see, with no library (`Recursive=true` and

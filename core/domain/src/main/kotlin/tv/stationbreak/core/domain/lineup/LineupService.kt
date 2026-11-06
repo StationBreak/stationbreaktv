@@ -57,6 +57,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.scheduler.Epochs
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
@@ -96,7 +97,7 @@ internal data class Revisioned(
  * Planning reads the library at now (a planning read, `LibraryRepository.ruleSnapshot`) and the current collection
  * names, and takes the device zone's standard offset from [standardOffsetMinutes] only for a lineup not yet finalised.
  */
-@Suppress("TooManyFunctions") // The one owner of the lineup in memory; its load, plan and save steps stay together.
+@Suppress("TooManyFunctions", "LargeClass") // The one owner of the lineup: load, plan and save stay together.
 class LineupService internal constructor(
     private val store: LineupStore,
     private val library: LibraryRepository,
@@ -126,10 +127,12 @@ class LineupService internal constructor(
 
     /**
      * As above, and [timed] is told each completed refresh's wall time in milliseconds (a number, nothing else).
+     * [unknownSeries] is told, at each planning read, how many live episodes name a series the saved library does not
+     * hold (a count, nothing else): a gap there is a show whose episodes cannot be named or homed (issue 604).
      * [derived] is told when a lineup is forgotten ([forget]): what was built from it (the days on disk, #480) goes
      * too.
      */
-    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and three numbers-only hooks.
+    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and four numbers-only hooks.
     constructor(
         store: LineupStore,
         library: LibraryRepository,
@@ -138,7 +141,15 @@ class LineupService internal constructor(
         report: (LineupEvent) -> Unit,
         timed: (Long) -> Unit,
         derived: DayStore? = null,
-    ) : this(store, library, clock, standardOffsetMinutes, report, LineupSeams(timed = timed, derived = derived))
+        unknownSeries: (Int) -> Unit = {},
+    ) : this(
+        store,
+        library,
+        clock,
+        standardOffsetMinutes,
+        report,
+        LineupSeams(timed = timed, derived = derived, unknownSeries = unknownSeries),
+    )
 
     internal val catalog: StarterCatalogView get() = seams.catalog
     private val days = LineupDays(seams.catalog)
@@ -261,6 +272,7 @@ class LineupService internal constructor(
         val now = clock.now()
         // The planner always ranks without the extras (spec 23): a clip or an opening is no hours of a channel.
         val snapshot = ExtrasFilter.filter(library.ruleSnapshot(account, libraries, now)).snapshot
+        seams.unknownSeries(episodesWithUnknownSeries(snapshot))
         val names = library.collectionNames(account)
         // Read now, whatever trigger asked: the lineup stops waiting for collections that are not coming.
         val giveUp = library.failedCollectionPasses(account) >= GIVE_UP_AFTER
@@ -1009,9 +1021,16 @@ internal class LineupSeams(
     val catalog: StarterCatalogView = StarterCatalog,
     val encode: (Lineup, RefreshMeta) -> ByteArray = LineupCodec::encode,
     val timed: (Long) -> Unit = {},
+    val unknownSeries: (Int) -> Unit = {},
     val derived: DayStore? = null,
     val rollDispatcher: CoroutineDispatcher = Dispatchers.Default,
 )
+
+/** The episodes of [snapshot] whose series it lacks: what `PoolEvaluator` counts as `episodesWithUnknownSeries`. */
+internal fun episodesWithUnknownSeries(snapshot: RuleSnapshot): Int =
+    snapshot.items.count {
+        it.item.kind == ScheduleItemKind.Episode && it.item.seriesId != null && it.item.seriesId !in snapshot.series
+    }
 
 // A channel the viewer built: custom (a retired starter too), or one whose rules need a newer app but whose stored
 // source says custom. Only the planner's own channels (starters, leftovers) are planned afresh by a reset.

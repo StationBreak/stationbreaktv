@@ -28,6 +28,7 @@ class FirstSyncRunner(
     internal val server: MediaServer,
     internal val repository: RoomLibraryRepository,
     internal val clock: Clock = Clock.System,
+    private val report: (String) -> Unit = {},
 ) {
     private val writingNow = MutableStateFlow(false)
 
@@ -58,7 +59,8 @@ class FirstSyncRunner(
                 if (active != listOf(ActiveAccountEntity(account.server.value, account.user.value))) {
                     SyncOutcome.Cancelled
                 } else {
-                    writing { FirstSyncEngine(repository, server, clock).run(session, account, chosen) }
+                    val engine = FirstSyncEngine(repository, server, clock, report = report)
+                    writing { engine.run(session, account, chosen) }
                 }
             }
 
