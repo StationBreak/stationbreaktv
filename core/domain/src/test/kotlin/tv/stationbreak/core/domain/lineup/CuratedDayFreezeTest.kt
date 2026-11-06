@@ -39,19 +39,6 @@ class CuratedDayFreezeTest {
     private val noon = NOON.toEpochMilliseconds()
     private val noNames = CollectionNames(emptyMap())
 
-    private fun programmedCatalog(
-        version: Int,
-        selects: Boolean = false,
-        change: (Recipe) -> Recipe = { it },
-        extra: List<Recipe> = emptyList(),
-    ): StarterCatalogView =
-        object : StarterCatalogView by TestCatalog {
-            override val version: Int = version
-            override val selectsByIdentity: Boolean = selects
-            override val recipes: List<Recipe> =
-                (TestCatalog.recipes + extra).map { change(it.copy(ordering = OrderingMode.Curated)) }
-        }
-
     private fun plan(
         lineup: Lineup,
         atMs: Long,

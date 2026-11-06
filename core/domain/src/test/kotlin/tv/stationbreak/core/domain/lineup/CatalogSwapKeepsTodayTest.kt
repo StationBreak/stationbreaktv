@@ -3,7 +3,9 @@ package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.domain.lineup.CuratedLibrary.boundaryMs
 import tv.stationbreak.core.engine.lineup.Band
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
@@ -13,6 +15,8 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -26,22 +30,9 @@ class CatalogSwapKeepsTodayTest {
     private val now = NOON.toEpochMilliseconds() + 2 * hour
     private val noNames = CollectionNames(emptyMap())
 
-    private fun catalog(
-        version: Int,
-        selects: Boolean,
-        change: (Recipe) -> Recipe = { it },
-        extra: List<Recipe> = emptyList(),
-    ): StarterCatalogView =
-        object : StarterCatalogView by TestCatalog {
-            override val version: Int = version
-            override val selectsByIdentity: Boolean = selects
-            override val recipes: List<Recipe> =
-                (TestCatalog.recipes + extra).map { change(it.copy(ordering = OrderingMode.Curated)) }
-        }
-
-    private val v2 = catalog(2, selects = false)
+    private val v2 = programmedCatalog(2)
     private val v3 =
-        catalog(
+        programmedCatalog(
             3,
             selects = true,
             change = {
@@ -82,34 +73,33 @@ class CatalogSwapKeepsTodayTest {
             catalog,
         )
 
-    private fun built(
-        days: LineupDays,
-        lineup: Lineup,
-        atMs: Long,
-    ) = days.curatedDays(lineup, atMs)
-
     @Test
     fun todayOfEveryExistingChannelSurvivesTheSwapAndTomorrowFollowsIt() {
+        // The starting lineup is a v3 file with viewerChoicesKnown = true (the inference path for pre-v3 files is out
+        // of scope here).
         val first = plan(CuratedLibrary.lineup(), now - hour, v2)
-        val served = built(LineupDays(v3), first, now)
+        val served = LineupDays(v3).curatedDays(first, now)
 
         val swapped = plan(first, now, v3)
-        val rebuilt = built(LineupDays(v3), swapped, now)
+        val rebuilt = LineupDays(v3).curatedDays(swapped, now)
 
+        // Preconditions: the swap really changed the plan, so the comparison below cannot pass vacuously.
+        assertNotEquals(first, swapped)
+        val laughs = swapped.channels.first { it.id == CuratedLibrary.laughsId }.source as ChannelSource.Starter
+        assertNotNull(laughs.previousRules, "today keeps the rules from before the swap")
+        assertTrue(swapped.channels.any { it.id == LineupIds.starter("crime-too") }, "catalog 3's new channel")
         assertTrue(served.isNotEmpty())
         for (day in served) {
+            assertTrue(day.day.blocks.isNotEmpty(), "today has blocks, ${day.channel.id}")
             assertEquals(day.aired(), rebuilt.dayOf(day.channel.id.value).aired(), "today, ${day.channel.id}")
         }
         // Tomorrow takes the new catalog: the rolled lineup's days differ for at least one channel.
         val tomorrow = boundaryMs + hour
-        val rolled = swapped.rolledAt(tomorrow)
-        val after = built(LineupDays(v3), rolled, tomorrow)
-        val before = built(LineupDays(v3), first.rolledAt(tomorrow), tomorrow)
+        val after = LineupDays(v3).curatedDays(swapped.rolled(tomorrow), tomorrow)
+        val before = LineupDays(v3).curatedDays(first.rolled(tomorrow), tomorrow)
         assertTrue(
             before.any { day -> day.aired() != after.dayOf(day.channel.id.value).aired() },
             "tomorrow follows catalog 3",
         )
     }
-
-    private fun Lineup.rolledAt(atMs: Long) = rolled(atMs)
 }
