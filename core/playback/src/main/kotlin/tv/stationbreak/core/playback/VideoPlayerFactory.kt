@@ -24,12 +24,14 @@ fun interface VideoPlayerFactory {
 
 /**
  * The [VideoPlayerFactory] for Media3: every player it builds reads media through [dataSource] and buffers as
- * [buffering] says (the safe defaults if app DI supplies none).
+ * [buffering] says (the safe defaults if app DI supplies none). [warm] holds the spec 24 warm-standby tunables.
  */
 @UnstableApi
 class Media3VideoPlayerFactory(
     private val dataSource: DataSource.Factory,
     private val buffering: PlaybackBuffering = PlaybackBuffering(),
+    @Suppress("UnusedPrivateProperty") // handed to the player when the standby is wired in (spec 24, task 3)
+    private val warm: WarmConfig = WarmConfig(),
 ) : VideoPlayerFactory {
     override fun create(
         context: Context,
