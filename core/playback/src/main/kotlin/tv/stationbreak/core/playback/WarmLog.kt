@@ -9,7 +9,11 @@ object WarmLog {
     const val TAG = "SBWARM"
     private const val KIB = 1_024L
 
+    /** Sees every line as well, for instrumented tests; null in the app. */
+    @Volatile internal var sink: ((String) -> Unit)? = null
+
     fun line(text: String) {
+        sink?.invoke(text)
         runCatching { Log.i(TAG, text) }
     }
 

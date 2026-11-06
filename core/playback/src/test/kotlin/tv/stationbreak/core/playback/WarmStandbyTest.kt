@@ -333,4 +333,62 @@ class WarmStandbyTest {
         t.fail(WarmReason.Timeout)
         assertEquals("disabled", skipReason(t.request("w3")))
     }
+
+    @Test
+    fun droppedClearsTheHeldStandbyWithoutAFailure() {
+        val s = standby(WarmConfig(warmMaxFailures = 1))
+        s.request("w1")
+        s.dropped("fallback")
+        assertNull(s.held)
+        assertTrue(logs.any { it == "dropped reason=fallback key=w1" })
+        // Not counted: with one failure allowed, warming is still on.
+        assertEquals(Request.Start, s.request("w2"))
+    }
+
+    @Test
+    fun droppedWithNothingHeldSaysNothing() {
+        val s = standby()
+        s.dropped("dropped")
+        assertTrue(logs.isEmpty())
+    }
+
+    @Test
+    fun disabledFollowsTheBreakerTheSwitchAndTheTrim() {
+        val s = standby(WarmConfig(warmMaxFailures = 1))
+        assertFalse(s.disabled)
+        s.request("w1")
+        s.fail(WarmReason.Timeout)
+        assertTrue(s.disabled)
+        val off = standby(WarmConfig(warmNextDecoder = false))
+        assertTrue(off.disabled)
+        val trimmed = standby()
+        trimmed.pauseForVisit()
+        assertTrue(trimmed.disabled)
+    }
+
+    @Test
+    fun disabledOnTheDeviceListOnceAsked() {
+        val s = standby(deviceCannot = { true })
+        s.request("w1")
+        assertTrue(s.disabled)
+    }
+
+    @Test
+    fun readyAndFallbackLinesCarryTheExtraFields() {
+        val s =
+            WarmStandby(
+                WarmConfig(),
+                { false },
+                { now },
+                { logs += it },
+                readyFields = { "framesDecoded=3" },
+                fallbackFields = { "javaKb=1" },
+            )
+        s.request("w1")
+        s.onStateReady("w1")
+        s.onDecoderUp("w1", 40)
+        assertTrue(logs.any { it.startsWith("ready ") && it.endsWith(" framesDecoded=3") })
+        s.decide("w2")
+        assertTrue(logs.any { it.startsWith("fallback ") && it.endsWith(" javaKb=1") })
+    }
 }

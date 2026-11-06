@@ -30,11 +30,10 @@ fun interface VideoPlayerFactory {
 class Media3VideoPlayerFactory(
     private val dataSource: DataSource.Factory,
     private val buffering: PlaybackBuffering = PlaybackBuffering(),
-    @Suppress("UnusedPrivateProperty") // handed to the player when the standby is wired in (spec 24, task 3)
     private val warm: WarmConfig = WarmConfig(),
 ) : VideoPlayerFactory {
     override fun create(
         context: Context,
         clock: () -> Long,
-    ): VideoPlayer = Media3VideoPlayer(context, dataSource, clock, buffering)
+    ): VideoPlayer = Media3VideoPlayer(context, dataSource, clock, buffering, warm)
 }

@@ -120,7 +120,22 @@ sealed interface PlayerEvent {
     }
 }
 
+/**
+ * What became of the warm standby at the play that returned a generation (spec 24). [swapped] is true when the play
+ * was a hand-over to the standby; then [reason] is `None`. Otherwise [reason] says why the play was cold. [ageMs] is
+ * how long the standby had been ready (or, not ready, since it was asked for), [readyMs] how long it took to become
+ * ready (0 if it never did) and [detachMs] how long the old front took to let go of the surface (0 when cold).
+ */
+data class WarmOutcome(
+    val swapped: Boolean,
+    val reason: WarmReason,
+    val ageMs: Long,
+    val readyMs: Long,
+    val detachMs: Long,
+)
+
 /** One player for the host's lifetime: [play] replaces what is playing, [stop] ends it, [release] ends the player. */
+@Suppress("TooManyFunctions") // Spec 24 added the warm standby's calls beside the transport.
 interface VideoPlayer {
     val events: SharedFlow<PlayerEvent>
 
@@ -190,4 +205,29 @@ interface VideoPlayer {
 
     /** True when [generation] is on the player and its media can seek; false otherwise, after [stop], or unknown. */
     fun seekable(generation: Long): Boolean
+
+    /**
+     * Spec 24: prepares [source] under [key] on a hidden, muted, paused standby player, so a later [play] of a source
+     * with that [PlayerSource.warmKey] hands the surface over to it. Replaces a standby held for another key; does not
+     * touch what is playing. Runs on the player's looper. A player that cannot warm does nothing.
+     */
+    fun warm(
+        key: String,
+        source: PlayerSource,
+    ) = Unit
+
+    /** Drops the standby if it is held for [key] (not yet played); nothing otherwise. */
+    fun dropWarm(key: String) = Unit
+
+    /**
+     * What became of the standby at the play that returned [generation]; null when that play has not run on the
+     * player yet, is too old to be kept, or the player cannot warm. Set on the looper inside the play, so it is final.
+     */
+    fun warmOutcome(generation: Long): WarmOutcome? = null
+
+    /**
+     * A memory trim signal (`ComponentCallbacks2`): at the running-moderate level or above the standby is released and
+     * warming is paused for the rest of this player's life (the visit).
+     */
+    fun trimMemory(level: Int) = Unit
 }
