@@ -4,36 +4,48 @@
 # Copies GuideScreenshotTest's PNGs off the emulator into ./guide-screenshots.
 # The emulator job calls this from the emulator-runner script, while adb still sees the device: the action stops the
 # emulator when that script returns, so a later step can only upload files that are already on the runner.
-# A missing directory is not a failure (a run that never reached the test); the upload step warns if no PNG is there.
-# Exit: 0 copied or nothing to copy, 1 adb could not read a directory it found.
+#
+# The test writes the same PNGs in two places. The shell on API 25 cannot list another app's external files directory,
+# so the copy that is pulled is the test package's private files, via run-as. Exit 1 when none are copied: a passing
+# run with no pictures is a failed proof.
+# Exit: 0 copied at least one PNG, 1 nothing was copied.
 set -uo pipefail
 
 dest="${1:-guide-screenshots}"
+pkg="tv.stationbreak.feature.guide.test"
 mkdir -p "$dest"
 
-# The test writes under the instrumentation package's external files (API 25: /sdcard/Android/data/<pkg>/files).
-remote="$(
-  adb shell 'ls -d /sdcard/Android/data/*/files/guide-screenshots /storage/emulated/0/Android/data/*/files/guide-screenshots 2>/dev/null' |
-    tr -d '\r' |
-    head -n 1
-)"
-if [ -z "$remote" ]; then
-  echo "No guide-screenshots directory on the device."
-  exit 0
+copied=0
+copy_private() {
+  local name="$1" magic
+  if adb exec-out run-as "$pkg" cat "files/guide-screenshots/$name" >"$dest/$name"; then
+    magic="$(od -An -t x1 -N 8 "$dest/$name" | tr -d ' \n')"
+  else
+    magic=""
+  fi
+  # A failed run-as still writes its error text; only a real PNG counts.
+  if [ "$magic" = "89504e470d0a1a0a" ]; then
+    echo "Pulled $name"
+    copied=$((copied + 1))
+  else
+    rm -f "$dest/$name"
+    echo "could not read files/guide-screenshots/$name via run-as" >&2
+  fi
+}
+
+names="$(adb shell run-as "$pkg" ls files/guide-screenshots 2>/dev/null | tr -d '\r')"
+if [ -n "$names" ]; then
+  while IFS= read -r name; do
+    case "$name" in
+      *.png) copy_private "$name" ;;
+    esac
+  done <<<"$names"
 fi
 
-echo "Pulling $remote"
-names="$(adb shell "ls \"$remote\"" | tr -d '\r')"
-if [ -z "$names" ]; then
-  echo "guide-screenshots on the device is empty."
-  exit 0
+if [ "$copied" -eq 0 ]; then
+  echo "No guide screenshots copied from $pkg." >&2
+  echo "run-as files:" >&2
+  adb shell run-as "$pkg" ls -la files >&2 || true
+  exit 1
 fi
-status=0
-while IFS= read -r name; do
-  [ -n "$name" ] || continue
-  if ! adb pull "$remote/$name" "$dest/$name"; then
-    echo "could not pull $remote/$name" >&2
-    status=1
-  fi
-done <<<"$names"
-exit "$status"
+exit 0

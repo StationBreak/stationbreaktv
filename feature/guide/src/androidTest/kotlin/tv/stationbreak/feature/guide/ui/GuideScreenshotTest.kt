@@ -209,12 +209,18 @@ class GuideScreenshotTest {
         Thread.sleep(FRAME_WAIT_MS)
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         assertNotNull("no screenshot", bitmap)
-        val root = checkNotNull(InstrumentationRegistry.getInstrumentation().context.getExternalFilesDir(null))
-        val directory = File(root, SCREENSHOT_DIR).apply { mkdirs() }
-        val file = File(directory, name)
-        file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it)) }
-        assertTrue("$name is empty", file.length() > 0)
-        Log.i(LOG_TAG, "wrote ${file.absolutePath} (${file.length()} bytes)")
+        val context = InstrumentationRegistry.getInstrumentation().context
+        // External files, as the first-sync proof does, and a copy in the test package's private files. The API 25
+        // emulator's shell cannot list another app's external dir; `run-as` can read the private copy.
+        val external = File(checkNotNull(context.getExternalFilesDir(null)), SCREENSHOT_DIR)
+        val internal = File(context.filesDir, SCREENSHOT_DIR)
+        for (directory in listOf(external, internal)) {
+            directory.mkdirs()
+            val file = File(directory, name)
+            file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it)) }
+            assertTrue("$name is empty", file.length() > 0)
+            Log.i(LOG_TAG, "wrote ${file.absolutePath} (${file.length()} bytes)")
+        }
     }
 
     private companion object {
