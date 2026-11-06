@@ -194,7 +194,15 @@ class DayInputReuseTest {
             leftovers("kids-odds-and-ends", 99, "PG"),
             leftovers("odds-and-ends", 199, null),
         )
-    private val fixtures = listOf(ranked, programmedLineup, bare)
+
+    // The same, with a leftovers channel that starts at the next boundary: it claims all the same.
+    private val bareStarting =
+        lineupOf(
+            channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(rules("Mine", Source.Genre("Horror")))),
+            leftovers("kids-odds-and-ends", 99, "PG"),
+            leftovers("odds-and-ends", 199, null).copy(onSinceMs = noon + 18 * hour),
+        )
+    private val fixtures = listOf(ranked, programmedLineup, bare, bareStarting)
 
     private val numbers = listOf(5, 50, 98, 99, 120, 199, 250, 600)
 
