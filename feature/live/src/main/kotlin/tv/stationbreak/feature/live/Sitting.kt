@@ -198,10 +198,12 @@ internal class Sitting(
     /** The block loop, from [first] (what was on when the channel was chosen), else from what is on at its time. */
     private suspend fun followFrom(first: ChannelOnAir?): Exit {
         var current: ChannelOnAir? = first
+        var previous: ChannelOnAir? = null
         while (true) {
             val at = Instant.fromEpochMilliseconds(vnowMs())
-            val onAir = current ?: schedule.onAir(channel, at, WINDOW)
+            val onAir = current ?: onAirShowingTheCard(at, previous)
             current = null
+            previous = onAir ?: previous
             // Nothing on at the drifted time (the schedule ends there, or the channel is hidden that day) is not the
             // channel lost: look again from the clock before giving it up.
             if (onAir == null && driftMs == 0L) return Exit.Lost
@@ -216,6 +218,34 @@ internal class Sitting(
             if (exit != null) return exit
         }
     }
+
+    /**
+     * What is on at [at], looked up with the ident card up once the wait passes [LiveTimings.boundaryCardAfter] (#608):
+     * the old picture is over and the days may be rebuilding, so the gap reads as a station break. A quick answer shows
+     * nothing extra. The card names the channel of [previous] (the block just left), none when there was none.
+     */
+    private suspend fun onAirShowingTheCard(
+        at: Instant,
+        previous: ChannelOnAir?,
+    ): ChannelOnAir? =
+        coroutineScope {
+            val card =
+                previous?.let { left ->
+                    launch {
+                        delay(timings.boundaryCardAfter)
+                        // Only a picture gives way: a card already up (ident, slate) stays.
+                        if (state.value !is LiveState.Watching && state.value !is LiveState.Tuning) return@launch
+                        tuner.stop(session)
+                        heldBlockStartMs = null
+                        state.value = LiveState.Ident(null, left.tag())
+                    }
+                }
+            try {
+                schedule.onAir(channel, at, WINDOW)
+            } finally {
+                card?.cancel()
+            }
+        }
 
     /** Ends what the sitting holds: a pre-resolved handle nobody used. The caller stops the tuner. */
     suspend fun release() = nextUp.release()
