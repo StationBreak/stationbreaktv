@@ -40,6 +40,7 @@ import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
 import tv.stationbreak.feature.guide.GuideModel
 import tv.stationbreak.feature.guide.SLOT_MS
+import tv.stationbreak.feature.guide.indexOf
 import java.time.Instant
 import java.time.ZoneId
 
@@ -49,6 +50,10 @@ private val NowMarkWidth = 10.dp
 private val PlayingBarWidth = 4.dp
 private val NumberWidth = 36.dp
 private val LabelGap = 6.dp
+
+/** Cream over the focused row. Light enough that the cells' own fills still read, and drawn, not composed. */
+private const val ROW_TINT_ALPHA = 0.06f
+private val RowTint = BroadcastColors.Cream.copy(alpha = ROW_TINT_ALPHA)
 
 /**
  * The clock strip over [GUIDE_VISIBLE_ROWS] rows from [firstVisibleRow] (the vertical window the model chooses),
@@ -70,7 +75,12 @@ internal fun GuideGrid(
 ) {
     val last = minOf(firstVisibleRow + GUIDE_VISIBLE_ROWS, model.rows.size)
     val ellipsis = rememberEllipsisMarks()
-    Box(modifier.testTag(GuideTags.GRID).tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE)) {
+    Box(
+        modifier
+            .testTag(GuideTags.GRID)
+            .focusedRowTint(model, firstVisibleRow, focusOf)
+            .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
+    ) {
         CompositionLocalProvider(LocalEllipsisMarks provides ellipsis) {
             Column {
                 ClockStrip(nowOf, viewportOf, geometry)
@@ -129,8 +139,8 @@ private fun GuideRowCells(
 
 /**
  * The channel column: the number in Accent, then the name, each cut with an ellipsis when it does not fit. A bar at
- * the left edge marks the channel playing; there is no focused-row highlight, which would recompose a whole row on
- * every move.
+ * the left edge marks the channel playing. The focused row's tint is not drawn here: one rect on the grid reads the
+ * focus while it draws, so a move does not recompose this cell.
  */
 @Composable
 private fun ChannelCell(
@@ -227,6 +237,38 @@ private fun ClockStrip(
             }
         }
     }
+}
+
+/**
+ * Cream at [ROW_TINT_ALPHA] across one row, the channel column and the time columns together. [focusOf] is read here,
+ * in the draw phase, so a focus move redraws this rect and recomposes no row. Nothing is drawn while the focus is on
+ * the menu (that reader returns null) or on a row that is not in the window.
+ */
+private fun Modifier.focusedRowTint(
+    model: GuideModel,
+    firstVisibleRow: Int,
+    focusOf: () -> GuideFocus?,
+): Modifier =
+    drawBehind {
+        val focus = focusOf() ?: return@drawBehind
+        val row = model.indexOf(focus)?.first ?: return@drawBehind
+        val band = focusedRowBand(row, firstVisibleRow, model.rows.size) ?: return@drawBehind
+        val top = ClockHeight.toPx() + RowHeight.toPx() * band
+        drawRect(RowTint, Offset(0f, top), Size(size.width, RowHeight.toPx()))
+    }
+
+/**
+ * Where [row] sits in the window that starts at [firstVisibleRow], or null when it is outside that window. The last
+ * window can be shorter than [GUIDE_VISIBLE_ROWS], and an empty band below the last row is not a row.
+ */
+internal fun focusedRowBand(
+    row: Int,
+    firstVisibleRow: Int,
+    rowCount: Int,
+): Int? {
+    val shown = minOf(GUIDE_VISIBLE_ROWS, rowCount - firstVisibleRow)
+    val band = row - firstVisibleRow
+    return band.takeIf { it in 0 until shown }
 }
 
 private fun dayOf(
