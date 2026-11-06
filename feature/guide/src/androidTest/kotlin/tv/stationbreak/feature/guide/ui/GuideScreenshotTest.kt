@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -23,6 +24,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -53,6 +55,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.info
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.model.ChannelId
@@ -76,8 +79,9 @@ private object ScreenshotLineup : ChannelRepository {
  * The guide's focus treatment on the API 25 emulator (#566, #569), as PNG files for the proof. The same path as
  * `FirstSyncScreenshotTest`: UiAutomation's screenshot, because Compose's `captureToImage` needs API 26, written under
  * the test app's external files in [SCREENSHOT_DIR]. The lineup, the 960 by 540 host and the keys are the guide screen
- * test's. A focused slate reads OFF AIR and the panel still says when it returns; the dashed border is the resting
- * slate, and the focus plate replaces it while that cell has the focus.
+ * test's. The focused cell is a long title, cut at the focus plate's end inset. A focused slate reads OFF AIR and the
+ * panel still says when it returns; the dashed border is the resting slate, and the focus plate replaces it while
+ * that cell has the focus.
  */
 @RunWith(AndroidJUnit4::class)
 class GuideScreenshotTest {
@@ -106,6 +110,9 @@ class GuideScreenshotTest {
         showReady(CH7)
         cell(CH7, 60).assertIsSelected()
         channels().assertIsNotSelected()
+        val focusedTitle = GuideTags.cellText(CH7, T0 + 60 * MIN)
+        assertEquals(LONG_TITLE, text(focusedTitle))
+        assertTrue("the long title ends at the inset, not on the ink gap", ellipsized(focusedTitle))
         shoot(FOCUSED_CELL)
 
         back()
@@ -129,7 +136,15 @@ class GuideScreenshotTest {
     private fun showReady(current: ChannelId) {
         fake.channel(ChannelId("ch-3"), 3, (0L until 600L step 30).map { program(it, it + 30, 400) })
         fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200 + (it / 60).toInt()) })
-        fake.channel(CH7, 7, (0L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) })
+        fake.channel(
+            CH7,
+            7,
+            (0L until 600L step 30).map { start ->
+                val n = 100 + (start / 30).toInt()
+                val title = if (start == 60L) LONG_TITLE else "Test Movie $n"
+                program(start, start + 30, n, info = info(n, title))
+            },
+        )
         fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
         vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
@@ -174,6 +189,13 @@ class GuideScreenshotTest {
 
     private fun channels() = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON)
 
+    private fun ellipsized(tag: String): Boolean {
+        val node = compose.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        return layouts.single().isLineEllipsized(0)
+    }
+
     private fun text(tag: String): String =
         compose
             .onNodeWithTag(tag, useUnmergedTree = true)
@@ -196,6 +218,7 @@ class GuideScreenshotTest {
     }
 
     private companion object {
+        const val LONG_TITLE = "The Late Late Picture Show With a Title Long Enough to Reach the Cell's End"
         const val LOG_TAG = "GuideScreenshot"
         const val SCREENSHOT_DIR = "guide-screenshots"
         const val FOCUSED_CELL = "guide-focused-cell.png"

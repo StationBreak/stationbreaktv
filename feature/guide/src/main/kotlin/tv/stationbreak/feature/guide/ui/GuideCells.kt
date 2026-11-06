@@ -73,8 +73,8 @@ internal val EllipsisFrom = 32.dp
 internal const val ELLIPSIS = "…"
 private val ProgramStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)
 
-/** The "…" on a slate, in the same mono face as its "OFF AIR" plate (not italic). */
-private val SlateStyle = mono(16.sp)
+/** The "…" on a slate, in the same mono face and letter spacing as its "OFF AIR" plate (not italic). */
+private val SlateStyle = mono(16.sp, LETTER_SPACING.sp)
 
 /**
  * The "…" laid out once for the whole grid (a program's style and a slate's), so a cell only draws it, in its own
@@ -103,7 +103,13 @@ internal fun rememberEllipsisMarks(): EllipsisMarks {
 
 private val EpisodeFrom = 160.dp
 private val TextStart = 10.dp
-private val TextEnd = 4.dp
+
+/**
+ * Room after a title that ends inside the viewport. The focus plate takes the ring plus the ink gap on that edge, and
+ * a focused title is Ink, so anything past the fill disappears on the gap. The same inset focused or not: a focus move
+ * only recolours the title, it does not lay it out again.
+ */
+private val TextEnd = BroadcastFocus.ringWidth + BroadcastFocus.ringGap
 private val ChevronInset = 6.dp
 private val ChevronSize = 5.dp
 private val ChevronRoom = 14.dp
