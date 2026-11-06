@@ -89,8 +89,8 @@ private fun fromEntry(
         else -> fromSourceList(view, focus, move)
     }
 
-// The Sources list's vertical keys: one line up or down in [sourceFocusOrder]. Up off the top stays put; Down off the
-// bottom goes to Next, the footer under the list.
+// The Sources list's vertical keys: one line up or down in [sourceFocusOrder]. Up off the top (the Narrow line) goes
+// to the tab row, as Up off the top of any list does; Down off the bottom goes to Next, the footer under the list.
 private fun fromSourceList(
     view: NavView,
     focus: BuilderFocus,
@@ -100,7 +100,7 @@ private fun fromSourceList(
     val at = order.indexOf(focus)
     return when {
         at < 0 -> order.first()
-        move == PanelMove.Up -> order.getOrElse(at - 1) { focus }
+        move == PanelMove.Up -> order.getOrNull(at - 1) ?: BuilderFocus.Tab(view.tab)
         move == PanelMove.Down -> order.getOrNull(at + 1) ?: BuilderFocus.Next
         else -> focus
     }

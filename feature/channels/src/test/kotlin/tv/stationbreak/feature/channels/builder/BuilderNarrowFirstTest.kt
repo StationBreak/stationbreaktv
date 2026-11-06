@@ -61,6 +61,39 @@ class BuilderNarrowFirstTest {
         }
 
     @Test
+    fun upFromNarrowWithEntriesReturnsToTheTabs() =
+        builderTest { rig ->
+            rig.picker.libraries = libraries(2)
+            rig.openNew()
+            rig.press(Right, Up, Up)
+            assertEquals(BuilderFocus.Tab(SourceKindTab.Libraries), rig.ui.focus)
+        }
+
+    @Test
+    fun upFromNarrowWithNoEntriesReturnsToTheTabs() =
+        builderTest { rig ->
+            rig.picker.libraries = libraries(0)
+            rig.openNew()
+            rig.press(Right)
+            assertEquals(BuilderFocus.Narrow, rig.ui.focus)
+            rig.press(Up)
+            assertEquals(BuilderFocus.Tab(SourceKindTab.Libraries), rig.ui.focus)
+        }
+
+    @Test
+    fun upFromNarrowOnThePickTabReturnsToTheTabs() =
+        builderTest { rig ->
+            rig.picker.libraries = libraries(2)
+            rig.openNew()
+            rig.press(Down, Down, Down, Down, Right)
+            assertEquals(BuilderFocus.Search, rig.ui.focus)
+            rig.press(Up)
+            assertEquals(BuilderFocus.Narrow, rig.ui.focus)
+            rig.press(Up)
+            assertEquals(BuilderFocus.Tab(SourceKindTab.Pick), rig.ui.focus)
+        }
+
+    @Test
     fun theFilterLinesComeFirstThenTheSearchThenTheEntries() {
         val view =
             NavView(
