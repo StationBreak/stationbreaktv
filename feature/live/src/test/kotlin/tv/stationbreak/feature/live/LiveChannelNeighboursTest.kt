@@ -129,6 +129,23 @@ class LiveChannelNeighboursTest {
         }
 
     @Test
+    fun aHandleOlderThanTheMaxAgeIsMadeAgainInTheSameBlock() =
+        runTest {
+            val r = rig()
+            val neighbours = Neighbours(r.session, r.tune, r.schedule, r.clock, maxAgeMs = 5 * MIN)
+            val order = FlipOrder(r.schedule.airings(r.clock.now()))
+            neighbours.prepareAround(checkNotNull(order.byId(CH5)), order)
+            val first = r.preResolves().count { it.item == itemOf(9) }
+            r.jumpMs += 2 * MIN
+            neighbours.prepareAround(checkNotNull(order.byId(CH5)), order)
+            assertEquals("still young: kept", first, r.preResolves().count { it.item == itemOf(9) })
+            r.jumpMs += 4 * MIN
+            neighbours.prepareAround(checkNotNull(order.byId(CH5)), order)
+            assertEquals("old: made again", first + 1, r.preResolves().count { it.item == itemOf(9) })
+            assertTrue(r.discards().any { it.item == itemOf(9) })
+        }
+
+    @Test
     fun aHeldHandleIsMadeAgainWhenItsBlockEnds() =
         runTest {
             val w = watching { schedule.channel(CH9, 9, listOf(program(0, 12, 9), program(12, 600, 19))) }

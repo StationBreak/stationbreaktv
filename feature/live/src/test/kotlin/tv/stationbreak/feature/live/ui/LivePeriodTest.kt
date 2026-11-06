@@ -20,6 +20,7 @@ import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.PreloadState
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.Place
@@ -125,6 +126,25 @@ class LivePeriodTest {
             assertEquals(afterLeave, inner.log)
             assertNull(period.player.position(3))
             assertFalse(period.player.seekable(3))
+        }
+
+    @Test
+    fun theGuardedPlayerForwardsThePreloadCallsUntilLeft() =
+        runTest {
+            val inner = RecordingPlayer()
+            val period = LivePeriod(inner, Job(), null) {}
+
+            period.player.preload("p1", source)
+            assertEquals(PreloadState(ageMs = 5, setupMs = 3), period.player.preloadState("p1"))
+            period.player.dropPreload("p1")
+            assertEquals(listOf("preload:p1", "dropPreload:p1"), inner.log)
+
+            period.leave()
+            val afterLeave = inner.log.toList()
+            period.player.preload("p2", source)
+            period.player.dropPreload("p2")
+            assertEquals(afterLeave, inner.log)
+            assertNull(period.player.preloadState("p1"))
         }
 
     /** CH7 joined at minute 10 and paused [pauseAtMs] in ([before] runs just before the pause); the rig and run. */

@@ -121,6 +121,7 @@ sealed interface PlayerEvent {
 }
 
 /** One player for the host's lifetime: [play] replaces what is playing, [stop] ends it, [release] ends the player. */
+@Suppress("TooManyFunctions") // Spike #563 added the preload calls.
 interface VideoPlayer {
     val events: SharedFlow<PlayerEvent>
 
@@ -137,6 +138,22 @@ interface VideoPlayer {
      * produces carries it, so a caller can ignore the events of an earlier play. Generations only increase.
      */
     fun play(source: PlayerSource): Long
+
+    /**
+     * Spike #563: prepares [source] (open it, read its index, select tracks) under [key], from the source's own start,
+     * so a later [play] of a source with that [PlayerSource.preloadKey] starts from the prepared media. Does not touch
+     * what is playing. A player that cannot preload does nothing.
+     */
+    fun preload(
+        key: String,
+        source: PlayerSource,
+    ) = Unit
+
+    /** What the player knows of the preload [key]; null when there is none (never made, failed, dropped, or played). */
+    fun preloadState(key: String): PreloadState? = null
+
+    /** Drops the preload [key] if it is still held (not yet played). */
+    fun dropPreload(key: String) = Unit
 
     /** Ends what is playing. A second call is a no-op, and implementations must keep it so: teardown calls it twice. */
     fun stop()

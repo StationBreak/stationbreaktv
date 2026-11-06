@@ -40,7 +40,8 @@ data class SeparateSubtitle(
  * What the player is handed. [url] is a secret as far as logs go (ADR-0016): [toString] does not show it.
  * [playerStart] is where the player seeks, for HLS as for direct play. [directPlayTracks] is true when the player's
  * own track selection applies (direct play only); then [audioPick] and [subtitlePick] name the tracks to pick.
- * A null [subtitlePick] with no [subtitles] means no subtitle.
+ * A null [subtitlePick] with no [subtitles] means no subtitle. [preloadKey] names a source the player prepared ahead
+ * ([VideoPlayer.preload], spike #563): a play with it uses that source when the player still has it.
  */
 @Suppress("LongParameterList") // One independent fact each; the player reads them all.
 data class PlayerSource(
@@ -53,6 +54,7 @@ data class PlayerSource(
     val directPlayTracks: Boolean,
     val audioPick: TrackPick? = null,
     val subtitlePick: TrackPick? = null,
+    val preloadKey: String? = null,
 ) {
     override fun toString(): String = "PlayerSource(hls=$isHls, url=<not shown>, subtitles=${subtitles.size})"
 }

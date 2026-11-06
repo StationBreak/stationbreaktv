@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import android.os.Debug
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -9,6 +10,7 @@ import tv.stationbreak.core.playback.AvTimings
 import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.PreloadUse
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -67,13 +69,14 @@ sealed interface TuneReport {
         val skippedFrames: Long? = null,
         val loads: LoadStats? = null,
         val av: AvTimings? = null,
+        val preload: PreloadUse? = null,
     ) : TuneReport {
         override fun line() =
             "tune kind=${kind.label} resolveMs=$resolveMs firstFrameMs=${firstFrameMs ?: NOT_SEPARATE} " +
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
                 "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"} " +
                 "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE} " +
-                loadFields() + " " + avFields()
+                loadFields() + " " + avFields() + " " + preload.fields()
 
         private fun avFields(): String {
             val a = av ?: AvTimings()
@@ -139,12 +142,41 @@ sealed interface TuneReport {
         val lookupMs: Long = NOT_SEPARATE,
         val handoverMs: Long = NOT_SEPARATE,
         val via: String? = null,
+        val preload: PreloadUse? = null,
     ) : TuneReport {
         override fun line() =
             "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
                 "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome from=${from ?: "none"} " +
-                "route=${route ?: "none"} fallback=${fallback ?: "none"} lookupMs=$lookupMs handoverMs=$handoverMs" +
+                "route=${route ?: "none"} fallback=${fallback ?: "none"} lookupMs=$lookupMs handoverMs=$handoverMs " +
+                preload.fields() +
                 via?.let { " via=$it" }.orEmpty()
+    }
+
+    /**
+     * The memory at a flip (spike #563), so the cost of preloaded sources on a small heap is visible: the Java heap in
+     * use and its limit, and the native heap allocated, in KiB.
+     */
+    data class Memory(
+        val javaKb: Long,
+        val javaMaxKb: Long,
+        val nativeKb: Long,
+    ) : TuneReport {
+        override fun line() = "mem flip javaKb=$javaKb javaMaxKb=$javaMaxKb nativeKb=$nativeKb"
+
+        companion object {
+            /** The memory now. Never throws. */
+            fun now(): Memory {
+                val runtime = Runtime.getRuntime()
+                val native = runCatching { Debug.getNativeHeapAllocatedSize() }.getOrDefault(0L)
+                return Memory(
+                    (runtime.totalMemory() - runtime.freeMemory()) / KIB,
+                    runtime.maxMemory() / KIB,
+                    native / KIB,
+                )
+            }
+
+            private const val KIB = 1_024L
+        }
     }
 
     /**
@@ -225,6 +257,11 @@ sealed interface TuneReport {
     }
 }
 
+/** The preload fields of a tune or flip line (spike #563): `preloaded=false` and -1s when nothing was held. */
+internal fun PreloadUse?.fields(): String =
+    "preloaded=${this?.preloaded ?: false} preloadAgeMs=${this?.ageMs ?: TuneReport.NOT_SEPARATE} " +
+        "preloadSetupMs=${this?.setupMs ?: TuneReport.NOT_SEPARATE}"
+
 /** How long the notes of a play that has ended may take to arrive. */
 private val NOTES_DRAIN = 50.milliseconds
 
@@ -283,6 +320,7 @@ internal fun Sitting.reportTune(
             timings.skippedFrames,
             timings.loads,
             timings.av,
+            timings.preload,
         ),
     )
     if (cutSince != null) {
@@ -315,8 +353,10 @@ internal fun Sitting.reportFlipPlayed(
             timing.lookupMs,
             timing.handoverMs,
             timing.via,
+            timings.preload,
         ),
     )
+    report(TuneReport.Memory.now())
 }
 
 /** The flip's line when its first block came to a card instead of a picture: [outcome] is `slate` or `failed`. */

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.PreloadState
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveChannel
@@ -63,6 +64,7 @@ internal class LivePeriod(
         return leaving
     }
 
+    @Suppress("TooManyFunctions") // One override per VideoPlayer call, so none falls to a no-op default.
     private inner class Guarded : VideoPlayer {
         override val events: SharedFlow<PlayerEvent> get() = inner.events
 
@@ -105,6 +107,21 @@ internal class LivePeriod(
 
         override fun release() {
             if (left.compareAndSet(false, true)) inner.release()
+        }
+
+        // The preload calls are not part of the transport above, and VideoPlayer gives them no-op defaults: without
+        // these overrides the controller's preload requests stopped here (spike #563, found on the device).
+        override fun preload(
+            key: String,
+            source: PlayerSource,
+        ) {
+            if (!left.get()) inner.preload(key, source)
+        }
+
+        override fun preloadState(key: String): PreloadState? = if (left.get()) null else inner.preloadState(key)
+
+        override fun dropPreload(key: String) {
+            if (!left.get()) inner.dropPreload(key)
         }
     }
 

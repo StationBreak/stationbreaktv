@@ -22,12 +22,17 @@ import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.source.preload.DefaultPreloadManager
+import androidx.media3.exoplayer.source.preload.PreloadException
+import androidx.media3.exoplayer.source.preload.PreloadManagerListener
+import androidx.media3.exoplayer.source.preload.TargetPreloadStatusControl
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 import kotlin.time.Duration
@@ -64,12 +69,29 @@ class Media3VideoPlayer(
 
     private val loadCounter = LoadCounter()
     private val allocator = PlaybackBuffering.mediaAllocator()
+    private val loadControl = buffering.toLoadControl(allocator)
+    private val mediaSourceFactory = CountingMediaSourceFactory(dataSource, loadCounter)
+
+    // Spike #563: the player is built through the preload manager's builder, so the two share one playback thread,
+    // renderers, track selector, bandwidth meter and load control, and a prepared source can be handed to the player.
+    private val preloadStatuses = ConcurrentHashMap<Int, DefaultPreloadManager.PreloadStatus>()
+    private val preloadBuilder =
+        DefaultPreloadManager
+            .Builder(
+                context,
+                TargetPreloadStatusControl<Int, DefaultPreloadManager.PreloadStatus> {
+                    preloadStatuses[it] ?: DefaultPreloadManager.PreloadStatus.PRELOAD_STATUS_NOT_PRELOADED
+                },
+            ).setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
     private val exo: ExoPlayer =
-        ExoPlayer
-            .Builder(context)
-            .setLoadControl(buffering.toLoadControl(allocator))
-            .setMediaSourceFactory(CountingMediaSourceFactory(dataSource, loadCounter))
-            .build()
+        preloadBuilder.buildExoPlayer(
+            ExoPlayer
+                .Builder(context)
+                .setLoadControl(loadControl)
+                .setMediaSourceFactory(mediaSourceFactory),
+        )
+    private val preloadManager = preloadBuilder.build()
     private val handler = Handler(exo.applicationLooper)
 
     // The `SBLIVE mem` line while a play is on the player (diagnostics, OOM of 2026-10-29).
@@ -99,6 +121,45 @@ class Media3VideoPlayer(
     override val videoAspect: StateFlow<Float?> = aspect.aspect
 
     private val nextGeneration = AtomicLong()
+
+    /** One preload: the item it was made for, its ranking number, when it was asked for and when it was done. */
+    private class PreloadEntry(
+        val item: MediaItem,
+        val rank: Int,
+        val startedAt: Long,
+    ) {
+        @Volatile var completedAt: Long = NOT_DONE
+
+        @Volatile var error: String? = null
+    }
+
+    /** The preloads held, by key. Written on the player's looper; read from any thread. */
+    private val preloads = ConcurrentHashMap<String, PreloadEntry>()
+
+    /** The preload whose source is on the player now; removed from the manager once the play ends. Looper only. */
+    private var playedPreload: PreloadEntry? = null
+    private var nextRank = 0
+
+    init {
+        preloadManager.addListener(
+            object : PreloadManagerListener {
+                override fun onCompleted(mediaItem: MediaItem) {
+                    val key = mediaItem.mediaId.removePrefix(PRELOAD_ID)
+                    val entry = preloads[key] ?: return
+                    entry.completedAt = clock()
+                    val setupMs = entry.completedAt - entry.startedAt
+                    PreloadLog.line("prepared key=$key setupMs=$setupMs status=$STATUS_NAME")
+                }
+
+                override fun onError(error: PreloadException) {
+                    val key = error.mediaItem.mediaId.removePrefix(PRELOAD_ID)
+                    // Kept (marked) so the tune can say it failed; play() does not use it.
+                    preloads[key]?.error = PreloadLog.describe(error)
+                    PreloadLog.line("error key=$key ${PreloadLog.describe(error)}")
+                }
+            },
+        )
+    }
 
     /** The generation of the play now on the player; set on its looper, so events and plays agree. */
     @Volatile private var active = 0L
@@ -167,7 +228,21 @@ class Media3VideoPlayer(
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                     .build()
             playId = generation.toString()
-            exo.setMediaItem(mediaItem(source, playId), source.playerStart.inWholeMilliseconds)
+            val preloaded = source.preloadKey?.let { preloads.remove(it) }
+            val usable = preloaded?.takeIf { it.error == null }
+            val prepared = usable?.let { preloadManager.getMediaSource(it.item) }
+            if (source.preloadKey != null) {
+                PreloadLog.line("handover key=${source.preloadKey} used=${prepared != null} entry=${preloaded != null}")
+            }
+            if (prepared != null) {
+                // Spike #563: the prepared source, from where the live schedule is now.
+                exo.setMediaSource(prepared, source.playerStart.inWholeMilliseconds)
+            } else {
+                exo.setMediaItem(mediaItem(source, playId), source.playerStart.inWholeMilliseconds)
+            }
+            releasePlayedPreload()
+            if (preloaded != null && prepared == null) preloadManager.remove(preloaded.item)
+            playedPreload = preloaded.takeIf { prepared != null }
             exo.prepare()
             exo.playWhenReady = true
             memory.start()
@@ -187,8 +262,71 @@ class Media3VideoPlayer(
             seeking = false
             exo.stop()
             exo.clearMediaItems()
+            releasePlayedPreload()
             publish()
         }
+
+    override fun preload(
+        key: String,
+        source: PlayerSource,
+    ) {
+        PreloadLog.line("preload called key=$key")
+        onPlayerThread { startPreload(key, source) }
+    }
+
+    private fun startPreload(
+        key: String,
+        source: PlayerSource,
+    ) {
+        PreloadLog.line("preload running key=$key")
+        if (preloads.containsKey(key)) {
+            PreloadLog.line("skipped key=$key reason=alreadyPresent")
+            return
+        }
+        val item = mediaItem(source, PRELOAD_ID + key)
+        val rank = nextRank++
+        preloadStatuses[rank] =
+            if (PreloadSettings.BUFFER_MS <= 0L) {
+                DefaultPreloadManager.PreloadStatus.PRELOAD_STATUS_TRACKS_SELECTED
+            } else {
+                DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(
+                    source.playerStart.inWholeMilliseconds,
+                    PreloadSettings.BUFFER_MS,
+                )
+            }
+        preloads[key] = PreloadEntry(item, rank, clock())
+        val startMs = source.playerStart.inWholeMilliseconds
+        PreloadLog.line("queued key=$key rank=$rank status=$STATUS_NAME startMs=$startMs")
+        preloadManager.add(item, rank)
+        // add() invalidates already (checked in the 1.11.1 bytecode); once more is harmless.
+        preloadManager.invalidate()
+    }
+
+    override fun preloadState(key: String): PreloadState? =
+        preloads[key]?.let {
+            val done = it.completedAt
+            PreloadState(clock() - it.startedAt, if (done == NOT_DONE) null else done - it.startedAt, it.error)
+        }
+
+    override fun dropPreload(key: String) =
+        onPlayerThread {
+            preloads.remove(key)?.let {
+                preloadStatuses.remove(it.rank)
+                preloadManager.remove(it.item)
+                preloadManager.invalidate()
+                PreloadLog.line("removed key=$key reason=dropped")
+            }
+        }
+
+    /** The played preload's source is no longer on the player: let the manager release it. Looper only. */
+    private fun releasePlayedPreload() {
+        playedPreload?.let {
+            preloadStatuses.remove(it.rank)
+            preloadManager.remove(it.item)
+            PreloadLog.line("removed reason=played")
+        }
+        playedPreload = null
+    }
 
     override fun pause(generation: Long) =
         onPlayerThread {
@@ -250,6 +388,9 @@ class Media3VideoPlayer(
             published = Published.NONE
             memory.stop()
             exo.release()
+            if (preloads.isNotEmpty()) PreloadLog.line("removed reason=released n=${preloads.size}")
+            preloads.clear()
+            preloadManager.release()
         }
 
     /** Sends [event] and refreshes what [position] and [seekable] answer from other threads. Looper only. */
@@ -467,6 +608,11 @@ class Media3VideoPlayer(
     private companion object {
         const val EVENT_BUFFER = 64
         const val NO_POSITION = -1L
+        const val NOT_DONE = -1L
+        val STATUS_NAME = if (PreloadSettings.BUFFER_MS <= 0L) "tracksSelected" else "rangeLoaded"
+
+        /** The media id prefix of a preloaded item (not a number: its events fall back to the active play). */
+        const val PRELOAD_ID = "pre:"
 
         /** The tag live TV's measurement lines use, so a device run collects this line with them. */
         const val MEMORY_LOG_TAG = "SBLIVE"

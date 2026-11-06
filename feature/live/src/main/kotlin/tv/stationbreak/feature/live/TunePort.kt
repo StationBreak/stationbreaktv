@@ -13,6 +13,7 @@ import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.PreloadUse
 import kotlin.time.Duration
 
 /** An item resolved ahead of its tune. Opaque to the machine: the adapter maps it to core:playback's handle. */
@@ -39,6 +40,7 @@ class NextHandle(
  * if unknown.
  * @property loads what the media loads before the tracks cost (count, time, bytes, container type), null if unknown.
  * @property av when the audio and video start-up steps happened, ms since the play call, null if unknown.
+ * @property preload what the tune's preloaded source cost (spike #563), null when none was held.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -51,6 +53,7 @@ data class TuneTimings(
     val skippedFrames: Long? = null,
     val loads: LoadStats? = null,
     val av: AvTimings? = null,
+    val preload: PreloadUse? = null,
 )
 
 /**
