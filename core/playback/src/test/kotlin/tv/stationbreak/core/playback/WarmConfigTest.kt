@@ -2,15 +2,12 @@
 package tv.stationbreak.core.playback
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Spec 24: the warm tunables, their bounds, and the debug-only property switches. */
+/** Spec 24: the warm tunables and their bounds. The switches over them are [WarmSwitchesTest]. */
 class WarmConfigTest {
-    private val masterOff: (String) -> Boolean? = { tag -> if (tag == "SBWARM") false else null }
-
     @Test
     fun defaultsAreTheSpecValues() {
         val config = WarmConfig()
@@ -21,7 +18,6 @@ class WarmConfigTest {
         assertEquals(1_500L, config.warmDecoderGraceMs)
         assertEquals(250L, config.warmSeekToleranceMs)
         assertEquals(3, config.warmMaxFailures)
-        assertFalse(config.debugSwitches)
     }
 
     @Test
@@ -32,37 +28,7 @@ class WarmConfigTest {
         assertThrows(IllegalArgumentException::class.java) { WarmConfig(warmDecoderGraceMs = -1) }
         assertThrows(IllegalArgumentException::class.java) { WarmConfig(warmSeekToleranceMs = 0) }
         assertThrows(IllegalArgumentException::class.java) { WarmConfig(warmHoldBufferMs = 10_001) }
-        assertTrue(WarmConfig(warmHoldBufferMs = 10_000).masterOn())
-    }
-
-    @Test
-    fun tunableOffMeansMasterAndAudioOff() {
-        assertFalse(WarmConfig(warmNextDecoder = false).masterOn())
-        assertFalse(WarmConfig(warmNextAudio = false).audioOn())
-    }
-
-    @Test
-    fun debugSwitchesReadTheProperties() {
-        val config = WarmConfig(debugSwitches = true, property = masterOff)
-        assertFalse(config.masterOn())
-        assertTrue(config.audioOn())
-        val audioOff = WarmConfig(debugSwitches = true, property = { tag -> if (tag == "SBWARMAUD") false else null })
-        assertTrue(audioOff.masterOn())
-        assertFalse(audioOff.audioOn())
-    }
-
-    @Test
-    fun releaseIgnoresTheProperties() {
-        val config = WarmConfig(debugSwitches = false, property = { false })
-        assertTrue(config.masterOn())
-        assertTrue(config.audioOn())
-    }
-
-    @Test
-    fun theDefaultPropertyDoesNotThrowOnTheJvm() {
-        // The JVM log stub is unreadable or answers false; either way reading it must not throw.
-        WarmConfig(debugSwitches = true).masterOn()
-        WarmConfig(debugSwitches = true).audioOn()
+        assertEquals(10_000L, WarmConfig(warmHoldBufferMs = 10_000).warmHoldBufferMs)
     }
 
     @Test

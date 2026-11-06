@@ -14,7 +14,7 @@ class WarmStandbyTest {
     private fun standby(
         config: WarmConfig = WarmConfig(),
         deviceCannot: () -> Boolean = { false },
-    ) = WarmStandby(config, deviceCannot, { now }, { logs += it })
+    ) = WarmStandby(config, WarmSwitches.None, deviceCannot, { now }, { logs += it })
 
     private fun skipReason(request: Request): String = (request as Request.Skip).reason
 
@@ -378,11 +378,11 @@ class WarmStandbyTest {
         val s =
             WarmStandby(
                 WarmConfig(),
+                WarmSwitches.None,
                 { false },
                 { now },
                 { logs += it },
-                readyFields = { "framesDecoded=3" },
-                fallbackFields = { "javaKb=1" },
+                StandbyFields(ready = { "framesDecoded=3" }, fallback = { "javaKb=1" }),
             )
         s.request("w1")
         s.onStateReady("w1")

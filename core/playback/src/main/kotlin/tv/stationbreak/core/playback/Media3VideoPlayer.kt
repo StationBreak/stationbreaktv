@@ -52,7 +52,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * built on the first [warm] that is not skipped, which prepares the next channel hidden, muted and paused with its
  * buffer held at [WarmConfig.warmHoldBufferMs]. A [play] whose [PlayerSource.warmKey] names a ready standby hands the
  * surface over to it and the two swap roles; every other play (no key, another key, not ready, failed, switched off)
- * is the ordinary play on the front, as before. [warm] holds the tunables. The standby is released on [release], on a
+ * is the ordinary play on the front, as before. [warm] holds the tunables, [warmSwitches] the device-side switches
+ * over them (debug builds; [WarmSwitches.None] in release). The standby is released on [release], on a
  * memory trim ([trimMemory]) and when warming is disabled; [stop] ends only the front's play.
  *
  * Track override (direct play only, [PlayerSource.directPlayTracks]): the audio and the in-file subtitle are picked by
@@ -71,6 +72,7 @@ class Media3VideoPlayer(
     private val clock: () -> Long,
     private val buffering: PlaybackBuffering = PlaybackBuffering(),
     private val warm: WarmConfig = WarmConfig(),
+    private val warmSwitches: WarmSwitches = WarmSwitches.None,
 ) : VideoPlayer {
     init {
         // Before ExoPlayer exists: Media3's own error logs can quote a playlist line with a token.
@@ -139,10 +141,10 @@ class Media3VideoPlayer(
     private val warmState =
         WarmStandby(
             config = warm,
+            switches = warmSwitches,
             deviceCannot = { deviceCannotWarm(context) },
             clock = clock,
-            readyFields = ::readyFields,
-            fallbackFields = WarmLog::memoryFields,
+            fields = StandbyFields(ready = ::readyFields, fallback = WarmLog::memoryFields),
         )
 
     /** The source the standby was last started with, for a video-only retry. Looper only. */

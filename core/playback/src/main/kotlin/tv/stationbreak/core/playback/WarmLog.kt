@@ -4,13 +4,13 @@ package tv.stationbreak.core.playback
 import android.os.Debug
 import android.util.Log
 
-/** The `SBWARM` log lines: numbers, fixed names and the warm key only. */
-object WarmLog {
-    const val TAG = "SBWARM"
+/** The `SBWARM` log lines: numbers, fixed names and the warm key only. The tag is [WarmSwitches.MASTER_TAG]. */
+internal object WarmLog {
+    const val TAG = WarmSwitches.MASTER_TAG
     private const val KIB = 1_024L
 
     /** Sees every line as well, for instrumented tests; null in the app. */
-    @Volatile internal var sink: ((String) -> Unit)? = null
+    @Volatile var sink: ((String) -> Unit)? = null
 
     fun line(text: String) {
         sink?.invoke(text)

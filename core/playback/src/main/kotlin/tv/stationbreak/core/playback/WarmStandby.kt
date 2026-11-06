@@ -27,26 +27,33 @@ internal data class Decision(
     val readyMs: Long,
 )
 
+/** The player's numbers on the `ready` and `fallback` lines (frames, buffer, heap); empty by default. */
+internal class StandbyFields(
+    val ready: () -> String = { "" },
+    val fallback: () -> String = { "" },
+)
+
 /**
  * Spec 24: the pure decisions of the warm standby (one hidden, muted player preparing the next channel): whether to
  * build one, when it is ready, when it has failed, the circuit breaker and whether a flip can swap to it. No Android
  * or Media3 types; the clock is injected. [deviceCannot] is asked at most once (the no-surface-decoder list).
+ * [switches] are the device-side switches over [config] (debug builds).
  * Not thread-safe: call from the playback thread.
  *
  * Caller contract: [evaluate] has no side effects. On [Verdict.TimedOut] the caller calls `fail(WarmReason.Timeout)`;
  * on [Verdict.DecoderMissing] it calls [decoderMissing]. Both count at most one failure per standby, so repeated
  * calls (for example one per poll) are safe. Every standby build, and every audio retry, gets a new [epoch]; events
- * carry the epoch they were made for and those from an older instance are ignored. [readyFields] and
- * [fallbackFields] are appended to the `ready` and `fallback` lines (the player's numbers: frames, buffer, heap).
+ * carry the epoch they were made for and those from an older instance are ignored. [fields] are appended to the
+ * `ready` and `fallback` lines.
  */
 @Suppress("TooManyFunctions") // One class by decision: the events, the verdict and the breaker share one state.
 internal class WarmStandby(
     private val config: WarmConfig,
+    private val switches: WarmSwitches,
     private val deviceCannot: () -> Boolean,
     private val clock: () -> Long,
     private val log: (String) -> Unit = WarmLog::line,
-    private val readyFields: () -> String = { "" },
-    private val fallbackFields: () -> String = { "" },
+    private val fields: StandbyFields = StandbyFields(),
 ) {
     /** The warm key of the standby being built or held, or null. */
     var held: String? = null
@@ -57,10 +64,10 @@ internal class WarmStandby(
         private set
 
     /** True when the standby keeps audio on: wanted, and not turned off by an audio failure for this player. */
-    val audioOn: Boolean get() = config.audioOn() && !audioFailed
+    val audioOn: Boolean get() = config.audioOn(switches) && !audioFailed
 
     /** True when no standby will be started: switched off, the device cannot, the breaker is open, or trimmed. */
-    val disabled: Boolean get() = !config.masterOn() || deviceOff || breakerOpen || trimPaused
+    val disabled: Boolean get() = !config.warmOn(switches) || deviceOff || breakerOpen || trimPaused
 
     private var audioFailed = false
     private var deviceChecked = false
@@ -76,7 +83,7 @@ internal class WarmStandby(
 
     @Suppress("ReturnCount") // Each early return is a reason not to start a standby.
     fun request(key: String): Request {
-        if (!config.masterOn() || breakerOpen || trimPaused) return DISABLED
+        if (!config.warmOn(switches) || breakerOpen || trimPaused) return DISABLED
         if (!deviceChecked) {
             deviceChecked = true
             deviceOff = deviceCannot()
@@ -171,7 +178,7 @@ internal class WarmStandby(
         val swap = reason == WarmReason.None
         // A cold flip with no standby at all is no fallback: there was nothing to fall back from.
         val nothingHeld = held == null && reason == WarmReason.Mismatch
-        if (!swap && !nothingHeld) log(withFields("fallback reason=${reason.label} ageMs=$ageMs", fallbackFields))
+        if (!swap && !nothingHeld) log(withFields("fallback reason=${reason.label} ageMs=$ageMs", fields.fallback))
         return Decision(swap, reason, ageMs, readyMs)
     }
 
@@ -182,7 +189,7 @@ internal class WarmStandby(
         val failed = failReason
         return when {
             key == null -> WarmReason.NoHandle
-            !config.masterOn() || breakerOpen || deviceOff || trimPaused -> WarmReason.Disabled
+            !config.warmOn(switches) || breakerOpen || deviceOff || trimPaused -> WarmReason.Disabled
             held == null || key != held -> WarmReason.Mismatch
             failed != null -> failed
             readyAt != null -> WarmReason.None
@@ -220,13 +227,13 @@ internal class WarmStandby(
         if (readyAt != null || stateAt == null || init == null) return
         val now = clock()
         readyAt = now
-        log(withFields("ready readyMs=${now - startedAt} decoderInitMs=$init", readyFields))
+        log(withFields("ready readyMs=${now - startedAt} decoderInitMs=$init", fields.ready))
     }
 
     private fun withFields(
         line: String,
-        fields: () -> String,
-    ): String = fields().let { if (it.isEmpty()) line else "$line $it" }
+        extra: () -> String,
+    ): String = extra().let { if (it.isEmpty()) line else "$line $it" }
 
     private fun countFailure(reason: WarmReason) {
         failures++
