@@ -169,9 +169,9 @@ class BuilderStepsTest {
         return nodes.isNotEmpty()
     }
 
-    // From a fresh Sources page: onto the first library, tick it, down to Narrow down, right to Next, and on.
+    // From a fresh Sources page: onto the first library, tick it, down past the one library to Next, and on.
     private fun toPlay() {
-        press(Pad.Right, Pad.Select, Pad.Down, Pad.Right, Pad.Select)
+        press(Pad.Right, Pad.Select, Pad.Down, Pad.Select)
         until { vm.ui.value.step == BuilderStep.Play }
     }
 
@@ -180,6 +180,23 @@ class BuilderStepsTest {
         toPlay()
         press(Pad.Down, Pad.Down, Pad.Down, Pad.Down, Pad.Select)
         until { vm.ui.value.step == BuilderStep.Name }
+    }
+
+    @Test
+    fun narrowIsDrawnAboveTheFirstEntry() {
+        show()
+        press(Pad.Right)
+        val narrow =
+            compose
+                .onNodeWithTag(BuilderTags.NARROW)
+                .fetchSemanticsNode()
+                .boundsInRoot.top
+        val first =
+            compose
+                .onNodeWithTag(BuilderTags.entry("lib1"))
+                .fetchSemanticsNode()
+                .boundsInRoot.top
+        assertTrue("Narrow at $narrow, first entry at $first", narrow < first)
     }
 
     @Test
@@ -321,7 +338,7 @@ class BuilderStepsTest {
             )
         builder.openResult = OpenResult.Opened(draft, "Movies")
         show { it.openCopy(BUILT_IN) { name -> "$name (copy)" } }
-        press(Pad.Right, Pad.Down, Pad.Right, Pad.Select)
+        press(Pad.Right, Pad.Down, Pad.Select)
         until { vm.ui.value.step == BuilderStep.Play }
         compose.onNodeWithTag(BuilderTags.kept(0)).assertTextContains("4 in a row")
     }
