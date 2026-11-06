@@ -822,7 +822,14 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # On failure, saves the logcat and the emulator's state before the action shuts the emulator down.
-          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt1
+          # The pull runs here: the action stops the emulator when this script returns, so a later step can only
+          # upload files already on the runner. A pull failure fails the job only when the tests themselves passed.
+          script: >-
+            bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt1;
+            status=$?;
+            bash .github/scripts/pull-guide-screenshots.sh;
+            pull=$?;
+            if [ "$status" -eq 0 ]; then exit "$pull"; else exit "$status"; fi
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
 
@@ -860,7 +867,12 @@ jobs:
           profile: tv_720p
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2 final
+          script: >-
+            bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2 final;
+            status=$?;
+            bash .github/scripts/pull-guide-screenshots.sh;
+            pull=$?;
+            if [ "$status" -eq 0 ]; then exit "$pull"; else exit "$status"; fi
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
 
@@ -915,6 +927,16 @@ jobs:
             grep -A5 '<failure' "$f" || true
             echo "::endgroup::"
           done
+
+      # Guide focus proof (#566, #569). Pulled inside the emulator script above; no APKs.
+      - name: Upload guide screenshots
+        if: always() && steps.tests.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: guide-screenshots
+          path: guide-screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
 
       # Test reports and logcat only, no APK, so fork PRs can have it too (ADR-0011 gates APKs).
       - name: Upload instrumented test reports
