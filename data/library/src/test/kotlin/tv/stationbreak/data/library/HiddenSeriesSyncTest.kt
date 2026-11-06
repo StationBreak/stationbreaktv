@@ -13,6 +13,7 @@ import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.SeriesSource
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.CollectionMemberKind
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
@@ -130,17 +131,50 @@ class HiddenSeriesSyncTest {
         }
 
     @Test
-    fun aHiddenSeriesTheServerDeletedIsTombstonedByTheNextReconcile() =
+    fun aHiddenSeriesTheServerDeletedIsTombstonedWhileAnotherIsStillThere() =
+        runBlocking {
+            val doomed = ItemId(hexId(0x5009))
+            server.hiddenSeriesSources[doomed] =
+                SeriesInfo(doomed, "Doomed", null, emptyList(), emptyList(), emptyList())
+            episodes.items += episode(0x4001, doomed)
+            firstSync()
+            server.hiddenSeriesSources.remove(doomed)
+
+            val result = reconcile()
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(1, result.summary.seriesTombstoned)
+            assertEquals(clock.nowMs, seriesRow(doomed)?.deletedAtMs)
+            assertNull(seriesRow(hidden)?.deletedAtMs)
+        }
+
+    @Test
+    fun whenEveryUnlistedSeriesIsAbsentNoneIsTombstonedForIt() =
         runBlocking {
             firstSync()
             server.hiddenSeriesSources.remove(hidden)
 
             val result = reconcile()
 
+            // One missing series and nothing else read is more likely a server fault than a deleted show.
             assertEquals(SyncOutcome.Completed, result.outcome)
-            assertEquals(1, result.summary.seriesTombstoned)
-            assertEquals(clock.nowMs, seriesRow(hidden)?.deletedAtMs)
-            assertNull(seriesRow(listed)?.deletedAtMs)
+            assertEquals(0, result.summary.seriesTombstoned)
+            assertNull(seriesRow(hidden)?.deletedAtMs)
+        }
+
+    @Test
+    fun collectionMembershipsOfAHiddenSeriesSurviveTwoReconciles() =
+        runBlocking {
+            firstSync()
+            val members = listOf(cm(hidden.value, CollectionMemberKind.Series))
+            repository.writeCollection(ALICE, ItemId("box01"), "Box", members)
+
+            reconcile()
+            reconcile()
+
+            val rows = repository.collectionMembers(ALICE).filter { it.memberId == hidden.value }
+            assertEquals(1, rows.size)
+            assertNull(rows.single().supersededAtMs)
         }
 
     @Test

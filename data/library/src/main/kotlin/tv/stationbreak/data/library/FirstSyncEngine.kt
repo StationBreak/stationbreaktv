@@ -182,10 +182,12 @@ internal class FirstSyncEngine(
         }
 
         // The series the library's episodes name that the server's series list left out (issue 604): read by ID, once
-        // each, after the list's own. A failed read fails the sync like any other transient failure; it is retried.
+        // each, after the list's own. A series the server fails on is only counted and left for a later pass; only a
+        // session-level failure (an expired session, a server that cannot be reached) fails the sync.
         private suspend fun readHiddenSeries(library: Library): SyncOutcome? {
             val missing = repository.unstoredReferencedSeries(account, library)
-            val read = server.readHiddenSeries(session, repository, account, library, missing)
+            val read =
+                server.readHiddenSeries(session, repository, account, library, missing, HiddenSeriesMemory(), false)
             if (read.asked > 0) report(read.line())
             return read.failure?.let { fail(it) }
         }

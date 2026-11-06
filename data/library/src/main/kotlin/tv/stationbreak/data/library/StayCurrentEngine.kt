@@ -206,6 +206,7 @@ internal class StayCurrentEngine(
     private val maxSkippedItems: Int = FirstSyncEngine.MAX_SKIPPED_ITEMS,
     private val unfindable: UnfindableIds = UnfindableIds(),
     private val report: (String) -> Unit = {},
+    private val hiddenMemory: HiddenSeriesMemory = HiddenSeriesMemory(),
 ) {
     init {
         require(pageSize in 1..MediaServer.MAX_PAGE_SIZE) { "pageSize must be 1 to ${MediaServer.MAX_PAGE_SIZE}" }
@@ -384,7 +385,7 @@ internal class StayCurrentEngine(
                     is ServerResult.Failure -> return StayResult(fail(listed.error), reconciled)
                 }
             for (library in libraries) {
-                val failed = reconcile(library)
+                val failed = reconcile(library, libraries)
                 if (failed != null) return StayResult(failed, reconciled)
             }
             // A chosen library the listing lacks may have been deleted on the server (#495). This runs only once every
@@ -458,7 +459,10 @@ internal class StayCurrentEngine(
                 }
             }
 
-        private suspend fun reconcile(library: Library): SyncOutcome? {
+        private suspend fun reconcile(
+            library: Library,
+            reconciling: List<Library>,
+        ): SyncOutcome? {
             // The cache first, then the server: whatever another pass saves while the list is read is not "gone".
             val live = repository.liveItemIds(account, library.id).toSet()
             val tombstoned = repository.tombstonedItemIds(account, library.id).toSet()
@@ -476,11 +480,17 @@ internal class StayCurrentEngine(
             val seriesLive = repository.liveSeriesIds(account, library.id).toSet()
             val seriesTombstoned = repository.tombstonedSeriesIds(account, library.id).toSet()
             val seriesIds: IdLister = { start, count -> server.librarySeriesIds(session, library, start, count) }
-            val series = decide(seriesLive, seriesTombstoned, seriesIds)
+            // A stored series that a live episode names may be one the list leaves out (issue 604), so it says nothing
+            // about whether the list is sane: the suspect check looks at the series the list itself should hold.
+            val referenced = repository.referencedSeriesIds(account, library.id).toSet()
+            val series = decide(seriesLive, seriesTombstoned, seriesIds, suspectLive = seriesLive - referenced)
+            // Whatever a live episode here names and is held live is not for the removed-library check to tombstone.
+            listedSeries += referenced intersect repository.liveSeriesIdsAnywhere(account).toSet()
             // A series the list leaves out is not gone while a live episode names it and the server still has it
             // (issue 604): each is read by ID, and the ones found are stored (again) rather than tombstoned. A series
             // that could not be asked about is kept as well, so a failed read tombstones nothing.
-            val hidden = (series as? Decision.Ready)?.let { confirmHidden(library, it.list.ids) } ?: HiddenSeries.NONE
+            val ready = series as? Decision.Ready
+            val hidden = ready?.let { confirmHidden(library, reconciling, it.list.ids) } ?: HiddenSeries.NONE
             (series as? Decision.Ready)?.let {
                 listedSeries += it.list.ids + hidden.kept
                 if (!it.list.trusted) untrusted = true
@@ -507,10 +517,20 @@ internal class StayCurrentEngine(
 
         private suspend fun confirmHidden(
             library: Library,
+            reconciling: List<Library>,
             listed: Set<ItemId>,
         ): HiddenSeries {
-            val candidates = repository.unlistedReferencedSeries(account, library, listed)
-            val read = server.readHiddenSeries(session, repository, account, library, candidates)
+            val candidates = repository.unlistedReferencedSeries(account, library, listed, reconciling)
+            val read =
+                server.readHiddenSeries(
+                    session,
+                    repository,
+                    account,
+                    library,
+                    candidates,
+                    hiddenMemory,
+                    confirmAbsent = true,
+                )
             if (read.asked > 0) report(read.line())
             return HiddenSeries(read.keep(candidates), read.failure)
         }
@@ -519,7 +539,16 @@ internal class StayCurrentEngine(
         // the reconcile, which reads each unlisted one on every open).
         private suspend fun readNewHiddenSeries(library: Library): SyncOutcome? {
             val missing = repository.unstoredReferencedSeries(account, library)
-            val read = server.readHiddenSeries(session, repository, account, library, missing)
+            val read =
+                server.readHiddenSeries(
+                    session,
+                    repository,
+                    account,
+                    library,
+                    missing,
+                    hiddenMemory,
+                    confirmAbsent = false,
+                )
             if (read.asked > 0) report(read.line())
             return read.failure?.let { fail(it) }
         }
@@ -532,6 +561,7 @@ internal class StayCurrentEngine(
             live: Set<ItemId>,
             tombstoned: Set<ItemId>,
             list: IdLister,
+            suspectLive: Set<ItemId> = live,
         ): Decision {
             val first =
                 when (val read = readIds(list)) {
@@ -539,7 +569,7 @@ internal class StayCurrentEngine(
                     is IdsRead.Complete -> read.list
                 }
             // Nothing at all, for a library that had rows, is more likely a server fault than an emptied library.
-            if (first.ids.isEmpty() && live.isNotEmpty()) return Decision.Stop(suspect())
+            if (first.ids.isEmpty() && suspectLive.isNotEmpty()) return Decision.Stop(suspect())
             var gone = if (first.trusted) live - first.ids else emptySet()
             if (gone.isNotEmpty()) {
                 // A shift that leaves the size unchanged looks sound once: only what a second read also lacks is gone.
@@ -548,7 +578,7 @@ internal class StayCurrentEngine(
                         is IdsRead.Failed -> return Decision.Stop(fail(read.error))
                         is IdsRead.Complete -> read.list
                     }
-                if (again.ids.isEmpty()) return Decision.Stop(suspect())
+                if (again.ids.isEmpty() && suspectLive.isNotEmpty()) return Decision.Stop(suspect())
                 gone = if (again.trusted) gone - again.ids else emptySet()
             }
             return Decision.Ready(first, gone, tombstoned intersect first.ids)

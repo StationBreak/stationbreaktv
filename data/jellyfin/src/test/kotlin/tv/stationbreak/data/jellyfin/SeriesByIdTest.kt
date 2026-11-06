@@ -15,7 +15,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 
 /**
- * `seriesById` reads one series straight by its id (`GET /Users/{userId}/Items/{id}`), which still answers for a series
+ * `seriesById` reads one series straight by its id (`GET /Items/{id}?userId=`), which still answers for a series
  * the server's series lists leave out (issue 604). A missing item, or one that is not a series, is "no such series".
  */
 class SeriesByIdTest {
@@ -29,7 +29,7 @@ class SeriesByIdTest {
         id: String = "h1",
     ): ServerResult<SeriesInfo?> =
         runBlocking {
-            jellyfin.on("GET", "/Users/user1/Items/$id") { status() }
+            jellyfin.on("GET", "/Items/$id") { status() }
             testAdapter().seriesById(testSession(jellyfin.address), ItemId(id))
         }
 
@@ -37,8 +37,9 @@ class SeriesByIdTest {
     fun asksForTheItemByIdWithTheSeriesFields() {
         fetch({ jellyfin.json("""{"Id":"h1","Name":"Night Shift","Type":"Series"}""") })
 
-        val url = jellyfin.requests("/Users/user1/Items/h1").single().url
+        val url = jellyfin.requests("/Items/h1").single().url
         assertEquals(listOf("Genres", "Tags", "Studios"), url.queryParameter("fields").orEmpty().split(','))
+        assertEquals("user1", url.queryParameter("userId"))
     }
 
     @Test
