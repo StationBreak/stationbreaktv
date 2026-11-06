@@ -46,8 +46,9 @@ jobs:
 
       # Pushes to main always run everything. A PR skips `verify` and `assemble` when it changes only docs, and `emulator` unless it
       # changes the app, the modules, or the build. Anything not matched below counts as a build change, and if the
-      # diff can't be read both jobs run. A skipped job still reports as skipped, not pending, so this is safe to
-      # make a required check later (unlike workflow-level paths-ignore). `deps` says whether osv-scanner is needed:
+      # diff can't be read both jobs run. A skipped job still reports its job id, and the ruleset on main treats that
+      # skip as a success (ADR-0012). A workflow-level path filter would leave the check pending and block the merge.
+      # `deps` says whether osv-scanner is needed:
       # the PR touches the dependency files or the build logic. `release` says whether the release variants are built
       # and checked: always on main, and on a PR only when it touches what R8, the manifest merger, signing or the
       # release dependencies depend on (.github/scripts/release-scope.sh lists them, with tests). Other PRs check and
@@ -963,3 +964,24 @@ jobs:
       scan-args: |-
         -r
         ./
+
+  # Stable check name for the scan above. A skipped reusable workflow reports the caller id (`osv-scanner`); a run
+  # reports `osv-scanner / osv-scan`. A ruleset can require only a context that exists in both cases, and neither of
+  # those does, so the context to require is this job's id (ADR-0012). It runs only when the scan was required, and
+  # passes only when that scan succeeded. Every other pull request skips it, which a required check treats as success.
+  # `always()` so a failed or cancelled scan still reaches the test below; the `deps` clause keeps docs-only and
+  # other non-dependency pull requests from starting a runner.
+  osv-scanner-result:
+    needs: [checks, osv-scanner]
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.draft != true && needs.checks.outputs.deps == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Require a successful OSV scan
+        env:
+          OSV_RESULT: ${{ needs.osv-scanner.result }}
+        run: |
+          echo "osv-scanner result: ${OSV_RESULT}"
+          test "$OSV_RESULT" = "success"

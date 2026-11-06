@@ -28,7 +28,8 @@ CI is metered, so iterate locally and let CI run once.
 - Batch review fixes into one push. Every push to a ready pull request runs CI again.
 - CI on the final head must be green before merge.
 - `osv-scanner` runs on a pull request only when it changes `gradle/`, a `*.gradle.kts` file, `gradle.properties` or
-  `build-logic/`. It also runs weekly on `main`.
+  `build-logic/`. It also runs weekly on `main`. The check a ruleset can require is `osv-scanner-result`: the
+  reusable workflow reports a different name when it skips than when it runs ([ADR-0012](docs/adr/0012-ci-gates-advisory-until-flip.md)).
 
 ## Commit messages
 
@@ -93,6 +94,8 @@ for you:
 
 All checks run in GitHub Actions on every pull request that is ready for review (not on drafts). Here's what each one does and how to fix a failure.
 
+A repository ruleset on `main` is what stops the merge. The job ids it requires, and the two an admin still has to add (`sign-debug` and `osv-scanner-result`), are in [ADR-0012](docs/adr/0012-ci-gates-advisory-until-flip.md) (amended 2026-11-06). A job that this workflow skips reports its id, and the ruleset treats that skip as a success. A workflow that never starts leaves the check pending and blocks the merge, which is why the Jellyfin contract workflow is not one of those ids.
+
 | Check | What it checks | How to fix a failure |
 | --- | --- | --- |
 | `verify` | Skipped when the PR changes only `docs/`, `LICENSE` or `*.md` files. Module dependency rules, the KMP tests with no Android SDK and `./gradlew check` (the rows below). On a PR that doesn't need the release build (see `assemble`), `check` leaves out the release-variant `detekt` and `licensee` tasks, which would compile every Android module's release variant again; debug lint and unit tests, and every other task, still run. It runs in parallel with `assemble`; the old single `build` check was split into the two so a cold build cache fits each one's timeout | See the rows below for the task that failed |
@@ -115,6 +118,8 @@ All checks run in GitHub Actions on every pull request that is ready for review 
 | `checks`: device-proof guard | Any text file in the tree (workflow, script, Gradle or build-logic file, Taskfile) names the `serverAddress` argument of the on-device probe, which would hand CI the owner's server address | Run `bash .github/scripts/device-proof-guard.sh .` to see the file. Remove the argument: the owner supplies it by hand, never CI |
 | `jellyfin-contract` (own workflow) | Runs only when a PR changes `data/jellyfin/`, `core/domain/`, `core/model/`, `build-logic/`, `gradle/libs.versions.toml`, `gradle/verification-metadata.xml`, `settings.gradle.kts` or its own file, and not on drafts. The adapter against real Jellyfin servers in Docker (`:data:jellyfin:contractTest`), once per version in its matrix, directly and behind a subpath proxy. A weekly run (and a manual one) tests the floating `latest` tag too | See [Container contract tests](#container-contract-tests). Failures are in the job log, which carries only test output |
 | `checks`: sign-offs (DCO) | Every commit is signed off | See [Sign off your commits](#sign-off-your-commits-dco) |
+| `sign-debug` | Re-signs the debug APK with the CI debug key. Skipped for a docs-only pull request, a fork, and Renovate, and when `assemble` did not succeed | The log names the signing step that failed. Forks and Renovate never receive the key ([ADR-0011](docs/adr/0011-debug-build-signing.md)) |
+| `osv-scanner-result` | On a pull request that changes dependency files or build logic, passes only when the OSV scan succeeded. The scan job itself is `osv-scanner` / `osv-scan`. Every other pull request skips `osv-scanner-result` | The scan log names the new vulnerability. Fix it, or record an ignore in `gradle/osv-scanner.toml` with a reason and an `ignoreUntil` date |
 
 A run's APK is only for devices when the whole run concluded success; `assemble` does not wait for `verify`.
 
