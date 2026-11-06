@@ -17,6 +17,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
@@ -83,9 +86,8 @@ private object ScreenshotLineup : ChannelRepository {
  * The guide's focus treatment on the API 25 emulator (#566, #569), as PNG files for the proof. The same path as
  * `FirstSyncScreenshotTest`: UiAutomation's screenshot, because Compose's `captureToImage` needs API 26, written under
  * the test app's external files in [SCREENSHOT_DIR]. The lineup, the 960 by 540 host and the keys are the guide screen
- * test's. The focused cell is a long title, cut at the focus plate's end inset. A focused slate reads OFF AIR and the
- * panel still says when it returns; the dashed border is the resting slate, and the focus plate replaces it while
- * that cell has the focus.
+ * test's. Dark is the default. The same three frames are taken again in Light. The focused cell is a long title, cut
+ * at the card's end inset. A focused slate reads OFF AIR and the panel still says when it returns.
  */
 @RunWith(AndroidJUnit4::class)
 class GuideScreenshotTest {
@@ -103,6 +105,11 @@ class GuideScreenshotTest {
             override fun now() = Instant.fromEpochMilliseconds(T0 + 65 * MIN)
         }
 
+    /** One content for both themes: the rule's activity accepts setContent once. */
+    private val theme = mutableStateOf(GuideTheme.Dark)
+    private val openedAt = mutableLongStateOf(1L)
+    private var composed = false
+
     @After
     fun tearDown() {
         if (::vm.isInitialized) vm.close()
@@ -111,23 +118,34 @@ class GuideScreenshotTest {
 
     @Test
     fun theFocusStates() {
+        shootTheme(GuideTheme.Dark, suffix = "")
+        shootTheme(GuideTheme.Light, suffix = "-light")
+    }
+
+    /** Focused cell, focused menu and resting menu, then (dark only) the off-air cell. */
+    private fun shootTheme(
+        shown: GuideTheme,
+        suffix: String,
+    ) {
+        theme.value = shown
         showReady(CH7)
         cell(CH7, 60).assertIsSelected()
         channels().assertIsNotSelected()
         val focusedTitle = GuideTags.cellText(CH7, T0 + 60 * MIN)
         assertEquals(LONG_TITLE, text(focusedTitle))
-        assertTrue("the long title ends at the inset, not on the ink gap", ellipsized(focusedTitle))
-        shoot(FOCUSED_CELL)
+        assertTrue("the long title ends inside the card", ellipsized(focusedTitle))
+        shoot("$FOCUSED_CELL$suffix.png")
 
         back()
         channels().assertIsSelected()
-        shoot(FOCUSED_MENU)
+        shoot("$FOCUSED_MENU$suffix.png")
 
         press(Key.DirectionDown)
         cell(CH7, 60).assertIsSelected()
         channels().assertIsNotSelected()
-        shoot(RESTING_MENU)
+        shoot("$RESTING_MENU$suffix.png")
 
+        if (shown != GuideTheme.Dark) return
         press(Key.DirectionDown)
         press(Key.DirectionRight)
         cell(CH9, 150).assertIsSelected()
@@ -150,23 +168,41 @@ class GuideScreenshotTest {
             },
         )
         fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
-        val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-        vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
-        compose.setContent {
-            BackHandler { }
-            StationBreakTheme {
-                Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
-                    GuideRoot(
-                        vm,
-                        GuideOpening(current, null, 1L),
-                        pictureHole = HOLE,
-                        onTune = {},
-                        channels = { _, _, _, _ -> },
-                    )
+        if (!composed) {
+            val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
+            vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
+            compose.setContent {
+                BackHandler { }
+                StationBreakTheme {
+                    CompositionLocalProvider(LocalGuideColors provides theme.value.colors) {
+                        Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
+                            GuideRoot(
+                                vm,
+                                GuideOpening(current, null, openedAt.longValue),
+                                pictureHole = HOLE,
+                                onTune = {},
+                                channels = { _, _, _, _ -> },
+                            )
+                        }
+                    }
                 }
             }
+            composed = true
+        } else {
+            // A new opening restarts the session on the playing cell, in the theme set above. Wait for that cell:
+            // the previous session is still Ready until the recomposition applies.
+            openedAt.longValue += 1
         }
-        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        val playing = T0 + 60 * MIN
+        compose.waitUntil(TIMEOUT_MS) {
+            val snap = vm.snapshot.value
+            val focus = snap.focus
+            snap.state is GuideState.Ready &&
+                snap.menu == null &&
+                focus != null &&
+                focus.channel == current &&
+                focus.cellStartMs == playing
+        }
         compose.waitForIdle()
         compose.awaitWindowFocus()
     }
@@ -251,10 +287,10 @@ class GuideScreenshotTest {
         const val LONG_TITLE = "The Late Late Picture Show With a Title Long Enough to Reach the Cell's End"
         const val LOG_TAG = "GuideScreenshot"
         const val SCREENSHOT_DIR = "guide-screenshots"
-        const val FOCUSED_CELL = "guide-focused-cell.png"
-        const val FOCUSED_MENU = "guide-focused-menu.png"
+        const val FOCUSED_CELL = "guide-focused-cell"
+        const val FOCUSED_MENU = "guide-focused-menu"
         const val OFF_AIR = "guide-off-air.png"
-        const val RESTING_MENU = "guide-resting-menu.png"
+        const val RESTING_MENU = "guide-resting-menu"
         const val HOST_WIDTH_DP = 960
         const val HOST_HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L

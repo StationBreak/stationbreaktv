@@ -79,7 +79,6 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.ProgramInfoTags
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
@@ -498,13 +497,14 @@ class GuideScreenTest {
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
         compose.onAllNodesWithText("\u2026", useUnmergedTree = true).assertCountEquals(0)
         cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
-        assertTrue("an ellipsis in Cream", pixelsNear(short, BroadcastColors.Cream) > 0)
-        // Negative control: the scan is for the mark's own colour, not just any drawing; unfocused, nothing is Ink.
-        assertEquals("no Ink in an unfocused cell", 0, pixelsNear(short, BroadcastColors.Ink))
+        assertTrue("an ellipsis in the programme text", pixelsNear(short, GuideColors.Dark.programmeText) > 0)
+        // Negative control: the scan is for the mark's own colour, not just any drawing; unfocused, nothing is the
+        // focus text.
+        assertEquals("no focus text in an unfocused cell", 0, pixelsNear(short, GuideColors.Dark.focusText))
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
-        assertTrue("an ellipsis in Ink, focused", pixelsNear(short, BroadcastColors.Ink) > 0)
+        assertTrue("an ellipsis in the focus text", pixelsNear(short, GuideColors.Dark.focusText) > 0)
         assertEquals("Test Movie 401", text(GuideTags.PANEL_TITLE))
         compose.onAllNodesWithText("Test Movie 401", useUnmergedTree = true).assertCountEquals(1)
         cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)

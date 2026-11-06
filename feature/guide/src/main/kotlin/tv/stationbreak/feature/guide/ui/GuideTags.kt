@@ -25,6 +25,13 @@ object GuideTags {
     /** The Channels entry of the menu row above the grid. */
     const val CHANNELS_BUTTON = "guide:channelsButton"
 
+    /** The Settings entry of the menu row: the guide's Dark and Light choice. */
+    const val SETTINGS_BUTTON = "guide:settingsButton"
+
+    /** The Dark and Light choices, while Settings is open. */
+    const val THEME_DARK = "guide:theme:dark"
+    const val THEME_LIGHT = "guide:theme:light"
+
     /** The Exit entry of the menu row. */
     const val EXIT_BUTTON = "guide:exitButton"
 

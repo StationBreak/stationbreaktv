@@ -24,6 +24,10 @@
 
     <!-- The entries of the menu row above the grid: the first opens channel management (spec 21), the second leaves. -->
     <string name="guide_channels_button">Channels</string>
+    <string name="guide_settings_button">Settings</string>
+    <string name="guide_settings_appearance">Appearance</string>
+    <string name="guide_theme_dark">Dark</string>
+    <string name="guide_theme_light">Light</string>
     <string name="guide_exit_button">Exit</string>
 
     <!-- The chip in front of the slot of a program on now. -->

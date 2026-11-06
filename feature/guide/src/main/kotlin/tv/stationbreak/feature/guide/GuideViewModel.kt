@@ -298,6 +298,7 @@ internal class GuideViewModel
                         eventChannel.trySend(
                             when (current.menu) {
                                 GuideMenuEntry.Channels -> GuideEvent.OpenChannels
+                                GuideMenuEntry.Settings -> GuideEvent.OpenSettings
                                 GuideMenuEntry.Exit -> GuideEvent.Exit
                             },
                         )
