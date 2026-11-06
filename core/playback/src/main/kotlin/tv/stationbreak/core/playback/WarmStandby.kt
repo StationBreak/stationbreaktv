@@ -13,8 +13,11 @@ internal sealed interface Request {
 /** The standby's state as seen by [WarmStandby.evaluate]. */
 internal enum class Verdict { Pending, Ready, DecoderMissing, TimedOut }
 
-/** What to do with the standby after an error: retry without audio, drop it, or stop warming altogether. */
-internal enum class ErrorAction { RetryVideoOnly, Dropped, Disabled }
+/**
+ * What to do with the standby after an error: retry without audio, drop it, or stop warming altogether. [Ignored]
+ * is an event from an older standby (another key or epoch): do nothing.
+ */
+internal enum class ErrorAction { RetryVideoOnly, Dropped, Disabled, Ignored }
 
 /** Whether a flip may swap to the standby; [reason] is `None` on a swap, else the cold-path reason. */
 internal data class Decision(
@@ -29,15 +32,25 @@ internal data class Decision(
  * build one, when it is ready, when it has failed, the circuit breaker and whether a flip can swap to it. No Android
  * or Media3 types; the clock is injected. [deviceCannot] is asked at most once (the no-surface-decoder list).
  * Not thread-safe: call from the playback thread.
+ *
+ * Caller contract: [evaluate] has no side effects. On [Verdict.TimedOut] the caller calls `fail(WarmReason.Timeout)`;
+ * on [Verdict.DecoderMissing] it calls [decoderMissing]. Both count at most one failure per standby, so repeated
+ * calls (for example one per poll) are safe. Every standby build, and every audio retry, gets a new [epoch]; events
+ * carry the epoch they were made for and those from an older instance are ignored.
  */
 @Suppress("TooManyFunctions") // One class by decision: the events, the verdict and the breaker share one state.
 internal class WarmStandby(
     private val config: WarmConfig,
     private val deviceCannot: () -> Boolean,
     private val clock: () -> Long,
+    private val log: (String) -> Unit = WarmLog::line,
 ) {
     /** The warm key of the standby being built or held, or null. */
     var held: String? = null
+        private set
+
+    /** Identifies the current standby build; changes on each start and each audio retry. Pass it back with events. */
+    var epoch: Int = 0
         private set
 
     /** True when the standby keeps audio on: wanted, and not turned off by an audio failure for this player. */
@@ -61,31 +74,33 @@ internal class WarmStandby(
         if (!deviceChecked) {
             deviceChecked = true
             deviceOff = deviceCannot()
-            if (deviceOff) WarmLog.line("disabled reason=deviceList failures=$failures")
+            if (deviceOff) log("disabled reason=deviceList failures=$failures")
         }
         if (deviceOff) return DISABLED
         if (held == key && failReason == null) return Request.Skip("alreadyWarm")
-        if (held != null) WarmLog.line("dropped reason=replaced key=$held")
+        // The same key held but failed is rebuilt (not a replacement); a different key replaces the held one.
+        if (held != null && held != key) log("dropped reason=replaced key=$held")
         held = key
         failReason = null
-        startedAt = clock()
-        stateReadyAt = null
-        decoderInitMs = null
-        readyAt = null
+        restartClocks()
         return Request.Start
     }
 
     fun onDecoderUp(
         key: String,
         initMs: Long,
+        epoch: Int = this.epoch,
     ) {
-        if (key != held) return
+        if (key != held || epoch != this.epoch) return
         decoderInitMs = initMs
         markReadyIfBoth()
     }
 
-    fun onStateReady(key: String) {
-        if (key != held || stateReadyAt != null) return
+    fun onStateReady(
+        key: String,
+        epoch: Int = this.epoch,
+    ) {
+        if (key != held || epoch != this.epoch || stateReadyAt != null) return
         stateReadyAt = clock()
         markReadyIfBoth()
     }
@@ -94,24 +109,23 @@ internal class WarmStandby(
     fun onError(
         key: String,
         audio: Boolean,
+        epoch: Int = this.epoch,
     ): ErrorAction {
-        if (key != held) return ErrorAction.Dropped
+        if (key != held || epoch != this.epoch) return ErrorAction.Ignored
         if (audio && audioOn) {
             audioFailed = true
             countFailure(WarmReason.Error)
             if (breakerOpen) return ErrorAction.Disabled
             // The same standby is rebuilt without audio: its clocks start again.
-            startedAt = clock()
-            stateReadyAt = null
-            decoderInitMs = null
-            readyAt = null
+            restartClocks()
             return ErrorAction.RetryVideoOnly
         }
         fail(WarmReason.Error)
-        WarmLog.line("dropped reason=error key=$key")
+        log("dropped reason=error key=$key")
         return if (breakerOpen) ErrorAction.Disabled else ErrorAction.Dropped
     }
 
+    /** The standby's state now. Side-effect free: the caller acts on the verdict (see the class comment). */
     fun evaluate(): Verdict {
         if (held == null) return Verdict.Pending
         val now = clock()
@@ -124,14 +138,19 @@ internal class WarmStandby(
         }
     }
 
-    /** Counts a failure of the held standby; opens the breaker at the configured number in a row. */
+    /**
+     * Counts a failure of the held standby; opens the breaker at the configured number in a row. Counts at most one
+     * failure per standby: a no-op when none is held or it has already failed.
+     */
     fun fail(reason: WarmReason) {
+        if (held == null || failReason != null) return
         failReason = reason
         countFailure(reason)
     }
 
     /** The decoder never came up though playback is ready: this device cannot warm, so stop at once. */
     fun decoderMissing() {
+        if (held == null || failReason != null) return
         failReason = WarmReason.Disabled
         failures++
         openBreaker("decoderMissing")
@@ -144,7 +163,7 @@ internal class WarmStandby(
         val readyMs = if (ready != null) ready - startedAt else 0L
         val reason = coldReason(key, now)
         val swap = reason == WarmReason.None
-        if (!swap) WarmLog.line("fallback reason=${reason.label} ageMs=$ageMs")
+        if (!swap) log("fallback reason=${reason.label} ageMs=$ageMs")
         return Decision(swap, reason, ageMs, readyMs)
     }
 
@@ -171,7 +190,7 @@ internal class WarmStandby(
     }
 
     fun released(reason: String) {
-        if (held != null) WarmLog.line("standby released reason=$reason")
+        if (held != null) log("standby released reason=$reason")
         clearHeld()
     }
 
@@ -184,8 +203,9 @@ internal class WarmStandby(
         val stateAt = stateReadyAt
         val init = decoderInitMs
         if (readyAt != null || stateAt == null || init == null) return
-        readyAt = clock()
-        WarmLog.line("ready readyMs=${clock() - startedAt} decoderInitMs=$init")
+        val now = clock()
+        readyAt = now
+        log("ready readyMs=${now - startedAt} decoderInitMs=$init")
     }
 
     private fun countFailure(reason: WarmReason) {
@@ -195,7 +215,15 @@ internal class WarmStandby(
 
     private fun openBreaker(reason: String) {
         breakerOpen = true
-        WarmLog.line("disabled reason=$reason failures=$failures")
+        log("disabled reason=$reason failures=$failures")
+    }
+
+    private fun restartClocks() {
+        epoch++
+        startedAt = clock()
+        stateReadyAt = null
+        decoderInitMs = null
+        readyAt = null
     }
 
     private fun clearHeld() {

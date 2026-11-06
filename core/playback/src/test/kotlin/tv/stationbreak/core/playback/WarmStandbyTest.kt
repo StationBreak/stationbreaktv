@@ -9,11 +9,12 @@ import org.junit.Test
 
 class WarmStandbyTest {
     private var now = 1_000L
+    private val logs = mutableListOf<String>()
 
     private fun standby(
         config: WarmConfig = WarmConfig(),
         deviceCannot: () -> Boolean = { false },
-    ) = WarmStandby(config, deviceCannot) { now }
+    ) = WarmStandby(config, deviceCannot, { now }, { logs += it })
 
     private fun skipReason(request: Request): String = (request as Request.Skip).reason
 
@@ -79,20 +80,115 @@ class WarmStandbyTest {
         assertEquals(Verdict.TimedOut, s.evaluate())
     }
 
+    private fun failOn(
+        s: WarmStandby,
+        key: String,
+    ) {
+        s.request(key)
+        s.fail(WarmReason.Error)
+    }
+
     @Test
     fun breakerOpensAtThreeFailuresInARow() {
         val s = standby()
+        failOn(s, "w1")
+        failOn(s, "w2")
+        s.swapped()
+        failOn(s, "w3")
+        failOn(s, "w4")
+        assertEquals(Request.Start, s.request("w5"))
+        s.fail(WarmReason.Timeout)
+        assertEquals("disabled", skipReason(s.request("w6")))
+        assertTrue(logs.any { it == "disabled reason=timeout failures=3" })
+    }
+
+    @Test
+    fun failTwiceCountsOnce() {
+        val s = standby(WarmConfig(warmMaxFailures = 2))
         s.request("w1")
         s.fail(WarmReason.Error)
         s.fail(WarmReason.Error)
-        s.swapped()
-        s.request("w2")
+        assertEquals(Request.Start, s.request("w2"))
         s.fail(WarmReason.Error)
+        assertEquals("disabled", skipReason(s.request("w3")))
+    }
+
+    @Test
+    fun decoderMissingTwiceCountsOnce() {
+        val s = standby(WarmConfig(warmMaxFailures = 5))
+        s.request("w1")
+        s.decoderMissing()
+        s.decoderMissing()
+        assertEquals(1, logs.count { it.startsWith("disabled reason=decoderMissing") })
+        assertTrue(logs.contains("disabled reason=decoderMissing failures=1"))
+    }
+
+    @Test
+    fun failWithNothingHeldIsIgnored() {
+        val s = standby(WarmConfig(warmMaxFailures = 1))
         s.fail(WarmReason.Error)
-        s.released("test")
-        assertEquals(Request.Start, s.request("w3"))
-        s.fail(WarmReason.Timeout)
-        assertEquals("disabled", skipReason(s.request("w4")))
+        assertEquals(Request.Start, s.request("w1"))
+    }
+
+    @Test
+    fun readyThenFailIsCold() {
+        val s = standby()
+        s.request("p1")
+        s.onStateReady("p1")
+        s.onDecoderUp("p1", 50)
+        s.fail(WarmReason.Error)
+        val d = s.decide("p1")
+        assertFalse(d.swap)
+        assertEquals(WarmReason.Error, d.reason)
+    }
+
+    @Test
+    fun readyWithBreakerOpenIsCold() {
+        val s = standby(WarmConfig(warmMaxFailures = 1))
+        s.request("p1")
+        s.onStateReady("p1")
+        s.onDecoderUp("p1", 50)
+        s.fail(WarmReason.Error)
+        s.request("p2")
+        val d = s.decide("p1")
+        assertFalse(d.swap)
+        assertEquals(WarmReason.Disabled, d.reason)
+    }
+
+    @Test
+    fun masterOffDecideIsDisabled() {
+        val s = standby(WarmConfig(warmNextDecoder = false))
+        val d = s.decide("p1")
+        assertFalse(d.swap)
+        assertEquals(WarmReason.Disabled, d.reason)
+    }
+
+    @Test
+    fun sameKeyRebuildAfterFailureDoesNotLogReplaced() {
+        val s = standby()
+        s.request("p1")
+        s.fail(WarmReason.Error)
+        assertEquals(Request.Start, s.request("p1"))
+        assertFalse(logs.any { it.startsWith("dropped reason=replaced") })
+        assertEquals(WarmReason.NotReady, s.decide("p1").reason)
+    }
+
+    @Test
+    fun staleEventsFromAnOlderStandbyAreIgnored() {
+        val s = standby()
+        s.request("p1")
+        val old = s.epoch
+        s.onError("p1", audio = true)
+        assertTrue(s.epoch != old)
+        s.onStateReady("p1", old)
+        s.onDecoderUp("p1", 10, old)
+        assertEquals(ErrorAction.Ignored, s.onError("p1", audio = false, epoch = old))
+        assertEquals(Verdict.Pending, s.evaluate())
+        s.onStateReady("p1", s.epoch)
+        s.onDecoderUp("p1", 10, s.epoch)
+        assertEquals(Verdict.Ready, s.evaluate())
+        s.request("p2")
+        assertEquals(ErrorAction.Ignored, s.onError("p1", audio = false))
     }
 
     @Test
@@ -155,15 +251,26 @@ class WarmStandbyTest {
 
     @Test
     fun audioErrorRetriesVideoOnly() {
-        val s = standby()
+        val s = standby(WarmConfig(warmMaxFailures = 2))
         s.request("p1")
         assertTrue(s.audioOn)
         assertEquals(ErrorAction.RetryVideoOnly, s.onError("p1", audio = true))
         assertFalse(s.audioOn)
         assertEquals("p1", s.held)
-        assertEquals(ErrorAction.Dropped, s.onError("p1", audio = false))
-        // one audio failure plus one video failure: two counted, breaker still closed at three
+        // counted once: one of two, so the breaker is still closed
         assertEquals(Request.Start, s.request("p2"))
+        assertEquals(ErrorAction.Disabled, s.onError("p2", audio = false))
+    }
+
+    @Test
+    fun videoErrorAfterAudioRetryIsDropped() {
+        val s = standby()
+        s.request("p1")
+        s.onError("p1", audio = true)
+        assertEquals(ErrorAction.Dropped, s.onError("p1", audio = false))
+        assertEquals(Request.Start, s.request("p2"))
+        s.fail(WarmReason.Error)
+        assertEquals("disabled", skipReason(s.request("p3")))
     }
 
     @Test
@@ -193,6 +300,7 @@ class WarmStandbyTest {
         assertEquals("disabled", skipReason(s.request("w1")))
         assertEquals("disabled", skipReason(s.request("w1")))
         assertEquals(1, calls)
+        assertEquals(1, logs.count { it == "disabled reason=deviceList failures=0" })
         assertEquals(WarmReason.Disabled, s.decide("w1").reason)
     }
 
@@ -208,7 +316,7 @@ class WarmStandbyTest {
 
     @Test
     fun tunablesAreRead() {
-        val c = WarmConfig(warmReadyTimeoutMs = 3_000, warmDecoderGraceMs = 200, warmMaxFailures = 1)
+        val c = WarmConfig(warmReadyTimeoutMs = 3_000, warmDecoderGraceMs = 200, warmMaxFailures = 2)
         val s = standby(c)
         s.request("w1")
         s.onStateReady("w1")
@@ -221,6 +329,8 @@ class WarmStandbyTest {
         now += 3_000
         assertEquals(Verdict.TimedOut, t.evaluate())
         t.fail(WarmReason.Timeout)
-        assertEquals("disabled", skipReason(t.request("w2")))
+        assertEquals(Request.Start, t.request("w2"))
+        t.fail(WarmReason.Timeout)
+        assertEquals("disabled", skipReason(t.request("w3")))
     }
 }
