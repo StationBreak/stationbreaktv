@@ -3,7 +3,7 @@
 - **Status:** Accepted, off by default (2026-11-07)
 - **Date:** 2026-11-06; accepted 2026-11-07
 - **Decided by:** the owner for warm audio and for the open questions in spec 24; the mechanism and the default-off call
-  under the standing instruction to decide technical defaults
+  by the planning session
 - **Addresses:** [#563](https://github.com/StationBreak/stationbreaktv/issues/563) (prepare the neighbour channels' media
   ahead of a flip). It does not resolve the Firestick part of [#392](https://github.com/StationBreak/stationbreaktv/issues/392),
   which stays open
@@ -41,8 +41,8 @@ it. That is the riskiest part of the spike.
 starts the codec on a placeholder surface. On a flip the standby takes the visible surface, seeks to the live position
 and plays, and the old player becomes the next standby. On the Firestick, flips onto the slow-start MP4 dropped to a 1.05 s
 median, and 10 of 10 were under 2 s (7 of 10 before). Warm audio worked: the standby opens the audio track muted, and the
-owner heard clean sound after the swap. On the Insignia (AFTJMST12), no decoder came up behind the surfaceless standby, so the runtime
-probe switched warming off there. The slow flips that remain are transcodes, about 5.6 s, of
+owner heard clean sound after the swap. On the Insignia (AFTJMST12), no decoder came up behind the surfaceless
+standby, so the runtime probe switched warming off there. The slow flips that remain are transcodes, about 5.6 s, of
 which most is the server's first segment. The gate reports those and does not judge them.
 
 ## Decision
@@ -66,8 +66,8 @@ The mechanism is built and kept behind `warmNextDecoder`, which is **off by defa
 5. **Which devices.** The standby is used where a decoder can start without a surface. It is off for the device models
    in `warmDeviceDenylist` (the Insignia, `AFTJMST12`, is the one in the default) and where Media3's workaround list
    says it cannot. Two further rules cover devices off those lists: if the video decoder is not up within 1.5 s of the
-   standby being ready, warming stops for that player; and after three failures in a row it stops for the player's
-   lifetime. The first is the runtime probe, the second a circuit breaker. Each logs its reason. Devices that fall off
+   standby being ready, warming stops for the rest of the process; and after three failures in a row it stops for the
+   player's lifetime. The first is the runtime probe, the second a circuit breaker. Each logs its reason. Devices that fall off
    are exactly as fast as before.
 6. **Audio.** The standby opens its audio track muted, so the swap does not wait for the audio renderer. This is **on by
    default** when warming is on. A passthrough audio output may refuse a second open track. In that case the standby
@@ -99,8 +99,9 @@ The mechanism is built and kept behind `warmNextDecoder`, which is **off by defa
    `log.tag.SBWARMAUD ASSERT` (standby audio off) without a new APK, through `WarmSwitches`. A switch can only turn a
    tunable off. A release build reads no switch. A settings screen entry is not added.
 9. **Reporting.** The player issues the warm handle, a string `w<n>`, and the play carries it. Every play given a handle
-   sends `PlayerEvent.WarmDecided` with whether it swapped, and if not, a reason: `disabled`, `notReady`, `mismatch`,
-   `error`, `timeout` from the player, and `wrongDirection`, `transcode`, `noHandle` from the controller. `noHandle`
+   sends `PlayerEvent.WarmDecided` with whether it swapped, and if not, a reason: `none` (a swap),
+   `disabled`, `notReady`, `mismatch`, `error`, `timeout` from the player, `wrongDirection`, `transcode`, `noHandle`
+   from the controller, and `disabled` from the controller too, when warming is not wanted and it gave no key. `noHandle`
    means the tune had no prepared handle to warm (the first tune after launch, or a stale handle). A swap that is
    followed by a seek miss falls back to the cold path, reports the swap with `fallback=seekMiss`, and does not count
    as a warm flip.
@@ -167,12 +168,12 @@ and repeat the 30-flip gate.
 
 ## Verification
 
-- **Unit and androidTest** as listed in spec 24: the swap, the fallbacks, the circuit breaker, the holding load control,
-  the trim levels.
+- **Unit and androidTest:** the swap, the fallbacks, the circuit breaker, the holding load control, the trim levels.
 - **The 30-flip gate on the Firestick**, with the CI benchmark APK from a fully green run, in both directions, as in the
-  2026-11-03 formal run. Pass is at least 29 of 30 under 2.0 s on direct-play flips. The debug and benchmark builds read
-  `log.tag.SBWARM`, so the same APK gives the control with warming off. A run with warming on needs `warmNextDecoder`
-  true in that build. The result goes on #392 and the Phase 1 gate in EPICS.md.
+  2026-11-03 formal run. Pass is at least 29 of 30 under 2.0 s on direct-play flips. The shipped default has warming
+  off, so a default build is the control run. A run with warming on needs a build where `warmNextDecoder` is true. On
+  such a build, `log.tag.SBWARM ASSERT` (debug and benchmark builds) turns warming off again without a new APK. The
+  result goes on #392 and the Phase 1 gate in EPICS.md.
 - **Insignia regression check**, same build: the SBWARM lines show `disabled reason=denylist` and no standby is built,
   and the usable floor holds.
 - **Warm audio check** by ear on the Firestick after the swap, on stereo and surround items, and by the logs (no audio
