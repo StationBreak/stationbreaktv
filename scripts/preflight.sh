@@ -115,6 +115,7 @@ script_tests() {
   bash scripts/guard-tree.test.sh
   bash scripts/run-bounded.test.sh
   bash scripts/install-watchdog.test.sh
+  bash scripts/adb-server.test.sh
   bash .github/scripts/connected-results.test.sh
   bash scripts/playback-matrix/playback-matrix.test.sh
 }
@@ -236,6 +237,8 @@ contract_tests() {
 source scripts/run-bounded.sh
 # shellcheck source=scripts/install-watchdog.sh
 source scripts/install-watchdog.sh
+# shellcheck source=scripts/adb-server.sh
+source scripts/adb-server.sh
 # shellcheck source=.github/scripts/connected-results.sh
 source .github/scripts/connected-results.sh
 
@@ -358,6 +361,11 @@ instrumented_tests() {
     echo "Another preflight is using the emulator; waiting for it to finish..."
     flock "$emulator_lock_fd"
   fi
+  # #643: a child that outlives this run must not inherit the lock fd, or the lock outlives the run too. The adb server
+  # daemon is the one that did: the first adb client forks it. Start it now, before any other adb call, with the fd
+  # closed. The background jobs and the Gradle runs below close it the same way. Only the emulator keeps it: it is
+  # killed at the end of the run, so holding the lock while it lives is right.
+  start_adb_server_unlocked "$ANDROID_HOME/platform-tools/adb"
   # A run started outside this lock (an older copy of this script) may still hold the port.
   local waited_port=0
   while ss -ltnH "( sport = :$emulator_port or sport = :$((emulator_port + 1)) )" 2>/dev/null | grep -q .; do
@@ -374,7 +382,7 @@ instrumented_tests() {
   export ANDROID_AVD_HOME="$avd_home"
   echo no | "$sdk/cmdline-tools/latest/bin/avdmanager" create avd --force -n preflight -k "$emulator_image" -d tv_1080p
   nice -n 10 "$sdk/emulator/emulator" -avd preflight -port "$emulator_port" -no-snapshot -no-window -no-audio -no-boot-anim \
-    -gpu swiftshader_indirect -camera-back none >"$avd_home/emulator.log" 2>&1 &
+    -gpu swiftshader_indirect -camera-back none >"$avd_home/emulator.log" 2>&1 & # keeps the lock fd on purpose (#643)
   emulator_pid=$!
 
   # Pinned to this emulator, so a device on adb (a Fire TV, say) is never touched.
@@ -407,7 +415,7 @@ instrumented_tests() {
     rm -rf "${runs_dir:?}/$old"
   done < <(ls -1 "$runs_dir" | sort | head -n -10)
   "$adb" logcat -c
-  "$adb" logcat -v threadtime >"$preflight_out/logcat.txt" 2>&1 &
+  "$adb" logcat -v threadtime >"$preflight_out/logcat.txt" 2>&1 {emulator_lock_fd}>&- &
   logcat_pid=$!
 
   # One module at a time: gradle.properties turns on org.gradle.parallel, and when several modules' connected tasks ran
@@ -434,7 +442,7 @@ instrumented_tests() {
   # Each APK install bounded (#482): the connected tasks install with `adb -s <serial> install` and wait on it with no
   # limit, and here that install has sometimes never finished. See scripts/install-watchdog.sh. $$ is this script: the
   # watchdog ends with it even if this script is killed before its cleanup runs.
-  install_watchdog "$ANDROID_SERIAL" "$install_limit" install_stalled "$$" &
+  install_watchdog "$ANDROID_SERIAL" "$install_limit" install_stalled "$$" {emulator_lock_fd}>&- &
   watchdog_pid=$!
 
   # --continue: every module runs even if one fails, so the results check below sees them all. The output is kept for
@@ -445,7 +453,7 @@ instrumented_tests() {
   # tee on its own descriptor, so its pid is known and the log is complete before it is read.
   exec {tee_fd}> >(tee "$first_log")
   tee_pid=$!
-  run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${tasks[@]}" >&"$tee_fd" 2>&1 ||
+  run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${tasks[@]}" >&"$tee_fd" 2>&1 {emulator_lock_fd}>&- ||
     status=$?
   exec {tee_fd}>&-
   # Bounded: a leftover descendant of Gradle still holding the pipe would keep tee from ending.
@@ -472,7 +480,7 @@ instrumented_tests() {
     done
     since="$preflight_out/attempt2.start"
     : >"$since"
-    run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${retry[@]}" || retry_status=$?
+    run_bounded "$limit" save_hang_evidence ./gradlew --no-parallel --continue "${retry[@]}" {emulator_lock_fd}>&- || retry_status=$?
     if [ "$retry_status" -ne 124 ]; then
       mapfile -t still < <(tasks_without_results "$since" "${retry[@]}")
       if [ "${#still[@]}" -gt 0 ]; then
