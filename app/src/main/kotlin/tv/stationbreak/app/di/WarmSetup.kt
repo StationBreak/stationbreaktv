@@ -12,13 +12,11 @@ internal class WarmSetup(
 
 /**
  * The single place that decides the warm setup (spec 24): the default tunables for every build; the `log.tag.SBWARM`
- * and `SBWARMAUD` switches only in a debuggable or benchmark build, none in release (which never reads the setprops).
+ * and `SBWARMAUD` switches only when the build asks for them ([switches]: debug and benchmark builds), none in release
+ * (which never reads the setprops).
  */
-internal fun warmSetupFor(
-    debuggable: Boolean,
-    benchmark: Boolean,
-): WarmSetup =
+internal fun warmSetupFor(switches: Boolean): WarmSetup =
     WarmSetup(
         WarmConfig(),
-        if (debuggable || benchmark) WarmSwitches.logTags() else WarmSwitches.None,
+        if (switches) WarmSwitches.logTags() else WarmSwitches.None,
     )

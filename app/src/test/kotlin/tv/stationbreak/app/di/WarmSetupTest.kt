@@ -12,21 +12,18 @@ import tv.stationbreak.core.playback.WarmSwitches
 class WarmSetupTest {
     @Test
     fun releaseReadsNoSwitches() {
-        assertSame(WarmSwitches.None, warmSetupFor(debuggable = false, benchmark = false).switches)
+        assertSame(WarmSwitches.None, warmSetupFor(switches = false).switches)
     }
 
     @Test
-    fun debugAndBenchmarkReadTheLogTagSwitches() {
-        assertNotSame(WarmSwitches.None, warmSetupFor(debuggable = true, benchmark = false).switches)
-        assertNotSame(WarmSwitches.None, warmSetupFor(debuggable = false, benchmark = true).switches)
+    fun aBuildThatAsksForSwitchesReadsTheLogTagSwitches() {
+        assertNotSame(WarmSwitches.None, warmSetupFor(switches = true).switches)
     }
 
     @Test
     fun theTunablesAreTheDefaultsForEveryBuild() {
-        for (debuggable in listOf(false, true)) {
-            for (benchmark in listOf(false, true)) {
-                assertEquals(WarmConfig(), warmSetupFor(debuggable, benchmark).config)
-            }
+        for (switches in listOf(false, true)) {
+            assertEquals(WarmConfig(), warmSetupFor(switches).config)
         }
     }
 }

@@ -103,8 +103,8 @@ internal class ControllerTunerFactory
         private val resolver: PlaybackResolver,
         private val server: MediaServer,
         // The same instances the player was built with (app DI), so both agree on whether warming is on.
-        private val warm: WarmConfig = WarmConfig(),
-        private val warmSwitches: WarmSwitches = WarmSwitches.None,
+        private val warm: WarmConfig,
+        private val warmSwitches: WarmSwitches,
     ) : TunerFactory {
         override fun create(
             player: VideoPlayer,

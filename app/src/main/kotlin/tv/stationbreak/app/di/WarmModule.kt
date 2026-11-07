@@ -18,15 +18,15 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 internal object WarmModule {
-    private val setup: WarmSetup by lazy {
-        warmSetupFor(debuggable = BuildConfig.DEBUG, benchmark = BuildConfig.BUILD_TYPE == "benchmark")
-    }
+    @Provides
+    @Singleton
+    fun warmSetup(): WarmSetup = warmSetupFor(switches = BuildConfig.WARM_SWITCHES)
 
     @Provides
     @Singleton
-    fun warmConfig(): WarmConfig = setup.config
+    fun warmConfig(setup: WarmSetup): WarmConfig = setup.config
 
     @Provides
     @Singleton
-    fun warmSwitches(): WarmSwitches = setup.switches
+    fun warmSwitches(setup: WarmSetup): WarmSwitches = setup.switches
 }
