@@ -36,6 +36,9 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
+import tv.stationbreak.core.domain.lineup.repair.RepairConfig
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.fitted
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.EditOutcome
@@ -54,6 +57,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
@@ -68,12 +72,14 @@ import kotlin.time.TimeSource
 /**
  * A lineup with the revision it was published at, and the refresher's [meta] about it. A new refresh gives a new
  * revision, so it is a cache key; a change of [meta] alone keeps the revision, since no channel changed. [writable]
- * is whether this session may write the account's file, as it stood when this was published (spec 21).
+ * is whether this session may write the account's file, as it stood when this was published (spec 21). [repairs] is the
+ * per-TV repair record (spec 26) that is saved with the lineup; a change of it alone keeps the revision too.
  */
 internal data class Revisioned(
     val revision: Long,
     val lineup: Lineup,
     val meta: RefreshMeta = RefreshMeta(),
+    val repairs: TodayRepairs = TodayRepairs.NONE,
     val writable: Boolean = false,
 )
 
@@ -164,6 +170,15 @@ class LineupService internal constructor(
         val mutex = Mutex()
         val state = MutableStateFlow<Revisioned?>(null)
 
+        /** The repair record of [state], for readers that want nothing else. */
+        val repairs = MutableStateFlow(TodayRepairs.NONE)
+
+        /** The one way to change [state]: it keeps [repairs] in step. */
+        fun set(value: Revisioned?) {
+            state.value = value
+            repairs.value = value?.repairs ?: TodayRepairs.NONE
+        }
+
         /** True once the store was read (successfully) for this account. Written under [mutex]. */
         @Volatile var loaded = false
 
@@ -189,6 +204,9 @@ class LineupService internal constructor(
         val save: Boolean,
         // True only when the store held no file and the session held no lineup: a new account, not a lost one.
         val isNew: Boolean = false,
+        val repairs: TodayRepairs = TodayRepairs.NONE,
+        // The version of the stored file this started from; null when there was none (or it was not read).
+        val fileVersion: Int? = null,
     )
 
     private val lock = Any()
@@ -227,8 +245,8 @@ class LineupService internal constructor(
             val start = startOf(owner, entry)
             entry.writable = start.save
             val (planned, meta) = planned(owner, account, libraries, start)
-            if (entry.writable) saveVerified(owner, planned, meta)
-            publish(entry, planned, meta)
+            if (entry.writable) saveVerified(owner, planned, meta, start.repairs)
+            publish(entry, planned, meta, start.repairs)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
         }
@@ -398,15 +416,16 @@ class LineupService internal constructor(
             val held = reconciled(entry, start)
             val lineup = held?.lineup ?: start.current
             val meta = held?.meta ?: start.meta
+            val repairs = held?.repairs ?: start.repairs
             val ms = pass.toEpochMilliseconds()
             val acted = meta.collectionPassActedOn
             if (lineup != null && acted != null && acted != ms) {
                 val updated = meta.copy(collectionPassActedOn = ms)
-                if (entry.writable) saveVerified(owner, lineup, updated)
+                if (entry.writable) saveVerified(owner, lineup, updated, repairs)
                 if (held == null) {
-                    publish(entry, lineup, updated)
+                    publish(entry, lineup, updated, repairs)
                 } else {
-                    entry.state.value = held.copy(meta = updated, writable = entry.writable)
+                    entry.set(held.copy(meta = updated, writable = entry.writable))
                 }
                 entry.loaded = true
             } else {
@@ -465,8 +484,9 @@ class LineupService internal constructor(
                     val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
                     val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
-                    if (saveVerified(owner, edited.lineup, meta)) {
-                        publish(entry, edited.lineup, meta)
+                    val repairs = held?.repairs ?: start.repairs
+                    if (saveVerified(owner, edited.lineup, meta, repairs)) {
+                        publish(entry, edited.lineup, meta, repairs)
                         entry.loaded = true
                         Saved.Ok(edited)
                     } else {
@@ -564,9 +584,10 @@ class LineupService internal constructor(
             val never = start.isNew && replaced == null
             val (fresh, meta) = plannedFrom(owner, read, libraries, null, before, kept, replaced, never)
             withContext(NonCancellable) {
-                if (saveVerified(owner, fresh, meta)) {
+                // A reset forgets the days built from the old lineup, and with them what was repaired of them.
+                if (saveVerified(owner, fresh, meta, TodayRepairs.NONE)) {
                     forgetDerived(owner.key)
-                    publish(entry, fresh, meta)
+                    publish(entry, fresh, meta, TodayRepairs.NONE)
                     entry.loaded = true
                     Saved.Ok(fresh)
                 } else {
@@ -591,7 +612,7 @@ class LineupService internal constructor(
             }
 
             held != null && start.save && start.current != null -> {
-                publish(entry, start.current, start.meta)
+                publish(entry, start.current, start.meta, start.repairs)
                 entry.state.value
             }
 
@@ -606,7 +627,7 @@ class LineupService internal constructor(
     // a successful save.
     private fun noteWritable(entry: Entry) {
         val held = entry.state.value
-        if (held != null && held.writable && !entry.writable) entry.state.value = held.copy(writable = false)
+        if (held != null && held.writable && !entry.writable) entry.set(held.copy(writable = false))
     }
 
     /** Reports [event] as the service's own diagnostics do. */
@@ -656,7 +677,7 @@ class LineupService internal constructor(
         val owner = ownerOf(account) ?: return false
         val entry = entryOf(owner)
         return entry.mutex.withLock {
-            entry.state.value = null
+            entry.set(null)
             entry.loaded = false
             entry.writable = false
             store.forget(owner.key).also { forgetDerived(owner.key) }
@@ -693,6 +714,80 @@ class LineupService internal constructor(
         ownerOf(account)?.let { entryOf(it).state.asStateFlow() } ?: noLineup
 
     /**
+     * Replaces [account]'s repair record (spec 26) with what [change] makes of the lineup as held now, under the
+     * account's lock, saved with the lineup in one write and then published. The record is first rolled (what has
+     * ended goes) and made to fit the file: [RepairConfig.fileMargin] stays free under the cap, the oldest fixes go
+     * first when it does not fit, never one whose block is on air now, and at most [RepairConfig.maxFixes] stay. False
+     * when there is no lineup, the file may not be written, the record cannot be made to fit, or the save failed or
+     * was rejected: then nothing changed (not the file, not the published lineup or record). The first version-4
+     * save keeps a copy of a version-3 file.
+     */
+    internal suspend fun recordRepairs(
+        account: LibraryAccount,
+        change: (Revisioned) -> TodayRepairs,
+    ): Boolean {
+        val owner = ownerOf(account) ?: return false
+        val entry = entryOf(owner)
+        return entry.mutex.withLock {
+            val start = startOf(owner, entry)
+            entry.writable = start.save
+            reconciled(entry, start)
+            // A stored lineup this session has not published yet is published first, as `loaded` does.
+            if (entry.writable && entry.state.value == null && start.current != null) {
+                publish(entry, start.current, start.meta, start.repairs)
+            }
+            val held = entry.state.value?.takeIf { it.writable && entry.writable }
+            if (held == null) {
+                noteWritable(entry)
+                false
+            } else {
+                record(owner, entry, held, start.fileVersion, change(held))
+            }
+        }
+    }
+
+    private suspend fun record(
+        owner: Owner,
+        entry: Entry,
+        held: Revisioned,
+        fileVersion: Int?,
+        wanted: TodayRepairs,
+    ): Boolean {
+        val nowMs = clock.now().toEpochMilliseconds()
+        val limit = LineupLimits.MAX_FILE_BYTES - seams.repairConfig.fileMargin
+        val fitted =
+            wanted.rolled(nowMs).fitted(nowMs, seams.repairConfig, limit) {
+                seams.encode(held.lineup, held.meta, it).size
+            }
+        return when {
+            fitted == null -> {
+                false
+            }
+
+            fitted == held.repairs -> {
+                true
+            }
+
+            else -> {
+                // The first version-4 save of a version-3 file keeps the file as it stands (a failed copy is reported).
+                if (fileVersion == LineupCodec.BASE_VERSION && !fitted.isEmpty) keepUpgradeCopy(owner, fileVersion)
+                if (saveVerified(owner, held.lineup, held.meta, fitted)) {
+                    entry.set(held.copy(repairs = fitted))
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    /** [account]'s repair record (spec 26) as this service holds it now; none while there is no lineup. */
+    internal fun repairs(account: LibraryAccount): StateFlow<TodayRepairs> =
+        ownerOf(account)?.let { entryOf(it).repairs.asStateFlow() } ?: noRepairs
+
+    private val noRepairs: StateFlow<TodayRepairs> = MutableStateFlow(TodayRepairs.NONE).asStateFlow()
+
+    /**
      * [account]'s lineup, reading the stored one first if this service has not yet: features can show the lineup
      * before any refresh. Only a readable lineup of this version is taken; anything else waits for [refresh].
      */
@@ -706,7 +801,7 @@ class LineupService internal constructor(
                     val decoded = (stored as? StoredBytes.Present)?.let { LineupCodec.decode(it.bytes) }
                     if (decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup)) {
                         entry.writable = true
-                        publish(entry, decoded.lineup, decoded.meta)
+                        publish(entry, decoded.lineup, decoded.meta, decoded.repairs)
                     }
                     entry.loaded = stored != StoredBytes.Failed
                 }
@@ -742,7 +837,8 @@ class LineupService internal constructor(
             if (replanDue) signalReplan(entry, account, boundary)
             // Cheap checks first, so a lineup that cannot be saved is not copied (`rolled`) on every lookup.
             val untried = canSave && !entry.boundaries.rollTried(boundary)
-            val due = untried && held.lineup.rolled(nowMs) !== held.lineup
+            val stale = held.lineup.rolled(nowMs) !== held.lineup || held.repairs.rolled(nowMs) !== held.repairs
+            val due = untried && stale
             // One attempt per boundary: the first lookup to see it starts it.
             if (due && entry.boundaries.firstRoll(boundary)) rolls.launch { rollHeld(owner, entry, nowMs, boundary) }
         }
@@ -775,13 +871,18 @@ class LineupService internal constructor(
         try {
             val held = entry.state.value
             val rolled = held?.lineup?.rolled(nowMs)
+            val rolledRepairs = held?.repairs?.rolled(nowMs)
             // The roll never does the first version-3 write: a lineup decoded from a version 1 or 2 file has none of
             // the fields `rolled` clears (no leavesAtMs, previous rules or basis), so it comes back unchanged and is
             // not saved here; the first save of a new version is a refresh's or an edit's, which keep the old file's
             // copy first. It relies on `entry.writable` as the last `startOf` under the lock set it: this roll reads
             // nothing from the store and never sets it.
-            val due = held != null && rolled !== held.lineup && held.writable && entry.writable
-            if (due && saveVerified(owner, checkNotNull(rolled), held.meta)) publish(entry, rolled, held.meta)
+            // The repair record is pruned with it: a day that has ended is no use to anyone.
+            val changed = held != null && (rolled !== held.lineup || rolledRepairs !== held.repairs)
+            val due = held != null && changed && held.writable && entry.writable
+            if (due && saveVerified(owner, checkNotNull(rolled), held.meta, checkNotNull(rolledRepairs))) {
+                publish(entry, rolled, held.meta, rolledRepairs)
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -838,18 +939,19 @@ class LineupService internal constructor(
         val held = entry.state.value
         val session = held?.lineup
         val sessionMeta = held?.meta ?: RefreshMeta()
+        val sessionRepairs = held?.repairs ?: TodayRepairs.NONE
         return when (val stored = store.load(owner.key)) {
             StoredBytes.Absent -> {
-                Start(session, sessionMeta, save = true, isNew = session == null)
+                Start(session, sessionMeta, save = true, isNew = session == null, repairs = sessionRepairs)
             }
 
             StoredBytes.Failed -> {
                 report(LineupEvent.ReadFailedLeftAlone)
-                Start(session, sessionMeta, save = false)
+                Start(session, sessionMeta, save = false, repairs = sessionRepairs)
             }
 
             is StoredBytes.Present -> {
-                startOf(owner, LineupCodec.decode(stored.bytes), session, sessionMeta)
+                startOf(owner, LineupCodec.decode(stored.bytes), Held(session, sessionMeta, sessionRepairs))
             }
         }
     }
@@ -857,27 +959,27 @@ class LineupService internal constructor(
     private suspend fun startOf(
         owner: Owner,
         decoded: LineupCodec.Decoded,
-        session: Lineup?,
-        sessionMeta: RefreshMeta,
+        session: Held,
     ): Start =
         when (decoded) {
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
                 if (owner.owns(lineup)) {
-                    keepUpgradeCopy(owner, decoded.fileVersion)
-                    Start(lineup, decoded.meta, save = true)
+                    // Only an older file's upgrade to version 3 is kept here; the first version-4 save keeps its own.
+                    if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
+                    Start(lineup, decoded.meta, true, repairs = decoded.repairs, fileVersion = decoded.fileVersion)
                 } else {
-                    setAside(owner, session, sessionMeta)
+                    setAside(owner, session)
                 }
             }
 
             is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
-                Start(session, sessionMeta, save = false)
+                Start(session.lineup, session.meta, save = false, repairs = session.repairs)
             }
 
             LineupCodec.Decoded.Unreadable -> {
-                setAside(owner, session, sessionMeta)
+                setAside(owner, session)
             }
         }
 
@@ -888,23 +990,27 @@ class LineupService internal constructor(
         owner: Owner,
         fileVersion: Int,
     ) {
-        if (fileVersion < LineupCodec.VERSION && !store.keepCopy(owner.key, "v$fileVersion")) {
-            report(LineupEvent.BackupFailed)
-        }
+        if (!store.keepCopy(owner.key, "v$fileVersion")) report(LineupEvent.BackupFailed)
     }
+
+    /** What a session held when a start read the store: its lineup, meta and repairs. */
+    private class Held(
+        val lineup: Lineup?,
+        val meta: RefreshMeta,
+        val repairs: TodayRepairs,
+    )
 
     // An unreadable file is moved out of the way before anything is saved; one that won't move is never written over.
     private suspend fun setAside(
         owner: Owner,
-        session: Lineup?,
-        sessionMeta: RefreshMeta,
+        session: Held,
     ): Start =
         if (store.setAside(owner.key)) {
             report(LineupEvent.SetAsideUnreadable)
             Start(null, RefreshMeta(), save = true)
         } else {
             report(LineupEvent.UnreadableLeftAlone)
-            Start(session, sessionMeta, save = false)
+            Start(session.lineup, session.meta, save = false, repairs = session.repairs)
         }
 
     // A lineup is saved only when its own bytes decode back to a lineup of this account; otherwise the stored file is
@@ -913,10 +1019,11 @@ class LineupService internal constructor(
         owner: Owner,
         planned: Lineup,
         meta: RefreshMeta,
+        repairs: TodayRepairs,
     ): Boolean {
-        val bytes = seams.encode(planned, meta)
+        val bytes = seams.encode(planned, meta, repairs)
         val back = LineupCodec.decode(bytes)
-        return if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup)) {
+        return if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup) || back.repairs != repairs) {
             report(LineupEvent.SaveRejected)
             false
         } else if (!store.save(owner.key, bytes)) {
@@ -931,9 +1038,10 @@ class LineupService internal constructor(
         entry: Entry,
         lineup: Lineup,
         meta: RefreshMeta,
+        repairs: TodayRepairs,
     ) {
         val revision = synchronized(lock) { ++revisions }
-        entry.state.value = Revisioned(revision, lineup, meta, entry.writable)
+        entry.set(Revisioned(revision, lineup, meta, repairs, entry.writable))
     }
 
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }
@@ -1014,16 +1122,18 @@ private class BackgroundRolls(
 }
 
 /**
- * What a test can swap in the service: its catalog, how it encodes a lineup and its meta for the store, where
- * timings go, and what is forgotten with a lineup.
+ * What a test can swap in the service: its catalog, how it encodes a lineup, its meta and its repairs for the store,
+ * where timings go, what is forgotten with a lineup, and the repair engine's tunables.
  */
+@Suppress("LongParameterList") // One seam for each thing a test swaps.
 internal class LineupSeams(
     val catalog: StarterCatalogView = StarterCatalog,
-    val encode: (Lineup, RefreshMeta) -> ByteArray = LineupCodec::encode,
+    val encode: (Lineup, RefreshMeta, TodayRepairs) -> ByteArray = LineupCodec::encode,
     val timed: (Long) -> Unit = {},
     val unknownSeries: (Int) -> Unit = {},
     val derived: DayStore? = null,
     val rollDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    val repairConfig: RepairConfig = RepairConfig(),
 )
 
 /** The episodes of [snapshot] whose series it lacks: what `PoolEvaluator` counts as `episodesWithUnknownSeries`. */

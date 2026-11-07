@@ -52,7 +52,14 @@ class LineupServiceTest {
     private val service = LineupService(store, library, clock, { offset }, { events += it }, TestCatalog)
 
     private fun encodingWith(encode: (Lineup, RefreshMeta) -> ByteArray) =
-        LineupService(store, library, clock, { offset }, { events += it }, LineupSeams(TestCatalog, encode))
+        LineupService(
+            store,
+            library,
+            clock,
+            { offset },
+            { events += it },
+            LineupSeams(TestCatalog, { lineup, meta, _ -> encode(lineup, meta) }),
+        )
 
     private fun stored(account: LibraryAccount = ACCOUNT): Lineup? =
         (store.inner.peek(account)?.let { LineupCodec.decode(it) } as? LineupCodec.Decoded.Loaded)?.lineup
@@ -378,7 +385,7 @@ class LineupServiceTest {
     @Test
     fun newerVersionIsNeverOverwritten() =
         runBlocking<Unit> {
-            val newer = """{"version":4,"whatever":"a newer app wrote"}""".encodeToByteArray()
+            val newer = """{"version":5,"whatever":"a newer app wrote"}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
             store.calls.clear()
 
@@ -647,7 +654,7 @@ class LineupServiceTest {
                 LineupCodec.encode(lineup.copy(channels = listOf(first) + lineup.channels.drop(1)), meta)
             }
             val capped = CappedStore(store.inner)
-            val seams = LineupSeams(TestCatalog, fat)
+            val seams = LineupSeams(TestCatalog, { lineup, meta, _ -> fat(lineup, meta) })
             val cappedService = LineupService(capped, library, clock, { offset }, { events += it }, seams)
 
             cappedService.refresh(ACCOUNT, LIBRARIES)
@@ -660,7 +667,7 @@ class LineupServiceTest {
     @Test
     fun aSessionStartedFromANewerVersionNeverSaves() =
         runBlocking<Unit> {
-            store.inner.save(ACCOUNT, """{"version":4}""".encodeToByteArray())
+            store.inner.save(ACCOUNT, """{"version":5}""".encodeToByteArray())
             store.calls.clear()
 
             service.refresh(ACCOUNT, LIBRARIES)
@@ -776,6 +783,11 @@ internal class PeekableStore : LineupStore {
         }
 
     fun setAsideCopy(account: LibraryAccount): ByteArray? = delegate.setAsideCopy(account)
+
+    fun keptCopy(
+        account: LibraryAccount,
+        tag: String,
+    ): ByteArray? = delegate.keptCopy(account, tag)
 
     fun peek(account: LibraryAccount): ByteArray? {
         val reads = delegate.failReads

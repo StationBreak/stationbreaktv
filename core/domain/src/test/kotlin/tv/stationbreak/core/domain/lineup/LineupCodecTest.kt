@@ -130,7 +130,7 @@ class LineupCodecTest {
 
     @Test
     fun newerVersionDecodesAsNewerVersion() {
-        assertEquals(LineupCodec.Decoded.NewerVersion(4), decode("""{"version":4,"anything":["new"]}"""))
+        assertEquals(LineupCodec.Decoded.NewerVersion(5), decode("""{"version":5,"anything":["new"]}"""))
         // A newer file is newer even when the rest is not what this version expects.
         assertEquals(LineupCodec.Decoded.NewerVersion(7), decode("""{"version":7}"""))
         assertEquals(
@@ -374,7 +374,7 @@ class LineupCodecTest {
         assertEquals(null, loaded.meta.extrasFromMs)
         assertEquals(1, loaded.fileVersion)
         val current = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(full)))
-        assertEquals(LineupCodec.VERSION, current.fileVersion)
+        assertEquals(LineupCodec.BASE_VERSION, current.fileVersion)
     }
 
     @Test
