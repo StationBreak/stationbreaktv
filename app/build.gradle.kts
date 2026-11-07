@@ -55,10 +55,13 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
+            // The warm standby's log.tag.SBWARM switches are read (di/WarmModule); never in release.
+            buildConfigField("boolean", "WARM_SWITCHES", "true")
         }
         release {
             // No signing config: release signing comes only from protected secrets (S4.1.1).
             isDebuggable = false
+            buildConfigField("boolean", "WARM_SWITCHES", "false")
             // R8 shrinks and optimises what ships; ADR-0008's SP-2 frame numbers were measured with it on. Class and
             // method names stay readable (-dontobfuscate in proguard-rules.pro), so logs that print class simple names
             // need nothing more (#331). A stack trace's line numbers and inlined frames need the build's mapping.txt.
@@ -76,6 +79,8 @@ android {
         create("benchmark") {
             initWith(getByName("release"))
             isDebuggable = false
+            // Release code, but measured on a device: the warm switches are read here (like debug).
+            buildConfigField("boolean", "WARM_SWITCHES", "true")
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += "release"
             applicationIdSuffix = ".benchmark"

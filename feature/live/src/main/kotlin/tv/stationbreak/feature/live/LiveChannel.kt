@@ -282,6 +282,8 @@ class LiveChannel(
     ): Boolean {
         if (unstarted === request) unstarted = null
         if (request.flip != null) screen.handOver()
+        // The flip that brought the viewer here sets which neighbour is warmed next (Down until the first flip).
+        request.direction?.let(neighbours::noteFlip)
         var sitting: Sitting? = null
         var known: ChannelTag? = null
         // Only the first sitting of a request lands where it says; one after it chooses afresh.
@@ -318,7 +320,7 @@ class LiveChannel(
                         screen.value = LiveState.Ident(null)
                         // A flip off the card is as likely as one off a picture: look ahead while it waits.
                         coroutineScope {
-                            lookAhead(this, neighbours, first.channel)
+                            lookAhead(this, neighbours, first.channel, picture = false)
                             delay(timings.slateHold)
                             coroutineContext[Job]?.cancelChildren()
                         }
@@ -451,8 +453,8 @@ class LiveChannel(
             sittingId,
             SittingCommands(sittingId),
             resumeSettled = { pendingResume = null },
-        ) { scope ->
-            lookAhead(scope, neighbours, first.channel)
+        ) { scope, picture ->
+            lookAhead(scope, neighbours, first.channel, picture)
         }
     }
 
@@ -465,15 +467,21 @@ class LiveChannel(
         scope: CoroutineScope,
         neighbours: Neighbours,
         playing: ChannelAiring,
+        picture: Boolean,
     ) {
-        // Already looking ahead from this channel (a picture, then its card): leave it be, it is the same work.
-        if (lookingAt == playing.id && looking?.isActive == true) return
+        // Already looking ahead from this channel and this is a card (a picture, then its card): leave it be, it is the
+        // same work, and what it warms is checked against the screen when it would warm. A picture starts it again, so
+        // a picture after a card warms now (held handles are kept, nothing is resolved twice).
+        val running = lookingAt == playing.id && looking?.isActive == true
+        if (running && !picture) return
         looking?.cancel()
         lookingAt = playing.id
         looking =
             scope.launch {
                 try {
-                    neighbours.keepAround(playing, lineup) { screen.flow.value !is LiveState.Choosing }
+                    neighbours.keepAround(playing, { screen.flow.value is LiveState.Watching }, lineup) {
+                        screen.flow.value !is LiveState.Choosing
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (

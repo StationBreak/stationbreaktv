@@ -29,7 +29,7 @@ internal suspend fun Sitting.deadItem(
     if (remaining <= 0) return null
     heldBlockStartMs = null
     state.value = LiveState.TechnicalDifficulties(up, onAir.tag())
-    onSettled(scope)
+    onSettled(scope, false)
     delay(timings.slateHold)
     if (remaining <= timings.standInThreshold.inWholeMilliseconds) {
         // Move on: the next show plays from its start, so this sitting now runs ahead of the clock.

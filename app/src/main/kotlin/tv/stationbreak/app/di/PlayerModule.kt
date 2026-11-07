@@ -11,6 +11,8 @@ import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.playback.Media3VideoPlayerFactory
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import tv.stationbreak.core.playback.WarmConfig
+import tv.stationbreak.core.playback.WarmSwitches
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
 import tv.stationbreak.data.jellyfin.mediaCallFactory
 
@@ -43,5 +45,7 @@ internal object PlayerModule {
     @UnstableApi
     fun videoPlayerFactory(
         @MediaDataSource dataSource: DataSource.Factory,
-    ): VideoPlayerFactory = Media3VideoPlayerFactory(dataSource)
+        warm: WarmConfig,
+        warmSwitches: WarmSwitches,
+    ): VideoPlayerFactory = Media3VideoPlayerFactory(dataSource, warm = warm, warmSwitches = warmSwitches)
 }

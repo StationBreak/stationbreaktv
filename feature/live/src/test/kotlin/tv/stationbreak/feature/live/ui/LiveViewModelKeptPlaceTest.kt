@@ -25,6 +25,8 @@ import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import tv.stationbreak.core.playback.WarmConfig
+import tv.stationbreak.core.playback.WarmSwitches
 import tv.stationbreak.feature.live.Call
 import tv.stationbreak.feature.live.FakeTune
 import tv.stationbreak.feature.live.LiveCommand
@@ -71,7 +73,12 @@ class LiveViewModelKeptPlaceTest {
                 r.library,
                 r.channels,
                 r.clock,
-                ControllerTunerFactory(PlaybackResolver(server) { error("not resolved here") }, server),
+                ControllerTunerFactory(
+                    PlaybackResolver(server) { error("not resolved here") },
+                    server,
+                    WarmConfig(),
+                    WarmSwitches.None,
+                ),
                 VideoPlayerFactory { _, _ -> error("the test makes its own players") },
                 server,
                 r.details,

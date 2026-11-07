@@ -13,6 +13,7 @@ import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.WarmUse
 import kotlin.time.Duration
 
 /** An item resolved ahead of its tune. Opaque to the machine: the adapter maps it to core:playback's handle. */
@@ -39,6 +40,8 @@ class NextHandle(
  * if unknown.
  * @property loads what the media loads before the tracks cost (count, time, bytes, container type), null if unknown.
  * @property av when the audio and video start-up steps happened, ms since the play call, null if unknown.
+ * @property warm what became of the warm standby for this tune (spec 24), null if the port did not say. A hand-over
+ *   that then fell back still reports warm, so a flip counts as warm only with `fallback=none`.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -51,6 +54,7 @@ data class TuneTimings(
     val skippedFrames: Long? = null,
     val loads: LoadStats? = null,
     val av: AvTimings? = null,
+    val warm: WarmUse? = null,
 )
 
 /**
@@ -125,6 +129,19 @@ interface TunePort {
         session: Session,
         next: NextHandle,
     )
+
+    /**
+     * Asks the player to warm a standby for [next] (spec 24). True means a standby was requested, not that one is held
+     * (it may still fail to build). A handle that cannot be warmed (a transcode, warming off) answers false and nothing
+     * else changes. Abstract on purpose: a port must say what it does, so none silently never warms. Not suspending,
+     * and it never throws. Call it from the player's looper (the main thread): a warm and a play posted from any thread
+     * run in order, but only the looper can reuse the standby already built for the same handle, so a call from
+     * elsewhere builds a new standby each time. The controller does no thread switch.
+     */
+    fun warmNext(
+        session: Session,
+        next: NextHandle,
+    ): Boolean
 
     suspend fun stop(session: Session)
 

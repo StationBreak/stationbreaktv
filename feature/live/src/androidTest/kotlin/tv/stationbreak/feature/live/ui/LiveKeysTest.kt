@@ -55,6 +55,8 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import tv.stationbreak.core.playback.WarmConfig
+import tv.stationbreak.core.playback.WarmSwitches
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
@@ -99,6 +101,11 @@ class LiveKeysTest {
             session: Session,
             next: NextHandle,
         ) = Unit
+
+        override fun warmNext(
+            session: Session,
+            next: NextHandle,
+        ): Boolean = false
 
         override suspend fun stop(session: Session) = Unit
 
@@ -145,7 +152,7 @@ class LiveKeysTest {
             InMemoryLibraryRepository(),
             noLineup,
             Clock.System,
-            ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server),
+            ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server, WarmConfig(), WarmSwitches.None),
             VideoPlayerFactory { _, _ -> error("no session, so no player") },
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),

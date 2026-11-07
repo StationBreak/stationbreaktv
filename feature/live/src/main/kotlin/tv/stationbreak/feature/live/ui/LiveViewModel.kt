@@ -36,6 +36,8 @@ import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import tv.stationbreak.core.playback.WarmConfig
+import tv.stationbreak.core.playback.WarmSwitches
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveChannel
 import tv.stationbreak.feature.live.LiveCommand
@@ -100,11 +102,24 @@ internal class ControllerTunerFactory
     constructor(
         private val resolver: PlaybackResolver,
         private val server: MediaServer,
+        // The same instances the player was built with (app DI), so both agree on whether warming is on.
+        private val warm: WarmConfig,
+        private val warmSwitches: WarmSwitches,
     ) : TunerFactory {
         override fun create(
             player: VideoPlayer,
             session: Session,
-        ): TunePort = TunePortAdapter(TuneController(resolver, server, player, clock = SystemClock::elapsedRealtime))
+        ): TunePort =
+            TunePortAdapter(
+                TuneController(
+                    resolver,
+                    server,
+                    player,
+                    warm = warm,
+                    warmSwitches = warmSwitches,
+                    clock = SystemClock::elapsedRealtime,
+                ),
+            )
     }
 
 /**
@@ -242,7 +257,9 @@ internal class LiveViewModel
             tuners: TunerFactory = controllers,
         ) {
             val elapsed = SystemClock::elapsedRealtime
-            sit({ players.create(context, elapsed) }, surface, tuners, elapsed) { Log.i(LOG_TAG, it) }
+            sit({ players.create(context, elapsed) }, surface, tuners, elapsed, ContextTrimHost(context)) {
+                Log.i(LOG_TAG, it)
+            }
         }
 
         /**
@@ -255,8 +272,9 @@ internal class LiveViewModel
             surface: SurfaceView?,
             tuners: TunerFactory,
             elapsedMs: () -> Long,
+            trimHost: TrimHost = TrimHost.None,
             log: (String) -> Unit,
-        ) = guide.whileSitting { sitting(makePlayer, surface, tuners, elapsedMs, log) }
+        ) = guide.whileSitting { sitting(makePlayer, surface, tuners, elapsedMs, trimHost, log) }
 
         @Suppress("SwallowedException") // The period's own cancel ends it; a cancel of the caller is rethrown.
         private suspend fun sitting(
@@ -264,6 +282,7 @@ internal class LiveViewModel
             surface: SurfaceView?,
             tuners: TunerFactory,
             elapsedMs: () -> Long,
+            trimHost: TrimHost,
             log: (String) -> Unit,
         ) {
             // Once only: within the hold the next run returns to the place, paused; past it the viewer joins live,
@@ -285,7 +304,7 @@ internal class LiveViewModel
                 // Its own scope, so a leave cancels this period and never the caller's job.
                 coroutineScope {
                     val running =
-                        LivePeriod(makePlayer(), coroutineContext.job, resume?.kept) { place ->
+                        LivePeriod(makePlayer(), coroutineContext.job, resume?.kept, trimHost) { place ->
                             // Never played since it was given back: the same untended pause, so the same hold.
                             val since = resume?.keptAtMs?.takeIf { place?.untended == true }
                             kept = place?.let { KeptPlace(it, since ?: elapsedMs()) }

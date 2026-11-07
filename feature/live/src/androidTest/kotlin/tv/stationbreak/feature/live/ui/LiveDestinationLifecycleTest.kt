@@ -65,6 +65,8 @@ import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
+import tv.stationbreak.core.playback.WarmConfig
+import tv.stationbreak.core.playback.WarmSwitches
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.NextHandle
@@ -154,6 +156,11 @@ class LiveDestinationLifecycleTest {
             next: NextHandle,
         ) = Unit
 
+        override fun warmNext(
+            session: Session,
+            next: NextHandle,
+        ): Boolean = false
+
         override suspend fun stop(session: Session) = Unit
 
         override suspend fun close(session: Session) {
@@ -214,7 +221,7 @@ class LiveDestinationLifecycleTest {
             InMemoryLibraryRepository(),
             noLineup,
             Clock.System,
-            ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server),
+            ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server, WarmConfig(), WarmSwitches.None),
             VideoPlayerFactory { _, _ -> RecordingPlayer(++created).also { log += "create#$created" } },
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),

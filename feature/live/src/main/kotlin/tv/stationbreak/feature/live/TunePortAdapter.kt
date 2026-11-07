@@ -19,6 +19,7 @@ import kotlin.time.Duration
  *
  * Nothing here logs or builds a message from a result: results can name routes and streams.
  */
+@Suppress("TooManyFunctions") // One override per port call, and the result mappers.
 class TunePortAdapter(
     private val controller: TuneController,
 ) : TunePort {
@@ -43,6 +44,20 @@ class TunePortAdapter(
             @Suppress("SwallowedException") e: Exception,
         ) {
             null
+        }
+
+    /** Never throws: a warm that fails is a cold flip, as before. Same thread as [tune] (the controller's rule). */
+    @Suppress("TooGenericExceptionCaught") // Any failure of the warm means no standby; the flip stays cold.
+    override fun warmNext(
+        session: Session,
+        next: NextHandle,
+    ): Boolean =
+        try {
+            controller.warmNext(next.prepared())
+        } catch (
+            @Suppress("SwallowedException") e: Exception,
+        ) {
+            false
         }
 
     override suspend fun tune(
@@ -79,6 +94,7 @@ class TunePortAdapter(
             skippedFrames = skippedFrames,
             loads = loads,
             av = av,
+            warm = warm,
         )
 
     private fun Route.label() =

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import android.os.Debug
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -9,6 +10,7 @@ import tv.stationbreak.core.playback.AvTimings
 import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.WarmUse
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -67,13 +69,14 @@ sealed interface TuneReport {
         val skippedFrames: Long? = null,
         val loads: LoadStats? = null,
         val av: AvTimings? = null,
+        val warm: WarmUse? = null,
     ) : TuneReport {
         override fun line() =
             "tune kind=${kind.label} resolveMs=$resolveMs firstFrameMs=${firstFrameMs ?: NOT_SEPARATE} " +
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
                 "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"} " +
                 "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE} " +
-                loadFields() + " " + avFields()
+                loadFields() + " " + avFields() + warmFields(warm)
 
         private fun avFields(): String {
             val a = av ?: AvTimings()
@@ -139,12 +142,39 @@ sealed interface TuneReport {
         val lookupMs: Long = NOT_SEPARATE,
         val handoverMs: Long = NOT_SEPARATE,
         val via: String? = null,
+        val warm: WarmUse? = null,
     ) : TuneReport {
         override fun line() =
             "flip toFirstFrameMs=${toFirstFrameMs ?: NOT_SEPARATE} toPlayingMs=${toPlayingMs ?: NOT_SEPARATE} " +
                 "settleMs=$settleMs elapsedMs=$elapsedMs outcome=$outcome from=${from ?: "none"} " +
                 "route=${route ?: "none"} fallback=${fallback ?: "none"} lookupMs=$lookupMs handoverMs=$handoverMs" +
-                via?.let { " via=$it" }.orEmpty()
+                warmFields(warm) + via?.let { " via=$it" }.orEmpty()
+    }
+
+    /**
+     * The memory at a flip, in KiB (spec 24): Java heap in use, its limit, and the native heap allocated. Written with
+     * each flip line, so the cost of a held standby shows against the flips.
+     */
+    data class Memory(
+        val javaKb: Long,
+        val javaMaxKb: Long,
+        val nativeKb: Long,
+    ) : TuneReport {
+        override fun line() = "mem flip javaKb=$javaKb javaMaxKb=$javaMaxKb nativeKb=$nativeKb"
+
+        companion object {
+            private const val KIB = 1_024L
+
+            fun now(): Memory {
+                val runtime = Runtime.getRuntime()
+                val native = runCatching { Debug.getNativeHeapAllocatedSize() }.getOrDefault(0L)
+                return Memory(
+                    (runtime.totalMemory() - runtime.freeMemory()) / KIB,
+                    runtime.maxMemory() / KIB,
+                    native / KIB,
+                )
+            }
+        }
     }
 
     /**
@@ -225,6 +255,12 @@ sealed interface TuneReport {
     }
 }
 
+/** The warm fields of a tune or flip line: what became of the standby; nothing when the port did not say. */
+private fun warmFields(warm: WarmUse?): String =
+    warm
+        ?.let { " warm=${it.warm} warmReason=${it.reason.label} warmAgeMs=${it.ageMs} warmReadyMs=${it.readyMs}" }
+        .orEmpty()
+
 /** How long the notes of a play that has ended may take to arrive. */
 private val NOTES_DRAIN = 50.milliseconds
 
@@ -283,6 +319,7 @@ internal fun Sitting.reportTune(
             timings.skippedFrames,
             timings.loads,
             timings.av,
+            timings.warm,
         ),
     )
     if (cutSince != null) {
@@ -315,8 +352,10 @@ internal fun Sitting.reportFlipPlayed(
             timing.lookupMs,
             timing.handoverMs,
             timing.via,
+            timings.warm,
         ),
     )
+    report(TuneReport.Memory.now())
 }
 
 /** The flip's line when its first block came to a card instead of a picture: [outcome] is `slate` or `failed`. */
@@ -325,6 +364,7 @@ internal fun Sitting.reportFlipEnded(outcome: String) {
     flip = null
     if (!timing.claim()) return
     report(timing.ended(outcome, clock.now()))
+    report(TuneReport.Memory.now())
 }
 
 /** The line of a flip with no picture, or none yet: no times but the wait since the last press. */
