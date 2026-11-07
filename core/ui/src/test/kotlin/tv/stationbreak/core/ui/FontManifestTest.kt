@@ -25,4 +25,23 @@ class FontManifestTest {
             assertEquals(path, expected, actual)
         }
     }
+
+    @Test
+    fun everyBundledFontAndLicenceIsInTheManifest() {
+        val listed =
+            File(module, "fonts.sha256")
+                .readLines()
+                .filter { it.isNotBlank() }
+                .map { it.split("  ", limit = 2)[1] }
+                .toSet()
+        val shipped =
+            listOf("src/main/res/font", "src/main/assets/fonts", "src/main/assets/licenses")
+                .map { File(module, it) }
+                .filter { it.isDirectory }
+                .flatMap { dir -> dir.walkTopDown().filter { it.isFile }.toList() }
+                .map { it.relativeTo(module).invariantSeparatorsPath }
+                .toSet()
+        assertTrue("some fonts ship", shipped.isNotEmpty())
+        assertEquals("files that ship but are not in fonts.sha256", emptySet<String>(), shipped - listed)
+    }
 }

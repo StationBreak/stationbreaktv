@@ -10,9 +10,9 @@ import androidx.compose.ui.unit.TextUnit
 import tv.stationbreak.core.ui.R as UiR
 
 /**
- * Manrope, from the APK only. [Tabular] is the tabular-figure cut for times and channel numbers; [Proportional] is
- * everything else. `tnum` is set on the tabular styles as well, so a renderer that ignores the cut still asks for
- * tabular figures. The variable font is bundled and not used here.
+ * Manrope, from the APK only: the four static weights from the upstream repository (see `core/ui/FONTS.md`). There is
+ * no variable font and no separate tabular cut. Times and channel numbers get tabular figures from the OpenType `tnum`
+ * feature on the same files; everything else keeps proportional figures.
  */
 internal object GuideType {
     val Proportional =
@@ -21,14 +21,6 @@ internal object GuideType {
             Font(UiR.font.manrope_medium, FontWeight.Medium),
             Font(UiR.font.manrope_semibold, FontWeight.SemiBold),
             Font(UiR.font.manrope_bold, FontWeight.Bold),
-        )
-
-    val Tabular =
-        FontFamily(
-            Font(UiR.font.manrope_tabular_regular, FontWeight.Normal),
-            Font(UiR.font.manrope_tabular_medium, FontWeight.Medium),
-            Font(UiR.font.manrope_tabular_semibold, FontWeight.SemiBold),
-            Font(UiR.font.manrope_tabular_bold, FontWeight.Bold),
         )
 }
 
@@ -49,7 +41,6 @@ internal fun guideFigures(
     size: TextUnit,
     weight: FontWeight,
 ) = guideText(size, weight).copy(
-    fontFamily = GuideType.Tabular,
     fontFeatureSettings = "tnum",
 )
 
