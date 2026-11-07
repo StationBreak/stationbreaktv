@@ -321,13 +321,44 @@ class RoomLibraryRepository internal constructor(
         return dao.excludedCount(server, user, libraries.map { it.value })
     }
 
-    override suspend fun select(
+    override suspend fun applySelection(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        keep: Set<ItemId>,
+        addTokens: Map<ItemId, Long>,
+        holds: Map<ItemId, Long>,
+        nowMs: Long,
+    ) = applySelection(account, keep, addTokens, holds, nowMs, keepAdding = false)
+
+    /**
+     * [applySelection] for the first sync, which knows the chosen libraries and not the adds: every library stored with
+     * an add token is kept too, read in the same transaction, so a first sync never drops an add that is under way.
+     */
+    internal suspend fun applySelectionKeepingAdds(
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+        nowMs: Long,
+    ) = applySelection(account, chosen, emptyMap(), emptyMap(), nowMs, keepAdding = true)
+
+    @Suppress("LongParameterList") // The port's call and the first sync's flag.
+    private suspend fun applySelection(
+        account: LibraryAccount,
+        keep: Set<ItemId>,
+        addTokens: Map<ItemId, Long>,
+        holds: Map<ItemId, Long>,
+        nowMs: Long,
+        keepAdding: Boolean,
     ) {
         val (server, user) = account.keys()
-        // Unticked libraries go, with their items, genres, tags, studios and checkpoint (foreign keys cascade).
-        dao.select(server, user, libraries.map { it.value })
+        // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade).
+        dao.applySelection(
+            server,
+            user,
+            keep.mapTo(HashSet()) { it.value },
+            addTokens.mapKeys { it.key.value },
+            holds.mapKeys { it.key.value },
+            nowMs,
+            keepAdding,
+        )
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> {
@@ -355,9 +386,9 @@ class RoomLibraryRepository internal constructor(
      * Saves one [page][items] of [library] and the checkpoint that goes with it, in one transaction: after a crash both
      * are there or neither is. Writing the same page again changes nothing (an item that is unchanged is not
      * rewritten; a tombstoned one that came back is revived), so a resume can replay the last page.
-     * [library] must have been chosen with [select] first. [series], if any, are written in the same transaction (the
-     * transactions across DAOs are one method of `CacheTransactionDao`). That parameter is for tests: the sync writes
-     * series apart, with [upsertSeries].
+     * [library] must have been chosen with [applySelection] first. [series], if any, are written in the same
+     * transaction (the transactions across DAOs are one method of `CacheTransactionDao`). That parameter is for tests:
+     * the sync writes series apart, with [upsertSeries].
      */
     @Suppress("LongParameterList") // One cohesive call: the page, and the checkpoint that goes with it.
     internal suspend fun writePage(
@@ -987,6 +1018,7 @@ private fun MediaItem.toRows(
             // The DAO stamps both when it writes the row (spec 09, Vimes H1).
             seenFromMs = 0,
             firstSeenMs = 0,
+            providerIds = ProviderIdsCodec.encode(providerIds),
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
@@ -1026,6 +1058,7 @@ private fun SeriesInfo.toEntity(
     // The DAO stamps both when it writes the row.
     seenFromMs = 0,
     firstSeenMs = 0,
+    providerIds = ProviderIdsCodec.encode(providerIds),
 )
 
 private fun ItemRows.toItem() =
@@ -1046,4 +1079,5 @@ private fun ItemRows.toItem() =
         seasonId = item.seasonId?.let(::ItemId),
         seasonNumber = item.seasonNumber,
         episodeNumber = item.episodeNumber,
+        providerIds = ProviderIdsCodec.decode(item.providerIds),
     )

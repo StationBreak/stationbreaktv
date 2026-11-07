@@ -27,7 +27,7 @@ class OfflineReadTest {
     fun theLibraryAndTheLastSuccessSurviveAReopenWithNothingElseRunning() =
         runBlocking {
             val written = TestLibraries.onDisk(folder.root, clock = clock)
-            written.select(ALICE, setOf(MOVIES))
+            written.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             written.writePage(ALICE, MOVIES, listOf(item("a"), item("b")), nextStartIndex = 2, totalCount = 2, run = 1)
             written.finishSync(ALICE)
             val success = clock.instant
@@ -46,7 +46,7 @@ class OfflineReadTest {
     fun aFailedSyncLeavesTheLibraryAndTheLastSuccessUsable() =
         runBlocking {
             val repository = TestLibraries.onDisk(folder.root, clock = clock)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             repository.finishSync(ALICE)
             val success = clock.instant

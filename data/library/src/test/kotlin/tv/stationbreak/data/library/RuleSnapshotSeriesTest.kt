@@ -23,7 +23,7 @@ class RuleSnapshotSeriesTest {
     @After
     fun close() = repository.close()
 
-    private suspend fun open() = repository.select(ALICE, setOf(RULE_LIBRARY))
+    private suspend fun open() = repository.applySelection(ALICE, setOf(RULE_LIBRARY), nowMs = 0)
 
     private suspend fun episodes(vararg numbers: Pair<Int, Int?>) {
         numbers.forEach { (n, series) -> repository.put(ALICE, RULE_LIBRARY, episodeOf(n, series)) }
@@ -142,7 +142,7 @@ class RuleSnapshotSeriesTest {
     fun aSeriesWhoseOnlyEpisodesAreOutsideTheSelectedLibrariesIsAbsent() =
         runBlocking {
             val other = ItemId(hexId(0xA002))
-            repository.select(ALICE, setOf(RULE_LIBRARY, other))
+            repository.applySelection(ALICE, setOf(RULE_LIBRARY, other), nowMs = 0)
             putShow()
             repository.put(ALICE, other, episodeOf(2, show, library = other))
 

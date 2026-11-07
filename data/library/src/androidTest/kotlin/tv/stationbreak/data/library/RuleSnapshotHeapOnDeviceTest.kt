@@ -131,7 +131,7 @@ class RuleSnapshotHeapOnDeviceTest {
     fun theRuleSnapshotOfAFullLibraryReadsInUnderThreeSecondsWithLessThan64MbOfHeapGrowth() =
         runBlocking {
             repository.useAccount(account)
-            repository.select(account, setOf(movies))
+            repository.applySelection(account, setOf(movies), nowMs = 0)
             writeRound(0)
             writeRound(1)
             delay(SETTLE_MS)

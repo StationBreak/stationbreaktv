@@ -31,7 +31,7 @@ class SeriesRowsIgnoredByScheduleItemsTest {
     @Test
     fun scheduleItemsSnapshotAndDropCountsAreTheSameWithSeriesRows() =
         runBlocking {
-            repository.select(ALICE, setOf(SHOWS))
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
             val episodes = (1..5).map { sitem(it, library = SHOWS).copy(kind = ItemKind.Episode) }
             repository.upsertItems(ALICE, SHOWS, episodes + sitem(6, runtime = null, library = SHOWS))
             val without = readEverything()

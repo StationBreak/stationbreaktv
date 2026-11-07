@@ -376,4 +376,35 @@ class BackfillTest {
             assertFalse(repository.dao.metaRow(ALICE.server.value, ALICE.user.value)!!.backfillPending)
             assertFalse(repository.backfillPending(ALICE))
         }
+
+    // Spec 26: the migration to version 10 sets the flag so this re-read writes the provider ids the cache lacked. They
+    // are stored without a version, and the generation does not move: no day is built from them.
+    @Test
+    fun backfill_fillsProviderIds() =
+        runBlocking {
+            firstSyncDone()
+            assertTrue(repository.currentRows(ALICE).all { it.providerIds == "" })
+            for (i in films.items.indices) {
+                films.items[i] = films.items[i].copy(providerIds = mapOf("imdb" to "tt${1000 + i}", "tmdb" to "$i"))
+            }
+            seriesSource.series[0] = seriesSource.series[0].copy(providerIds = mapOf("tvdb" to "77"))
+            flagIsSet(true)
+            val before = repository.contentGeneration(ALICE)
+            val versions = repository.versions(ALICE).size
+            clock.instant += 1.hours
+
+            assertEquals(SyncOutcome.Completed, stay().backfill(session, ALICE, chosen).outcome)
+
+            val rows = repository.currentRows(ALICE).filter { it.libraryId == MOVIES.value }
+            assertEquals(30, rows.size)
+            for (row in rows) {
+                val n = row.itemId.substringAfterLast('-').toInt()
+                assertEquals("imdb=tt${1000 + n};tmdb=$n", row.providerIds)
+            }
+            assertEquals("tvdb=77", repository.currentSeries(ALICE).single { it.seriesId == "s1" }.providerIds)
+            assertEquals("", repository.currentSeries(ALICE).single { it.seriesId == "s2" }.providerIds)
+            assertEquals(before, repository.contentGeneration(ALICE))
+            assertEquals(versions, repository.versions(ALICE).size)
+            assertFalse(repository.backfillPending(ALICE))
+        }
 }

@@ -20,7 +20,7 @@ class GenreOnlyEditTest {
     fun close() = repository.close()
 
     private suspend fun start(first: MediaItem): Unit =
-        repository.select(ALICE, setOf(MOVIES)).also { repository.put(ALICE, MOVIES, first) }
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0).also { repository.put(ALICE, MOVIES, first) }
 
     private suspend fun edit(next: MediaItem): PageWrite {
         clock.stepMs(1_000)

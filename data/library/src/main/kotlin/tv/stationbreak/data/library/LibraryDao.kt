@@ -126,7 +126,46 @@ internal abstract class LibraryDao {
         userId: String,
     )
 
-    @Query("UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId")
+    @Query("SELECT * FROM library WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun libraries(
+        serverId: String,
+        userId: String,
+    ): List<LibraryEntity>
+
+    // The libraries being added (spec 26): what is written to them moves no content generation.
+    @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND addToken IS NOT NULL")
+    abstract suspend fun addingLibraryIds(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    @Update
+    protected abstract suspend fun updateLibraries(rows: List<LibraryEntity>)
+
+    // Whether [libraryId] holds any item or series row, tombstones included: both lookups use the library index.
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId) OR EXISTS(SELECT 1 FROM series WHERE serverId = :serverId " +
+            "AND userId = :userId AND libraryId = :libraryId)",
+    )
+    protected abstract suspend fun holdsRows(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ): Boolean
+
+    @Query("DELETE FROM checkpoint WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:ids)")
+    protected abstract suspend fun deleteCheckpointsIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    )
+
+    // A library being added is never landed here (spec 26): only a row with no add token is marked fetched.
+    @Query(
+        "UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
+            "AND addToken IS NULL",
+    )
     protected abstract suspend fun setFetched(
         serverId: String,
         userId: String,
@@ -591,24 +630,78 @@ internal abstract class LibraryDao {
     // platform's SQLiteOpenHelper (the app) or over a SQLiteDriver (the JVM tests). Each runs as one transaction: it
     // commits whole or rolls back whole.
 
-    /** Makes [chosen] the account's libraries: the others go (with everything under them), new ones are pending. */
+    /**
+     * The one writer of the account's library set (spec 26). Every library in [keep] is kept with no hold: a new one
+     * is inserted pending, with its token from [addTokens] if it has one. A kept library given a token it did not have
+     * (a new add, or the re-tick of a held or earlier library) is set pending and its checkpoint deleted, so the sync
+     * walks it again from the start; one not named in [addTokens] keeps the token it has. Any other library is kept
+     * while its hold, from [holds] or else the one it has, lies after [nowMs], and its rows are deleted otherwise (with
+     * everything under them, through the foreign keys). A token or hold for a library it does not apply to (a token
+     * outside [keep], a hold inside it, a hold for a library not stored) is ignored.
+     *
+     * The content generation moves once, and only when a library's rows are deleted: an unticked library, a hold that
+     * expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or be a held
+     * library's, re-ticked). A tick, a hold set or cleared, and an add dropped before it holds a row move nothing: none
+     * of them changes what a day is built from. With [keepAdding], every library
+     * stored with a token also counts as in [keep], read inside this transaction (the first sync does not know the
+     * adds). An account that is not signed in gets no rows back.
+     */
     @Transaction
-    open suspend fun select(
+    @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its tokens and holds, and the clock.
+    open suspend fun applySelection(
         serverId: String,
         userId: String,
-        chosen: List<String>,
+        keep: Set<String>,
+        addTokens: Map<String, Long>,
+        holds: Map<String, Long>,
+        nowMs: Long,
+        keepAdding: Boolean = false,
     ) {
         // An account that is not signed in (it signed out while the sync ran) gets no rows back.
         if (activeCount(serverId, userId) == 0) return
-        // A "NOT IN" list can't be chunked, so find the libraries to drop here and delete them in chunks.
-        val keep = chosen.toSet()
-        val held = libraryIds(serverId, userId)
-        if (held.toSet() != keep) bumpGeneration(serverId, userId)
-        held.filter { it !in keep }.chunked(MAX_VARIABLES).forEach {
-            deleteLibrariesIn(serverId, userId, it)
+        val stored = libraries(serverId, userId)
+        val kept = if (keepAdding) keep + stored.filter { it.addToken != null }.map { it.libraryId } else keep
+        val byId = stored.associateBy { it.libraryId }
+        val toUpdate = mutableListOf<LibraryEntity>()
+        val toDelete = mutableListOf<String>()
+        val rewalk = mutableListOf<String>()
+        var bump = false
+        for (row in stored) {
+            if (row.libraryId in kept) continue
+            val until = holds[row.libraryId] ?: row.heldUntilMs
+            if (until != null && until > nowMs) {
+                if (until != row.heldUntilMs) toUpdate += row.copy(heldUntilMs = until)
+            } else {
+                toDelete += row.libraryId
+                // An add's rows can be ones a day was built from: an item or series that moved in from a chosen
+                // library (its versions go with it), or a held library re-ticked and then dropped. So an add goes
+                // without a bump only when it holds no row at all.
+                if (row.addToken == null || holdsRows(serverId, userId, row.libraryId)) bump = true
+            }
         }
-        val rows = chosen.map { LibraryEntity(serverId, userId, it, fetched = false) }
-        rows.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
+        val toInsert = mutableListOf<LibraryEntity>()
+        for (id in kept) {
+            val row = byId[id]
+            val token = addTokens[id]
+            if (row == null) {
+                toInsert += LibraryEntity(serverId, userId, id, fetched = false, heldUntilMs = null, addToken = token)
+                continue
+            }
+            val newToken = token != null && token != row.addToken
+            if (newToken) rewalk += id
+            val next =
+                row.copy(
+                    fetched = row.fetched && !newToken,
+                    heldUntilMs = null,
+                    addToken = token ?: row.addToken,
+                )
+            if (next != row) toUpdate += next
+        }
+        if (bump) bumpGeneration(serverId, userId)
+        toDelete.chunked(MAX_VARIABLES).forEach { deleteLibrariesIn(serverId, userId, it) }
+        rewalk.chunked(MAX_VARIABLES).forEach { deleteCheckpointsIn(serverId, userId, it) }
+        if (toUpdate.isNotEmpty()) updateLibraries(toUpdate)
+        toInsert.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
     }
 
     /** The names of the genres, tags and studios of [ids], in order, by item. Chunked under MAX_VARIABLES. */
@@ -698,7 +791,7 @@ internal abstract class LibraryDao {
         updateTotal(serverId, userId, total)
     }
 
-    /** [libraryId] has been read to its end. */
+    /** [libraryId] has been read to its end. A library being added (it has an add token) is left pending. */
     @Transaction
     open suspend fun markFetched(
         serverId: String,

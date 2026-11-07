@@ -58,7 +58,7 @@ class SeriesMonotonicPropertyTest {
     @Test
     fun versionsAreContiguousAndCountedByAnIndependentModelOverRandomHistories() {
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             for (case in 0 until CASES) {
                 val seed = splitmix64(BASE_SEED + case.toULong())
                 try {

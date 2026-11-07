@@ -26,7 +26,7 @@ class StudioChangeTest {
     @Test
     fun anItemThatGainsOnlyStudiosGetsOneVersionHoldingTheOldEmptyStudios() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, movie)
             clock.stepMs(1_000)
             val before = repository.contentGeneration(ALICE)
@@ -59,7 +59,7 @@ class StudioChangeTest {
     @Test
     fun aSeriesThatGainsOnlyStudiosGetsOneVersionHoldingTheOldEmptyStudios() =
         runBlocking {
-            repository.select(ALICE, setOf(SHOWS))
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
             repository.putSeries(ALICE, SHOWS, show)
             clock.stepMs(1_000)
             val before = repository.contentGeneration(ALICE)
@@ -85,7 +85,7 @@ class StudioChangeTest {
     @Test
     fun reorderingStudiosIsAChange() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, movie.copy(studios = studios))
             clock.stepMs(1_000)
 

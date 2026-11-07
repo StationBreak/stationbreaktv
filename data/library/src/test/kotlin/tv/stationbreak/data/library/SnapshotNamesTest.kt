@@ -37,7 +37,7 @@ class SnapshotNamesTest {
     @Test
     fun theAsOfReadGivesTheNameHeldAtTheCutoff() =
         runBlocking {
-            repository.select(ALICE, libraries)
+            repository.applySelection(ALICE, libraries, nowMs = 0)
             putFilm("Film 1")
             putEpisode()
             putShow("Show A")
@@ -65,7 +65,7 @@ class SnapshotNamesTest {
     @Test
     fun aRenameIsANewVersion() =
         runBlocking {
-            repository.select(ALICE, libraries)
+            repository.applySelection(ALICE, libraries, nowMs = 0)
             putFilm("Film 1")
             putShow("Show A")
             putBox("Box Set 1 Collection")
@@ -90,7 +90,7 @@ class SnapshotNamesTest {
     @Test
     fun aRenameMovesTheContentGeneration() =
         runBlocking {
-            repository.select(ALICE, libraries)
+            repository.applySelection(ALICE, libraries, nowMs = 0)
             putFilm("Film 1")
             putShow("Show A")
             putBox("Box Set 1 Collection")
@@ -113,7 +113,7 @@ class SnapshotNamesTest {
     @Test
     fun aCollectionFirstSeenAfterTheCutoffTakesItsOldestVersionsName() =
         runBlocking {
-            repository.select(ALICE, libraries)
+            repository.applySelection(ALICE, libraries, nowMs = 0)
             putFilm("Film 1")
             val cutoff = clock.nowMs - 60_000
             putBox("Box Set 1 Collection")

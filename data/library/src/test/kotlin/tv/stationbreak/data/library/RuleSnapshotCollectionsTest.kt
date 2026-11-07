@@ -66,7 +66,7 @@ class RuleSnapshotCollectionsTest {
     @Test
     fun aMemberOutsideTheSelectedLibrariesIsStillAMember() =
         runBlocking {
-            repository.select(ALICE, setOf(RULE_LIBRARY))
+            repository.applySelection(ALICE, setOf(RULE_LIBRARY), nowMs = 0)
             repository.put(ALICE, RULE_LIBRARY, episodeOf(1, null))
             write(1000, 1 to CollectionMemberKind.Episode, 77 to CollectionMemberKind.Movie)
 

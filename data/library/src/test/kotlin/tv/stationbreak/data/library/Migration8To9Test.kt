@@ -7,7 +7,6 @@ import androidx.sqlite.execSQL
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -217,7 +216,8 @@ class Migration8To9Test {
             val idle = LibraryStatus(SyncState.Idle, Instant.fromEpochMilliseconds(lastSuccess))
             assertEquals(idle, repository.status(ALICE).first())
             assertEquals(lastSuccess, repository.dao.state("server-1", "bob")?.lastSuccessMs)
-            assertFalse(repository.backfillPending(ALICE))
+            // 8 to 9 leaves the flag as it was; 9 to 10 (spec 26) then sets it on every row for the provider ids.
+            assertTrue(repository.backfillPending(ALICE))
             assertTrue(repository.backfillPending(BOB))
             assertEquals(1, repository.dao.metaRow("server-1", "alice")!!.failedPasses)
             repository.close()
@@ -257,7 +257,8 @@ class Migration8To9Test {
             assertEquals(seeded, bobs.contentGeneration)
             assertTrue(bobs.contentGeneration > maxOf(GENERATION_A, GENERATION_B) + 1)
             assertTrue(bobs.contentGeneration > 0L)
-            assertFalse(bobs.backfillPending)
+            // 8 to 9 makes the row with the flag off; 9 to 10 (spec 26) then sets it.
+            assertTrue(bobs.backfillPending)
             assertEquals(0, bobs.failedPasses)
             assertEquals(GENERATION_A + 1, repository.contentGeneration(ALICE))
             repository.close()

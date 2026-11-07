@@ -147,7 +147,7 @@ class InMemoryLibraryRepositoryTest {
             repository.seed(alice, movies, item("a"))
             repository.seed(alice, shows, item("s"))
 
-            repository.select(alice, setOf(shows, ItemId("lib-new")))
+            repository.applySelection(alice, setOf(shows, ItemId("lib-new")), nowMs = 0)
 
             assertEquals(emptyList(), repository.snapshot(alice, setOf(movies), epoch))
             assertEquals(setOf(ItemId("lib-new")), repository.pendingLibraries(alice))
@@ -232,7 +232,7 @@ class InMemoryLibraryRepositoryTest {
             repository.seedSchedule(alice, shows, held('b'))
             repository.seedSchedule(bob, movies, held('c'))
 
-            repository.select(alice, setOf(movies))
+            repository.applySelection(alice, setOf(movies), nowMs = 0)
             assertEquals(emptyList(), repository.scheduleItems(alice, setOf(shows), epoch))
 
             repository.useAccount(alice)
@@ -429,7 +429,7 @@ class InMemoryLibraryRepositoryTest {
             repository.seedCollection(bob, collection('d'))
             repository.setCollectionsSynced(alice, true)
 
-            repository.select(alice, setOf(moviesLib))
+            repository.applySelection(alice, setOf(moviesLib), nowMs = 0)
             assertEquals(emptyList(), repository.ruleSnapshot(alice, setOf(showsLib), epoch).items)
 
             repository.useAccount(alice)

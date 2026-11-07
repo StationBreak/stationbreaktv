@@ -197,7 +197,7 @@ class CollectionAsOfTest {
         runBlocking {
             write(box, "a", "b")
             clock.stepMs(100_000)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
             repository.writeCollection(ALICE, box, "x", movies(hexId(1), "b"))
             clock.stepMs(100_000)

@@ -200,7 +200,7 @@ class ScheduleInputFilterTest {
     @Test
     fun theReadDropsAndCountsEachReasonAndReturnsOnlyWhatTheSchedulerAccepts() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val good = sitem(10)
             repository.put(
                 ALICE,
@@ -243,7 +243,7 @@ class ScheduleInputFilterTest {
     @Test
     fun anItemOutsideTheChosenLibrariesOrDeletedBeforeTheCutoffIsNotACountedDrop() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = null))
             repository.put(ALICE, SHOWS, sitem(2, runtime = null, library = SHOWS))
             repository.put(ALICE, MOVIES, sitem(3, runtime = null))
@@ -259,7 +259,7 @@ class ScheduleInputFilterTest {
     @Test
     fun twoRowsThatNormaliseToOneIdKeepOneAndCountTheOtherAsADuplicate() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             // "...0B" and "...0b" are two rows in storage and one canonical ID: buildDay would throw on the pair.
             repository.put(ALICE, MOVIES, sitem(11).copy(id = ItemId(hexId(11).uppercase())), sitem(11))
 
@@ -273,7 +273,7 @@ class ScheduleInputFilterTest {
     @Test
     fun theItemsComeBackInCanonicalIdOrderNotStorageOrder() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             // In storage "...0B" sorts before "...0a"; as canonical IDs "...0a" is the smaller.
             repository.put(ALICE, MOVIES, sitem(11).copy(id = ItemId(hexId(11).uppercase())), sitem(10))
 
@@ -292,7 +292,7 @@ class ScheduleInputFilterTest {
         after: Int,
     ): List<ScheduleItem> {
         val old = Instant.fromEpochMilliseconds(-1)
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         clock.atMs(-1.hours.inWholeMilliseconds)
         repository.put(ALICE, MOVIES, sitem(1, runtime = before.minutes).copy(dateCreated = old))
         clock.atMs(1.hours.inWholeMilliseconds)

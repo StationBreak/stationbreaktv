@@ -210,9 +210,11 @@ interface LibraryRepository : AccountCache {
      *
      * **Cache contract (#392, #480).** The result depends only on [account], [libraries], [cutoff] and the state of
      * the saved library, and every change to that state moves [contentGeneration]: a write to an item, series or
-     * collection, or to the chosen libraries, and the collection pass that turns `collectionsSynced` true (it writes no
-     * row, but changes the result). A caller may therefore keep a snapshot under the key (account, libraries, cutoff,
-     * generation), the generation read *before* the snapshot, and reuse it while that key holds: the in-memory cache
+     * collection, the delete of a library's rows ([applySelection]), and the collection pass that turns
+     * `collectionsSynced` true (it writes no row, but changes the result). A write to a library being added moves
+     * nothing (spec 26), so [libraries] must never name one: the add lands before its library is read for a day. A
+     * caller may therefore keep a snapshot under the key (account, libraries, cutoff, generation), the generation read
+     * *before* the snapshot, and reuse it while that key holds: the in-memory cache
      * and the persisted day key both key on the generation alone (#487, #480), and [collectionPassCompleted], which
      * every completed pass moves, is no part of either. A purge must not change what this returns: it deletes only
      * rows superseded or tombstoned before any cut-off a day build reads, which is why it does not bump. Anything new
@@ -325,9 +327,11 @@ interface LibraryRepository : AccountCache {
 
     /**
      * [account]'s content generation: a number kept with the saved library that goes up for that account and never
-     * repeats a value the account held before. It changes exactly when a committed write changed that account's
-     * library rows (an item, series or collection that is new, edited, deleted or back, a member added or removed, or
-     * the chosen libraries), or when the first full collection pass turns `collectionsSynced` true: the bump is in the
+     * repeats a value the account held before. It changes exactly when a committed write changed what a day is built
+     * from in that account's library rows (an item, series or collection that is new, edited in a field the scheduler
+     * or the rules read, deleted or back, a member added or removed, or a library's rows deleted by [applySelection]),
+     * or when the first full collection pass turns `collectionsSynced` true. Since spec 26 a page written to a library
+     * being added (one with an add token), a change to provider ids alone, and a tick move nothing. The bump is in the
      * same transaction as the write, so a write that rolls back or finds everything as stored leaves it alone, and
      * another account's writes never move it. Because it is durable it can be compared across process
      * restarts: a reader keeps the value it planned from and finds the library changed since when the two differ,
@@ -361,12 +365,32 @@ interface LibraryRepository : AccountCache {
     ): Int
 
     /**
-     * Makes [libraries] the chosen set (owner answer 2, from `ServerSettings.loadLibraries()`): the saved rows of any
-     * library left out are deleted, and a library not saved before is marked pending, to be fetched.
+     * The one writer of the cached library set (spec 26; it replaces `select`). Keeps [keep]'s libraries (the chosen
+     * ones and the ones being added; an added one is pending, with its token), keeps any other library whose hold lies
+     * after [nowMs] (and sets [holds]), and deletes every other library's rows.
+     *
+     * - A library in [keep] has no hold. One not saved before is marked pending, to be fetched, with its token from
+     *   [addTokens] if it has one.
+     * - A library given a token it did not have (a new add, or the re-tick of a held or earlier library) is marked
+     *   pending and its checkpoint deleted, in the same transaction, so it is read again from the start. A library in
+     *   [keep] that [addTokens] does not name keeps the token it has. Only a library with no token is ever marked
+     *   fetched by the sync: the add lands it.
+     * - [holds] gives, for a library leaving [keep], the moment until which its rows are kept (a repair of the days
+     *   that used it reads them); a library left out of [keep] and [holds] keeps the hold it has. A hold at or before
+     *   [nowMs] has expired, and the library's rows go. A token outside [keep], and a hold inside it or for a library
+     *   not saved, are ignored.
+     *
+     * [contentGeneration] moves only when this deletes a library's rows (an unticked library, a hold that expired, or
+     * an add dropped after its walk wrote rows, which may have moved in from a chosen library), once per call.
+     * Ticking a library (pending, with a token), setting or clearing a hold, and dropping an add that holds no row
+     * move nothing.
      */
-    suspend fun select(
+    suspend fun applySelection(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        keep: Set<ItemId>,
+        addTokens: Map<ItemId, Long> = emptyMap(),
+        holds: Map<ItemId, Long> = emptyMap(),
+        nowMs: Long,
     )
 
     /** The chosen libraries that have not been fully fetched yet. */
@@ -385,15 +409,17 @@ data class TitleHit(
 )
 
 /**
- * Brings the saved library in line with the libraries the user ticked, as `ServerSettings` stores them. Returns the
- * chosen set, or null when none is stored (a new sign-in clears the choice), in which case the saved library is left
- * alone.
+ * Brings the saved library in line with the libraries the user ticked, as `ServerSettings` stores them, through
+ * [LibraryRepository.applySelection] at [nowMs] with no tokens and no new holds (a library still held stays until its
+ * hold ends). Returns the chosen set, or null when none is stored (a new sign-in clears the choice), in which case the
+ * saved library is left alone.
  */
 suspend fun LibraryRepository.followSelection(
     account: LibraryAccount,
     settings: ServerSettings,
+    nowMs: Long,
 ): Set<ItemId>? {
     val chosen = settings.loadLibraries() ?: return null
-    select(account, chosen)
+    applySelection(account, chosen, nowMs = nowMs)
     return chosen
 }

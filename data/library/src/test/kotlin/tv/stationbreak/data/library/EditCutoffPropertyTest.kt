@@ -339,7 +339,7 @@ class EditCutoffPropertyTest {
     ) {
         repo.forget(ALICE)
         repo.useAccount(ALICE)
-        repo.select(ALICE, setOf(MOVIES, SHOWS))
+        repo.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
         val current = mutableMapOf<Int, Fields>()
         for (op in ops) {
             clock.atMs(op.atMs)

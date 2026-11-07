@@ -72,7 +72,7 @@ class LibraryDatabaseOnDeviceTest {
     @Test
     fun aPageRoundTripsAndTheFileIsInTheDatabasesDirectory() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.writePage(account, library, listOf(item("a"), item("b")), 2, 2, run = 1)
 
             assertEquals(listOf(item("a"), item("b")), repository.snapshot(account, setOf(library), later))
@@ -84,7 +84,7 @@ class LibraryDatabaseOnDeviceTest {
     @Test
     fun aFailureBetweenTheItemsAndTheCheckpointRollsBack() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
 
             assertThrows(IllegalStateException::class.java) {
@@ -98,10 +98,10 @@ class LibraryDatabaseOnDeviceTest {
     @Test
     fun deletingALibraryCascadesToItsItemsGenresTagsAndCheckpoint() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.writePage(account, library, listOf(item("a")), 1, 1, run = 1)
 
-            repository.select(account, emptySet())
+            repository.applySelection(account, emptySet(), nowMs = 0)
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
@@ -117,7 +117,7 @@ class LibraryDatabaseOnDeviceTest {
     @Test
     fun theStatusAndTheLastSuccessSurviveAReopen() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.finishSync(account)
             val success = repository.status(account).first().lastSuccess
             repository.close()
@@ -133,7 +133,7 @@ class LibraryDatabaseOnDeviceTest {
     fun aBigPageStaysUnderTheVariableLimit() =
         runBlocking {
             val many = (0 until 1200).map { item("many-${it.toString().padStart(4, '0')}") }
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
 
             repository.writePage(account, library, many, many.size, many.size, run = 1)
 
@@ -150,12 +150,12 @@ class LibraryDatabaseOnDeviceTest {
     @Test
     fun anEditKeepsAVersionThatTheLibraryCascadeDeletes() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.upsertItems(account, library, listOf(movie(1, 90)))
             repository.upsertItems(account, library, listOf(movie(1, 100)))
             assertEquals(1, repository.rowCounts().versions)
 
-            repository.select(account, emptySet())
+            repository.applySelection(account, emptySet(), nowMs = 0)
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
@@ -163,7 +163,7 @@ class LibraryDatabaseOnDeviceTest {
     @Test
     fun theAsOfReadChoosesTheHeldVersionOnThePlatformSqlite() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.upsertItems(account, library, listOf(movie(1, 90), movie(2, 60)))
             repository.upsertItems(account, library, listOf(movie(1, 100)))
             val version = repository.versions(account).single()

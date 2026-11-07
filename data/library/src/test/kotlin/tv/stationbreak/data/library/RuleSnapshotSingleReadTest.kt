@@ -42,7 +42,7 @@ class RuleSnapshotSingleReadTest {
     }
 
     private suspend fun seed() {
-        reader.select(ALICE, setOf(RULE_LIBRARY))
+        reader.applySelection(ALICE, setOf(RULE_LIBRARY), nowMs = 0)
         reader.put(ALICE, RULE_LIBRARY, episodeOf(1, 900))
         reader.putSeries(ALICE, RULE_LIBRARY, series(show.value, rating = "PG"))
         reader.writeCollection(ALICE, box, "Box", listOf(cm(hexId(1))))

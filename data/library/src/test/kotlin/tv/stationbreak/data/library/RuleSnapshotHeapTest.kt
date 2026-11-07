@@ -48,7 +48,7 @@ class RuleSnapshotHeapTest {
 
     /** Writes the items, the series and the collections [ROUNDS] times; each round changes them, so it supersedes. */
     private suspend fun fill() {
-        repository.select(ALICE, setOf(RULE_LIBRARY))
+        repository.applySelection(ALICE, setOf(RULE_LIBRARY), nowMs = 0)
         repeat(ROUNDS) { round ->
             clock.stepMs(1.hours.inWholeMilliseconds)
             var start = 0

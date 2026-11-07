@@ -38,7 +38,7 @@ class ScheduleItemsOfTest {
     @Test
     fun anEditAfterTheCutoff_givesTheVersionHeldBeforeIt_asScheduleItemsDoes() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes), sitem(2))
             val before = clock.nowMs + 60_000
             clock.stepMs(10 * 60_000)
@@ -57,7 +57,7 @@ class ScheduleItemsOfTest {
     @Test
     fun anItemFirstSeenAfterTheCutoff_isItsOldestVersion_andADeletionAfterItKeepsIt() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val cutoff = clock.nowMs - 60_000
             repository.put(ALICE, MOVIES, sitem(3, runtime = 30.minutes))
             clock.stepMs(60_000)
@@ -75,7 +75,7 @@ class ScheduleItemsOfTest {
     @Test
     fun moreIdsThanSqliteBinds_areReadInChunks() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val count = LibraryDao.MAX_VARIABLES * 2 + 7
             repository.put(ALICE, MOVIES, *(1..count).map { sitem(it) }.toTypedArray())
             val ids = (1..count + 50).mapTo(HashSet()) { canon(it) }
@@ -88,7 +88,7 @@ class ScheduleItemsOfTest {
     @Test
     fun anotherAccountsItemsAreNotRead() =
         runBlocking {
-            repository.select(BOB, setOf(MOVIES))
+            repository.applySelection(BOB, setOf(MOVIES), nowMs = 0)
             repository.put(BOB, MOVIES, sitem(5))
 
             assertEquals(emptyList<Any>(), repository.scheduleItemsOf(ALICE, setOf(canon(5)), clock.nowMs + 60_000))

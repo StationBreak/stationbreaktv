@@ -37,7 +37,7 @@ class HeldRowFieldsTest {
     @Test
     fun aCurrentRowCarriesItsRatingGenresAndTagsInTheServersOrder() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(
                 ALICE,
                 MOVIES,
@@ -54,7 +54,7 @@ class HeldRowFieldsTest {
     @Test
     fun anOlderVersionCarriesTheGenresAndTagsItHad() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, movie(1, "G", listOf("Old"), listOf("o")))
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, movie(1, "R", listOf("New", "Newer")))
@@ -73,7 +73,7 @@ class HeldRowFieldsTest {
     @Test
     fun nullEmptyAndBlankRatingsStayDistinctInTheAsOfRead() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(
                 ALICE,
                 MOVIES,
@@ -92,7 +92,7 @@ class HeldRowFieldsTest {
     @Test
     fun oneStringIsSharedPerDistinctValueWithinARead() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(
                 ALICE,
                 MOVIES,
@@ -122,7 +122,7 @@ class HeldRowFieldsTest {
     @Test
     fun aCurrentRowCarriesItsStudiosInTheServersOrderIntoTheRuleItem() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1).copy(studios = listOf("Zed Pictures", "Alpha Films")))
 
             val row = held(start + 5_000).getValue(hexId(1))
@@ -135,7 +135,7 @@ class HeldRowFieldsTest {
     @Test
     fun aCutoffBeforeTheStudiosVersionReadsNoStudios() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
             clock.stepMs(10_000)
             // The re-read after the upgrade: only studios differ.
@@ -151,7 +151,7 @@ class HeldRowFieldsTest {
     @Test
     fun anOlderVersionCarriesTheStudiosItHad() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1).copy(officialRating = "G", studios = listOf("Old Studio")))
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, sitem(1).copy(officialRating = "R", studios = listOf("New Studio")))
@@ -163,7 +163,7 @@ class HeldRowFieldsTest {
     @Test
     fun aRevivedItemKeepsItsStudiosInTheVersionAndTheRow() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1).copy(studios = listOf("Invented Studio")))
             clock.stepMs(10_000)
             repository.tombstone(ALICE, listOf(ItemId(hexId(1))))

@@ -26,10 +26,10 @@ class HardeningTest {
         runBlocking {
             val many = (0 until 1500).map { ItemId("lib-${it.toString().padStart(4, '0')}") }.toSet()
 
-            repository.select(ALICE, many)
+            repository.applySelection(ALICE, many, nowMs = 0)
 
             assertEquals(many, repository.pendingLibraries(ALICE))
-            repository.select(ALICE, many.take(10).toSet())
+            repository.applySelection(ALICE, many.take(10).toSet(), nowMs = 0)
             assertEquals(10, repository.pendingLibraries(ALICE).size)
         }
 
@@ -37,7 +37,7 @@ class HardeningTest {
     fun snapshotAndExcludedCountOverManyLibrariesWork() =
         runBlocking {
             val many = (0 until 1500).map { ItemId("lib-${it.toString().padStart(4, '0')}") }.toSet()
-            repository.select(ALICE, many)
+            repository.applySelection(ALICE, many, nowMs = 0)
             val first = many.first()
             repository.writePage(ALICE, first, listOf(item("a"), item("b", runtime = null)), 2, 2, run = 1)
 

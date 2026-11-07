@@ -21,7 +21,7 @@ class OutsideLibraryMemberTest {
     @Test
     fun aMemberWithNoItemInAnyLibraryIsStoredAndHeld() =
         runBlocking {
-            rig.repository.select(ALICE, setOf(MOVIES))
+            rig.repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             rig.repository.put(ALICE, MOVIES, sitem(1))
             // film 1 is cached; film 2 is in no ticked library.
             rig.serve(1, *rig.movies(1, 2))

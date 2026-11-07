@@ -81,7 +81,7 @@ class LibraryRepositoryPortSignatureTest {
                     "activeStatus",
                     "activeAccount",
                     "excludedCount",
-                    "select",
+                    "applySelection",
                     "pendingLibraries",
                     "distinctGenres",
                     "distinctTags",

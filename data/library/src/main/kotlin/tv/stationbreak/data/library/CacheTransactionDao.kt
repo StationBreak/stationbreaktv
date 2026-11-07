@@ -58,6 +58,10 @@ internal abstract class CacheTransactionDao(
      *
      * [seriesRows] are the page's series (a series page holds no items, and an item page no series). They are written
      * through [SeriesDao] after the item versions and before the second seam, in the same transaction.
+     *
+     * The content generation moves only for a change to a field the scheduler or the rules read, in a library that is
+     * not being added (spec 26; see [itemsMoveTheDay]): a provider-id-only change never moves it, and neither does
+     * the walk of a library being added.
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seams.
@@ -93,21 +97,46 @@ internal abstract class CacheTransactionDao(
         library.insertStudios(changedIds.flatMap { items.getValue(it).studios })
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
-        val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
+        // Read inside this transaction, so a selection change cannot slip between the read and the bump.
+        val adding = library.addingLibraryIds(server, user).toHashSet()
+        val seriesWrite = writeSeries(server, user, seriesRows, nowMs, adding)
         // Inside this transaction, so a write that rolls back leaves the generation as it was.
-        val changed = changedIds.isNotEmpty() || seriesWrite.inserted + seriesWrite.updated > 0
-        if (changed) library.bumpGeneration(server, user)
+        if (itemsMoveTheDay(plan, items, adding) || seriesWrite.movesTheDay) library.bumpGeneration(server, user)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
-        return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite)
+        return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite.write)
     }
+
+    /**
+     * True when the page changed a field the scheduler or the rules read (a new row, or one that took a version: an
+     * edit to a versioned field or a revival) in a library that is not being added, before or after the write (spec
+     * 26). A change to an unversioned field alone (the parent, the provider ids) is stored and moves nothing.
+     */
+    private fun itemsMoveTheDay(
+        plan: PagePlan,
+        items: Map<String, ItemRows>,
+        adding: Set<String>,
+    ): Boolean {
+        var moves = false
+        for (row in plan.toInsert) if (row.libraryId !in adding) moves = true
+        for (version in plan.versions) {
+            if (version.libraryId !in adding || items.getValue(version.itemId).item.libraryId !in adding) moves = true
+        }
+        return moves
+    }
+
+    private class SeriesWrite(
+        val write: PageWrite,
+        val movesTheDay: Boolean,
+    )
 
     private suspend fun writeSeries(
         server: String,
         user: String,
         rows: Map<String, SeriesEntity>,
         nowMs: Long,
-    ): PageWrite {
+        adding: Set<String>,
+    ): SeriesWrite {
         val existing =
             rows.keys
                 .chunked(LibraryDao.MAX_VARIABLES)
@@ -117,7 +146,13 @@ internal abstract class CacheTransactionDao(
         series.insert(plan.toInsert)
         series.update(plan.toUpdate)
         series.insertVersions(plan.versions)
-        return PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged)
+        // As for items: a new or versioned series outside the adds; a library-only or provider-id-only change is not.
+        var moves = false
+        for (row in plan.toInsert) if (row.libraryId !in adding) moves = true
+        for (version in plan.versions) {
+            if (version.libraryId !in adding || rows.getValue(version.seriesId).libraryId !in adding) moves = true
+        }
+        return SeriesWrite(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), moves)
     }
 
     /**

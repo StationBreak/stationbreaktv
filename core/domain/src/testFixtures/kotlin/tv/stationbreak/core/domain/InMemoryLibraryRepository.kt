@@ -88,6 +88,14 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val passes = MutableStateFlow<Map<LibraryAccount, Instant>>(emptyMap())
     private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
+
+    // A library's hold and add token, as applySelection set them (spec 26).
+    private data class LibraryMark(
+        val heldUntilMs: Long? = null,
+        val addToken: Long? = null,
+    )
+
+    private val libraryMarks = mutableMapOf<LibraryAccount, MutableMap<ItemId, LibraryMark>>()
     private val statuses = MutableStateFlow<Map<LibraryAccount, LibraryStatus>>(emptyMap())
     private val active = MutableStateFlow<LibraryAccount?>(null)
 
@@ -505,17 +513,48 @@ class InMemoryLibraryRepository : LibraryRepository {
         libraries: Set<ItemId>,
     ): Int = live(account, libraries).count { !it.item.runtime.usable() }
 
-    override suspend fun select(
+    // The contract of applySelection, in memory: a library is stored when it has rows, is pending, or has a hold or a
+    // token recorded here. The generation moves only when a library goes that had no token, or that held rows.
+    override suspend fun applySelection(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        keep: Set<ItemId>,
+        addTokens: Map<ItemId, Long>,
+        holds: Map<ItemId, Long>,
+        nowMs: Long,
     ) {
-        rows.removeAll { it.account == account && it.library !in libraries }
-        held.removeAll { it.account == account && it.library !in libraries }
+        val marks = libraryMarks.getOrPut(account) { mutableMapOf() }
+        val waiting = pending.getOrPut(account) { mutableSetOf() }
+        val stored =
+            rows.filter { it.account == account }.map { it.library }.toSet() +
+                held.filter { it.account == account }.map { it.library } + waiting + marks.keys
+        val staying = keep.toMutableSet()
+        var dropped = false
+        for (library in stored - keep) {
+            val mark = marks[library]
+            val until = holds[library] ?: mark?.heldUntilMs
+            if (until != null && until > nowMs) {
+                marks[library] = (mark ?: LibraryMark()).copy(heldUntilMs = until)
+                staying += library
+            } else {
+                val hasRows =
+                    rows.any { it.account == account && it.library == library } ||
+                        held.any { it.account == account && it.library == library }
+                if (mark?.addToken == null || hasRows) dropped = true
+                marks.remove(library)
+            }
+        }
+        rows.removeAll { it.account == account && it.library !in staying }
+        held.removeAll { it.account == account && it.library !in staying }
         val saved = rows.filter { it.account == account }.map { it.library }.toSet()
-        val held = pending.getOrPut(account) { mutableSetOf() }
-        held.retainAll(libraries)
-        held += libraries - saved
-        noteContentChange(account)
+        waiting.retainAll(staying)
+        for (library in keep) {
+            val mark = marks[library] ?: LibraryMark()
+            val token = addTokens[library]
+            if (token != null && token != mark.addToken) waiting += library
+            if (library !in saved) waiting += library
+            marks[library] = LibraryMark(heldUntilMs = null, addToken = token ?: mark.addToken)
+        }
+        if (dropped) noteContentChange(account)
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> = pending[account].orEmpty().toSet()
@@ -527,6 +566,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         held.removeAll { it.account != account }
         clearRuleInputs { it != account }
         pending.keys.retainAll(setOf(account))
+        libraryMarks.keys.retainAll(setOf(account))
         statuses.value = statuses.value.filterKeys { it == account }
     }
 
@@ -537,6 +577,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         held.removeAll { it.account == account }
         clearRuleInputs { it == account }
         pending.remove(account)
+        libraryMarks.remove(account)
         statuses.value = statuses.value - account
         if (active.value == account) active.value = null
     }

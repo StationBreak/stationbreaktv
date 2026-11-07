@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
@@ -43,12 +44,12 @@ class SignOutClearsCacheTest {
         )
 
     private suspend fun fillFor(account: tv.stationbreak.core.domain.LibraryAccount) {
-        repository.select(account, setOf(MOVIES))
+        repository.applySelection(account, setOf(MOVIES), nowMs = 0)
         repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("g"))), 1, 1, run = 1)
         // A genre-only edit keeps the old row as a version, so there is history for the sign-out to clear (Vimes H5).
         repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("h"))), 1, 1, run = 2)
         // Series and a series version too (spec 10): a rating edit keeps the old row as a version.
-        repository.select(account, setOf(MOVIES, SHOWS))
+        repository.applySelection(account, setOf(MOVIES, SHOWS), nowMs = 0)
         repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "A"), series("s2")))
         repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "B")))
         // Collections too (spec 10): a member change keeps the old lifecycle as a version, and a pass leaves its row.
@@ -139,9 +140,12 @@ class SignOutClearsCacheTest {
 
             // The token is in the secret store only; the cache's schema has no place for it (AccountIsolationTest).
             assertEquals(true, store.snapshot().values.any { it.contains("fake-token-for-alice") })
+            // `library.addToken` (spec 26) is a number the app makes for an add, never a session's token: the only name
+            // allowed, and an INTEGER column, so no token text could be stored in it.
             assertEquals(
                 emptyList<String>(),
-                SchemaFile.columnNames().filter { it.contains("token", ignoreCase = true) },
+                SchemaFile.columnNames().filter { it.contains("token", ignoreCase = true) && it != "addToken" },
             )
+            assertTrue(SchemaFile.text().contains("`addToken` INTEGER,"))
         }
 }

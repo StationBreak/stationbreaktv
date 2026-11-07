@@ -54,8 +54,8 @@ class CacheRebuildTest {
     }
 
     @Test
-    fun theSchemaIsVersion9WithStudiosNamesAndTheBackfillFlag() {
-        assertEquals(9, LibraryDatabase.VERSION)
+    fun theSchemaIsVersion10WithStudiosNamesProviderIdsHoldsAndTheBackfillFlag() {
+        assertEquals(10, LibraryDatabase.VERSION)
         val columns = SchemaFile.columnNames()
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)
@@ -68,6 +68,15 @@ class CacheRebuildTest {
             assertTrue("$table needs studios", block.contains("\"columnName\": \"studios\""))
             assertTrue("$table: studios needs the default ''", block.contains("`studios` TEXT NOT NULL DEFAULT ''"))
         }
+        // Spec 26: provider ids default to '' (none), and the hold and the add token are nullable.
+        for (table in listOf("item", "series")) {
+            val block = tableBlock(text, table)
+            val column = "`providerIds` TEXT NOT NULL DEFAULT ''"
+            assertTrue("$table: providerIds needs the default ''", block.contains(column))
+        }
+        val library = tableBlock(text, "library")
+        assertTrue(library.contains("`heldUntilMs` INTEGER,"))
+        assertTrue(library.contains("`addToken` INTEGER,"))
         val meta = tableBlock(text, "sync_meta")
         assertTrue(meta.contains("`backfillPending` INTEGER NOT NULL DEFAULT 0"))
         val studio = tableBlock(text, "item_studio")
@@ -168,7 +177,7 @@ class CacheRebuildTest {
             // It opens (no crash, no migration error), is empty, and is usable.
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
@@ -201,7 +210,7 @@ class CacheRebuildTest {
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             assertEquals(setOf(MOVIES), repository.pendingLibraries(ALICE))
             repository.close()
         }
@@ -213,7 +222,7 @@ class CacheRebuildTest {
             // the same destructive-on-downgrade setting the cache uses must drop every table, not throw.
             val context = TestContext(folder.root)
             val current = TestLibraries.onDisk(folder.root, name = "downgrade.db")
-            current.select(ALICE, setOf(MOVIES))
+            current.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             current.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             assertEquals(1, current.stored(ALICE).size)
             current.close()
@@ -232,7 +241,7 @@ class CacheRebuildTest {
             val again = TestLibraries.onDisk(folder.root, name = "downgrade.db")
             assertEquals(RowCounts.NONE, again.rowCounts())
             again.useAccount(ALICE)
-            again.select(ALICE, setOf(MOVIES))
+            again.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             assertEquals(setOf(MOVIES), again.pendingLibraries(ALICE))
             again.close()
         }
@@ -251,7 +260,7 @@ class CacheRebuildTest {
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
@@ -269,7 +278,7 @@ class CacheRebuildTest {
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
@@ -287,7 +296,7 @@ class CacheRebuildTest {
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
@@ -340,7 +349,7 @@ class CacheRebuildTest {
     fun aDatabaseFromTheCurrentSchemaIsKept() =
         runBlocking {
             val first = TestLibraries.onDisk(folder.root, name = "keep.db")
-            first.select(ALICE, setOf(MOVIES))
+            first.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             first.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
             first.close()
 

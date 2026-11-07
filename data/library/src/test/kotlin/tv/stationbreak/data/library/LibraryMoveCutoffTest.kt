@@ -31,7 +31,7 @@ class LibraryMoveCutoffTest {
         .scheduleItems(ALICE, setOf(library), Instant.fromEpochMilliseconds(cutoffMs))
         .map { it.id.value }
 
-    private suspend fun both() = repository.select(ALICE, setOf(MOVIES, SHOWS))
+    private suspend fun both() = repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
 
     @Test
     fun anItemMovedAfterTheCutoffIsInTheOldLibraryAndNotTheNewOneForDayN() =

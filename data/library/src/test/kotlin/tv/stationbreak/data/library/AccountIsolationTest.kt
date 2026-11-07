@@ -20,7 +20,7 @@ class AccountIsolationTest {
         account: LibraryAccount,
         vararg ids: String,
     ) {
-        repository.select(account, setOf(MOVIES))
+        repository.applySelection(account, setOf(MOVIES), nowMs = 0)
         val items = ids.map { item(it).copy(genres = listOf("g-$it"), tags = listOf("t-$it")) }
         repository.writePage(account, MOVIES, items, nextStartIndex = ids.size, totalCount = ids.size, run = 1)
     }
@@ -111,6 +111,14 @@ class AccountIsolationTest {
         val columns = SchemaFile.columnNames()
         assertEquals(true, columns.size > 20)
         val forbidden = listOf("token", "password", "secret", "credential", "authorization", "apikey")
-        assertEquals(emptyList<String>(), columns.filter { name -> forbidden.any { name.contains(it, true) } })
+        val named = columns.filter { name -> forbidden.any { name.contains(it, true) } }
+        // The one exception, by exact name: `library.addToken` (spec 26) is a number the app makes to tell one add of a
+        // library from the next. It is no credential, and nothing from the server or the session is ever put in it.
+        assertEquals(emptyList<String>(), named - NOT_A_CREDENTIAL)
+        assertEquals(1, columns.count { it == "addToken" })
+    }
+
+    private companion object {
+        val NOT_A_CREDENTIAL = setOf("addToken")
     }
 }

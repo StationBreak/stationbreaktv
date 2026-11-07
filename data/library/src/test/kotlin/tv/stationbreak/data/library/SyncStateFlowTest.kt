@@ -39,7 +39,7 @@ class SyncStateFlowTest {
     @Test
     fun theFirstSyncReportsARunningCountAndTheTotalOncePageOneSaidIt() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.beginFirstSync(ALICE)
             assertEquals(LibraryStatus(SyncState.FirstSyncRunning(copied = 0, total = null), null), status())
 
@@ -52,7 +52,7 @@ class SyncStateFlowTest {
     @Test
     fun theRunningCountKeepsUpWithEveryPage() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.beginFirstSync(ALICE)
             repository.setTotal(ALICE, 6)
 
@@ -69,7 +69,7 @@ class SyncStateFlowTest {
     @Test
     fun aReplayedPageDoesNotCountTwice() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.beginFirstSync(ALICE)
             val page = listOf(item("a"), item("b"))
 
@@ -82,7 +82,7 @@ class SyncStateFlowTest {
     @Test
     fun aFinishedSyncIsIdleWithTheTimeOfTheSuccess() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.beginFirstSync(ALICE)
 
             repository.finishSync(ALICE)
@@ -93,7 +93,7 @@ class SyncStateFlowTest {
     @Test
     fun aFailedSyncSaysWhyAndKeepsTheLastSuccess() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.finishSync(ALICE)
             val success = clock.instant
             clock.instant += 7.hours
@@ -106,7 +106,7 @@ class SyncStateFlowTest {
     @Test
     fun aFirstSyncThatFailedThenRestartedIsRunningAgain() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.beginFirstSync(ALICE)
             repository.failSync(ALICE, SyncFailure.SessionExpired)
             assertEquals(LibraryStatus(SyncState.LastSyncFailed(SyncFailure.SessionExpired), null), status())
@@ -119,7 +119,7 @@ class SyncStateFlowTest {
     @Test
     fun everyFailureKindRoundTrips() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             SyncFailure.entries.forEach { failure ->
                 repository.failSync(ALICE, failure)
                 assertEquals(SyncState.LastSyncFailed(failure), status().state)
@@ -129,7 +129,7 @@ class SyncStateFlowTest {
     @Test
     fun theStatusFlowEmitsOnEveryChange() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val flow = repository.status(ALICE)
             flow.until(LibraryStatus(SyncState.NeverSynced, null))
 
@@ -145,7 +145,7 @@ class SyncStateFlowTest {
     @Test
     fun accountsHaveTheirOwnState() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.finishSync(ALICE)
 
             assertEquals(LibraryStatus(SyncState.NeverSynced, null), repository.status(BOB).first())
@@ -154,7 +154,7 @@ class SyncStateFlowTest {
     @Test
     fun forgettingAnAccountResetsItsState() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.finishSync(ALICE)
 
             repository.forget(ALICE)
