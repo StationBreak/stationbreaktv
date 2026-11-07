@@ -92,7 +92,6 @@ class LiveChannel(
     private var lineup: suspend () -> FlipOrder = { FlipOrder(emptyList()) }
     private var looking: Job? = null
     private var lookingAt: ChannelId? = null
-    private var lookingPicture = false
     private var flipLog: List<TuneReport.Flip> = emptyList()
     private var sittings = 0L
 
@@ -470,18 +469,19 @@ class LiveChannel(
         playing: ChannelAiring,
         picture: Boolean,
     ) {
-        // Already looking ahead from this channel (a picture, then its card): leave it be, it is the same work. A
-        // picture after a card is not: the card's look-ahead warms nothing, so it starts again to warm (held handles
-        // are kept, nothing is resolved twice).
+        // Already looking ahead from this channel and this is a card (a picture, then its card): leave it be, it is the
+        // same work, and what it warms is checked against the screen when it would warm. A picture starts it again, so
+        // a picture after a card warms now (held handles are kept, nothing is resolved twice).
         val running = lookingAt == playing.id && looking?.isActive == true
-        if (running && (lookingPicture || !picture)) return
+        if (running && !picture) return
         looking?.cancel()
         lookingAt = playing.id
-        lookingPicture = picture
         looking =
             scope.launch {
                 try {
-                    neighbours.keepAround(playing, picture, lineup) { screen.flow.value !is LiveState.Choosing }
+                    neighbours.keepAround(playing, { screen.flow.value is LiveState.Watching }, lineup) {
+                        screen.flow.value !is LiveState.Choosing
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (

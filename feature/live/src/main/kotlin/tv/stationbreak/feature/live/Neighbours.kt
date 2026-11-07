@@ -65,13 +65,14 @@ internal class Neighbours(
      * Once the picture of [current] plays: resolves what is on the channels one step Up and one step Down in [order]
      * (no more, no repeats), each at the position the schedule has now. A handle already held for a neighbour that is
      * still for the item on air is kept; one for a channel that is no longer a neighbour is ended first. When [picture]
-     * is true (the settled state is a playing picture, not a card) the neighbour in the last flip's direction is then
-     * warmed, from the handle already held: a changed direction re-resolves nothing.
+     * answers true at the moment the resolves are done (the screen is showing a playing picture: not a card, and the
+     * number is not moving) the neighbour in the last flip's direction is then warmed, from the handle already held: a
+     * changed direction re-resolves nothing. It is asked after the resolves, not before: they take time.
      */
     suspend fun prepareAround(
         current: ChannelAiring,
         order: FlipOrder,
-        picture: Boolean = false,
+        picture: () -> Boolean = { false },
     ) {
         val wanted =
             listOfNotNull(order.step(current.number, FlipDirection.Up), order.step(current.number, FlipDirection.Down))
@@ -80,7 +81,7 @@ internal class Neighbours(
         val others = held.keys.filter { id -> wanted.none { it.id == id } }
         others.forEach { id -> held.remove(id)?.let { discard(it) } }
         coroutineScope { wanted.forEach { channel -> launch { prepare(channel.id) } } }
-        if (picture) warmTarget(current, order)
+        if (picture()) warmTarget(current, order)
     }
 
     /** Asks for a standby on the held handle of the neighbour in [direction], and on no other. */
@@ -99,10 +100,12 @@ internal class Neighbours(
     /**
      * [prepareAround], and again whenever a held handle's block ends, until cancelled (the picture it was started for
      * goes, or the sitting is replaced). Nothing is resolved while [idle] is false (the viewer is moving the number).
+     * [picture] is read each time a warm would be asked for, never remembered: a card or a moving number then is
+     * no warm.
      */
     suspend fun keepAround(
         current: ChannelAiring,
-        picture: Boolean,
+        picture: () -> Boolean,
         lineup: suspend () -> FlipOrder,
         idle: () -> Boolean,
     ) {

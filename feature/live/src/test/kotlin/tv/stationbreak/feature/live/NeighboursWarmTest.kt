@@ -2,7 +2,9 @@
 package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -16,6 +18,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.playback.PlaybackEnd
 import kotlin.time.Duration.Companion.seconds
 
 /** Warm the neighbour in the last flip's direction, once a picture plays (spec 24). */
@@ -45,7 +48,7 @@ class NeighboursWarmTest {
         runTest {
             val r = rig()
             val order = r.order()
-            r.neighbours().prepareAround(checkNotNull(order.byId(CH5)), order, picture = true)
+            r.neighbours().prepareAround(checkNotNull(order.byId(CH5)), order, picture = { true })
             assertEquals(listOf(itemOf(2)), r.warms())
         }
 
@@ -56,7 +59,7 @@ class NeighboursWarmTest {
             val order = r.order()
             val n = r.neighbours()
             n.noteFlip(FlipDirection.Up)
-            n.prepareAround(checkNotNull(order.byId(CH5)), order, picture = true)
+            n.prepareAround(checkNotNull(order.byId(CH5)), order, picture = { true })
             assertEquals(listOf(itemOf(9)), r.warms())
         }
 
@@ -65,7 +68,7 @@ class NeighboursWarmTest {
         runTest {
             val r = rig()
             val order = r.order()
-            r.neighbours().prepareAround(checkNotNull(order.byId(CH5)), order, picture = true)
+            r.neighbours().prepareAround(checkNotNull(order.byId(CH5)), order, picture = { true })
             assertEquals(2, r.preResolves().size)
             assertTrue(itemOf(9) !in r.warms())
         }
@@ -77,9 +80,9 @@ class NeighboursWarmTest {
             val order = r.order()
             val n = r.neighbours()
             val current = checkNotNull(order.byId(CH5))
-            n.prepareAround(current, order, picture = true)
+            n.prepareAround(current, order, picture = { true })
             n.noteFlip(FlipDirection.Up)
-            n.prepareAround(current, order, picture = true)
+            n.prepareAround(current, order, picture = { true })
             assertEquals(listOf(itemOf(2), itemOf(9)), r.warms())
             assertEquals(2, r.preResolves().size)
         }
@@ -91,8 +94,8 @@ class NeighboursWarmTest {
             val order = r.order()
             val n = r.neighbours()
             val current = checkNotNull(order.byId(CH5))
-            n.prepareAround(current, order, picture = true)
-            n.prepareAround(current, order, picture = true)
+            n.prepareAround(current, order, picture = { true })
+            n.prepareAround(current, order, picture = { true })
             assertEquals(listOf(itemOf(2)), r.warms())
         }
 
@@ -101,7 +104,7 @@ class NeighboursWarmTest {
         runTest {
             val r = rig()
             val order = r.order()
-            r.neighbours().prepareAround(checkNotNull(order.byId(CH5)), order, picture = false)
+            r.neighbours().prepareAround(checkNotNull(order.byId(CH5)), order, picture = { false })
             assertEquals(2, r.preResolves().size)
             assertTrue(r.warms().isEmpty())
         }
@@ -127,9 +130,9 @@ class NeighboursWarmTest {
             val order = r.order()
             val n = r.neighbours()
             val current = checkNotNull(order.byId(CH5))
-            n.prepareAround(current, order, picture = true)
+            n.prepareAround(current, order, picture = { true })
             r.jumpMs += 3 * MIN
-            n.prepareAround(current, order, picture = true)
+            n.prepareAround(current, order, picture = { true })
             val fates =
                 r.tune.handleFates.values
                     .map { it.toList() }
@@ -144,11 +147,11 @@ class NeighboursWarmTest {
             val order = r.order()
             val n = r.neighbours()
             val current = checkNotNull(order.byId(CH5))
-            n.prepareAround(current, order, picture = true)
+            n.prepareAround(current, order, picture = { true })
             assertEquals(2, r.preResolves().size)
             assertTrue(r.tune.calls.none { it is Call.Discard })
             // Declined: asked again on the next pass is allowed, but it still resolves nothing new.
-            n.prepareAround(current, order, picture = true)
+            n.prepareAround(current, order, picture = { true })
             assertEquals(2, r.preResolves().size)
         }
 
@@ -172,5 +175,46 @@ class NeighboursWarmTest {
             // On 9 after the flip: Up (12) is warmed, not Down (5).
             assertEquals(itemOf(12), r.warms().last())
             assertTrue(itemOf(5) !in r.warms())
+        }
+
+    @Test
+    fun aNumberMovingDuringTheResolvesWarmsNothing() =
+        runTest {
+            val r = rig { tune.preResolveDelayMs = 100 }
+            val order = r.order()
+            var moving = false
+            launch {
+                delay(50)
+                moving = true
+            }
+            r.neighbours().prepareAround(checkNotNull(order.byId(CH5)), order, picture = { !moving })
+            assertEquals(2, r.preResolves().size)
+            assertTrue("the old direction is not warmed", r.warms().isEmpty())
+        }
+
+    @Test
+    fun anItemThatDiesAfterTheWarmDoesNotWarmAgainWhileTheCardIsUp() =
+        runTest {
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 10 * MIN + 30_000)
+            val r =
+                rig {
+                    schedule.channel(ch2, 2, listOf(program(0, 12, 2), program(12, 600, 12)))
+                    tune.script(itemOf(5), tune.playsThenEnds(30.seconds, failed), FakeTune.dead(), FakeTune.dead())
+                }
+            r.lastChannel.save(r.account, CH5)
+            r.start()
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertEquals(listOf(itemOf(2)), r.warms())
+            // The item dies (the retry is dead too): the slate, and no picture from here on.
+            advanceTimeBy(40.seconds)
+            runCurrent()
+            assertTrue("the card is up", r.state !is LiveState.Watching)
+            // The neighbour's block ends (minute 12): a new handle is resolved, and not warmed under a card.
+            r.atMin(12)
+            r.at(12 * MIN + 5_000)
+            assertTrue("a new handle was resolved", r.preResolves().any { it.item == itemOf(12) })
+            assertTrue("the card is still up", r.state !is LiveState.Watching)
+            assertEquals(listOf(itemOf(2)), r.warms())
         }
 }
