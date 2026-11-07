@@ -13,10 +13,19 @@ class FontManifestTest {
     // Gradle runs a module's unit tests with the module directory as the working directory.
     private val module = File(".")
 
+    private val lineFormat = Regex("^[0-9a-f]{64}  \\S.*$")
+    private val fontExtensions = setOf("ttf", "otf", "ttc", "woff", "woff2")
+
+    private fun manifestPaths(): List<Pair<String, String>> =
+        File(module, "fonts.sha256").readLines().filter { it.isNotBlank() }.map { line ->
+            assertTrue("malformed manifest line: '$line'", lineFormat.matches(line))
+            val (hash, path) = line.split("  ", limit = 2)
+            hash to path
+        }
+
     @Test
     fun bundledFontsMatchTheManifest() {
-        val entries =
-            File(module, "fonts.sha256").readLines().filter { it.isNotBlank() }.map { it.split("  ", limit = 2) }
+        val entries = manifestPaths()
         assertTrue("the manifest lists the fonts and licences", entries.size >= 4)
         for ((expected, path) in entries) {
             val bytes = File(module, path).readBytes()
@@ -27,21 +36,23 @@ class FontManifestTest {
     }
 
     @Test
-    fun everyBundledFontAndLicenceIsInTheManifest() {
-        val listed =
-            File(module, "fonts.sha256")
-                .readLines()
-                .filter { it.isNotBlank() }
-                .map { it.split("  ", limit = 2)[1] }
-                .toSet()
+    fun everyFontAndLicenceInTheRepoIsInTheManifest() {
+        val root = module.canonicalFile.parentFile.parentFile
+        val listed = manifestPaths().map { File(module, it.second).canonicalPath }.toSet()
         val shipped =
-            listOf("src/main/res/font", "src/main/assets/fonts", "src/main/assets/licenses")
-                .map { File(module, it) }
-                .filter { it.isDirectory }
-                .flatMap { dir -> dir.walkTopDown().filter { it.isFile }.toList() }
-                .map { it.relativeTo(module).invariantSeparatorsPath }
+            root
+                .walkTopDown()
+                .onEnter { it.name != "build" && it.name != ".gradle" && it.name != ".git" }
+                .filter { it.isFile }
+                .filter { file ->
+                    val parts = file.relativeTo(root).invariantSeparatorsPath.split("/")
+                    val inAssets = parts.contains("assets")
+                    val isLicence = inAssets && parts.contains("licenses")
+                    val isFont = file.extension.lowercase(Locale.ROOT) in fontExtensions
+                    isLicence || (isFont && (inAssets || parts.any { it.startsWith("font") }))
+                }.map { it.canonicalPath }
                 .toSet()
         assertTrue("some fonts ship", shipped.isNotEmpty())
-        assertEquals("files that ship but are not in fonts.sha256", emptySet<String>(), shipped - listed)
+        assertEquals("font or licence files not in core/ui/fonts.sha256", emptySet<String>(), shipped - listed)
     }
 }

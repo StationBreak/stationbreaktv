@@ -35,7 +35,8 @@ license *before* they contribute avoids that.
 ## Update 2026-10-23: bundled third-party assets keep their own licence
 
 The app now bundles three font families, unmodified: Archivo Black and Space Mono Bold from github.com/google/fonts, and
-the four static Manrope weights from github.com/googlefonts/manrope at a pinned commit. All are under the SIL Open Font License 1.1
+the four static Manrope weights from github.com/googlefonts/manrope at a pinned commit
+(`6f81ebecdf65e4463b798cc07b16a4f8d5216917`; see `core/ui/FONTS.md`). All are under the SIL Open Font License 1.1
 (OFL-1.1). They are aggregated with the app, not part of the GPL-3.0 work.
 
 - **Decision (decided by the owner, 2026-10-23): third-party assets bundled in the app keep their own licence.** This

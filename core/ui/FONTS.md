@@ -1,10 +1,13 @@
 # Bundled fonts
 
 Provenance for the fonts in `core:ui`. The checked-in hashes are in `fonts.sha256` (sha256sum format, paths
-relative to `core/ui`); `FontManifestTest` fails if a bundled file stops matching.
+relative to `core/ui`); `FontManifestTest` fails if a bundled file stops matching, and also if a font or licence
+file anywhere in the repo is missing from the manifest.
+
+## Archivo Black and Space Mono
 
 - Upstream repository: `github.com/google/fonts`, pinned commit `e7db6ca603fd4862010383ff17ffd6cc4ffac1c0`.
-- Licence: SIL Open Font License 1.1. The texts ship in `src/main/assets/licenses/`.
+- Licence (all bundled fonts): SIL Open Font License 1.1. The texts ship in `src/main/assets/licenses/`.
 
 | Bundled file | Upstream path |
 |---|---|
@@ -47,6 +50,9 @@ Fonts load only from the APK. Never from the server, the network or user content
    `raw.githubusercontent.com` at that commit only.
 2. For Manrope, read `ofl/manrope/METADATA.pb` at that google/fonts commit; its `source` block names the
    googlefonts/manrope repository and commit. Fetch the four `fonts/ttf/manrope-*.ttf` files from
-   `raw.githubusercontent.com` at that source commit only. Check the `tnum` feature is still present.
+   `raw.githubusercontent.com` at that source commit only. Check the `tnum` feature is still
+   present in each file: `ttx -t GSUB -o - <file> | grep tnum` must print a `FeatureTag` line, or
+   `python3 -c "import sys;from fontTools.ttLib import TTFont;print('tnum' in {r.FeatureTag for r in TTFont(sys.argv[1])['GSUB'].table.FeatureList.FeatureRecord})" <file>`
+   must print `True`.
 3. Compare the hashes with the old ones and review what changed; replace the OFL texts too.
 4. Update `fonts.sha256` and the commits above in this file, and record the commits and hashes in the commit message.
