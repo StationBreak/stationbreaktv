@@ -65,6 +65,15 @@ class DayTailTest {
     }
 
     @Test
+    fun tail_fromDayStart_noneAired_equalsBuildDay() {
+        for (mode in listOf(OrderingMode.Shuffle, OrderingMode.Chronological)) {
+            val s = testSettings(orderingMode = mode)
+            val built = buildDay(s, pool, n, noFilms(), noWeights())
+            assertEquals(built.blocks, tail(dayStart, items = built.pool, s = s))
+        }
+    }
+
+    @Test
     fun tail_emptyPool_isOneSlate() {
         val from = dayStart + MS_HOUR
         assertEquals(listOf(ScheduleBlock(from, dayEnd, ScheduleContent.Slate)), tail(from, items = emptyList()))
