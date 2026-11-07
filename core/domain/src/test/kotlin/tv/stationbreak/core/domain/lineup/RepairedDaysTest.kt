@@ -447,6 +447,7 @@ class RepairedDaysTest {
                 block.endMs,
                 gone,
                 listOf(KeptBlock(block.startMs, block.startMs + hour, id(116).takeIf { it != gone } ?: id(115), 0)),
+                0L,
             )
         val laughsBefore = p.day(laughs.id)
         p.record(TodayRepairs(selection = listOf(repair), fixes = listOf(fix)))
@@ -557,6 +558,7 @@ class RepairedDaysTest {
                 block.endMs,
                 gone,
                 listOf(KeptBlock(block.startMs, block.startMs + hour, id(116).takeIf { it != gone } ?: id(115), 0)),
+                0L,
             )
         val repairs = TodayRepairs(selection = listOf(repairOf(laughs.id, laughsDay)), fixes = listOf(fix))
         store(lineupOf(laughs, whodunit), repairs)
@@ -628,6 +630,7 @@ class RepairedDaysTest {
                 block.endMs,
                 gone,
                 listOf(KeptBlock(block.startMs, block.startMs + 30 * minute, piece, 0)),
+                0L,
             )
         store(lineupOf(laughs), TodayRepairs(fixes = listOf(fix)))
         library.currentIdsCalls = 0
@@ -666,6 +669,7 @@ class RepairedDaysTest {
                     KeptBlock(block.startMs, block.startMs + 40 * minute, id(332), 0),
                     KeptBlock(block.startMs + 40 * minute, block.startMs + 60 * minute, id(331), 0),
                 ),
+                0L,
             )
         store(lineupOf(laughs), TodayRepairs(fixes = listOf(fix)))
 

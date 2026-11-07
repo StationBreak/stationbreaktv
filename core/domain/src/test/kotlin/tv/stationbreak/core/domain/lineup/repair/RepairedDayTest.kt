@@ -106,6 +106,7 @@ class RepairedDayTest {
                 tail.endMs,
                 gone,
                 listOf(KeptBlock(tail.startMs, half, id(50), 0L)),
+                0L,
             )
         val composed = compose(goneRepair, listOf(fix))
         assertCovers(composed.blocks)

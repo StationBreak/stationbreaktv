@@ -64,4 +64,37 @@ class UnreadableRepairsTest {
             assertEquals(next, stored().repairs)
             assertFalse(stored().repairsUnreadable)
         }
+
+    // The copy is best effort: with none kept, the file is not written then, but the entry stays writable, so the next
+    // save of the lineup writes it without the record, and the damaged bytes are gone.
+    @Test
+    fun anUnreadableRecord_whoseCopyFails_isReported_leftUntilTheNextSave_thenLost() =
+        runBlocking<Unit> {
+            val nowMs = NOON.toEpochMilliseconds()
+            serviceWith().apply {
+                refresh(ACCOUNT, LIBRARIES)
+                assertTrue(recordRepairs(ACCOUNT) { TodayRepairs(selection = listOf(repairOf(atMs = nowMs))) })
+            }
+            val text = checkNotNull(store.inner.peek(ACCOUNT)).decodeToString()
+            val broken = text.replaceFirst("\"repairs\":{", "\"repairs\":{\"surprise\":1,")
+            store.inner.save(ACCOUNT, broken.encodeToByteArray())
+            store.inner.failCopies = true
+            val events = mutableListOf<LineupEvent>()
+            val fresh = serviceWith { events += it }
+
+            val held = checkNotNull(fresh.loaded(ACCOUNT))
+
+            assertEquals(TodayRepairs.NONE, held.repairs)
+            assertTrue(held.writable, "the entry stays writable")
+            assertEquals(listOf(LineupEvent.RepairsUnreadable, LineupEvent.BackupFailed), events)
+            assertEquals(broken, store.inner.peek(ACCOUNT)?.decodeToString(), "no copy, so no write yet")
+            assertNull(store.inner.keptCopy(ACCOUNT, "repairs-unreadable"))
+
+            val next = TodayRepairs(fixes = listOf(fixOf(blockStartMs = nowMs)))
+            assertTrue(fresh.recordRepairs(ACCOUNT) { next })
+
+            assertEquals(next, stored().repairs, "the next save writes over it")
+            assertFalse(stored().repairsUnreadable)
+            assertNull(store.inner.keptCopy(ACCOUNT, "repairs-unreadable"), "and the damaged bytes are not kept")
+        }
 }

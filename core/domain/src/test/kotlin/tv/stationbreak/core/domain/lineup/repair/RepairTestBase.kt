@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LIBRARY_ID
 import tv.stationbreak.core.domain.lineup.LineupCodec
 import tv.stationbreak.core.domain.lineup.LineupDays
+import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupSeams
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.MemoryDayStore
@@ -25,6 +26,7 @@ import tv.stationbreak.core.domain.lineup.Saved
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.TestCatalog
 import tv.stationbreak.core.domain.lineup.channel
+import tv.stationbreak.core.domain.lineup.channelDays
 import tv.stationbreak.core.domain.lineup.id
 import tv.stationbreak.core.domain.lineup.leftovers
 import tv.stationbreak.core.domain.lineup.lineupOf
@@ -121,7 +123,8 @@ internal open class RepairTestBase {
             object : Clock {
                 override fun now(): Instant = NOON
             }
-        val service = LineupService(store, library, clock, { 0 }, {}, LineupSeams(TestCatalog))
+        val events: MutableList<LineupEvent> = Collections.synchronizedList(mutableListOf())
+        val service = LineupService(store, library, clock, { 0 }, { events += it }, LineupSeams(TestCatalog))
         val builds: MutableList<DayBuild> = Collections.synchronizedList(mutableListOf())
         val source =
             BuiltInScheduleSource(

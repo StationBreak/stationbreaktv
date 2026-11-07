@@ -250,3 +250,10 @@ internal fun selectionOf(
     libraries: Set<ItemId>?,
     seq: Long = 0L,
 ): SavedSelection? = libraries?.let { SavedSelection(it, seq) }
+
+/** The switched-on channels' days at [at] over [libraries], in number order, at the saved seq: a test's shorthand. */
+internal suspend fun BuiltInScheduleSource.channelDays(
+    account: LibraryAccount,
+    libraries: Set<ItemId>,
+    at: Instant,
+): List<ChannelDay> = channelDays(account, SavedSelection(libraries, savedSelection()?.seq ?: 0L), at)

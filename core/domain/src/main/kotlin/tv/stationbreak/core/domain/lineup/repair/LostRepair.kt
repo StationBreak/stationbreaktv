@@ -140,7 +140,11 @@ internal class LostRepair(
         block: ScheduleBlock,
         gone: CanonicalId,
         pieces: List<KeptBlock>,
-    ) = LostFix(day.channel.id, day.n, day.epochEndMs, block.startMs, block.endMs, gone, pieces)
+    ): LostFix {
+        // The fix patches the day as it shows now: of its repair's seq, or 0 on a day as built.
+        val seq = day.record?.repair?.seq ?: 0L
+        return LostFix(day.channel.id, day.n, day.epochEndMs, block.startMs, block.endMs, gone, pieces, seq)
+    }
 
     // The repair fill pool of [g]'s block: on a repaired day, the tail pool plus what the channel admits now, but for
     // the block on air, which is filled from the day pool alone, as the source fills it.
@@ -164,14 +168,15 @@ internal fun TodayRepairs.withFixes(
     return copy(fixes = this.fixes.filterNot { FixKey.of(it) in replaced } + fixes, lostCheck = check)
 }
 
-/** The block a fix is of: one fix per key in the record. */
+/** The block a fix is of, and the repair it patches ([LostFix.seq]): one fix per key in the record. */
 internal data class FixKey(
     val channel: ChannelId,
     val n: Long,
     val startMs: Long,
     val endMs: Long,
+    val seq: Long,
 ) {
     companion object {
-        fun of(fix: LostFix): FixKey = FixKey(fix.channel, fix.n, fix.blockStartMs, fix.blockEndMs)
+        fun of(fix: LostFix): FixKey = FixKey(fix.channel, fix.n, fix.blockStartMs, fix.blockEndMs, fix.seq)
     }
 }

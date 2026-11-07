@@ -36,7 +36,7 @@ class LineupCodecV4Test {
                     repairOf(n = 1L, seq = 4L),
                     repairOf(channel = "leftovers:odds-and-ends", n = 2L, seq = 5L, hidden = HiddenReason.NoMatches),
                 ),
-            fixes = listOf(fixOf(), fixOf(n = 2L, blockStartMs = NOW_MS + 4 * HALF_HOUR_MS, gone = 91)),
+            fixes = listOf(fixOf(seq = 4L), fixOf(n = 2L, blockStartMs = NOW_MS + 4 * HALF_HOUR_MS, gone = 91)),
             lastSeq = 9L,
         )
 
@@ -153,6 +153,18 @@ class LineupCodecV4Test {
     }
 
     @Test
+    fun threeSelectionRepairsOfOneChannelDay_loadsTheLineupWithNoRecord() {
+        val three = (4L..6L).map { repairOf(n = 1L, seq = it) }
+        assertRecordUnreadable(LineupCodec.encode(lineup, meta, repairs.copy(selection = three)))
+    }
+
+    @Test
+    fun aFixKeepsTheSeqOfTheRepairItPatches() {
+        val read = loaded(LineupCodec.encode(lineup, meta, repairs)).repairs
+        assertEquals(listOf(4L, 0L), read.fixes.map { it.seq })
+    }
+
+    @Test
     fun twoSelectionRepairsOfOneChannelDay_ofTwoSeqs_roundTrip() {
         // The shown one and a later one whose selection is being saved.
         val both = repairs.copy(selection = listOf(repairOf(n = 1L, seq = 4L), repairOf(n = 1L, seq = 5L)))
@@ -175,7 +187,7 @@ class LineupCodecV4Test {
         for (key in listOf("seq", "from", "b", "ch", "ids")) {
             assertRecordUnreadable(withRepairs(v4, null, withoutInFirst("selection", key)))
         }
-        for (key in listOf("gone", "p", "blockStart")) {
+        for (key in listOf("gone", "p", "blockStart", "seq")) {
             assertRecordUnreadable(withRepairs(v4, null, withoutInFirst("fixes", key)))
         }
     }

@@ -22,8 +22,8 @@ class TodayRepairsTest {
                 ),
             fixes =
                 listOf(
-                    fixOf(n = 1L, dayEndMs = day1End),
-                    fixOf(n = 2L, dayEndMs = day2End, blockStartMs = day1End + HALF_HOUR_MS),
+                    fixOf(n = 1L, dayEndMs = day1End, seq = 4L),
+                    fixOf(n = 2L, dayEndMs = day2End, blockStartMs = day1End + HALF_HOUR_MS, seq = 7L),
                 ),
             lostCheck = LostCheck(12L, day1End),
         )
@@ -90,19 +90,19 @@ class TodayRepairsTest {
         val late = repairOf(n = 2L, atMs = day1End + 5, dayEndMs = day2End)
         val record = TodayRepairs(listOf(late, early), listOf(newer, covering, old), LostCheck(5L, day2End))
 
-        assertSame(record, record.trimmedToFit(NOW_MS, 1_000) { sizeOf(it) }.record)
-        val one = record.trimmedToFit(NOW_MS, 225) { sizeOf(it) }
+        assertSame(record, record.trimmedToFit(NOW_MS, 1_000, null) { sizeOf(it) }.record)
+        val one = record.trimmedToFit(NOW_MS, 225, null) { sizeOf(it) }
         assertEquals(setOf(covering, newer), one.record.fixes.toSet())
         assertEquals(Triple(1, 0, 0), Triple(one.fixes, one.coveringFixes, one.selection))
-        val two = record.trimmedToFit(NOW_MS, 215) { sizeOf(it) }
+        val two = record.trimmedToFit(NOW_MS, 215, null) { sizeOf(it) }
         assertEquals(listOf(covering), two.record.fixes, "the oldest day's fix went first, then the next")
-        val fixes = record.trimmedToFit(NOW_MS, 205) { sizeOf(it) }
+        val fixes = record.trimmedToFit(NOW_MS, 205, null) { sizeOf(it) }
         assertEquals(emptyList(), fixes.record.fixes)
         assertEquals(Triple(2, 1, 0), Triple(fixes.fixes, fixes.coveringFixes, fixes.selection))
-        val some = record.trimmedToFit(NOW_MS, 105) { sizeOf(it) }
+        val some = record.trimmedToFit(NOW_MS, 105, null) { sizeOf(it) }
         assertEquals(listOf(late), some.record.selection, "the oldest atMs goes first")
         assertEquals(Triple(2, 1, 1), Triple(some.fixes, some.coveringFixes, some.selection))
-        val last = record.trimmedToFit(NOW_MS, 5) { sizeOf(it) }
+        val last = record.trimmedToFit(NOW_MS, 5, null) { sizeOf(it) }
         assertEquals(TodayRepairs.NONE, last.record, "nothing stays, the seq neither")
         assertEquals(2, last.selection)
     }
@@ -139,15 +139,15 @@ class TodayRepairsTest {
         assertEquals(listOf(7L), rolled.selection.map { it.seq })
         assertEquals(9L, rolled.lastSeq, "a repair is held: the seq stays")
         // Size 225 drops one fix only; 115 drops both fixes and the oldest repair (seq 4).
-        assertEquals(9L, record.trimmedToFit(NOW_MS, 215) { sizeOf(it) }.record.lastSeq)
-        val trimmed = record.trimmedToFit(NOW_MS, 105) { sizeOf(it) }.record
+        assertEquals(9L, record.trimmedToFit(NOW_MS, 215, null) { sizeOf(it) }.record.lastSeq)
+        val trimmed = record.trimmedToFit(NOW_MS, 105, null) { sizeOf(it) }.record
         assertEquals(listOf(7L), trimmed.selection.map { it.seq })
         assertEquals(9L, trimmed.lastSeq, "a repair is held: the seq stays")
 
         val gone = record.rolled(day2End)
         assertEquals(TodayRepairs.NONE, gone, "with no selection repair held, nothing is")
         assertTrue(gone.isEmpty)
-        assertEquals(0L, record.trimmedToFit(NOW_MS, 0) { sizeOf(it) }.record.lastSeq)
+        assertEquals(0L, record.trimmedToFit(NOW_MS, 0, null) { sizeOf(it) }.record.lastSeq)
         assertEquals(0L, record.withoutSelection(4L).withoutSelection(7L).lastSeq)
     }
 
@@ -168,32 +168,92 @@ class TodayRepairsTest {
     }
 
     @Test
-    fun applied_leavesOutTheSelectionRepairsOfALaterSeq() {
+    fun applied_leavesOutTheSelectionRepairsOfALaterSeq_withTheirFixes() {
         val record = two()
         assertSame(record, record.applied(7L))
         val held = record.applied(6L)
         assertEquals(listOf(4L), held.selection.map { it.seq })
-        assertEquals(record.fixes, held.fixes, "fixes are never held back")
+        assertEquals(listOf(record.fixes[0]), held.fixes, "the held-back repair's fix is held back with it")
         assertEquals(emptyList(), record.applied(0L).selection)
+        assertEquals(emptyList(), record.applied(0L).fixes)
     }
 
     @Test
-    fun withoutSelection_dropsOnlyThatSeq() {
+    fun applied_showsEachDaysRepairWithItsOwnFixesOnly() {
+        val first = repairOf(n = 1L, dayEndMs = day1End, seq = 4L)
+        val second = first.copy(seq = 6L, atMs = first.atMs + 60_000L)
+        val built = fixOf(n = 3L, dayEndMs = day2End, blockStartMs = day1End, seq = 0L)
+        val ofFirst = fixOf(n = 1L, dayEndMs = day1End, seq = 4L)
+        val ofSecond = fixOf(n = 1L, dayEndMs = day1End, blockStartMs = NOW_MS + 4 * HALF_HOUR_MS, seq = 6L)
+        val stray = fixOf(n = 1L, dayEndMs = day1End, blockStartMs = NOW_MS + 6 * HALF_HOUR_MS, seq = 0L)
+        val record = TodayRepairs(listOf(first, second), listOf(built, ofFirst, ofSecond, stray))
+
+        val atFirst = record.applied(5L)
+        assertEquals(listOf(first), atFirst.selection)
+        assertEquals(listOf(built, ofFirst), atFirst.fixes, "the first repair's fix, and the built day's")
+        val atSecond = record.applied(6L)
+        assertEquals(listOf(second), atSecond.selection)
+        assertEquals(listOf(built, ofSecond), atSecond.fixes)
+        val none = record.applied(3L)
+        assertEquals(emptyList(), none.selection)
+        assertEquals(listOf(built, stray), none.fixes, "a day that shows no repair shows the fixes of its build")
+    }
+
+    @Test
+    fun pruned_takesTheFixesOfASupersededRepairWithIt() {
+        val first = repairOf(n = 1L, dayEndMs = day1End, seq = 4L)
+        val second = first.copy(seq = 6L)
+        val later = first.copy(seq = 8L)
+        val ofFirst = fixOf(n = 1L, dayEndMs = day1End, seq = 4L)
+        val ofSecond = fixOf(n = 1L, dayEndMs = day1End, seq = 6L)
+        val ofLater = fixOf(n = 1L, dayEndMs = day1End, seq = 8L)
+        val built = fixOf(n = 1L, dayEndMs = day1End, seq = 0L)
+        val record = TodayRepairs(listOf(first, second, later), listOf(ofFirst, ofSecond, ofLater, built))
+
+        val pruned = record.pruned(6L)
+
+        assertEquals(listOf(second, later), pruned.selection, "the shown one and the one being saved stay")
+        assertEquals(listOf(ofSecond, ofLater), pruned.fixes, "each with its own fix; the others go")
+        assertSame(pruned, pruned.pruned(6L))
+    }
+
+    @Test
+    fun withoutSelection_dropsOnlyThatSeq_andItsFixes() {
         val record = two()
         val dropped = record.withoutSelection(7L)
         assertEquals(listOf(4L), dropped.selection.map { it.seq })
-        assertEquals(record.fixes, dropped.fixes)
+        assertEquals(listOf(record.fixes[0]), dropped.fixes, "the seq-7 repair's fix goes with it")
         assertEquals(7L, dropped.latestSeq(), "the seq 4 repair is held: the seq stays")
         assertNull(dropped.lostCheck)
         assertSame(record, record.withoutSelection(5L))
     }
 
     @Test
+    fun trimmedToFit_dropsTheRepairsAboveTheSavedSeqFirst_withTheirFixes() {
+        val shown = repairOf(n = 1L, atMs = NOW_MS + 1, dayEndMs = day1End, seq = 4L)
+        // Repaired later than the shown one: by age alone the shown one would go first.
+        val unsaved = repairOf(n = 1L, atMs = NOW_MS + 2, dayEndMs = day1End, seq = 5L)
+        val ofShown = fixOf(n = 1L, dayEndMs = day1End, seq = 4L)
+        val ofUnsaved = fixOf(n = 1L, dayEndMs = day1End, blockStartMs = NOW_MS + 4 * HALF_HOUR_MS, seq = 5L)
+        val record = TodayRepairs(listOf(unsaved, shown), listOf(ofShown, ofUnsaved), LostCheck(5L, day1End))
+
+        val one = record.trimmedToFit(NOW_MS, 125, savedSeq = 4L) { sizeOf(it) }
+
+        assertEquals(listOf(shown), one.record.selection, "the repair not shown goes before anything else")
+        assertEquals(listOf(ofShown), one.record.fixes, "its fix goes with it; the shown one's fix stays")
+        assertEquals(record.lostCheck, one.record.lostCheck, "no fix of a shown day went")
+        assertEquals(Triple(0, 0, 1), Triple(one.fixes, one.coveringFixes, one.selection))
+        // With no saved seq known, every repair counts as shown: the fixes go first, then the oldest repair.
+        val unknown = record.trimmedToFit(NOW_MS, 125, savedSeq = null) { sizeOf(it) }
+        assertEquals(listOf(unsaved), unknown.record.selection)
+    }
+
+    @Test
     fun trimmedToFit_thatDropsAFix_clearsTheLostCheck() {
         val record = two()
-        val kept = record.trimmedToFit(NOW_MS, 1_000) { sizeOf(it) }.record
+        val kept = record.trimmedToFit(NOW_MS, 1_000, null) { sizeOf(it) }.record
         assertEquals(record.lostCheck, kept.lostCheck)
-        val one = record.trimmedToFit(NOW_MS, 215) { sizeOf(it) }
+        val one = record.trimmedToFit(NOW_MS, 215, null) { sizeOf(it) }
         assertEquals(1, one.fixes)
         assertNull(one.record.lostCheck, "the next check makes the dropped fix again")
     }
@@ -201,7 +261,7 @@ class TodayRepairsTest {
     @Test
     fun trimmedToFit_thatCannotFitAtAll_keepsNothing() {
         val record = two()
-        val trimmed = record.trimmedToFit(NOW_MS, 5) { 50 + sizeOf(it) }
+        val trimmed = record.trimmedToFit(NOW_MS, 5, null) { 50 + sizeOf(it) }
         assertEquals(TodayRepairs.NONE, trimmed.record)
         assertEquals(Triple(1, 1, 2), Triple(trimmed.fixes, trimmed.coveringFixes, trimmed.selection))
     }

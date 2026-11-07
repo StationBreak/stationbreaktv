@@ -11,6 +11,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.BackgroundSaves
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.LineupDays
+import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.Revisioned
 import tv.stationbreak.core.model.ItemId
@@ -39,6 +40,13 @@ sealed interface RepairOutcome<out T> {
 
     /** The selection could not be saved: its repair was taken back out, and the record is as it was. */
     data object Unsaved : RepairOutcome<Nothing>
+
+    /**
+     * The selection could not be saved, and its repair could not be taken back out either (the undo's own write
+     * failed, or the saved seq could not be read): the record may still hold it, above the saved seq, so it never
+     * shows. It is reported (`LineupEvent.RepairUndoFailed`), and the next lost-block check drops it.
+     */
+    data object UndoFailed : RepairOutcome<Nothing>
 }
 
 /**
@@ -64,8 +72,9 @@ data class SelectionRepaired(
  *
  * Each call plans from the record it read and writes only if the lineup's revision and the record's selection repairs
  * are still those ([RepairOutcome.Stale] otherwise). [selectionChanged] owns the whole of a change: record, save (the
- * caller's write of the selection and its seq), and on a failed save the undo, all in one turn, so a second change
- * never starts before the first is saved. Each write also prunes the repairs a saved later seq has superseded.
+ * caller's write of the selection and its seq), and on a save that did not commit the undo, all in one turn, so a
+ * second change never starts before the first is saved. Each write also prunes the repairs a saved later seq has
+ * superseded.
  */
 class TodayRepairer internal constructor(
     private val service: LineupService,
@@ -93,11 +102,17 @@ class TodayRepairer internal constructor(
     /**
      * Records a `ChannelRepair` for every switched-on channel's day on the air at [atMs], as the selection goes from
      * the saved one (the schedule source's [SavedSelection]) to [after], then calls [save] with the change's seq and
-     * undoes the repair when it fails. [save] is the caller's one write of the new selection and that seq (Part 4); it
-     * must not call this repairer (the turn is held). Until it returns true the change's repair is held back (the
-     * schedule source shows the repair of the saved seq), and when it returns false or throws the record is put back as
-     * it was ([RepairOutcome.Unsaved], or the exception after the undo). The seq is worked out here, in one place
-     * (`TodayRepairs.nextSeq`): one above both the record's highest and the saved seq.
+     * undoes the repair when the save did not commit. [save] is the caller's one write of the new selection and that
+     * seq (Part 4); it must not call this repairer (the turn is held). Until the seq is saved the change's repair is
+     * held back (the schedule source shows the repair of the saved seq, with its fixes).
+     *
+     * When [save] returns false or throws (a cancellation included), the saved seq is read again: a save whose write
+     * committed (the saved seq is at least the change's) is never undone, and the result is [RepairOutcome.Saved]
+     * when it returned false; else the record is put back as it was ([RepairOutcome.Unsaved]), or
+     * [RepairOutcome.UndoFailed] when that could not be done. A throwable from [save] reaches the caller after this,
+     * as it was thrown. The seq is worked out here, in one place (`TodayRepairs.nextSeq`): one above both the
+     * record's highest and the saved seq. It may throw [ArithmeticException] when that would pass `Long.MAX_VALUE`,
+     * which no real count of changes reaches.
      *
      * Each day keeps what airs from the half hour at or before [atMs] to the end of the programme on air (the pin) and
      * lays out the rest of its day again: the day's pool as built today without the removed libraries' items (on a day
@@ -126,37 +141,72 @@ class TodayRepairer internal constructor(
                 if (recorded !is RepairOutcome.Saved) return@withLock recorded
                 val written = service.loaded(account)?.repairs
                 var saved = false
+                var settled = Settled.Undone
                 try {
                     saved = save(seq)
                 } finally {
-                    if (!saved) withContext(NonCancellable) { undo(account, held.repairs, written, seq) }
+                    if (!saved) settled = withContext(NonCancellable) { settle(account, held.repairs, written, seq) }
                 }
-                if (saved) recorded else RepairOutcome.Unsaved
+                when {
+                    saved || settled == Settled.Committed -> recorded
+                    settled == Settled.UndoFailed -> RepairOutcome.UndoFailed
+                    else -> RepairOutcome.Unsaved
+                }
             }
         }
 
+    // How a change whose save did not return true ended.
+    private enum class Settled { Committed, Undone, UndoFailed }
+
+    // After a save of [seq] that returned false or threw: committed when the saved seq is at least [seq] (the write
+    // went through, so nothing is undone); else the change is undone. Nothing here throws, so the save's own
+    // throwable is the one the caller gets; a read or an undo that fails is reported.
+    @Suppress("TooGenericExceptionCaught") // Whatever the read or the undo throws: the next check cleans up instead.
+    private suspend fun settle(
+        account: LibraryAccount,
+        before: TodayRepairs,
+        written: TodayRepairs?,
+        seq: Long,
+    ): Settled {
+        val settled =
+            try {
+                val savedSeq = source.savedSelection()?.seq ?: 0L
+                when {
+                    savedSeq >= seq -> Settled.Committed
+                    undo(account, before, written, seq) == LineupService.Recorded.Saved -> Settled.Undone
+                    else -> Settled.UndoFailed
+                }
+            } catch (_: Exception) {
+                Settled.UndoFailed
+            }
+        if (settled == Settled.UndoFailed) service.reportEvent(LineupEvent.RepairUndoFailed)
+        return settled
+    }
+
     // Puts the record back as it was before the change of [seq] ([before]) when it is still what the change wrote
-    // ([written]); otherwise (a roll or a trim came between) takes that change's repairs out of what is there now.
+    // ([written]); otherwise (a roll or a trim came between) takes that change's repairs and their fixes out of what
+    // is there now.
     private suspend fun undo(
         account: LibraryAccount,
         before: TodayRepairs,
         written: TodayRepairs?,
         seq: Long,
-    ) {
+    ): LineupService.Recorded =
         service.recordRepairsOutcome(account) { now ->
             if (now.repairs == written) before else now.repairs.withoutSelection(seq)
         }
-    }
 
     /**
      * Fixes every gone block from the one on air at [atMs] to each channel day's end, over the days a tune sees (the
-     * days of the source's chosen libraries), and records the pieces with where the check ran (`LostCheck`: the
-     * library's content generation, and the end of the earliest of those days). Does nothing (`Saved(0)`) when the
-     * record's check already covers that generation at [atMs], when no day is on the air, or while the record holds a
-     * selection repair above the saved seq (a change not saved yet: the days it would show are not those checked).
-     * [playable] are the chosen libraries a match or a fill may come from now (those whose rows are fetched and
-     * current; never more than the chosen set); null when the selection is gone, and then nothing is taken from the
-     * libraries. The result of [RepairOutcome.Saved] is how many blocks were fixed.
+     * days of the source's chosen libraries, each with the repair it shows), and records the pieces as fixes of that
+     * repair (seq 0 on a day as built) with where the check ran (`LostCheck`: the library's content generation, and the
+     * end of the earliest of those days). First, in the same turn, it drops every selection repair above the saved seq
+     * with its fixes, and the lost-block check with them: no change is being saved outside a turn, so those are left by
+     * a crash or by an undo that failed ([RepairOutcome.UndoFailed]). Then it does nothing more (`Saved(0)`) when the
+     * record's check already covers that generation at [atMs], or when no day is on the air. [playable] are the chosen
+     * libraries a match or a fill may come from now (those whose rows are fetched and current; never more than the
+     * chosen set); null when the selection is gone, and then nothing is taken from the libraries. The result of
+     * [RepairOutcome.Saved] is how many blocks were fixed.
      */
     suspend fun repairLost(
         account: LibraryAccount,
@@ -165,9 +215,14 @@ class TodayRepairer internal constructor(
     ): RepairOutcome<Int> =
         withContext(dispatcher) {
             turns.withLock {
-                val held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
+                var held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
                 val applied = source.savedSelection()?.seq ?: 0L
-                if (held.repairs.selection.any { it.seq > applied }) return@withLock RepairOutcome.Saved(0)
+                if (held.repairs.selection.any { it.seq > applied }) {
+                    // What shows stays as it is; the check is made again all the same, over the days as they show.
+                    val dropped = record(account, held, 0) { it.applied(applied).copy(lostCheck = null) }
+                    if (dropped !is RepairOutcome.Saved) return@withLock dropped
+                    held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
+                }
                 val generation = library.contentGeneration(account)
                 if (held.repairs.lostCheck?.covers(generation, atMs) == true) return@withLock RepairOutcome.Saved(0)
                 val today = source.currentDays(account, Instant.fromEpochMilliseconds(atMs))
@@ -180,9 +235,9 @@ class TodayRepairer internal constructor(
 
     /**
      * Takes the selection repairs of [seq] back out of the record (Part 4's start-up resume, for a change a crash left
-     * recorded but not saved): each of those days shows again the repair it showed before, or its build when it had
-     * none. The fixes stay. [seq] may be used again, as nothing of it is left to show. The result is whether any
-     * repair had that seq.
+     * recorded but not saved): each of those days shows again the repair it showed before, with that repair's fixes,
+     * or its build when it had none. The change's own fixes go with it; every other fix stays. [seq] may be used
+     * again, as nothing of it is left to show. The result is whether any repair had that seq.
      */
     suspend fun dropSelection(
         account: LibraryAccount,

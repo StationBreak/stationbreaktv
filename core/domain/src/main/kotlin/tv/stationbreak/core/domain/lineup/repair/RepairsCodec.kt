@@ -22,8 +22,9 @@ import tv.stationbreak.core.model.ItemId
  * The lost-block check (`TodayRepairs.lostCheck`) is never written.
  *
  * It is strict like the rest of the file: an unknown key, a wrong type, an id that is not an id, an index outside the
- * table, a block that runs backwards, a missing required key, or two repairs of one channel day with one seq (two
- * of different seqs are held while the later one's selection is being saved) make [decode] throw
+ * table, a block that runs backwards, a missing required key (a fix's `seq` included: the seq of the repair it
+ * patches, 0 on a day as built), two repairs of one channel day with one seq (two of different seqs are held while
+ * the later one's selection is being saved), or more than two repairs of one channel day make [decode] throw
  * [IllegalArgumentException]. The lineup codec then loads the lineup with no record
  * (`Decoded.Loaded.repairsUnreadable`), and never sets the file aside for it.
  */
@@ -53,10 +54,13 @@ internal object RepairsCodec {
     private const val BLOCK_FIELDS = 4
     private const val SLATE = -1L
 
+    // A channel day holds the repair it shows and, while that change is being saved, a later one: never more.
+    private const val MAX_REPAIRS_PER_DAY = 2
+
     private val topKeys = setOf(SELECTION, FIXES, LAST_SEQ)
     private val selectionKeys =
         setOf(CHANNEL, DAY, DAY_END, AT, SEQ, LIBRARIES, FROM, PIN_END, PIN_LIBRARY, IDS, BLOCKS, HIDDEN)
-    private val fixKeys = setOf(CHANNEL, DAY, DAY_END, BLOCK_START, BLOCK_END, GONE, IDS, PIECES)
+    private val fixKeys = setOf(CHANNEL, DAY, DAY_END, BLOCK_START, BLOCK_END, GONE, IDS, PIECES, SEQ)
 
     fun encode(repairs: TodayRepairs): JsonObject {
         val fields = LinkedHashMap<String, JsonElement>()
@@ -76,6 +80,8 @@ internal object RepairsCodec {
         val lastSeq = root[LAST_SEQ]?.let(::long) ?: 0L
         val days = selection.map { Triple(it.channel, it.n, it.seq) }
         require(days.size == days.toSet().size) { "Two repairs of one channel day with one seq" }
+        val perDay = selection.groupingBy { it.channel to it.n }.eachCount()
+        require(perDay.values.all { it <= MAX_REPAIRS_PER_DAY }) { "More than two repairs of one channel day" }
         return TodayRepairs(selection, fixes, lastSeq = lastSeq).stored()
     }
 
@@ -114,6 +120,7 @@ internal object RepairsCodec {
         fields[BLOCK_START] = JsonPrimitive(fix.blockStartMs)
         fields[BLOCK_END] = JsonPrimitive(fix.blockEndMs)
         fields[GONE] = JsonPrimitive(fix.gone.value)
+        fields[SEQ] = JsonPrimitive(fix.seq)
         fields[IDS] = table.json()
         fields[PIECES] = pieces
         return JsonObject(fields)
@@ -153,6 +160,7 @@ internal object RepairsCodec {
             blockEndMs = long(fields.required(BLOCK_END)),
             gone = canonical(fields.required(GONE)),
             pieces = decodeBlocks(fields.required(PIECES), start, ids),
+            seq = long(fields.required(SEQ)),
         )
     }
 

@@ -35,10 +35,14 @@ internal class KeptWindow(
             return window.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
         }
 
-        /** The window of [day] at [atMs]; [fills] has been asked about [programmesOf] already. */
+        /**
+         * The window of [day] at [atMs], for the selection repair of [seq] (its fixes are of that repair); [fills] has
+         * been asked about [programmesOf] already.
+         */
         suspend fun of(
             day: ChannelDay,
             atMs: Long,
+            seq: Long,
             fills: Fills,
         ): KeptWindow {
             val (from, window) = windowOf(day, atMs)
@@ -49,7 +53,7 @@ internal class KeptWindow(
             val fixes =
                 clipped.filter { it.gone }.map {
                     val gone = checkNotNull(it.item)
-                    LostFix(day.channel.id, day.n, day.epochEndMs, it.startMs, it.endMs, gone, emptyList())
+                    LostFix(day.channel.id, day.n, day.epochEndMs, it.startMs, it.endMs, gone, emptyList(), seq)
                 }
             val aired = HashSet<CanonicalId>()
             for (block in day.day.blocks) {

@@ -169,7 +169,7 @@ class LineupFieldTripwireTest {
     fun lostFix() =
         pinned(
             LostFix::class.java,
-            setOf("channel", "n", "dayEndMs", "blockStartMs", "blockEndMs", "gone", "pieces"),
+            setOf("channel", "n", "dayEndMs", "blockStartMs", "blockEndMs", "gone", "pieces", "seq"),
         )
 
     @Test

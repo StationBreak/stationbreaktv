@@ -55,7 +55,10 @@ internal fun repairOf(
     )
 }
 
-/** A fix of the block `[blockStartMs, +1 h)` of [channel]'s day [n]: a match then a fill that starts at 0. */
+/**
+ * A fix of the block `[blockStartMs, +1 h)` of [channel]'s day [n]: a match then a fill that starts at 0. Of the
+ * repair of [seq] (0: of the day as built).
+ */
 @Suppress("LongParameterList")
 internal fun fixOf(
     channel: String = "starter:laughs",
@@ -65,6 +68,7 @@ internal fun fixOf(
     lengthMs: Long = 2 * HALF_HOUR_MS,
     gone: Int = 90,
     piece: Int = 50,
+    seq: Long = 0L,
 ): LostFix =
     LostFix(
         channel = ChannelId(channel),
@@ -78,4 +82,5 @@ internal fun fixOf(
                 KeptBlock(blockStartMs, blockStartMs + HALF_HOUR_MS, id(piece), 0L),
                 KeptBlock(blockStartMs + HALF_HOUR_MS, blockStartMs + lengthMs, null, 0L),
             ),
+        seq = seq,
     )

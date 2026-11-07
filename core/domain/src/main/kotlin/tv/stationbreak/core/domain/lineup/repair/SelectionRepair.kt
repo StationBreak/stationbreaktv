@@ -47,21 +47,22 @@ internal class PlannedRepair(
     val pins: List<Pin>,
 ) {
     /**
-     * [record] with these beside the repairs it shows at [appliedSeq] (the saved selection's seq): per channel day the
-     * repair [TodayRepairs.applied] shows stays until this change's seq is saved, so a failed save can go back to it,
-     * and every other repair goes (one a saved later seq superseded, or one of a change never saved). The fixes of the
-     * days repaired now are replaced by the kept window's, and [seq] is the `lastSeq` if higher. The lost-block check
-     * is cleared: the new tails were never checked, so the next `repairLost` checks them.
+     * [record] with these beside what it shows at [appliedSeq] (the saved selection's seq): per channel day the repair
+     * [TodayRepairs.applied] shows, with that repair's fixes (or the fixes of the day as built), stays until this
+     * change's seq is saved, so a failed save or a later `dropSelection` goes back to it whole. Every other repair goes
+     * with its fixes (one a saved later seq superseded, or one of a change never saved). This change's fixes (those of
+     * its kept windows, of [seq]) are added, and [seq] is the `lastSeq` if higher. The lost-block check is cleared: the
+     * new tails were never checked, so the next `repairLost` checks them.
      */
     fun into(
         record: TodayRepairs,
         appliedSeq: Long,
     ): TodayRepairs {
-        val days = repairs.mapTo(HashSet()) { it.channel to it.n }
-        val selection = record.applied(appliedSeq).selection + repairs
+        val shown = record.applied(appliedSeq)
+        val selection = shown.selection + repairs
         return record.copy(
             selection = selection,
-            fixes = record.fixes.filterNot { (it.channel to it.n) in days } + fixes,
+            fixes = shown.fixes + fixes,
             lostCheck = null,
             lastSeq = if (selection.isEmpty()) 0L else maxOf(record.latestSeq(), seq),
         )
@@ -127,7 +128,7 @@ internal class SelectionRepair(
         val fixes = ArrayList<LostFix>()
         for ((day, s) in pairs) {
             // A day hidden at the change has nothing on the air to keep.
-            val kept = if (day.hiddenAt(atMs) == null) KeptWindow.of(day, atMs, fills) else null
+            val kept = if (day.hiddenAt(atMs) == null) KeptWindow.of(day, atMs, change.seq, fills) else null
             repairs += repairOf(day, s, kept, titles)
             kept?.let { fixes += it.fixes }
         }

@@ -69,12 +69,11 @@ internal fun TodayRepairs.recordFor(s: Scheduled): DayRecord? {
     if (digest.isEmpty()) return null
     val start = s.dayStartMs
     val end = start + s.settings.epochMs
-    val repair =
-        selection
-            .filter { it.channel == id && it.n == s.n }
-            .maxByOrNull { it.seq }
-            ?.takeIf { RepairedDay.compose(start, end, emptyList(), it, emptyList()).blocks.isNotEmpty() }
-    return DayRecord(repair, fixes.filter { it.channel == id && it.n == s.n }, digest)
+    val latest = selection.filter { it.channel == id && it.n == s.n }.maxByOrNull { it.seq }
+    val repair = latest?.takeIf { RepairedDay.compose(start, end, emptyList(), it, emptyList()).blocks.isNotEmpty() }
+    // Only the fixes of the repair it holds (seq 0: of the day as built), as `TodayRepairs.applied` shows them.
+    val seq = latest?.seq ?: 0L
+    return DayRecord(repair, fixes.filter { it.channel == id && it.n == s.n && it.seq == seq }, digest)
 }
 
 /** The record of every day of [scheduled] that has one, by channel; empty, and nothing worked out, with no record. */

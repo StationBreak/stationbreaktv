@@ -782,6 +782,9 @@ internal class PeekableStore : LineupStore {
             delegate.failWrites = value
         }
 
+    /** When set, every [keepCopy] fails (and keeps nothing). */
+    @Volatile var failCopies: Boolean = false
+
     fun setAsideCopy(account: LibraryAccount): ByteArray? = delegate.setAsideCopy(account)
 
     fun keptCopy(
@@ -809,7 +812,7 @@ internal class PeekableStore : LineupStore {
     override suspend fun keepCopy(
         account: LibraryAccount,
         tag: String,
-    ): Boolean = delegate.keepCopy(account, tag)
+    ): Boolean = !failCopies && delegate.keepCopy(account, tag)
 
     override suspend fun forget(account: LibraryAccount): Boolean = delegate.forget(account)
 }

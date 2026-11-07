@@ -63,15 +63,18 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     }
 
     @Test
-    fun theGate_holdsBackSelectionRepairsOnly_neverAFix() {
+    fun theGate_holdsBackASelectionRepair_withItsFixes() {
         val rig = lostRig()
         assertTrue(rig.lost(setOf(libA)) > 0)
+        assertTrue(rig.record().fixes.all { it.seq == 3L }, "the fixes patch the repair shown")
+        val shown = rig.day(laughs.id)
+        assertEquals(rig.record().fixes, shown.record?.fixes)
 
         rig.applied = 2
 
         val day = rig.day(laughs.id)
         assertNull(day.record?.repair, "the seq-3 repair is held back")
-        assertEquals(rig.record().fixes, day.record?.fixes, "the fix is laid over the unrepaired day")
+        assertEquals(emptyList(), day.record?.fixes.orEmpty(), "and its fixes with it: they patch its blocks only")
     }
 
     @Test
@@ -141,31 +144,35 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     fun aSecondChange_dropsTheRepairsOfAChangeNeverSaved_andPrunesWhatTheSavedSeqSuperseded() {
         val rig = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA, libB))
         val first = assertNotNull(rig.changed(before = setOf(libA, libB), after = setOf(libA))).seq
-        // A crash left a change of seq 9 recorded and never saved; and a superseded seq-0 repair of the same day.
+        // A crash left a change of seq 9 recorded and never saved.
         val stray = rig.repairOf(laughs.id).copy(seq = 9)
-        val old = rig.repairOf(laughs.id).copy(seq = 0)
-        val seeded = { held: TodayRepairs -> held.copy(selection = listOf(old, held.selection.single(), stray)) }
+        val seeded = { held: TodayRepairs -> held.copy(selection = listOf(held.selection.single(), stray)) }
         assertTrue(runBlocking { rig.service.recordRepairs(ACCOUNT) { seeded(it.repairs) } })
 
         val second = assertNotNull(rig.changed(before = setOf(libA), after = setOf(libA, libB))).seq
 
         assertEquals(10L, second, "above every seq held")
-        assertEquals(listOf(first, second), rig.record().selection.map { it.seq }, "the stray and the old are gone")
+        assertEquals(listOf(first, second), rig.record().selection.map { it.seq }, "the stray is gone")
         rig.lost(setOf(libA))
         assertEquals(listOf(second), rig.record().selection.map { it.seq }, "the next write prunes the first too")
     }
 
     @Test
-    fun repairLost_whileAChangeIsUnsaved_checksNothing() {
+    fun repairLost_dropsASelectionRepairAboveTheSavedSeq_thenChecks() {
+        // A crash (or an undo that failed) left the seq-3 repair recorded above the saved seq 2, with a fix of it.
         val rig = lostRig()
+        assertTrue(rig.lost(setOf(libA)) > 0)
         rig.applied = 2
+        val onAir = rig.day(laughs.id).blockAt(atMs)
         val reads = rig.library.currentIdsCalls
 
-        assertEquals(RepairOutcome.Saved(0), runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) })
+        runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs + minute) }
 
-        assertEquals(reads, rig.library.currentIdsCalls, "nothing is read")
-        assertNull(rig.record().lostCheck, "and no check is stamped")
-        assertEquals(emptyList(), rig.record().fixes)
+        assertEquals(emptyList(), rig.record().selection, "the leftover is dropped")
+        assertTrue(rig.record().fixes.none { it.seq == 3L }, "with its fixes")
+        assertNotNull(rig.record().lostCheck, "and the check ran")
+        assertTrue(rig.library.currentIdsCalls > reads, "over the days as they show")
+        assertEquals(onAir, rig.day(laughs.id).blockAt(atMs), "what shows did not change")
     }
 
     @Test

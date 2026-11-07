@@ -99,10 +99,13 @@ import kotlin.time.TimeSource
  * naming fill and the stand-ins read the tail pool, by id (`scheduleItemsOf`), once and only for a gone block.
  *
  * [saved] gives the TV's saved selection and its seq together ([SavedSelection]). It is called on the tune path, so it
- * must be a cheap, non-blocking read of what is held in memory. A selection repair shows only once its selection is
- * saved: a lookup follows, per channel day, the repair of the highest seq at or below the saved seq, and leaves out
- * every later one (the day is built as without it). Fixes of lost blocks are never held back. Until Part 4 stores the
- * seq with the selection, in one write, the seq is 0: no selection repair shows.
+ * must be a cheap, non-blocking read of what is held in memory. Once the caller's save of a selection and its seq
+ * returns true, or its write has committed (even if the save then throws), [saved] must give the new seq: Part 4's
+ * in-memory read reflects the write before the save returns. The repairer relies on it to tell a committed save from
+ * a failed one. A selection repair shows only once its selection is saved: a lookup follows, per channel day, the
+ * repair of the highest seq at or below the saved seq, with that repair's fixes of lost blocks only, and leaves out
+ * every later one (the day is built as without it, with the fixes of the day as built). Until Part 4 stores the seq
+ * with the selection, in one write, the seq is 0: no selection repair shows.
  *
  * Main-safe: [airings], [onAir], [schedule] and [standIns] do their work on [dispatcher] (default:
  * `Dispatchers.Default`), so building a day never runs on, or blocks, the caller's thread.
@@ -289,7 +292,7 @@ class BuiltInScheduleSource(
         repairs: TodayRepairs,
         seq: Long,
     ): TodayRepairs {
-        if (repairs.selection.isEmpty()) return repairs
+        if (repairs.isEmpty) return repairs
         val last = lastApplied
         return if (last != null && last.first === repairs && last.second == seq) {
             last.third
@@ -724,13 +727,6 @@ class BuiltInScheduleSource(
                 emptyList()
         return chosen to channelDays(account, chosen, at)
     }
-
-    /** The switched-on channels' days at [at] over [libraries], in number order, at the saved seq ([saved]). */
-    internal suspend fun channelDays(
-        account: LibraryAccount,
-        libraries: Set<ItemId>,
-        at: Instant,
-    ): List<ChannelDay> = channelDays(account, SavedSelection(libraries, saved()?.seq ?: 0L), at)
 
     /** The switched-on channels' days at [at] over [selection], in number order. */
     internal suspend fun channelDays(

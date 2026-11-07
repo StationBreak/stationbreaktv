@@ -246,11 +246,12 @@ class LineupService internal constructor(
         val owner = ownerOf(account) ?: return report(LineupEvent.NonCanonicalAccount)
         val entry = entryOf(owner)
         val began = TimeSource.Monotonic.markNow()
+        val savedSeq = savedSeqNow()
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
             val (planned, meta) = planned(owner, account, libraries, start)
-            val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs)
+            val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs, savedSeq)
             publish(entry, planned, meta, repairs)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
@@ -415,6 +416,7 @@ class LineupService internal constructor(
     ) {
         val owner = ownerOf(account) ?: return
         val entry = entryOf(owner)
+        val savedSeq = savedSeqNow()
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
@@ -425,7 +427,7 @@ class LineupService internal constructor(
             val acted = meta.collectionPassActedOn
             if (lineup != null && acted != null && acted != ms) {
                 val updated = meta.copy(collectionPassActedOn = ms)
-                val repairs = savedWithRecord(owner, entry, lineup, updated, held?.repairs ?: start.repairs)
+                val repairs = savedWithRecord(owner, entry, lineup, updated, held?.repairs ?: start.repairs, savedSeq)
                 if (held == null) {
                     publish(entry, lineup, updated, repairs)
                 } else {
@@ -456,6 +458,7 @@ class LineupService internal constructor(
     ): Saved<EditOutcome>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
+        val savedSeq = savedSeqNow()
         return entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
@@ -488,7 +491,7 @@ class LineupService internal constructor(
                     val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
                     val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
-                    val trimmed = trimmed(edited.lineup, meta, held?.repairs ?: start.repairs, nowMs())
+                    val trimmed = trimmed(edited.lineup, meta, held?.repairs ?: start.repairs, nowMs(), savedSeq)
                     val repairs = trimmed.record
                     if (saveVerified(owner, edited.lineup, meta, repairs)) {
                         told(trimmed)
@@ -726,6 +729,18 @@ class LineupService internal constructor(
         savedSeq = seq
     }
 
+    // The saved seq now, read before the entry's lock is taken (the provider is the schedule source's, which must not
+    // wait on it): null when unknown or when the read fails, and then a trim counts every selection repair as shown.
+    @Suppress("TooGenericExceptionCaught") // Any failure of the provider: the save goes on without the seq.
+    private suspend fun savedSeqNow(): Long? =
+        try {
+            savedSeq()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+
     /** [account]'s lineup as this service holds it now; null while it has none. */
     internal fun lineup(account: LibraryAccount): StateFlow<Revisioned?> =
         ownerOf(account)?.let { entryOf(it).state.asStateFlow() } ?: noLineup
@@ -790,17 +805,19 @@ class LineupService internal constructor(
     internal val repairConfig: RepairConfig get() = seams.repairConfig
 
     // [repairs] made to fit beside [lineup] for a save that has nothing to do with them: it never fails for their sake.
+    // The selection repairs above [savedSeq] (not shown) go first.
     private fun trimmed(
         lineup: Lineup,
         meta: RefreshMeta,
         repairs: TodayRepairs,
         nowMs: Long,
+        savedSeq: Long?,
     ): Trimmed {
         val limit = LineupLimits.MAX_FILE_BYTES - seams.repairConfig.fileMargin
         return if (repairs.isEmpty) {
             Trimmed(repairs, 0, 0, 0)
         } else {
-            repairs.trimmedToFit(nowMs, limit) { seams.encode(lineup, meta, it).size }
+            repairs.trimmedToFit(nowMs, limit, savedSeq) { seams.encode(lineup, meta, it).size }
         }
     }
 
@@ -811,16 +828,18 @@ class LineupService internal constructor(
 
     // Saves [lineup] with its record where this session may write, and gives the record to publish with it: the one
     // that was saved (trimmed to fit), so memory equals disk. With no write, or a failed save, the record is kept as
-    // it was.
+    // it was. The selection repairs above [savedSeq] (read before the lock) are the first a trim drops.
+    @Suppress("LongParameterList") // The save's own five, and the saved seq read before the lock.
     private suspend fun savedWithRecord(
         owner: Owner,
         entry: Entry,
         lineup: Lineup,
         meta: RefreshMeta,
         repairs: TodayRepairs,
+        savedSeq: Long?,
     ): TodayRepairs {
         if (!entry.writable) return repairs
-        val trimmed = trimmed(lineup, meta, repairs, nowMs())
+        val trimmed = trimmed(lineup, meta, repairs, nowMs(), savedSeq)
         val saved = saveVerified(owner, lineup, meta, trimmed.record)
         if (saved) told(trimmed)
         return if (saved) trimmed.record else repairs
@@ -960,6 +979,8 @@ class LineupService internal constructor(
         nowMs: Long,
         boundary: Long,
     ) {
+        // Read before the lock is tried: the provider never runs under the entry's lock.
+        val applied = savedSeqNow()
         if (!entry.mutex.tryLock()) {
             entry.boundaries.rollSkipped(boundary)
             return
@@ -967,7 +988,6 @@ class LineupService internal constructor(
         try {
             val held = entry.state.value
             val rolled = held?.lineup?.rolled(nowMs)
-            val applied = savedSeq()
             val rolledRepairs = held?.repairs?.rolled(nowMs)?.let { if (applied == null) it else it.pruned(applied) }
             // The roll never does the first version-3 write: a lineup decoded from a version 1 or 2 file has none of
             // the fields `rolled` clears (no leavesAtMs, previous rules or basis), so it comes back unchanged and is
@@ -977,7 +997,8 @@ class LineupService internal constructor(
             // The repair record is pruned with it: a day that has ended is no use to anyone.
             val changed = held != null && (rolled !== held.lineup || rolledRepairs !== held.repairs)
             val due = held != null && changed && held.writable && entry.writable
-            val trimmed = rolledRepairs?.takeIf { due }?.let { trimmed(checkNotNull(rolled), held.meta, it, nowMs) }
+            val trimmed =
+                rolledRepairs?.takeIf { due }?.let { trimmed(checkNotNull(rolled), held.meta, it, nowMs, applied) }
             if (trimmed != null && saveVerified(owner, checkNotNull(rolled), held.meta, trimmed.record)) {
                 told(trimmed)
                 publish(entry, rolled, held.meta, trimmed.record)
@@ -1085,8 +1106,11 @@ class LineupService internal constructor(
         }
 
     // A stored record that did not read (spec 26) is reported once per entry, and the file is written once without it,
-    // after a copy of its bytes as they stand is kept (no copy, no write: the damaged bytes are never lost). Called
-    // under the entry's lock, for a lineup this account owns.
+    // after a copy of its bytes as they stand is kept. The copy is best effort: the first unreadable record is kept
+    // (a copy already there is left as it is, so a later incident's bytes are not), and when the copy cannot be
+    // written that is reported and this write is skipped, but the entry stays writable, so the next save of the lineup
+    // writes the file without the record and those bytes are gone. Called under the entry's lock, for a lineup this
+    // account owns.
     private suspend fun droppedUnreadableRecord(
         owner: Owner,
         entry: Entry,

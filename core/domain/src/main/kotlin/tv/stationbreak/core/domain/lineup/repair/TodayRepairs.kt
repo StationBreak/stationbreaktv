@@ -21,7 +21,8 @@ internal data class KeptBlock(
 
 /**
  * A repaired channel day (spec 26): the blocks of one channel's broadcast day [n] as they stand after a change of the
- * selection, so the rest of the day is never worked out again. At most one per (channel, [n]): the latest.
+ * selection, so the rest of the day is never worked out again. At most two per (channel, [n]), of different seqs: the
+ * one shown, and a later one while its selection is being saved.
  *
  * @property seq the selection seq this repair wrote (Task 4.1); stored and compared only here.
  * @property libraries the selection the blocks follow.
@@ -47,6 +48,10 @@ internal data class ChannelRepair(
 /**
  * The fix of one block whose item has left the library ([gone]): the [pieces] that air in its place, recorded so a
  * later lookup reads the record only. A match is one piece with the block's own `mediaStartMs`; fills start at 0.
+ *
+ * @property seq the seq of the selection repair whose day this fix patches ([ChannelRepair.seq]), or 0 for a fix of a
+ *   day as built, with no selection repair. A fix shows only with its own repair ([TodayRepairs.applied]), and goes
+ *   with it.
  */
 internal data class LostFix(
     val channel: ChannelId,
@@ -56,6 +61,7 @@ internal data class LostFix(
     val blockEndMs: Long,
     val gone: CanonicalId,
     val pieces: List<KeptBlock>,
+    val seq: Long,
 ) {
     /** True when the block is on air at [nowMs]. */
     fun covers(nowMs: Long): Boolean = nowMs >= blockStartMs && nowMs < blockEndMs
@@ -130,24 +136,42 @@ internal data class TodayRepairs(
 
     /**
      * The record as a lookup follows it when the TV's saved selection has seq [appliedSeq] (spec 26, ADR-0025 §7): per
-     * channel day, only the repair of the highest seq at or below [appliedSeq]. A repair of a later seq (its selection
-     * not saved yet) is left out, and so is one a saved later seq has superseded. The fixes all stay. This very
-     * instance when nothing is left out.
+     * channel day, only the repair of the highest seq at or below [appliedSeq], with that repair's fixes only (on a day
+     * that shows no repair, the fixes of the day as built, seq 0). A repair of a later seq (its selection not saved
+     * yet) is left out with its fixes, and so is one a saved later seq has superseded. This very instance when nothing
+     * is left out.
      */
     fun applied(appliedSeq: Long): TodayRepairs {
         val shown = shownAt(appliedSeq)
-        return if (shown.size == selection.size) this else copy(selection = shown)
+        val seqs = seqsOf(shown)
+        val shownFixes = fixes.filter { it.seq == (seqs[it.channel to it.n] ?: 0L) }
+        return if (shown.size == selection.size && shownFixes.size == fixes.size) {
+            this
+        } else {
+            copy(selection = shown, fixes = shownFixes)
+        }
     }
 
     /**
-     * Without the selection repairs a saved later seq has superseded: per channel day the repair [applied] shows at
-     * [appliedSeq] stays, and so does every repair of a later seq (a change whose save may be under way). This very
-     * instance when none is superseded.
+     * Without the selection repairs a saved later seq has superseded, and their fixes: per channel day the repair
+     * [applied] shows at [appliedSeq] stays, and so does every repair of a later seq (a change whose save may be under
+     * way), each with its own fixes. A fix of the day as built (seq 0) stays while its day shows no repair. This very
+     * instance when nothing goes.
      */
     fun pruned(appliedSeq: Long): TodayRepairs {
         val shown = shownAt(appliedSeq)
         val kept = selection.filter { it.seq > appliedSeq || shown.any { s -> s === it } }
-        return if (kept.size == selection.size) this else copy(selection = kept)
+        val held = kept.mapTo(HashSet()) { Triple(it.channel, it.n, it.seq) }
+        val shownDays = seqsOf(shown).keys
+        val keptFixes =
+            fixes.filter {
+                Triple(it.channel, it.n, it.seq) in held || (it.seq == 0L && (it.channel to it.n) !in shownDays)
+            }
+        return if (kept.size == selection.size && keptFixes.size == fixes.size) {
+            this
+        } else {
+            copy(selection = kept, fixes = keptFixes)
+        }
     }
 
     // Per channel day, the repair of the highest seq at or below [appliedSeq], in record order.
@@ -163,16 +187,19 @@ internal data class TodayRepairs(
     }
 
     /**
-     * Without the selection repairs of [seq] (a selection change whose save failed, Part 4): those days are built
-     * again as the build makes them. [lastSeq] stays while another selection repair does; the [lostCheck] goes, as
-     * the days it saw are no longer those on the air. This very instance when none has that seq.
+     * Without the selection repairs of [seq] (a selection change whose save failed, Part 4) and their fixes: each of
+     * those days shows again the repair it showed before, with its fixes, or its build when it had none. [lastSeq]
+     * stays while another selection repair does; the [lostCheck] goes, as the days it saw are no longer those on the
+     * air. This very instance when none has that seq.
      */
     fun withoutSelection(seq: Long): TodayRepairs =
         if (selection.none { it.seq == seq }) {
             this
         } else {
             val kept = selection.filter { it.seq != seq }
-            copy(selection = kept, lostCheck = null, lastSeq = seqKeptWith(kept))
+            val days = selection.filter { it.seq == seq }.mapTo(HashSet()) { it.channel to it.n }
+            val keptFixes = fixes.filterNot { it.seq == seq && (it.channel to it.n) in days }
+            copy(selection = kept, fixes = keptFixes, lostCheck = null, lastSeq = seqKeptWith(kept))
         }
 
     /**
@@ -193,13 +220,19 @@ internal data class TodayRepairs(
         days.associateWith { (channel, n) ->
             DigestProbe.hashed?.invoke()
             val repair = selection.filter { it.channel == channel && it.n == n }.maxByOrNull { it.seq }
-            val mine = fixes.filter { it.channel == channel && it.n == n }.sortedBy { it.blockStartMs }
+            val seq = repair?.seq ?: 0L
+            val mine =
+                fixes.filter { it.channel == channel && it.n == n && it.seq == seq }.sortedBy { it.blockStartMs }
             val text = StringBuilder()
             if (repair != null) text.append(canonical(repair))
             for (fix in mine) text.append(canonical(fix))
             sha256Hex(text.toString().encodeToByteArray())
         }
     }
+
+    // Per channel day of [repairs], its repair's seq.
+    private fun seqsOf(repairs: List<ChannelRepair>): Map<Pair<ChannelId, Long>, Long> =
+        repairs.associate { (it.channel to it.n) to it.seq }
 
     /** The highest selection seq held ([lastSeq], or a repair's if higher); 0 when none is. */
     fun latestSeq(): Long = maxOf(lastSeq, selection.maxOfOrNull { it.seq } ?: 0L)
@@ -244,6 +277,8 @@ private fun canonical(fix: LostFix): String =
             .append(fix.blockEndMs)
             .append('|')
             .append(fix.gone.value)
+            .append('|')
+            .append(fix.seq)
         append("|P").append(canonical(fix.pieces)).append(';')
     }
 
@@ -267,37 +302,48 @@ internal data class Trimmed(
 
 /**
  * This record made to fit a lineup save that must not fail because of it ([sizeOf] is the whole file's size with a
- * record in it, [limit] the most it may be). What goes, in order, until it fits: the oldest fixes whose block is not
- * on air at [nowMs]; then fixes whose block is; then selection repairs, the oldest [ChannelRepair.atMs] first. When a
- * fix goes the [TodayRepairs.lostCheck] goes too, so the next check makes it again. When dropping everything still
- * does not fit, the record is emptied ([TodayRepairs.NONE]). [TodayRepairs.lastSeq] stays while a selection repair
- * does. The
- * same instance when it already fits.
+ * record in it, [limit] the most it may be). What goes, in order, until it fits: the selection repairs of a seq above
+ * [savedSeq] (not shown: a change not saved, or left by a crash), the oldest [ChannelRepair.atMs] first; then the
+ * oldest fixes whose block is not on air at [nowMs]; then fixes whose block is; then the other selection repairs, the
+ * oldest [ChannelRepair.atMs] first. A selection repair takes its fixes with it. With no [savedSeq] (unknown) every
+ * selection repair counts as shown. When a fix goes the [TodayRepairs.lostCheck] goes too, so the next check makes it
+ * again. When dropping everything still does not fit, the record is emptied ([TodayRepairs.NONE]).
+ * [TodayRepairs.lastSeq] stays while a selection repair does. The same instance when it already fits.
  */
 internal fun TodayRepairs.trimmedToFit(
     nowMs: Long,
     limit: Int,
+    savedSeq: Long?,
     sizeOf: (TodayRepairs) -> Int,
 ): Trimmed {
     val order = compareBy<LostFix>({ it.dayEndMs }, { it.blockStartMs }, { it.channel.value }, { it.n })
     val (covering, others) = fixes.partition { it.covers(nowMs) }
     val fixOrder = others.sortedWith(order) + covering.sortedWith(order)
-    val selectionOrder = selection.sortedWith(compareBy<ChannelRepair>({ it.atMs }, { it.channel.value }, { it.n }))
+    val byAge = compareBy<ChannelRepair>({ it.atMs }, { it.channel.value }, { it.n })
+    val (unsaved, shown) = selection.partition { savedSeq != null && it.seq > savedSeq }
+    val unsavedOrder = unsaved.sortedWith(byAge)
+    val shownOrder = shown.sortedWith(byAge)
 
+    // The first [count] of: the unsaved repairs, the fixes, the shown repairs.
     fun without(count: Int): TodayRepairs {
-        val fixCount = minOf(count, fixOrder.size)
-        val kept = selection - selectionOrder.take(count - fixCount).toSet()
+        val unsavedCount = minOf(count, unsavedOrder.size)
+        val fixCount = minOf(count - unsavedCount, fixOrder.size)
+        val dropped = (unsavedOrder.take(unsavedCount) + shownOrder.take(count - unsavedCount - fixCount)).toSet()
+        val kept = selection - dropped
+        val goneWith = dropped.mapTo(HashSet()) { Triple(it.channel, it.n, it.seq) }
+        val keptFixes = fixes - fixOrder.take(fixCount).toSet()
         return copy(
-            fixes = fixes - fixOrder.take(fixCount).toSet(),
+            fixes = keptFixes.filterNot { Triple(it.channel, it.n, it.seq) in goneWith },
             selection = kept,
             lostCheck = if (fixCount > 0) null else lostCheck,
             lastSeq = seqKeptWith(kept),
         )
     }
-    val all = fixOrder.size + selectionOrder.size
+    val all = unsavedOrder.size + fixOrder.size + shownOrder.size
     val fits = isEmpty || sizeOf(this) <= limit
     val count = if (fits) 0 else leastDropsThatFit(0, all) { sizeOf(without(it)) <= limit }
-    val dropFixes = minOf(count, fixOrder.size)
+    val dropUnsaved = minOf(count, unsavedOrder.size)
+    val dropFixes = minOf(count - dropUnsaved, fixOrder.size)
     val noncovering = minOf(dropFixes, others.size)
     val record =
         when {
