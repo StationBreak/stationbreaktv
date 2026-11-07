@@ -65,7 +65,13 @@ class BuiltInScheduleSourceGapFillDropTest {
         runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(laughs))) }
     }
 
-    private fun blocks() = checkNotNull(runBlocking { source.schedule(NOON, NOON + 6.hours, ScheduleBuild.AsNeeded) }).rows.single().blocks
+    private fun blocks() = checkNotNull(runBlocking { source.schedule(NOON, SIX_HOURS, ScheduleBuild.AsNeeded) }).row()
+
+    private fun ScheduleWindow.row() = rows.single().blocks
+
+    private companion object {
+        val SIX_HOURS: Instant = NOON + 6.hours
+    }
 
     @Test
     fun aDroppedPiece_isAnUnnamedSpan_andTheOthersKeepTheirPlaces() {
