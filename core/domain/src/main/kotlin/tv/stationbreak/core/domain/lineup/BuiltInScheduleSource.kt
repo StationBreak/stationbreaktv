@@ -338,22 +338,21 @@ class BuiltInScheduleSource(
                 // The end of the day after the one that holds `from`, in the channel's own epoch length (as onAir).
                 val builtUntilMs = today.epochStartMs + 2 * today.settings.epochMs
                 val limit = minOf(untilMs, builtUntilMs)
-                val own = today.day.blocks.filter { it.endMs > fromMs && it.startMs < limit }
+                val own =
+                    today.day.blocks
+                        .filter { it.endMs > fromMs && it.startMs < limit }
+                        .map { Laid(it, today) }
                 Triple(today, builtUntilMs, own + blocksUntil(reading, today, limit))
             }
-        val ids =
-            laid.flatMapTo(HashSet()) { (_, _, blocks) ->
-                blocks.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
-            }
-        val info = if (ids.isEmpty()) emptyMap() else library.programInfo(reading.account, ids)
+        val named = naming(reading.account, laid.map { (_, _, blocks) -> blocks })
         // A lineup that moved on while the window was read may have given days of two revisions.
         if (!isCurrent(reading.account, reading.revision)) reading.consistent = false
         var complete = reading.consistent
         val rows =
-            laid.map { (today, builtUntilMs, blocks) ->
+            laid.mapIndexed { i, (today, builtUntilMs, blocks) ->
                 // A row that stops short of the window (or of what is built) lacks a day: not built, kept or laid out.
-                if ((blocks.lastOrNull()?.endMs ?: fromMs) < minOf(untilMs, builtUntilMs)) complete = false
-                ChannelRow(today.airing(), blocks.map { it.toAiring(info) }, builtUntilMs)
+                if ((blocks.lastOrNull()?.block?.endMs ?: fromMs) < minOf(untilMs, builtUntilMs)) complete = false
+                ChannelRow(today.airing(), named[i], builtUntilMs)
             }
         return ScheduleWindow(rows, complete)
     }
@@ -368,12 +367,16 @@ class BuiltInScheduleSource(
         reading: WindowRead,
         from: ChannelDay,
         limitMs: Long,
-    ): List<ScheduleBlock> {
-        val blocks = ArrayList<ScheduleBlock>()
+    ): List<Laid> {
+        val blocks = ArrayList<Laid>()
         var day = from
         while (day.day.endMs < limitMs) {
             day = followingDay(reading, from.channel.id, day.day.endMs) ?: break
-            blocks += day.day.blocks.filter { it.startMs < limitMs }
+            val of = day
+            blocks +=
+                day.day.blocks
+                    .filter { it.startMs < limitMs }
+                    .map { Laid(it, of) }
         }
         return blocks
     }
@@ -458,15 +461,86 @@ class BuiltInScheduleSource(
         at: Instant,
         next: Int,
     ): ChannelOnAir {
-        val now = today.day.whatsOn(at.toEpochMilliseconds(), next)
+        val atMs = at.toEpochMilliseconds()
+        val now = today.day.whatsOn(atMs, next)
         // The end of the day after the one that holds `at`, in the channel's own epoch length.
         val builtUntilMs = today.epochStartMs + 2 * today.settings.epochMs
         val following = followingBlocks(account, chosen, today, next - now.next.size, builtUntilMs)
-        val blocks = listOf(now.block) + now.next + following
-        val ids = blocks.mapNotNullTo(HashSet()) { (it.content as? ScheduleContent.Program)?.itemId }
+        val blocks = (listOf(now.block) + now.next).map { Laid(it, today) } + following
+        val airings = naming(account, listOf(blocks)).single()
+        // A fill splits a block in pieces: what is on air is the piece that holds `at`, and only what follows it.
+        val first = airings.indexOfFirst { atMs < it.endMs }.coerceAtLeast(0)
+        val ahead = airings.drop(first)
+        return ChannelOnAir(today.airing(), ahead.first(), ahead.drop(1).take(next), builtUntilMs)
+    }
+
+    /** A block of a day's layout with the day it belongs to (its pool is what fills it, if it is gone). */
+    private class Laid(
+        val block: ScheduleBlock,
+        val day: ChannelDay,
+    ) {
+        fun itemId(): CanonicalId? = (block.content as? ScheduleContent.Program)?.itemId
+    }
+
+    /**
+     * The airings of each group of [groups], named with one `programInfo` read over every item. A block whose item has
+     * no current row is gone: it is replaced by [GapFill] programmes from its day's pool, and what they do not cover
+     * stays as an unnamed remainder of the gone item. With no gone block that is all that is read.
+     */
+    private suspend fun naming(
+        account: LibraryAccount,
+        groups: List<List<Laid>>,
+    ): List<List<AiringBlock>> {
+        val ids = groups.flatMapTo(HashSet()) { g -> g.mapNotNull { it.itemId() } }
         val info = if (ids.isEmpty()) emptyMap() else library.programInfo(account, ids)
-        val airings = blocks.map { it.toAiring(info) }
-        return ChannelOnAir(today.airing(), airings.first(), airings.drop(1), builtUntilMs)
+        val gone = groups.flatten().filter { laid -> laid.itemId()?.let { it !in info } == true }
+        if (gone.isEmpty()) return groups.map { g -> g.map { it.block.toAiring(info) } }
+        val live = HashMap<ChannelDay, Set<CanonicalId>>()
+        val picks = HashMap<Laid, List<FillPiece>>()
+        for (laid in gone) {
+            val day = laid.day
+            val pool = day.pool
+            val liveIds = live.getOrPut(day) { library.currentIds(account, pool.mapTo(HashSet()) { it.id }) }
+            val goneId = (laid.block.content as ScheduleContent.Program).itemId
+            val exclude = fillExclusions(pool, liveIds, goneId, fixPieces = emptySet())
+            picks[laid] =
+                GapFill.pick(day.channel.id, pool, laid.block.startMs, laid.block.endMs, exclude) {
+                    day.settings.isAirable(it.runtimeMs, it.kind)
+                }
+        }
+        val pieceIds = picks.values.flatMapTo(HashSet()) { p -> p.map { it.item.id } }
+        val pieceInfo = if (pieceIds.isEmpty()) emptyMap() else library.programInfo(account, pieceIds)
+        return groups.map { g ->
+            g.flatMap { laid ->
+                val pieces = picks[laid]
+                if (pieces == null) listOf(laid.block.toAiring(info)) else filled(laid.block, pieces, pieceInfo)
+            }
+        }
+    }
+
+    /**
+     * The gone [block] as [pieces] laid end to end from its start (one whose row names nothing is dropped), then, if
+     * they stop short, the rest as an unnamed remainder of the gone item, still at its place in the media.
+     */
+    private fun filled(
+        block: ScheduleBlock,
+        pieces: List<FillPiece>,
+        names: Map<CanonicalId, ProgramInfo>,
+    ): List<AiringBlock> {
+        val gone = block.content as ScheduleContent.Program
+        var cursor = block.startMs
+        val laid = ArrayList<AiringBlock>()
+        for (piece in pieces) {
+            val named = names[piece.item.id] ?: continue
+            val end = cursor + piece.item.runtimeMs
+            laid += AiringBlock(cursor, end, Airing.Program(piece.item.id, 0, named))
+            cursor = end
+        }
+        if (cursor < block.endMs) {
+            val offset = gone.mediaStartOffsetMs + (cursor - block.startMs)
+            laid += AiringBlock(cursor, block.endMs, Airing.Program(gone.itemId, offset, null))
+        }
+        return laid
     }
 
     /**
@@ -479,8 +553,8 @@ class BuiltInScheduleSource(
         from: ChannelDay,
         count: Int,
         builtUntilMs: Long,
-    ): List<ScheduleBlock> {
-        val blocks = ArrayList<ScheduleBlock>()
+    ): List<Laid> {
+        val blocks = ArrayList<Laid>()
         var day = from
         while (blocks.size < count && day.day.endMs < builtUntilMs) {
             val start = Instant.fromEpochMilliseconds(day.day.endMs)
@@ -489,8 +563,9 @@ class BuiltInScheduleSource(
             val layout = day.day
             if (builtInMs != null) timed(day.n, builtInMs)
             val ahead = layout.whatsOn(layout.startMs, count - blocks.size - 1)
-            blocks += ahead.block
-            blocks += ahead.next
+            val of = day
+            blocks += Laid(ahead.block, of)
+            blocks += ahead.next.map { Laid(it, of) }
         }
         return blocks
     }
