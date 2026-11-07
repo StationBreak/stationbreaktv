@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.jellyfin
+
+import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.getOrNull
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryKind
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+/** The provider ids of an item and of a series: lower-case keys, no blank or long values, the first eight by key. */
+class ProviderIdsTest {
+    private val jellyfin = FakeJellyfin()
+    private val library = Library(ItemId("lib01"), "Shows", LibraryKind.TvShows)
+
+    @AfterTest
+    fun tearDown() = jellyfin.close()
+
+    private fun itemIds(providerJson: String): Map<String, String> =
+        runBlocking {
+            val body = """{"Items":[{"Id":"i1","Name":"x","Type":"Movie"$providerJson}],"TotalRecordCount":1}"""
+            jellyfin.on("GET", "/Items") { jellyfin.json(body) }
+            val page = testAdapter().libraryItems(testSession(jellyfin.address), library, 0, 50).getOrNull()
+            page?.items?.single()?.providerIds ?: error("no page")
+        }
+
+    private fun seriesIds(providerJson: String): Map<String, String> =
+        runBlocking {
+            val body = """{"Items":[{"Id":"s1","Name":"x","Type":"Series"$providerJson}],"TotalRecordCount":1}"""
+            jellyfin.on("GET", "/Items") { jellyfin.json(body) }
+            val page = testAdapter().librarySeries(testSession(jellyfin.address), library, 0, 50).getOrNull()
+            page?.series?.single()?.providerIds ?: error("no page")
+        }
+
+    @Test
+    fun itemPage_readsProviderIds_normalised() {
+        val long = "9".repeat(65)
+        val exact = "8".repeat(64)
+        val json =
+            ""","ProviderIds":{"Imdb":"tt0000001","TMDB":"101","Blank":"  ","Empty":"","Long":"$long","Exact":"$exact",
+            "Nul":null,"Num":5}"""
+
+        assertEquals(
+            mapOf("imdb" to "tt0000001", "tmdb" to "101", "exact" to exact),
+            itemIds(json),
+        )
+    }
+
+    @Test
+    fun missingNullAndEmptyProviderIdsAreEmpty() {
+        assertEquals(emptyMap(), itemIds(""))
+        assertEquals(emptyMap(), itemIds(""","ProviderIds":null"""))
+        assertEquals(emptyMap(), itemIds(""","ProviderIds":{}"""))
+        assertEquals(emptyMap(), itemIds(""","ProviderIds":"junk""""))
+    }
+
+    @Test
+    fun moreThanEight_sortedFirstEightKept() {
+        val json = ""","ProviderIds":{""" + ('j' downTo 'a').joinToString(",") { """"K$it":"v$it"""" } + "}"
+
+        val kept = itemIds(json)
+
+        assertEquals(('a'..'h').map { "k$it" }, kept.keys.toList())
+        assertEquals("va", kept.getValue("ka"))
+    }
+
+    @Test
+    fun keysThatDifferOnlyInCaseKeepOneDeterministically() {
+        assertEquals(mapOf("imdb" to "a"), itemIds(""","ProviderIds":{"imdb":"b","IMDB":"a"}"""))
+        assertEquals(mapOf("imdb" to "a"), itemIds(""","ProviderIds":{"IMDB":"a","imdb":"b"}"""))
+    }
+
+    @Test
+    fun aSeriesPageReadsProviderIdsTheSameWay() {
+        val json = ""","ProviderIds":{"Tvdb":"77","Imdb":"tt1","Zap":" "}"""
+
+        assertEquals(mapOf("imdb" to "tt1", "tvdb" to "77"), seriesIds(json))
+    }
+}

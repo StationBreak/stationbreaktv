@@ -38,7 +38,8 @@ class SeriesByIdTest {
         fetch({ jellyfin.json("""{"Id":"h1","Name":"Night Shift","Type":"Series"}""") })
 
         val url = jellyfin.requests("/Items/h1").single().url
-        assertEquals(listOf("Genres", "Tags", "Studios"), url.queryParameter("fields").orEmpty().split(','))
+        val fields = url.queryParameter("fields").orEmpty().split(',')
+        assertEquals(listOf("Genres", "Tags", "Studios", "ProviderIds"), fields)
         assertEquals("user1", url.queryParameter("userId"))
     }
 

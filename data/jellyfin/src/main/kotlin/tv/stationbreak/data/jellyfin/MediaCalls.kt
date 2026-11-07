@@ -3,6 +3,7 @@ package tv.stationbreak.data.jellyfin
 
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -46,6 +47,7 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.TreeMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -540,13 +542,13 @@ internal class MediaCalls(
          * even when asked (contract test). The rest (production year, rating, series, season and episode numbers,
          * runtime) come with every item, so asking for more would only make the answer bigger.
          */
-        const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,Studios,ParentId"
+        const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,Studios,ParentId,ProviderIds"
 
         /** The series calls (spec 10): only Series, never an episode, with the two fields a rule matches on. */
         const val SERIES_TYPE = "Series"
 
         /** `OfficialRating` and the name come with every item, so a series needs only these three asked for. */
-        const val SERIES_FIELDS = "Genres,Tags,Studios"
+        const val SERIES_FIELDS = "Genres,Tags,Studios,ProviderIds"
 
         /** The collection calls (spec 10, Unit 2): BoxSets, listed and read by their members. */
         const val BOX_SET_TYPE = "BoxSet"
@@ -554,7 +556,9 @@ internal class MediaCalls(
         /**
          * What the ID listing leaves out. Images and user data are most of an item's bytes and the ID check reads
          * neither: on 12.1 and 12.2 a 6-item page measured 7.5 kB with the cache fields, 5.9 kB bare, 4.0 kB without
-         * images and 2.9 kB without images and user data.
+         * images and 2.9 kB without images and user data. Those sizes were measured before `ProviderIds` was asked
+         * for and have not been re-measured (the contract suite does not measure page sizes): the "with the cache
+         * fields" figure is now short by the provider ids, at most eight short entries per item ([providerIdsOf]).
          */
         val ID_ONLY = listOf("enableImages" to "false", "enableUserData" to "false")
 
@@ -608,6 +612,7 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         genres = dto.genres.orEmpty(),
         tags = dto.tags.orEmpty(),
         studios = studiosOf(dto.studios),
+        providerIds = providerIdsOf(dto.providerIds),
         seriesId = dto.seriesId?.let(::ItemId),
         seasonId = dto.seasonId?.let(::ItemId),
         seasonNumber = dto.seasonNumber,
@@ -630,6 +635,7 @@ internal fun toSeriesInfo(dto: SeriesDto): SeriesInfo =
         genres = dto.genres.orEmpty(),
         tags = dto.tags.orEmpty(),
         studios = studiosOf(dto.studios),
+        providerIds = providerIdsOf(dto.providerIds),
     )
 
 /** The most studios kept for one item or series; a real title has a handful, so more is a malformed answer. */
@@ -657,6 +663,32 @@ internal fun studiosOf(raw: List<StudioDto?>?): List<String> {
         }
     }
     return names
+}
+
+/** The most provider ids kept for one item or series. */
+internal const val PROVIDER_IDS_MAX = 8
+
+/** The longest provider id value kept, in characters: a cut id could match the wrong title. */
+private const val PROVIDER_ID_VALUE_MAX = 64
+
+private fun usableProviderId(value: String): Boolean = value.isNotBlank() && value.length <= PROVIDER_ID_VALUE_MAX
+
+/**
+ * The provider ids of [raw] (the server's `ProviderIds` object: provider name to id). Keys are lower-cased; an entry
+ * whose key is blank, or whose value is not text, is blank or is over 64 characters is dropped (never cut). The rest
+ * are sorted by key and the first eight kept, so the same ids always give the same map. Keys that differ only in case
+ * keep the value of the one that sorts first as sent. Anything but an object gives an empty map: an odd answer must
+ * not fail a page.
+ */
+internal fun providerIdsOf(raw: JsonElement?): Map<String, String> {
+    val entries = (raw as? JsonObject) ?: return emptyMap()
+    val kept = TreeMap<String, String>()
+    for ((key, element) in entries.entries.sortedBy { it.key }) {
+        val value = (element as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val name = key.lowercase()
+        if (name.isNotBlank() && value != null && usableProviderId(value)) kept.putIfAbsent(name, value)
+    }
+    return kept.entries.take(PROVIDER_IDS_MAX).associate { it.key to it.value }
 }
 
 /**
