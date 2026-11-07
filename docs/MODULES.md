@@ -301,6 +301,9 @@ section says where each piece lives.
     from a cancelled scope, and no tune runs after it. Close, then release the player. `preResolve` hands back a
     `Prepared` that a later `tune` plays with no server round trip (`discard` or `close` ends its encode), and a
     `Played` result carries `end`, a flow that says how the play ends (`PlaybackEnd.Ended` or `Failed`).
+  - The warm standby ([ADR-0024](adr/0024-warm-next-decoder.md), off by default): `StandbySlots` holds a second, hidden
+    ExoPlayer and swaps it with the front at a flip, `WarmStandby` makes the decisions (build, ready, breaker, memory trim),
+    and `WarmConfig` and `WarmSwitches` hold the tunables and the debug and benchmark build switches.
 - **The media client.** `JellyfinMediaServer.mediaCallFactory` (in `data:jellyfin`) is an OkHttp `Call.Factory` for the
   player's requests. `app` wraps it in Media3's `OkHttpDataSource` in `di/PlaybackModule`, under the `@MediaDataSource`
   qualifier, and `core:playback` receives it as a plain `DataSource.Factory`. It shares the one `JellyfinMediaServer`
