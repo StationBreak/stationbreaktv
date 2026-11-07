@@ -36,6 +36,9 @@
     <!-- A slate cell on the grid: a plate, not a missing title. The panel still says when it comes back. -->
     <string name="guide_off_air">Off air</string>
 
+    <!-- DESIGN(#633): placeholder. A program whose item left the library: the cell's title and the panel's line, instead of a blank. -->
+    <string name="guide_unavailable">Unavailable</string>
+
     <!-- What a screen reader says about a cell: its title and slot, then "on now" for the program airing. -->
     <string name="guide_cell_description">%1$s, %2$s</string>
     <string name="guide_cell_on_now">%1$s, on now</string>

@@ -179,7 +179,7 @@ private fun LiveLayers(
             }
 
             is LiveState.Ident -> {
-                IdentSlate(state.upNext, state.channel)
+                IdentSlate(state.upNext, state.channel, state.note)
             }
 
             LiveState.NoChannels -> {

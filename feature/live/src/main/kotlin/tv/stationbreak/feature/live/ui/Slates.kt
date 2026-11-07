@@ -18,6 +18,7 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.feature.live.Banner
+import tv.stationbreak.feature.live.CardNote
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.R
 
@@ -36,6 +37,11 @@ private const val STANDBY_GAP = 10f
 private const val WORDMARK_SIZE = 50f
 private const val NO_CHANNELS_SIZE = 13f
 private const val SPACING_EM = 0.13f
+private const val NOTE_TOP = 378f
+private const val NOTE_WIDTH = 166f
+private const val NOTE_SIZE = 8.5f
+private const val NOTE_SPACING_EM = 0.03f
+private const val NOTE_LINES = 2
 
 /** The slate for a show that is missing or will not play (design: board E2), with the "Up next" banner when known. */
 @Composable
@@ -80,9 +86,13 @@ internal fun DifficultiesSlate(
 internal fun IdentSlate(
     upNext: Banner?,
     channel: ChannelTag?,
+    note: CardNote? = null,
 ) {
     Box(Modifier.fillMaxSize()) {
-        TestCard(tvY = IDENT_TV_Y) { card -> Wordmark(card, LiveTags.IDENT) }
+        TestCard(tvY = IDENT_TV_Y) { card ->
+            Wordmark(card, LiveTags.IDENT)
+            if (note != null) NoteLine(card, stringResource(noteText(note)))
+        }
         CardBanner(upNext, channel)
     }
 }
@@ -100,26 +110,66 @@ private fun CardBanner(
     }
 }
 
+private fun noteText(note: CardNote): Int =
+    when (note) {
+        CardNote.NotInLibrary -> R.string.live_card_not_in_library
+    }
+
 /** Signed in, but no channel is on the air: the ident card with one line, and nothing else. */
 @Composable
 internal fun NoChannelsSlate() {
     Box(Modifier.fillMaxSize()) {
         TestCard(tvY = IDENT_TV_Y) { card ->
             Wordmark(card, LiveTags.IDENT)
-            Text(
-                text = stringResource(R.string.live_no_channels),
-                modifier =
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = card.dp(NO_CHANNELS_TOP))
-                        .width(card.dp(NO_CHANNELS_WIDTH))
-                        .testTag(LiveTags.NO_CHANNELS),
-                style = mono(card.sp(NO_CHANNELS_SIZE)),
-                color = BroadcastColors.Ink,
-                textAlign = TextAlign.Center,
-            )
+            CardLine(card, stringResource(R.string.live_no_channels), LiveTags.NO_CHANNELS)
         }
     }
+}
+
+/**
+ * The reason on an ident card: two lines at most, set small and tight so both sit inside the centre disc (radius 150
+ * about y 288) below the wordmark, which ends at y 378. The box is 166 wide from y 378 to about y 403: its bottom
+ * corners are 142 from the centre, 8 inside the rim.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
+    card: CardScale,
+    text: String,
+) {
+    Text(
+        text = text,
+        modifier =
+            Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = card.dp(NOTE_TOP))
+                .width(card.dp(NOTE_WIDTH))
+                .testTag(LiveTags.IDENT_NOTE),
+        style = mono(card.sp(NOTE_SIZE)).copy(letterSpacing = card.sp(NOTE_SIZE) * NOTE_SPACING_EM),
+        color = BroadcastColors.Ink,
+        textAlign = TextAlign.Center,
+        maxLines = NOTE_LINES,
+    )
+}
+
+/** One plain line under the ident wordmark. */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.CardLine(
+    card: CardScale,
+    text: String,
+    tag: String,
+) {
+    Text(
+        text = text,
+        modifier =
+            Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = card.dp(NO_CHANNELS_TOP))
+                .width(card.dp(NO_CHANNELS_WIDTH))
+                .testTag(tag),
+        style = mono(card.sp(NO_CHANNELS_SIZE)),
+        color = BroadcastColors.Ink,
+        textAlign = TextAlign.Center,
+    )
 }
 
 @Composable

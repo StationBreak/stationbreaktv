@@ -320,11 +320,12 @@ class LiveChannelFlipTest {
         }
 
     @Test
-    fun aStandInDoesNotCountTheSlatesHoldAsHandOver() =
+    fun aStandInCountsTheDeadTunesHandOverNotTheSlatesHold() =
         runTest {
             val f =
                 flipping {
-                    schedule.channels.getValue(CH9).blocks = listOf(program(0, 600, 9, info = null))
+                    schedule.channels.getValue(CH9).blocks = listOf(program(0, 600, 9))
+                    tune.script(itemOf(9), FakeTune.dead(), FakeTune.dead())
                     schedule.standInScript = { _, _ -> listOf(standIn(0, 600, 7, 0)) }
                 }
             f.up()
@@ -332,7 +333,9 @@ class LiveChannelFlipTest {
             runCurrent()
             val flip = f.r.flipReports().single()
             assertEquals("standin", flip.outcome)
-            assertEquals(-1L, flip.handoverMs)
+            // The stand-in exclusion in tuneAndShow is no longer reached by this test (the dead tune comes first).
+            // Taken at the dead tune, before the slate's hold; the stand-in's tune adds nothing.
+            assertEquals(0L, flip.handoverMs)
         }
 
     @Test

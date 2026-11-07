@@ -115,6 +115,15 @@ class DetailsPanelTest {
         assertEquals("Fetched", text(GuideTags.PANEL_OVERVIEW))
     }
 
+    @Test
+    fun programThatLeftTheLibraryIsTitledUnavailableAndOneWithInfoKeepsItsTitle() {
+        val gone = GuideCell(0, 30 * MIN, CellKind.Unavailable, null, null, ScheduleFixtures.id(1))
+        show(CellDetails(gone, 7, "Seven", null, loading = false))
+        assertEquals("Unavailable", text(GuideTags.PANEL_TITLE))
+        show(details(30, null))
+        assertEquals("Program 30", text(GuideTags.PANEL_TITLE))
+    }
+
     private fun longTitled(
         episode: Boolean,
         overview: String,

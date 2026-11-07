@@ -30,11 +30,13 @@ sealed interface LiveState {
 
     /**
      * The StationBreak ident card: a gap in the schedule, or a show that ended early. [upNext] and [channel] are as on
-     * [TechnicalDifficulties]; both are null before a channel is chosen.
+     * [TechnicalDifficulties]; both are null before a channel is chosen. [note] is a plain line under the wordmark,
+     * when the card has something to explain.
      */
     data class Ident(
         val upNext: Banner?,
         val channel: ChannelTag? = null,
+        val note: CardNote? = null,
     ) : LiveState
 
     /**
@@ -109,3 +111,9 @@ data class LiveInfo(
     val details: ItemDetails?,
     val loading: Boolean,
 )
+
+/** Why an ident card is up, when the card says so (spec 26, #633). */
+enum class CardNote {
+    /** The programme on now left the library and nothing fills its slot. */
+    NotInLibrary,
+}

@@ -23,5 +23,6 @@ object LiveTags {
     const val TEST_CARD = "live:testCard"
     const val DIFFICULTIES = "live:difficulties"
     const val IDENT = "live:ident"
+    const val IDENT_NOTE = "live:identNote"
     const val NO_CHANNELS = "live:noChannels"
 }

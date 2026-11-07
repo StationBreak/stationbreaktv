@@ -132,7 +132,8 @@ class LiveChannelReportingTest {
         runTest {
             val server = server()
             val r = Rig(this, startMin = 10, server = server)
-            r.schedule.channel(CH7, 7, listOf(program(0, 600, 9, info = null)))
+            r.schedule.channel(CH7, 7, listOf(program(0, 600, 9)))
+            r.tune.script(itemOf(9), FakeTune.dead(), FakeTune.dead())
             r.schedule.standInScript = { _, _ -> listOf(standIn(0, 600, 7, 0)) }
             r.reporting()
             r.start()

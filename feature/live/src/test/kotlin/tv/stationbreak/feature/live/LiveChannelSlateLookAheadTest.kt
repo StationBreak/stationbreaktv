@@ -100,7 +100,7 @@ class LiveChannelSlateLookAheadTest {
     @Test
     fun aDeadItemsSlateResolvesTheNeighboursWhileItWaits() =
         runTest {
-            val s = sitting(listOf(program(0, 600, 5, info = null)))
+            val s = sitting(listOf(program(0, 600, 5))) { tune.script(itemOf(5), FakeTune.dead(), FakeTune.dead()) }
             advanceTimeBy(1.seconds)
             runCurrent()
             assertTrue(s.r.state is LiveState.TechnicalDifficulties)
