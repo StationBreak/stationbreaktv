@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.model.ChannelId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 /** Which pool policy a recipe or channel gets (ADR-0019, ADR-0020). */
 class KidStatusTest {
@@ -70,6 +71,31 @@ class KidStatusTest {
         // Everything else is as without a lineup.
         assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(alpha, lineupOf(alpha, odds)))
         assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(kids, lineupOf(kids, odds)))
+    }
+
+    @Test
+    fun aKidLeftoversThatStartsAfterTheDayIsOffForThatDaysPolicy() {
+        fun lineupOf(vararg channels: LineupChannel) = Lineup(SERVER, USER, 1, 0, true, channels.toList())
+        val today = LineupDay(0L, 1_000L)
+        val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
+        val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
+        val starting = kids.copy(onSinceMs = today.endMs)
+        // Starting later: off today (open), on from its boundary; started: on.
+        assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds, lineupOf(starting, odds), today))
+        val tomorrow = LineupDay.startingAt(today.endMs)
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(starting, odds), tomorrow))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(kids, odds), today))
+        // The channel's own and a starter's policy do not depend on the day; the day-less one still counts it as on.
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(starting, lineupOf(starting, odds), today))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(starting, odds)))
+    }
+
+    @Test
+    fun aLeftoversChannelCannotLeaveSoOnlyStartingTakesAKidLeftoversOffADay() {
+        // [KidStatus.hasKidLeftoversOn] reads isOnAirOn (started and not left), but the lineup's invariant keeps
+        // `leavesAtMs` to starters: a kid leftovers channel cannot have left, so there is no left case to hold.
+        val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
+        assertFailsWith<IllegalArgumentException> { kids.copy(leavesAtMs = 1_000L) }
     }
 
     @Test

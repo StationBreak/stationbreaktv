@@ -497,7 +497,10 @@ internal class LineupDays(
                 } else {
                     channel
                 }
-            val inputs = channelInputs(forDay, policyOf(channel, lineup), household, day?.second ?: false)
+            // The policy of the day played: a kids leftovers channel that starts later or has left is off for it
+            // (#623). The day-less fallback is only for a refused channel and is the stricter (kid-safe) direction.
+            val policy = lineupDayFor(channel)?.let { policyOf(channel, lineup, it) } ?: policyOf(channel, lineup)
+            val inputs = channelInputs(forDay, policy, household, day?.second ?: false)
             val curated = day != null && !day.second && isCurated(channel, day.first)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
             return PlayKey(sha256Hex(fields.toString().encodeToByteArray()))
@@ -506,9 +509,14 @@ internal class LineupDays(
         // The start of the day of [channel] that holds [atMs], and whether it starts on a later day; null when its
         // settings are refused.
         private fun dayOf(channel: LineupChannel): Pair<Long, Boolean>? {
-            val settings = settingsOf(channel, lineup, atMs) ?: return null
-            val day = lineupDayOf(settings, atMs)
+            val day = lineupDayFor(channel) ?: return null
             return day.startMs to channel.startsAfter(day)
+        }
+
+        // The broadcast day of [channel]'s own settings that holds [atMs]; null when its settings are refused.
+        private fun lineupDayFor(channel: LineupChannel): LineupDay? {
+            val settings = settingsOf(channel, lineup, atMs) ?: return null
+            return lineupDayOf(settings, atMs)
         }
 
         // A member of the day's on-set in the curation part: its ID, its rules for the day, and (as [channelInputs])
@@ -1188,7 +1196,7 @@ internal class LineupDays(
                 val on = byId[before.id]
                 // A channel that starts at a later boundary airs nothing today, so it claims nothing (#620).
                 if (on?.starting == true) continue
-                val pool = leftoversPool(before, snapshot, chain.claimed)
+                val pool = leftoversPool(before, snapshot, chain.claimed, chain.cut)
                 val items =
                     if (on != null) {
                         EpochPool.build(on.settings, pool.items, on.n)
@@ -1197,7 +1205,7 @@ internal class LineupDays(
                     }
                 items.mapTo(chain.claimed) { it.id }
             }
-            val pool = leftoversPool(s.channel, snapshot, chain.claimed)
+            val pool = leftoversPool(s.channel, snapshot, chain.claimed, chain.cut)
             val day = EpochPool.build(s.settings, pool.items, s.n)
             epochPools[s] = day
             // A leftovers channel is never curated: no keeps, no weights.
@@ -1274,15 +1282,24 @@ internal class LineupDays(
             val snapshot = snapshotOf(cut)
             val claimed = withheld(cut)
             return leftovers.filter { it.state == ChannelState.UserHidden }.flatMapTo(HashSet()) { channel ->
-                leftoversPool(channel, snapshot, claimed).items.map { it.id }
+                leftoversPool(channel, snapshot, claimed, cut).items.map { it.id }
             }
         }
 
+        // The pool under the policy of the day of [cut]: a kids leftovers channel that starts later or has left is off
+        // (#623). The day is the default 24-hour leftovers grid, as [RecipeResolver.leftoversSettings] makes it.
         private fun leftoversPool(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
             claimed: Set<CanonicalId>,
-        ): Pool = Leftovers.pool(snapshot, claimed, ceilings.of(channel), policyOf(channel, lineup))
+            cut: Cut,
+        ): Pool =
+            Leftovers.pool(
+                snapshot,
+                claimed,
+                ceilings.of(channel),
+                policyOf(channel, lineup, LineupDay.startingAt(cut.dayStartMs)),
+            )
 
         // Every opt-in recipe of the catalog, as the lineup holds it on the day (its rules for that day: the rules in
         // force, so a catalog swap or a re-resolve waiting for the boundary withholds today what it withheld before,
