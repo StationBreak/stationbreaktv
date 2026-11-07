@@ -23,8 +23,9 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
  * match airing in the block's slot from the block's own media start; else it is filled ([GapFill]) from the repair
  * fill pool: the day pool on a day with no selection repair, and on a repaired day its tail pool plus what the
  * channel admits of the [playable] libraries now, read once per cut-off with the build's own chunked pool read. With
- * no [playable] libraries (the selection is gone) nothing is read from the libraries: the fill is the tail pool's, or
- * nothing (the card).
+ * no [playable] libraries (the selection is gone) nothing more is read for a repaired day: its fill is the tail
+ * pool's, or nothing (the card). A day with no repair still has its built day pool, and only that pool's liveness
+ * is read (`currentIds`) to fill from it.
  *
  * What is on air at [atMs] does not change: its block is filled as the schedule source fills it now (the day pool, no
  * match), and a gone piece of a recorded fix on air is left to the source. A gone piece of a recorded fix further on is
@@ -154,16 +155,13 @@ internal class LostRepair(
     }
 }
 
-/**
- * This record with [fixes] in place of the fixes of the same blocks, and [generation] as the generation the lost-block
- * check last ran for.
- */
+/** This record with [fixes] in place of the fixes of the same blocks, and [check] as where the lost-block check ran. */
 internal fun TodayRepairs.withFixes(
     fixes: List<LostFix>,
-    generation: Long,
+    check: LostCheck,
 ): TodayRepairs {
     val replaced = fixes.mapTo(HashSet()) { FixKey.of(it) }
-    return copy(fixes = this.fixes.filterNot { FixKey.of(it) in replaced } + fixes, lostCheckedGeneration = generation)
+    return copy(fixes = this.fixes.filterNot { FixKey.of(it) in replaced } + fixes, lostCheck = check)
 }
 
 /** The block a fix is of: one fix per key in the record. */

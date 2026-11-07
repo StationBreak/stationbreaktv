@@ -144,7 +144,7 @@ class LineupFieldTripwireTest {
     // No day reads these fields directly: a repaired day reads them through TodayRepairs.digestFor, which writes each
     // one into the digest (the canonical text in TodayRepairs.kt), so a new field must be added there too.
     @Test
-    fun todayRepairs() = pinned(TodayRepairs::class.java, setOf("selection", "fixes", "lostCheckedGeneration"))
+    fun todayRepairs() = pinned(TodayRepairs::class.java, setOf("selection", "fixes", "lostCheck", "lastSeq"))
 
     @Test
     fun channelRepair() =

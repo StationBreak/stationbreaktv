@@ -198,7 +198,7 @@ internal class TodayRepairerLostTest : RepairTestBase() {
         val rig = lostRig()
         assertEquals(1, rig.lost(setOf(libA)))
         val record = rig.record()
-        assertEquals(runBlocking { rig.library.contentGeneration(ACCOUNT) }, record.lostCheckedGeneration)
+        assertEquals(runBlocking { rig.library.contentGeneration(ACCOUNT) }, record.lostCheck?.generation)
         val reads = rig.library.currentIdsCalls
 
         assertEquals(0, rig.lost(setOf(libA)))

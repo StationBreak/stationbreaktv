@@ -38,8 +38,10 @@ import tv.stationbreak.core.rules.RulesWriter
  *
  * Version 4 (spec 26) adds the optional top-level `repairs` object, the per-TV repair record ([TodayRepairs], read and
  * written by [RepairsCodec]). A file with no repairs is written as version 3, the lowest version that holds its
- * content, so a version-4 file exists only while a repair is held. A `repairs` key in a file below version 4 makes it
- * [Decoded.Unreadable], and an older app sees version 4 as [Decoded.NewerVersion]. The service keeps a copy of a
+ * content, so a version-4 file exists only while a record is held. A `repairs` key in a file below version 4 makes it
+ * [Decoded.Unreadable], and an older app sees version 4 as [Decoded.NewerVersion]. A `repairs` object that does not
+ * read loads the lineup with no record ([Decoded.Loaded.repairsUnreadable]): the record is per TV and rebuilt by the
+ * next repair, so it is never a reason to set the lineup aside. The service keeps a copy of a
  * version-3 file (`keepCopy`, tag `v3`) before the first version-4 save.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
@@ -87,13 +89,15 @@ internal object LineupCodec {
          * A lineup of [fileVersion] (1 up to [VERSION]), perhaps with [ChannelSource.Unusable] channels, its [meta]
          * and its [repairs] (none below version 4). A [fileVersion] below what the next save writes is an upgrade: the
          * caller keeps the old bytes before it saves. The default [fileVersion] is [BASE_VERSION]: what a lineup with
-         * no repairs is written as.
+         * no repairs is written as. [repairsUnreadable] is true when the file's `repairs` object did not read: the
+         * lineup is loaded with no record ([repairs] is none), the file is not set aside, and the caller reports it.
          */
         data class Loaded(
             val lineup: Lineup,
             val meta: RefreshMeta = RefreshMeta(),
             val repairs: TodayRepairs = TodayRepairs.NONE,
             val fileVersion: Int = BASE_VERSION,
+            val repairsUnreadable: Boolean = false,
         ) : Decoded
 
         /** Not a lineup this version can read. The caller sets it aside before writing another. */
@@ -198,12 +202,23 @@ internal object LineupCodec {
             )
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
         return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs)) {
-            val repairs = if (hasRepairs) RepairsCodec.decode(file.repairs ?: JsonNull) else TodayRepairs.NONE
-            Decoded.Loaded(lineup, meta, repairs, fileVersion)
+            val repairs = if (hasRepairs) repairsOf(file.repairs ?: JsonNull) else TodayRepairs.NONE
+            val unreadable = repairs == null
+            Decoded.Loaded(lineup, meta, repairs ?: TodayRepairs.NONE, fileVersion, repairsUnreadable = unreadable)
         } else {
             Decoded.Unreadable
         }
     }
+
+    // The record, or null when it does not read: the lineup is loaded all the same, with none (spec 26).
+    private fun repairsOf(element: JsonElement): TodayRepairs? =
+        try {
+            RepairsCodec.decode(element)
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: ArithmeticException) {
+            null
+        }
 
     // Older versions are strict: a field of a later version in them was not written by this app.
     private fun hasStrayField(

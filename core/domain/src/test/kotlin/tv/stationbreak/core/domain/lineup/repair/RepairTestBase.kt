@@ -109,6 +109,9 @@ internal open class RepairTestBase {
         sharedLibrary: CountingLibrary? = null,
     ) {
         val library: CountingLibrary = restart?.library ?: sharedLibrary ?: CountingLibrary()
+
+        /** The seq saved with this TV's selection: every repair shows unless a test holds one back. */
+        var applied: Long = restart?.applied ?: Long.MAX_VALUE
         val store: RecordingStore = restart?.store ?: RecordingStore()
         private val clock =
             object : Clock {
@@ -122,6 +125,7 @@ internal open class RepairTestBase {
                 library,
                 built = { builds += it },
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
+                appliedSeq = { applied },
             ) { chosen }
         val repairer = TodayRepairer(service, source, library, successors)
 
@@ -155,21 +159,24 @@ internal open class RepairTestBase {
 
         fun repairOf(channel: ChannelId): ChannelRepair = record().selection.single { it.channel == channel }
 
+        /** A change from [before] (the source's selection now) to [after]; the pins when saved, else null. */
         fun change(
             before: Set<ItemId>,
             after: Set<ItemId>,
             seq: Long = 7,
             at: Long = atMs,
         ): List<Pin>? {
-            val pins = runBlocking { repairer.selectionChanged(ACCOUNT, before, after, seq, at) }
+            assertEquals(chosen, before, "the change is from the selection the source reads")
+            val outcome = runBlocking { repairer.selectionChanged(ACCOUNT, after, seq, at) }
             chosen = after
-            return pins
+            return (outcome as? RepairOutcome.Saved)?.result
         }
 
+        /** How many blocks [TodayRepairer.repairLost] fixed; 0 when it saved nothing. */
         fun lost(
             playable: Set<ItemId>?,
             at: Long = atMs,
-        ): Int = runBlocking { repairer.repairLost(ACCOUNT, playable, at) }
+        ): Int = (runBlocking { repairer.repairLost(ACCOUNT, playable, at) } as? RepairOutcome.Saved)?.result ?: 0
 
         fun gone(id: CanonicalId) = library.delegate.tombstone(ACCOUNT, listOf(ItemId(id.value)))
 

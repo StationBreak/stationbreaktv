@@ -18,15 +18,19 @@ import tv.stationbreak.core.model.ItemId
  * `[startDelta, length, idIndex, mediaStart]`: `startDelta` from the end of the block before it (for the first block
  * from `from`, a fix's from its `blockStart`), `idIndex` into `ids` or -1 for a slate.
  *
+ * `lastSeq` is the highest selection seq ever recorded (`TodayRepairs.lastSeq`), written when not 0. The lost-block
+ * check (`TodayRepairs.lostCheck`) is never written.
+ *
  * It is strict like the rest of the file: an unknown key, a wrong type, an id that is not an id, an index outside the
  * table, a block that runs backwards, or two repairs of one channel day make [decode] throw
- * [IllegalArgumentException], which the lineup codec reports as an unreadable file.
+ * [IllegalArgumentException]. The lineup codec then loads the lineup with no record
+ * (`Decoded.Loaded.repairsUnreadable`), and never sets the file aside for it.
  */
 @Suppress("TooManyFunctions") // One small reader or writer per field shape, kept together.
 internal object RepairsCodec {
     private const val SELECTION = "selection"
     private const val FIXES = "fixes"
-    private const val CHECKED = "lostChecked"
+    private const val LAST_SEQ = "lastSeq"
 
     private const val CHANNEL = "ch"
     private const val DAY = "n"
@@ -48,7 +52,7 @@ internal object RepairsCodec {
     private const val BLOCK_FIELDS = 4
     private const val SLATE = -1L
 
-    private val topKeys = setOf(SELECTION, FIXES, CHECKED)
+    private val topKeys = setOf(SELECTION, FIXES, LAST_SEQ)
     private val selectionKeys =
         setOf(CHANNEL, DAY, DAY_END, AT, SEQ, LIBRARIES, FROM, PIN_END, PIN_LIBRARY, IDS, BLOCKS, HIDDEN)
     private val fixKeys = setOf(CHANNEL, DAY, DAY_END, BLOCK_START, BLOCK_END, GONE, IDS, PIECES)
@@ -57,7 +61,7 @@ internal object RepairsCodec {
         val fields = LinkedHashMap<String, JsonElement>()
         if (repairs.selection.isNotEmpty()) fields[SELECTION] = JsonArray(repairs.selection.map(::encode))
         if (repairs.fixes.isNotEmpty()) fields[FIXES] = JsonArray(repairs.fixes.map(::encode))
-        repairs.lostCheckedGeneration?.let { fields[CHECKED] = JsonPrimitive(it) }
+        if (repairs.lastSeq != 0L) fields[LAST_SEQ] = JsonPrimitive(repairs.lastSeq)
         return JsonObject(fields)
     }
 
@@ -67,10 +71,10 @@ internal object RepairsCodec {
         require(topKeys.containsAll(root.keys)) { "An unknown key in repairs" }
         val selection = root[SELECTION]?.let { list(it).map { entry -> repair(entry) } }.orEmpty()
         val fixes = root[FIXES]?.let { list(it).map { entry -> fix(entry) } }.orEmpty()
-        val checked = root[CHECKED]?.let(::long)
+        val lastSeq = root[LAST_SEQ]?.let(::long) ?: 0L
         val days = selection.map { it.channel to it.n }
         require(days.size == days.toSet().size) { "Two repairs of one channel day" }
-        return TodayRepairs(selection, fixes, checked)
+        return TodayRepairs(selection, fixes, lastSeq = lastSeq)
     }
 
     private fun encode(repair: ChannelRepair): JsonObject {

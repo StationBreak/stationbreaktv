@@ -37,7 +37,7 @@ class LineupCodecV4Test {
                     repairOf(channel = "leftovers:odds-and-ends", n = 2L, seq = 5L, hidden = HiddenReason.NoMatches),
                 ),
             fixes = listOf(fixOf(), fixOf(n = 2L, blockStartMs = NOW_MS + 4 * HALF_HOUR_MS, gone = 91)),
-            lostCheckedGeneration = 9L,
+            lastSeq = 9L,
         )
 
     private fun tree(bytes: ByteArray): JsonObject = Json.parseToJsonElement(bytes.decodeToString()).jsonObject
@@ -123,8 +123,17 @@ class LineupCodecV4Test {
         assertEquals(LineupCodec.Decoded.NewerVersion(5), LineupCodec.decode(bytes.encodeToByteArray()))
     }
 
+    // A record that does not read loads the lineup with none: never a reason to set the lineup aside.
+    private fun assertRecordUnreadable(bytes: ByteArray) {
+        val read = loaded(bytes)
+        assertEquals(lineup, read.lineup)
+        assertEquals(meta, read.meta)
+        assertEquals(TodayRepairs.NONE, read.repairs)
+        assertTrue(read.repairsUnreadable)
+    }
+
     @Test
-    fun anUnknownKeyOrBadShapeInRepairs_isUnreadable() {
+    fun anUnknownKeyOrBadShapeInRepairs_loadsTheLineupWithNoRecord() {
         val v4 = LineupCodec.encode(lineup, meta, repairs)
         val bad =
             listOf<(JsonObject) -> JsonElement>(
@@ -133,25 +142,23 @@ class LineupCodecV4Test {
                 { JsonObject(it + ("selection" to JsonPrimitive(1))) },
                 { JsonObject(it + ("selection" to it.getValue("selection").let { s -> JsonObject(mapOf("x" to s)) })) },
             )
-        for (edit in bad) {
-            assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(withRepairs(v4, null, edit)))
-        }
+        for (edit in bad) assertRecordUnreadable(withRepairs(v4, null, edit))
+        assertFalse(loaded(v4).repairsUnreadable, "the control reads")
     }
 
     @Test
-    fun twoSelectionRepairsOfOneChannelDay_isUnreadable() {
+    fun twoSelectionRepairsOfOneChannelDay_loadsTheLineupWithNoRecord() {
         val twice = repairs.copy(selection = listOf(repairOf(n = 1L, seq = 4L), repairOf(n = 1L, seq = 5L)))
-        val bytes = LineupCodec.encode(lineup, meta, twice)
-        assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(bytes))
+        assertRecordUnreadable(LineupCodec.encode(lineup, meta, twice))
     }
 
     @Test
-    fun aBlockNamingAnIdOutsideTheTable_isUnreadable() {
+    fun aBlockNamingAnIdOutsideTheTable_loadsTheLineupWithNoRecord() {
         val text = LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repairOf()))).decodeToString()
         // The first block is [0, length, 0, mediaStart]: point it at index 99.
         val broken = text.replaceFirst(Regex("""\[0,(\d+),0,"""), "[0,\$1,99,")
         assertTrue(broken != text)
-        assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(broken.encodeToByteArray()))
+        assertRecordUnreadable(broken.encodeToByteArray())
     }
 
     @Test
@@ -200,11 +207,11 @@ class LineupCodecV4Test {
     }
 
     @Test
-    fun anIdRepeatedInATable_isUnreadable_butAnUnusedOneIsFine() {
+    fun anIdRepeatedInATable_loadsTheLineupWithNoRecord_butAnUnusedOneIsFine() {
         val text = LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repairOf()))).decodeToString()
         val ids = Regex(""""ids":\["([0-9a-f]+)"""").find(text)!!.groupValues[1]
         val repeated = text.replaceFirst(""""ids":["$ids"""", """"ids":["$ids","$ids"""")
-        assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(repeated.encodeToByteArray()))
+        assertRecordUnreadable(repeated.encodeToByteArray())
         val unused = text.replaceFirst(""""ids":["$ids"""", """"ids":["$ids","${"f".repeat(32)}"""")
         assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(unused.encodeToByteArray()))
     }
@@ -244,7 +251,7 @@ class LineupCodecV4Test {
                 blocks = listOf(block),
             )
         val fix = fixOf().copy(dayEndMs = big + HALF_HOUR_MS, blockStartMs = big, blockEndMs = big + HALF_HOUR_MS)
-        roundTrips(TodayRepairs(listOf(repair), listOf(fix.copy(pieces = listOf(block))), Long.MAX_VALUE))
+        roundTrips(TodayRepairs(listOf(repair), listOf(fix.copy(pieces = listOf(block))), lastSeq = Long.MAX_VALUE))
     }
 
     private companion object {

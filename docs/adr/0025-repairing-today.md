@@ -48,8 +48,18 @@ updates, new rules, the on-set, the household setting.
 - **The rest of the day is a recorded tail.** On a selection change it is laid out again by the scheduler from the pin's
   end. The kept window and the tail are stored as one `ChannelRepair` per channel day, the latest of a day winning, so
   every later lookup and rebuild on that TV reads the same blocks. Nothing is worked out again per lookup.
-- **The repair fill pool.** On a repaired day, a block is filled from the tail pool plus what the channel admits of the
-  current selection at repair time. On a day with no selection repair, the fill pool is the day pool.
+- **Every switched-on channel gets a repair**, the leftovers channel included, so the first tune after a change is made
+  from the record alone. A day hidden at the change has nothing on air to keep: its tail is laid out from the half hour,
+  or, when the new selection gives it nothing either, the whole day is one slate with the new selection's empty reason.
+- **A second change on a repaired day.** The record keeps only the tail's items, so the tail's base pool is the
+  recorded tail pool plus what the channel admits of the current selection (read for it), less what the record has
+  airing before the change. What aired before the first change's kept window is not recorded, so it may come round
+  again later that day.
+- **The repair fill pool.** In `repairLost`, a block of a repaired day is filled from the tail pool plus what the
+  channel admits of the current selection at repair time. On a day with no selection repair, the fill pool is the day
+  pool.
+- **Fills at lookup** (the naming fill and the stand-in) on a repaired day use the tail pool only, read by id. A lookup
+  never builds the day to find a wider pool.
 
 ### 3. Frozen rules and no re-homing
 
@@ -86,10 +96,13 @@ A successor (the item came back under a new id) is tried first, and only when it
 in the block's slot from the block's own media start. Otherwise the block is filled. The fill never picks the gone item,
 an item with no current row, or an item of the fix being filled around.
 
-When the selection itself is gone (no playable library), nothing is read from the libraries. The fill comes from the
-recorded tail's items only, or the card.
+When the selection itself is gone (no playable library), nothing more is read from the libraries for a repaired day:
+its fill comes from the recorded tail's items only, or the card. A day with no repair still has its built day pool, and
+only that pool's liveness (which items still have a row) is read to fill from it.
 
-Each fix is recorded per block with the library's content generation it was checked at, so a lookup reads the record only.
+Each fix is recorded per block, so a lookup reads the record only. The check itself is remembered in memory (the
+library's content generation, and the end of the earliest channel day it saw), never in the file: it holds until the
+generation moves or one of those days ends, and a restart costs one more check in the background.
 
 ### 5. Repairs are per TV
 
@@ -100,8 +113,10 @@ their selection and library state match. A day gives the same answer to every lo
 
 ### 6. Lineup file version 4, and the size rule
 
-The repair record is a new optional `repairs` object in the lineup file. The file is **version 4 only while a repair is
-held**. With no repairs it is written as version 3, the lowest version that holds its content. The first version-4
+The repair record is a new optional `repairs` object in the lineup file. The file is **version 4 only while a record is
+held**: a repair, a fix, or `lastSeq`, the highest selection seq ever recorded (kept through rolling and trimming, so a
+seq is never used twice). With none of these it is written as version 3, the lowest version that holds its content.
+A `repairs` object that does not read loads the lineup with no record and is reported; the lineup is not set aside. The first version-4
 save keeps a copy of a version-3 file, with the existing `.bak` rule. An older app sees version 4 as a newer version, shows
 a planned default lineup and cannot save over it.
 
@@ -111,17 +126,28 @@ cap with 64 KiB kept free:
 - **A repair's own save:** at most 256 fixes stay. When it does not fit, the oldest fixes go first (the oldest day, then the
   earliest block), never one whose block is on air. If it still does not fit, the repair is refused and nothing changes.
 - **Any other save of the lineup** (a refresh, say) trims the record instead of failing: the oldest fixes not on air first,
-  then fixes on air, then selection repairs by oldest repair time. The lost-block generation always stays.
+  then fixes on air, then selection repairs by oldest repair time. Dropping a fix also forgets the lost-block check, so
+  the next check makes it again. If dropping everything still does not fit, the record is emptied but for `lastSeq`.
 
-What was dropped is reported as three counts and nothing else. A dropped repair means that day is built as the build
-would, which is what the day looked like before the repair.
+What was dropped is reported as three counts and nothing else. A dropped selection repair means that day is then built
+from the saved selection, which can change the programme on air. This only happens near the file cap.
 
 ### 7. The concurrency contract
 
-Callers serialise selection repair and lost-block repair (one `Mutex`). Each plans from the record it read, and writes only if
-the lineup's revision and the record's selection repairs are still those it read. Otherwise it writes nothing and tells
-the caller. A selection change **saves the new selection only after the repair is recorded**, and the repair runs while
-the removed libraries' rows still exist. If the repair could not be saved, the selection is not changed.
+The repairer is one instance per process. Its calls take turns (one `Mutex` inside it) and run on the background save
+thread, never the caller's. Each plans from the record it read, and writes only if the lineup's revision and the
+record's selection repairs are still those it read. Each call says what it did: `Saved`, `Stale` (the lineup moved on;
+the caller retries once after a fresh read), `Refused` (the record could not be saved) or `NoLineup`.
+
+A selection change is recorded with a seq, and shows only once the selection is saved with that seq:
+
+1. Record the repair, seq N (it runs while the removed libraries' rows still exist).
+2. Save the selection with seq N, in one write.
+3. The repair shows: the schedule source leaves out every selection repair whose seq is above the saved selection's.
+
+A crash between 1 and 2 leaves the repair unseen. Part 4's start-up resume finishes the save or drops the repair. If
+the save fails, the caller drops the repairs of seq N (`dropSelection`) and the selection is not changed. Fixes of lost
+blocks are never held back.
 
 ## Consequences
 
@@ -139,5 +165,7 @@ the removed libraries' rows still exist. If the repair could not be saved, the s
 - The lineup file has a fourth version, and a version-4 file exists only while a repair is held. An app older than this
   one cannot save a lineup it wrote while a repair is held.
 - A trimmed record loses a repair: a selection repair dropped by a save of another kind means that channel day is built
-  as the build would. This only happens when the file is close to its cap.
-- Callers owe the serialisation in §7. A caller that skips it gets a repair that writes nothing, not a corrupt record.
+  from the saved selection, which can change the programme on air. This only happens when the file is close to its cap.
+- A repair dropped after a failed selection save takes its days back to the build of the saved selection. If it had
+  replaced an earlier repair of the same day, that earlier repair is not restored.
+- A second change on a repaired day may repeat a programme that aired before the first change's kept window.

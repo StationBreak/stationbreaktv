@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -97,6 +98,11 @@ import kotlin.time.TimeSource
  * disk is always the unrepaired build; a set with a repaired day that has none is not written. On a repaired day the
  * naming fill and the stand-ins read the tail pool, by id (`scheduleItemsOf`), once and only for a gone block.
  *
+ * A selection repair shows only once its selection is saved: [appliedSeq] is the seq saved with the TV's selection,
+ * and a lookup leaves out every `ChannelRepair` of a later seq (the day is built as without it). Fixes of lost blocks
+ * are never held back. Until Part 4 stores the seq with the selection, in one write, and gives it here, the default
+ * is 0: no selection repair shows.
+ *
  * Main-safe: [airings], [onAir], [schedule] and [standIns] do their work on [dispatcher] (default:
  * `Dispatchers.Default`), so building a day never runs on, or blocks, the caller's thread.
  */
@@ -116,6 +122,7 @@ class BuiltInScheduleSource(
     private val persisted: PersistedDays? = null,
     private val saveDispatcher: CoroutineDispatcher = BackgroundSaves.dispatcher,
     shared: SharedSnapshots? = null,
+    private val appliedSeq: () -> Long = { 0L },
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
     // What a set of built days depends on (see the class comment): never the revision, nor any number or name that
@@ -239,9 +246,25 @@ class BuiltInScheduleSource(
     ): Lookup {
         val cuts = scheduled.map { it.cut }.distinct().sorted()
         val inputs = inputsOf(held.lineup, held.meta.extrasFromMs)
-        val records = held.repairs.digestsFor(scheduled)
+        val repairs = appliedOf(held.repairs)
+        val records = repairs.digestsFor(scheduled)
         val key = Key(account, libraries, inputs.digest, held.meta.plannedGeneration, cuts, records)
-        return Lookup(held, scheduled, key, inputs.ms)
+        return Lookup(held, scheduled, key, inputs.ms, repairs)
+    }
+
+    // The last record held back to an applied seq, and what it gave: a record's digests are worked out once.
+    @Volatile private var lastApplied: Triple<TodayRepairs, Long, TodayRepairs>? = null
+
+    /** [repairs] as a lookup follows them: without the selection repairs whose selection is not saved yet. */
+    private fun appliedOf(repairs: TodayRepairs): TodayRepairs {
+        if (repairs.selection.isEmpty()) return repairs
+        val seq = appliedSeq()
+        val last = lastApplied
+        return if (last != null && last.first === repairs && last.second == seq) {
+            last.third
+        } else {
+            repairs.applied(seq).also { lastApplied = Triple(repairs, seq, it) }
+        }
     }
 
     /**
@@ -653,9 +676,15 @@ class BuiltInScheduleSource(
     internal suspend fun currentDays(
         account: LibraryAccount,
         at: Instant,
-    ): List<ChannelDay> {
-        val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return emptyList()
-        return channelDays(account, chosen, at)
+    ): List<ChannelDay> = chosenDays(account, at).second
+
+    /** The libraries this source reads now (none when nothing is chosen) and [currentDays] over them, read once. */
+    internal suspend fun chosenDays(
+        account: LibraryAccount,
+        at: Instant,
+    ): Pair<Set<ItemId>, List<ChannelDay>> {
+        val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return emptySet<ItemId>() to emptyList()
+        return chosen to channelDays(account, chosen, at)
     }
 
     /** The switched-on channels' days at [at], in number order. */
@@ -692,14 +721,15 @@ class BuiltInScheduleSource(
     }
 
     /**
-     * The lineup held for [account], the channels scheduled at [at], the [Key] their days are kept under, and how long
-     * the key's day inputs took to work out ([DayBuild.inputsMs]).
+     * The lineup held for [account], the channels scheduled at [at], the [Key] their days are kept under, how long
+     * the key's day inputs took to work out ([DayBuild.inputsMs]), and the repair record the days follow ([appliedOf]).
      */
     private data class Lookup(
         val held: Revisioned,
         val scheduled: List<Scheduled>,
         val key: Key,
         val inputsMs: Long,
+        val repairs: TodayRepairs,
     )
 
     /**
@@ -803,7 +833,7 @@ class BuiltInScheduleSource(
                 )
             val look = disk != null && shouldLook(account, key, generation)
             // The record is laid over the days however they were made: restored, taken over or built (spec 26).
-            val records = wanted.held.repairs.recordsFor(scheduled)
+            val records = wanted.repairs.recordsFor(scheduled)
             val restored = if (look) fromDisk(account, disk, scheduled, checkpoint, records) else null
             val diskMs = if (look) began.elapsedNow().inWholeMilliseconds else -1L
             val reuseBegan = TimeSource.Monotonic.markNow()
@@ -1025,7 +1055,7 @@ class BuiltInScheduleSource(
     /**
      * The set's unrepaired build, for the save of a set in which some repaired days were made from their record alone
      * ([ChannelDay.built] false), so that the whole set is written and a restart restores every day from disk (the
-     * owner's older TV loses its process often). It runs here, on [saveDispatcher] and never on a tune's path: the
+     * older hardware loses its process often). It runs here, on [saveDispatcher] and never on a tune's path: the
      * days that were built are taken over as they are, and the rest are built from snapshots read directly (not through
      * [snapshots], whose reads run at the normal priority), so they are what a build with no record gives. Null, and
      * nothing written, when the library moved since the build, before or during the read (the snapshot would then be

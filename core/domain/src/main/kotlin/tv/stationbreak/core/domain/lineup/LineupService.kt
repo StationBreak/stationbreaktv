@@ -716,24 +716,43 @@ class LineupService internal constructor(
     internal fun lineup(account: LibraryAccount): StateFlow<Revisioned?> =
         ownerOf(account)?.let { entryOf(it).state.asStateFlow() } ?: noLineup
 
+    /** What [recordRepairsOutcome] did. */
+    internal enum class Recorded {
+        /** The record is the one [recordRepairsOutcome]'s change made, saved with the lineup (or already so). */
+        Saved,
+
+        /** The record could not be made to fit the file, or the save failed or was rejected: nothing changed. */
+        Refused,
+
+        /** There is no lineup, or this session may not write the account's file: nothing changed. */
+        NoLineup,
+    }
+
+    /** [recordRepairsOutcome], true only when [Recorded.Saved]. */
+    internal suspend fun recordRepairs(
+        account: LibraryAccount,
+        change: (Revisioned) -> TodayRepairs,
+    ): Boolean = recordRepairsOutcome(account, change) == Recorded.Saved
+
     /**
      * Replaces [account]'s repair record (spec 26) with what [change] makes of the lineup as held now, under the
      * account's lock, saved with the lineup in one write and then published. The record is first rolled (what has
      * ended goes) and made to fit the file: [RepairConfig.fileMargin] stays free under the cap, the oldest fixes go
-     * first when it does not fit, never one whose block is on air now, and at most [RepairConfig.maxFixes] stay. False
-     * when there is no lineup, the file may not be written, the record cannot be made to fit, or the save failed or
-     * was rejected: then nothing changed (not the file, not the published lineup or record). The first version-4
-     * save keeps a copy of a version-3 file.
+     * first when it does not fit, never one whose block is on air now, and at most [RepairConfig.maxFixes] stay.
+     * [Recorded.NoLineup] when there is no lineup or the file may not be written; [Recorded.Refused] when the record
+     * cannot be made to fit, or the save failed or was rejected: then nothing changed (not the file, not the published
+     * lineup or record). The first version-4 save keeps a copy of a version-3 file. A change of the in-memory
+     * `TodayRepairs.lostCheck` alone is published with no write.
      *
-     * A record the format cannot hold is refused at save time (false, nothing changed): a block that starts before
-     * the one before it ends (a negative delta), a block of no length, a negative media start, an index outside an id
-     * table, or two repairs of one channel day. Callers that build blocks must keep them in order and non-empty.
+     * A record the format cannot hold is refused at save time (nothing changed): a block that starts before the one
+     * before it ends (a negative delta), a block of no length, a negative media start, an index outside an id table,
+     * or two repairs of one channel day. Callers that build blocks must keep them in order and non-empty.
      */
-    internal suspend fun recordRepairs(
+    internal suspend fun recordRepairsOutcome(
         account: LibraryAccount,
         change: (Revisioned) -> TodayRepairs,
-    ): Boolean {
-        val owner = ownerOf(account) ?: return false
+    ): Recorded {
+        val owner = ownerOf(account) ?: return Recorded.NoLineup
         val entry = entryOf(owner)
         return entry.mutex.withLock {
             val start = startOf(owner, entry)
@@ -746,12 +765,15 @@ class LineupService internal constructor(
             val held = entry.state.value?.takeIf { it.writable && entry.writable }
             if (held == null) {
                 noteWritable(entry)
-                false
+                Recorded.NoLineup
             } else {
                 record(owner, entry, held, start.fileVersion, change(held))
             }
         }
     }
+
+    /** The repair engine's tunables (spec 26): the one instance the service and the repairer share. */
+    internal val repairConfig: RepairConfig get() = seams.repairConfig
 
     // [repairs] made to fit beside [lineup] for a save that has nothing to do with them: it never fails for their sake.
     private fun trimmed(
@@ -796,7 +818,7 @@ class LineupService internal constructor(
         held: Revisioned,
         fileVersion: Int?,
         wanted: TodayRepairs,
-    ): Boolean {
+    ): Recorded {
         val nowMs = clock.now().toEpochMilliseconds()
         val limit = LineupLimits.MAX_FILE_BYTES - seams.repairConfig.fileMargin
         val fitted =
@@ -805,11 +827,17 @@ class LineupService internal constructor(
             }
         return when {
             fitted == null -> {
-                false
+                Recorded.Refused
             }
 
             fitted == held.repairs -> {
-                true
+                Recorded.Saved
+            }
+
+            fitted.stored() == held.repairs.stored() -> {
+                // Only the lost-block check moved, which the file never holds: nothing to write.
+                entry.set(held.copy(repairs = fitted))
+                Recorded.Saved
             }
 
             else -> {
@@ -820,9 +848,9 @@ class LineupService internal constructor(
                     if (fileVersion == LineupCodec.BASE_VERSION && !fitted.isEmpty) keepUpgradeCopy(owner, fileVersion)
                     if (saveVerified(owner, held.lineup, held.meta, fitted)) {
                         entry.set(held.copy(repairs = fitted))
-                        true
+                        Recorded.Saved
                     } else {
-                        false
+                        Recorded.Refused
                     }
                 }
             }
@@ -848,6 +876,7 @@ class LineupService internal constructor(
                     val stored = store.load(owner.key)
                     val decoded = (stored as? StoredBytes.Present)?.let { LineupCodec.decode(it.bytes) }
                     if (decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup)) {
+                        if (decoded.repairsUnreadable) report(LineupEvent.RepairsUnreadable)
                         entry.writable = true
                         publish(entry, decoded.lineup, decoded.meta, decoded.repairs)
                     }
@@ -1020,6 +1049,7 @@ class LineupService internal constructor(
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
                 if (owner.owns(lineup)) {
+                    if (decoded.repairsUnreadable) report(LineupEvent.RepairsUnreadable)
                     // Only an older file's upgrade to version 3 is kept here; the first version-4 save keeps its own.
                     if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
                     Start(lineup, decoded.meta, true, repairs = decoded.repairs, fileVersion = decoded.fileVersion)
@@ -1078,7 +1108,8 @@ class LineupService internal constructor(
     ): Boolean {
         val bytes = seams.encode(planned, meta, repairs)
         val back = LineupCodec.decode(bytes)
-        return if (back !is LineupCodec.Decoded.Loaded || !owner.owns(back.lineup) || back.repairs != repairs) {
+        val stored = back as? LineupCodec.Decoded.Loaded
+        return if (stored == null || !owner.owns(stored.lineup) || stored.repairs != repairs.stored()) {
             report(LineupEvent.SaveRejected)
             false
         } else if (!store.save(owner.key, bytes)) {

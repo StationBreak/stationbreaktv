@@ -268,7 +268,7 @@ internal class TodayRepairerTest : RepairTestBase() {
     }
 
     @Test
-    fun secondChangeSameDay_poolIsRecordedUnairedTail_minusRemoved_plusAdded() {
+    fun secondChangeSameDay_poolIsTailPoolAndAdmittedNow_lessAired_minusRemoved_plusAdded() {
         val mine = custom("custom-1", 600, rules("Mine", Source.Genre("Comedy")))
         val comediesC = listOf(film(500, "Comedy", library = libC))
         val comediesD = listOf(film(520, "Comedy", library = libD))
@@ -276,7 +276,7 @@ internal class TodayRepairerTest : RepairTestBase() {
         rig.change(before = setOf(libA, libB), after = setOf(libA, libB, libC))
         val first = rig.repairOf(mine.id)
         val second = atMs + 4 * hour
-        val unaired = first.tail().filter { it.startMs >= second }.mapNotNullTo(HashSet()) { it.itemId }
+        val aired = first.blocks.filter { it.startMs < second }.mapNotNullTo(HashSet()) { it.itemId }
 
         assertNotNull(rig.change(before = setOf(libA, libB, libC), after = setOf(libA, libC, libD), at = second))
 
@@ -285,7 +285,32 @@ internal class TodayRepairerTest : RepairTestBase() {
         val tail = repair.tailIds()
         assertTrue(tail.none { it in ids(comediesB) }, "the removed library is gone from the tail")
         assertTrue(comediesD.single().item.id in tail, "the added title is in it")
-        assertTrue((unaired - ids(comediesB) + ids(comediesD)).containsAll(tail), "the base is the unaired tail")
+        val admittedNow = ids(comedies.take(4) + comediesB + comediesC)
+        val base = admittedNow - aired - ids(comediesB)
+        assertTrue((base + ids(comediesD)).containsAll(tail), "the base: what the channel admits now, less aired")
+    }
+
+    @Test
+    fun secondChangeSameDay_anItemOfTheDayPoolTheFirstTailLeftOut_isThereForTheSecond() {
+        val rig = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA))
+        val end = rig.day(laughs.id).epochEndMs
+        // A late first change that adds a library: its tail is all the added library's.
+        rig.change(before = setOf(libA), after = setOf(libA, libB), seq = 7, at = end - 4 * hour - 10 * minute)
+        val first = rig.repairOf(laughs.id)
+        assertTrue(first.tailIds().isNotEmpty() && ids(comediesB).containsAll(first.tailIds()), "the set-up")
+        val leftOut = ids(comedies) - first.blocks.mapNotNullTo(HashSet()) { it.itemId }
+        val secondAt = first.pinEndMs + minute
+        val aired = first.blocks.filter { it.startMs < secondAt }.mapNotNullTo(HashSet()) { it.itemId }
+
+        // The second change takes that library away again: the first record's tail pool has nothing left to lay.
+        assertNotNull(rig.change(before = setOf(libA, libB), after = setOf(libA), seq = 8, at = secondAt))
+
+        val second = rig.repairOf(laughs.id)
+        assertEquals(8L, second.seq)
+        val tail = second.tailIds()
+        assertTrue(tail.none { it in aired }, "what the record aired is left out: $tail")
+        assertTrue(ids(comedies).containsAll(tail), "nothing of the removed library: $tail")
+        assertTrue(tail.any { it in leftOut }, "a film of the day pool the first record left out airs: $tail")
     }
 
     @Test

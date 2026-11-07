@@ -106,12 +106,13 @@ class DaySnapshotCodecTest {
 
     @Test
     fun aVersionFiveFileMissesWithFormat() {
-        assertEquals(6, DaySnapshotCodec.VERSION)
+        assertEquals(7, DaySnapshotCodec.VERSION)
         val built = days.curatedDays(lineup, noon)
         assertTrue(runBlocking { persisted.save(ACCOUNT, key, built) })
         val (where, bytes) = store.only()
         val text = bytes.decodeToString()
-        store.files[where] = text.replaceFirst("\"format\":6", "\"format\":5").encodeToByteArray()
+        val older = text.replaceFirst("\"format\":${DaySnapshotCodec.VERSION}", "\"format\":5")
+        store.files[where] = older.encodeToByteArray()
 
         assertNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
         assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.Format), events.last())

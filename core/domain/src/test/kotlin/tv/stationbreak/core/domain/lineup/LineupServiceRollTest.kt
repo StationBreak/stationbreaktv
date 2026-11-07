@@ -255,7 +255,7 @@ class LineupServiceRollTest {
             assertEquals(record, service.repairs(ACCOUNT).value)
             assertEquals(record, checkNotNull(service.lineup(ACCOUNT).value).repairs)
             // The copy is kept once: a later record is already version 4.
-            assertTrue(service.recordRepairs(ACCOUNT) { it.repairs.copy(lostCheckedGeneration = 3L) })
+            assertTrue(service.recordRepairs(ACCOUNT) { it.repairs.copy(lastSeq = 30L) })
             assertEquals(v3Bytes.toList(), checkNotNull(store.inner.keptCopy(ACCOUNT, "v3")).toList())
         }
 

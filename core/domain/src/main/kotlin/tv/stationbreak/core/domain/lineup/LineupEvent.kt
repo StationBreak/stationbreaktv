@@ -59,4 +59,10 @@ enum class LineupEvent {
      * theirs, and the day was built all the same.
      */
     LeftoversClaimedFromAnotherDay,
+
+    /**
+     * The stored lineup's repair record (spec 26) could not be read. The lineup was loaded without it, and the days
+     * are built as they would be with no repair; the next repair records afresh.
+     */
+    RepairsUnreadable,
 }

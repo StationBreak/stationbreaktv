@@ -88,16 +88,16 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
         rig.gone(goneId)
         assertTrue(rig.lost(setOf(libA)) > 0)
         val generation = runBlocking { rig.library.contentGeneration(ACCOUNT) }
-        assertEquals(generation, rig.record().lostCheckedGeneration)
+        assertEquals(generation, rig.record().lostCheck?.generation)
 
         assertNotNull(rig.change(before = setOf(libA), after = setOf(libA)))
 
         assertTrue(goneId !in rig.repairOf(laughs.id).tailIds(), "a fresh tail lays out nothing with no row")
-        assertNull(rig.record().lostCheckedGeneration, "the new tails are checked again")
+        assertNull(rig.record().lostCheck, "the new tails are checked again")
         val reads = rig.library.currentIdsCalls
         rig.lost(setOf(libA))
         assertTrue(rig.library.currentIdsCalls > reads, "the next check runs at the same generation")
-        assertEquals(generation, rig.record().lostCheckedGeneration)
+        assertEquals(generation, rig.record().lostCheck?.generation)
     }
 
     @Test
@@ -117,7 +117,7 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
 
         assertTrue(revisions.second != revisions.first, "the lineup moved while the repair ran")
         assertEquals(emptyList(), rig.record().fixes, "no fix written")
-        assertNull(rig.record().lostCheckedGeneration, "the generation is not stamped")
+        assertNull(rig.record().lostCheck, "the generation is not stamped")
     }
 
     @Test
@@ -126,7 +126,7 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
 
         assertEquals(0, rig.lost(setOf(libA)))
 
-        assertNull(rig.record().lostCheckedGeneration)
+        assertNull(rig.record().lostCheck)
     }
 
     @Test
@@ -252,8 +252,9 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
         val repair1 = box.rig.repairOf(laughs.id)
         assertEquals(laid(first, pool1, films1, weights1, repair1.pinEndMs), repair1.tail())
 
-        // A second change that adds a library: the record's unaired tail plus the added film, laid with the new
-        // selection's films and weights for every title of the pool (anchors at 3, homes at 2).
+        // A second change that adds a library: the record's tail pool and what laughs admits now (every comedy of
+        // libraries A and B), less what the record airs before it, plus the added film, laid with the new selection's
+        // films and weights for every title of the pool (anchors at 3, homes at 2).
         val second = repair1.pinEndMs
         val day2 = box.rig.day(laughs.id, second)
         val all = setOf(libA, libB, libC)
@@ -261,7 +262,8 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
         val repair2 = box.rig.repairOf(laughs.id)
         val after2 = box.builtOver(all)
         val airedRecord = repair1.blocks.filter { it.startMs < second }.mapNotNullTo(HashSet()) { it.itemId }
-        val ids2 = repair1.tailIds() - airedRecord + box.extra.item.id
+        val admittedNow = ids(comedies.take(2) + box.todays + box.boxSet + box.others)
+        val ids2 = repair1.tailIds() + admittedNow - airedRecord + box.extra.item.id
         val pool2 =
             box
                 .snapshotOf(all)

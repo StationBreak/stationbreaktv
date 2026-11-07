@@ -128,7 +128,12 @@ class RepairedDaysTest {
                 built = { builds += it },
                 persisted = if (saving) PersistedDays(daysOnDisk, "1:100", { events += it }) else null,
                 saveDispatcher = gate,
+                // Every repair's selection is saved, unless a test says otherwise.
+                appliedSeq = { applied },
             ) { LIBRARIES }
+
+        /** The seq saved with this process's selection. */
+        @Volatile var applied: Long = Long.MAX_VALUE
 
         /** The days at [at], with no write to disk run yet. */
         fun daysNow(at: Instant = NOON): List<ChannelDay> = runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at) }
