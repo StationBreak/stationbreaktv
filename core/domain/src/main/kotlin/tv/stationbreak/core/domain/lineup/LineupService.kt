@@ -38,6 +38,7 @@ import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.domain.lineup.repair.RepairConfig
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.Trimmed
 import tv.stationbreak.core.domain.lineup.repair.fitted
 import tv.stationbreak.core.domain.lineup.repair.trimmedToFit
 import tv.stationbreak.core.engine.ExtrasFilter
@@ -246,8 +247,7 @@ class LineupService internal constructor(
             val start = startOf(owner, entry)
             entry.writable = start.save
             val (planned, meta) = planned(owner, account, libraries, start)
-            val repairs = fitted(planned, meta, start.repairs)
-            if (entry.writable) saveVerified(owner, planned, meta, repairs)
+            val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs)
             publish(entry, planned, meta, repairs)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
@@ -422,12 +422,11 @@ class LineupService internal constructor(
             val acted = meta.collectionPassActedOn
             if (lineup != null && acted != null && acted != ms) {
                 val updated = meta.copy(collectionPassActedOn = ms)
-                val repairs = fitted(lineup, updated, held?.repairs ?: start.repairs)
-                if (entry.writable) saveVerified(owner, lineup, updated, repairs)
+                val repairs = savedWithRecord(owner, entry, lineup, updated, held?.repairs ?: start.repairs)
                 if (held == null) {
                     publish(entry, lineup, updated, repairs)
                 } else {
-                    entry.set(held.copy(meta = updated, writable = entry.writable))
+                    entry.set(held.copy(meta = updated, repairs = repairs, writable = entry.writable))
                 }
                 entry.loaded = true
             } else {
@@ -486,8 +485,10 @@ class LineupService internal constructor(
                     val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
                     val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
-                    val repairs = fitted(edited.lineup, meta, held?.repairs ?: start.repairs)
+                    val trimmed = trimmed(edited.lineup, meta, held?.repairs ?: start.repairs, nowMs())
+                    val repairs = trimmed.record
                     if (saveVerified(owner, edited.lineup, meta, repairs)) {
+                        told(trimmed)
                         publish(entry, edited.lineup, meta, repairs)
                         entry.loaded = true
                         Saved.Ok(edited)
@@ -753,17 +754,40 @@ class LineupService internal constructor(
     }
 
     // [repairs] made to fit beside [lineup] for a save that has nothing to do with them: it never fails for their sake.
-    // What was dropped is told to [LineupSeams.trimmed], as three counts and nothing else.
-    private fun fitted(
+    private fun trimmed(
+        lineup: Lineup,
+        meta: RefreshMeta,
+        repairs: TodayRepairs,
+        nowMs: Long,
+    ): Trimmed {
+        val limit = LineupLimits.MAX_FILE_BYTES - seams.repairConfig.fileMargin
+        return if (repairs.isEmpty) {
+            Trimmed(repairs, 0, 0, 0)
+        } else {
+            repairs.trimmedToFit(nowMs, limit) { seams.encode(lineup, meta, it).size }
+        }
+    }
+
+    // What was dropped is told to [LineupSeams.trimmed], as three counts and nothing else: only once it is saved.
+    private fun told(trimmed: Trimmed) {
+        if (trimmed.dropped > 0) seams.trimmed(trimmed.fixes, trimmed.coveringFixes, trimmed.selection)
+    }
+
+    // Saves [lineup] with its record where this session may write, and gives the record to publish with it: the one
+    // that was saved (trimmed to fit), so memory equals disk. With no write, or a failed save, the record is kept as
+    // it was.
+    private suspend fun savedWithRecord(
+        owner: Owner,
+        entry: Entry,
         lineup: Lineup,
         meta: RefreshMeta,
         repairs: TodayRepairs,
     ): TodayRepairs {
-        if (repairs.isEmpty) return repairs
-        val limit = LineupLimits.MAX_FILE_BYTES - seams.repairConfig.fileMargin
-        val trimmed = repairs.trimmedToFit(nowMs(), limit) { seams.encode(lineup, meta, it).size }
-        if (trimmed.dropped > 0) seams.trimmed(trimmed.fixes, trimmed.coveringFixes, trimmed.selection)
-        return trimmed.record
+        if (!entry.writable) return repairs
+        val trimmed = trimmed(lineup, meta, repairs, nowMs())
+        val saved = saveVerified(owner, lineup, meta, trimmed.record)
+        if (saved) told(trimmed)
+        return if (saved) trimmed.record else repairs
     }
 
     private suspend fun record(
@@ -909,9 +933,10 @@ class LineupService internal constructor(
             // The repair record is pruned with it: a day that has ended is no use to anyone.
             val changed = held != null && (rolled !== held.lineup || rolledRepairs !== held.repairs)
             val due = held != null && changed && held.writable && entry.writable
-            val repairs = if (due) fitted(checkNotNull(rolled), held.meta, checkNotNull(rolledRepairs)) else null
-            if (due && repairs != null && saveVerified(owner, checkNotNull(rolled), held.meta, repairs)) {
-                publish(entry, rolled, held.meta, repairs)
+            val trimmed = rolledRepairs?.takeIf { due }?.let { trimmed(checkNotNull(rolled), held.meta, it, nowMs) }
+            if (trimmed != null && saveVerified(owner, checkNotNull(rolled), held.meta, trimmed.record)) {
+                told(trimmed)
+                publish(entry, rolled, held.meta, trimmed.record)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
