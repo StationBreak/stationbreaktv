@@ -9,6 +9,7 @@ import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.Revisioned
 import tv.stationbreak.core.domain.lineup.snapshotsOf
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
@@ -63,10 +64,10 @@ internal class LostRepair(
         fills.live(matches.values)
         val needsAdmitted = matches.isNotEmpty() || gone.any { !it.onAir && it.day.record?.repair != null }
         if (playable != null && needsAdmitted) admitted = admittedOf(playable)
-        val out = LinkedHashMap<List<Any>, LostFix>()
+        val out = LinkedHashMap<FixKey, LostFix>()
         for (g in gone) {
             val fix = fixOf(g, matches[g.item]?.takeIf { accepts(g, it, goneIds) })
-            out.putIfAbsent(listOf(fix.channel, fix.n, fix.blockStartMs, fix.blockEndMs), fix)
+            out.putIfAbsent(FixKey.of(fix), fix)
         }
         return out.values.toList()
     }
@@ -161,7 +162,18 @@ internal fun TodayRepairs.withFixes(
     fixes: List<LostFix>,
     generation: Long,
 ): TodayRepairs {
-    val key = { fix: LostFix -> listOf(fix.channel, fix.n, fix.blockStartMs, fix.blockEndMs) }
-    val replaced = fixes.mapTo(HashSet(), key)
-    return copy(fixes = this.fixes.filterNot { key(it) in replaced } + fixes, lostCheckedGeneration = generation)
+    val replaced = fixes.mapTo(HashSet()) { FixKey.of(it) }
+    return copy(fixes = this.fixes.filterNot { FixKey.of(it) in replaced } + fixes, lostCheckedGeneration = generation)
+}
+
+/** The block a fix is of: one fix per key in the record. */
+internal data class FixKey(
+    val channel: ChannelId,
+    val n: Long,
+    val startMs: Long,
+    val endMs: Long,
+) {
+    companion object {
+        fun of(fix: LostFix): FixKey = FixKey(fix.channel, fix.n, fix.blockStartMs, fix.blockEndMs)
+    }
 }

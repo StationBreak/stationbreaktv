@@ -6,6 +6,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.LineupService
+import tv.stationbreak.core.domain.lineup.Revisioned
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Instant
 
@@ -19,6 +20,11 @@ import kotlin.time.Instant
  * - [repairLost] fixes the blocks whose item has left the library and records the pieces.
  *
  * [config] holds the repair's tunables (the pause hold a caller adds to a [Pin]'s end).
+ *
+ * Callers must serialise [selectionChanged] and [repairLost] (one `Mutex`, Part 3): each plans from the record it
+ * read and writes only if the lineup's revision and the record's selection repairs are still those, so two at once
+ * would make one of them write nothing. A selection change saves the new selection only after [selectionChanged]
+ * returned non-null.
  */
 class TodayRepairer internal constructor(
     private val service: LineupService,
@@ -61,7 +67,7 @@ class TodayRepairer internal constructor(
         val saved =
             planned.repairs.isEmpty() ||
                 service.recordRepairs(account) { now ->
-                    if (now.revision == held.revision) {
+                    if (now.isStill(held)) {
                         planned.into(now.repairs)
                     } else {
                         stale = true
@@ -72,10 +78,13 @@ class TodayRepairer internal constructor(
     }
 
     /**
-     * Fixes every gone block from the one on air at [atMs] to each channel day's end, over the days a tune sees, and
-     * records the pieces with the library's content generation; does nothing when the record already holds that
-     * generation. [playable] are the libraries a match or a fill may come from now; null when the selection is gone,
-     * and then nothing is taken from the libraries. Returns how many blocks were fixed (0 when nothing was saved).
+     * Fixes every gone block from the one on air at [atMs] to each channel day's end, over the days a tune sees (the
+     * days of the source's chosen libraries), and records the pieces with the library's content generation; does
+     * nothing when the record already holds that generation, or when no day is on the air. [playable] are the chosen
+     * libraries a match or a fill may come from now (those whose rows are fetched and current; never more than the
+     * chosen set); null when the selection is gone, and then nothing is taken from the libraries. When the lineup or
+     * the record's selection repairs moved on while it ran, it writes nothing and leaves the generation as it was.
+     * Returns how many blocks were fixed (0 when nothing was saved).
      */
     suspend fun repairLost(
         account: LibraryAccount,
@@ -84,10 +93,26 @@ class TodayRepairer internal constructor(
     ): Int {
         val held = service.loaded(account)
         val generation = library.contentGeneration(account)
-        if (held == null || held.repairs.lostCheckedGeneration == generation) return 0
-        val today = source.currentDays(account, Instant.fromEpochMilliseconds(atMs))
+        val checked = held == null || held.repairs.lostCheckedGeneration == generation
+        val today = if (checked) emptyList() else source.currentDays(account, Instant.fromEpochMilliseconds(atMs))
+        if (held == null || today.isEmpty()) return 0
         val fixes = LostRepair(days, library, successors, account, held, playable, atMs).fixes(today)
-        val saved = service.recordRepairs(account) { now -> now.repairs.withFixes(fixes, generation) }
-        return if (saved) fixes.size else 0
+        var stale = false
+        val saved =
+            service.recordRepairs(account) { now ->
+                if (now.isStill(held)) {
+                    now.repairs.withFixes(fixes, generation)
+                } else {
+                    stale = true
+                    now.repairs
+                }
+            }
+        return if (saved && !stale) fixes.size else 0
     }
+}
+
+// Whether this is still the lineup [held] was read from: the same revision and the same selection repairs.
+private fun Revisioned.isStill(held: Revisioned): Boolean {
+    val sameRepairs = repairs.selection == held.repairs.selection
+    return revision == held.revision && sameRepairs
 }

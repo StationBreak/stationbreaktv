@@ -38,12 +38,16 @@ internal class PlannedRepair(
     val fixes: List<LostFix>,
     val pins: List<Pin>,
 ) {
-    /** [record] with these in place of what it held for the same channel days (the latest repair of a day wins). */
+    /**
+     * [record] with these in place of what it held for the same channel days (the latest repair of a day wins). The
+     * lost-block generation is cleared: the new tails were never checked, so the next `repairLost` checks them.
+     */
     fun into(record: TodayRepairs): TodayRepairs {
         val days = repairs.mapTo(HashSet()) { it.channel to it.n }
         return record.copy(
             selection = record.selection.filterNot { (it.channel to it.n) in days } + repairs,
             fixes = record.fixes.filterNot { (it.channel to it.n) in days } + fixes,
+            lostCheckedGeneration = null,
         )
     }
 }
@@ -143,7 +147,7 @@ internal class SelectionRepair(
     }
 
     // The tail pool of [day]: its base (the day pool as built, or on a repaired day the record's tail not yet aired)
-    // without what the new selection lacks, and what it takes of the added libraries.
+    // without what the new selection lacks, and what it takes of the added libraries; only items with a current row.
     private suspend fun tailPool(
         day: ChannelDay,
         s: Scheduled,
@@ -166,7 +170,10 @@ internal class SelectionRepair(
         val addedIds = addedIn(s, snapshot)
         val taken = admitted.pool(day.channel.id).filter { it.id in addedIds }
         val own = dayPool.mapTo(HashSet()) { it.groupId }
-        return days.tailPoolOf(s, base, present, taken, homesOf(s, snapshot), today, own)
+        val pool = days.tailPoolOf(s, base, present, taken, homesOf(s, snapshot), today, own)
+        // An item deleted since the cut-off is still in the snapshot: a fresh tail never lays out one with no row.
+        val live = fills.live(pool.map { it.id })
+        return pool.filter { it.id in live }
     }
 
     // The items of [snapshot] (the one [s] reads) in the libraries the change adds.
