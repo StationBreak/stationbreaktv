@@ -99,4 +99,13 @@ class GuideModelTest {
         assertEquals("Test Movie 2", result[1].title)
         assertNotNull(result[1].info)
     }
+
+    @Test
+    fun goneProgram_isUnavailableCell() {
+        val cell = cells(window(program(0, 30, 1, info = null)), nowMin = 0)[0]
+        assertEquals(CellKind.Unavailable, cell.kind)
+        assertEquals(id(1), cell.itemId)
+        assertNull(cell.title)
+        assertNull(cell.info)
+    }
 }

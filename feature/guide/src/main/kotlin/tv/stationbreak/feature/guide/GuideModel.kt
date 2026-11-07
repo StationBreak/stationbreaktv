@@ -16,14 +16,18 @@ import kotlin.time.Duration.Companion.minutes
 // from a module the Compose compiler does not see, so without it every cell would count as unstable, and a minute tick
 // that rebuilds an equal model would recompose every cell on the grid.
 
-/** What a guide cell shows: a program (or a stand-in for one), or a slate (nothing to play). */
-internal enum class CellKind { Program, Slate }
+/**
+ * What a guide cell shows: a program (or a stand-in for one), a slate (nothing to play), or a program whose item left
+ * the library ([Unavailable]: an `Airing.Program` with no info; it keeps its item id and is labelled, not blank).
+ */
+internal enum class CellKind { Program, Slate, Unavailable }
 
 /**
  * One cell of a guide row, half-open `[startMs, endMs)` in milliseconds since 1970. The first cell of a row may start
  * before [GuideModel.originMs]. [title] is derived from [info], the display title: the series name for an episode of a
- * known series, else the item's own title. It and [info] are null for a slate and for a program no longer in the
- * library; [itemId] is null for a slate. Whether it is too narrow for a title is the screen's call (`CellPlace`).
+ * known series, else the item's own title. It and [info] are null for a slate and for an [CellKind.Unavailable]
+ * program (no longer in the library); [itemId] is null for a slate. Whether it is too narrow for a title is the
+ * screen's call (`CellPlace`).
  */
 @Immutable
 internal data class GuideCell(
@@ -115,9 +119,17 @@ private fun continues(
 private fun cellOf(block: AiringBlock): GuideCell {
     val (kind, info, itemId) =
         when (val airing = block.airing) {
-            is Airing.Program -> Triple(CellKind.Program, airing.info, airing.itemId)
-            is Airing.StandIn -> Triple(CellKind.Program, airing.info, airing.itemId)
-            Airing.Slate -> Triple(CellKind.Slate, null, null)
+            is Airing.Program -> {
+                Triple(if (airing.info == null) CellKind.Unavailable else CellKind.Program, airing.info, airing.itemId)
+            }
+
+            is Airing.StandIn -> {
+                Triple(CellKind.Program, airing.info, airing.itemId)
+            }
+
+            Airing.Slate -> {
+                Triple(CellKind.Slate, null, null)
+            }
         }
     return GuideCell(block.startMs, block.endMs, kind, info?.let(::displayTitle), info, itemId)
 }
