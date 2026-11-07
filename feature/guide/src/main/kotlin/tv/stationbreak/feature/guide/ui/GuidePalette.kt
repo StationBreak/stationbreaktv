@@ -15,12 +15,11 @@ import androidx.compose.ui.graphics.Color
 internal class GuideColors(
     val page: Color,
     val pageGradientStart: Color,
-    /** The panel the grid sits on, one step above the page. */
+    /** The panel the grid sits on, one layer above the page (lighter in Dark, darker in Light). */
     val gridPanel: Color,
-    /** The alternate row bands, one step above the panel (dark) or below it (light). */
+    /** The alternate row bands, one step above the panel in Dark, below it in Light. */
     val rowBand: Color,
     val card: Color,
-    val cardAlternate: Color,
     /** The channel plate: lit top edge, body, bottom edge, a highlight line and the shadow under it. */
     val plateTop: Color,
     val plateBottom: Color,
@@ -63,7 +62,6 @@ internal class GuideColors(
                 gridPanel = Color(0xFF222320),
                 rowBand = Color(0xFF292B27),
                 card = Color(0xFF33352F),
-                cardAlternate = Color(0xFF252725),
                 plateTop = Color(0xFF4A4236),
                 plateBottom = Color(0xFF3A342B),
                 plateHighlight = Color(0xFF6B5F4C),
@@ -103,7 +101,6 @@ internal class GuideColors(
                 gridPanel = Color(0xFFE8E1D3),
                 rowBand = Color(0xFFDDD5C5),
                 card = Color(0xFFFFFCF6),
-                cardAlternate = Color(0xFFFAF7F0),
                 plateTop = Color(0xFFD9C8A6),
                 plateBottom = Color(0xFFCBB68F),
                 plateHighlight = Color(0xFFEADDBF),

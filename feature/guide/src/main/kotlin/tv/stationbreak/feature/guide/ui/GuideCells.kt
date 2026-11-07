@@ -228,7 +228,6 @@ internal fun GuideCellView(
     channel: ChannelId,
     cell: GuideCell,
     place: CellPlace,
-    alternate: Boolean,
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
@@ -271,7 +270,7 @@ internal fun GuideCellView(
             .padding(CellInset)
             .cellLook(
                 CellPaint(
-                    resting = if (alternate) colors.cardAlternate else colors.card,
+                    resting = colors.card,
                     colors = colors,
                     slate = slate,
                     focusAmount = { focusAmount },

@@ -46,6 +46,16 @@ class GuideGeometryTest {
         assertEquals(RowsBandHeight, RowHeight * GUIDE_VISIBLE_ROWS)
     }
 
+    @Test
+    fun bandsAlternateFromTheFirstVisibleRowNotTheFirstRowOfTheModel() {
+        // The rule is by model index, so a vertical scroll does not make a row blink between band and no band.
+        assertEquals(false, bandOf(0))
+        assertEquals(true, bandOf(1))
+        assertEquals(false, bandOf(2))
+        assertEquals(true, bandOf(3))
+        assertEquals(true, bandOf(11))
+    }
+
     private companion object {
         const val EPS = 0.01f
     }

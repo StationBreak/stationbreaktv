@@ -50,6 +50,12 @@ import java.time.ZoneId
 
 private val TickMarkHeight = 8.dp
 private val NowLineWidth = 1.5.dp
+/** The corner radius of the panel behind the clock strip and rows. */
+internal val GridPanelRadius = 18.dp
+
+/** How far a row band is drawn in from the panel's left and right edge. */
+internal val GridPanelPadding = 6.dp
+
 private val NowChipHeight = 21.dp
 private val NowChipGap = 4.dp
 
@@ -86,6 +92,7 @@ internal fun GuideGrid(
     Box(
         modifier
             .testTag(GuideTags.GRID)
+            .gridPanel(firstVisibleRow, last - firstVisibleRow, colors)
             .focusedRowTint(model, firstVisibleRow, focusOf, colors)
             .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
     ) {
@@ -100,7 +107,6 @@ internal fun GuideGrid(
                             GuideRowCells(
                                 row.channel,
                                 row.cells,
-                                index % 2 == 1,
                                 model.originMs,
                                 geometry,
                                 focusOf,
@@ -127,7 +133,6 @@ internal fun GuideGrid(
 private fun GuideRowCells(
     channel: ChannelId,
     cells: List<GuideCell>,
-    alternate: Boolean,
     originMs: Long,
     geometry: GuideGeometry,
     focusOf: () -> GuideFocus?,
@@ -140,7 +145,7 @@ private fun GuideRowCells(
                 key(cell.startMs) {
                     val place =
                         remember(cell, originMs, geometry) { CellPlace(cell.startMs, cell.endMs, originMs, geometry) }
-                    GuideCellView(channel, cell, place, alternate, focusOf, viewportOf, nowOf)
+                    GuideCellView(channel, cell, place, focusOf, viewportOf, nowOf)
                 }
             }
         },
@@ -267,6 +272,38 @@ private fun ClockStrip(
         }
     }
 }
+
+/**
+ * Whether the row at [rowIndex] of the model carries a band. By model index, not by place in the window, so a vertical
+ * scroll does not make a row swap between band and no band.
+ */
+internal fun bandOf(rowIndex: Int): Boolean = rowIndex % 2 == 1
+
+/**
+ * The rounded panel over the whole grid body, and a band under each odd row of the window. Drawn behind everything
+ * else, in the draw phase, from two colours and no allocation per frame; the bands are inset by [GridPanelPadding] at
+ * both sides. The content itself is not padded: the body's height and the rows' width are fixed by the geometry.
+ */
+private fun Modifier.gridPanel(
+    firstVisibleRow: Int,
+    shown: Int,
+    colors: GuideColors,
+): Modifier =
+    drawBehind {
+        drawRoundRect(colors.gridPanel, Offset.Zero, size, CornerRadius(GridPanelRadius.toPx()))
+        val inset = GridPanelPadding.toPx()
+        val radius = CornerRadius((GuideCardRadius + 2.dp).toPx())
+        val row = RowHeight.toPx()
+        for (place in 0 until shown) {
+            if (!bandOf(firstVisibleRow + place)) continue
+            drawRoundRect(
+                colors.rowBand,
+                Offset(inset, ClockHeight.toPx() + row * place),
+                Size(size.width - 2 * inset, row),
+                radius,
+            )
+        }
+    }
 
 /**
  * The focused-row wash, and a short accent tick at its left. [focusOf] is read here, in the draw phase, so a focus
