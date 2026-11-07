@@ -23,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -66,6 +68,18 @@ private val PlayingBarWidth = 3.dp
 private val FocusTickWidth = 3.dp
 private val FocusTickHeight = 16.dp
 private val NumberWidth = 36.dp
+
+/** The channel plate, inside the column: inset each side, a gap above and below for its two flat shadows. */
+private val PlateInset = 4.dp
+private val PlateTop = 3.dp
+private val PlateBottomGap = 6.dp
+private val PlateRadius = 8.dp
+private val PlateHighlightWidth = 1.5.dp
+private val PlateNearShadow = 3.dp
+private val PlateFarShadow = 5.dp
+private const val PLATE_NEAR_SHADOW_ALPHA = 0.28f
+private const val PLATE_FAR_SHADOW_ALPHA = 0.14f
+private val PlateBarInset = 6.dp
 private val LabelGap = 6.dp
 
 /**
@@ -161,9 +175,10 @@ private fun GuideRowCells(
 }
 
 /**
- * The channel column: the number, then the name, each cut with an ellipsis when it does not fit. A bar at the left
- * edge marks the channel playing. The row wash and the orange tick are drawn on the grid, so a focus move does not
- * recompose this cell.
+ * The channel column: a raised plate inside it (inset [PlateInset] each side, so the column's width is unchanged), with
+ * the number, then the name, each cut with an ellipsis when it does not fit. A bar at the plate's left edge marks the
+ * channel playing. The plate is a lit top edge, a vertical gradient and two flat offset shadows (no blur). The row wash
+ * and the orange tick are drawn on the grid, so a focus move does not recompose this cell.
  */
 @Composable
 private fun ChannelCell(
@@ -176,24 +191,15 @@ private fun ChannelCell(
         Modifier
             .width(ChannelColumnWidth)
             .fillMaxHeight()
-            .drawBehind {
-                if (playing) {
-                    val inset = (1.dp + GuideCardInset).toPx()
-                    drawRoundRect(
-                        colors.accent,
-                        Offset(0f, inset),
-                        Size(PlayingBarWidth.toPx(), size.height - 2 * inset),
-                        CornerRadius(PlayingBarWidth.toPx() / 2f),
-                    )
-                }
-            }.padding(start = 10.dp, end = 8.dp),
+            .channelPlate(colors, playing)
+            .padding(start = PlateInset + 8.dp, end = PlateInset + 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = number.toString(),
             modifier = Modifier.width(NumberWidth),
             style = guideFigures(17.sp, FontWeight.SemiBold),
-            color = colors.textSecondary,
+            color = colors.plateNumber,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
@@ -201,12 +207,56 @@ private fun ChannelCell(
         Text(
             text = name,
             style = guideText(18.sp, FontWeight.Medium),
-            color = colors.channelText,
+            color = colors.plateName,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
+
+/** The channel plate (see [ChannelCell]), drawn behind the number and name; brushes are made once per size. */
+private fun Modifier.channelPlate(
+    colors: GuideColors,
+    playing: Boolean,
+): Modifier =
+    drawWithCache {
+        val left = PlateInset.toPx()
+        val top = PlateTop.toPx()
+        val plate = Size(size.width - 2 * left, size.height - top - PlateBottomGap.toPx())
+        val radius = CornerRadius(PlateRadius.toPx())
+        val body =
+            Brush.verticalGradient(
+                listOf(colors.plateTop, colors.plateBottom),
+                startY = top,
+                endY = top + plate.height,
+            )
+        val near = colors.plateShadow.copy(alpha = PLATE_NEAR_SHADOW_ALPHA)
+        val far = colors.plateShadow.copy(alpha = PLATE_FAR_SHADOW_ALPHA)
+        val nearDrop = PlateNearShadow.toPx()
+        val farDrop = PlateFarShadow.toPx()
+        val edge = PlateHighlightWidth.toPx()
+        val bar = PlayingBarWidth.toPx()
+        val barInset = PlateBarInset.toPx()
+        onDrawBehind {
+            drawRoundRect(far, Offset(left, top + farDrop), plate, radius)
+            drawRoundRect(near, Offset(left, top + nearDrop), plate, radius)
+            drawRoundRect(body, Offset(left, top), plate, radius)
+            drawLine(
+                colors.plateHighlight,
+                Offset(left + radius.x, top + edge / 2),
+                Offset(left + plate.width - radius.x, top + edge / 2),
+                edge,
+            )
+            if (playing) {
+                drawRoundRect(
+                    colors.accent,
+                    Offset(left, top + barInset),
+                    Size(bar, plate.height - 2 * barInset),
+                    CornerRadius(bar / 2f),
+                )
+            }
+        }
+    }
 
 /**
  * The clock ("Mon 8:12 PM") over the channel column, and a tick with its time every half hour over the time columns.

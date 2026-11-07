@@ -46,4 +46,10 @@ object GuideTags {
         channel: ChannelId,
         startMs: Long,
     ) = "guide:cellText:${channel.value}:$startMs"
+
+    /** The second line ("S1 E19") of that cell, for an episode whose cell has room for it. */
+    fun cellSecondLine(
+        channel: ChannelId,
+        startMs: Long,
+    ) = "guide:cellSecondLine:${channel.value}:$startMs"
 }
