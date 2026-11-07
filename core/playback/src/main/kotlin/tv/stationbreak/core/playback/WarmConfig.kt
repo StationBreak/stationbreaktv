@@ -4,13 +4,16 @@ package tv.stationbreak.core.playback
 /**
  * The spec 24 tunables for keeping the next channel's decoder warm: values only, with safe defaults; nothing here is
  * hard-coded where it is used. A debug build's device-side switches over them are [WarmSwitches].
+ * [warmNextDecoder] is off by default: a device run measured the standby's memory cost as too high on a 1.7 GB
+ * streaming stick (the standby's decoder and buffers trip the system's running-low trim), so it stays off until the
+ * standby is cheaper.
  * [warmTrimLevel] is the lowest running memory-trim level that pauses warming for the visit (5 to 15; see
  * [WarmStandby.trim]).
  * [warmDeviceDenylist] lists the device models (`Build.MODEL`) that never warm, whatever Media3's own list says: the
  * Insignia (AFTJMST12), which cannot run a decoder without a surface.
  */
 data class WarmConfig(
-    val warmNextDecoder: Boolean = true,
+    val warmNextDecoder: Boolean = false,
     val warmNextAudio: Boolean = true,
     val warmHoldBufferMs: Long = 2_000,
     val warmReadyTimeoutMs: Long = 15_000,

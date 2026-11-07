@@ -11,9 +11,9 @@ internal class WarmSetup(
 )
 
 /**
- * The single place that decides the warm setup (spec 24): the default tunables for every build; the `log.tag.SBWARM`
- * and `SBWARMAUD` switches only when the build asks for them ([switches]: debug and benchmark builds), none in release
- * (which never reads the setprops).
+ * The single place that decides the warm setup (spec 24): the default tunables for every build (warming is off by
+ * default); the `log.tag.SBWARM` and `SBWARMAUD` switches only when the build asks for them ([switches]: debug and
+ * benchmark builds), none in release (which never reads the setprops).
  */
 internal fun warmSetupFor(switches: Boolean): WarmSetup =
     WarmSetup(

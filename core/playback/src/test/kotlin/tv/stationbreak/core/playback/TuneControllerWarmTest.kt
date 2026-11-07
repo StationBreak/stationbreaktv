@@ -38,7 +38,7 @@ class TuneControllerWarmTest {
     }
 
     private inner class Rig(
-        config: WarmConfig = WarmConfig(),
+        config: WarmConfig = WarmConfig(warmNextDecoder = true),
         switches: WarmSwitches = WarmSwitches.None,
         val player: FakeVideoPlayer = FakeVideoPlayer(),
     ) {
@@ -379,7 +379,8 @@ class TuneControllerWarmTest {
             answer(source())
             var victim: Job? = null
             val player = FakeVideoPlayer()
-            val controller = TuneController(resolver, server, player) { victim?.cancel().let { 1_000L } }
+            val on = WarmConfig(warmNextDecoder = true)
+            val controller = TuneController(resolver, server, player, warm = on) { victim?.cancel().let { 1_000L } }
             val a = checkNotNull(controller.preResolve(session, ItemId("a"), Duration.ZERO))
             controller.warmNext(a)
             val job =
@@ -414,7 +415,7 @@ class TuneControllerWarmTest {
                         return fake.play(source)
                     }
                 }
-            val controller = TuneController(resolver, server, spy) { 1_000L }
+            val controller = TuneController(resolver, server, spy, warm = WarmConfig(warmNextDecoder = true)) { 1_000L }
             val a = checkNotNull(controller.preResolve(session, ItemId("a"), Duration.ZERO))
             controller.warmNext(a)
             controller.tune(session, a, null)

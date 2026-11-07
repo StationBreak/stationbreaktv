@@ -65,7 +65,7 @@ class WarmSwapTest {
     private val scope = CoroutineScope(Dispatchers.Unconfined)
     private val seen = Channel<PlayerEvent>(Channel.UNLIMITED)
     private val lines = Channel<String>(Channel.UNLIMITED)
-    private val config = WarmConfig()
+    private val config = WarmConfig(warmNextDecoder = true)
     private val drain = HandlerThread("warm-swap-test-surface").apply { start() }
     private val reader: ImageReader =
         ImageReader.newInstance(WIDTH, HEIGHT, ImageFormat.PRIVATE, MAX_IMAGES).apply {

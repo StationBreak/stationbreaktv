@@ -26,10 +26,15 @@ class WarmSwitchesTest {
 
     @Test
     fun noSwitchesLeaveTheTunablesToDecide() {
-        assertTrue(WarmConfig().warmOn(WarmSwitches.None))
+        assertTrue(WarmConfig(warmNextDecoder = true).warmOn(WarmSwitches.None))
         assertTrue(WarmConfig().audioOn(WarmSwitches.None))
         assertFalse(WarmConfig(warmNextDecoder = false).warmOn(WarmSwitches.None))
         assertFalse(WarmConfig(warmNextAudio = false).audioOn(WarmSwitches.None))
+    }
+
+    @Test
+    fun warmingIsOffByDefault() {
+        assertFalse(WarmConfig().warmOn(WarmSwitches.None))
     }
 
     @Test
@@ -38,7 +43,7 @@ class WarmSwitchesTest {
         assertFalse(WarmConfig(warmNextDecoder = false).warmOn(allOn))
         assertFalse(WarmConfig(warmNextAudio = false).audioOn(allOn))
         val allOff = WarmSwitches.logTags { false }
-        assertFalse(WarmConfig().warmOn(allOff))
+        assertFalse(WarmConfig(warmNextDecoder = true).warmOn(allOff))
         assertFalse(WarmConfig().audioOn(allOff))
     }
 
