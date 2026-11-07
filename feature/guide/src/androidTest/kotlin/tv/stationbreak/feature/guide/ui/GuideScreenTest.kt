@@ -273,7 +273,7 @@ class GuideScreenTest {
     @Test
     fun anEpisodeCellHasASecondLineAndAMovieCellDoesNot() {
         lineup()
-        // Channel 5 opens with a two-hour episode (in view from the 60-minute grid start: 60 minutes, 480 dp), then movies.
+        // Channel 5 opens with a two-hour episode (in view from the 60-minute grid start: 60 min, 480 dp), then movies.
         fake.channel(
             CH5,
             5,
@@ -283,7 +283,8 @@ class GuideScreenTest {
         show(CH5)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
-        assertEquals("Test Episode 19", text(GuideTags.cellText(CH5, min(0))))
+        // An episode of a known series is titled with the series; the numbers are the second line.
+        assertEquals("Test Series", text(GuideTags.cellText(CH5, min(0))))
         assertEquals("S1 E19", text(GuideTags.cellSecondLine(CH5, min(0))))
         // The numbers are no longer in the title, and the merged cell carries the description only.
         assertEquals("Test Movie 202", text(GuideTags.cellText(CH5, min(120))))
@@ -757,7 +758,9 @@ class GuideScreenTest {
         lineup()
         val ch2 = ChannelId("ch-2")
         fake.channel(ch2, 2, listOf(program(0, 66, 500), program(66, 600, 501)))
-        show(CH7)
+        // Four rows are in view. Opening on channel 7 (the fifth of five) scrolls channel 2 out, so open on channel 5:
+        // the window stays on the first four rows and channel 2 is composed.
+        show(CH5)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
         val before = (vm.snapshot.value.state as GuideState.Ready).model

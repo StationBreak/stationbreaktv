@@ -17,6 +17,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -69,8 +71,16 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.info
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.core.model.Scheme
+import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.ServerInfo
+import tv.stationbreak.core.model.ServerVersion
+import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.GuideState
@@ -92,8 +102,9 @@ private object ScreenshotLineup : ChannelRepository {
  * The guide's focus treatment on the API 25 emulator (#566, #569), as PNG files for the proof. The same path as
  * `FirstSyncScreenshotTest`: UiAutomation's screenshot, because Compose's `captureToImage` needs API 26, written under
  * the test app's external files in [SCREENSHOT_DIR]. The lineup, the 960 by 540 host and the keys are the guide screen
- * test's. Dark is the default. The same three frames are taken again in Light. The focused cell is a wide episode with its
- * "S1 E19" line and the panel's year, runtime and genres; a long movie title elsewhere is cut at its cell's end. A focused slate reads OFF AIR and the panel still says when it returns.
+ * test's. Dark is the default. The same three frames are taken again in Light. The focused cell is a wide episode with
+ * its "S1 E19" line and the panel's year, runtime and genres; a long movie title elsewhere is cut at its cell's end. A
+ * focused slate reads OFF AIR and the panel still says when it returns.
  */
 @RunWith(AndroidJUnit4::class)
 class GuideScreenshotTest {
@@ -168,6 +179,47 @@ class GuideScreenshotTest {
 
     /** The guide screen test's lineup: channel 9's slate starts two and a half hours in. */
     private fun showReady(current: ChannelId) {
+        fillLineup()
+        if (!composed) {
+            signIn()
+            val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
+            vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
+            compose.setContent { GuideHost(current) }
+            composed = true
+        } else {
+            // A new opening restarts the session on the playing cell, in the theme set above. Wait for that cell:
+            // the previous session is still Ready until the recomposition applies.
+            openedAt.longValue += 1
+        }
+        awaitPlaying(current)
+    }
+
+    /** The details cache reads nothing while nobody is signed in, so the panel's meta line needs a session. */
+    private fun signIn() {
+        val address = ServerAddress(Scheme.Https, "media.example.com", 443)
+        val info = ServerInfo("Home", ServerId("srv1"), ServerVersion(12, 2, 0))
+        runBlocking { sessions.save(Session(UserId("u1"), AccessToken("tok-0123456789"), info, address, null, true)) }
+    }
+
+    @Composable
+    private fun GuideHost(current: ChannelId) {
+        BackHandler { }
+        StationBreakTheme {
+            CompositionLocalProvider(LocalGuideColors provides theme.value.colors) {
+                Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
+                    GuideRoot(
+                        vm,
+                        GuideOpening(current, null, openedAt.longValue),
+                        pictureHole = HOLE,
+                        onTune = {},
+                        channels = { _, _, _, _ -> },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun fillLineup() {
         // Four rows. Channel 3: a long movie title at 30 minutes (cut at the cell's end), mixed lengths around it.
         fake.channel(
             ChannelId("ch-3"),
@@ -196,36 +248,14 @@ class GuideScreenshotTest {
                 program(60, 120, FOCUSED_ITEM, info = episodeInfo(FOCUSED_ITEM, SERIES, 1, 19)),
             ) + (120L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) },
         )
+        fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
         server.itemDetailsResult =
             ServerResult.Success(
                 ItemDetails(itemOf(FOCUSED_ITEM), OVERVIEW, YEAR, listOf("Animation", "Family"), RUNTIME_MIN.minutes),
             )
-        fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
-        if (!composed) {
-            val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-            vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
-            compose.setContent {
-                BackHandler { }
-                StationBreakTheme {
-                    CompositionLocalProvider(LocalGuideColors provides theme.value.colors) {
-                        Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
-                            GuideRoot(
-                                vm,
-                                GuideOpening(current, null, openedAt.longValue),
-                                pictureHole = HOLE,
-                                onTune = {},
-                                channels = { _, _, _, _ -> },
-                            )
-                        }
-                    }
-                }
-            }
-            composed = true
-        } else {
-            // A new opening restarts the session on the playing cell, in the theme set above. Wait for that cell:
-            // the previous session is still Ready until the recomposition applies.
-            openedAt.longValue += 1
-        }
+    }
+
+    private fun awaitPlaying(current: ChannelId) {
         val playing = T0 + 60 * MIN
         compose.waitUntil(TIMEOUT_MS) {
             val snap = vm.snapshot.value
@@ -329,7 +359,7 @@ class GuideScreenshotTest {
         const val SERIES = "Test Series"
         const val OTHER_SERIES = "Test Series Two"
         const val FOCUSED_ITEM = 102
-        const val OVERVIEW = "A test episode about nothing in particular, long enough to fill a line or two of the panel."
+        const val OVERVIEW = "A test episode about nothing in particular, long enough to fill a line of the panel."
         const val YEAR = 2018
         const val RUNTIME_MIN = 22
         const val LONG_TITLE = "The Late Late Picture Show With a Title Long Enough to Reach the Cell's End"
