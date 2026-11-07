@@ -13,6 +13,7 @@ import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.WarmUse
 import kotlin.time.Duration
 
 /** An item resolved ahead of its tune. Opaque to the machine: the adapter maps it to core:playback's handle. */
@@ -39,6 +40,7 @@ class NextHandle(
  * if unknown.
  * @property loads what the media loads before the tracks cost (count, time, bytes, container type), null if unknown.
  * @property av when the audio and video start-up steps happened, ms since the play call, null if unknown.
+ * @property warm what became of the warm standby for this tune (spec 24), null if the port did not say.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -51,6 +53,7 @@ data class TuneTimings(
     val skippedFrames: Long? = null,
     val loads: LoadStats? = null,
     val av: AvTimings? = null,
+    val warm: WarmUse? = null,
 )
 
 /**
@@ -125,6 +128,16 @@ interface TunePort {
         session: Session,
         next: NextHandle,
     )
+
+    /**
+     * Asks the player to warm a standby for [next] (spec 24); true when one was requested. A handle that cannot be
+     * warmed (a transcode, warming off) answers false and nothing else changes. Not suspending, and it never throws:
+     * call it from the thread the tunes are made on (the main thread), as the controller does no thread switch.
+     */
+    fun warmNext(
+        session: Session,
+        next: NextHandle,
+    ): Boolean = false
 
     suspend fun stop(session: Session)
 

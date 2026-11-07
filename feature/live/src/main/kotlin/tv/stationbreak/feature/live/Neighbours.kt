@@ -36,7 +36,11 @@ private class Resolved(
  * ahead (one PlaybackInfo call and the URL, no stream or playlist request), so a flip to either skips that round trip.
  * A pre-resolve starts no encode on the server, so a held handle costs nothing there; it goes stale when its block
  * ends, so [keepAround] makes it again then. At most one handle is held per channel, and only the two neighbours are
- * kept. Confined to the main dispatcher with the rest of the run ([LiveChannel.run]), so it needs no lock.
+ * kept. Confined to the main dispatcher with the rest of the run ([LiveChannel.run]), so it needs no lock, and
+ * so [TunePort.warmNext] is called on the thread the tunes are made on, as the controller requires.
+ *
+ * Once a picture plays it also warms a standby decoder for the one neighbour the viewer most likely flips to next: the
+ * one in the direction of the last flip (Down before any flip). Never both: there is one standby (spec 24).
  */
 internal class Neighbours(
     private val session: Session,
@@ -46,14 +50,28 @@ internal class Neighbours(
 ) {
     private val held = linkedMapOf<ChannelId, Resolved>()
 
+    /** The direction of the last committed flip; the neighbour that way is the one warmed. */
+    private var direction = FlipDirection.Down
+
+    /** The handle a standby was last requested for, so a later pass does not ask again for the same one. */
+    private var warmed: Resolved? = null
+
+    /** The viewer flipped [direction]: the neighbour that way is the next to warm. */
+    fun noteFlip(direction: FlipDirection) {
+        this.direction = direction
+    }
+
     /**
      * Once the picture of [current] plays: resolves what is on the channels one step Up and one step Down in [order]
      * (no more, no repeats), each at the position the schedule has now. A handle already held for a neighbour that is
-     * still for the item on air is kept; one for a channel that is no longer a neighbour is ended first.
+     * still for the item on air is kept; one for a channel that is no longer a neighbour is ended first. When [picture]
+     * is true (the settled state is a playing picture, not a card) the neighbour in the last flip's direction is then
+     * warmed, from the handle already held: a changed direction re-resolves nothing.
      */
     suspend fun prepareAround(
         current: ChannelAiring,
         order: FlipOrder,
+        picture: Boolean = false,
     ) {
         val wanted =
             listOfNotNull(order.step(current.number, FlipDirection.Up), order.step(current.number, FlipDirection.Down))
@@ -62,6 +80,20 @@ internal class Neighbours(
         val others = held.keys.filter { id -> wanted.none { it.id == id } }
         others.forEach { id -> held.remove(id)?.let { discard(it) } }
         coroutineScope { wanted.forEach { channel -> launch { prepare(channel.id) } } }
+        if (picture) warmTarget(current, order)
+    }
+
+    /** Asks for a standby on the held handle of the neighbour in [direction], and on no other. */
+    private fun warmTarget(
+        current: ChannelAiring,
+        order: FlipOrder,
+    ) {
+        val target = order.step(current.number, direction)?.takeIf { it.id != current.id }
+        val resolved = target?.let { held[it.id] }
+        if (resolved != null && warmed !== resolved) {
+            warmed = resolved
+            tuner.warmNext(session, resolved.handle)
+        }
     }
 
     /**
@@ -70,11 +102,14 @@ internal class Neighbours(
      */
     suspend fun keepAround(
         current: ChannelAiring,
+        picture: Boolean,
         lineup: suspend () -> FlipOrder,
         idle: () -> Boolean,
     ) {
+        // A new look-ahead is a new picture (or card): whatever standby the last one asked for may be gone.
+        warmed = null
         while (true) {
-            if (idle()) prepareAround(current, lineup())
+            if (idle()) prepareAround(current, lineup(), picture)
             val endMs = held.values.minOfOrNull { it.blockEndMs }
             val wait = if (idle()) endMs?.minus(clock.now().toEpochMilliseconds()) else BUSY_RETRY_MS
             if (wait == null) return
@@ -108,6 +143,7 @@ internal class Neighbours(
         onAir: ChannelOnAir,
     ): NextHandle? {
         val mine = held.remove(channel)
+        warmed = null
         val rest = held.values.toList()
         held.clear()
         rest.forEach { discard(it) }
@@ -125,6 +161,7 @@ internal class Neighbours(
     }
 
     private suspend fun discard(resolved: Resolved) {
+        if (warmed === resolved) warmed = null
         withContext(NonCancellable) { tuner.discard(session, resolved.handle) }
     }
 

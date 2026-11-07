@@ -55,6 +55,8 @@ internal class SitRequest(
     val first: ChannelOnAir?,
     val flip: FlipTiming?,
     val resume: Place? = null,
+    /** Which way the flip that made this request went, null when it was not a flip's step (Menu, the guide). */
+    val direction: FlipDirection? = null,
 )
 
 /**
@@ -520,7 +522,7 @@ internal class Flipper(
             looked++
         }
         timing.lookupMs = lookupMs
-        land(onAir, chosen, timing)
+        land(onAir, chosen, timing, direction)
     }
 
     /**
@@ -725,6 +727,7 @@ internal class Flipper(
         onAir: ChannelOnAir?,
         chosen: ChannelAiring,
         timing: FlipTiming,
+        direction: FlipDirection? = null,
     ) {
         order = null
         target = null
@@ -734,7 +737,7 @@ internal class Flipper(
         }
         onAir?.let { tuned.moveTo(it.channel) }
         screen.commit(LiveState.Choosing((onAir?.channel ?: chosen).tag(), overPicture = false))
-        start(SitRequest(onAir, timing))
+        start(SitRequest(onAir, timing, direction = direction))
     }
 
     /** A flip that broke on an unexpected exception: report its class name only, and show the channel again. */

@@ -78,6 +78,11 @@ sealed interface Call {
         override val at: Long,
     ) : Call
 
+    data class Warm(
+        val item: ItemId,
+        override val at: Long,
+    ) : Call
+
     data class Stop(
         override val at: Long,
     ) : Call
@@ -103,6 +108,9 @@ class FakeTune(
     /** How long each [stop] takes on the virtual clock (a slow player). */
     var stopDelayMs = 0L
     var preResolveResult: (ItemId) -> Boolean = { true }
+
+    /** What [warmNext] answers for an item (false: a transcode handle, nothing to warm). */
+    var warmResult: (ItemId) -> Boolean = { true }
 
     /** How long each [preResolve] takes on the virtual clock (a slow server resolve); cancellable. */
     var preResolveDelayMs = 0L
@@ -203,6 +211,15 @@ class FakeTune(
         val p = next.token as Prepared
         handleFates.getValue(p.id) += "discard"
         calls += Call.Discard(p.item, now())
+    }
+
+    override fun warmNext(
+        session: Session,
+        next: NextHandle,
+    ): Boolean {
+        val p = next.token as Prepared
+        calls += Call.Warm(p.item, now())
+        return warmResult(p.item)
     }
 
     override suspend fun stop(session: Session) {

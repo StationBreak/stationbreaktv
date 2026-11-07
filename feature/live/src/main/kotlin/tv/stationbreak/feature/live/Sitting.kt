@@ -143,9 +143,10 @@ internal class Sitting(
     internal val resumeSettled: () -> Unit = {},
     /**
      * Called each time the screen settles: a tune plays, or a card (slate, ident, technical difficulties) is up and
-     * waits. Gets the scope of the block that showed it; the run starts its look-ahead there, once per channel.
+     * waits. Gets the scope of the block that showed it, and whether it is a playing picture (true) or a card (false);
+     * the run starts its look-ahead there, once per channel, and warms a standby only for a picture (spec 24).
      */
-    internal val onSettled: (CoroutineScope) -> Unit = {},
+    internal val onSettled: (CoroutineScope, Boolean) -> Unit = { _, _ -> },
 ) {
     /** The start of the block (or stand-in piece) whose picture is up; null before a tune plays or on a card. */
     @Volatile
@@ -345,7 +346,7 @@ internal class Sitting(
         if (outcome is TuneOutcome.Dead) {
             heldBlockStartMs = block.startMs
             showWatching(scope, banner, block)
-            onSettled(scope)
+            onSettled(scope, false)
         }
         return outcome
     }
@@ -580,7 +581,7 @@ internal class Sitting(
             // The banner's "Next" came from the blocks already read; with no program among them, look wider, now that
             // the picture is up and the tune no longer waits for it.
             if (onAir != null && playing.banner.next == null) widenNext(scope, onAir, playing)
-            onSettled(scope)
+            onSettled(scope, true)
         }
         return outcome
     }
@@ -665,7 +666,7 @@ internal class Sitting(
         heldBlockStartMs = null
         state.value = LiveState.Ident(up, onAir.tag())
         // A card with no picture also looks ahead, so a flip off it is not a fresh tune (#392).
-        onSettled(scope)
+        onSettled(scope, false)
         waitUntil(untilMs)
         cutFrom = clock.now()
         return null
