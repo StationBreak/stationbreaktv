@@ -31,6 +31,8 @@ internal class LivePeriod(
     private val sitting: Job,
     /** The kept place this period's run was given, if any: kept again when the period is left before its machine. */
     private val resume: Kept?,
+    /** Where the memory-trim callbacks of this period are registered (spec 24); [TrimHost.None] registers nothing. */
+    private val trimHost: TrimHost = TrimHost.None,
     /** Told the paused place to keep, once, as the period is left. */
     private val keep: (Kept?) -> Unit,
 ) {
@@ -41,6 +43,9 @@ internal class LivePeriod(
     var machine: LiveChannel? = null
 
     val player: VideoPlayer = Guarded()
+
+    // Spec 24: trims reach the player while the period lives; unregistered the moment it is left or released.
+    private val trim = LiveTrim(player).also { trimHost.register(it) }
 
     /**
      * Leaves the period; true when this call did, false when it was already left (or released). Main thread only: the
@@ -54,6 +59,7 @@ internal class LivePeriod(
         keep(if (running == null) resume?.copy(untended = true) else running.kept())
         val leaving = left.compareAndSet(false, true)
         if (leaving) {
+            trimHost.unregister(trim)
             machine?.leave()
             inner.stop()
             inner.attach(null)
@@ -105,7 +111,10 @@ internal class LivePeriod(
         }
 
         override fun release() {
-            if (left.compareAndSet(false, true)) inner.release()
+            if (left.compareAndSet(false, true)) {
+                trimHost.unregister(trim)
+                inner.release()
+            }
         }
 
         // Spec 24: the warm calls go through the same check, so none reaches the player once it is released.
