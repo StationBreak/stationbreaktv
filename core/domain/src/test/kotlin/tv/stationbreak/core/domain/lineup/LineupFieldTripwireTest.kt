@@ -142,9 +142,13 @@ class LineupFieldTripwireTest {
 
     // The repair record (spec 26) is stored, so a new field is a new file version (and a change to RepairsCodec).
     // No day reads these fields directly: a repaired day reads them through TodayRepairs.digestFor, which writes each
-    // one into the digest (the canonical text in TodayRepairs.kt), so a new field must be added there too.
+    // one into the digest (the canonical text in TodayRepairs.kt), so a new field must be added there too. `hashed` is
+    // no part of the record: a test counter of the digests' memo, which no day reads.
     @Test
-    fun todayRepairs() = pinned(TodayRepairs::class.java, setOf("selection", "fixes", "lostCheckedGeneration"))
+    fun todayRepairs() {
+        val fields = setOf("selection", "fixes", "lostCheckedGeneration", "hashed")
+        pinned(TodayRepairs::class.java, fields)
+    }
 
     @Test
     fun channelRepair() =

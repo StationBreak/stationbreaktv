@@ -128,9 +128,12 @@ internal object RepairsCodec {
             pinEndMs = long(fields.getValue(PIN_END)),
             pinLibrary = fields[PIN_LIBRARY]?.let { ItemId(string(it)) },
             blocks = decodeBlocks(fields.getValue(BLOCKS), from, ids),
-            tailHidden = fields[HIDDEN]?.let { name -> HiddenReason.valueOf(string(name)) },
+            tailHidden = fields[HIDDEN]?.let { name -> hiddenOf(string(name)) },
         )
     }
+
+    // A reason this app does not know (a newer app's) reads as none: the record stays readable (spec 26, ruling 6).
+    private fun hiddenOf(name: String): HiddenReason? = HiddenReason.entries.firstOrNull { it.name == name }
 
     private fun fix(element: JsonElement): LostFix {
         val fields = obj(element, fixKeys)

@@ -68,6 +68,27 @@ class LineupCodecV4Test {
     }
 
     @Test
+    fun anUnknownTailHiddenName_readsAsNone_andTheFileStaysReadable() {
+        val bytes = LineupCodec.encode(lineup, meta, repairs)
+        val newer =
+            withRepairs(bytes, version = null) { r ->
+                val selection =
+                    (checkNotNull(r["selection"]) as kotlinx.serialization.json.JsonArray).map { entry ->
+                        val fields = entry.jsonObject
+                        val newer = "hidden" to JsonPrimitive("AReasonFromANewerApp")
+                        if ("hidden" in fields) JsonObject(fields + newer) else fields
+                    }
+                JsonObject(r + ("selection" to kotlinx.serialization.json.JsonArray(selection)))
+            }
+
+        val read = loaded(newer)
+
+        assertEquals(listOf(null, null), read.repairs.selection.map { it.tailHidden })
+        assertEquals(repairs.selection.map { it.copy(tailHidden = null) }, read.repairs.selection)
+        assertEquals(repairs.fixes, read.repairs.fixes)
+    }
+
+    @Test
     fun v4Encoding_isCompact_blocksAreIntegerArrays() {
         val bytes = LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repairOf())))
         val first = checkNotNull(tree(bytes)["repairs"]).jsonObject

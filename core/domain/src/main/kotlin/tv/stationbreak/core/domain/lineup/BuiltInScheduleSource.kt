@@ -191,6 +191,9 @@ class BuiltInScheduleSource(
         }
     }
 
+    /** For tests: how many writes of built days to disk are still running. */
+    internal fun pendingSaves(): Int = synchronized(lock) { saves.size }
+
     /** For tests: waits for the writes of built days to disk started so far. */
     internal suspend fun awaitSaves() = synchronized(lock) { saves.toList() }.joinAll()
 
@@ -324,6 +327,9 @@ class BuiltInScheduleSource(
 
                 else -> {
                     val reading = WindowRead(account, chosen, build, first.held.revision)
+                    // Which channels are shown is decided at [from], for the whole window: a repaired day hidden
+                    // from its pin's end (ChannelDay.hiddenAt) is in a window that starts before then, all of it,
+                    // and out of one that starts at or after it.
                     val fromMs = from.toEpochMilliseconds()
                     windowOf(reading, days.filter { it.hiddenAt(fromMs) == null }, from, until)
                 }
@@ -834,7 +840,7 @@ class BuiltInScheduleSource(
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             keep(key, result, epoch, generation, dayInputs)
-            if (disk != null) save(account, disk, result, Wanted(revision, key, atMs))
+            if (disk != null) save(account, disk, result, Wanted(revision, key, atMs, lineup, scheduled, generation))
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
             val allocated = Reading(probes.allocatedBytes()) - allocBefore
@@ -876,7 +882,7 @@ class BuiltInScheduleSource(
     private fun recorded(
         built: List<ChannelDay>,
         records: Map<ChannelId, DayRecord>,
-    ): List<ChannelDay> = if (records.isEmpty()) built else built.map { it.withRecord(records[it.channel.id]) }
+    ): List<ChannelDay> = built.map { it.withRecord(records[it.channel.id]) }
 
     /**
      * The cuts a build reads ([cutsToRead]) and the repaired days it makes from their record alone, with no build: a
@@ -969,10 +975,14 @@ class BuiltInScheduleSource(
     }
 
     // The days a build made for a revision, at a moment, under a key: what [save] checks they are still wanted for.
+    // [lineup], [scheduled] and [generation] are what the build read, for the save to finish a set ([unrepaired]).
     private class Wanted(
         val revision: Long,
         val key: Key,
         val atMs: Long,
+        val lineup: Lineup,
+        val scheduled: List<Scheduled>,
+        val generation: Long,
     )
 
     // Written in the source's scope, so a caller is never held up by it and a cancelled caller does not stop it, and on
@@ -988,11 +998,45 @@ class BuiltInScheduleSource(
     ) {
         val current = isCurrent(account, wanted.revision) || stillWanted(account, wanted.key, wanted.atMs) != null
         val to = persisted?.takeIf { current } ?: return
-        val job = buildScope.launch(saveDispatcher, start = CoroutineStart.LAZY) { to.save(account, disk, result) }
+        val job =
+            buildScope.launch(saveDispatcher, start = CoroutineStart.LAZY) {
+                val whole = if (result.all { it.built }) result else unrepaired(account, result, wanted)
+                if (whole != null) to.save(account, disk, whole)
+            }
         synchronized(lock) { saves += job }
         job.invokeOnCompletion { synchronized(lock) { saves -= job } }
         job.start()
     }
+
+    /**
+     * The set's unrepaired build, for the save of a set in which some repaired days were made from their record alone
+     * ([ChannelDay.built] false), so that the whole set is written and a restart restores every day from disk (the
+     * owner's older TV loses its process often). It runs here, on [saveDispatcher] and never on a tune's path: the
+     * days that were built are taken over as they are, and the rest are built from snapshots read directly (not through
+     * [snapshots], whose reads run at the normal priority), so they are what a build with no record gives. Null, and
+     * nothing written, when the library moved since the build (the next build writes) or the read fails.
+     */
+    @Suppress("TooGenericExceptionCaught") // A failed background save is never a crash: the next build writes.
+    private suspend fun unrepaired(
+        account: LibraryAccount,
+        result: List<ChannelDay>,
+        wanted: Wanted,
+    ): List<ChannelDay>? =
+        try {
+            if (library.contentGeneration(account) != wanted.generation) {
+                null
+            } else {
+                val built = result.filter { it.built }.associateBy { it.channel.id }
+                val cuts = cutsToRead(wanted.scheduled, built.keys)
+                val (plain, filtered) = snapshotsOf(library, account, wanted.key.libraries, cuts)
+                val libraries = wanted.key.libraries
+                days.days(wanted.lineup, wanted.scheduled, plain, filtered, reused = built, libraries = libraries)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
 
     // A disk hit, reported as a build: the whole time is the file's read ([DayBuild.diskMs]), and no snapshot was read
     // and no pool worked out.

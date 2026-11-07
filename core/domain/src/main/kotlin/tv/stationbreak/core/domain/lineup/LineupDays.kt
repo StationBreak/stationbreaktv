@@ -1079,6 +1079,19 @@ internal class LineupDays(
 
         private fun builtDay(s: Scheduled): ChannelDay = if (s.starting) startingDay(s) else ruledDay(s)
 
+        // A day with no build claims nothing, so no leftovers day may be built beside it (its claims would miss).
+        private fun requireNoLeftoversBeside(
+            unbuilt: Set<ChannelId>,
+            scheduled: List<Scheduled>,
+            reused: Set<ChannelId>,
+        ) {
+            if (unbuilt.isEmpty()) return
+            val built = scheduled.filter { it.channel.id !in unbuilt && it.channel.id !in reused }
+            require(built.none { it.channel.source is ChannelSource.Leftovers }) {
+                "A leftovers day is built beside a day with no build"
+            }
+        }
+
         // A repaired day whose cut-off is not read: no build, and it claims nothing (no leftovers day is built then).
         private fun unbuiltDay(s: Scheduled): ChannelDay {
             epochPools[s] = emptyList()
@@ -1092,6 +1105,8 @@ internal class LineupDays(
             finished: (ChannelDay) -> Unit = {},
             unbuilt: Set<ChannelId> = emptySet(),
         ): List<ChannelDay> {
+            requireNoLeftoversBeside(unbuilt, scheduled, reused.keys)
+
             // A day taken over, one with no build (a repaired day whose cut-off is not read), or one built now.
             fun dayFor(
                 s: Scheduled,

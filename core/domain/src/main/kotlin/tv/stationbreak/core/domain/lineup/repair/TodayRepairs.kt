@@ -86,20 +86,34 @@ internal data class TodayRepairs(
 
     /**
      * A digest of what is recorded for [channel]'s day [n] (its repair and its fixes), for the day's input key: equal
-     * records give equal digests in every process. The empty string when nothing is recorded for the day.
+     * records give equal digests in every process. The empty string when nothing is recorded for the day. Worked out
+     * once per record (this instance) for every recorded day together, on first use: a lookup hashes nothing again.
      */
     fun digestFor(
         channel: ChannelId,
         n: Long,
-    ): String {
-        val repair = selection.firstOrNull { it.channel == channel && it.n == n }
-        val mine = fixes.filter { it.channel == channel && it.n == n }.sortedBy { it.blockStartMs }
-        if (repair == null && mine.isEmpty()) return ""
-        val text = StringBuilder()
-        if (repair != null) text.append(canonical(repair))
-        for (fix in mine) text.append(canonical(fix))
-        return sha256Hex(text.toString().encodeToByteArray())
+    ): String = digests[channel to n].orEmpty()
+
+    // Not part of the value (a data class compares its constructor's fields only): each instance works its own out.
+    private val digests: Map<Pair<ChannelId, Long>, String> by lazy {
+        val days = LinkedHashSet<Pair<ChannelId, Long>>()
+        selection.mapTo(days) { it.channel to it.n }
+        fixes.mapTo(days) { it.channel to it.n }
+        days.associateWith { (channel, n) ->
+            hashed++
+            val repair = selection.firstOrNull { it.channel == channel && it.n == n }
+            val mine = fixes.filter { it.channel == channel && it.n == n }.sortedBy { it.blockStartMs }
+            val text = StringBuilder()
+            if (repair != null) text.append(canonical(repair))
+            for (fix in mine) text.append(canonical(fix))
+            sha256Hex(text.toString().encodeToByteArray())
+        }
     }
+
+    /** For tests: how many channel days this instance has hashed (each recorded day once, on first use). */
+    @Volatile
+    internal var hashed: Int = 0
+        private set
 
     /** The highest seq of any repair held, or null when none. */
     fun latestSeq(): Long? = selection.maxOfOrNull { it.seq }

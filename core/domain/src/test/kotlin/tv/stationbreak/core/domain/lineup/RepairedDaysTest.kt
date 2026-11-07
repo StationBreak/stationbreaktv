@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.lineup.repair.ChannelRepair
 import tv.stationbreak.core.domain.lineup.repair.KeptBlock
@@ -23,9 +25,12 @@ import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.scheduler.Epochs
 import java.util.Collections
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -89,24 +94,54 @@ class RepairedDaysTest {
         minutes: Long,
     ): RuleItem = movie(n, "Comedy", rating = "R", runtimeMs = minutes * minute)
 
+    /** Where a process's writes to disk run: only when a test lets them ([runAll]), so a tune's reads are its own. */
+    private class Gate : CoroutineDispatcher() {
+        private val queue = ConcurrentLinkedQueue<Runnable>()
+
+        override fun dispatch(
+            context: CoroutineContext,
+            block: Runnable,
+        ) {
+            queue.add(block)
+        }
+
+        fun runAll() {
+            while (true) (queue.poll() ?: return).run()
+        }
+    }
+
     /** One process: its own service and source over the shared stores, and what it reported. */
     private inner class Process(
         store: RecordingStore = lineups,
         saving: Boolean = true,
+        daysOnDisk: MemoryDayStore = disk,
     ) {
         val builds: MutableList<DayBuild> = Collections.synchronizedList(mutableListOf())
         val events: MutableList<DaySnapshotEvent> = Collections.synchronizedList(mutableListOf())
-        val service = LineupService(store, library, clock, { 0 }, {}, LineupSeams(TestCatalog, derived = disk))
+        val gate = Gate()
+        val service = LineupService(store, library, clock, { 0 }, {}, LineupSeams(TestCatalog, derived = daysOnDisk))
         val source =
             BuiltInScheduleSource(
                 service,
                 library,
                 built = { builds += it },
-                persisted = if (saving) PersistedDays(disk, "1:100", { events += it }) else null,
+                persisted = if (saving) PersistedDays(daysOnDisk, "1:100", { events += it }) else null,
+                saveDispatcher = gate,
             ) { LIBRARIES }
 
-        fun days(at: Instant = NOON): List<ChannelDay> =
-            runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at).also { source.awaitSaves() } }
+        /** The days at [at], with no write to disk run yet. */
+        fun daysNow(at: Instant = NOON): List<ChannelDay> = runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at) }
+
+        /** Runs the writes to disk started so far, to the end. */
+        fun settle() =
+            runBlocking {
+                while (source.pendingSaves() > 0) {
+                    gate.runAll()
+                    delay(1)
+                }
+            }
+
+        fun days(at: Instant = NOON): List<ChannelDay> = daysNow(at).also { settle() }
 
         fun day(
             channel: ChannelId,
@@ -291,18 +326,80 @@ class RepairedDaysTest {
         store(lineupOf(laughs, late), TodayRepairs(selection = listOf(repair)))
         val p = Process()
 
-        val days = p.days()
+        val days = p.daysNow()
 
         val laughsCut = Instant.fromEpochMilliseconds(Epochs.cutoff(laughsRules.toSchedulerSettings(), repair.n))
-        assertTrue(laughsCut !in library.snapshotCutoffs, "the repaired day's cut-off is not read")
-        assertTrue(p.events.none { it is DaySnapshotEvent.Saved }, "a set with a repaired day not built is not written")
-        assertTrue(disk.files.isEmpty())
-        val plain = Process(store = RecordingStore().also { store(lineupOf(laughs, late), into = it) }, saving = false)
+        assertTrue(laughsCut !in library.snapshotCutoffs, "the repaired day's cut-off is not read for the days")
+        val laughsNow = days.first { it.channel.id == laughs.id }
+        assertEquals(composedOf(repair, dayOf(laughsRules).second), laughsNow.day.blocks)
+        val plainDisk = MemoryDayStore()
+        val plainStore = RecordingStore().also { store(lineupOf(laughs, late), into = it) }
+        val plain = Process(store = plainStore, daysOnDisk = plainDisk)
         assertEquals(
             describe(plain.days().filter { it.channel.id == late.id }),
             describe(days.filter { it.channel.id == late.id }),
             "the unrepaired day is the day it always was",
         )
+
+        p.settle()
+
+        // The write, in the background, holds the unrepaired build of every day: never the repaired one.
+        assertContentEquals(plainDisk.only().second, disk.only().second)
+    }
+
+    @Test
+    fun restart_afterASelectionRepair_restoresEveryUnrepairedChannelFromDisk_noSnapshotRead() {
+        val repair = repairOf(laughs.id, dayOf(laughsRules))
+        store(lineupOf(laughs, late), TodayRepairs(selection = listOf(repair)))
+        val first = Process()
+        assertNotNull(first.onAir(laughs.id, Instant.fromEpochMilliseconds(noonMs + 20 * minute)))
+        val laughsCut = Instant.fromEpochMilliseconds(Epochs.cutoff(laughsRules.toSchedulerSettings(), repair.n))
+        assertTrue(laughsCut !in library.snapshotCutoffs, "the tune read nothing of the repaired day's cut-off")
+        first.settle()
+        assertTrue(first.events.any { it is DaySnapshotEvent.Saved }, "the whole set was written in the background")
+        val before = first.daysNow()
+        val reads = library.snapshotCutoffs.size
+
+        val next = Process()
+        val days = next.daysNow()
+
+        assertEquals("disk", next.builds.single().snapshot)
+        assertEquals(reads, library.snapshotCutoffs.size, "no snapshot read after the restart")
+        assertEquals(0, next.source.snapshotReads())
+        val lateOnly = { list: List<ChannelDay> -> describe(list.filter { it.channel.id == late.id }) }
+        assertEquals(lateOnly(before), lateOnly(days))
+        val laughsNow = days.first { it.channel.id == laughs.id }
+        assertEquals(composedOf(repair, dayOf(laughsRules).second), laughsNow.day.blocks)
+    }
+
+    @Test
+    fun aRepairedTv_hashesItsRecordOncePerRecord() {
+        store(lineupOf(laughs, whodunit), TodayRepairs(selection = listOf(repairOf(laughs.id, dayOf(laughsRules)))))
+        val p = Process(saving = false)
+
+        repeat(3) {
+            p.onAir(laughs.id, NOON)
+            p.onAir(whodunit.id, NOON)
+            p.window(laughs.id)
+        }
+
+        val held = assertNotNull(p.service.lineup(ACCOUNT).value).repairs
+        assertEquals(1, held.hashed, "one recorded day, hashed once for every lookup of this record")
+    }
+
+    @Test
+    fun aLeftoversDayBuiltBesideADayWithNoBuild_isRefused() {
+        val days = LineupDays(TestCatalog)
+        val lineup = lineupOf(laughs, leftovers("odds-and-ends", 199, null))
+        val scheduled = days.scheduled(lineup, noonMs, null)
+        val snapshots =
+            scheduled.map { it.cutoffMs }.distinct().associateWith {
+                runBlocking { library.ruleSnapshot(ACCOUNT, LIBRARIES, Instant.fromEpochMilliseconds(it)) }
+            }
+
+        assertFailsWith<IllegalArgumentException> {
+            days.days(lineup, scheduled, snapshots, unbuilt = setOf(laughs.id))
+        }
     }
 
     @Test
