@@ -33,11 +33,12 @@ interface LineupStore {
     suspend fun setAside(account: LibraryAccount): Boolean
 
     /**
-     * Keeps a copy of the account's file as it stands, for the upgrade to a newer lineup version: the bytes go to a
+     * Keeps a copy of the account's file as it stands, for the upgrade to a newer lineup version (or, with the tag
+     * `repairs-unreadable`, before a file whose repair record did not read is written without it): the bytes go to a
      * second file named for [tag] (`v1`, `v2`), written like any save and never moved, so the lineup stays readable
      * whatever happens. A copy already there is left as it is. It is not a set-aside copy: nothing prunes it, and only
      * [forget] removes it. True when the copy exists afterwards or there was no file to copy; false for a tag that is
-     * not `v` and digits, an account that can have no file, or a write that failed.
+     * neither `v` and digits nor `repairs-unreadable`, an account that can have no file, or a write that failed.
      */
     suspend fun keepCopy(
         account: LibraryAccount,

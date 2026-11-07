@@ -63,6 +63,6 @@ class InMemoryLineupStore : LineupStore {
     }
 
     private companion object {
-        val TAG = Regex("v[0-9]+")
+        val TAG = Regex("v[0-9]+|repairs-unreadable")
     }
 }

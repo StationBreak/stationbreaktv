@@ -243,6 +243,21 @@ class FileLineupStoreTest {
         }
 
     @Test
+    fun theUnreadableRecordCopy_isKept_andForgetRemovesIt() =
+        runBlocking {
+            store.save(one, bytes)
+
+            assertTrue(store.keepCopy(one, "repairs-unreadable"))
+            assertFalse(store.keepCopy(one, "anything-else"))
+            store.save(one, byteArrayOf(4))
+
+            val copy = "$serverA/$userOne.json.repairs-unreadable.bak"
+            assertArrayEquals(bytes, files.held[copy])
+            assertTrue(store.forget(one))
+            assertEquals(null, files.held[copy])
+        }
+
+    @Test
     fun forgetRemovesTheUpgradeBackups() =
         runBlocking {
             store.save(one, bytes)
