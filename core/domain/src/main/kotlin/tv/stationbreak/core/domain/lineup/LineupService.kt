@@ -39,6 +39,7 @@ import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.domain.lineup.repair.RepairConfig
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.domain.lineup.repair.fitted
+import tv.stationbreak.core.domain.lineup.repair.trimmedToFit
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.EditOutcome
@@ -245,8 +246,9 @@ class LineupService internal constructor(
             val start = startOf(owner, entry)
             entry.writable = start.save
             val (planned, meta) = planned(owner, account, libraries, start)
-            if (entry.writable) saveVerified(owner, planned, meta, start.repairs)
-            publish(entry, planned, meta, start.repairs)
+            val repairs = fitted(planned, meta, start.repairs)
+            if (entry.writable) saveVerified(owner, planned, meta, repairs)
+            publish(entry, planned, meta, repairs)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
         }
@@ -416,11 +418,11 @@ class LineupService internal constructor(
             val held = reconciled(entry, start)
             val lineup = held?.lineup ?: start.current
             val meta = held?.meta ?: start.meta
-            val repairs = held?.repairs ?: start.repairs
             val ms = pass.toEpochMilliseconds()
             val acted = meta.collectionPassActedOn
             if (lineup != null && acted != null && acted != ms) {
                 val updated = meta.copy(collectionPassActedOn = ms)
+                val repairs = fitted(lineup, updated, held?.repairs ?: start.repairs)
                 if (entry.writable) saveVerified(owner, lineup, updated, repairs)
                 if (held == null) {
                     publish(entry, lineup, updated, repairs)
@@ -484,7 +486,7 @@ class LineupService internal constructor(
                     val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
                     val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
                     // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
-                    val repairs = held?.repairs ?: start.repairs
+                    val repairs = fitted(edited.lineup, meta, held?.repairs ?: start.repairs)
                     if (saveVerified(owner, edited.lineup, meta, repairs)) {
                         publish(entry, edited.lineup, meta, repairs)
                         entry.loaded = true
@@ -721,6 +723,10 @@ class LineupService internal constructor(
      * when there is no lineup, the file may not be written, the record cannot be made to fit, or the save failed or
      * was rejected: then nothing changed (not the file, not the published lineup or record). The first version-4
      * save keeps a copy of a version-3 file.
+     *
+     * A record the format cannot hold is refused at save time (false, nothing changed): a block that starts before
+     * the one before it ends (a negative delta), a block of no length, a negative media start, an index outside an id
+     * table, or two repairs of one channel day. Callers that build blocks must keep them in order and non-empty.
      */
     internal suspend fun recordRepairs(
         account: LibraryAccount,
@@ -746,6 +752,20 @@ class LineupService internal constructor(
         }
     }
 
+    // [repairs] made to fit beside [lineup] for a save that has nothing to do with them: it never fails for their sake.
+    // What was dropped is told to [LineupSeams.trimmed], as three counts and nothing else.
+    private fun fitted(
+        lineup: Lineup,
+        meta: RefreshMeta,
+        repairs: TodayRepairs,
+    ): TodayRepairs {
+        if (repairs.isEmpty) return repairs
+        val limit = LineupLimits.MAX_FILE_BYTES - seams.repairConfig.fileMargin
+        val trimmed = repairs.trimmedToFit(nowMs(), limit) { seams.encode(lineup, meta, it).size }
+        if (trimmed.dropped > 0) seams.trimmed(trimmed.fixes, trimmed.coveringFixes, trimmed.selection)
+        return trimmed.record
+    }
+
     private suspend fun record(
         owner: Owner,
         entry: Entry,
@@ -769,13 +789,17 @@ class LineupService internal constructor(
             }
 
             else -> {
-                // The first version-4 save of a version-3 file keeps the file as it stands (a failed copy is reported).
-                if (fileVersion == LineupCodec.BASE_VERSION && !fitted.isEmpty) keepUpgradeCopy(owner, fileVersion)
-                if (saveVerified(owner, held.lineup, held.meta, fitted)) {
-                    entry.set(held.copy(repairs = fitted))
-                    true
-                } else {
-                    false
+                // Finishes even if the caller is cancelled, so the file and the published record never part.
+                withContext(NonCancellable) {
+                    // The first version-4 save of a version-3 file keeps the file as it stands (a failed copy is
+                    // reported).
+                    if (fileVersion == LineupCodec.BASE_VERSION && !fitted.isEmpty) keepUpgradeCopy(owner, fileVersion)
+                    if (saveVerified(owner, held.lineup, held.meta, fitted)) {
+                        entry.set(held.copy(repairs = fitted))
+                        true
+                    } else {
+                        false
+                    }
                 }
             }
         }
@@ -837,8 +861,13 @@ class LineupService internal constructor(
             if (replanDue) signalReplan(entry, account, boundary)
             // Cheap checks first, so a lineup that cannot be saved is not copied (`rolled`) on every lookup.
             val untried = canSave && !entry.boundaries.rollTried(boundary)
-            val stale = held.lineup.rolled(nowMs) !== held.lineup || held.repairs.rolled(nowMs) !== held.repairs
-            val due = untried && stale
+            // Only an untried boundary pays for the look: once tried, a lookup does no rolling work at all.
+            val due =
+                untried &&
+                    (
+                        seams.rolledLineup(held.lineup, nowMs) !== held.lineup ||
+                            held.repairs.rolled(nowMs) !== held.repairs
+                    )
             // One attempt per boundary: the first lookup to see it starts it.
             if (due && entry.boundaries.firstRoll(boundary)) rolls.launch { rollHeld(owner, entry, nowMs, boundary) }
         }
@@ -880,8 +909,9 @@ class LineupService internal constructor(
             // The repair record is pruned with it: a day that has ended is no use to anyone.
             val changed = held != null && (rolled !== held.lineup || rolledRepairs !== held.repairs)
             val due = held != null && changed && held.writable && entry.writable
-            if (due && saveVerified(owner, checkNotNull(rolled), held.meta, checkNotNull(rolledRepairs))) {
-                publish(entry, rolled, held.meta, rolledRepairs)
+            val repairs = if (due) fitted(checkNotNull(rolled), held.meta, checkNotNull(rolledRepairs)) else null
+            if (due && repairs != null && saveVerified(owner, checkNotNull(rolled), held.meta, repairs)) {
+                publish(entry, rolled, held.meta, repairs)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -1134,6 +1164,10 @@ internal class LineupSeams(
     val derived: DayStore? = null,
     val rollDispatcher: CoroutineDispatcher = Dispatchers.Default,
     val repairConfig: RepairConfig = RepairConfig(),
+    /** Told what a lineup save trimmed from the record to fit: fixes, fixes covering now, selection repairs. */
+    val trimmed: (Int, Int, Int) -> Unit = { _, _, _ -> },
+    /** The lineup as rolled at a moment; here so a test can count the lookups that pay for it. */
+    val rolledLineup: (Lineup, Long) -> Lineup = { lineup, nowMs -> lineup.rolled(nowMs) },
 )
 
 /** The episodes of [snapshot] whose series it lacks: what `PoolEvaluator` counts as `episodesWithUnknownSeries`. */

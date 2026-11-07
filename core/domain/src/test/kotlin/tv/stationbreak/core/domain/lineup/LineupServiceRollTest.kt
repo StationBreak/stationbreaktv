@@ -15,7 +15,9 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.core.rules.Source
 import java.util.concurrent.atomic.AtomicInteger
@@ -496,5 +498,102 @@ class LineupServiceRollTest {
             assertEquals(file, checkNotNull(store.inner.peek(ACCOUNT)).toList())
             assertEquals(before, service.repairs(ACCOUNT).value)
             assertEquals(before, stored().repairs)
+        }
+
+    @Test
+    fun aTriedBoundaryCostsALookupNoRollingWork() =
+        runBlocking<Unit> {
+            storeDue(nowMs + 3_600_000L)
+            pastDue()
+            var looks = 0
+            val seams = LineupSeams(TestCatalog, rolledLineup = { lineup, ms -> looks++.let { lineup.rolled(ms) } })
+            val service = LineupService(store, library, clock, { 0 }, {}, seams)
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+            assertEquals(1, looks, "the first lookup of the boundary looks")
+            repeat(20) { service.rollSoon(ACCOUNT, held) }
+            assertEquals(1, looks, "later lookups of a tried boundary do not")
+        }
+
+    @Test
+    fun anEditStillSaves_whenTheLineupGrowsPastTheRoom_andTheRecordIsTrimmed() =
+        runBlocking<Unit> {
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            val fixes = (1L..3L).map { fixAt(it) }
+            val record = TodayRepairs(fixes = fixes)
+            val config = configLeaving(room = 0, with = record)
+            val trims = mutableListOf<Triple<Int, Int, Int>>()
+            val seams =
+                LineupSeams(TestCatalog, repairConfig = config, trimmed = { a, b, c -> trims += Triple(a, b, c) })
+            val service = LineupService(store, library, clock, { 0 }, {}, seams)
+            assertTrue(service.recordRepairs(ACCOUNT) { record })
+            val before = checkNotNull(store.inner.peek(ACCOUNT)).size
+
+            service.loaded(ACCOUNT)
+            val edit = LineupEdit.SetNumber(laughs, 555)
+            assertTrue(service.edit(ACCOUNT, edit) is Saved.Ok<*>)
+
+            val after = checkNotNull(store.inner.peek(ACCOUNT))
+            assertEquals(
+                555,
+                stored()
+                    .lineup.channels
+                    .first { it.id == laughs }
+                    .numberOverride,
+                "the edit landed",
+            )
+            assertTrue(after.size <= before, "a lineup that grew by a few bytes cost the record a fix")
+            assertTrue(after.size <= LineupLimits.MAX_FILE_BYTES - config.fileMargin)
+            val kept = service.repairs(ACCOUNT).value.fixes
+            assertTrue(kept.size in 1..2, "the oldest fix went: ${kept.size}")
+            assertEquals(kept, stored().repairs.fixes)
+            assertEquals(listOf(Triple(3 - kept.size, 0, 0)), trims)
+        }
+
+    @Test
+    fun withTheDefaultMargin_aRecordNeverTakesTheFileWithin64KiBOfTheCap() =
+        runBlocking<Unit> {
+            val limit = LineupLimits.MAX_FILE_BYTES - RepairConfig().fileMargin
+            var channels = 30
+
+            fun lineupOfSize(count: Int) =
+                lineupOf(
+                    *(1..count)
+                        .map { n ->
+                            val many = (1..150).map { Source.Collection(id(n * 1000 + it)) }
+                            val source = ChannelSource.Custom(rules("M$n", *many.toTypedArray()))
+                            channel("custom-$n", 600 + n, ChannelState.On, source)
+                        }.toTypedArray(),
+                )
+            while (LineupCodec.encode(lineupOfSize(channels + 1)).size < limit - 3_000) channels++
+            val lineup = lineupOfSize(channels)
+            assertTrue(LineupCodec.encode(lineup).size < limit)
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
+            val service = serviceWith()
+            service.loaded(ACCOUNT)
+
+            assertTrue(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(fixAt(1L))) })
+            val huge = repairOf(channel = "custom-1", tailBlocks = 5_000)
+            assertFalse(service.recordRepairs(ACCOUNT) { it.repairs.copy(selection = listOf(huge)) })
+            assertTrue(checkNotNull(store.inner.peek(ACCOUNT)).size <= limit)
+            assertEquals(listOf(fixAt(1L)), stored().repairs.fixes)
+        }
+
+    @Test
+    fun aRecordTheFormatCannotHold_isRefusedAndNothingChanges() =
+        runBlocking<Unit> {
+            val service = serviceWith()
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = checkNotNull(store.inner.peek(ACCOUNT)).toList()
+            val good = repairOf(atMs = nowMs + 60_000L)
+            val zero = good.copy(blocks = good.blocks.map { it.copy(endMs = it.startMs) })
+            val overlapped = good.blocks.mapIndexed { i, b -> if (i == 1) b.copy(startMs = b.startMs - 1) else b }
+            val overlap = good.copy(blocks = overlapped)
+            for (bad in listOf(zero, overlap)) {
+                assertFalse(service.recordRepairs(ACCOUNT) { TodayRepairs(selection = listOf(bad)) })
+                assertEquals(before, checkNotNull(store.inner.peek(ACCOUNT)).toList())
+                assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value)
+            }
         }
 }

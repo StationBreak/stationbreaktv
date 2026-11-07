@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import tv.stationbreak.core.domain.lineup.repair.ChannelRepair
+import tv.stationbreak.core.domain.lineup.repair.KeptBlock
+import tv.stationbreak.core.domain.lineup.repair.LostFix
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
@@ -135,4 +139,39 @@ class LineupFieldTripwireTest {
                 "extras",
             ),
         )
+
+    // The repair record (spec 26) is stored, so a new field is a new file version (and a change to RepairsCodec).
+    // No day reads these fields directly: a repaired day reads them through TodayRepairs.digestFor, which writes each
+    // one into the digest (the canonical text in TodayRepairs.kt), so a new field must be added there too.
+    @Test
+    fun todayRepairs() = pinned(TodayRepairs::class.java, setOf("selection", "fixes", "lostCheckedGeneration"))
+
+    @Test
+    fun channelRepair() =
+        pinned(
+            ChannelRepair::class.java,
+            setOf(
+                "channel",
+                "n",
+                "dayEndMs",
+                "atMs",
+                "seq",
+                "libraries",
+                "keptFromMs",
+                "pinEndMs",
+                "pinLibrary",
+                "blocks",
+                "tailHidden",
+            ),
+        )
+
+    @Test
+    fun lostFix() =
+        pinned(
+            LostFix::class.java,
+            setOf("channel", "n", "dayEndMs", "blockStartMs", "blockEndMs", "gone", "pieces"),
+        )
+
+    @Test
+    fun keptBlock() = pinned(KeptBlock::class.java, setOf("startMs", "endMs", "itemId", "mediaStartMs"))
 }

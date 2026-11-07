@@ -138,9 +138,18 @@ internal object LineupCodec {
         try {
             val root = json.parseToJsonElement(bytes.decodeToString(throwOnInvalidSequence = true))
             when (val version = versionOf(root)) {
-                null -> Decoded.Unreadable
-                in 1..VERSION -> lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version)
-                else -> Decoded.NewerVersion(version)
+                null -> {
+                    Decoded.Unreadable
+                }
+
+                in 1..VERSION -> {
+                    val hasRepairs = (root as JsonObject).containsKey("repairs")
+                    lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version, hasRepairs)
+                }
+
+                else -> {
+                    Decoded.NewerVersion(version)
+                }
             }
         } catch (_: IllegalArgumentException) {
             // SerializationException is one: bad JSON, an unknown key or enum value, a missing field, a wrong type.
@@ -167,6 +176,7 @@ internal object LineupCodec {
     private fun lineupOf(
         file: FileV1,
         fileVersion: Int,
+        hasRepairs: Boolean,
     ): Decoded {
         val server = CanonicalId.parseCanonicalOrNull(file.serverId)
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
@@ -187,8 +197,8 @@ internal object LineupCodec {
                 viewerChoicesKnown = !inferred && file.viewerChoicesKnown != false,
             )
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
-        return if (lineup != null && !hasStrayField(file, meta, fileVersion)) {
-            val repairs = file.repairs?.takeIf { it !is JsonNull }?.let(RepairsCodec::decode) ?: TodayRepairs.NONE
+        return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs)) {
+            val repairs = if (hasRepairs) RepairsCodec.decode(file.repairs ?: JsonNull) else TodayRepairs.NONE
             Decoded.Loaded(lineup, meta, repairs, fileVersion)
         } else {
             Decoded.Unreadable
@@ -200,10 +210,11 @@ internal object LineupCodec {
         file: FileV1,
         meta: RefreshMeta,
         fileVersion: Int,
+        hasRepairs: Boolean,
     ): Boolean =
         (fileVersion < 2 && meta.extrasFromMs != null) ||
             (fileVersion < BASE_VERSION && (hasVersion3Field(file) || meta.replanFromMs != null)) ||
-            (fileVersion < VERSION && file.repairs != null && file.repairs !is JsonNull)
+            (fileVersion < VERSION && hasRepairs)
 
     private fun hasVersion3Field(file: FileV1): Boolean =
         file.useMyCollections != null ||

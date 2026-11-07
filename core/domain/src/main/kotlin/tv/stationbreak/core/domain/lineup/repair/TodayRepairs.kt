@@ -9,7 +9,8 @@ import tv.stationbreak.core.model.ItemId
 
 /**
  * One block of a repaired day: [startMs] to [endMs] airs [itemId] from [mediaStartMs] into it. A null [itemId] is a
- * slate (nothing airs).
+ * slate (nothing airs). Blocks are in order and have length: a block that starts before the one before it ends, a block
+ * of no length or a negative [mediaStartMs] cannot be stored, and the save of a record holding one is refused.
  */
 internal data class KeptBlock(
     val startMs: Long,
@@ -148,6 +149,52 @@ private fun canonical(fix: LostFix): String =
 
 private fun canonical(blocks: List<KeptBlock>): String =
     blocks.joinToString(",") { "${it.startMs}:${it.endMs}:${it.itemId?.value ?: "-"}:${it.mediaStartMs}" }
+
+/** What [trimmedToFit] did: the [record] that fits and the counts dropped to get there (numbers only). */
+internal data class Trimmed(
+    val record: TodayRepairs,
+    val fixes: Int,
+    val coveringFixes: Int,
+    val selection: Int,
+) {
+    val dropped: Int get() = fixes + coveringFixes + selection
+}
+
+/**
+ * This record made to fit a lineup save that must not fail because of it ([sizeOf] is the whole file's size with a
+ * record in it, [limit] the most it may be). What goes, in order, until it fits: the oldest fixes whose block is not
+ * on air at [nowMs]; then fixes whose block is; then selection repairs, the oldest [ChannelRepair.atMs] first. The
+ * lost-block generation always stays. The same instance when it already fits.
+ */
+internal fun TodayRepairs.trimmedToFit(
+    nowMs: Long,
+    limit: Int,
+    sizeOf: (TodayRepairs) -> Int,
+): Trimmed {
+    val order = compareBy<LostFix>({ it.dayEndMs }, { it.blockStartMs }, { it.channel.value }, { it.n })
+    val (covering, others) = fixes.partition { it.covers(nowMs) }
+    val fixOrder = others.sortedWith(order) + covering.sortedWith(order)
+    val selectionOrder = selection.sortedWith(compareBy<ChannelRepair>({ it.atMs }, { it.channel.value }, { it.n }))
+
+    fun without(count: Int): TodayRepairs {
+        val fixCount = minOf(count, fixOrder.size)
+        return copy(
+            fixes = fixes - fixOrder.take(fixCount).toSet(),
+            selection = selection - selectionOrder.take(count - fixCount).toSet(),
+        )
+    }
+    val all = fixOrder.size + selectionOrder.size
+    val count =
+        if (isEmpty || sizeOf(this) <= limit) 0 else leastDropsThatFit(0, all) { sizeOf(without(it)) <= limit }
+    val dropFixes = minOf(count, fixOrder.size)
+    val noncovering = minOf(dropFixes, others.size)
+    return Trimmed(
+        if (count == 0) this else without(count),
+        noncovering,
+        dropFixes - noncovering,
+        count - dropFixes,
+    )
+}
 
 /**
  * This record made to fit: [sizeOf] is the whole file's size with a record in it and [limit] the most it may be.

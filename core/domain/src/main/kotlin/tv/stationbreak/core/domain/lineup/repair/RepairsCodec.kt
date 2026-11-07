@@ -211,7 +211,11 @@ internal object RepairsCodec {
     private fun list(element: JsonElement): List<JsonElement> =
         (element as? JsonArray)?.toList() ?: throw IllegalArgumentException("Not an array")
 
-    private fun ids(element: JsonElement): List<CanonicalId> = list(element).map(::canonical)
+    private fun ids(element: JsonElement): List<CanonicalId> {
+        val table = list(element).map(::canonical)
+        require(table.size == table.toSet().size) { "An id twice in a table" }
+        return table
+    }
 
     private fun long(element: JsonElement): Long {
         val primitive = element as? JsonPrimitive

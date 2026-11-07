@@ -3,10 +3,12 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import tv.stationbreak.core.domain.lineup.repair.HALF_HOUR_MS
+import tv.stationbreak.core.domain.lineup.repair.KeptBlock
 import tv.stationbreak.core.domain.lineup.repair.NOW_MS
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.domain.lineup.repair.fixOf
@@ -138,5 +140,92 @@ class LineupCodecV4Test {
         val read = loaded(bytes)
         assertEquals(TodayRepairs.NONE, read.repairs)
         assertEquals(4, read.fileVersion)
+    }
+
+    // A new HiddenReason value is a schema change of the stored repairs: bump LineupCodec.VERSION and update this test.
+    @Test
+    fun theHiddenReasonsArePinnedToTheFileVersion() {
+        assertEquals(
+            listOf(
+                "CollectionsNotSynced",
+                "HouseholdCollectionsOff",
+                "NoMatches",
+                "NothingMadeForKids",
+                "ChildrensRatingsOnly",
+                "AllExcluded",
+                "AllFilteredOut",
+                "AllBlockedByCeiling",
+                "EmptyToday",
+            ),
+            HiddenReason.entries.map { it.name },
+            GUARD,
+        )
+        assertEquals(4, LineupCodec.VERSION, GUARD)
+    }
+
+    @Test
+    fun aNullRepairsKeyInAnOlderFile_isUnreadable() {
+        val v3 = LineupCodec.encode(lineup, meta)
+        val root = tree(v3)
+        for (version in listOf(1, 2, 3)) {
+            val text =
+                Json.encodeToString(
+                    JsonElement.serializer(),
+                    JsonObject(root + ("version" to JsonPrimitive(version)) + ("repairs" to JsonNull)),
+                )
+            assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(text.encodeToByteArray()), "v$version")
+        }
+    }
+
+    @Test
+    fun anIdRepeatedInATable_isUnreadable_butAnUnusedOneIsFine() {
+        val text = LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repairOf()))).decodeToString()
+        val ids = Regex(""""ids":\["([0-9a-f]+)"""").find(text)!!.groupValues[1]
+        val repeated = text.replaceFirst(""""ids":["$ids"""", """"ids":["$ids","$ids"""")
+        assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(repeated.encodeToByteArray()))
+        val unused = text.replaceFirst(""""ids":["$ids"""", """"ids":["$ids","${"f".repeat(32)}"""")
+        assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(unused.encodeToByteArray()))
+    }
+
+    private fun roundTrips(record: TodayRepairs) {
+        val bytes = LineupCodec.encode(lineup, meta, record)
+        assertEquals(LineupCodec.Decoded.Loaded(lineup, meta, record, fileVersion = 4), LineupCodec.decode(bytes))
+    }
+
+    @Test
+    fun gapsBetweenBlocks_roundTrip() {
+        val base = repairOf()
+        val gappy = base.blocks.mapIndexed { i, b -> b.copy(startMs = b.startMs + i, endMs = b.endMs + i + 1) }
+        roundTrips(TodayRepairs(selection = listOf(base.copy(blocks = gappy))))
+        val fix = fixOf()
+        val pieces = fix.pieces.mapIndexed { i, b -> b.copy(startMs = b.startMs + 5 * i, endMs = b.endMs + 5 * i) }
+        roundTrips(TodayRepairs(fixes = listOf(fix.copy(pieces = pieces))))
+    }
+
+    @Test
+    fun emptyLists_roundTrip() {
+        val bare = repairOf().copy(libraries = emptySet(), blocks = emptyList(), pinLibrary = null)
+        roundTrips(TodayRepairs(selection = listOf(bare), fixes = listOf(fixOf().copy(pieces = emptyList()))))
+    }
+
+    @Test
+    fun veryLargeTimes_roundTrip() {
+        val big = (1L shl 52) - 1_000_000L
+        val block = KeptBlock(big, big + HALF_HOUR_MS, id(7), big / 2)
+        val repair =
+            repairOf().copy(
+                dayEndMs = big + HALF_HOUR_MS,
+                atMs = big,
+                keptFromMs = big,
+                pinEndMs = big + HALF_HOUR_MS,
+                seq = Long.MAX_VALUE,
+                blocks = listOf(block),
+            )
+        val fix = fixOf().copy(dayEndMs = big + HALF_HOUR_MS, blockStartMs = big, blockEndMs = big + HALF_HOUR_MS)
+        roundTrips(TodayRepairs(listOf(repair), listOf(fix.copy(pieces = listOf(block))), Long.MAX_VALUE))
+    }
+
+    private companion object {
+        const val GUARD = "A new HiddenReason value is a schema change: bump LineupCodec.VERSION and update this test"
     }
 }

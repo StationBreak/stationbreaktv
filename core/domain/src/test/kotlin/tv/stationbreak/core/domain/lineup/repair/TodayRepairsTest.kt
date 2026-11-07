@@ -75,4 +75,33 @@ class TodayRepairsTest {
         assertEquals("", TodayRepairs.NONE.digestFor(ChannelId("starter:laughs"), 1L))
         assertTrue(TodayRepairs.NONE.isEmpty)
     }
+
+    // Size stands in for bytes: a fix is 10, a selection repair 100.
+    private fun sizeOf(record: TodayRepairs) = record.fixes.size * 10 + record.selection.size * 100
+
+    @Test
+    fun trimmedToFit_dropsOldFixesThenCoveringFixesThenTheOldestSelection() {
+        val covering = fixOf(n = 1L, dayEndMs = day1End, blockStartMs = NOW_MS - HALF_HOUR_MS)
+        val old = fixOf(n = 2L, dayEndMs = day2End, blockStartMs = day1End)
+        val newer = fixOf(n = 3L, dayEndMs = day2End + 1, blockStartMs = day2End)
+        val early = repairOf(n = 1L, atMs = NOW_MS + 1, dayEndMs = day1End)
+        val late = repairOf(n = 2L, atMs = day1End + 5, dayEndMs = day2End)
+        val record = TodayRepairs(listOf(late, early), listOf(newer, covering, old), lostCheckedGeneration = 5L)
+
+        assertSame(record, record.trimmedToFit(NOW_MS, 1_000) { sizeOf(it) }.record)
+        val one = record.trimmedToFit(NOW_MS, 225) { sizeOf(it) }
+        assertEquals(setOf(covering, newer), one.record.fixes.toSet())
+        assertEquals(Triple(1, 0, 0), Triple(one.fixes, one.coveringFixes, one.selection))
+        val two = record.trimmedToFit(NOW_MS, 215) { sizeOf(it) }
+        assertEquals(listOf(covering), two.record.fixes, "the oldest day's fix went first, then the next")
+        val fixes = record.trimmedToFit(NOW_MS, 205) { sizeOf(it) }
+        assertEquals(emptyList(), fixes.record.fixes)
+        assertEquals(Triple(2, 1, 0), Triple(fixes.fixes, fixes.coveringFixes, fixes.selection))
+        val some = record.trimmedToFit(NOW_MS, 105) { sizeOf(it) }
+        assertEquals(listOf(late), some.record.selection, "the oldest atMs goes first")
+        assertEquals(Triple(2, 1, 1), Triple(some.fixes, some.coveringFixes, some.selection))
+        val last = record.trimmedToFit(NOW_MS, 5) { sizeOf(it) }
+        assertEquals(TodayRepairs(lostCheckedGeneration = 5L), last.record)
+        assertEquals(2, last.selection)
+    }
 }
