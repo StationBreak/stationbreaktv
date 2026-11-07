@@ -14,7 +14,7 @@ class GuidePaletteTest {
         val dark = GuideColors.Dark
         assertEquals(Color(0xFF191A19), dark.page)
         assertEquals(Color(0xFF212420), dark.pageGradientStart)
-        assertEquals(Color(0xFF282A28), dark.card)
+        assertEquals(Color(0xFF33352F), dark.card)
         assertEquals(Color(0xFF252725), dark.cardAlternate)
         assertEquals(Color(0xFFE8642C), dark.focusFill)
         assertEquals(Color(0xFF1C1B19), dark.focusText)
@@ -70,6 +70,47 @@ class GuidePaletteTest {
     }
 
     @Test
+    fun theLayersAndPlatesKeepTheirContrast() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            assertContrast(4.5, c.plateNumber, c.plateBottom, "$name plate number")
+            assertContrast(4.5, c.plateName, c.plateBottom, "$name plate name")
+            assertContrast(4.5, c.programmeText, c.card, "$name programme text on a card")
+            assertContrast(4.5, c.textSecondary, c.card, "$name secondary text on a card")
+            assertContrast(4.5, c.focusText, c.focusFill, "$name focus text")
+            for (plate in listOf(c.plateTop, c.plateBottom, c.plateHighlight, c.plateShadow)) {
+                assertEquals("$name plate colours are opaque", 1f, plate.alpha)
+            }
+        }
+    }
+
+    @Test
+    fun eachLayerIsToldApartFromTheNext() {
+        val dark = GuideColors.Dark
+        val light = GuideColors.Light
+        // Dark steps lighter all the way: page, panel, band, card.
+        val darkLayers = listOf(dark.page, dark.gridPanel, dark.rowBand, dark.card)
+        assertEquals(4, darkLayers.toSet().size)
+        darkLayers.zipWithNext().forEach { (below, above) ->
+            assertTrue("dark layers step lighter", above.luminance() > below.luminance())
+            assertContrast(MIN_LAYER_STEP, above, below, "dark layer step")
+        }
+        // Light steps darker from the page to the panel and the band; the card is the lightest, a raised sheet.
+        val lightLayers = listOf(light.page, light.gridPanel, light.rowBand, light.card)
+        assertEquals(4, lightLayers.toSet().size)
+        assertTrue("light panel is darker than the page", light.gridPanel.luminance() < light.page.luminance())
+        assertTrue("light band is darker than the panel", light.rowBand.luminance() < light.gridPanel.luminance())
+        assertTrue("light card is lighter than the band", light.card.luminance() > light.rowBand.luminance())
+        lightLayers.zipWithNext().forEach { (a, b) -> assertContrast(MIN_LAYER_STEP, a, b, "light layer step") }
+    }
+
+    @Test
+    fun theThemesAreOpaqueExceptWhereAllowed() {
+        for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
+            listOf(c.gridPanel, c.rowBand, c.card, c.plateNumber, c.plateName).forEach { assertEquals(1f, it.alpha) }
+        }
+    }
+
+    @Test
     fun theSavedChoiceIsDarkUnlessItIsLight() {
         assertEquals(GuideTheme.Dark, GuideTheme.decode(null))
         assertEquals(GuideTheme.Dark, GuideTheme.decode(""))
@@ -109,3 +150,5 @@ class GuidePaletteTest {
         assertTrue("$what is $ratio, needs $minimum", ratio >= minimum)
     }
 }
+
+private const val MIN_LAYER_STEP = 1.05
