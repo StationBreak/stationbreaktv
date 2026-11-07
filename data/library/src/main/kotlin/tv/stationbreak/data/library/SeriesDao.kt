@@ -92,11 +92,12 @@ internal abstract class SeriesDao {
     // the live series of [libraries] (the same bound). The names are text a person typed and never reach a log.
     @Query(
         "SELECT seriesId, name, providerIds FROM series WHERE serverId = :serverId AND userId = :userId " +
-            "AND deletedAtMs IS NOT NULL AND seriesId IN (:ids)",
+            "AND deletedAtMs IS NOT NULL AND deletedAtMs >= :sinceMs AND seriesId IN (:ids)",
     )
     abstract suspend fun goneSeriesSignalRows(
         serverId: String,
         userId: String,
+        sinceMs: Long,
         ids: List<String>,
     ): List<SeriesSignalRow>
 

@@ -583,6 +583,19 @@ internal abstract class CacheTransactionDao(
             else -> null
         }
 
+    /**
+     * [reIdSuccessors] in one read transaction (spec 26): the tombstones, the series and the live candidates are read
+     * from one state. [sinceMs] is the oldest tombstone that counts.
+     */
+    @Transaction
+    open suspend fun successors(
+        server: String,
+        user: String,
+        libraries: Set<String>,
+        gone: Set<CanonicalId>,
+        sinceMs: Long,
+    ): Map<CanonicalId, CanonicalId> = reIdSuccessors(library, series, server, user, libraries, gone, sinceMs)
+
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */
         const val COLLECTION_CHUNK = 100

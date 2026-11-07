@@ -374,7 +374,8 @@ class RoomLibraryRepository internal constructor(
         gone: Set<CanonicalId>,
     ): Map<CanonicalId, CanonicalId> {
         val (server, user) = account.keys()
-        return reIdSuccessors(dao, seriesDao, server, user, libraries.mapTo(HashSet()) { it.value }, gone)
+        val sinceMs = clock.now().toEpochMilliseconds() - retention.millis
+        return transactions.successors(server, user, libraries.mapTo(HashSet()) { it.value }, gone, sinceMs)
     }
 
     override suspend fun useAccount(account: LibraryAccount) {

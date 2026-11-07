@@ -588,7 +588,11 @@ class InMemoryLibraryRepository : LibraryRepository {
     ): Map<CanonicalId, CanonicalId> {
         val liveIds = live(account, libraries).mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.item.id.value) }
         val found = LinkedHashMap<CanonicalId, CanonicalId>()
+        val rowIds = rows.filter { it.account == account }.groupBy { CanonicalId.parseOrNull(it.item.id.value) }
         for (id in gone) {
+            // Only a tombstone is gone: an id with no row, or with a live one, is absent, as the real read has it.
+            val own = rowIds[id].orEmpty()
+            if (own.isEmpty() || own.any { !it.tombstoned }) continue
             val successor = successorRows[account to id] ?: continue
             if (successor in liveIds) found[id] = successor
         }

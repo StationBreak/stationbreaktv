@@ -163,4 +163,77 @@ class RoomSuccessorsTest {
             assertEquals(count, found.size)
             assertEquals(canon(10_000 + 123), found[canon(123)])
         }
+
+    @Test
+    fun anIdentityIdFindsItsSuccessor_whateverTheKeyAndTheRestOfTheText() =
+        runBlocking {
+            choose(MOVIES.value)
+            val keys = listOf("imdb" to "tt7", "tmdb" to "77", "tvdb" to "777")
+            keys.forEachIndexed { at, (key, value) ->
+                val gone = 10 + at
+                val ids = mapOf("aaa" to "x", key to value, "zzz" to "y")
+                repository.put(ALICE, MOVIES, film(gone, ids = ids, name = "gone $at"))
+                repository.tombstone(ALICE, listOf(ItemId(hexId(gone))))
+                val back = film(gone + 100, ids = mapOf("zzz" to "q", key to value), name = "back $at")
+                repository.put(ALICE, MOVIES, back)
+            }
+
+            val expected = (10..12).associate { canon(it) to canon(it + 100) }
+            assertEquals(expected, successors(10, 11, 12))
+        }
+
+    @Test
+    fun aCollectionIdSharedByTwoFilms_isNotAMatch() =
+        runBlocking {
+            choose(MOVIES.value)
+            repository.put(ALICE, MOVIES, film(1, ids = mapOf("tmdbcollection" to "7"), name = "first"))
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            repository.put(ALICE, MOVIES, film(2, ids = mapOf("tmdbcollection" to "7"), name = "second"))
+
+            assertEquals(emptyMap<CanonicalId, CanonicalId>(), successors(1))
+        }
+
+    @Test
+    fun aTitleAndYearMatch_ignoresTheCaseOfTheName() =
+        runBlocking {
+            choose(MOVIES.value)
+            repository.put(ALICE, MOVIES, film(1, name = "Invented Film", year = 1999))
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            val other = film(3, name = "Other", year = 1999)
+            repository.put(ALICE, MOVIES, film(2, name = "INVENTED film", year = 1999), other)
+
+            assertEquals(mapOf(canon(1) to canon(2)), successors(1))
+        }
+
+    @Test
+    fun aTombstoneOlderThanTheRetention_isNotGone() =
+        runBlocking {
+            choose(MOVIES.value)
+            repository.put(ALICE, MOVIES, film(1, ids = mapOf("tmdb" to "5")), film(2, ids = mapOf("tmdb" to "9")))
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            clock.stepMs(29L * 24 * 3_600_000)
+            repository.tombstone(ALICE, listOf(ItemId(hexId(2))))
+            clock.stepMs(2L * 24 * 3_600_000)
+            repository.put(
+                ALICE,
+                MOVIES,
+                film(3, ids = mapOf("tmdb" to "5"), name = "back one"),
+                film(4, ids = mapOf("tmdb" to "9"), name = "back two"),
+            )
+
+            assertEquals(mapOf(canon(2) to canon(4)), successors(1, 2))
+        }
+
+    @Test
+    fun anEpisodeReturnedUnderTheSameSeries_storedWithAnotherSpelling_isFound() =
+        runBlocking {
+            choose(MOVIES.value, SHOWS.value)
+            repository.putSeries(ALICE, SHOWS, series(hexId(100), name = "Invented Show"))
+            repository.put(ALICE, SHOWS, episode(1, series = 100, number = 4))
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            val spelled = episode(2, series = 100, number = 4).copy(seriesId = ItemId(dashed(100).uppercase()))
+            repository.put(ALICE, SHOWS, spelled)
+
+            assertEquals(mapOf(canon(1) to canon(2)), successors(1))
+        }
 }

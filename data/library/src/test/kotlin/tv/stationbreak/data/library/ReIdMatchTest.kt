@@ -55,7 +55,7 @@ class ReIdMatchTest {
     @Test
     fun providerIdMatch() {
         val gone = film(1, ids = mapOf("imdb" to "tt1", "tmdb" to "5"), name = "old name", year = null)
-        val live = film(2, ids = mapOf("imdb" to "tt9", "tmdb" to "5"), name = "other", year = null)
+        val live = film(2, ids = mapOf("tmdb" to "5", "tvdb" to "9"), name = "other", year = null)
         assertEquals(mapOf(id(1) to id(2)), match(listOf(gone), listOf(live)))
     }
 
@@ -181,5 +181,138 @@ class ReIdMatchTest {
         val gone = listOf(film(1, name = "first film"), film(2, name = "second film"))
         val live = listOf(film(3, name = "first film"), film(4, name = "second film"))
         assertEquals(mapOf(id(1) to id(3), id(2) to id(4)), match(gone, live))
+    }
+
+    private val none = emptyMap<CanonicalId, CanonicalId>()
+
+    @Test
+    fun collectionIdShared_noMatch() {
+        val gone = film(1, name = "first film", ids = mapOf("tmdbcollection" to "7"), year = null)
+        val live = film(2, name = "second film", ids = mapOf("tmdbcollection" to "7"), year = null)
+        assertEquals(none, match(listOf(gone), listOf(live)))
+    }
+
+    @Test
+    fun aSeriesIdOtherThanAnIdentityKey_neverResolvesAMovedSeries() {
+        val gone = episode(1, series = 100)
+        val live = listOf(episode(2, series = 200))
+        val goneSeries = listOf(show(100, name = "old", ids = mapOf("tmdbcollection" to "7")))
+        val liveSeries = listOf(show(200, name = "new", ids = mapOf("tmdbcollection" to "7")))
+        assertEquals(none, match(listOf(gone), live, liveSeries, goneSeries))
+    }
+
+    @Test
+    fun imdbShared_butTmdbConflicts_noMatch() {
+        val gone = film(1, name = "first film", year = null, ids = mapOf("imdb" to "tt1", "tmdb" to "5"))
+        val live = film(2, name = "second film", year = null, ids = mapOf("imdb" to "tt1", "tmdb" to "6"))
+        assertEquals(none, match(listOf(gone), listOf(live)))
+    }
+
+    @Test
+    fun identityConflict_blocksTheFilmTitleAndYear() {
+        val gone = film(1, ids = mapOf("tmdb" to "5"))
+        val live = film(2, ids = mapOf("tmdb" to "6"))
+        assertEquals(none, match(listOf(gone), listOf(live)))
+    }
+
+    @Test
+    fun identityConflict_blocksTheSeriesName() {
+        val gone = episode(1, series = 100)
+        val live = listOf(episode(2, series = 200))
+        val goneSeries = listOf(show(100, name = "same show", ids = mapOf("tvdb" to "1")))
+        val liveSeries = listOf(show(200, name = "same show", ids = mapOf("tvdb" to "2")))
+        assertEquals(none, match(listOf(gone), live, liveSeries, goneSeries))
+    }
+
+    @Test
+    fun identityConflict_onTheEpisodeItself_noMatch() {
+        val gone = episode(1, series = 100, ids = mapOf("tvdb" to "1"))
+        val live = listOf(episode(2, series = 100, ids = mapOf("tvdb" to "2")))
+        assertEquals(none, match(listOf(gone), live))
+    }
+
+    @Test
+    fun idsPresentButNoneShared_fallsThroughToTheTitleAndYear() {
+        val gone = film(1, ids = mapOf("tmdb" to "5"))
+        val live = film(2, ids = mapOf("imdb" to "tt9"))
+        assertEquals(mapOf(id(1) to id(2)), match(listOf(gone), listOf(live)))
+    }
+
+    @Test
+    fun seriesNameDecides_whenTheSeriesShareNoIdentityKey() {
+        val gone = episode(1, series = 100)
+        val live = listOf(episode(2, series = 200))
+        val goneSeries = listOf(show(100, name = "same show", ids = mapOf("tmdb" to "1")))
+        val liveSeries = listOf(show(200, name = "same show", ids = mapOf("tvdb" to "2")))
+        assertEquals(mapOf(id(1) to id(2)), match(listOf(gone), live, liveSeries, goneSeries))
+    }
+
+    @Test
+    fun severalProviderIdSeriesMatches_neverFallBackToTheName() {
+        val gone = episode(1, series = 100)
+        val live = listOf(episode(2, series = 202))
+        val goneSeries = listOf(show(100, name = "same show", ids = mapOf("tvdb" to "1")))
+        val liveSeries =
+            listOf(
+                show(200, name = "one", ids = mapOf("tvdb" to "1")),
+                show(201, name = "two", ids = mapOf("tvdb" to "1")),
+                show(202, name = "same show"),
+            )
+        assertEquals(none, match(listOf(gone), live, liveSeries, goneSeries))
+    }
+
+    @Test
+    fun anUnknownSeasonOrEpisode_onEitherSide_noMatch() {
+        val live = listOf(episode(2, series = 100, season = null, number = null))
+        assertEquals(none, match(listOf(episode(1, series = 100, season = null, number = null)), live))
+        val noSeason = episode(2, series = 100, season = null)
+        val noNumber = episode(2, series = 100, number = null)
+        assertEquals(none, match(listOf(episode(1, series = 100, season = null)), listOf(noSeason)))
+        assertEquals(none, match(listOf(episode(1, series = 100, number = null)), listOf(noNumber)))
+        assertEquals(none, match(listOf(episode(1, series = 100)), listOf(episode(2, series = 100, season = null))))
+    }
+
+    @Test
+    fun anEpisodeWithoutASeries_noMatch() {
+        assertEquals(none, match(listOf(episode(1, series = null)), listOf(episode(2, series = null))))
+    }
+
+    @Test
+    fun twoPercentBoundary() {
+        assertEquals(none, match(listOf(film(1, runtimeMin = 200)), listOf(film(2, runtimeMin = 205))))
+        assertEquals(mapOf(id(1) to id(2)), match(listOf(film(1, runtimeMin = 200)), listOf(film(2, runtimeMin = 196))))
+    }
+
+    @Test
+    fun aRuntimeFailure_doesNotFallThroughToALooserRule() {
+        val gone = film(1, ids = mapOf("tmdb" to "5"), runtimeMin = 90)
+        val live = listOf(film(2, ids = mapOf("tmdb" to "5"), runtimeMin = 120), film(3, runtimeMin = 90))
+        assertEquals(none, match(listOf(gone), live))
+    }
+
+    @Test
+    fun oneCandidateChosenByRulesOfTwoGoneItems_isTheMatchOfNeither() {
+        val byId = film(1, name = "first", ids = mapOf("tmdb" to "5"), year = 1990)
+        val byTitle = film(2, name = "target", year = 1999)
+        val target = film(3, name = "target", ids = mapOf("tmdb" to "5"), year = 1999)
+        assertEquals(none, match(listOf(byId, byTitle), listOf(target)))
+    }
+
+    @Test
+    fun anAmbiguousGoneItem_voidsEveryCandidateItSaw() {
+        val ambiguous = film(1, name = "twin", year = 1999)
+        val unique = film(2, name = "other", ids = mapOf("tmdb" to "5"), year = 1980)
+        val twinWithId = film(4, name = "twin", ids = mapOf("tmdb" to "5"), year = 1999)
+        val live = listOf(film(3, name = "twin", year = 1999), twinWithId)
+        assertEquals(none, match(listOf(ambiguous, unique), live))
+    }
+
+    @Test
+    fun aBlankName_neverMatches() {
+        assertEquals(none, match(listOf(film(1, name = "  ")), listOf(film(2, name = "  "))))
+        val goneSeries = listOf(show(100, name = " "))
+        val liveSeries = listOf(show(200, name = " "))
+        val live = listOf(episode(2, series = 200))
+        assertEquals(none, match(listOf(episode(1, series = 100)), live, liveSeries, goneSeries))
     }
 }

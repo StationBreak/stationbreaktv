@@ -10,6 +10,20 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Clock
 
+// The value of one identity key in the `key=value;key=value` text of the provider ids column (the six characters of
+// ';key=' are skipped), or NULL when the key is not there (spec 26). Used by the re-id read to find a successor by id.
+private const val PROVIDER_TEXT = "(';' || providerIds || ';')"
+
+private const val IMDB_REST = "substr($PROVIDER_TEXT, instr($PROVIDER_TEXT, ';imdb=') + 6)"
+private const val TMDB_REST = "substr($PROVIDER_TEXT, instr($PROVIDER_TEXT, ';tmdb=') + 6)"
+private const val TVDB_REST = "substr($PROVIDER_TEXT, instr($PROVIDER_TEXT, ';tvdb=') + 6)"
+private const val IMDB_VALUE =
+    "CASE WHEN instr($PROVIDER_TEXT, ';imdb=') > 0 THEN substr($IMDB_REST, 1, instr($IMDB_REST, ';') - 1) END"
+private const val TMDB_VALUE =
+    "CASE WHEN instr($PROVIDER_TEXT, ';tmdb=') > 0 THEN substr($TMDB_REST, 1, instr($TMDB_REST, ';') - 1) END"
+private const val TVDB_VALUE =
+    "CASE WHEN instr($PROVIDER_TEXT, ';tvdb=') > 0 THEN substr($TVDB_REST, 1, instr($TVDB_REST, ';') - 1) END"
+
 /** How a purge ended (spec 09, Unit 3). */
 internal sealed interface PurgeOutcome {
     /**
@@ -293,28 +307,41 @@ internal abstract class LibraryDao {
         ids: List<String>,
     ): List<ProgramRow>
 
-    // The re-id match's reads (spec 26): the movies and episodes among [ids] (at most MAX_VARIABLES - 2 of them) that
-    // are tombstones, and the live ones of [libraries] (the same bound).
+    // The re-id match's reads (spec 26). The tombstones among [ids] (at most MAX_VARIABLES - 2 of them) deleted at or
+    // after [sinceMs], the cache's retention: older ones are as good as purged.
     @Query(
         "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
             "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NOT NULL " +
-            "AND kind IN ('Movie', 'Episode') AND itemId IN (:ids)",
+            "AND deletedAtMs >= :sinceMs AND kind IN ('Movie', 'Episode') AND itemId IN (:ids)",
     )
     abstract suspend fun goneSignalRows(
         serverId: String,
         userId: String,
+        sinceMs: Long,
         ids: List<String>,
     ): List<SignalRow>
 
+    // The live movies and episodes of [libraries] that can be a gone item's successor: an episode of one of
+    // [seriesIds] (stored spellings), a film whose lower-cased name is one of [names] (SQLite's lower() folds ASCII
+    // only, as foldNameAscii does), or an item with one of the identity ids. The caller checks every row it gets back
+    // with the rules; this only keeps the rest of the library out of memory. At most MAX_VARIABLES binds in all.
+    @Suppress("LongParameterList") // One list per way a successor is found.
     @Query(
         "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
             "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL " +
-            "AND kind IN ('Movie', 'Episode') AND libraryId IN (:libraries)",
+            "AND kind IN ('Movie', 'Episode') AND libraryId IN (:libraries) AND (seriesId IN (:seriesIds) " +
+            "OR lower(name) IN (:names) OR " + IMDB_VALUE + " IN (:imdb) OR " + TMDB_VALUE + " IN (:tmdb) " +
+            "OR " + TVDB_VALUE + " IN (:tvdb))",
     )
     abstract suspend fun liveSignalRows(
         serverId: String,
         userId: String,
         libraries: List<String>,
+        seriesIds: List<String>,
+        names: List<String>,
+        imdb: List<String>,
+        tmdb: List<String>,
+        tvdb: List<String>,
     ): List<SignalRow>
 
     // Which of [ids] (at most MAX_VARIABLES of them) are live items of the account: no join, no names (spec 14).
