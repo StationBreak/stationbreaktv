@@ -116,7 +116,8 @@ class StandbySlotsTest {
         }
 
     // The JVM's Handler stub does nothing: no deadline check runs here.
-    private val slots = StandbySlots(slotOf(front), Handler(), CLOCK, WarmConfig(), WarmSwitches.None, host)
+    private val slots =
+        StandbySlots(slotOf(front), Handler(), CLOCK, WarmConfig(warmNextDecoder = true), WarmSwitches.None, host)
 
     private fun source(path: String): PlayerSource {
         val url = "https://server.example/$path"

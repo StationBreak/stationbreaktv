@@ -68,7 +68,7 @@ class Media3VideoPlayerTest {
                         DefaultHttpDataSource.Factory(),
                         SystemClock::elapsedRealtime,
                         PlaybackBuffering(),
-                        WarmConfig(),
+                        WarmConfig(warmNextDecoder = true),
                         WarmSwitches.None,
                         DeviceWarmth.fresh(context),
                     )

@@ -2,6 +2,7 @@
 package tv.stationbreak.core.playback
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,7 +12,7 @@ class WarmConfigTest {
     @Test
     fun defaultsAreTheSpecValues() {
         val config = WarmConfig()
-        assertTrue(config.warmNextDecoder)
+        assertFalse(config.warmNextDecoder)
         assertTrue(config.warmNextAudio)
         assertEquals(2_000L, config.warmHoldBufferMs)
         assertEquals(15_000L, config.warmReadyTimeoutMs)

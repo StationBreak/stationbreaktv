@@ -12,7 +12,7 @@ class WarmStandbyTest {
     private val logs = mutableListOf<String>()
 
     private fun standby(
-        config: WarmConfig = WarmConfig(),
+        config: WarmConfig = WarmConfig(warmNextDecoder = true),
         deviceCannot: () -> String? = { null },
     ) = WarmStandby(config, WarmSwitches.None, deviceCannot, { now }, { logs += it })
 
@@ -104,7 +104,7 @@ class WarmStandbyTest {
 
     @Test
     fun failTwiceCountsOnce() {
-        val s = standby(WarmConfig(warmMaxFailures = 2))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 2))
         s.request("w1")
         s.fail(WarmReason.Error)
         s.fail(WarmReason.Error)
@@ -115,7 +115,7 @@ class WarmStandbyTest {
 
     @Test
     fun decoderMissingTwiceCountsOnce() {
-        val s = standby(WarmConfig(warmMaxFailures = 5))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 5))
         s.request("w1")
         s.decoderMissing()
         s.decoderMissing()
@@ -125,7 +125,7 @@ class WarmStandbyTest {
 
     @Test
     fun failWithNothingHeldIsIgnored() {
-        val s = standby(WarmConfig(warmMaxFailures = 1))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 1))
         s.fail(WarmReason.Error)
         assertEquals(Request.Start, s.request("w1"))
     }
@@ -144,7 +144,7 @@ class WarmStandbyTest {
 
     @Test
     fun readyWithBreakerOpenIsCold() {
-        val s = standby(WarmConfig(warmMaxFailures = 1))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 1))
         s.request("p1")
         s.onStateReady("p1")
         s.onDecoderUp("p1", 50)
@@ -251,7 +251,7 @@ class WarmStandbyTest {
 
     @Test
     fun audioErrorRetriesVideoOnly() {
-        val s = standby(WarmConfig(warmMaxFailures = 2))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 2))
         s.request("p1")
         assertTrue(s.audioOn)
         assertEquals(ErrorAction.RetryVideoOnly, s.onError("p1", audio = true))
@@ -275,7 +275,7 @@ class WarmStandbyTest {
 
     @Test
     fun audioErrorCountsOnce() {
-        val s = standby(WarmConfig(warmMaxFailures = 2))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 2))
         s.request("p1")
         s.onError("p1", audio = true)
         assertEquals("alreadyWarm", skipReason(s.request("p1")))
@@ -283,14 +283,14 @@ class WarmStandbyTest {
 
     @Test
     fun videoErrorsOpenBreaker() {
-        val s = standby(WarmConfig(warmMaxFailures = 1))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 1))
         s.request("p1")
         assertEquals(ErrorAction.Disabled, s.onError("p1", audio = false))
     }
 
     @Test
     fun audioOffByConfig() {
-        assertFalse(standby(WarmConfig(warmNextAudio = false)).audioOn)
+        assertFalse(standby(WarmConfig(warmNextDecoder = true, warmNextAudio = false)).audioOn)
     }
 
     @Test
@@ -370,11 +370,11 @@ class WarmStandbyTest {
 
     @Test
     fun theTrimThresholdIsATunable() {
-        val s = standby(WarmConfig(warmTrimLevel = RUNNING_CRITICAL))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmTrimLevel = RUNNING_CRITICAL))
         assertEquals(TrimAction.Ignored, s.trim(RUNNING_LOW))
         assertFalse(s.disabled)
         assertEquals(TrimAction.Paused, s.trim(RUNNING_CRITICAL))
-        val lowest = standby(WarmConfig(warmTrimLevel = RUNNING_MODERATE))
+        val lowest = standby(WarmConfig(warmNextDecoder = true, warmTrimLevel = RUNNING_MODERATE))
         assertEquals(TrimAction.Paused, lowest.trim(RUNNING_MODERATE))
     }
 
@@ -387,7 +387,13 @@ class WarmStandbyTest {
 
     @Test
     fun tunablesAreRead() {
-        val c = WarmConfig(warmReadyTimeoutMs = 3_000, warmDecoderGraceMs = 200, warmMaxFailures = 2)
+        val c =
+            WarmConfig(
+                warmNextDecoder = true,
+                warmReadyTimeoutMs = 3_000,
+                warmDecoderGraceMs = 200,
+                warmMaxFailures = 2,
+            )
         val s = standby(c)
         s.request("w1")
         s.onStateReady("w1")
@@ -407,7 +413,7 @@ class WarmStandbyTest {
 
     @Test
     fun droppedClearsTheHeldStandbyWithoutAFailure() {
-        val s = standby(WarmConfig(warmMaxFailures = 1))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 1))
         s.request("w1")
         s.dropped("fallback")
         assertNull(s.held)
@@ -425,7 +431,7 @@ class WarmStandbyTest {
 
     @Test
     fun disabledFollowsTheBreakerTheSwitchAndTheTrim() {
-        val s = standby(WarmConfig(warmMaxFailures = 1))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 1))
         assertFalse(s.disabled)
         s.request("w1")
         s.fail(WarmReason.Timeout)
@@ -448,7 +454,7 @@ class WarmStandbyTest {
     fun readyAndFallbackLinesCarryTheExtraFields() {
         val s =
             WarmStandby(
-                WarmConfig(),
+                WarmConfig(warmNextDecoder = true),
                 WarmSwitches.None,
                 { null },
                 { now },
@@ -475,7 +481,7 @@ class WarmStandbyTest {
     @Test
     fun aReadyStandbyThePlayerCannotUseCountsTowardTheBreaker() {
         // The player's own check at the swap (an error not yet delivered, or not READY): fail, then drop.
-        val s = standby(WarmConfig(warmMaxFailures = 3))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 3))
         repeat(3) { n ->
             val key = "w$n"
             assertEquals(Request.Start, s.request(key))
@@ -493,7 +499,7 @@ class WarmStandbyTest {
     fun aSourceThatChangedIsAMismatch() {
         // The handle is the standby's, but the source it was built from is not this play's (a route fell back, an
         // item was replaced): cold, logged as a fallback, and not the standby's failure.
-        val s = standby(WarmConfig(warmMaxFailures = 1))
+        val s = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 1))
         s.request("w1")
         s.onStateReady("w1")
         s.onDecoderUp("w1", 10)
@@ -604,7 +610,7 @@ class WarmStandbyTest {
         s.request("w1")
         s.fail(WarmReason.Timeout)
         assertNull("failed", s.reuseFor(sameSource = true))
-        val off = standby(WarmConfig(warmMaxFailures = 1))
+        val off = standby(WarmConfig(warmNextDecoder = true, warmMaxFailures = 1))
         off.request("w1")
         off.trim(RUNNING_LOW)
         assertNull("disabled", off.reuseFor(sameSource = true))
@@ -614,7 +620,7 @@ class WarmStandbyTest {
     fun twoPlayersShareTheDecoderMissingLatch() {
         // One DeviceWarmth for the process: the probe failing on one player turns warming off for the next one.
         val device = DeviceWarmth({ "AFTKRT" }) { false }
-        val denylist = WarmConfig().warmDeviceDenylist
+        val denylist = WarmConfig(warmNextDecoder = true).warmDeviceDenylist
         val first = standby(deviceCannot = { device.cannot(denylist) })
         val second = standby(deviceCannot = { device.cannot(denylist) })
         assertEquals(Request.Start, first.request("w1"))
