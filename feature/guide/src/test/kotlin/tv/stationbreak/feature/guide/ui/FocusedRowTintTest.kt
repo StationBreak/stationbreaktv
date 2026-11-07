@@ -25,4 +25,10 @@ class FocusedRowTintTest {
         assertEquals(1, focusedRowBand(row = 8, firstVisibleRow = 7, rowCount = 9))
         assertNull(focusedRowBand(row = 9, firstVisibleRow = 7, rowCount = 9))
     }
+
+    @Test
+    fun noBandBelowTheLastOfFourRows() {
+        assertNull(focusedRowBand(row = 3, firstVisibleRow = 0, rowCount = 3))
+        assertEquals(3, focusedRowBand(row = 3, firstVisibleRow = 0, rowCount = 4))
+    }
 }

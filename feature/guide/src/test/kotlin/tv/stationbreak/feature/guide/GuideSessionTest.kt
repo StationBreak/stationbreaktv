@@ -263,9 +263,9 @@ class GuideSessionTest : GuideRig() {
     fun theGuideOpensOnAFullLastPage() =
         guideTest { vm ->
             val more = tenRows()
-            vm.open(more[5]) // channel 16, the ninth row of ten: the last six rows show
+            vm.open(more[5]) // channel 16, the ninth row of ten: the last four rows show
             runCurrent()
-            assertEquals(4, vm.ready().firstVisibleRow)
+            assertEquals(6, vm.ready().firstVisibleRow)
         }
 
     @Test

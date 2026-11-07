@@ -158,7 +158,7 @@ It keeps ADR-0008's horizontal structure: every row's cells are laid out by time
 viewport, and all rows move by one shared horizontal offset (the viewport's distance from the origin) that is read in the
 layout phase, when each row is placed, and clipped to the time columns. A Left/Right page therefore recomposes no cell;
 the sticky titles and the "continues" chevrons follow the viewport in the layout and draw phases too. Vertically the
-grid is a window of six rows that the model chooses (`firstVisibleRow`) in a plain column, in place of a lazy list
+grid is a window of four rows that the model chooses (`firstVisibleRow`) in a plain column, in place of a lazy list
 scrolled by focus. This departs from ADR-0008 decision 1, which chose standard Compose lists (a `LazyColumn` of
 `LazyRow`s): the guide uses neither, and the model moves the focus rather than Compose focus search. The ADR-0008
 addendum records the departure and the device results.
