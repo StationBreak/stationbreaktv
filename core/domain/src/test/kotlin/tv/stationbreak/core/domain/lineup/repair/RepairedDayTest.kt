@@ -144,6 +144,47 @@ class RepairedDayTest {
     }
 
     @Test
+    fun fixWithOverrunningOrGappedPieces_leavesBlockWhole() {
+        val base = fixOf(blockStartMs = NOW_MS, lengthMs = 2 * HALF_HOUR_MS, gone = 90)
+        val overrun =
+            base.copy(pieces = listOf(KeptBlock(NOW_MS, NOW_MS + 3 * HALF_HOUR_MS, id(50), 0L)))
+        val gapped =
+            base.copy(
+                pieces =
+                    listOf(
+                        KeptBlock(NOW_MS, NOW_MS + HALF_HOUR_MS / 3, id(50), 0L),
+                        KeptBlock(NOW_MS + HALF_HOUR_MS / 2, NOW_MS + HALF_HOUR_MS, id(51), 0L),
+                    ),
+            )
+        for (bad in listOf(overrun, gapped)) {
+            val composed = compose(null, listOf(bad))
+            assertEquals(original(), composed.blocks)
+            assertTrue(composed.fixRemainders.isEmpty())
+        }
+    }
+
+    @Test
+    fun fixWhoseBlockTheRepairReplaced_isIgnored() {
+        val repair = repairOf(atMs = NOW_MS + 600_000L)
+        assertEquals(NOW_MS, repair.blocks.first().startMs)
+        val fix = fixOf(blockStartMs = NOW_MS, lengthMs = 2 * HALF_HOUR_MS, gone = 90)
+        val composed = compose(repair, listOf(fix))
+        assertEquals(compose(repair).blocks, composed.blocks)
+        assertTrue(composed.fixRemainders.isEmpty())
+    }
+
+    @Test
+    fun twoFixesSameBlock_lastWins_deterministically() {
+        val first = fixOf(blockStartMs = NOW_MS, gone = 90, piece = 50)
+        val second = fixOf(blockStartMs = NOW_MS, gone = 90, piece = 51)
+
+        fun pieceOf(fixes: List<LostFix>) = compose(null, fixes).blocks.first { it.startMs == NOW_MS }.content
+        assertEquals(ScheduleContent.Program(id(51), 0L), pieceOf(listOf(first, second)))
+        assertEquals(ScheduleContent.Program(id(50), 0L), pieceOf(listOf(second, first)))
+        assertEquals(pieceOf(listOf(first, second)), pieceOf(listOf(first, second)))
+    }
+
+    @Test
     fun staleFix_isIgnored() {
         val repair = repairOf()
         val wrongTime = fixOf(blockStartMs = NOW_MS + 7 * 60_000L, gone = 11)

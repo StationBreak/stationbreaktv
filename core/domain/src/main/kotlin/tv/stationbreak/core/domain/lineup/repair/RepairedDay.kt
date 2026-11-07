@@ -33,6 +33,7 @@ internal object RepairedDay {
     ): Composed {
         val base = repair?.let { recorded(dayStartMs, dayEndMs, it) } ?: original
         if (fixes.isEmpty()) return Composed(base, emptySet())
+        // Two fixes of one block: the last in the list wins; the caller passes one channel-day's fixes in record order.
         val byBlock = fixes.associateBy { it.blockStartMs to it.blockEndMs }
         val remainders = LinkedHashSet<Long>()
         val out = ArrayList<ScheduleBlock>(base.size)
