@@ -24,6 +24,10 @@ import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.scheduler.layoutTail
 import kotlin.time.Instant
 
+/** How a repair reads a selection's plain and filtered snapshots at some cuts, through the source's shared reader. */
+internal typealias SharedRead =
+    suspend (libraries: Set<ItemId>, cuts: List<Cut>) -> Pair<Map<Long, RuleSnapshot>, Map<Long, RuleSnapshot>>
+
 /** A change of the selection: [before] to [after], the change's [seq], at [atMs]. */
 internal class SelectionChange(
     val before: Set<ItemId>,
@@ -43,13 +47,18 @@ internal class PlannedRepair(
     val pins: List<Pin>,
 ) {
     /**
-     * [record] with these in place of what it held for the same channel days (the latest repair of a day wins), and
-     * [seq] in its `lastSeq` if higher (none while no selection repair is held). The lost-block check is cleared: the
-     * new tails were never checked, so the next `repairLost` checks them.
+     * [record] with these beside the repairs it shows at [appliedSeq] (the saved selection's seq): per channel day the
+     * repair [TodayRepairs.applied] shows stays until this change's seq is saved, so a failed save can go back to it,
+     * and every other repair goes (one a saved later seq superseded, or one of a change never saved). The fixes of the
+     * days repaired now are replaced by the kept window's, and [seq] is the `lastSeq` if higher. The lost-block check
+     * is cleared: the new tails were never checked, so the next `repairLost` checks them.
      */
-    fun into(record: TodayRepairs): TodayRepairs {
+    fun into(
+        record: TodayRepairs,
+        appliedSeq: Long,
+    ): TodayRepairs {
         val days = repairs.mapTo(HashSet()) { it.channel to it.n }
-        val selection = record.selection.filterNot { (it.channel to it.n) in days } + repairs
+        val selection = record.applied(appliedSeq).selection + repairs
         return record.copy(
             selection = selection,
             fixes = record.fixes.filterNot { (it.channel to it.n) in days } + fixes,
@@ -65,19 +74,25 @@ internal class PlannedRepair(
  * ([LineupDays.tailPoolOf]). The new selection is read once per cut-off (`ruleSnapshot`, the build's own chunked
  * pool read); what each channel admits from it is the build's own ([LineupDays.admitted]) and the homes of what is
  * added are the build's own over the day's frozen curation ([LineupDays.homesFor]). On a day already repaired, the
- * current selection is read too (once per cut-off), for what the channel admits of it. The libraries the change
+ * current selection is read too (once per cut-off, through the source's shared snapshot reader), for what the channel
+ * admits of it. The libraries the change
  * removes are read only to name a pinned programme's library. It runs before the removed rows go.
  *
  * Every switched-on channel's day gets a repair, so the first tune after the change reads the record alone. A day
  * hidden at the change has nothing on air to keep: its rest is laid out from the half hour, or, when that holds
  * nothing either, the whole day is one slate with the new selection's empty reason.
  */
+@Suppress(
+    "LongParameterList", // What it reads, and the change.
+    "TooManyFunctions", // One small step of the plan each, kept together.
+)
 internal class SelectionRepair(
     private val days: LineupDays,
     private val library: LibraryRepository,
     private val account: LibraryAccount,
     private val held: Revisioned,
     private val change: SelectionChange,
+    private val shared: SharedRead,
 ) {
     private val fills = Fills(library, account)
     private val removed = change.before - change.after
@@ -103,10 +118,7 @@ internal class SelectionRepair(
         plain = p
         filtered = f
         admitted = days.admitted(held.lineup, scheduled, plain, filtered, change.after)
-        if (pairs.any { (day, _) -> day.record?.repair != null }) {
-            val (bp, bf) = snapshotsOf(library, account, change.before, scheduled.map { it.cut }.distinct())
-            admittedBefore = days.admitted(held.lineup, scheduled, bp, bf, change.before)
-        }
+        if (pairs.any { (day, _) -> day.record?.repair != null }) admittedBefore = admittedBefore(scheduled)
         val titles = HashSet<CanonicalId>()
         for ((day, _) in pairs) titles += ownTitles(day)
         val shown = pairs.filter { (day, _) -> day.hiddenAt(atMs) == null }
@@ -213,6 +225,13 @@ internal class SelectionRepair(
         // An item deleted since the cut-off is still in the snapshot: a fresh tail never lays out one with no row.
         val live = fills.live(pool.map { it.id })
         return pool.filter { it.id in live }
+    }
+
+    // What each channel admits of the current selection, read through the source's shared snapshot reader (the days'
+    // own build has most likely read it already); its snapshots are let go as soon as the admitted pools are made.
+    private suspend fun admittedBefore(scheduled: List<Scheduled>): Admitted {
+        val (plainBefore, filteredBefore) = shared(change.before, scheduled.map { it.cut }.distinct())
+        return days.admitted(held.lineup, scheduled, plainBefore, filteredBefore, change.before)
     }
 
     // The titles of [day]'s pool today: its day pool, and on a repaired day what the channel admits now as well.

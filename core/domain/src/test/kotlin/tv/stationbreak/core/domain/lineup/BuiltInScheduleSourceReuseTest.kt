@@ -32,7 +32,7 @@ class BuiltInScheduleSourceReuseTest {
     private val catalog = programmedCatalog(3, selects = true)
     private val service = LineupService(store, counting, clock, { 0 }, {}, catalog)
     private val chosen: Set<ItemId> = LIBRARIES
-    private val source = BuiltInScheduleSource(service, counting, built = { builds += it }) { chosen }
+    private val source = BuiltInScheduleSource(service, counting, built = { builds += it }) { selectionOf(chosen) }
 
     init {
         runBlocking { counting.delegate.useAccount(ACCOUNT) }
@@ -69,7 +69,7 @@ class BuiltInScheduleSourceReuseTest {
 
     // The days a build with nothing to take over gives the same lineup: a source of its own.
     private fun fullBuild(): List<ChannelDay> {
-        val fresh = BuiltInScheduleSource(service, counting) { chosen }
+        val fresh = BuiltInScheduleSource(service, counting) { selectionOf(chosen) }
         return runBlocking { fresh.channelDays(ACCOUNT, chosen, NOON) }
     }
 

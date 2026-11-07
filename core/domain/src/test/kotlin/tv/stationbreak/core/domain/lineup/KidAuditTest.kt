@@ -113,7 +113,7 @@ class KidAuditTest {
             seed()
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
-            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
             val ceilings = Ceilings(StarterCatalog)
             val byId = items.associateBy { it.item.id }
             var audited = 0
@@ -144,7 +144,7 @@ class KidAuditTest {
             seed()
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
-            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
             val byId = items.associateBy { it.item.id }
             var audited = 0
             var familyAired = 0
@@ -175,7 +175,7 @@ class KidAuditTest {
             seed()
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
-            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
             val aired = HashSet<CanonicalId>()
             for (day in 0 until WEEK) {
                 for (channelDay in source.channelDays(ACCOUNT, LIBRARIES, NOON + day.days)) {
@@ -202,7 +202,7 @@ class KidAuditTest {
                 }
             val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, curated)
             service.refresh(ACCOUNT, LIBRARIES)
-            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
             val ceilings = Ceilings(curated)
             val byId = items.associateBy { it.item.id }
             var audited = 0
@@ -255,7 +255,7 @@ class KidAuditTest {
             val service = LineupService(store, library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
             assertEquals(3, service.loaded(ACCOUNT)?.lineup?.catalogVersion)
-            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
             val ceilings = Ceilings(StarterCatalog)
             val byId = items.associateBy { it.item.id }
             var audited = 0

@@ -147,9 +147,37 @@ class LineupCodecV4Test {
     }
 
     @Test
-    fun twoSelectionRepairsOfOneChannelDay_loadsTheLineupWithNoRecord() {
-        val twice = repairs.copy(selection = listOf(repairOf(n = 1L, seq = 4L), repairOf(n = 1L, seq = 5L)))
+    fun twoSelectionRepairsOfOneChannelDayWithOneSeq_loadsTheLineupWithNoRecord() {
+        val twice = repairs.copy(selection = listOf(repairOf(n = 1L, seq = 4L), repairOf(n = 1L, seq = 4L)))
         assertRecordUnreadable(LineupCodec.encode(lineup, meta, twice))
+    }
+
+    @Test
+    fun twoSelectionRepairsOfOneChannelDay_ofTwoSeqs_roundTrip() {
+        // The shown one and a later one whose selection is being saved.
+        val both = repairs.copy(selection = listOf(repairOf(n = 1L, seq = 4L), repairOf(n = 1L, seq = 5L)))
+        assertEquals(both, loaded(LineupCodec.encode(lineup, meta, both)).repairs)
+    }
+
+    @Test
+    fun aMissingRequiredKey_loadsTheLineupWithNoRecord() {
+        val v4 = LineupCodec.encode(lineup, meta, repairs)
+
+        fun withoutInFirst(
+            list: String,
+            key: String,
+        ): (JsonObject) -> JsonElement =
+            { r ->
+                val entries = (checkNotNull(r[list]) as kotlinx.serialization.json.JsonArray).toMutableList()
+                entries[0] = JsonObject(entries[0].jsonObject - key)
+                JsonObject(r + (list to kotlinx.serialization.json.JsonArray(entries)))
+            }
+        for (key in listOf("seq", "from", "b", "ch", "ids")) {
+            assertRecordUnreadable(withRepairs(v4, null, withoutInFirst("selection", key)))
+        }
+        for (key in listOf("gone", "p", "blockStart")) {
+            assertRecordUnreadable(withRepairs(v4, null, withoutInFirst("fixes", key)))
+        }
     }
 
     @Test

@@ -22,7 +22,8 @@ import tv.stationbreak.core.model.ItemId
  * The lost-block check (`TodayRepairs.lostCheck`) is never written.
  *
  * It is strict like the rest of the file: an unknown key, a wrong type, an id that is not an id, an index outside the
- * table, a block that runs backwards, or two repairs of one channel day make [decode] throw
+ * table, a block that runs backwards, a missing required key, or two repairs of one channel day with one seq (two
+ * of different seqs are held while the later one's selection is being saved) make [decode] throw
  * [IllegalArgumentException]. The lineup codec then loads the lineup with no record
  * (`Decoded.Loaded.repairsUnreadable`), and never sets the file aside for it.
  */
@@ -73,8 +74,8 @@ internal object RepairsCodec {
         val selection = root[SELECTION]?.let { list(it).map { entry -> repair(entry) } }.orEmpty()
         val fixes = root[FIXES]?.let { list(it).map { entry -> fix(entry) } }.orEmpty()
         val lastSeq = root[LAST_SEQ]?.let(::long) ?: 0L
-        val days = selection.map { it.channel to it.n }
-        require(days.size == days.toSet().size) { "Two repairs of one channel day" }
+        val days = selection.map { Triple(it.channel, it.n, it.seq) }
+        require(days.size == days.toSet().size) { "Two repairs of one channel day with one seq" }
         return TodayRepairs(selection, fixes, lastSeq = lastSeq).stored()
     }
 
@@ -120,19 +121,19 @@ internal object RepairsCodec {
 
     private fun repair(element: JsonElement): ChannelRepair {
         val fields = obj(element, selectionKeys)
-        val ids = ids(fields.getValue(IDS))
-        val from = long(fields.getValue(FROM))
+        val ids = ids(fields.required(IDS))
+        val from = long(fields.required(FROM))
         return ChannelRepair(
-            channel = channel(fields.getValue(CHANNEL)),
-            n = long(fields.getValue(DAY)),
-            dayEndMs = long(fields.getValue(DAY_END)),
-            atMs = long(fields.getValue(AT)),
-            seq = long(fields.getValue(SEQ)),
-            libraries = list(fields.getValue(LIBRARIES)).map { ItemId(string(it)) }.toSet(),
+            channel = channel(fields.required(CHANNEL)),
+            n = long(fields.required(DAY)),
+            dayEndMs = long(fields.required(DAY_END)),
+            atMs = long(fields.required(AT)),
+            seq = long(fields.required(SEQ)),
+            libraries = list(fields.required(LIBRARIES)).map { ItemId(string(it)) }.toSet(),
             keptFromMs = from,
-            pinEndMs = long(fields.getValue(PIN_END)),
+            pinEndMs = long(fields.required(PIN_END)),
             pinLibrary = fields[PIN_LIBRARY]?.let { ItemId(string(it)) },
-            blocks = decodeBlocks(fields.getValue(BLOCKS), from, ids),
+            blocks = decodeBlocks(fields.required(BLOCKS), from, ids),
             tailHidden = fields[HIDDEN]?.let { name -> hiddenOf(string(name)) },
         )
     }
@@ -142,16 +143,16 @@ internal object RepairsCodec {
 
     private fun fix(element: JsonElement): LostFix {
         val fields = obj(element, fixKeys)
-        val ids = ids(fields.getValue(IDS))
-        val start = long(fields.getValue(BLOCK_START))
+        val ids = ids(fields.required(IDS))
+        val start = long(fields.required(BLOCK_START))
         return LostFix(
-            channel = channel(fields.getValue(CHANNEL)),
-            n = long(fields.getValue(DAY)),
-            dayEndMs = long(fields.getValue(DAY_END)),
+            channel = channel(fields.required(CHANNEL)),
+            n = long(fields.required(DAY)),
+            dayEndMs = long(fields.required(DAY_END)),
             blockStartMs = start,
-            blockEndMs = long(fields.getValue(BLOCK_END)),
-            gone = canonical(fields.getValue(GONE)),
-            pieces = decodeBlocks(fields.getValue(PIECES), start, ids),
+            blockEndMs = long(fields.required(BLOCK_END)),
+            gone = canonical(fields.required(GONE)),
+            pieces = decodeBlocks(fields.required(PIECES), start, ids),
         )
     }
 
@@ -215,6 +216,9 @@ internal object RepairsCodec {
         require(allowed.containsAll(fields.keys)) { "An unknown key in a repair" }
         return fields
     }
+
+    // A required key: missing is a bad record ([IllegalArgumentException]), never a NoSuchElementException.
+    private fun JsonObject.required(key: String): JsonElement = requireNotNull(this[key]) { "missing $key" }
 
     private fun list(element: JsonElement): List<JsonElement> =
         (element as? JsonArray)?.toList() ?: throw IllegalArgumentException("Not an array")

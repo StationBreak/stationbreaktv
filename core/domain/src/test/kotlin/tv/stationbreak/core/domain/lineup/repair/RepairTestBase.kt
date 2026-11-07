@@ -31,6 +31,7 @@ import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.domain.lineup.movie
 import tv.stationbreak.core.domain.lineup.programmed
 import tv.stationbreak.core.domain.lineup.rules
+import tv.stationbreak.core.domain.lineup.selectionOf
 import tv.stationbreak.core.domain.lineup.starter
 import tv.stationbreak.core.domain.lineup.timing
 import tv.stationbreak.core.engine.PoolEvaluator
@@ -128,8 +129,7 @@ internal open class RepairTestBase {
                 library,
                 built = { builds += it },
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
-                appliedSeq = { applied },
-            ) { chosen }
+            ) { selectionOf(chosen, applied) }
         val repairer = TodayRepairer(service, source, library, successors)
 
         init {
@@ -160,7 +160,11 @@ internal open class RepairTestBase {
 
         fun record(): TodayRepairs = runBlocking { assertNotNull(service.loaded(ACCOUNT)).repairs }
 
-        fun repairOf(channel: ChannelId): ChannelRepair = record().selection.single { it.channel == channel }
+        /** [channel]'s repair as this TV shows it (at its saved seq), however many the record holds. */
+        fun repairOf(channel: ChannelId): ChannelRepair {
+            val shown = record().applied(applied).selection
+            return shown.single { it.channel == channel }
+        }
 
         /**
          * A change from [before] (the source's selection now) to [after]; the pins when recorded, else null. With
@@ -179,13 +183,33 @@ internal open class RepairTestBase {
             after: Set<ItemId>,
             at: Long = atMs,
             save: Boolean = true,
-        ): SelectionRepaired? {
+        ): SelectionRepaired? = (changeOutcome(before, after, at, save) as? RepairOutcome.Saved)?.result
+
+        /**
+         * A change through the repairer's whole protocol, as Part 4 runs it: [whileRecorded] runs inside the save
+         * callback (the change recorded, the old libraries and seq still the saved ones), then the save writes the new
+         * libraries and seq in one go when [save], or fails ([fail] thrown, else false) and the repairer undoes it.
+         */
+        fun changeOutcome(
+            before: Set<ItemId>,
+            after: Set<ItemId>,
+            at: Long = atMs,
+            save: Boolean = true,
+            fail: Throwable? = null,
+            whileRecorded: suspend (seq: Long) -> Unit = {},
+        ): RepairOutcome<SelectionRepaired> {
             assertEquals(chosen, before, "the change is from the selection the source reads")
-            val outcome = runBlocking { repairer.selectionChanged(ACCOUNT, after, at) }
-            val repaired = (outcome as? RepairOutcome.Saved)?.result
-            chosen = after
-            if (repaired != null && save) applied = repaired.seq
-            return repaired
+            return runBlocking {
+                repairer.selectionChanged(ACCOUNT, after, at) { seq ->
+                    whileRecorded(seq)
+                    if (fail != null) throw fail
+                    if (save) {
+                        chosen = after
+                        applied = seq
+                    }
+                    save
+                }
+            }
         }
 
         /** How many blocks [TodayRepairer.repairLost] fixed; 0 when it saved nothing. */

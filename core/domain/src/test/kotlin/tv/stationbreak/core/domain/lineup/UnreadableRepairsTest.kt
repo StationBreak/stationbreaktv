@@ -48,6 +48,16 @@ class UnreadableRepairsTest {
             assertEquals(TodayRepairs.NONE, held.repairs, "with no record")
             assertEquals(listOf(LineupEvent.RepairsUnreadable), events)
             assertNull(store.inner.setAsideCopy(ACCOUNT), "the file is not set aside")
+            assertEquals(broken, store.inner.keptCopy(ACCOUNT, "repairs-unreadable")?.decodeToString(), "kept first")
+            assertFalse(stored().repairsUnreadable, "the file is written once without the record")
+            assertEquals(TodayRepairs.NONE, stored().repairs)
+            assertEquals(3, stored().fileVersion)
+            // Reported once: neither this service nor a later one sees it again.
+            fresh.recordRepairs(ACCOUNT) { it.repairs }
+            val later = mutableListOf<LineupEvent>()
+            checkNotNull(serviceWith { later += it }.loaded(ACCOUNT))
+            assertEquals(listOf(LineupEvent.RepairsUnreadable), events)
+            assertEquals(emptyList(), later)
             // The next record is saved over it, readable again.
             val next = TodayRepairs(fixes = listOf(fixOf(blockStartMs = nowMs)))
             assertTrue(fresh.recordRepairs(ACCOUNT) { next })

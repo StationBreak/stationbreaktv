@@ -210,13 +210,13 @@ internal object LineupCodec {
         }
     }
 
-    // The record, or null when it does not read: the lineup is loaded all the same, with none (spec 26).
+    // The record, or null when it does not read (whatever its decoding throws): the lineup is loaded all the same,
+    // with none (spec 26).
+    @Suppress("TooGenericExceptionCaught") // Only the record's own decoding is guarded; the lineup's is strict.
     private fun repairsOf(element: JsonElement): TodayRepairs? =
         try {
             RepairsCodec.decode(element)
-        } catch (_: IllegalArgumentException) {
-            null
-        } catch (_: ArithmeticException) {
+        } catch (_: RuntimeException) {
             null
         }
 

@@ -58,7 +58,7 @@ class BuiltInScheduleSourceFlightTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+    private val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
 
     init {
         runBlocking { counting.delegate.useAccount(ACCOUNT) }

@@ -99,7 +99,7 @@ class StartingDayTest {
             nowMs = now
             val manager = ChannelManager(service) { null }
             for (id in switched) assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.SwitchOn(id)))
-            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
 
             // The guide's lookup at the half-hour origin first, so its day is the one kept for the key.
             val first = source.channelDays(ACCOUNT, LIBRARIES, Instant.fromEpochMilliseconds(origin))

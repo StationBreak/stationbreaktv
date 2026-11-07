@@ -197,6 +197,9 @@ class LineupService internal constructor(
 
         /** The kept starters' reasons of the last plan, so an unchanged plan skips their homing. Used under [mutex]. */
         val keptReasons = KeptReasonsMemo()
+
+        /** Whether a stored repair record that did not read was dealt with (reported, dropped). Used under [mutex]. */
+        var unreadableRecordSeen = false
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -712,6 +715,17 @@ class LineupService internal constructor(
         forgetters += forget
     }
 
+    // The seq saved with the TV's selection, for a roll to prune the repairs it supersedes; null while unknown.
+    @Volatile private var savedSeq: suspend () -> Long? = { null }
+
+    /**
+     * [seq] gives the seq saved with the TV's selection (the schedule source's): a roll of the record then prunes the
+     * selection repairs a saved later seq has superseded (`TodayRepairs.pruned`). Without it nothing is pruned.
+     */
+    internal fun savedSeqFrom(seq: suspend () -> Long?) {
+        savedSeq = seq
+    }
+
     /** [account]'s lineup as this service holds it now; null while it has none. */
     internal fun lineup(account: LibraryAccount): StateFlow<Revisioned?> =
         ownerOf(account)?.let { entryOf(it).state.asStateFlow() } ?: noLineup
@@ -876,7 +890,7 @@ class LineupService internal constructor(
                     val stored = store.load(owner.key)
                     val decoded = (stored as? StoredBytes.Present)?.let { LineupCodec.decode(it.bytes) }
                     if (decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup)) {
-                        if (decoded.repairsUnreadable) report(LineupEvent.RepairsUnreadable)
+                        droppedUnreadableRecord(owner, entry, decoded)
                         entry.writable = true
                         publish(entry, decoded.lineup, decoded.meta, decoded.repairs)
                     }
@@ -953,7 +967,8 @@ class LineupService internal constructor(
         try {
             val held = entry.state.value
             val rolled = held?.lineup?.rolled(nowMs)
-            val rolledRepairs = held?.repairs?.rolled(nowMs)
+            val applied = savedSeq()
+            val rolledRepairs = held?.repairs?.rolled(nowMs)?.let { if (applied == null) it else it.pruned(applied) }
             // The roll never does the first version-3 write: a lineup decoded from a version 1 or 2 file has none of
             // the fields `rolled` clears (no leavesAtMs, previous rules or basis), so it comes back unchanged and is
             // not saved here; the first save of a new version is a refresh's or an edit's, which keep the old file's
@@ -1035,13 +1050,14 @@ class LineupService internal constructor(
             }
 
             is StoredBytes.Present -> {
-                startOf(owner, LineupCodec.decode(stored.bytes), Held(session, sessionMeta, sessionRepairs))
+                startOf(owner, entry, LineupCodec.decode(stored.bytes), Held(session, sessionMeta, sessionRepairs))
             }
         }
     }
 
     private suspend fun startOf(
         owner: Owner,
+        entry: Entry,
         decoded: LineupCodec.Decoded,
         session: Held,
     ): Start =
@@ -1049,7 +1065,7 @@ class LineupService internal constructor(
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
                 if (owner.owns(lineup)) {
-                    if (decoded.repairsUnreadable) report(LineupEvent.RepairsUnreadable)
+                    droppedUnreadableRecord(owner, entry, decoded)
                     // Only an older file's upgrade to version 3 is kept here; the first version-4 save keeps its own.
                     if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
                     Start(lineup, decoded.meta, true, repairs = decoded.repairs, fileVersion = decoded.fileVersion)
@@ -1067,6 +1083,24 @@ class LineupService internal constructor(
                 setAside(owner, session)
             }
         }
+
+    // A stored record that did not read (spec 26) is reported once per entry, and the file is written once without it,
+    // after a copy of its bytes as they stand is kept (no copy, no write: the damaged bytes are never lost). Called
+    // under the entry's lock, for a lineup this account owns.
+    private suspend fun droppedUnreadableRecord(
+        owner: Owner,
+        entry: Entry,
+        decoded: LineupCodec.Decoded.Loaded,
+    ) {
+        if (!decoded.repairsUnreadable || entry.unreadableRecordSeen) return
+        entry.unreadableRecordSeen = true
+        report(LineupEvent.RepairsUnreadable)
+        if (store.keepCopy(owner.key, UNREADABLE_RECORD_COPY)) {
+            saveVerified(owner, decoded.lineup, decoded.meta, TodayRepairs.NONE)
+        } else {
+            report(LineupEvent.BackupFailed)
+        }
+    }
 
     // The file of an older version is copied once before the first save of this version over it, so a downgrade has
     // something to go back to. A copy that cannot be written is reported and the save goes on: the lineup in memory
@@ -1269,5 +1303,8 @@ private fun ownerOf(account: LibraryAccount): Owner? {
 private val NO_SERVER: CanonicalId = CanonicalId.parse("0".repeat(32))
 
 private const val MS_PER_DAY = 86_400_000L
+
+/** The tag of the copy kept of a lineup file whose repair record did not read, before it is written without it. */
+internal const val UNREADABLE_RECORD_COPY = "repairs-unreadable"
 
 private const val STAND_IN_KEY = "boundary"

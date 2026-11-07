@@ -71,7 +71,8 @@ internal fun TodayRepairs.recordFor(s: Scheduled): DayRecord? {
     val end = start + s.settings.epochMs
     val repair =
         selection
-            .firstOrNull { it.channel == id && it.n == s.n }
+            .filter { it.channel == id && it.n == s.n }
+            .maxByOrNull { it.seq }
             ?.takeIf { RepairedDay.compose(start, end, emptyList(), it, emptyList()).blocks.isNotEmpty() }
     return DayRecord(repair, fixes.filter { it.channel == id && it.n == s.n }, digest)
 }

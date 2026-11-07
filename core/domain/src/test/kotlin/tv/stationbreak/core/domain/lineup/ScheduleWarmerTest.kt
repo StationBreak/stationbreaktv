@@ -54,7 +54,7 @@ class ScheduleWarmerTest {
             built = { builds += it },
             laidOut = { n, ms -> layouts += n to ms },
             dispatcher = StandardTestDispatcher(testScheduler),
-        ) { libraries }
+        ) { selectionOf(libraries) }
 
     @Test
     fun warmBuildsTodayAndLeavesALaterTuneNothingToRead() =
@@ -174,7 +174,7 @@ class ScheduleWarmerTest {
                         }
                     },
                     dispatcher = StandardTestDispatcher(testScheduler),
-                ) { LIBRARIES }
+                ) { selectionOf(LIBRARIES) }
             warmer = ScheduleWarmer(source, service, library, timeline)
             warmer.start(backgroundScope)
             runCurrent()
@@ -198,7 +198,7 @@ class ScheduleWarmerTest {
                         warmer.nudge()
                         error("settings unreadable")
                     }
-                    LIBRARIES
+                    selectionOf(LIBRARIES)
                 }
             warmer = ScheduleWarmer(source, service, library, clock)
             warmer.start(backgroundScope)

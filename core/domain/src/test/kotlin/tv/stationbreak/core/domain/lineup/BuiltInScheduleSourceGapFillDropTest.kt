@@ -52,7 +52,7 @@ class BuiltInScheduleSourceGapFillDropTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+    private val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
     private val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
 
     // Items 100..105 run 60 minutes, 106..111 run 10: a 60-minute block that is gone is filled by 10-minute pieces.

@@ -129,11 +129,10 @@ class RepairedDaysTest {
                 persisted = if (saving) PersistedDays(daysOnDisk, "1:100", { events += it }) else null,
                 saveDispatcher = gate,
                 // Every repair's selection is saved, unless a test says otherwise.
-                appliedSeq = { applied },
-            ) { LIBRARIES }
+            ) { selectionOf(LIBRARIES, applied) }
 
-        /** The seq saved with this process's selection. */
-        @Volatile var applied: Long = Long.MAX_VALUE
+        /** The seq saved with this process's selection: above every seq these tests record. */
+        @Volatile var applied: Long = SAVED_SEQ
 
         /** The days at [at], with no write to disk run yet. */
         fun daysNow(at: Instant = NOON): List<ChannelDay> = runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at) }
@@ -759,3 +758,6 @@ class RepairedDaysTest {
         assertEquals(HiddenReason.NoMatches, unknown.single().hidden, "without the libraries, as before")
     }
 }
+
+/** The seq the processes of [RepairedDaysTest] have saved: every repair they record is at or below it. */
+private const val SAVED_SEQ = 1_000L

@@ -116,8 +116,10 @@ their selection and library state match. A day gives the same answer to every lo
 The repair record is a new optional `repairs` object in the lineup file. The file is **version 4 only while a record is
 held**: a selection repair or a fix. With a selection repair it also holds `lastSeq`, the highest selection seq held,
 kept through rolling and trimming while any selection repair is. With neither it is written as version 3, the lowest
-version that holds its content. A `repairs` object that does not read loads the lineup with no record and is reported;
-the lineup is not set aside. The first version-4 save keeps a copy of a version-3 file, with the existing `.bak` rule.
+version that holds its content. A channel day may hold two selection repairs of different seqs: the one shown, and a
+later one whose selection is being saved (§7). A `repairs` object that does not read loads the lineup with no record,
+is reported once, and the file is written once without it after a copy of its bytes is kept (tag
+`repairs-unreadable`); the lineup is not set aside. The first version-4 save keeps a copy of a version-3 file, with the existing `.bak` rule.
 An older app sees version 4 as a newer version, shows a planned default lineup and cannot save over it.
 
 The record must never make a save fail. It is rolled at each save (days that have ended go), and made to fit under the file's
@@ -137,20 +139,28 @@ from the saved selection, which can change the programme on air. This only happe
 The repairer is one instance per process. Its calls take turns (one `Mutex` inside it) and run on the background save
 thread, never the caller's. Each plans from the record it read, and writes only if the lineup's revision and the
 record's selection repairs are still those it read. Each call says what it did: `Saved`, `Stale` (the lineup moved on;
-the caller retries once after a fresh read), `Refused` (the record could not be saved) or `NoLineup`.
+the caller retries once after a fresh read), `Refused` (the record could not be saved), `Unsaved` (the selection
+could not be saved) or `NoLineup`.
 
-A selection change is recorded with a seq, and shows only once the selection is saved with that seq. The repairer
-works the seq out in one place: N = max(the record's `lastSeq`, the saved selection's seq) + 1. So N is above every
-seq a shown repair has used. A seq whose repairs are gone (rolled off with their day, or dropped after a failed save)
-can come round again, because nothing of it is left to show.
+The schedule source reads the saved selection and its seq together, from one provider: a cheap, in-memory read on the
+tune path. Per channel day it shows the repair of the highest seq at or below the saved seq. A later one is held back,
+and one a saved later seq has superseded is pruned at the next write of the record or roll.
 
-1. Record the repair, seq N (it runs while the removed libraries' rows still exist).
-2. Save the selection with seq N, in one write.
-3. The repair shows: the schedule source leaves out every selection repair whose seq is above the saved selection's.
+The repairer owns the whole of a selection change, in one turn, so a second change never starts before the first is
+saved:
 
-A crash between 1 and 2 leaves the repair unseen. Part 4's start-up resume finishes the save or drops the repair. If
-the save fails, the caller drops the repairs of seq N (`dropSelection`) and the selection is not changed. Fixes of lost
-blocks are never held back.
+1. Work out the seq: N = max(the record's `lastSeq`, the saved selection's seq) + 1, so N is above every seq a shown
+   repair has used. A seq whose repairs are gone (rolled off with their day, or undone) can come round again, because
+   nothing of it is left to show.
+2. Record the repair of seq N beside the repair each day shows now, which stays until N is saved. Repairs of a change
+   never saved go. This runs while the removed libraries' rows still exist.
+3. Call the caller's save: its one write of the new selection and seq N (Part 4's settings write).
+4. If the save returns true, the repair shows. If it returns false or throws, the record is put back as it was, so each
+   day shows the repair it showed before.
+
+A crash between 2 and 3 leaves the repair unseen, and the next change drops it. Part 4's start-up resume can also
+finish the save or drop the repair (`dropSelection`). While a change is unsaved, the lost-block check does not run.
+Fixes of lost blocks are never held back.
 
 ## Consequences
 
@@ -165,10 +175,11 @@ blocks are never held back.
   Every one has passed the rules for the day and the holds.
 - Two TVs on one account can differ for the rest of a day. ADR-0002's scope is now "same account, same selection, same
   recorded inputs".
-- The lineup file has a fourth version, and a version-4 file exists only while a repair is held. An app older than this
-  one cannot save a lineup it wrote while a repair is held.
+- The lineup file has a fourth version, and a version-4 file exists only while a record (a selection repair or a fix) is
+  held. An app older than this one cannot save a lineup it wrote while one is held.
 - A trimmed record loses a repair: a selection repair dropped by a save of another kind means that channel day is built
   from the saved selection, which can change the programme on air. This only happens when the file is close to its cap.
-- A repair dropped after a failed selection save takes its days back to the build of the saved selection. If it had
-  replaced an earlier repair of the same day, that earlier repair is not restored.
+- A failed selection save puts the record back as it was. A change dropped later (`dropSelection`) gives each day back
+  the repair it showed before, but that repair's fixes of lost blocks were replaced by the change and come back only at
+  the next lost-block check.
 - A second change on a repaired day may repeat a programme that aired before the first change's kept window.

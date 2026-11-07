@@ -36,7 +36,7 @@ class BuiltInScheduleSourceTest {
     private val events = mutableListOf<LineupEvent>()
     private val service = LineupService(store, library, clock, { offset }, { events += it }, TestCatalog)
     private var chosen: Set<ItemId>? = LIBRARIES
-    private val source = BuiltInScheduleSource(service, library) { chosen }
+    private val source = BuiltInScheduleSource(service, library) { selectionOf(chosen) }
 
     init {
         runBlocking { library.delegate.useAccount(ACCOUNT) }
@@ -50,7 +50,7 @@ class BuiltInScheduleSourceTest {
 
     private fun freshSource(): BuiltInScheduleSource {
         val fresh = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-        return BuiltInScheduleSource(fresh, library) { LIBRARIES }
+        return BuiltInScheduleSource(fresh, library) { selectionOf(LIBRARIES) }
     }
 
     private fun holding(lineup: Lineup) = runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(lineup)) }

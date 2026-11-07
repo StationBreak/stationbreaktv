@@ -29,7 +29,7 @@ class LineupDaysKidHoldTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+    private val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
 
     private val kidsItem = id(1)
     private val fantasyItem = id(2)
@@ -125,7 +125,7 @@ class LineupDaysKidHoldTest {
                         )
             }
         val service = LineupService(store, library, clock, { 0 }, {}, catalog)
-        val optInSource = BuiltInScheduleSource(service, library) { LIBRARIES }
+        val optInSource = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
         val odds = leftovers("odds-and-ends", 199, null)
         val days =
             runBlocking {

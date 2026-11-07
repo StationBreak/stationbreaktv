@@ -244,3 +244,9 @@ internal class CountingLibrary(
 
     fun seedSeries(vararg series: RuleSeries) = delegate.seedSeries(ACCOUNT, *series)
 }
+
+/** [libraries] as a saved selection with [seq] (null for none): a schedule source's provider in tests. */
+internal fun selectionOf(
+    libraries: Set<ItemId>?,
+    seq: Long = 0L,
+): SavedSelection? = libraries?.let { SavedSelection(it, seq) }

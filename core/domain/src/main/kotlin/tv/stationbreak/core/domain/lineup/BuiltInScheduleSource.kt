@@ -98,10 +98,11 @@ import kotlin.time.TimeSource
  * disk is always the unrepaired build; a set with a repaired day that has none is not written. On a repaired day the
  * naming fill and the stand-ins read the tail pool, by id (`scheduleItemsOf`), once and only for a gone block.
  *
- * A selection repair shows only once its selection is saved: [appliedSeq] is the seq saved with the TV's selection,
- * and a lookup leaves out every `ChannelRepair` of a later seq (the day is built as without it). Fixes of lost blocks
- * are never held back. Until Part 4 stores the seq with the selection, in one write, and gives it here, the default
- * is 0: no selection repair shows.
+ * [saved] gives the TV's saved selection and its seq together ([SavedSelection]). It is called on the tune path, so it
+ * must be a cheap, non-blocking read of what is held in memory. A selection repair shows only once its selection is
+ * saved: a lookup follows, per channel day, the repair of the highest seq at or below the saved seq, and leaves out
+ * every later one (the day is built as without it). Fixes of lost blocks are never held back. Until Part 4 stores the
+ * seq with the selection, in one write, the seq is 0: no selection repair shows.
  *
  * Main-safe: [airings], [onAir], [schedule] and [standIns] do their work on [dispatcher] (default:
  * `Dispatchers.Default`), so building a day never runs on, or blocks, the caller's thread.
@@ -122,8 +123,7 @@ class BuiltInScheduleSource(
     private val persisted: PersistedDays? = null,
     private val saveDispatcher: CoroutineDispatcher = BackgroundSaves.dispatcher,
     shared: SharedSnapshots? = null,
-    private val appliedSeq: () -> Long = { 0L },
-    private val libraries: suspend () -> Set<ItemId>?,
+    private val saved: suspend () -> SavedSelection?,
 ) : ScheduleSource {
     // What a set of built days depends on (see the class comment): never the revision, nor any number or name that
     // changes no pool. [planned] stands for the library's state: a refresh after a change records a new one. [records]
@@ -180,6 +180,8 @@ class BuiltInScheduleSource(
 
     init {
         service.alsoForget(::forget)
+        // A roll of the record prunes the repairs a saved later seq has superseded.
+        service.savedSeqFrom { saved()?.seq }
     }
 
     /**
@@ -240,28 +242,54 @@ class BuiltInScheduleSource(
 
     private fun lookupOf(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        selection: SavedSelection,
         held: Revisioned,
         scheduled: List<Scheduled>,
     ): Lookup {
         val cuts = scheduled.map { it.cut }.distinct().sorted()
         val inputs = inputsOf(held.lineup, held.meta.extrasFromMs)
-        val repairs = appliedOf(held.repairs)
+        val repairs = appliedOf(held.repairs, selection.seq)
         val records = repairs.digestsFor(scheduled)
-        val key = Key(account, libraries, inputs.digest, held.meta.plannedGeneration, cuts, records)
-        return Lookup(held, scheduled, key, inputs.ms, repairs)
+        val key = Key(account, selection.libraries, inputs.digest, held.meta.plannedGeneration, cuts, records)
+        return Lookup(held, scheduled, key, inputs.ms, repairs, selection)
     }
 
-    /** The seq saved with the TV's selection now ([appliedSeq]): what the repair's next seq is worked out from. */
-    internal fun appliedSeqNow(): Long = appliedSeq()
+    /**
+     * The plain and filtered snapshots of [libraries] at [cuts] (by cut-off), through this source's shared snapshot
+     * reader ([SnapshotCache]): what a build of the days already read is not read again. For the repair engine.
+     */
+    internal suspend fun sharedSnapshotsOf(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cuts: List<Cut>,
+    ): Pair<Map<Long, RuleSnapshot>, Map<Long, RuleSnapshot>> {
+        val generation = library.contentGeneration(account)
+        val plain = HashMap<Long, RuleSnapshot>()
+        val filtered = HashMap<Long, RuleSnapshot>()
+        for (cut in cuts.distinctBy { it.cutoffMs to it.extras }) {
+            val cacheKey = SnapshotCache.Key(account, libraries, cut.cutoffMs, generation, cut.extras)
+            val got =
+                snapshots.get(cacheKey) {
+                    val read = library.ruleSnapshot(account, libraries, Instant.fromEpochMilliseconds(cut.cutoffMs))
+                    if (cut.extras) ExtrasFilter.filter(read).snapshot else read
+                }
+            (if (cut.extras) filtered else plain)[cut.cutoffMs] = got.snapshot
+        }
+        return plain to filtered
+    }
+
+    /** The TV's saved selection and its seq now ([saved]); null when there is none. */
+    internal suspend fun savedSelection(): SavedSelection? = saved()
 
     // The last record held back to an applied seq, and what it gave: a record's digests are worked out once.
     @Volatile private var lastApplied: Triple<TodayRepairs, Long, TodayRepairs>? = null
 
-    /** [repairs] as a lookup follows them: without the selection repairs whose selection is not saved yet. */
-    private fun appliedOf(repairs: TodayRepairs): TodayRepairs {
+    /** [repairs] as a lookup follows them at the saved [seq] ([TodayRepairs.applied]). */
+    private fun appliedOf(
+        repairs: TodayRepairs,
+        seq: Long,
+    ): TodayRepairs {
         if (repairs.selection.isEmpty()) return repairs
-        val seq = appliedSeq()
         val last = lastApplied
         return if (last != null && last.first === repairs && last.second == seq) {
             last.third
@@ -304,9 +332,10 @@ class BuiltInScheduleSource(
             channelDays(account, chosen, at).map { it.airing(at.toEpochMilliseconds()) }
         }
 
-    private suspend fun signedIn(): Pair<LibraryAccount, Set<ItemId>>? {
+    // The account and its saved selection, read together once per call; null with no account or nothing chosen.
+    private suspend fun signedIn(): Pair<LibraryAccount, SavedSelection>? {
         val account = library.activeAccount().first()
-        val chosen = libraries()?.takeIf { it.isNotEmpty() }
+        val chosen = saved()?.takeIf { it.libraries.isNotEmpty() }
         return if (account == null || chosen == null) null else account to chosen
     }
 
@@ -366,7 +395,7 @@ class BuiltInScheduleSource(
     /** What one [schedule] call reads: the following days it resolved (by start) and whether the lineup stayed put. */
     private class WindowRead(
         val account: LibraryAccount,
-        val chosen: Set<ItemId>,
+        val chosen: SavedSelection,
         val build: ScheduleBuild,
         val revision: Long,
     ) {
@@ -506,7 +535,7 @@ class BuiltInScheduleSource(
 
     private suspend fun onAirOf(
         account: LibraryAccount,
-        chosen: Set<ItemId>,
+        chosen: SavedSelection,
         today: ChannelDay,
         at: Instant,
         next: Int,
@@ -621,7 +650,7 @@ class BuiltInScheduleSource(
      */
     private suspend fun followingBlocks(
         account: LibraryAccount,
-        chosen: Set<ItemId>,
+        chosen: SavedSelection,
         from: ChannelDay,
         count: Int,
         builtUntilMs: Long,
@@ -681,21 +710,34 @@ class BuiltInScheduleSource(
         at: Instant,
     ): List<ChannelDay> = chosenDays(account, at).second
 
-    /** The libraries this source reads now (none when nothing is chosen) and [currentDays] over them, read once. */
+    /**
+     * The saved selection now (none chosen: no libraries, and the seq as saved, 0 when unknown) and [currentDays] over
+     * it, read once.
+     */
     internal suspend fun chosenDays(
         account: LibraryAccount,
         at: Instant,
-    ): Pair<Set<ItemId>, List<ChannelDay>> {
-        val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return emptySet<ItemId>() to emptyList()
+    ): Pair<SavedSelection, List<ChannelDay>> {
+        val read = saved()
+        val chosen =
+            read?.takeIf { it.libraries.isNotEmpty() } ?: return SavedSelection(emptySet(), read?.seq ?: 0L) to
+                emptyList()
         return chosen to channelDays(account, chosen, at)
     }
 
-    /** The switched-on channels' days at [at], in number order. */
+    /** The switched-on channels' days at [at] over [libraries], in number order, at the saved seq ([saved]). */
     internal suspend fun channelDays(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         at: Instant,
-    ): List<ChannelDay> = channelDaysTimed(account, libraries, at).first
+    ): List<ChannelDay> = channelDays(account, SavedSelection(libraries, saved()?.seq ?: 0L), at)
+
+    /** The switched-on channels' days at [at] over [selection], in number order. */
+    internal suspend fun channelDays(
+        account: LibraryAccount,
+        selection: SavedSelection,
+        at: Instant,
+    ): List<ChannelDay> = channelDaysTimed(account, selection, at).first
 
     /**
      * The days at [at], and how long this call took to build them in milliseconds: null when they were already built
@@ -703,7 +745,7 @@ class BuiltInScheduleSource(
      */
     private suspend fun channelDaysTimed(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        selection: SavedSelection,
         at: Instant,
     ): Pair<List<ChannelDay>, Long?> {
         // A build that finds the current lineup no longer has its days (its key) stops, and the callers that joined it
@@ -716,7 +758,7 @@ class BuiltInScheduleSource(
         // is a cache hit. Each await in it is a cancellation point, so a caller that gives up leaves at once.
         while (true) {
             try {
-                return channelDaysOnce(account, libraries, at)
+                return channelDaysOnce(account, selection, at)
             } catch (_: StaleBuild) {
                 // Try again against the lineup that replaced it.
             }
@@ -733,6 +775,7 @@ class BuiltInScheduleSource(
         val key: Key,
         val inputsMs: Long,
         val repairs: TodayRepairs,
+        val selection: SavedSelection,
     )
 
     /**
@@ -741,22 +784,22 @@ class BuiltInScheduleSource(
      */
     private suspend fun lookup(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        selection: SavedSelection,
         at: Instant,
     ): Lookup? {
         val held = service.loaded(account) ?: return null
         // Rolling what is past is tidying; the days are right without it, so it never delays a read.
         service.rollSoon(account, held)
         val scheduled = days.scheduled(held.lineup, at.toEpochMilliseconds(), held.meta.extrasFromMs)
-        return lookupOf(account, libraries, held, scheduled)
+        return lookupOf(account, selection, held, scheduled)
     }
 
     private suspend fun channelDaysOnce(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        selection: SavedSelection,
         at: Instant,
     ): Pair<List<ChannelDay>, Long?> {
-        val found = lookup(account, libraries, at) ?: return emptyList<ChannelDay>() to null
+        val found = lookup(account, selection, at) ?: return emptyList<ChannelDay>() to null
         val key = found.key
         val began = TimeSource.Monotonic.markNow()
         var started = false
@@ -818,7 +861,9 @@ class BuiltInScheduleSource(
             var revision = wanted.held.revision
             val checkpoint = {
                 job.ensureActive()
-                if (!isCurrent(account, revision)) revision = stillWanted(account, key, atMs) ?: throw StaleBuild()
+                if (!isCurrent(account, revision)) {
+                    revision = stillWanted(account, key, atMs, wanted.selection) ?: throw StaleBuild()
+                }
             }
             val before = Probed(probes)
             val allocBefore = Reading(probes.allocatedBytes())
@@ -885,7 +930,8 @@ class BuiltInScheduleSource(
             val threadAfter = probes.threadCpuNanos()
             val totalMs = began.elapsedNow().inWholeMilliseconds
             keep(key, result, epoch, generation, dayInputs)
-            if (disk != null) save(account, disk, result, Wanted(revision, key, atMs, lineup, scheduled, generation))
+            val written = Wanted(revision, key, atMs, lineup, scheduled, generation, wanted.selection)
+            if (disk != null) save(account, disk, result, written)
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
             val allocated = Reading(probes.allocatedBytes()) - allocBefore
@@ -959,10 +1005,11 @@ class BuiltInScheduleSource(
         account: LibraryAccount,
         key: Key,
         atMs: Long,
+        selection: SavedSelection,
     ): Long? {
         val held = service.lineup(account).value ?: return null
         val scheduled = days.scheduled(held.lineup, atMs, held.meta.extrasFromMs)
-        val same = lookupOf(account, key.libraries, held, scheduled).key == key
+        val same = lookupOf(account, selection, held, scheduled).key == key
         return if (same) held.revision else null
     }
 
@@ -1028,6 +1075,7 @@ class BuiltInScheduleSource(
         val lineup: Lineup,
         val scheduled: List<Scheduled>,
         val generation: Long,
+        val selection: SavedSelection,
     )
 
     // Written in the source's scope, so a caller is never held up by it and a cancelled caller does not stop it, and on
@@ -1041,7 +1089,9 @@ class BuiltInScheduleSource(
         result: List<ChannelDay>,
         wanted: Wanted,
     ) {
-        val current = isCurrent(account, wanted.revision) || stillWanted(account, wanted.key, wanted.atMs) != null
+        val current =
+            isCurrent(account, wanted.revision) ||
+                stillWanted(account, wanted.key, wanted.atMs, wanted.selection) != null
         val to = persisted?.takeIf { current } ?: return
         // An account forgotten (signed out, reset) after this point gets nothing written ([forget]).
         val epoch = synchronized(lock) { forgets }

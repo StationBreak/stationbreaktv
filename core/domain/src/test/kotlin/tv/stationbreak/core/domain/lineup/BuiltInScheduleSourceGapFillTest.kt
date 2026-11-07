@@ -27,7 +27,7 @@ class BuiltInScheduleSourceGapFillTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+    private val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
     private val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
     private val minute = 60_000L
     private val comedyIds = (0 until 7).map { id(100 + it) }

@@ -107,7 +107,7 @@ internal data class TodayRepairs(
      * with the selection, in one write): above every seq this record holds and above the saved one. A seq whose
      * repairs are gone (rolled off, dropped after a failed save) may come round again: nothing of it is left to show.
      */
-    fun nextSeq(appliedSeq: Long): Long = maxOf(latestSeq(), appliedSeq) + 1
+    fun nextSeq(appliedSeq: Long): Long = Math.addExact(maxOf(latestSeq(), appliedSeq), 1L)
 
     // The [lastSeq] a record holding [kept] keeps: the highest seq so far while a selection repair is held, else 0.
     internal fun seqKeptWith(kept: List<ChannelRepair>): Long = if (kept.isEmpty()) 0L else latestSeq()
@@ -129,16 +129,38 @@ internal data class TodayRepairs(
     }
 
     /**
-     * The record as a lookup follows it when the TV's saved selection has seq [appliedSeq]: without the selection
-     * repairs of a later seq, whose selection is not saved yet (spec 26, ADR-0025 §7). The fixes all stay. This very
-     * instance when none is later.
+     * The record as a lookup follows it when the TV's saved selection has seq [appliedSeq] (spec 26, ADR-0025 §7): per
+     * channel day, only the repair of the highest seq at or below [appliedSeq]. A repair of a later seq (its selection
+     * not saved yet) is left out, and so is one a saved later seq has superseded. The fixes all stay. This very
+     * instance when nothing is left out.
      */
-    fun applied(appliedSeq: Long): TodayRepairs =
-        if (selection.none { it.seq > appliedSeq }) {
-            this
-        } else {
-            copy(selection = selection.filter { it.seq <= appliedSeq })
+    fun applied(appliedSeq: Long): TodayRepairs {
+        val shown = shownAt(appliedSeq)
+        return if (shown.size == selection.size) this else copy(selection = shown)
+    }
+
+    /**
+     * Without the selection repairs a saved later seq has superseded: per channel day the repair [applied] shows at
+     * [appliedSeq] stays, and so does every repair of a later seq (a change whose save may be under way). This very
+     * instance when none is superseded.
+     */
+    fun pruned(appliedSeq: Long): TodayRepairs {
+        val shown = shownAt(appliedSeq)
+        val kept = selection.filter { it.seq > appliedSeq || shown.any { s -> s === it } }
+        return if (kept.size == selection.size) this else copy(selection = kept)
+    }
+
+    // Per channel day, the repair of the highest seq at or below [appliedSeq], in record order.
+    private fun shownAt(appliedSeq: Long): List<ChannelRepair> {
+        val best = HashMap<Pair<ChannelId, Long>, ChannelRepair>()
+        for (repair in selection) {
+            if (repair.seq > appliedSeq) continue
+            val day = repair.channel to repair.n
+            val now = best[day]
+            if (now == null || repair.seq > now.seq) best[day] = repair
         }
+        return selection.filter { best[it.channel to it.n] === it }
+    }
 
     /**
      * Without the selection repairs of [seq] (a selection change whose save failed, Part 4): those days are built
@@ -170,7 +192,7 @@ internal data class TodayRepairs(
         fixes.mapTo(days) { it.channel to it.n }
         days.associateWith { (channel, n) ->
             DigestProbe.hashed?.invoke()
-            val repair = selection.firstOrNull { it.channel == channel && it.n == n }
+            val repair = selection.filter { it.channel == channel && it.n == n }.maxByOrNull { it.seq }
             val mine = fixes.filter { it.channel == channel && it.n == n }.sortedBy { it.blockStartMs }
             val text = StringBuilder()
             if (repair != null) text.append(canonical(repair))
