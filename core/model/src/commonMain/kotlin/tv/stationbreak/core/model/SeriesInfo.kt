@@ -5,7 +5,8 @@ package tv.stationbreak.core.model
  * A series as the server describes it, for the library cache (spec 10, Unit 1): the fields a channel rule can match on
  * that an episode does not carry. [officialRating] is the server's text exactly as sent: null when it sends none, and
  * `""` and `" "` are kept as they are, never trimmed and never read as null. [genres], [tags] and [studios] are in the
- * server's order and empty when it sends none. [providerIds] works as on `MediaItem`.
+ * server's order and empty when it sends none. [providerIds] works as on `MediaItem`: cleaned (keys
+ * [a-z0-9._-]{1,32}, values printable without ';' or '=', at most 64 chars); never log them.
  */
 data class SeriesInfo(
     val id: ItemId,

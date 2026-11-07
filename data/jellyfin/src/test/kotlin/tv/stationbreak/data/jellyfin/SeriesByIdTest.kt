@@ -47,12 +47,21 @@ class SeriesByIdTest {
     fun decodesTheSameInfoTheListProduces() {
         val body =
             """{"Id":"h1","Name":"Night Shift","Type":"Series","OfficialRating":"TV-14",
-            "Genres":["Drama"],"Tags":["slow"],"Studios":[{"Name":"Acme"}]}"""
+            "Genres":["Drama"],"Tags":["slow"],"Studios":[{"Name":"Acme"}],
+            "ProviderIds":{"Imdb":"tt1","Bad":"a;b"}}"""
 
         val found = fetch({ jellyfin.json(body) }).getOrNull()
 
         assertEquals(
-            SeriesInfo(ItemId("h1"), "Night Shift", "TV-14", listOf("Drama"), listOf("slow"), listOf("Acme")),
+            SeriesInfo(
+                ItemId("h1"),
+                "Night Shift",
+                "TV-14",
+                listOf("Drama"),
+                listOf("slow"),
+                listOf("Acme"),
+                mapOf("imdb" to "tt1"),
+            ),
             found,
         )
     }

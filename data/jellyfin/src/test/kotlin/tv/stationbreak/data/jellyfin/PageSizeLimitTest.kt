@@ -3,6 +3,7 @@ package tv.stationbreak.data.jellyfin
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import tv.stationbreak.core.domain.MediaServer
@@ -32,8 +33,24 @@ class PageSizeLimitTest {
     @AfterTest
     fun tearDown() = jellyfin.close()
 
+    /** A realistic worst-ish `ProviderIds` object: ten entries, a few long values. */
+    private fun withProviderIds(item: JsonObject): JsonObject =
+        JsonObject(
+            item +
+                (
+                    "ProviderIds" to
+                        buildJsonObject {
+                            val providers = listOf("Imdb", "Tmdb", "Tvdb", "TmdbCollection", "Zap2It", "MusicBrainz")
+                            for (provider in providers) {
+                                put(provider, "id-" + provider.lowercase().padEnd(40, '0'))
+                            }
+                            for (n in 1..4) put("Other$n", "x".repeat(20))
+                        }
+                ),
+        )
+
     private fun pageBytes(count: Int): Int {
-        val items = synthetic.page(0, count).map { wireItem(it, fields) }
+        val items = synthetic.page(0, count).map { withProviderIds(wireItem(it, fields)) }
         val body = buildJsonObject { put("Items", JsonArray(items)) }
         return body.toString().toByteArray().size
     }

@@ -78,4 +78,44 @@ class ProviderIdsTest {
 
         assertEquals(mapOf("imdb" to "tt1", "tvdb" to "77"), seriesIds(json))
     }
+
+    @Test
+    fun nestedValuesAndBadKeysAreDropped() {
+        val long = "k".repeat(33)
+        val exact = "k".repeat(32)
+        val json =
+            ""","ProviderIds":{"Obj":{"a":"1"},"Arr":["1"],"":"v"," ":"v","$long":"v","$exact":"v","a b":"v","a;b":"v",
+            "a=b":"v","ünï":"v","ok.k_1-x":"v","Tab\tKey":"v"}"""
+
+        assertEquals(mapOf(exact to "v", "ok.k_1-x" to "v"), itemIds(json))
+    }
+
+    @Test
+    fun valuesWithSeparatorsOrControlCharactersAreDropped() {
+        val json =
+            ""","ProviderIds":{"semi":"a;b","eq":"a=b","nl":"a\nb","nul":"a\u0000b","del":"a\u007Fb","us":"a\u001Fb",
+            "keep":"a b-c"}"""
+
+        assertEquals(mapOf("keep" to "a b-c"), itemIds(json))
+    }
+
+    @Test
+    fun preferredKeysSurviveEightEarlierSortingKeys() {
+        val earlier = (1..9).joinToString(",") { """"a$it":"v$it"""" }
+        val json = ""","ProviderIds":{$earlier,"Tvdb":"3","Imdb":"1","Tmdb":"2"}"""
+
+        val kept = itemIds(json)
+
+        assertEquals(8, kept.size)
+        assertEquals(listOf("a1", "a2", "a3", "a4", "a5", "imdb", "tmdb", "tvdb"), kept.keys.toList())
+    }
+
+    @Test
+    fun aSubsetOfPreferredKeysIsKeptFirstToo() {
+        val earlier = (1..9).joinToString(",") { """"a$it":"v$it"""" }
+
+        val kept = itemIds(""","ProviderIds":{$earlier,"Tmdb":"2"}""")
+
+        assertEquals(listOf("a1", "a2", "a3", "a4", "a5", "a6", "a7", "tmdb"), kept.keys.toList())
+    }
 }

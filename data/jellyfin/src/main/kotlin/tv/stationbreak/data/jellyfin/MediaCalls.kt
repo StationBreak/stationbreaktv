@@ -558,7 +558,9 @@ internal class MediaCalls(
          * neither: on 12.1 and 12.2 a 6-item page measured 7.5 kB with the cache fields, 5.9 kB bare, 4.0 kB without
          * images and 2.9 kB without images and user data. Those sizes were measured before `ProviderIds` was asked
          * for and have not been re-measured (the contract suite does not measure page sizes): the "with the cache
-         * fields" figure is now short by the provider ids, at most eight short entries per item ([providerIdsOf]).
+         * fields" figure is now short by the provider ids, at most eight short entries per item ([providerIdsOf]),
+         * so a 200-item page (`MediaServer.MAX_PAGE_SIZE`) stays far inside the 1 MiB answer limit; `PageSizeLimitTest`
+         * checks that with a realistic ten-entry object.
          */
         val ID_ONLY = listOf("enableImages" to "false", "enableUserData" to "false")
 
@@ -671,24 +673,43 @@ internal const val PROVIDER_IDS_MAX = 8
 /** The longest provider id value kept, in characters: a cut id could match the wrong title. */
 private const val PROVIDER_ID_VALUE_MAX = 64
 
-private fun usableProviderId(value: String): Boolean = value.isNotBlank() && value.length <= PROVIDER_ID_VALUE_MAX
+/** The longest provider id key kept, in characters. */
+internal const val PROVIDER_ID_KEY_MAX = 32
+
+/** The providers a re-match trusts most: kept first when present, whatever else the server sends. */
+private val PREFERRED_PROVIDERS = listOf("imdb", "tmdb", "tvdb")
+
+private val PROVIDER_KEY = Regex("[a-z0-9._-]{1,$PROVIDER_ID_KEY_MAX}")
+
+/** Text, not blank, not too long, and safe for the later `k=v;k=v` storage: no `;`, no `=`, no control character. */
+private fun usableProviderId(value: String): Boolean =
+    value.isNotBlank() &&
+        value.length <= PROVIDER_ID_VALUE_MAX &&
+        value.none { it == ';' || it == '=' || it < ' ' || it == '\u007F' }
 
 /**
- * The provider ids of [raw] (the server's `ProviderIds` object: provider name to id). Keys are lower-cased; an entry
- * whose key is blank, or whose value is not text, is blank or is over 64 characters is dropped (never cut). The rest
- * are sorted by key and the first eight kept, so the same ids always give the same map. Keys that differ only in case
- * keep the value of the one that sorts first as sent. Anything but an object gives an empty map: an odd answer must
- * not fail a page.
+ * The provider ids of [raw] (the server's `ProviderIds` object: provider name to id). Keys are lower-cased and kept
+ * only if they match `[a-z0-9._-]{1,32}`. A value is kept only if it is text, not blank, at most 64 characters and
+ * free of `;`, `=` and control characters (U+0000 to U+001F and U+007F); an entry that fails either test is dropped,
+ * never cut or repaired. At most eight are kept: `imdb`, `tmdb` and `tvdb` first when present, then the rest in key
+ * order. The result is sorted by key, so the same ids always give the same map. Keys that differ only in case keep
+ * the value of the one that sorts first as sent. Anything but an object gives an empty map: an odd answer must not
+ * fail a page.
  */
 internal fun providerIdsOf(raw: JsonElement?): Map<String, String> {
     val entries = (raw as? JsonObject) ?: return emptyMap()
-    val kept = TreeMap<String, String>()
+    val usable = TreeMap<String, String>()
     for ((key, element) in entries.entries.sortedBy { it.key }) {
         val value = (element as? JsonPrimitive)?.takeIf { it.isString }?.content
         val name = key.lowercase()
-        if (name.isNotBlank() && value != null && usableProviderId(value)) kept.putIfAbsent(name, value)
+        if (value != null && PROVIDER_KEY.matches(name) && usableProviderId(value)) usable.putIfAbsent(name, value)
     }
-    return kept.entries.take(PROVIDER_IDS_MAX).associate { it.key to it.value }
+    val chosen = PREFERRED_PROVIDERS.filter { it in usable }.toMutableSet()
+    for (name in usable.keys) {
+        if (chosen.size == PROVIDER_IDS_MAX) break
+        chosen.add(name)
+    }
+    return usable.filterKeys { it in chosen }
 }
 
 /**
