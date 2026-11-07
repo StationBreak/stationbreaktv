@@ -378,6 +378,7 @@ private fun CellText(
         )
     }
 }
+
 private fun numbersOf(info: ProgramInfo): String? {
     val season = info.seasonNumber
     val episode = info.episodeNumber
@@ -403,8 +404,7 @@ private val SecondLineStyle = guideFigures(SECOND_LINE_SP.sp, FontWeight.Medium)
 internal fun twoLinesFit(
     fontScale: Float,
     rowHeightDp: Float,
-): Boolean =
-    (TITLE_SP + SECOND_LINE_SP) * fontScale * LINE_HEIGHT_FACTOR + 2 * CellInset.value <= rowHeightDp
+): Boolean = (TITLE_SP + SECOND_LINE_SP) * fontScale * LINE_HEIGHT_FACTOR + 2 * CellInset.value <= rowHeightDp
 
 /**
  * The second line of an episode's cell, "S1 E19" (or "E19"): null for a movie, a slate, an episode with no numbers, a

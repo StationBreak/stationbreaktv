@@ -52,6 +52,7 @@ import java.time.ZoneId
 
 private val TickMarkHeight = 8.dp
 private val NowLineWidth = 1.5.dp
+
 /** The corner radius of the panel behind the clock strip and rows. */
 internal val GridPanelRadius = 18.dp
 
