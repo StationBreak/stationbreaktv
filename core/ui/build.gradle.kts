@@ -22,3 +22,16 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// FontManifestTest scans every module for font and licence files. Declare what it scans as inputs so a cached test
+// result cannot hide a font that was added elsewhere.
+tasks.withType<Test>().configureEach {
+    inputs
+        .files(
+            fileTree(rootDir) {
+                include("**/src/*/res/font*/**", "**/src/*/assets/**", "core/ui/fonts.sha256")
+                exclude("**/build/**", "**/.gradle/**", "**/.git/**")
+            },
+        ).withPathSensitivity(PathSensitivity.RELATIVE)
+        .withPropertyName("fontManifestScan")
+}
