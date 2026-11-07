@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.model.ChannelId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 /** Which pool policy a recipe or channel gets (ADR-0019, ADR-0020). */
 class KidStatusTest {
@@ -87,6 +88,14 @@ class KidStatusTest {
         // The channel's own and a starter's policy do not depend on the day; the day-less one still counts it as on.
         assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(starting, lineupOf(starting, odds), today))
         assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(starting, odds)))
+    }
+
+    @Test
+    fun aLeftoversChannelCannotLeaveSoOnlyStartingTakesAKidLeftoversOffADay() {
+        // [KidStatus.hasKidLeftoversOn] reads isOnAirOn (started and not left), but the lineup's invariant keeps
+        // `leavesAtMs` to starters: a kid leftovers channel cannot have left, so there is no left case to hold.
+        val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
+        assertFailsWith<IllegalArgumentException> { kids.copy(leavesAtMs = 1_000L) }
     }
 
     @Test

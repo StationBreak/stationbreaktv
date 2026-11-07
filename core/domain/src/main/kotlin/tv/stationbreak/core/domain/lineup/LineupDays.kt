@@ -497,9 +497,9 @@ internal class LineupDays(
                 } else {
                     channel
                 }
-            // The policy of the day played: a kids leftovers channel that starts later is off for it (#623).
-            val policy =
-                day?.let { policyOf(channel, lineup, LineupDay.startingAt(it.first)) } ?: policyOf(channel, lineup)
+            // The policy of the day played: a kids leftovers channel that starts later or has left is off for it
+            // (#623). The day-less fallback is only for a refused channel and is the stricter (kid-safe) direction.
+            val policy = lineupDayFor(channel)?.let { policyOf(channel, lineup, it) } ?: policyOf(channel, lineup)
             val inputs = channelInputs(forDay, policy, household, day?.second ?: false)
             val curated = day != null && !day.second && isCurated(channel, day.first)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
@@ -509,9 +509,14 @@ internal class LineupDays(
         // The start of the day of [channel] that holds [atMs], and whether it starts on a later day; null when its
         // settings are refused.
         private fun dayOf(channel: LineupChannel): Pair<Long, Boolean>? {
-            val settings = settingsOf(channel, lineup, atMs) ?: return null
-            val day = lineupDayOf(settings, atMs)
+            val day = lineupDayFor(channel) ?: return null
             return day.startMs to channel.startsAfter(day)
+        }
+
+        // The broadcast day of [channel]'s own settings that holds [atMs]; null when its settings are refused.
+        private fun lineupDayFor(channel: LineupChannel): LineupDay? {
+            val settings = settingsOf(channel, lineup, atMs) ?: return null
+            return lineupDayOf(settings, atMs)
         }
 
         // A member of the day's on-set in the curation part: its ID, its rules for the day, and (as [channelInputs])
@@ -1281,7 +1286,8 @@ internal class LineupDays(
             }
         }
 
-        // The pool under the policy of the day of [cut]: a kids leftovers channel that starts later is off (#623).
+        // The pool under the policy of the day of [cut]: a kids leftovers channel that starts later or has left is off
+        // (#623). The day is the default 24-hour leftovers grid, as [RecipeResolver.leftoversSettings] makes it.
         private fun leftoversPool(
             channel: LineupChannel,
             snapshot: RuleSnapshot,
