@@ -241,8 +241,10 @@ interface VideoPlayer {
     fun dropWarm(key: String)
 
     /**
-     * A memory trim signal (`ComponentCallbacks2`): at the running-moderate level or above the standby is released and
-     * warming is paused for the rest of this player's life (the visit).
+     * A memory trim signal (`ComponentCallbacks2`), every level: a running level below [WarmConfig.warmTrimLevel]
+     * (running-moderate, 5) is only logged; from it up (running-low, 10, by default) the standby is released and
+     * warming is paused for the rest of this player's life (the visit); the UI-hidden level (20) and above release the
+     * standby but do not pause warming.
      */
     fun trimMemory(level: Int)
 

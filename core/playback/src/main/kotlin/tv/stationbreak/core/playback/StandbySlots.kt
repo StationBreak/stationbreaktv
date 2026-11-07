@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
-import android.content.ComponentCallbacks2
 import android.os.Handler
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -161,15 +160,13 @@ internal class StandbySlots(
     }
 
     /**
-     * A memory trim at [level]: at the running-moderate level or above the standby is released and warming paused
-     * for this player's life. `TRIM_MEMORY_RUNNING_MODERATE` is deprecated from API 34 (no running levels are sent
-     * there); the Fire TVs send them, and from 34 the higher levels still release the standby.
+     * A memory trim at [level], as [WarmStandby.trim] decides: a running level below [WarmConfig.warmTrimLevel] only
+     * logs; from it up the standby is released and warming paused for this player's life; the UI-hidden level and
+     * above release the standby without pausing. The running levels are deprecated from API 34 (none are sent there);
+     * the Fire TVs send them, and from 34 the higher levels still release the standby.
      */
-    @Suppress("DEPRECATION")
     fun trim(level: Int) {
-        if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE) return
-        state.pauseForVisit()
-        releaseStandby("trim")
+        if (state.trim(level) != TrimAction.Ignored) releaseStandby("trim")
     }
 
     /** Releases the standby (and any codec it holds); nothing is warmed after it. The front is the player's. */

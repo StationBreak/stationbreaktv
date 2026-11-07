@@ -7,16 +7,14 @@ import android.content.res.Configuration
 import tv.stationbreak.core.playback.VideoPlayer
 
 /**
- * Forwards the system's memory trims to [player] for one live visit (spec 24): from
- * [ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE], the lowest running level, upward. The player then drops its warm
- * standby and stays cold for the rest of the visit. The system calls it on the main thread and so it forwards there.
+ * Forwards every memory trim the system sends to [player] for one live visit (spec 24), whatever the level: the level
+ * policy (what a running level or a hidden UI means for the warm standby) is the player's, in core:playback, next to
+ * its tunable, and the player logs each trim it gets. The system calls it on the main thread and so it forwards there.
  */
 internal class LiveTrim(
     private val player: VideoPlayer,
 ) : ComponentCallbacks2 {
-    override fun onTrimMemory(level: Int) {
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE) player.trimMemory(level)
-    }
+    override fun onTrimMemory(level: Int) = player.trimMemory(level)
 
     override fun onConfigurationChanged(newConfig: Configuration) = Unit
 

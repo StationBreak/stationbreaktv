@@ -9,7 +9,7 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
- * Spec 24: the system's memory trims reach the player for one live visit, from the running level up, and stop when the
+ * Spec 24: the system's memory trims reach the player for one live visit, at every level, and stop when the
  * period is left.
  */
 class LiveTrimTest {
@@ -30,21 +30,15 @@ class LiveTrimTest {
     }
 
     @Test
-    fun levelsFromRunningModerateUpReachThePlayerOnce() {
-        val player = RecordingPlayer()
-        val trim = LiveTrim(player)
-        trim.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE)
-        trim.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
-        assertEquals(listOf("trim:5", "trim:80"), player.log)
-    }
-
-    @Test
-    fun levelsBelowRunningModerateAreNotForwarded() {
+    fun everyLevelReachesThePlayerOnce() {
         val player = RecordingPlayer()
         val trim = LiveTrim(player)
         trim.onTrimMemory(0)
-        trim.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE - 1)
-        assertEquals(emptyList<String>(), player.log)
+        trim.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE)
+        trim.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)
+        trim.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
+        trim.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
+        assertEquals(listOf("trim:0", "trim:5", "trim:10", "trim:20", "trim:80"), player.log)
     }
 
     @Test

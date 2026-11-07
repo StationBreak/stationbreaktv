@@ -443,13 +443,13 @@ class WarmSwapTest {
     }
 
     @Test
-    @Suppress("DEPRECATION") // The platform's running-moderate level (5), the threshold spec 24 names.
+    @Suppress("DEPRECATION") // The platform's running-low level (10), the default pause threshold.
     fun trimReleasesStandby() {
         coldPlaying()
         warmReady(2.seconds)
         val held = standby()!!
         val counters = onMainValue { held.videoDecoderCounters }
-        player.trimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE)
+        player.trimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)
         awaitLine("standby released", "reason=trim")
         assertNull(standby())
         counters?.let {

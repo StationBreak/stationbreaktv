@@ -312,10 +312,77 @@ class WarmStandbyTest {
     fun trimPauseSkipsRest() {
         val s = standby()
         s.request("w1")
-        s.pauseForVisit()
+        s.trim(RUNNING_LOW)
         s.released("trim")
         assertNull(s.held)
         assertEquals("disabled", skipReason(s.request("w2")))
+    }
+
+    @Test
+    fun runningModerateIsLoggedAndNothingElse() {
+        val s = standby()
+        s.request("w1")
+        assertEquals(TrimAction.Ignored, s.trim(RUNNING_MODERATE))
+        assertEquals("w1", s.held)
+        assertFalse(s.disabled)
+        assertEquals(1, logs.count { it == "trim level=5 action=ignored" })
+        assertTrue(logs.none { it.startsWith("disabled") })
+        assertEquals("alreadyWarm", skipReason(s.request("w1")))
+    }
+
+    @Test
+    fun runningLowAndCriticalPauseWarmingForTheVisit() {
+        for (level in listOf(RUNNING_LOW, RUNNING_CRITICAL)) {
+            logs.clear()
+            val s = standby()
+            s.request("w1")
+            assertEquals(TrimAction.Paused, s.trim(level))
+            assertTrue(s.disabled)
+            assertEquals("disabled", skipReason(s.request("w2")))
+            assertEquals(1, logs.count { it == "trim level=$level action=paused" })
+            assertEquals(1, logs.count { it == "disabled reason=trim level=$level" })
+        }
+    }
+
+    @Test
+    fun aSecondPausingTrimLogsTheTrimButDisablesOnlyOnce() {
+        val s = standby()
+        s.trim(RUNNING_LOW)
+        s.trim(RUNNING_CRITICAL)
+        assertEquals(1, logs.count { it.startsWith("disabled reason=trim") })
+        assertEquals(1, logs.count { it == "trim level=15 action=paused" })
+    }
+
+    @Test
+    fun hiddenAndBackgroundLevelsReleaseButNeverPause() {
+        for (level in listOf(UI_HIDDEN, 40, 60, 80)) {
+            logs.clear()
+            val s = standby()
+            s.request("w1")
+            assertEquals(TrimAction.Released, s.trim(level))
+            assertFalse(s.disabled)
+            assertEquals(1, logs.count { it == "trim level=$level action=released" })
+            assertTrue(logs.none { it.startsWith("disabled") })
+            // A later warm is built again.
+            assertEquals(Request.Start, s.request("w2"))
+        }
+    }
+
+    @Test
+    fun theTrimThresholdIsATunable() {
+        val s = standby(WarmConfig(warmTrimLevel = RUNNING_CRITICAL))
+        assertEquals(TrimAction.Ignored, s.trim(RUNNING_LOW))
+        assertFalse(s.disabled)
+        assertEquals(TrimAction.Paused, s.trim(RUNNING_CRITICAL))
+        val lowest = standby(WarmConfig(warmTrimLevel = RUNNING_MODERATE))
+        assertEquals(TrimAction.Paused, lowest.trim(RUNNING_MODERATE))
+    }
+
+    @Test
+    fun aLevelBelowTheRunningLevelsIsIgnored() {
+        val s = standby()
+        assertEquals(TrimAction.Ignored, s.trim(0))
+        assertFalse(s.disabled)
     }
 
     @Test
@@ -366,7 +433,7 @@ class WarmStandbyTest {
         val off = standby(WarmConfig(warmNextDecoder = false))
         assertTrue(off.disabled)
         val trimmed = standby()
-        trimmed.pauseForVisit()
+        trimmed.trim(RUNNING_LOW)
         assertTrue(trimmed.disabled)
     }
 
@@ -539,7 +606,7 @@ class WarmStandbyTest {
         assertNull("failed", s.reuseFor(sameSource = true))
         val off = standby(WarmConfig(warmMaxFailures = 1))
         off.request("w1")
-        off.pauseForVisit()
+        off.trim(RUNNING_LOW)
         assertNull("disabled", off.reuseFor(sameSource = true))
     }
 
@@ -558,5 +625,13 @@ class WarmStandbyTest {
         device.markDecoderMissing()
         assertEquals("disabled", skipReason(second.request("w1")))
         assertTrue(logs.contains("disabled reason=decoderMissing failures=0"))
+    }
+
+    private companion object {
+        // ComponentCallbacks2 levels (the platform's numbers).
+        const val RUNNING_MODERATE = 5
+        const val RUNNING_LOW = 10
+        const val RUNNING_CRITICAL = 15
+        const val UI_HIDDEN = 20
     }
 }
