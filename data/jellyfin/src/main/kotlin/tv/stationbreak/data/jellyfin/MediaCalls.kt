@@ -681,16 +681,16 @@ private val PREFERRED_PROVIDERS = listOf("imdb", "tmdb", "tvdb")
 
 private val PROVIDER_KEY = Regex("[a-z0-9._-]{1,$PROVIDER_ID_KEY_MAX}")
 
-/** Text, not blank, not too long, and safe for the later `k=v;k=v` storage: no `;`, no `=`, no control character. */
+/** Printable ASCII (U+0021 to U+007E), no spaces, `;` or `=`, at most 64 characters: safe for `k=v;k=v` storage. */
 private fun usableProviderId(value: String): Boolean =
     value.isNotBlank() &&
         value.length <= PROVIDER_ID_VALUE_MAX &&
-        value.none { it == ';' || it == '=' || it < ' ' || it == '\u007F' }
+        value.all { it in '!'..'~' && it != ';' && it != '=' }
 
 /**
  * The provider ids of [raw] (the server's `ProviderIds` object: provider name to id). Keys are lower-cased and kept
  * only if they match `[a-z0-9._-]{1,32}`. A value is kept only if it is text, not blank, at most 64 characters and
- * free of `;`, `=` and control characters (U+0000 to U+001F and U+007F); an entry that fails either test is dropped,
+ * printable ASCII (U+0021 to U+007E), no spaces, `;` or `=`; an entry that fails either test is dropped,
  * never cut or repaired. At most eight are kept: `imdb`, `tmdb` and `tvdb` first when present, then the rest in key
  * order. The result is sorted by key, so the same ids always give the same map. Keys that differ only in case keep
  * the value of the one that sorts first as sent. Anything but an object gives an empty map: an odd answer must not

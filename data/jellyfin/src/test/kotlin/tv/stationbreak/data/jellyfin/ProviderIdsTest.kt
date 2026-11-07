@@ -10,7 +10,11 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** The provider ids of an item and of a series: lower-case keys, no blank or long values, the first eight by key. */
+/**
+ * The provider ids of an item and of a series: keys `[a-z0-9._-]{1,32}` lower-cased, values printable ASCII with no
+ * spaces, `;` or `=` and at most 64 characters; at most eight kept, `imdb`, `tmdb` and `tvdb` first when present, then
+ * the rest in key order, the map sorted by key.
+ */
 class ProviderIdsTest {
     private val jellyfin = FakeJellyfin()
     private val library = Library(ItemId("lib01"), "Shows", LibraryKind.TvShows)
@@ -94,9 +98,18 @@ class ProviderIdsTest {
     fun valuesWithSeparatorsOrControlCharactersAreDropped() {
         val json =
             ""","ProviderIds":{"semi":"a;b","eq":"a=b","nl":"a\nb","nul":"a\u0000b","del":"a\u007Fb","us":"a\u001Fb",
-            "keep":"a b-c"}"""
+            "keep":"a-b.c"}"""
 
-        assertEquals(mapOf("keep" to "a b-c"), itemIds(json))
+        assertEquals(mapOf("keep" to "a-b.c"), itemIds(json))
+    }
+
+    @Test
+    fun valuesWithSpacesOrNonAsciiTextAreDropped() {
+        val json =
+            ""","ProviderIds":{"nel":"a\u0085b","bidi":"a\u202Eb","zw":"a\u200Bb","lone":"a\uD800b","lead":" ab",
+            "trail":"ab ","inner":"a b","accent":"caf\u00E9","keep":"~!x"}"""
+
+        assertEquals(mapOf("keep" to "~!x"), itemIds(json))
     }
 
     @Test

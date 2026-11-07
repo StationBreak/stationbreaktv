@@ -6,7 +6,7 @@ package tv.stationbreak.core.model
  * that an episode does not carry. [officialRating] is the server's text exactly as sent: null when it sends none, and
  * `""` and `" "` are kept as they are, never trimmed and never read as null. [genres], [tags] and [studios] are in the
  * server's order and empty when it sends none. [providerIds] works as on `MediaItem`: cleaned (keys
- * [a-z0-9._-]{1,32}, values printable without ';' or '=', at most 64 chars); never log them.
+ * [a-z0-9._-]{1,32}, values printable ASCII, no spaces, ';' or '=', at most 64 chars); never log them.
  */
 data class SeriesInfo(
     val id: ItemId,
