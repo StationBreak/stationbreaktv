@@ -199,9 +199,11 @@ internal class SelectionRepair(
     }
 
     /**
-     * The films and weights the tail is laid out with: the day's own (as built today) for what it held, and the new
-     * selection's build for the added titles; on a repaired day, whose build is not today's, the new selection's for
-     * all. Only for what [pool] holds.
+     * The films and weights the tail is laid out with, only for what [pool] holds. On a day with no repair: the day's
+     * own (as built today) for everything it held, and the new selection's build only for the added films and new
+     * titles. Today's entry wins where both have one, so a title the new selection would weigh differently (say, an
+     * anchor now) keeps today's weight until the boundary. On a repaired day, whose build is not today's: the new
+     * selection's build for all of the pool. `TodayRepairerGuardsTest` pins each of these.
      */
     private fun sidesOf(
         day: ChannelDay,
