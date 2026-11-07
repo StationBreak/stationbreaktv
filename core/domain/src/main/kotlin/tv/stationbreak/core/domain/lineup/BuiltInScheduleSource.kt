@@ -998,10 +998,12 @@ class BuiltInScheduleSource(
     ) {
         val current = isCurrent(account, wanted.revision) || stillWanted(account, wanted.key, wanted.atMs) != null
         val to = persisted?.takeIf { current } ?: return
+        // An account forgotten (signed out, reset) after this point gets nothing written ([forget]).
+        val epoch = synchronized(lock) { forgets }
         val job =
             buildScope.launch(saveDispatcher, start = CoroutineStart.LAZY) {
                 val whole = if (result.all { it.built }) result else unrepaired(account, result, wanted)
-                if (whole != null) to.save(account, disk, whole)
+                if (whole != null && synchronized(lock) { forgets } == epoch) to.save(account, disk, whole)
             }
         synchronized(lock) { saves += job }
         job.invokeOnCompletion { synchronized(lock) { saves -= job } }
@@ -1014,7 +1016,8 @@ class BuiltInScheduleSource(
      * owner's older TV loses its process often). It runs here, on [saveDispatcher] and never on a tune's path: the
      * days that were built are taken over as they are, and the rest are built from snapshots read directly (not through
      * [snapshots], whose reads run at the normal priority), so they are what a build with no record gives. Null, and
-     * nothing written, when the library moved since the build (the next build writes) or the read fails.
+     * nothing written, when the library moved since the build, before or during the read (the snapshot would then be
+     * of a newer library than the key says; the next build writes), or when the read fails.
      */
     @Suppress("TooGenericExceptionCaught") // A failed background save is never a crash: the next build writes.
     private suspend fun unrepaired(
@@ -1029,8 +1032,12 @@ class BuiltInScheduleSource(
                 val built = result.filter { it.built }.associateBy { it.channel.id }
                 val cuts = cutsToRead(wanted.scheduled, built.keys)
                 val (plain, filtered) = snapshotsOf(library, account, wanted.key.libraries, cuts)
-                val libraries = wanted.key.libraries
-                days.days(wanted.lineup, wanted.scheduled, plain, filtered, reused = built, libraries = libraries)
+                if (library.contentGeneration(account) != wanted.generation) {
+                    null
+                } else {
+                    val libraries = wanted.key.libraries
+                    days.days(wanted.lineup, wanted.scheduled, plain, filtered, reused = built, libraries = libraries)
+                }
             }
         } catch (cancelled: CancellationException) {
             throw cancelled

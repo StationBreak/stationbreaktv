@@ -192,13 +192,16 @@ internal class CountingLibrary(
     var currentIdsCalls = 0
     var scheduleItemsOfCalls = 0
 
+    /** Run after each `ruleSnapshot` read returns: a test lands a sync while a read is in flight. */
+    var afterSnapshot: () -> Unit = {}
+
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         cutoff: Instant,
     ): RuleSnapshot {
         snapshotCutoffs += cutoff
-        return delegate.ruleSnapshot(account, libraries, cutoff)
+        return delegate.ruleSnapshot(account, libraries, cutoff).also { afterSnapshot() }
     }
 
     override suspend fun scheduleItems(

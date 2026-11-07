@@ -107,17 +107,25 @@ class TodayRepairsTest {
 
     @Test
     fun digestFor_hashesEachRecordedDayOncePerRecord() {
-        val record = TodayRepairs(selection = listOf(repairOf(n = 1L)), fixes = listOf(fixOf(n = 1L), fixOf(n = 2L)))
-        val first = (1..3).map { record.digestFor(ChannelId("starter:laughs"), 1L) }
-        record.digestFor(ChannelId("starter:laughs"), 2L)
-        record.digestFor(ChannelId("starter:laughs"), 3L)
-        record.digestFor(ChannelId("starter:other"), 1L)
+        var hashed = 0
+        DigestProbe.hashed = { hashed++ }
+        try {
+            val fixes = listOf(fixOf(n = 1L), fixOf(n = 2L))
+            val record = TodayRepairs(selection = listOf(repairOf(n = 1L)), fixes = fixes)
+            val laughs = ChannelId("starter:laughs")
+            val first = (1..3).map { record.digestFor(laughs, 1L) }
+            record.digestFor(laughs, 2L)
+            record.digestFor(laughs, 3L)
+            record.digestFor(ChannelId("starter:other"), 1L)
 
-        assertEquals(2, record.hashed, "two recorded days, each hashed once, however often asked")
-        assertEquals(1, first.toSet().size)
-        assertEquals("", record.digestFor(ChannelId("starter:laughs"), 3L))
-        val copy = record.copy()
-        assertEquals(first.first(), copy.digestFor(ChannelId("starter:laughs"), 1L), "an equal record, the same digest")
-        assertEquals(2, copy.hashed, "a new instance works its own out")
+            assertEquals(2, hashed, "two recorded days, each hashed once, however often asked")
+            assertEquals(1, first.toSet().size)
+            assertEquals("", record.digestFor(laughs, 3L))
+            val copy = record.copy()
+            assertEquals(first.first(), copy.digestFor(laughs, 1L), "an equal record, the same digest")
+            assertEquals(4, hashed, "a new instance works its own out")
+        } finally {
+            DigestProbe.hashed = null
+        }
     }
 }

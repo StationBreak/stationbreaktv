@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.lineup.repair.ChannelRepair
+import tv.stationbreak.core.domain.lineup.repair.DigestProbe
 import tv.stationbreak.core.domain.lineup.repair.KeptBlock
 import tv.stationbreak.core.domain.lineup.repair.LostFix
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
@@ -375,16 +376,88 @@ class RepairedDaysTest {
     @Test
     fun aRepairedTv_hashesItsRecordOncePerRecord() {
         store(lineupOf(laughs, whodunit), TodayRepairs(selection = listOf(repairOf(laughs.id, dayOf(laughsRules)))))
-        val p = Process(saving = false)
+        var hashed = 0
+        DigestProbe.hashed = { hashed++ }
+        try {
+            val p = Process(saving = false)
 
-        repeat(3) {
-            p.onAir(laughs.id, NOON)
-            p.onAir(whodunit.id, NOON)
-            p.window(laughs.id)
+            repeat(3) {
+                p.onAir(laughs.id, NOON)
+                p.onAir(whodunit.id, NOON)
+                p.window(laughs.id)
+            }
+
+            assertEquals(1, hashed, "one recorded day, hashed once for every lookup of this record")
+        } finally {
+            DigestProbe.hashed = null
         }
+    }
 
-        val held = assertNotNull(p.service.lineup(ACCOUNT).value).repairs
-        assertEquals(1, held.hashed, "one recorded day, hashed once for every lookup of this record")
+    /** A repaired laughs day beside a channel of another cut-off: its set's save builds laughs in the background. */
+    private fun repairedBesideLate(): Process {
+        store(lineupOf(laughs, late), TodayRepairs(selection = listOf(repairOf(laughs.id, dayOf(laughsRules)))))
+        return Process().also { assertNotNull(it.onAir(laughs.id, NOON)) }
+    }
+
+    @Test
+    fun backgroundSave_aSyncDuringItsRead_writesNothing() {
+        val p = repairedBesideLate()
+        library.afterSnapshot = { library.delegate.noteContentChange(ACCOUNT) }
+
+        p.settle()
+
+        assertTrue(disk.files.isEmpty(), "a set read across a sync is not written under the older key")
+        assertTrue(p.events.none { it is DaySnapshotEvent.Saved })
+    }
+
+    @Test
+    fun backgroundSave_afterForget_writesNothing() {
+        val p = repairedBesideLate()
+
+        p.source.forget(ACCOUNT)
+        p.settle()
+
+        assertTrue(disk.files.isEmpty(), "nothing is written for an account forgotten while its save waited")
+        assertTrue(p.events.none { it is DaySnapshotEvent.Saved })
+    }
+
+    @Test
+    fun persistedBytes_aRepairedDayBuiltAnyway_takenOverWithItsRecord_equalAPlainProcess() {
+        // Laughs shares whodunit's cut-off, so its unrepaired build is made beside the repair.
+        val day = dayOf(laughsRules)
+        val repair = repairOf(laughs.id, day)
+        store(lineupOf(laughs, whodunit), TodayRepairs(selection = listOf(repair)))
+        val p = Process()
+        p.days()
+        disk.files.clear()
+        // A fix of whodunit's day moves the key: whodunit is built again, and laughs is taken over, record and all.
+        val whodunitDay = p.day(whodunit.id)
+        val block = whodunitDay.day.whatsOn(noonMs, 0).block
+        val gone = assertIs<ScheduleContent.Program>(block.content).itemId
+        val fix =
+            LostFix(
+                whodunit.id,
+                whodunitDay.n,
+                whodunitDay.epochEndMs,
+                block.startMs,
+                block.endMs,
+                gone,
+                listOf(KeptBlock(block.startMs, block.startMs + hour, id(116).takeIf { it != gone } ?: id(115), 0)),
+            )
+        val laughsBefore = p.day(laughs.id)
+        p.record(TodayRepairs(selection = listOf(repair), fixes = listOf(fix)))
+
+        val days = p.days()
+
+        val laughsAfter = days.first { it.channel.id == laughs.id }
+        assertSame(laughsBefore, laughsAfter, "laughs was taken over with its record")
+        assertTrue(laughsAfter.built)
+        assertEquals(composedOf(repair, day.second), laughsAfter.day.blocks)
+        val plainDisk = MemoryDayStore()
+        val plainStore = RecordingStore().also { store(lineupOf(laughs, whodunit), into = it) }
+        val plain = Process(store = plainStore, daysOnDisk = plainDisk)
+        plain.days()
+        assertContentEquals(plainDisk.only().second, disk.only().second, "the bytes of a process with no record")
     }
 
     @Test

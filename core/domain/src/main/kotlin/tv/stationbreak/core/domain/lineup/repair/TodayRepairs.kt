@@ -100,7 +100,7 @@ internal data class TodayRepairs(
         selection.mapTo(days) { it.channel to it.n }
         fixes.mapTo(days) { it.channel to it.n }
         days.associateWith { (channel, n) ->
-            hashed++
+            DigestProbe.hashed?.invoke()
             val repair = selection.firstOrNull { it.channel == channel && it.n == n }
             val mine = fixes.filter { it.channel == channel && it.n == n }.sortedBy { it.blockStartMs }
             val text = StringBuilder()
@@ -109,11 +109,6 @@ internal data class TodayRepairs(
             sha256Hex(text.toString().encodeToByteArray())
         }
     }
-
-    /** For tests: how many channel days this instance has hashed (each recorded day once, on first use). */
-    @Volatile
-    internal var hashed: Int = 0
-        private set
 
     /** The highest seq of any repair held, or null when none. */
     fun latestSeq(): Long? = selection.maxOfOrNull { it.seq }
@@ -163,6 +158,11 @@ private fun canonical(fix: LostFix): String =
 
 private fun canonical(blocks: List<KeptBlock>): String =
     blocks.joinToString(",") { "${it.startMs}:${it.endMs}:${it.itemId?.value ?: "-"}:${it.mediaStartMs}" }
+
+/** A test seam: [hashed] is told each time a record works out the digest of one channel day. Never set in the app. */
+internal object DigestProbe {
+    @Volatile var hashed: (() -> Unit)? = null
+}
 
 /** What [trimmedToFit] did: the [record] that fits and the counts dropped to get there (numbers only). */
 internal data class Trimmed(
