@@ -16,4 +16,8 @@ internal suspend fun Sitting.goneItem(
     scope: CoroutineScope,
     onAir: ChannelOnAir,
     gone: CanonicalId,
-): Exit? = holdIdent(scope, onAir, onAir.now.endMs, CardNote.NotInLibrary)
+): Exit? {
+    // A flip that lands here ends on a card, as on a slate: the flip line closes with the same outcome.
+    reportFlipEnded("slate")
+    return holdIdent(scope, onAir, onAir.now.endMs, CardNote.NotInLibrary)
+}

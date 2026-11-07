@@ -37,6 +37,11 @@ private const val STANDBY_GAP = 10f
 private const val WORDMARK_SIZE = 50f
 private const val NO_CHANNELS_SIZE = 13f
 private const val SPACING_EM = 0.13f
+private const val NOTE_TOP = 384f
+private const val NOTE_WIDTH = 176f
+private const val NOTE_SIZE = 9f
+private const val NOTE_SPACING_EM = 0.03f
+private const val NOTE_LINES = 2
 
 /** The slate for a show that is missing or will not play (design: board E2), with the "Up next" banner when known. */
 @Composable
@@ -86,7 +91,7 @@ internal fun IdentSlate(
     Box(Modifier.fillMaxSize()) {
         TestCard(tvY = IDENT_TV_Y) { card ->
             Wordmark(card, LiveTags.IDENT)
-            if (note != null) CardLine(card, stringResource(noteText(note)), LiveTags.IDENT_NOTE)
+            if (note != null) NoteLine(card, stringResource(noteText(note)))
         }
         CardBanner(upNext, channel)
     }
@@ -119,6 +124,30 @@ internal fun NoChannelsSlate() {
             CardLine(card, stringResource(R.string.live_no_channels), LiveTags.NO_CHANNELS)
         }
     }
+}
+
+/**
+ * The reason on an ident card: two lines at most, set small and tight so both sit inside the centre disc (radius 150
+ * about y 288) below the wordmark, which ends near y 378. At its bottom line (about y 408) the disc is 180 wide.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
+    card: CardScale,
+    text: String,
+) {
+    Text(
+        text = text,
+        modifier =
+            Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = card.dp(NOTE_TOP))
+                .width(card.dp(NOTE_WIDTH))
+                .testTag(LiveTags.IDENT_NOTE),
+        style = mono(card.sp(NOTE_SIZE)).copy(letterSpacing = card.sp(NOTE_SIZE) * NOTE_SPACING_EM),
+        color = BroadcastColors.Ink,
+        textAlign = TextAlign.Center,
+        maxLines = NOTE_LINES,
+    )
 }
 
 /** One plain line under the ident wordmark. */

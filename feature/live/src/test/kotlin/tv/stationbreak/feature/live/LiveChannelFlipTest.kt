@@ -333,6 +333,7 @@ class LiveChannelFlipTest {
             runCurrent()
             val flip = f.r.flipReports().single()
             assertEquals("standin", flip.outcome)
+            // The stand-in exclusion in tuneAndShow is no longer reached by this test (the dead tune comes first).
             // Taken at the dead tune, before the slate's hold; the stand-in's tune adds nothing.
             assertEquals(0L, flip.handoverMs)
         }
