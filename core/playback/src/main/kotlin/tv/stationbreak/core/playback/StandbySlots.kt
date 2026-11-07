@@ -4,10 +4,12 @@ package tv.stationbreak.core.playback
 import android.content.ComponentCallbacks2
 import android.os.Handler
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -224,7 +226,8 @@ internal class StandbySlots(
     /**
      * Prepares [source] on [slot] for the current [WarmStandby.epoch]: muted, paused, no text, audio only if
      * [WarmStandby.audioOn], buffer held. The media id carries the epoch, so the slot's events name the start they
-     * belong to.
+     * belong to. A standby that is not idle is stopped first, which releases its codec only because the standby is
+     * never in foreground mode: never call `setForegroundMode(true)` on a slot's player.
      */
     private fun prepareStandby(
         slot: Slot,
@@ -234,7 +237,8 @@ internal class StandbySlots(
         val audioOn = state.audioOn
         // A standby that holds media (a replaced one) is stopped first. Media3 keeps a flushable codec across a new
         // item (disabling a renderer only flushes it; a stop resets it), so no decoder would come up for this start
-        // and the probe would take a working decoder for a missing one.
+        // and the probe would take a working decoder for a missing one. The standby must never be put in foreground
+        // mode (setForegroundMode(true)): there a stop keeps the renderers, and their codecs, as they are.
         if (slot.exo.playbackState != Player.STATE_IDLE) slot.exo.stop()
         slot.holding.set(true)
         slot.exo.volume = 0f
@@ -431,6 +435,24 @@ internal class StandbySlots(
             val epoch = epochOf(eventTime) ?: return
             state.held?.let { state.onDecoderUp(it, initializationDurationMs, epoch) }
             // Ready now (no check left), or still waiting for READY.
+            scheduleCheck()
+        }
+
+        /**
+         * A codec Media3 kept for this start's format ([DecoderReuseEvaluation] with a reuse result) is a decoder
+         * that is up, though no decoder-initialized event comes for it: counted as up with no init time, so a reuse
+         * can never read as a missing decoder. No evaluation (no codec yet) or a refused reuse (a new codec, which
+         * reports itself) says nothing. Same start check as [onVideoDecoderInitialized].
+         */
+        override fun onVideoInputFormatChanged(
+            eventTime: AnalyticsListener.EventTime,
+            format: Format,
+            decoderReuseEvaluation: DecoderReuseEvaluation?,
+        ) {
+            val result = decoderReuseEvaluation?.result ?: DecoderReuseEvaluation.REUSE_RESULT_NO
+            val epoch = epochOf(eventTime)
+            if (epoch == null || result == DecoderReuseEvaluation.REUSE_RESULT_NO) return
+            state.held?.let { state.onDecoderUp(it, 0L, epoch) }
             scheduleCheck()
         }
 
