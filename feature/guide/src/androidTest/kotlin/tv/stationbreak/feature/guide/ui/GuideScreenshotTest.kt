@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -155,7 +156,6 @@ class GuideScreenshotTest {
         val longTitle = GuideTags.cellText(ChannelId("ch-3"), T0 + 60 * MIN)
         assertEquals(LONG_TITLE, text(longTitle))
         assertTrue("the long title ends inside the cell", ellipsized(longTitle))
-        awaitMeta()
         shoot("$FOCUSED_CELL$suffix.png")
 
         back()
@@ -165,16 +165,24 @@ class GuideScreenshotTest {
         press(Key.DirectionDown)
         cell(CH7, 60).assertIsSelected()
         channels().assertIsNotSelected()
-        awaitMeta()
         shoot("$RESTING_MENU$suffix.png")
 
+        shootFocusedMovie(suffix)
         if (shown != GuideTheme.Dark) return
-        press(Key.DirectionDown)
         press(Key.DirectionRight)
         cell(CH9, 150).assertIsSelected()
         assertEquals("OFF AIR", text(GuideTags.cellText(CH9, T0 + 150 * MIN)))
         assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Off air until "))
         shoot(OFF_AIR)
+    }
+
+    /** Down from the episode to channel 9's movie on now: no episode line, so the panel has room for the meta line. */
+    private fun shootFocusedMovie(suffix: String) {
+        press(Key.DirectionDown)
+        cell(CH9, 0).assertIsSelected()
+        awaitMeta()
+        compose.onNodeWithTag(GuideTags.PANEL_META, useUnmergedTree = true).assertIsDisplayed()
+        shoot("$FOCUSED_MOVIE$suffix.png")
     }
 
     /** The guide screen test's lineup: channel 9's slate starts two and a half hours in. */
@@ -366,6 +374,7 @@ class GuideScreenshotTest {
         const val LOG_TAG = "GuideScreenshot"
         const val SCREENSHOT_DIR = "guide-screenshots"
         const val FOCUSED_CELL = "guide-focused-cell"
+        const val FOCUSED_MOVIE = "guide-focused-movie"
         const val FOCUSED_MENU = "guide-focused-menu"
         const val OFF_AIR = "guide-off-air.png"
         const val RESTING_MENU = "guide-resting-menu"
