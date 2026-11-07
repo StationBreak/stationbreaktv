@@ -230,10 +230,10 @@ interface VideoPlayer {
      * player that cannot warm still issues a handle: the play stamped with it is cold, and [PlayerEvent.WarmDecided]
      * says why.
      *
-     * Call [warm] and [play] from the same thread (the main thread, the player's looper): from another thread a warm
-     * is posted to the looper, so it can land after a [play] that runs at once, and that play is a silent cold
-     * [WarmReason.Mismatch]. The same-handle answer is exact only on the looper; from another thread each call issues
-     * a new handle.
+     * Call [warm] from the player's looper (the main thread, where [play] is called). Both post to the looper in
+     * order, so a warm returned before a play always runs first from any thread. What another thread costs is the
+     * same-handle answer, which is exact only on the looper: from another thread every call issues a new handle and
+     * builds the standby again.
      */
     fun warm(source: PlayerSource): String
 

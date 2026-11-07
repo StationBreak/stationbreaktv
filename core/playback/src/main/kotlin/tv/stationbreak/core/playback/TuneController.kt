@@ -156,7 +156,9 @@ sealed interface TuneResult {
      * their ends (at most [MAX_STALL_NOTES] stalls), and complete when [end] does; diagnostics only.
      * [av] times the audio and video start-up steps (diagnostics only). [control] is the transport of this play (pause,
      * resume, seek, position); it acts on this play's generation only, so it can never touch a newer play. [warm] is
-     * what became of the warm standby for the attempt that played (spec 24); null only for a result built by hand.
+     * what became of the warm standby (spec 24); null only for a result built by hand. For a tune that handed over to
+     * the standby and then fell back (a seek miss) it is the hand-over, so the swap stays visible; [fallback] says the
+     * play that ended up playing was not it.
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -336,9 +338,10 @@ class TuneController(
      * the direction changes. The player issues the handle ([VideoPlayer.warm]); the controller keeps it on [prepared]
      * and stamps it on the play of that handle in [tune].
      *
-     * Call it from the thread [tune] plays on (the host's main thread, the player's looper): the player posts a warm
-     * from any other thread, which can land after the play and make it a silent cold mismatch. The controller does no
-     * thread switch of its own here, so that is whatever context the caller runs both in.
+     * Call it from the player's looper (the host's main thread). The player posts a warm and a play to one handler in
+     * order, so a warm returned before a play always runs first from any thread; what another thread costs is the
+     * same-handle reuse, which only the looper can answer exactly: every [warmNext] from elsewhere issues a new handle
+     * and builds the standby again. The controller does no thread switch of its own.
      */
     fun warmNext(prepared: Prepared): Boolean {
         val wanted =
@@ -445,10 +448,12 @@ class TuneController(
                 tuneWith(session, prepared.item, start ?: prepared.start, override, null)
             }
         } finally {
-            // A play that began owns the encode now (it is the current attempt); otherwise nothing will end it.
-            if (taken && !prepared.adopted) {
+            if (taken) {
+                // Whatever the end, a standby still held for this handle is dropped: nothing else will. Does nothing
+                // once the play took its key (the player owns the standby then).
                 dropHeld(prepared)
-                stopEncode(session, prepared.resolved)
+                // A play that began owns the encode now (it is the current attempt); otherwise nothing will end it.
+                if (!prepared.adopted) stopEncode(session, prepared.resolved)
             }
         }
     }
@@ -504,6 +509,8 @@ class TuneController(
         abandonEncode(session)
         val began = clock()
         var fallback: Fallback? = null
+        // The standby swap of an attempt that then fell back (a seek miss): kept, so the result still shows it.
+        var swapped: WarmUse? = null
         var attempt =
             if (ready != null) {
                 // Recorded before anything can be cancelled, so a cancel still finds its encode to stop; then a cancel
@@ -512,7 +519,7 @@ class TuneController(
                 current = resolved
                 ready.adopted = true
                 currentCoroutineContext().ensureActive()
-                // A cancel above leaves the standby held; the tune()'s clean-up drops it. From here the player owns it.
+                // A cancel above leaves the standby held: the finally in tune() drops it. Below, the play owns it.
                 val key = takeWarmKey(ready)
                 if (key == null) {
                     play(resolved, began, false, coldReason(resolved, ready))
@@ -524,6 +531,7 @@ class TuneController(
             }
         while (fallback == null && attempt.canFallBack) {
             fallback = Fallback(checkNotNull(attempt.resolved).route, attempt.fallbackCause())
+            (attempt as? Landed)?.warm?.takeIf { it.warm }?.let { swapped = it }
             // A stop or supersede here must not lose the first attempt's encode: it is issued before the next step.
             abandonEncode(session)
             val next = attempt(session, item, start, override, true, began, attempt.resolved?.media?.id)
@@ -547,7 +555,7 @@ class TuneController(
                     attempt.loads,
                     attempt.notes,
                     attempt.av,
-                    attempt.warm,
+                    swapped ?: attempt.warm,
                 )
             }
 

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -365,8 +368,29 @@ class TuneControllerWarmTest {
             val result = rig.controller.tune(session, a, null, 60.seconds) as TuneResult.Played
             assertEquals("w1", rig.player.played[0].warmKey)
             assertNull(rig.player.played[1].warmKey)
-            assertEquals(WarmReason.Transcode, result.warm?.reason)
-            assertFalse(result.warm?.warm ?: true)
+            // The swap stays visible (and its numbers); the fallback says the play that ended up playing was cold.
+            assertEquals(WarmUse(true, WarmReason.None, 800, 300), result.warm)
+            assertEquals(FallbackCause.SeekMiss, result.fallback?.cause)
+        }
+
+    @Test
+    fun aTuneCancelledAfterTheHandleIsTakenButBeforeThePlayDropsTheHeldStandby() =
+        runTest {
+            answer(source())
+            var victim: Job? = null
+            val player = FakeVideoPlayer()
+            val controller = TuneController(resolver, server, player) { victim?.cancel().let { 1_000L } }
+            val a = checkNotNull(controller.preResolve(session, ItemId("a"), Duration.ZERO))
+            controller.warmNext(a)
+            val job =
+                launch {
+                    victim = coroutineContext.job
+                    controller.tune(session, a, null)
+                }
+            job.join()
+            assertTrue(job.isCancelled)
+            assertTrue("nothing played", player.played.isEmpty())
+            assertEquals(listOf("warm", "dropWarm:w1"), player.calls.filter { it != "stop" })
         }
 
     private suspend fun controllerPrepared(rig: Rig) = rig.prepare("a")
