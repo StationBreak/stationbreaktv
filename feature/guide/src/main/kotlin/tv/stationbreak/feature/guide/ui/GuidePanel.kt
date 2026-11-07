@@ -55,8 +55,8 @@ private val ProgressRadius = (2f / 1.5f).dp
 
 // One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
 // ellipsis reads better than one clipped mid-line.
-// Each of the episode line and the meta line takes one of them.
-private const val OVERVIEW_LINES_BASE = 2
+private const val OVERVIEW_LINES_WITH_EPISODE = 1
+private const val OVERVIEW_LINES = 2
 private val OVERVIEW_LINE_HEIGHT = 24.sp
 private const val DESCRIBE_AFTER_MS = 150L
 
@@ -164,7 +164,7 @@ private fun ColumnScope.PanelLines(
     TimeRow(cell, nowMs, onNow, copy)
     if (onNow && cell.kind == CellKind.Program) Progress(cell.startMs, cell.endMs, nowMs)
     details.item?.overview?.takeIf { describe }?.let {
-        Overview(it, OVERVIEW_LINES_BASE - listOf(episode, meta).count { line -> line != null })
+        Overview(it, if (episode != null) OVERVIEW_LINES_WITH_EPISODE else OVERVIEW_LINES)
     }
 }
 
