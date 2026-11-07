@@ -100,6 +100,19 @@ sealed interface PlayNote {
 }
 
 /**
+ * What became of the warm standby at a tune (spec 24): [warm] is true when the play was a hand-over to it, and then
+ * [reason] is [WarmReason.None]. [ageMs] is how long the standby had been ready (0 when the tune had none) and
+ * [readyMs] how long it took to become ready (0 if it never did). Numbers and a fixed name only: it feeds the SBLIVE
+ * lines.
+ */
+data class WarmUse(
+    val warm: Boolean,
+    val reason: WarmReason,
+    val ageMs: Long,
+    val readyMs: Long,
+)
+
+/**
  * An item resolved ahead of time by [TuneController.preResolve], to be played by [TuneController.tune] without a
  * server round trip. Opaque: it holds the resolved stream, whose URL is a secret. The caller owns it until it is
  * played, discarded, or the controller is closed. What a held handle costs the server, and how long to keep one, is
@@ -112,6 +125,12 @@ class Prepared internal constructor(
 ) {
     /** Set once nothing else need end any encode this handle's play started: a tune adopted it, or stopped it. */
     @Volatile internal var adopted: Boolean = false
+
+    /**
+     * The handle the player issued for this item's standby ([TuneController.warmNext]); null when it holds none. Set
+     * and cleared under the controller's warm lock, together with the controller's record of who holds the standby.
+     */
+    @Volatile internal var warmHandle: String? = null
 
     override fun toString(): String = "Prepared"
 }
@@ -136,7 +155,8 @@ sealed interface TuneResult {
      * before the tracks cost (count, time, bytes, container), also diagnostics only. [notes] are the play's stalls and
      * their ends (at most [MAX_STALL_NOTES] stalls), and complete when [end] does; diagnostics only.
      * [av] times the audio and video start-up steps (diagnostics only). [control] is the transport of this play (pause,
-     * resume, seek, position); it acts on this play's generation only, so it can never touch a newer play.
+     * resume, seek, position); it acts on this play's generation only, so it can never touch a newer play. [warm] is
+     * what became of the warm standby for the attempt that played (spec 24); null only for a result built by hand.
      */
     data class Played(
         val resolved: ResolvedPlayback,
@@ -151,6 +171,7 @@ sealed interface TuneResult {
         val loads: LoadStats? = null,
         val notes: Flow<PlayNote> = emptyFlow(),
         val av: AvTimings? = null,
+        val warm: WarmUse? = null,
     ) : TuneResult
 
     /** A newer tune replaced this one before it finished. */
@@ -197,13 +218,15 @@ sealed interface TuneResult {
  * alone. A [Prepared] handle that the caller drops without [tune], [discard] or [close] keeps
  * its server encode until the server times it out.
  */
-@Suppress("TooManyFunctions") // One controller by decision: tune, stop, close and the attempt steps share its state.
+@Suppress("TooManyFunctions", "LongParameterList") // One controller by decision; one independent input each.
 class TuneController(
     private val resolver: PlaybackResolver,
     private val server: MediaServer,
     private val player: VideoPlayer,
     private val seekTolerance: Duration = SeekCheck.TOLERANCE,
     watchScope: CoroutineScope? = null,
+    private val warm: WarmConfig = WarmConfig(),
+    private val warmSwitches: WarmSwitches = WarmSwitches.None,
     private val clock: () -> Long,
 ) {
     private val ownsScope = watchScope == null
@@ -225,6 +248,12 @@ class TuneController(
 
     /** The [Prepared] handles not yet played or discarded, so [close] can end their encodes. */
     private val outstanding: MutableSet<Prepared> = Collections.newSetFromMap(ConcurrentHashMap())
+
+    /** Guards [holder] and every [Prepared.warmHandle]: who holds the one standby, and under which handle. */
+    private val warmLock = Any()
+
+    /** The prepared handle the player's standby is held for, if any. At most one: exactly one standby exists. */
+    private var holder: Prepared? = null
 
     /**
      * Runs the encode stops, apart from the watch scope. Never cancelled: a stop ends by itself and [close] awaits its
@@ -300,6 +329,87 @@ class TuneController(
     }
 
     /**
+     * Asks the player to warm a standby for [prepared] (spec 24); true when a standby was requested. Only a direct
+     * play handle is warmed, and only when warming is wanted (the tunable and the switches). A handle already played,
+     * discarded or from a closed controller is not. If another handle holds the standby it is dropped first, so exactly
+     * one handle holds it. It resolves nothing: [preResolve] stays resolve-only, so a handle can be warmed later, when
+     * the direction changes. The player issues the handle ([VideoPlayer.warm]); the controller keeps it on [prepared]
+     * and stamps it on the play of that handle in [tune].
+     *
+     * Call it from the thread [tune] plays on (the host's main thread, the player's looper): the player posts a warm
+     * from any other thread, which can land after the play and make it a silent cold mismatch. The controller does no
+     * thread switch of its own here, so that is whatever context the caller runs both in.
+     */
+    fun warmNext(prepared: Prepared): Boolean {
+        val wanted =
+            !closed.get() &&
+                prepared in outstanding &&
+                prepared.resolved.route == Route.DIRECT_PLAY &&
+                warm.warmOn(warmSwitches)
+        return wanted && requestStandby(prepared)
+    }
+
+    private fun requestStandby(prepared: Prepared): Boolean =
+        synchronized(warmLock) {
+            val other = holder?.takeIf { it !== prepared }
+            if (other != null) forgetHeld(other)
+            val handle = player.warm(prepared.resolved.source)
+            val issued = handle != VideoPlayer.NO_WARM_HANDLE
+            if (issued) {
+                if (prepared.warmHandle != handle) WarmLog.line("requested route=direct")
+                prepared.warmHandle = handle
+                holder = prepared
+            }
+            issued
+        }
+
+    /** Drops the standby [prepared] holds, if it holds it and it has not been played. Idempotent. */
+    private fun dropHeld(prepared: Prepared) {
+        synchronized(warmLock) { if (holder === prepared) forgetHeld(prepared) }
+    }
+
+    /** Tells the player to drop [prepared]'s standby and forgets it. Under [warmLock]. */
+    private fun forgetHeld(prepared: Prepared) {
+        val handle = prepared.warmHandle
+        prepared.warmHandle = null
+        if (holder === prepared) holder = null
+        if (handle != null) player.dropWarm(handle)
+    }
+
+    /**
+     * Takes [prepared]'s handle for its play: the key to stamp on the source, or null when it holds none. The standby
+     * is the player's from here (a play with the key consumes it), so the controller no longer holds it.
+     */
+    private fun takeWarmKey(prepared: Prepared?): String? =
+        prepared?.let {
+            synchronized(warmLock) {
+                it.warmHandle.also { _ ->
+                    it.warmHandle = null
+                    if (holder === it) holder = null
+                }
+            }
+        }
+
+    /** True when warming is wanted: the tunable and the switches. */
+    private fun masterOn(): Boolean = warm.warmOn(warmSwitches)
+
+    /**
+     * Why a play given no warm key was cold, decided before the play (spec 24): `Transcode` when it does not play
+     * direct, `Disabled` when warming is not wanted, `WrongDirection` when a standby is held for another handle or this
+     * handle was never warmed, `NoHandle` when there was no prepared handle at all.
+     */
+    private fun coldReason(
+        resolved: ResolvedPlayback,
+        prepared: Prepared?,
+    ): WarmReason =
+        when {
+            resolved.route != Route.DIRECT_PLAY -> WarmReason.Transcode
+            !masterOn() -> WarmReason.Disabled
+            prepared != null || synchronized(warmLock) { holder != null } -> WarmReason.WrongDirection
+            else -> WarmReason.NoHandle
+        }
+
+    /**
      * Plays [prepared] with no resolve call. If its play breaks, the normal fallback applies and that re-resolves.
      *
      * A handle is gone once it is passed here, whatever the result: the call takes it on entry, and if the tune ends
@@ -329,13 +439,17 @@ class TuneController(
                     // the server never runs two encodes of the item while the user waits. This one stop is awaited
                     // (the others are not). Handled, so the finally below does not stop it again.
                     prepared.adopted = true
+                    dropHeld(prepared)
                     stopEncodeNow(session, prepared.resolved)
                 }
                 tuneWith(session, prepared.item, start ?: prepared.start, override, null)
             }
         } finally {
             // A play that began owns the encode now (it is the current attempt); otherwise nothing will end it.
-            if (taken && !prepared.adopted) stopEncode(session, prepared.resolved)
+            if (taken && !prepared.adopted) {
+                dropHeld(prepared)
+                stopEncode(session, prepared.resolved)
+            }
         }
     }
 
@@ -347,7 +461,10 @@ class TuneController(
         session: Session,
         prepared: Prepared,
     ) {
-        if (outstanding.remove(prepared)) stopEncode(session, prepared.resolved)
+        if (outstanding.remove(prepared)) {
+            dropHeld(prepared)
+            stopEncode(session, prepared.resolved)
+        }
     }
 
     /**
@@ -395,7 +512,13 @@ class TuneController(
                 current = resolved
                 ready.adopted = true
                 currentCoroutineContext().ensureActive()
-                play(resolved, began, false)
+                // A cancel above leaves the standby held; the tune()'s clean-up drops it. From here the player owns it.
+                val key = takeWarmKey(ready)
+                if (key == null) {
+                    play(resolved, began, false, coldReason(resolved, ready))
+                } else {
+                    play(resolved.copy(source = resolved.source.copy(warmKey = key)), began, false, null)
+                }
             } else {
                 attempt(session, item, start, override, false, began)
             }
@@ -424,6 +547,7 @@ class TuneController(
                     attempt.loads,
                     attempt.notes,
                     attempt.av,
+                    attempt.warm,
                 )
             }
 
@@ -514,6 +638,7 @@ class TuneController(
         val loads: LoadStats?,
         val notes: Flow<PlayNote>,
         val av: AvTimings?,
+        val warm: WarmUse,
     ) : Attempt {
         override fun fallbackCause() = FallbackCause.SeekMiss
     }
@@ -577,13 +702,15 @@ class TuneController(
         // A stop or a newer tune during the resolve must not be followed by a play.
         currentCoroutineContext().ensureActive()
         current = resolved
-        return play(resolved, began, forceTranscode)
+        return play(resolved, began, forceTranscode, coldReason(resolved, null))
     }
 
+    /** [cold] is why the play carries no warm key (decided before it); null when [resolved]'s source has one. */
     private suspend fun play(
         resolved: ResolvedPlayback,
         began: Long,
         forceTranscode: Boolean,
+        cold: WarmReason?,
     ): Attempt {
         // A cancel mid-wait is cleaned up by run().
         return when (val result = playAndWait(resolved.source)) {
@@ -597,7 +724,7 @@ class TuneController(
             }
 
             is Wait.Landed -> {
-                landed(resolved, result, began, forceTranscode)
+                landed(resolved, result, began, forceTranscode, cold)
             }
         }
     }
@@ -619,6 +746,7 @@ class TuneController(
         landing: Wait.Landed,
         began: Long,
         forced: Boolean,
+        cold: WarmReason?,
     ): Attempt {
         val actual = landing.playing.position
         val verdict = SeekCheck.check(resolved.requested, actual, seekTolerance)
@@ -636,8 +764,23 @@ class TuneController(
             loads = landing.loads,
             notes = landing.notes,
             av = landing.playing.av?.copy(playCallMs = landing.playCalledAt - began),
+            warm = warmUse(cold, landing.warmOutcome),
         )
     }
+
+    /**
+     * What became of the standby for the play that landed: the player's [outcome] when the play carried a key; else
+     * the controller's own [cold] reason. A keyed play whose player said nothing is a cold mismatch, never a swap.
+     */
+    private fun warmUse(
+        cold: WarmReason?,
+        outcome: WarmOutcome?,
+    ): WarmUse =
+        when {
+            cold != null -> WarmUse(false, cold, 0, 0)
+            outcome == null -> WarmUse(false, WarmReason.Mismatch, 0, 0)
+            else -> WarmUse(outcome.swapped, outcome.reason, outcome.ageMs, outcome.readyMs)
+        }
 
     private sealed interface Wait {
         data object TimedOut : Wait
@@ -657,6 +800,7 @@ class TuneController(
             val loads: LoadStats?,
             val notes: Flow<PlayNote>,
             val playCalledAt: Long,
+            val warmOutcome: WarmOutcome?,
         ) : Wait
     }
 
@@ -671,6 +815,7 @@ class TuneController(
             val generation = CompletableDeferred<Long>()
             val outcome = CompletableDeferred<PlayerEvent>()
             val firstFrame = CompletableDeferred<PlayerEvent.FirstFrame>()
+            val decided = AtomicReference<WarmOutcome?>(null)
             val tracksAt = AtomicLong(NO_TIME)
             val loads = AtomicReference<LoadStats?>(null)
             // Before play(), like the listener, so the end of this play cannot be missed.
@@ -683,6 +828,10 @@ class TuneController(
                         when (event) {
                             is PlayerEvent.FirstFrame -> {
                                 firstFrame.complete(event)
+                            }
+
+                            is PlayerEvent.WarmDecided -> {
+                                decided.compareAndSet(null, event.outcome)
                             }
 
                             is PlayerEvent.TracksReady -> {
@@ -721,6 +870,7 @@ class TuneController(
                                 loads.get(),
                                 watch.notes,
                                 playCalledAt,
+                                decided.get(),
                             )
                         }
 

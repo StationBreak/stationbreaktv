@@ -123,10 +123,13 @@ internal class FakeVideoPlayer : VideoPlayer {
     /** The sources [warm] was given, in order; the handle of each is `w` and its 1-based place. */
     val warmed = mutableListOf<PlayerSource>()
 
+    /** The handle [warm] answers; null issues `w<n>` as the real player does. */
+    var warmAnswer: String? = null
+
     override fun warm(source: PlayerSource): String {
         warmed += source
         calls += "warm"
-        return "w${warmed.size}"
+        return warmAnswer ?: "w${warmed.size}"
     }
 
     override fun dropWarm(key: String) {
