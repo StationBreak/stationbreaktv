@@ -434,8 +434,8 @@ internal class Sitting(
         visiting: Visiting,
     ): Exit? {
         val block = onAir.now
-        // A program the library no longer has cannot be tuned: straight to the slate.
-        if (program.info == null) return deadItem(scope, onAir, program.itemId)
+        // A program the library no longer has, and nothing fills: the card with its reason, to the block's end.
+        if (program.info == null) return goneItem(scope, onAir, program.itemId)
         var cut = handle
         // One retry for the block, whichever play (live or behind) takes it.
         val retries = BlockRetries()
@@ -654,17 +654,21 @@ internal class Sitting(
         }
     }
 
-    /** The ident card until [untilMs], with "up next" from [onAir]: a gap, or a show that ended early. Stops first. */
+    /**
+     * The ident card until [untilMs], with "up next" from [onAir]: a gap, or a show that ended early. Stops first.
+     * [note] says why, when the card has a reason to give.
+     */
     suspend fun holdIdent(
         scope: CoroutineScope,
         onAir: ChannelOnAir,
         untilMs: Long,
+        note: CardNote? = null,
     ): Exit? {
         // Worked out before the stop: the card must follow the stop at once, not after a look at the schedule.
         val up = upNext(onAir)
         tuner.stop(session)
         heldBlockStartMs = null
-        state.value = LiveState.Ident(up, onAir.tag())
+        state.value = LiveState.Ident(up, onAir.tag(), note)
         // A card with no picture also looks ahead, so a flip off it is not a fresh tune (#392).
         onSettled(scope, false)
         waitUntil(untilMs)

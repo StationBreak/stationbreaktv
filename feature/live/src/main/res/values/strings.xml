@@ -13,6 +13,8 @@
     <!-- The StationBreak ident card: the app icon's wordmark, on two lines. -->
     <string name="live_ident_station" translatable="false">STATION</string>
     <string name="live_ident_break" translatable="false">BREAK</string>
+    <!-- DESIGN(#633): placeholder. The ident card's line when the programme on now left the library and nothing fills the slot. -->
+    <string name="live_card_not_in_library">This programme is no longer in the library. Back soon with the next one.</string>
     <string name="live_no_channels">No channels on the air yet</string>
 
     <!-- The banner's label line. -->

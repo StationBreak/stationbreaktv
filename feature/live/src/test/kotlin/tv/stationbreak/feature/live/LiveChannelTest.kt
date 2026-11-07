@@ -552,17 +552,17 @@ class LiveChannelTest {
         }
 
     @Test
-    fun aBlockWithNoInfoGoesStraightToTheSlateWithoutATune() =
+    fun aBlockWithNoInfoGoesStraightToTheCardWithoutATune() =
         runTest {
             val r = Rig(this, startMin = 10)
             r.schedule.channel(CH7, 7, listOf(program(0, 60, 1, info = null), program(60, 120, 2)))
             r.start()
             assertTrue(r.tunes.none { it.item == itemOf(1) })
-            val (state, callsThen) = r.states.first { it.first is LiveState.TechnicalDifficulties }
-            assertIs<LiveState.TechnicalDifficulties>(state)
+            val (state, callsThen) = r.states.first { (it.first as? LiveState.Ident)?.note != null }
+            assertEquals(CardNote.NotInLibrary, assertIs<LiveState.Ident>(state).note)
             assertIs<Call.Stop>(r.tune.calls[callsThen - 1])
             r.at(3_000)
-            assertEquals(listOf(id(1)), r.schedule.standInCalls.map { it.second.single() })
+            assertTrue(r.schedule.standInCalls.isEmpty())
         }
 
     // ---- drift ----
