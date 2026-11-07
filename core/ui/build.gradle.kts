@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
+import java.util.Locale
+
 plugins {
     id("stationbreak.android-lib")
     id("stationbreak.compose")
@@ -24,22 +26,26 @@ dependencies {
 }
 
 // FontManifestTest scans every module for font and licence files. Declare what it scans as inputs so a cached test
-// result cannot hide a font that was added elsewhere.
+// result cannot hide a font that was added elsewhere. The test matches font extensions in any case (Foo.TTF counts),
+// so the inputs do too; plain include patterns are case-sensitive.
+val fontExtensions = setOf("ttf", "otf", "ttc", "woff", "woff2")
 tasks.withType<Test>().configureEach {
     inputs
         .files(
             fileTree(rootDir) {
-                include(
-                    "**/src/**/*.ttf",
-                    "**/src/**/*.otf",
-                    "**/src/**/*.ttc",
-                    "**/src/**/*.woff",
-                    "**/src/**/*.woff2",
-                    "**/src/*/assets/**/licenses/**",
-                    "core/ui/fonts.sha256",
-                )
+                include { element ->
+                    val segments = element.relativePath.segments
+                    // Keep walking directories; the excludes below still prune dot-folders and build output.
+                    element.isDirectory ||
+                        (
+                            "src" in segments.dropLast(1) &&
+                                element.name.substringAfterLast('.', "").lowercase(Locale.ROOT) in fontExtensions
+                        )
+                }
+                include("**/src/*/assets/**/licenses/**", "core/ui/fonts.sha256")
                 exclude("**/build/**", "**/.*/**")
             },
         ).withPathSensitivity(PathSensitivity.RELATIVE)
+        .ignoreEmptyDirectories()
         .withPropertyName("fontManifestScan")
 }
