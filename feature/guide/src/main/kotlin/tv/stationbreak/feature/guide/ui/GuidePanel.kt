@@ -55,8 +55,8 @@ private val ProgressRadius = (2f / 1.5f).dp
 
 // One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
 // ellipsis reads better than one clipped mid-line.
-private const val OVERVIEW_LINES_WITH_EPISODE = 1
-private const val OVERVIEW_LINES = 2
+// Each of the episode line and the meta line takes one of them.
+private const val OVERVIEW_LINES_BASE = 2
 private val OVERVIEW_LINE_HEIGHT = 24.sp
 private const val DESCRIBE_AFTER_MS = 150L
 
@@ -120,6 +120,9 @@ private fun ColumnScope.PanelLines(
     val copy = programCopy()
     val cell = details.cell
     val episode = remember(cell, copy) { episodeLine(cell, copy) }
+    val metaCopy = metaCopy()
+    val item = details.item
+    val meta = remember(item, metaCopy) { item?.let { metaLine(it.year, it.runtime, it.genres, metaCopy) } }
     val colors = LocalGuideColors.current
     Text(
         text = channelLine(details.channelNumber, details.channelName),
@@ -147,11 +150,21 @@ private fun ColumnScope.PanelLines(
             overflow = TextOverflow.Ellipsis,
         )
     }
+    meta?.let {
+        Text(
+            text = it,
+            modifier = Modifier.testTag(GuideTags.PANEL_META),
+            style = guideText(17.sp, FontWeight.Medium),
+            color = colors.textSupporting,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
     val onNow = cell.startMs <= nowMs && nowMs < cell.endMs
     TimeRow(cell, nowMs, onNow, copy)
     if (onNow && cell.kind == CellKind.Program) Progress(cell.startMs, cell.endMs, nowMs)
     details.item?.overview?.takeIf { describe }?.let {
-        Overview(it, if (episode != null) OVERVIEW_LINES_WITH_EPISODE else OVERVIEW_LINES)
+        Overview(it, OVERVIEW_LINES_BASE - listOf(episode, meta).count { line -> line != null })
     }
 }
 

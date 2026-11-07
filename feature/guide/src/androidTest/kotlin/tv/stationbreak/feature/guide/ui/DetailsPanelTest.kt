@@ -24,6 +24,7 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * The details panel while the focus moves (spec 17): the title and the time follow every move at once, and the
@@ -65,6 +66,33 @@ class DetailsPanelTest {
     private fun show(details: CellDetails) {
         panel.value = details
         compose.mainClock.advanceTimeByFrame()
+    }
+
+    private fun meta() = compose.onNodeWithTag(GuideTags.PANEL_META, useUnmergedTree = true)
+
+    private fun withItem(item: ItemDetails?): CellDetails {
+        val cell = GuideCell(0, 30 * MIN, CellKind.Program, "Program 0", null, null)
+        return CellDetails(cell, 7, "Seven", item, loading = false)
+    }
+
+    @Test
+    fun theMetaLineShowsWithTheItemWithoutWaitingForTheDescription() {
+        val item = ItemDetails(ItemId("item-meta"), "About", 2018, listOf("Animation", "Family", "Kids"), 7.minutes)
+        show(withItem(item))
+        assertEquals("2018 · 7 min · Animation, Family", text(GuideTags.PANEL_META))
+        overview().assertDoesNotExist()
+        assertEquals("Program 0", text(GuideTags.PANEL_TITLE))
+        compose.onNodeWithTag(GuideTags.PANEL_TIME, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun noMetaLineWithoutAnItemOrWithAnEmptyOne() {
+        show(withItem(null))
+        meta().assertDoesNotExist()
+        show(withItem(ItemDetails(ItemId("item-bare"), "About", null, emptyList(), null)))
+        meta().assertDoesNotExist()
+        assertEquals("Program 0", text(GuideTags.PANEL_TITLE))
+        compose.onNodeWithTag(GuideTags.PANEL_TIME, useUnmergedTree = true).assertExists()
     }
 
     private fun overview() = compose.onNodeWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true)

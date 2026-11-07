@@ -13,6 +13,7 @@ object GuideTags {
     const val PANEL_CHANNEL = "guide:panel:channel"
     const val PANEL_TITLE = "guide:panel:title"
     const val PANEL_EPISODE = "guide:panel:episode"
+    const val PANEL_META = "guide:panel:meta"
     const val PANEL_TIME = "guide:panel:time"
     const val PANEL_PROGRESS = "guide:panel:progress"
     const val PANEL_OVERVIEW = "guide:panel:overview"
