@@ -190,6 +190,7 @@ internal class CountingLibrary(
     var scheduleItemsCalls = 0
     var programInfoCalls = 0
     var currentIdsCalls = 0
+    var scheduleItemsOfCalls = 0
 
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
@@ -223,6 +224,15 @@ internal class CountingLibrary(
     ): Set<CanonicalId> {
         currentIdsCalls++
         return delegate.currentIds(account, ids)
+    }
+
+    override suspend fun scheduleItemsOf(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+        cutoffMs: Long,
+    ): List<ScheduleItem> {
+        scheduleItemsOfCalls++
+        return delegate.scheduleItemsOf(account, ids, cutoffMs)
     }
 
     fun seed(vararg items: RuleItem) = delegate.seedRule(ACCOUNT, *items)

@@ -177,13 +177,18 @@ class PersistedDays internal constructor(
         }
     }
 
-    /** Writes [days], built under [key], and deletes the account's files of older days. True when written. */
+    /**
+     * Writes [days], built under [key], and deletes the account's files of older days. True when written. What is
+     * written is each day's build (its pool, films, empty reason and weights), never its repair record (spec 26): a
+     * repaired or fixed day is written as it was built, and the record is laid over it again when it is read. A set
+     * holding a repaired day with no build ([ChannelDay.built] false) is skipped: not written, and not a failure.
+     */
     internal suspend fun save(
         account: LibraryAccount,
         key: DayKey,
         days: List<ChannelDay>,
     ): Boolean {
-        if (!enabled || key in failed) return false
+        if (!enabled || key in failed || days.any { !it.built }) return false
         val began = TimeSource.Monotonic.markNow()
         // The days in the key's own order, each found by its channel's ID: days that are not the key's channels are
         // not written (DaySnapshotCodec.encode checks the order again).

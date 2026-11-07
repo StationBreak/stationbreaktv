@@ -111,6 +111,18 @@ class InMemoryLibraryRepository : LibraryRepository {
         noteContentChange(account)
     }
 
+    /** Marks the rows saved with [seed] for [ids] deleted, as a sync that finds them gone does. */
+    fun tombstone(
+        account: LibraryAccount,
+        ids: List<ItemId>,
+    ) {
+        val wanted = ids.toSet()
+        rows.replaceAll {
+            if (it.account == account && it.item.id in wanted) Row(it.account, it.library, it.item, true) else it
+        }
+        noteContentChange(account)
+    }
+
     /**
      * Saves [items] as the versions [scheduleItems] reads for [account] under [library]. The fake keeps no history:
      * what is seeded is what every cut-off sees, except that an item with a `deletedAtMs` before the cut-off is left
@@ -315,6 +327,25 @@ class InMemoryLibraryRepository : LibraryRepository {
             collections = collections,
             collectionsSynced = account in collectionsSynced,
         )
+    }
+
+    /**
+     * What [scheduleItems] gives at the cut-off over every library of [account], narrowed to [ids]. The fake keeps no
+     * history, so the fields are those seeded.
+     */
+    override suspend fun scheduleItemsOf(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+        cutoffMs: Long,
+    ): List<ScheduleItem> {
+        if (ids.isEmpty()) return emptyList()
+        val libraries = HashSet<ItemId>()
+        held.filter { it.account == account }.mapTo(libraries) { it.library }
+        rows.filter { it.account == account }.mapTo(libraries) { it.library }
+        return heldItems(account, libraries, Instant.fromEpochMilliseconds(cutoffMs))
+            .map { it.item }
+            .filter { it.id in ids }
+            .distinctBy { it.id }
     }
 
     private fun SeriesRow.keptAt(cutoffMs: Long) = (deletedAtMs ?: Long.MAX_VALUE) >= cutoffMs

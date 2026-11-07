@@ -149,6 +149,7 @@ class LineupCodecV4Test {
             listOf(
                 "CollectionsNotSynced",
                 "HouseholdCollectionsOff",
+                "LibraryNotChosen",
                 "NoMatches",
                 "NothingMadeForKids",
                 "ChildrensRatingsOnly",

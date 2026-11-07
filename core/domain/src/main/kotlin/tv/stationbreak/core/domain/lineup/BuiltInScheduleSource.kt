@@ -23,6 +23,7 @@ import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.ExtrasFilter
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -30,6 +31,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
+import tv.stationbreak.core.model.schedule.ScheduleItem
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Instant
@@ -87,6 +89,14 @@ import kotlin.time.TimeSource
  * snapshots are no longer held. A cold build writes its days there afterwards, in this source's scope and on
  * [saveDispatcher] (background priority), without holding up the callers. A miss of any kind is an ordinary build.
  *
+ * The per-TV repair record (spec 26, `Revisioned.repairs`) is laid over the days however they were made (built, taken
+ * over or restored): a repaired channel day is its record's composed day, made with no snapshot read (its cut-off is
+ * read only when another day of the build needs it, and then its unrepaired build is made too, from the snapshot in
+ * hand); a recorded fix patches its block on any day. The record keeps the lineup's revision, so the key and each
+ * day's input carry its digest per channel day, and a change of it builds that channel's day alone. What is written to
+ * disk is always the unrepaired build; a set with a repaired day that has none is not written. On a repaired day the
+ * naming fill and the stand-ins read the tail pool, by id (`scheduleItemsOf`), once and only for a gone block.
+ *
  * Main-safe: [airings], [onAir], [schedule] and [standIns] do their work on [dispatcher] (default:
  * `Dispatchers.Default`), so building a day never runs on, or blocks, the caller's thread.
  */
@@ -109,13 +119,16 @@ class BuiltInScheduleSource(
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ScheduleSource {
     // What a set of built days depends on (see the class comment): never the revision, nor any number or name that
-    // changes no pool. [planned] stands for the library's state: a refresh after a change records a new one.
+    // changes no pool. [planned] stands for the library's state: a refresh after a change records a new one. [records]
+    // are the digests of the days' repair records (spec 26) by channel, only those that have one: the record keeps the
+    // revision, so a change of it is a new key, and of that channel's day input alone (the rest are taken over).
     private data class Key(
         val account: LibraryAccount,
         val libraries: Set<ItemId>,
         val inputs: String,
         val planned: Long?,
         val cuts: List<Cut>,
+        val records: Map<ChannelId, String>,
     ) {
         val cutoffs: List<Long> get() = cuts.map { it.cutoffMs }.distinct()
     }
@@ -223,7 +236,8 @@ class BuiltInScheduleSource(
     ): Lookup {
         val cuts = scheduled.map { it.cut }.distinct().sorted()
         val inputs = inputsOf(held.lineup, held.meta.extrasFromMs)
-        val key = Key(account, libraries, inputs.digest, held.meta.plannedGeneration, cuts)
+        val records = held.repairs.digestsFor(scheduled)
+        val key = Key(account, libraries, inputs.digest, held.meta.plannedGeneration, cuts, records)
         return Lookup(held, scheduled, key, inputs.ms)
     }
 
@@ -258,7 +272,7 @@ class BuiltInScheduleSource(
     override suspend fun airings(at: Instant): List<ChannelAiring> =
         withContext(dispatcher) {
             val (account, chosen) = signedIn() ?: return@withContext emptyList()
-            channelDays(account, chosen, at).map { it.airing() }
+            channelDays(account, chosen, at).map { it.airing(at.toEpochMilliseconds()) }
         }
 
     private suspend fun signedIn(): Pair<LibraryAccount, Set<ItemId>>? {
@@ -275,7 +289,9 @@ class BuiltInScheduleSource(
         require(next >= 0) { "Cannot ask for a negative number of next blocks" }
         return withContext(dispatcher) {
             val (account, chosen) = signedIn() ?: return@withContext null
-            val today = channelDays(account, chosen, at).firstOrNull { it.channel.id == channel && it.hidden == null }
+            val atMs = at.toEpochMilliseconds()
+            val today =
+                channelDays(account, chosen, at).firstOrNull { it.channel.id == channel && it.hiddenAt(atMs) == null }
             today?.let { onAirOf(account, chosen, it, at, next) }
         }
     }
@@ -308,7 +324,8 @@ class BuiltInScheduleSource(
 
                 else -> {
                     val reading = WindowRead(account, chosen, build, first.held.revision)
-                    windowOf(reading, days.filter { it.hidden == null }, from, until)
+                    val fromMs = from.toEpochMilliseconds()
+                    windowOf(reading, days.filter { it.hiddenAt(fromMs) == null }, from, until)
                 }
             }
         }
@@ -352,7 +369,7 @@ class BuiltInScheduleSource(
             laid.mapIndexed { i, (today, builtUntilMs, blocks) ->
                 // A row that stops short of the window (or of what is built) lacks a day: not built, kept or laid out.
                 if ((blocks.lastOrNull()?.block?.endMs ?: fromMs) < minOf(untilMs, builtUntilMs)) complete = false
-                ChannelRow(today.airing(), named[i], builtUntilMs)
+                ChannelRow(today.airing(fromMs), named[i], builtUntilMs)
             }
         return ScheduleWindow(rows, complete)
     }
@@ -434,12 +451,13 @@ class BuiltInScheduleSource(
         block: AiringBlock,
         exclude: Set<CanonicalId>,
     ): List<AiringBlock> {
-        val ids = day.pool.mapTo(HashSet()) { it.id }
+        val pool = dayPoolOf(account, day)
+        val ids = pool.mapTo(HashSet()) { it.id }
         // A pool item with no current row is gone from the library: never a stand-in (a liveness read, not names).
         val live = if (ids.isEmpty()) emptySet() else library.currentIds(account, ids)
         val barred = exclude + (ids - live)
         val length = block.endMs - block.startMs
-        val picked = StandIn.pick(day.settings, day.n, day.pool, block.startMs, length, barred)
+        val picked = StandIn.pick(day.settings, day.n, pool, block.startMs, length, barred)
         val info = if (picked.isEmpty()) emptyMap() else library.programInfo(account, picked.mapTo(HashSet()) { it.id })
         var cursor = block.startMs
         val laid = ArrayList<AiringBlock>()
@@ -471,7 +489,7 @@ class BuiltInScheduleSource(
         // A fill splits a block in pieces: what is on air is the piece that holds `at`, and only what follows it.
         val first = airings.indexOfFirst { atMs < it.endMs }.coerceAtLeast(0)
         val ahead = airings.drop(first)
-        return ChannelOnAir(today.airing(), ahead.first(), ahead.drop(1).take(next), builtUntilMs)
+        return ChannelOnAir(today.airing(atMs), ahead.first(), ahead.drop(1).take(next), builtUntilMs)
     }
 
     /** A block of a day's layout with the day it belongs to (its pool is what fills it, if it is gone). */
@@ -482,10 +500,18 @@ class BuiltInScheduleSource(
         fun itemId(): CanonicalId? = (block.content as? ScheduleContent.Program)?.itemId
     }
 
+    /** [day]'s day pool ([ChannelDay.dayPool]): on a repaired day the tail pool, read by id on first use only. */
+    private suspend fun dayPoolOf(
+        account: LibraryAccount,
+        day: ChannelDay,
+    ): List<ScheduleItem> = day.dayPool { ids, cutoffMs -> library.scheduleItemsOf(account, ids, cutoffMs) }
+
     /**
      * The airings of each group of [groups], named with one `programInfo` read over every item. A block whose item has
-     * no current row is gone: it is replaced by [GapFill] programmes from its day's pool, and what they do not cover
-     * stays as an unnamed remainder of the gone item. With no gone block that is all that is read.
+     * no current row is gone: it is replaced by [GapFill] programmes from its day's pool ([ChannelDay.dayPool]), and
+     * what they do not cover stays as an unnamed remainder of the gone item. With no gone block that is all that is
+     * read. The unnamed rest of a recorded fix ([ChannelDay.fixRemainders]) is never filled again, and a gone block
+     * inside a recorded fix is filled without that fix's pieces ([fillExclusions]).
      */
     private suspend fun naming(
         account: LibraryAccount,
@@ -499,10 +525,18 @@ class BuiltInScheduleSource(
         val picks = HashMap<Laid, List<FillPiece>>()
         for (laid in gone) {
             val day = laid.day
-            val pool = day.pool
+            val startMs = laid.block.startMs
+            if (startMs in day.fixRemainders) continue
+            val pool = dayPoolOf(account, day)
             val liveIds = live.getOrPut(day) { library.currentIds(account, pool.mapTo(HashSet()) { it.id }) }
             val goneId = (laid.block.content as ScheduleContent.Program).itemId
-            val exclude = fillExclusions(pool, liveIds, goneId, fixPieces = emptySet())
+            val fixPieces =
+                day.record
+                    ?.fixHolding(startMs)
+                    ?.pieces
+                    ?.mapNotNullTo(HashSet()) { it.itemId }
+                    .orEmpty()
+            val exclude = fillExclusions(pool, liveIds, goneId, fixPieces)
             picks[laid] =
                 GapFill.pick(day.channel.id, pool, laid.block.startMs, laid.block.endMs, exclude) {
                     day.settings.isAirable(it.runtimeMs, it.kind)
@@ -750,10 +784,12 @@ class BuiltInScheduleSource(
                     scheduled,
                 )
             val look = disk != null && shouldLook(account, key, generation)
-            val restored = if (look) fromDisk(account, disk, scheduled, checkpoint) else null
+            // The record is laid over the days however they were made: restored, taken over or built (spec 26).
+            val records = wanted.held.repairs.recordsFor(scheduled)
+            val restored = if (look) fromDisk(account, disk, scheduled, checkpoint, records) else null
             val diskMs = if (look) began.elapsedNow().inWholeMilliseconds else -1L
             val reuseBegan = TimeSource.Monotonic.markNow()
-            val dayInputs = days.dayInputsOf(lineup, scheduled, atMs)
+            val dayInputs = days.dayInputsOf(lineup, scheduled, atMs, key.records)
             if (restored != null) {
                 keep(key, restored, epoch, generation, dayInputs)
                 reportDisk(wanted, diskMs, restored.size, before, allocBefore)
@@ -766,7 +802,8 @@ class BuiltInScheduleSource(
             val reuseMs = reuseBegan.elapsedNow().inWholeMilliseconds
             val snapshotsBegan = TimeSource.Monotonic.markNow()
             val outcomes = ArrayList<SnapshotCache.Found>()
-            val read = snapshotsFor(account, key, generation, checkpoint, outcomes, cutsToRead(scheduled, reused.keys))
+            val (cuts, unbuilt) = cutsAndUnbuilt(scheduled, reused.keys, records)
+            val read = snapshotsFor(account, key, generation, checkpoint, outcomes, cuts)
             val afterSnapshots = Probed(probes)
             val snapshotsMs = snapshotsBegan.elapsedNow().inWholeMilliseconds
             checkpoint()
@@ -777,9 +814,19 @@ class BuiltInScheduleSource(
             val done = ArrayList<ChannelDay>()
             val result =
                 try {
-                    days.days(lineup, scheduled, read.plain, read.filtered, checkpoint, reused, { done += it }) {
-                        evaluations++
-                    }
+                    val built =
+                        days.days(
+                            lineup,
+                            scheduled,
+                            read.plain,
+                            read.filtered,
+                            checkpoint,
+                            reused,
+                            { done += it },
+                            unbuilt,
+                            key.libraries,
+                        ) { evaluations++ }
+                    recorded(built, records)
                 } catch (stale: StaleBuild) {
                     keep(key, done, epoch, generation, dayInputs, whole = false)
                     throw stale
@@ -825,6 +872,37 @@ class BuiltInScheduleSource(
         }
     }
 
+    /** [built] with each day's record laid over it (none: as built). */
+    private fun recorded(
+        built: List<ChannelDay>,
+        records: Map<ChannelId, DayRecord>,
+    ): List<ChannelDay> = if (records.isEmpty()) built else built.map { it.withRecord(records[it.channel.id]) }
+
+    /**
+     * The cuts a build reads ([cutsToRead]) and the repaired days it makes from their record alone, with no build: a
+     * repaired day not taken over whose cut no other day of the build needs (for a leftovers channel: unless every cut
+     * is read anyway). A repaired day whose cut is read anyway is built too, from the snapshot in hand (pool work, no
+     * read), so the leftovers claim from it as ever and the set written to disk is the unrepaired build, byte for byte.
+     */
+    private fun cutsAndUnbuilt(
+        scheduled: List<Scheduled>,
+        reused: Set<ChannelId>,
+        records: Map<ChannelId, DayRecord>,
+    ): Pair<List<Cut>, Set<ChannelId>> {
+        val repaired = records.filterValues { it.repair != null }.keys - reused
+        if (repaired.isEmpty()) return cutsToRead(scheduled, reused) to emptySet()
+        val cuts = cutsToRead(scheduled, reused + repaired)
+        // A leftovers day claims from every cut, so it is built only when every cut is read anyway.
+        val every = scheduled.mapTo(HashSet()) { it.cut }
+        val unbuilt =
+            scheduled
+                .filter { s ->
+                    val needs = if (s.channel.source is ChannelSource.Leftovers) every else setOf(s.cut)
+                    s.channel.id in repaired && !cuts.containsAll(needs)
+                }.mapTo(HashSet()) { it.channel.id }
+        return cuts to unbuilt
+    }
+
     /** The revision of [account]'s current lineup if its days at [atMs] are still [key]'s; null when they are not. */
     private fun stillWanted(
         account: LibraryAccount,
@@ -856,19 +934,20 @@ class BuiltInScheduleSource(
     }
 
     /**
-     * The days of [disk] from [persisted], or null for none (no key, or a miss of any kind). A build that went stale
-     * while the file was read stops at [checkpoint], as any other.
+     * The days of [disk] from [persisted] with [records] laid over them, or null for none (no key, or a miss of any
+     * kind). A build that went stale while the file was read stops at [checkpoint], as any other.
      */
     private suspend fun fromDisk(
         account: LibraryAccount,
         disk: DayKey?,
         scheduled: List<Scheduled>,
         checkpoint: () -> Unit,
+        records: Map<ChannelId, DayRecord>,
     ): List<ChannelDay>? {
         if (persisted == null || disk == null) return null
         val restored = persisted.load(account, disk, scheduled, days::restore)
         if (restored != null) checkpoint()
-        return restored
+        return restored?.let { recorded(it, records) }
     }
 
     // Remembered for the next lineup to take over from (#589) and, when [whole] (the build finished), kept under [key];
@@ -882,7 +961,8 @@ class BuiltInScheduleSource(
         whole: Boolean = true,
     ) = synchronized(lock) {
         if (epoch != forgets) return@synchronized
-        remembered.remember(key.account, key.libraries, generation, inputs, result)
+        // A repaired day with no build has nothing a later lineup could take over (it would claim nothing).
+        remembered.remember(key.account, key.libraries, generation, inputs, result.filter { it.built })
         if (!whole) return@synchronized
         kept[key] = result
         while (kept.size > KEPT) kept.remove(kept.keys.first())
@@ -1098,13 +1178,14 @@ internal object ThreadCpu {
         }
 }
 
-private fun ChannelDay.airing() =
+// The day as it airs at [atMs]: its hidden reason is the record's from a repair's pin end ([ChannelDay.hiddenAt]).
+private fun ChannelDay.airing(atMs: Long) =
     ChannelAiring(
         id = channel.id,
         number = checkNotNull(channel.number),
         name = name,
         epochStart = Instant.fromEpochMilliseconds(epochStartMs),
-        hidden = hidden,
+        hidden = hiddenAt(atMs),
         ceilingRank = ceilingRank,
     )
 

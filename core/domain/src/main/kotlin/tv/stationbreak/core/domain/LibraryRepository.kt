@@ -229,6 +229,24 @@ interface LibraryRepository : AccountCache {
     ): RuleSnapshot
 
     /**
+     * The items [ids] as this TV held them before [cutoffMs] (spec 26), whatever library each is in: for each id the
+     * version [scheduleItems] would take at that cut-off (the newest first seen before it, else the oldest held), left
+     * out when that version was deleted before the cut-off, when the scheduler would refuse it (as [scheduleItems]
+     * leaves it out), or when the id is unknown. In canonical-ID order, each id once. So for the same arguments it is
+     * `scheduleItems(account, every library, cutoff)` narrowed to [ids], but read by id (an indexed read, in chunks the
+     * platform SQLite can bind), never the whole library.
+     *
+     * It resolves a repaired day's tail pool (the items its record names) and a repair's recorded tail items: the same
+     * arguments give the same items, so a fill made from them answers the same on every lookup. Empty [ids] read
+     * nothing. Like [scheduleItems] it is for building a day, not for display.
+     */
+    suspend fun scheduleItemsOf(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+        cutoffMs: Long,
+    ): List<ScheduleItem>
+
+    /**
      * The current names of [account]'s collections that are not deleted (spec 12), by ID. A [RuleSnapshot] holds no
      * names, so this is where a collection hint is matched. Each ID is normalised with `CanonicalId.parseOrNull`, and
      * only text that is not an ID at all is left out (the first name wins if two spellings give one ID). This is
