@@ -40,7 +40,8 @@ class NextHandle(
  * if unknown.
  * @property loads what the media loads before the tracks cost (count, time, bytes, container type), null if unknown.
  * @property av when the audio and video start-up steps happened, ms since the play call, null if unknown.
- * @property warm what became of the warm standby for this tune (spec 24), null if the port did not say.
+ * @property warm what became of the warm standby for this tune (spec 24), null if the port did not say. A hand-over
+ *   that then fell back still reports warm, so a flip counts as warm only with `fallback=none`.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,

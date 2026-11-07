@@ -103,7 +103,8 @@ sealed interface PlayNote {
  * What became of the warm standby at a tune (spec 24): [warm] is true when the play was a hand-over to it, and then
  * [reason] is [WarmReason.None]. [ageMs] is how long the standby had been ready (0 when the tune had none) and
  * [readyMs] how long it took to become ready (0 if it never did). Numbers and a fixed name only: it feeds the SBLIVE
- * lines.
+ * lines. A hand-over that then fell back (a seek miss) still reports [warm] true, so the picture that ended up playing
+ * was cold; the tune's fallback says so.
  */
 data class WarmUse(
     val warm: Boolean,
