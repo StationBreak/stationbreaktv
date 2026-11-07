@@ -130,6 +130,12 @@ class TunePortAdapterTest {
         override fun attach(surface: SurfaceView?) = Unit
 
         override fun release() = Unit
+
+        override fun warm(source: PlayerSource): String = "w1"
+
+        override fun dropWarm(key: String) = Unit
+
+        override fun trimMemory(level: Int) = Unit
     }
 
     private class Urls : StreamUrls {

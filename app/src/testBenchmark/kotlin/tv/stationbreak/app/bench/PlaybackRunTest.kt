@@ -35,6 +35,7 @@ import tv.stationbreak.core.playback.VideoPlayer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+@Suppress("TooManyFunctions") // A fake of the whole VideoPlayer: one override per member.
 private class ScriptedPlayer(
     private val scope: CoroutineScope,
 ) : VideoPlayer {
@@ -92,6 +93,12 @@ private class ScriptedPlayer(
     override fun attach(surface: SurfaceView?) = Unit
 
     override fun release() = Unit
+
+    override fun warm(source: PlayerSource): String = "w1"
+
+    override fun dropWarm(key: String) = Unit
+
+    override fun trimMemory(level: Int) = Unit
 }
 
 private class NoUrls : StreamUrls {

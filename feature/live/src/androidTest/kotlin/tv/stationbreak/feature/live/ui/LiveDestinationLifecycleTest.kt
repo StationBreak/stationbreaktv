@@ -119,6 +119,12 @@ class LiveDestinationLifecycleTest {
         override fun release() {
             log += "release#$number"
         }
+
+        override fun warm(source: PlayerSource): String = "w1"
+
+        override fun dropWarm(key: String) = Unit
+
+        override fun trimMemory(level: Int) = Unit
     }
 
     /** A tuner whose close takes [closeMs] (the server's encode stop, slow), and writes "close" when it is done. */
