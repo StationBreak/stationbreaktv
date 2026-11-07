@@ -56,6 +56,8 @@ F1.4 Channel flipping & last-channel recall · F1.5 Playback reporting · F1.6 D
 
 Status 2026-11-03: not met. Firestick runs in [#392](https://github.com/StationBreak/stationbreaktv/issues/392) reach about 20 of 21 under 2 s; a formal 30-flip run per TV is pending. Phase 2 work started while this gate was open.
 
+Status 2026-11-07 (spec 24, [ADR-0024](adr/0024-warm-next-decoder.md)): Firestick speed gate not met. Warming the next channel's decoder was built and measured; on the Firestick its standby costs about 60 MB and trips the system's running-low memory trim, so it ships off by default and [#392](https://github.com/StationBreak/stationbreaktv/issues/392) stays open. Insignia usable floor met: direct flips median 3267 ms and worst 4126 ms (transcode flips, reported only: median 6164 ms, worst 7998 ms).
+
 Cross-device agreement is **not** a gate ([ADR-0002](adr/0002-determinism-scope.md)). It's observed during
 the Phase 2 dogfood with two devices on the same account.
 
