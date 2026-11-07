@@ -114,11 +114,11 @@ their selection and library state match. A day gives the same answer to every lo
 ### 6. Lineup file version 4, and the size rule
 
 The repair record is a new optional `repairs` object in the lineup file. The file is **version 4 only while a record is
-held**: a repair, a fix, or `lastSeq`, the highest selection seq ever recorded (kept through rolling and trimming, so a
-seq is never used twice). With none of these it is written as version 3, the lowest version that holds its content.
-A `repairs` object that does not read loads the lineup with no record and is reported; the lineup is not set aside. The first version-4
-save keeps a copy of a version-3 file, with the existing `.bak` rule. An older app sees version 4 as a newer version, shows
-a planned default lineup and cannot save over it.
+held**: a selection repair or a fix. With a selection repair it also holds `lastSeq`, the highest selection seq held,
+kept through rolling and trimming while any selection repair is. With neither it is written as version 3, the lowest
+version that holds its content. A `repairs` object that does not read loads the lineup with no record and is reported;
+the lineup is not set aside. The first version-4 save keeps a copy of a version-3 file, with the existing `.bak` rule.
+An older app sees version 4 as a newer version, shows a planned default lineup and cannot save over it.
 
 The record must never make a save fail. It is rolled at each save (days that have ended go), and made to fit under the file's
 cap with 64 KiB kept free:
@@ -127,7 +127,7 @@ cap with 64 KiB kept free:
   earliest block), never one whose block is on air. If it still does not fit, the repair is refused and nothing changes.
 - **Any other save of the lineup** (a refresh, say) trims the record instead of failing: the oldest fixes not on air first,
   then fixes on air, then selection repairs by oldest repair time. Dropping a fix also forgets the lost-block check, so
-  the next check makes it again. If dropping everything still does not fit, the record is emptied but for `lastSeq`.
+  the next check makes it again. If dropping everything still does not fit, the record is emptied.
 
 What was dropped is reported as three counts and nothing else. A dropped selection repair means that day is then built
 from the saved selection, which can change the programme on air. This only happens near the file cap.
@@ -139,7 +139,10 @@ thread, never the caller's. Each plans from the record it read, and writes only 
 record's selection repairs are still those it read. Each call says what it did: `Saved`, `Stale` (the lineup moved on;
 the caller retries once after a fresh read), `Refused` (the record could not be saved) or `NoLineup`.
 
-A selection change is recorded with a seq, and shows only once the selection is saved with that seq:
+A selection change is recorded with a seq, and shows only once the selection is saved with that seq. The repairer
+works the seq out in one place: N = max(the record's `lastSeq`, the saved selection's seq) + 1. So N is above every
+seq a shown repair has used. A seq whose repairs are gone (rolled off with their day, or dropped after a failed save)
+can come round again, because nothing of it is left to show.
 
 1. Record the repair, seq N (it runs while the removed libraries' rows still exist).
 2. Save the selection with seq N, in one write.

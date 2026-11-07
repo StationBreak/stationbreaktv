@@ -44,16 +44,17 @@ internal class PlannedRepair(
 ) {
     /**
      * [record] with these in place of what it held for the same channel days (the latest repair of a day wins), and
-     * [seq] in its `lastSeq` if higher. The lost-block check is cleared: the new tails were never checked, so the next
-     * `repairLost` checks them.
+     * [seq] in its `lastSeq` if higher (none while no selection repair is held). The lost-block check is cleared: the
+     * new tails were never checked, so the next `repairLost` checks them.
      */
     fun into(record: TodayRepairs): TodayRepairs {
         val days = repairs.mapTo(HashSet()) { it.channel to it.n }
+        val selection = record.selection.filterNot { (it.channel to it.n) in days } + repairs
         return record.copy(
-            selection = record.selection.filterNot { (it.channel to it.n) in days } + repairs,
+            selection = selection,
             fixes = record.fixes.filterNot { (it.channel to it.n) in days } + fixes,
             lostCheck = null,
-            lastSeq = maxOf(record.latestSeq(), seq),
+            lastSeq = if (selection.isEmpty()) 0L else maxOf(record.latestSeq(), seq),
         )
     }
 }

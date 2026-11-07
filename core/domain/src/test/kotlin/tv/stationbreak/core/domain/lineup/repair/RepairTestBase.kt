@@ -110,8 +110,11 @@ internal open class RepairTestBase {
     ) {
         val library: CountingLibrary = restart?.library ?: sharedLibrary ?: CountingLibrary()
 
-        /** The seq saved with this TV's selection: every repair shows unless a test holds one back. */
-        var applied: Long = restart?.applied ?: Long.MAX_VALUE
+        /**
+         * The seq saved with this TV's selection, as Part 4 keeps it: a seeded record counts as saved, and [change]
+         * saves its own seq unless told not to.
+         */
+        var applied: Long = restart?.applied ?: repairs.latestSeq()
         val store: RecordingStore = restart?.store ?: RecordingStore()
         private val clock =
             object : Clock {
@@ -159,17 +162,30 @@ internal open class RepairTestBase {
 
         fun repairOf(channel: ChannelId): ChannelRepair = record().selection.single { it.channel == channel }
 
-        /** A change from [before] (the source's selection now) to [after]; the pins when saved, else null. */
+        /**
+         * A change from [before] (the source's selection now) to [after]; the pins when recorded, else null. With
+         * [save] the new selection is saved with the change's seq (the repair shows), as Part 4 does.
+         */
         fun change(
             before: Set<ItemId>,
             after: Set<ItemId>,
-            seq: Long = 7,
             at: Long = atMs,
-        ): List<Pin>? {
+            save: Boolean = true,
+        ): List<Pin>? = changed(before, after, at, save)?.pins
+
+        /** [change], giving the recorded seq with the pins. */
+        fun changed(
+            before: Set<ItemId>,
+            after: Set<ItemId>,
+            at: Long = atMs,
+            save: Boolean = true,
+        ): SelectionRepaired? {
             assertEquals(chosen, before, "the change is from the selection the source reads")
-            val outcome = runBlocking { repairer.selectionChanged(ACCOUNT, after, seq, at) }
+            val outcome = runBlocking { repairer.selectionChanged(ACCOUNT, after, at) }
+            val repaired = (outcome as? RepairOutcome.Saved)?.result
             chosen = after
-            return (outcome as? RepairOutcome.Saved)?.result
+            if (repaired != null && save) applied = repaired.seq
+            return repaired
         }
 
         /** How many blocks [TodayRepairer.repairLost] fixed; 0 when it saved nothing. */

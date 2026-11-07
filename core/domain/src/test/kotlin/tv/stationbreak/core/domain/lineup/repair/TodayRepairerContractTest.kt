@@ -34,20 +34,21 @@ internal class TodayRepairerContractTest : RepairTestBase() {
         val items = comedies + crimes + comediesB + crimesB
         val plain = Rig(lineupOf(laughs, whodunit), items, setOf(libA))
         val rig = Rig(lineupOf(laughs, whodunit), items, setOf(libA, libB))
-        rig.applied = 6
         val onAir = rig.day(laughs.id).blockAt(atMs)
 
-        assertNotNull(rig.change(before = setOf(libA, libB), after = setOf(libA), seq = 7))
+        val seq = assertNotNull(rig.changed(before = setOf(libA, libB), after = setOf(libA), save = false)).seq
 
         // Recorded, but the saved selection's seq is below it: the day is built as without the repair.
-        assertEquals(7L, rig.repairOf(laughs.id).seq)
+        assertEquals(1L, seq)
+        assertEquals(seq, rig.repairOf(laughs.id).seq)
+        assertEquals(0L, rig.applied)
         for (channel in listOf(laughs.id, whodunit.id)) {
             val held = rig.day(channel)
             assertNull(held.record?.repair, "no repair is laid over the day")
             assertEquals(plain.day(channel).day.blocks, held.day.blocks, "the unrepaired day")
         }
 
-        rig.applied = 7
+        rig.applied = seq
 
         val repaired = rig.day(laughs.id)
         assertEquals(rig.repairOf(laughs.id), repaired.record?.repair)
@@ -67,20 +68,39 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     }
 
     @Test
-    fun dropSelection_takesOutOnlyThatSeq_andTheSeqIsNotUsedAgain() {
+    fun dropSelection_takesOutOnlyThatSeq_andTheSeqMayComeRoundAgain() {
         val rig = Rig(lineupOf(laughs, whodunit), comedies + crimes + comediesB, setOf(libA, libB))
-        assertNotNull(rig.change(before = setOf(libA, libB), after = setOf(libA), seq = 7))
+        val seq = assertNotNull(rig.changed(before = setOf(libA, libB), after = setOf(libA), save = false)).seq
         val fixes = rig.record().fixes
 
-        val dropped = runBlocking { rig.repairer.dropSelection(ACCOUNT, 7) }
+        val dropped = runBlocking { rig.repairer.dropSelection(ACCOUNT, seq) }
 
         assertEquals(RepairOutcome.Saved(true), dropped)
         assertEquals(emptyList(), rig.record().selection)
         assertEquals(fixes, rig.record().fixes)
-        assertEquals(7L, rig.record().latestSeq())
-        assertEquals(RepairOutcome.Saved(false), runBlocking { rig.repairer.dropSelection(ACCOUNT, 7) })
-        val restarted = rig.restarted(lineupOf(laughs, whodunit))
-        assertEquals(7L, restarted.record().latestSeq(), "the seq is stored")
+        assertEquals(0L, rig.record().latestSeq(), "no selection repair is held: no seq either")
+        assertEquals(RepairOutcome.Saved(false), runBlocking { rig.repairer.dropSelection(ACCOUNT, seq) })
+        // The failed save left the saved selection as it was: the same seq is safe again, nothing of it shows.
+        rig.chosen = setOf(libA, libB)
+        assertEquals(seq, assertNotNull(rig.changed(before = setOf(libA, libB), after = setOf(libA))).seq)
+    }
+
+    @Test
+    fun afterTheLastSelectionRepairRollsOff_theFileIsVersion3_andTheNextSeqIsHigher() {
+        val rig = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA, libB))
+        // A change on a day that has already ended: the record rolls it off at once.
+        val yesterday = atMs - 24 * hour
+        val first = assertNotNull(rig.changed(before = setOf(libA, libB), after = setOf(libA), at = yesterday)).seq
+        assertEquals(first, rig.applied, "saved with the selection")
+        assertEquals(TodayRepairs.NONE, rig.record())
+        val bytes = assertNotNull(rig.store.inner.peek(ACCOUNT))
+        assertEquals(3, assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes)).fileVersion)
+
+        val next = assertNotNull(rig.changed(before = setOf(libA), after = setOf(libA, libB))).seq
+
+        assertTrue(next > first, "the saved selection's seq keeps the next one above it: $first then $next")
+        assertEquals(next, rig.repairOf(laughs.id).seq)
+        assertNotNull(rig.day(laughs.id).record?.repair, "and it shows once saved")
     }
 
     // --- The lost-block check -----------------------------------------------------------------------------------
@@ -196,17 +216,17 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     fun outcomes_noLineup_refused_saved() {
         val none = Rig(lineupOf(laughs), comedies, setOf(libA))
         runBlocking { none.service.forget(ACCOUNT) }
-        val noLineup = runBlocking { none.repairer.selectionChanged(ACCOUNT, setOf(libA), 1, atMs) }
+        val noLineup = runBlocking { none.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs) }
         assertEquals(RepairOutcome.NoLineup, noLineup)
 
         val failing = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA, libB))
         failing.store.inner.failWrites = true
-        val refused = runBlocking { failing.repairer.selectionChanged(ACCOUNT, setOf(libA), 1, atMs) }
+        val refused = runBlocking { failing.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs) }
         assertEquals(RepairOutcome.Refused, refused)
 
         val ok = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA, libB))
-        val saved = runBlocking { ok.repairer.selectionChanged(ACCOUNT, setOf(libA), 1, atMs) }
-        assertIs<RepairOutcome.Saved<List<Pin>>>(saved)
+        val saved = runBlocking { ok.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs) }
+        assertEquals(1L, assertIs<RepairOutcome.Saved<SelectionRepaired>>(saved).result.seq)
     }
 
     @Test
@@ -216,13 +236,13 @@ internal class TodayRepairerContractTest : RepairTestBase() {
             runBlocking {
                 listOf(
                     async { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) },
-                    async { rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), 9, atMs) },
+                    async { rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs) },
                     async { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) },
                 ).awaitAll()
             }
 
         assertTrue(outcomes.all { it is RepairOutcome.Saved<*> }, "$outcomes")
-        assertEquals(9L, rig.record().latestSeq())
+        assertEquals(4L, rig.record().latestSeq(), "one above the seeded, saved seq 3")
     }
 
     @Test

@@ -38,6 +38,15 @@ sealed interface RepairOutcome<out T> {
 }
 
 /**
+ * A selection change as recorded: its [seq], which the caller saves with the new selection (in one write) for the
+ * repair to show, and the [pins] whose programme is of a library the change removes.
+ */
+data class SelectionRepaired(
+    val seq: Long,
+    val pins: List<Pin>,
+)
+
+/**
  * The repair engine (spec 26): it writes the per-TV repair record (`LineupService.recordRepairs`) that the day build
  * follows. The tune path never runs it and reads only the record it writes. Use one instance per process: its calls
  * take turns (one `Mutex` around them all), and their work runs on [dispatcher] (the background-priority thread the
@@ -77,29 +86,30 @@ class TodayRepairer internal constructor(
 
     /**
      * Records a `ChannelRepair` for every switched-on channel's day on the air at [atMs], as the selection goes from
-     * the libraries the schedule source reads now to [after], with the change's [seq] (stored, never worked out here;
-     * it must be above `TodayRepairs.latestSeq` and the saved selection's). Each keeps what airs from the half hour at
-     * or before [atMs] to the end of the programme on air (the pin) and lays out the rest of its day again: the day's
-     * pool as built today without the removed libraries' items (on a day already repaired, the record's tail pool and
-     * what the channel admits of the current selection, less what has aired), plus the added titles where the build
-     * would home them, under today's rules and holds. A day hidden at the change has no pin: its rest is laid out from
-     * the half hour, or the whole day stays hidden with the new selection's reason. It runs while the removed
-     * libraries' rows still exist: the caller saves the selection after a [RepairOutcome.Saved], whose result is the
-     * pins whose programme is of a library the change removes.
+     * the libraries the schedule source reads now to [after]. The change's seq is worked out here, in one place
+     * (`TodayRepairs.nextSeq`): one above both the record's highest and the seq saved with the selection now (the
+     * schedule source's `appliedSeq`), so it is above every seq a shown repair has used. Each keeps what airs from the
+     * half hour at or before [atMs] to the end of the programme on air (the pin) and lays out the rest of its day
+     * again: the day's pool as built today without the removed libraries' items (on a day already repaired, the
+     * record's tail pool and what the channel admits of the current selection, less what has aired), plus the added
+     * titles where the build would home them, under today's rules and holds. A day hidden at the change has no pin: its
+     * rest is laid out from the half hour, or the whole day stays hidden with the new selection's reason. It runs while
+     * the removed libraries' rows still exist: after a [RepairOutcome.Saved] the caller saves the selection with its
+     * [SelectionRepaired.seq] (Part 4), and only then does the repair show.
      */
     suspend fun selectionChanged(
         account: LibraryAccount,
         after: Set<ItemId>,
-        seq: Long,
         atMs: Long,
-    ): RepairOutcome<List<Pin>> =
+    ): RepairOutcome<SelectionRepaired> =
         withContext(dispatcher) {
             turns.withLock {
                 val held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
+                val seq = held.repairs.nextSeq(source.appliedSeqNow())
                 val (before, today) = source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
                 val change = SelectionChange(before, after, seq, atMs)
                 val planned = SelectionRepair(days, library, account, held, change).plan(today)
-                record(account, held, planned.pins) { planned.into(it) }
+                record(account, held, SelectionRepaired(seq, planned.pins)) { planned.into(it) }
             }
         }
 
@@ -132,8 +142,8 @@ class TodayRepairer internal constructor(
 
     /**
      * Takes the selection repairs of [seq] back out of the record (a selection change whose save failed, Part 4): those
-     * days are built again as the build makes them, from the selection that is saved. The fixes stay, and [seq] is not
-     * used again (`TodayRepairs.lastSeq` stays). The result is whether any repair had that seq.
+     * days are built again as the build makes them, from the selection that is saved. The fixes stay. [seq] may be
+     * used again, as nothing of it is left to show. The result is whether any repair had that seq.
      */
     suspend fun dropSelection(
         account: LibraryAccount,

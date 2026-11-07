@@ -252,6 +252,9 @@ class BuiltInScheduleSource(
         return Lookup(held, scheduled, key, inputs.ms, repairs)
     }
 
+    /** The seq saved with the TV's selection now ([appliedSeq]): what the repair's next seq is worked out from. */
+    internal fun appliedSeqNow(): Long = appliedSeq()
+
     // The last record held back to an applied seq, and what it gave: a record's digests are worked out once.
     @Volatile private var lastApplied: Triple<TodayRepairs, Long, TodayRepairs>? = null
 

@@ -103,7 +103,7 @@ class TodayRepairsTest {
         assertEquals(listOf(late), some.record.selection, "the oldest atMs goes first")
         assertEquals(Triple(2, 1, 1), Triple(some.fixes, some.coveringFixes, some.selection))
         val last = record.trimmedToFit(NOW_MS, 5) { sizeOf(it) }
-        assertEquals(TodayRepairs(lastSeq = 3L), last.record, "the seq stays")
+        assertEquals(TodayRepairs.NONE, last.record, "nothing stays, the seq neither")
         assertEquals(2, last.selection)
     }
 
@@ -132,16 +132,39 @@ class TodayRepairsTest {
     }
 
     @Test
-    fun lastSeq_survivesRollAndTrim() {
-        val record = two()
-        val rolled = record.rolled(day2End)
-        assertEquals(emptyList(), rolled.selection)
-        assertEquals(7L, rolled.lastSeq, "rolling every repair off keeps the seq")
-        assertEquals(7L, rolled.latestSeq())
-        val trimmed = record.trimmedToFit(NOW_MS, 0) { sizeOf(it) }.record
-        assertEquals(emptyList(), trimmed.selection)
-        assertEquals(7L, trimmed.latestSeq(), "trimming every repair off keeps the seq")
-        assertTrue(!rolled.isEmpty, "a seq alone is stored")
+    fun lastSeq_withARepairHeld_survivesRollAndTrim_andGoesWithTheLast() {
+        // The seq-9 repair was dropped (a failed save); 4 and 7 are held.
+        val record = two().copy(lastSeq = 9L)
+        val rolled = record.rolled(day1End)
+        assertEquals(listOf(7L), rolled.selection.map { it.seq })
+        assertEquals(9L, rolled.lastSeq, "a repair is held: the seq stays")
+        // Size 225 drops one fix only; 115 drops both fixes and the oldest repair (seq 4).
+        assertEquals(9L, record.trimmedToFit(NOW_MS, 215) { sizeOf(it) }.record.lastSeq)
+        val trimmed = record.trimmedToFit(NOW_MS, 105) { sizeOf(it) }.record
+        assertEquals(listOf(7L), trimmed.selection.map { it.seq })
+        assertEquals(9L, trimmed.lastSeq, "a repair is held: the seq stays")
+
+        val gone = record.rolled(day2End)
+        assertEquals(TodayRepairs.NONE, gone, "with no selection repair held, nothing is")
+        assertTrue(gone.isEmpty)
+        assertEquals(0L, record.trimmedToFit(NOW_MS, 0) { sizeOf(it) }.record.lastSeq)
+        assertEquals(0L, record.withoutSelection(4L).withoutSelection(7L).lastSeq)
+    }
+
+    @Test
+    fun lastSeq_isStoredOnlyWithASelectionRepair() {
+        assertEquals(TodayRepairs(fixes = two().fixes), TodayRepairs(fixes = two().fixes, lastSeq = 9L).stored())
+        assertEquals(9L, two().copy(lastSeq = 9L).stored().lastSeq)
+        assertTrue(TodayRepairs(lastSeq = 9L).isEmpty, "a seq alone is not stored")
+    }
+
+    @Test
+    fun nextSeq_isAboveTheRecordsAndTheSavedSelections() {
+        assertEquals(8L, two().nextSeq(appliedSeq = 3L))
+        assertEquals(13L, two().nextSeq(appliedSeq = 12L))
+        assertEquals(10L, two().copy(lastSeq = 9L).nextSeq(appliedSeq = 0L))
+        assertEquals(1L, TodayRepairs.NONE.nextSeq(appliedSeq = 0L))
+        assertEquals(5L, TodayRepairs.NONE.nextSeq(appliedSeq = 4L))
     }
 
     @Test
@@ -160,7 +183,7 @@ class TodayRepairsTest {
         val dropped = record.withoutSelection(7L)
         assertEquals(listOf(4L), dropped.selection.map { it.seq })
         assertEquals(record.fixes, dropped.fixes)
-        assertEquals(7L, dropped.latestSeq(), "the seq is never used again")
+        assertEquals(7L, dropped.latestSeq(), "the seq 4 repair is held: the seq stays")
         assertNull(dropped.lostCheck)
         assertSame(record, record.withoutSelection(5L))
     }
@@ -176,10 +199,10 @@ class TodayRepairsTest {
     }
 
     @Test
-    fun trimmedToFit_thatCannotFitAtAll_keepsNothingButTheSeq() {
+    fun trimmedToFit_thatCannotFitAtAll_keepsNothing() {
         val record = two()
         val trimmed = record.trimmedToFit(NOW_MS, 5) { 50 + sizeOf(it) }
-        assertEquals(TodayRepairs(lastSeq = 7L), trimmed.record)
+        assertEquals(TodayRepairs.NONE, trimmed.record)
         assertEquals(Triple(1, 1, 2), Triple(trimmed.fixes, trimmed.coveringFixes, trimmed.selection))
     }
 

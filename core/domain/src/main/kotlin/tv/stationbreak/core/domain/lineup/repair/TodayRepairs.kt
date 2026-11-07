@@ -83,8 +83,9 @@ internal data class LostCheck(
  *
  * @property lostCheck where the lost-block check last ran, or null. Kept in memory only, never in the file: a restart
  *   costs one more check, in the background.
- * @property lastSeq the highest selection seq ever recorded here ([latestSeq]); stored, and never dropped by rolling or
- *   trimming, so a later change never reuses a seq.
+ * @property lastSeq the highest selection seq recorded while a selection repair is held ([latestSeq]): kept through
+ *   rolling and trimming as long as one is, and stored with it. With none held it is 0 and not stored; the next seq
+ *   is [nextSeq], which the saved selection's seq keeps above every seq a shown repair has used.
  */
 internal data class TodayRepairs(
     val selection: List<ChannelRepair> = emptyList(),
@@ -92,15 +93,28 @@ internal data class TodayRepairs(
     val lostCheck: LostCheck? = null,
     val lastSeq: Long = 0L,
 ) {
-    /** True when there is nothing to store: no repair, no fix and no seq ([lostCheck] is never stored). */
-    val isEmpty: Boolean get() = selection.isEmpty() && fixes.isEmpty() && lastSeq == 0L
+    /** True when there is nothing to store: no repair and no fix ([lostCheck] is never stored, nor [lastSeq] alone). */
+    val isEmpty: Boolean get() = selection.isEmpty() && fixes.isEmpty()
 
-    /** This record as the file holds it: without [lostCheck]. */
-    fun stored(): TodayRepairs = if (lostCheck == null) this else copy(lostCheck = null)
+    /** This record as the file holds it: no [lostCheck], and no [lastSeq] when no selection repair is held. */
+    fun stored(): TodayRepairs {
+        val seq = if (selection.isEmpty()) 0L else lastSeq
+        return if (lostCheck == null && lastSeq == seq) this else copy(lostCheck = null, lastSeq = seq)
+    }
+
+    /**
+     * The seq of the next selection change, for a TV whose saved selection has seq [appliedSeq] (Part 4 saves the seq
+     * with the selection, in one write): above every seq this record holds and above the saved one. A seq whose
+     * repairs are gone (rolled off, dropped after a failed save) may come round again: nothing of it is left to show.
+     */
+    fun nextSeq(appliedSeq: Long): Long = maxOf(latestSeq(), appliedSeq) + 1
+
+    // The [lastSeq] a record holding [kept] keeps: the highest seq so far while a selection repair is held, else 0.
+    internal fun seqKeptWith(kept: List<ChannelRepair>): Long = if (kept.isEmpty()) 0L else latestSeq()
 
     /**
      * Without the entries whose day has ended by [nowMs], and without the [lostCheck] once its earliest day has; this
-     * very instance when nothing is dropped. [lastSeq] stays.
+     * very instance when nothing is dropped. [lastSeq] stays while a selection repair does.
      */
     fun rolled(nowMs: Long): TodayRepairs {
         val keepSelection = selection.filter { it.dayEndMs > nowMs }
@@ -109,7 +123,8 @@ internal data class TodayRepairs(
         return if (keepSelection.size == selection.size && keepFixes.size == fixes.size && keepCheck == lostCheck) {
             this
         } else {
-            copy(selection = keepSelection, fixes = keepFixes, lostCheck = keepCheck, lastSeq = latestSeq())
+            val seq = seqKeptWith(keepSelection)
+            copy(selection = keepSelection, fixes = keepFixes, lostCheck = keepCheck, lastSeq = seq)
         }
     }
 
@@ -127,14 +142,15 @@ internal data class TodayRepairs(
 
     /**
      * Without the selection repairs of [seq] (a selection change whose save failed, Part 4): those days are built
-     * again as the build makes them. [lastSeq] stays, so [seq] is never used again; the [lostCheck] goes, as the days
-     * it saw are no longer those on the air. This very instance when none has that seq.
+     * again as the build makes them. [lastSeq] stays while another selection repair does; the [lostCheck] goes, as
+     * the days it saw are no longer those on the air. This very instance when none has that seq.
      */
     fun withoutSelection(seq: Long): TodayRepairs =
         if (selection.none { it.seq == seq }) {
             this
         } else {
-            copy(selection = selection.filter { it.seq != seq }, lostCheck = null, lastSeq = latestSeq())
+            val kept = selection.filter { it.seq != seq }
+            copy(selection = kept, lostCheck = null, lastSeq = seqKeptWith(kept))
         }
 
     /**
@@ -163,7 +179,7 @@ internal data class TodayRepairs(
         }
     }
 
-    /** The highest selection seq ever recorded ([lastSeq], or a repair's if higher); 0 when none ever was. */
+    /** The highest selection seq held ([lastSeq], or a repair's if higher); 0 when none is. */
     fun latestSeq(): Long = maxOf(lastSeq, selection.maxOfOrNull { it.seq } ?: 0L)
 
     companion object {
@@ -232,7 +248,8 @@ internal data class Trimmed(
  * record in it, [limit] the most it may be). What goes, in order, until it fits: the oldest fixes whose block is not
  * on air at [nowMs]; then fixes whose block is; then selection repairs, the oldest [ChannelRepair.atMs] first. When a
  * fix goes the [TodayRepairs.lostCheck] goes too, so the next check makes it again. When dropping everything still
- * does not fit, the record is emptied (all but [TodayRepairs.lastSeq], a few bytes, so no seq is used twice). The
+ * does not fit, the record is emptied ([TodayRepairs.NONE]). [TodayRepairs.lastSeq] stays while a selection repair
+ * does. The
  * same instance when it already fits.
  */
 internal fun TodayRepairs.trimmedToFit(
@@ -247,11 +264,12 @@ internal fun TodayRepairs.trimmedToFit(
 
     fun without(count: Int): TodayRepairs {
         val fixCount = minOf(count, fixOrder.size)
+        val kept = selection - selectionOrder.take(count - fixCount).toSet()
         return copy(
             fixes = fixes - fixOrder.take(fixCount).toSet(),
-            selection = selection - selectionOrder.take(count - fixCount).toSet(),
+            selection = kept,
             lostCheck = if (fixCount > 0) null else lostCheck,
-            lastSeq = latestSeq(),
+            lastSeq = seqKeptWith(kept),
         )
     }
     val all = fixOrder.size + selectionOrder.size
@@ -263,7 +281,7 @@ internal fun TodayRepairs.trimmedToFit(
         when {
             count == 0 -> this
             sizeOf(without(all)) <= limit -> without(count)
-            else -> TodayRepairs(lastSeq = latestSeq())
+            else -> TodayRepairs.NONE
         }
     return Trimmed(record, noncovering, dropFixes - noncovering, count - dropFixes)
 }

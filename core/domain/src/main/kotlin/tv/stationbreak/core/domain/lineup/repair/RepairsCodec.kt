@@ -18,8 +18,8 @@ import tv.stationbreak.core.model.ItemId
  * `[startDelta, length, idIndex, mediaStart]`: `startDelta` from the end of the block before it (for the first block
  * from `from`, a fix's from its `blockStart`), `idIndex` into `ids` or -1 for a slate.
  *
- * `lastSeq` is the highest selection seq ever recorded (`TodayRepairs.lastSeq`), written when not 0. The lost-block
- * check (`TodayRepairs.lostCheck`) is never written.
+ * `lastSeq` is the highest selection seq held (`TodayRepairs.lastSeq`), written only while a selection repair is.
+ * The lost-block check (`TodayRepairs.lostCheck`) is never written.
  *
  * It is strict like the rest of the file: an unknown key, a wrong type, an id that is not an id, an index outside the
  * table, a block that runs backwards, or two repairs of one channel day make [decode] throw
@@ -61,7 +61,8 @@ internal object RepairsCodec {
         val fields = LinkedHashMap<String, JsonElement>()
         if (repairs.selection.isNotEmpty()) fields[SELECTION] = JsonArray(repairs.selection.map(::encode))
         if (repairs.fixes.isNotEmpty()) fields[FIXES] = JsonArray(repairs.fixes.map(::encode))
-        if (repairs.lastSeq != 0L) fields[LAST_SEQ] = JsonPrimitive(repairs.lastSeq)
+        val stored = repairs.stored()
+        if (stored.lastSeq != 0L) fields[LAST_SEQ] = JsonPrimitive(stored.lastSeq)
         return JsonObject(fields)
     }
 
@@ -74,7 +75,7 @@ internal object RepairsCodec {
         val lastSeq = root[LAST_SEQ]?.let(::long) ?: 0L
         val days = selection.map { it.channel to it.n }
         require(days.size == days.toSet().size) { "Two repairs of one channel day" }
-        return TodayRepairs(selection, fixes, lastSeq = lastSeq)
+        return TodayRepairs(selection, fixes, lastSeq = lastSeq).stored()
     }
 
     private fun encode(repair: ChannelRepair): JsonObject {
