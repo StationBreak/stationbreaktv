@@ -2,7 +2,9 @@
 
 Provenance for the fonts in `core:ui`. The checked-in hashes are in `fonts.sha256` (sha256sum format, paths
 relative to `core/ui`); `FontManifestTest` fails if a bundled file stops matching, and also if a font or licence
-file anywhere in the repo is missing from the manifest.
+file anywhere in the repo is missing from the manifest. Fonts are found by extension (`.ttf`, `.otf`, `.ttc`, `.woff`,
+`.woff2`) anywhere under a module's `src/`; licence files are only checked under `assets/**/licenses/`. Dot-folders,
+`build/` and nested checkouts are skipped.
 
 ## Archivo Black and Space Mono
 

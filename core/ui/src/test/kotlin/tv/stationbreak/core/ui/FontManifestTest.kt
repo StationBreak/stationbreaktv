@@ -42,17 +42,23 @@ class FontManifestTest {
         val shipped =
             root
                 .walkTopDown()
-                .onEnter { it.name != "build" && it.name != ".gradle" && it.name != ".git" }
-                .filter { it.isFile }
-                .filter { file ->
-                    val parts = file.relativeTo(root).invariantSeparatorsPath.split("/")
-                    val inAssets = parts.contains("assets")
-                    val isLicence = inAssets && parts.contains("licenses")
-                    val isFont = file.extension.lowercase(Locale.ROOT) in fontExtensions
-                    isLicence || (isFont && (inAssets || parts.any { it.startsWith("font") }))
-                }.map { it.canonicalPath }
+                .onEnter { dir ->
+                    // Skip dot-folders, build output and nested checkouts (a directory below the root with a .git).
+                    dir == root || (!dir.name.startsWith(".") && dir.name != "build" && !File(dir, ".git").exists())
+                }.filter { it.isFile }
+                .filter { isShipped(it.relativeTo(root).invariantSeparatorsPath.split("/")) }
+                .map { it.canonicalPath }
                 .toSet()
         assertTrue("some fonts ship", shipped.isNotEmpty())
         assertEquals("font or licence files not in core/ui/fonts.sha256", emptySet<String>(), shipped - listed)
+    }
+
+    /** A font file anywhere under a module's `src/`, or any file under `src/<set>/assets/**/licenses/`. */
+    private fun isShipped(parts: List<String>): Boolean {
+        val src = parts.indexOf("src")
+        if (src < 1) return false
+        val isFont = parts.last().substringAfterLast('.', "").lowercase(Locale.ROOT) in fontExtensions
+        val isLicence = parts.getOrNull(src + 2) == "assets" && "licenses" in parts.drop(src + 3).dropLast(1)
+        return isFont || isLicence
     }
 }

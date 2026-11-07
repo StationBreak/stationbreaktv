@@ -29,8 +29,16 @@ tasks.withType<Test>().configureEach {
     inputs
         .files(
             fileTree(rootDir) {
-                include("**/src/*/res/font*/**", "**/src/*/assets/**", "core/ui/fonts.sha256")
-                exclude("**/build/**", "**/.gradle/**", "**/.git/**")
+                include(
+                    "**/src/**/*.ttf",
+                    "**/src/**/*.otf",
+                    "**/src/**/*.ttc",
+                    "**/src/**/*.woff",
+                    "**/src/**/*.woff2",
+                    "**/src/*/assets/**/licenses/**",
+                    "core/ui/fonts.sha256",
+                )
+                exclude("**/build/**", "**/.*/**")
             },
         ).withPathSensitivity(PathSensitivity.RELATIVE)
         .withPropertyName("fontManifestScan")
