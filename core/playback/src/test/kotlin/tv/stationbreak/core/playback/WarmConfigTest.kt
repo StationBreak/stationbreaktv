@@ -18,6 +18,7 @@ class WarmConfigTest {
         assertEquals(1_500L, config.warmDecoderGraceMs)
         assertEquals(250L, config.warmSeekToleranceMs)
         assertEquals(3, config.warmMaxFailures)
+        assertEquals(10, config.warmTrimLevel)
         assertEquals(setOf("AFTJMST12"), config.warmDeviceDenylist)
     }
 
@@ -30,6 +31,10 @@ class WarmConfigTest {
         assertThrows(IllegalArgumentException::class.java) { WarmConfig(warmSeekToleranceMs = 0) }
         assertThrows(IllegalArgumentException::class.java) { WarmConfig(warmHoldBufferMs = 10_001) }
         assertEquals(10_000L, WarmConfig(warmHoldBufferMs = 10_000).warmHoldBufferMs)
+        assertThrows(IllegalArgumentException::class.java) { WarmConfig(warmTrimLevel = 4) }
+        assertThrows(IllegalArgumentException::class.java) { WarmConfig(warmTrimLevel = 16) }
+        assertEquals(5, WarmConfig(warmTrimLevel = 5).warmTrimLevel)
+        assertEquals(15, WarmConfig(warmTrimLevel = 15).warmTrimLevel)
     }
 
     @Test

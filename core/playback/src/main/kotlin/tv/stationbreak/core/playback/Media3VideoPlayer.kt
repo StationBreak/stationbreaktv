@@ -49,8 +49,9 @@ import kotlin.time.Duration.Companion.milliseconds
  * buffer held at [WarmConfig.warmHoldBufferMs]. A [play] whose [PlayerSource.warmKey] names a ready standby hands the
  * surface over to it and the two swap roles; every other play (no key, another key, not ready, failed, switched off)
  * is the ordinary play on the front, as before. [warm] holds the tunables, [warmSwitches] the device-side switches
- * over them (debug builds; [WarmSwitches.None] in release). The standby is released on [release], on a
- * memory trim ([trimMemory]) and when warming is disabled; [stop] ends only the front's play.
+ * over them (debug builds; [WarmSwitches.None] in release). The standby is released on [release], on a memory trim
+ * ([trimMemory]: from [WarmConfig.warmTrimLevel], and at the UI-hidden level and above) and when warming is
+ * disabled; [stop] ends only the front's play.
  *
  * Track override (direct play only, [PlayerSource.directPlayTracks]): the audio and the in-file subtitle are picked by
  * their position among the file's tracks of the same kind, taken from the server's stream list, because Media3's

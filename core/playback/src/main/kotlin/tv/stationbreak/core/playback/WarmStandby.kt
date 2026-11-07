@@ -34,6 +34,18 @@ internal enum class Verdict { Pending, Ready, DecoderMissing, TimedOut }
  */
 internal enum class ErrorAction { RetryVideoOnly, Dropped, Disabled, Ignored }
 
+/**
+ * What [WarmStandby.trim] decided for a memory trim: [Ignored] (logged, nothing else), [Released] (the standby is
+ * freed, warming goes on) or [Paused] (the standby is freed and warming is off for the visit).
+ */
+internal enum class TrimAction(
+    val label: String,
+) {
+    Ignored("ignored"),
+    Released("released"),
+    Paused("paused"),
+}
+
 /** Whether a flip may swap to the standby; [reason] is `None` on a swap, else the cold-path reason. */
 internal data class Decision(
     val swap: Boolean,
@@ -273,9 +285,27 @@ internal class WarmStandby(
         clearHeld()
     }
 
-    /** Memory trim: no more warming until a new instance is constructed (the next visit). */
-    fun pauseForVisit() {
-        trimPaused = true
+    /**
+     * A memory trim at [level] (`ComponentCallbacks2`). The running levels (below the UI-hidden level, 20) are the
+     * app's own memory pressure: below [WarmConfig.warmTrimLevel] (the lowest, running-moderate, among them) nothing
+     * is done; from it up, warming is paused until a new instance is constructed (the next visit). From the
+     * UI-hidden level up (hidden, background, moderate, complete) the app has left the screen, which ends the visit
+     * anyway: the standby is released ([TrimAction.Released], the caller frees it) but warming is not paused, so a
+     * spurious hidden at launch cannot turn warming off for the visit. Every trim is logged.
+     */
+    fun trim(level: Int): TrimAction {
+        val action =
+            when {
+                level >= UI_HIDDEN_LEVEL -> TrimAction.Released
+                level >= config.warmTrimLevel -> TrimAction.Paused
+                else -> TrimAction.Ignored
+            }
+        log("trim level=$level action=${action.label}")
+        if (action == TrimAction.Paused && !trimPaused) {
+            trimPaused = true
+            log("disabled reason=trim level=$level")
+        }
+        return action
     }
 
     private fun saySkipped(
@@ -331,5 +361,8 @@ internal class WarmStandby(
 
     private companion object {
         val DISABLED = Request.Skip("disabled")
+
+        // ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN: the first level that is not a running one.
+        const val UI_HIDDEN_LEVEL = 20
     }
 }

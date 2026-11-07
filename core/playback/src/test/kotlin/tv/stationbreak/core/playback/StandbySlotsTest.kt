@@ -203,7 +203,59 @@ class StandbySlotsTest {
         assertTrue("an old start made this one ready: $ready", ready.isEmpty())
     }
 
+    private fun linesDuring(block: () -> Unit): List<String> {
+        val lines = mutableListOf<String>()
+        WarmLog.sink = { lines += it }
+        try {
+            block()
+        } finally {
+            WarmLog.sink = null
+        }
+        return lines
+    }
+
+    @Test
+    fun aRoutineTrimLeavesTheStandbyAlone() {
+        slots.warm("w1", source("a.mp4"))
+        val lines = linesDuring { slots.trim(RUNNING_MODERATE) }
+        assertTrue("trim line: $lines", "trim level=5 action=ignored" in lines)
+        assertTrue("released: $lines", lines.none { it.startsWith("standby released") })
+        assertTrue(slots.standbyExo != null)
+    }
+
+    @Test
+    fun aRunningLowTrimReleasesTheStandbyAndPausesWarming() {
+        slots.warm("w1", source("a.mp4"))
+        val lines = linesDuring { slots.trim(RUNNING_LOW) }
+        assertTrue(lines.toString(), "trim level=10 action=paused" in lines)
+        assertTrue(lines.toString(), "disabled reason=trim level=10" in lines)
+        assertTrue(lines.toString(), "standby released reason=trim" in lines)
+        assertEquals(null, slots.standbyExo)
+        calls.clear()
+        slots.warm("w2", source("b.mp4"))
+        assertTrue("warmed after a pause: $calls", calls.isEmpty())
+    }
+
+    @Test
+    fun aHiddenTrimReleasesTheStandbyAndTheNextWarmBuildsAgain() {
+        slots.warm("w1", source("a.mp4"))
+        val lines = linesDuring { slots.trim(UI_HIDDEN) }
+        assertTrue(lines.toString(), "trim level=20 action=released" in lines)
+        assertTrue(lines.toString(), "standby released reason=trim" in lines)
+        assertEquals(null, slots.standbyExo)
+        calls.clear()
+        slots.warm("w2", source("b.mp4"))
+        // The fake hands out the same player again, still buffering, hence the stop.
+        assertTrue("not warmed again: $calls", "standby.prepare" in calls)
+        assertTrue(slots.standbyExo != null)
+    }
+
     private companion object {
+        // ComponentCallbacks2 levels (the platform's numbers).
+        const val RUNNING_MODERATE = 5
+        const val RUNNING_LOW = 10
+        const val UI_HIDDEN = 20
+
         val LOADER: ClassLoader = ExoPlayer::class.java.classLoader!!
         val CLOCK: () -> Long = { 1_000L }
     }
