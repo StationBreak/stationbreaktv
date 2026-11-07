@@ -6,6 +6,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.domain.lineup.repair.ChannelRepair
+import tv.stationbreak.core.domain.lineup.repair.Composed
 import tv.stationbreak.core.engine.GroupCollections
 import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.Pool
@@ -40,6 +42,7 @@ import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -54,6 +57,7 @@ import tv.stationbreak.core.scheduler.Day
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.buildDay
+import tv.stationbreak.core.scheduler.composedDay
 import kotlin.time.TimeSource
 
 /**
@@ -63,6 +67,12 @@ import kotlin.time.TimeSource
  * `buildDay(settings, pool, n, films, weights)` it is the input of the day's schedule; [pool], [films] and
  * [weights] are what is kept on disk (the keeps never are: [pool] is already windowed). [hidden] is why the day is
  * empty, or null. [ceilingRank] is the tier of the ceiling the channel is scheduled under, or null for none.
+ *
+ * Those are the day as built from the library: the **unrepaired build**, the one thing ever written to disk. The
+ * per-TV repair record of the day ([record], spec 26) is laid over it when the day is read: [day] is the record's
+ * composed day (`RepairedDay.compose`), [hiddenAt] its empty reason, [dayPool] its day pool and [fixRemainders] the
+ * unnamed rests of its fixes. With no record they are the build's, unchanged. A repaired day whose cut-off was not read
+ * has no build at all ([built] false: [pool], [films] and [weights] are empty and [hidden] null), and is never written.
  */
 @Suppress("LongParameterList") // The day's fixed facts, one for one.
 internal class ChannelDay private constructor(
@@ -77,6 +87,10 @@ internal class ChannelDay private constructor(
     val ceilingRank: Int?,
     // The built schedule of the day, worked out on first use and kept (the days are cached, so it is built once).
     private val layout: Lazy<Day>,
+    /** Whether [pool], [films], [weights] and [hidden] are a build's (false: a repaired day made from its record). */
+    val built: Boolean = true,
+    // The day's record laid over the build, and the composed day, worked out on first use.
+    private val recorded: Recorded? = null,
 ) {
     companion object {
         /**
@@ -107,13 +121,54 @@ internal class ChannelDay private constructor(
         }
     }
 
+    // A record and the day it composes, shared by every copy of this day that shows the same record.
+    private class Recorded(
+        val record: DayRecord,
+        val composed: Lazy<Composed>,
+        val day: Lazy<Day>,
+    )
+
     /** When the day starts, in milliseconds since 1970. */
     val epochStartMs: Long get() = Epochs.epochStart(settings, n)
 
-    val day: Day get() = layout.value
+    /** When the day ends: the next one's start. */
+    val epochEndMs: Long get() = epochStartMs + settings.epochMs
+
+    /** The day's repair record (its repair and fixes), or null when nothing is recorded for it. */
+    val record: DayRecord? get() = recorded?.record
+
+    /** The day's schedule: the build's layout, or with a [record] the day it composes. */
+    val day: Day get() = recorded?.day?.value ?: layout.value
 
     /** Whether the layout of the day has been worked out (reading [day] before then does that work). */
-    val isLaidOut: Boolean get() = layout.isInitialized()
+    val isLaidOut: Boolean get() = recorded?.day?.isInitialized() ?: layout.isInitialized()
+
+    /** The starts of the blocks of [day] that are the unnamed rest of a recorded fix: never filled again. */
+    val fixRemainders: Set<Long> get() =
+        recorded
+            ?.composed
+            ?.value
+            ?.fixRemainders
+            .orEmpty()
+
+    /**
+     * Why the day is hidden at [atMs]: the build's [hidden], or on a repaired day nothing while its kept window airs
+     * and the recorded tail's reason ([ChannelRepair.tailHidden]) from the pin's end, read from the record alone.
+     */
+    fun hiddenAt(atMs: Long): HiddenReason? {
+        val repair = record?.repair ?: return hidden
+        return if (atMs >= repair.pinEndMs) repair.tailHidden else null
+    }
+
+    /**
+     * The day pool (the shared vocabulary's, defined once): [pool] for a day with no repair, and for a repaired day
+     * the tail pool, the distinct items of the recorded tail, resolved by id by [read] once (`scheduleItemsOf` at
+     * the day's cut-off) and kept with the record. It is what the naming fill and the stand-ins pick from.
+     */
+    suspend fun dayPool(read: TailRead): List<ScheduleItem> {
+        val record = record?.takeIf { it.repair != null } ?: return pool
+        return record.tailPool { read(it, Epochs.cutoff(settings, n)) }
+    }
 
     /**
      * This day as [channel] of a later lineup shows it, at its number and under its [name]: the pool and the layout
@@ -123,7 +178,32 @@ internal class ChannelDay private constructor(
     fun shownAs(
         channel: LineupChannel,
         name: String,
-    ): ChannelDay = ChannelDay(channel, name, settings, n, pool, films, weights, hidden, ceilingRank, layout)
+    ): ChannelDay = copy(channel, name, recorded)
+
+    private fun copy(
+        channel: LineupChannel,
+        name: String,
+        recorded: Recorded?,
+    ) = ChannelDay(channel, name, settings, n, pool, films, weights, hidden, ceilingRank, layout, built, recorded)
+
+    /** This day with [next] laid over its build instead of its record; this very day when the record is the same. */
+    fun withRecord(next: DayRecord?): ChannelDay {
+        if (next?.digest == record?.digest) return this
+        val recorded =
+            next?.let { r ->
+                val start = epochStartMs
+                val end = epochEndMs
+                val composed = lazy { r.compose(start, end) { layout.value.blocks } }
+                Recorded(r, composed, lazy { composedDay(n, start, end, composed.value.blocks, pool) })
+            }
+        return copy(channel, name, recorded)
+    }
+
+    /** This day with nothing of a build: a repaired day made from its record, whose cut-off was not read. */
+    fun unbuilt(): ChannelDay {
+        val none = emptyList<ScheduleItem>()
+        return ChannelDay(channel, name, settings, n, none, NO_FILMS, NO_WEIGHTS, null, ceilingRank, layout, false)
+    }
 }
 
 @Suppress("LongParameterList") // buildDay's inputs and the timing hook.
@@ -578,6 +658,8 @@ internal class LineupDays(
      * - [recipes] are the recipes of a curated starter's or leftovers channel's curation members (the curation reads
      *   a recipe's number, theme and kid flag), the channel's own first.
      * - [claims] is a leftovers channel's: what its day reads of every other channel (see [claimsOf]).
+     * - [record] is the digest of what the per-TV repair record holds for the day (`TodayRepairs.digestFor`, spec 26),
+     *   empty when nothing: the record keeps the lineup's revision, so a change of it changes exactly this input.
      */
     internal data class DayInput(
         val key: PlayKey,
@@ -590,6 +672,7 @@ internal class LineupDays(
         val curation: DayCuration?,
         val recipes: List<Recipe?>,
         val claims: ClaimsInput?,
+        val record: String = "",
     )
 
     /**
@@ -616,11 +699,15 @@ internal class LineupDays(
         val curation: DayCuration?,
     )
 
-    /** The [DayInput] of every channel of [scheduled], for [lineup] at [atMs] (the moment [scheduled] is for). */
+    /**
+     * The [DayInput] of every channel of [scheduled], for [lineup] at [atMs] (the moment [scheduled] is for), with
+     * [records] the digests of the days' repair records by channel (none when absent).
+     */
     fun dayInputsOf(
         lineup: Lineup,
         scheduled: List<Scheduled>,
         atMs: Long,
+        records: Map<ChannelId, String> = emptyMap(),
     ): Map<ChannelId, DayInput> {
         val keys = PlayKeys(lineup, atMs)
         val keyOf = HashMap<ChannelId, PlayKey>()
@@ -663,6 +750,7 @@ internal class LineupDays(
                     s.curation,
                     recipes,
                     claims,
+                    records[s.channel.id].orEmpty(),
                 )
         }
         return out
@@ -737,6 +825,10 @@ internal class LineupDays(
      * [reused] is given that day, as the channel [scheduled] shows it, and nothing of it is worked out: the caller
      * vouches that its [DayInput] and the library are those the day was built from (#589). A snapshot is needed only
      * for the cut of a day that is built, and for every cut when a leftovers channel's day is (its claims read them).
+     * A channel in [unbuilt] (a repaired day whose cut-off is not read, spec 26) gets a day with no build
+     * ([ChannelDay.unbuilt]) and claims nothing: the caller passes one only when no leftovers day is built. With
+     * [libraries] (the libraries the days read) a day whose every library source is outside them is
+     * [HiddenReason.LibraryNotChosen]; without them that reason is never given.
      */
     @Suppress("LongParameterList") // The lineup, its days, both kinds of snapshot and the two hooks.
     fun days(
@@ -747,10 +839,96 @@ internal class LineupDays(
         beforeChannel: () -> Unit = {},
         reused: Map<ChannelId, ChannelDay> = emptyMap(),
         finished: (ChannelDay) -> Unit = {},
+        unbuilt: Set<ChannelId> = emptySet(),
+        libraries: Set<ItemId>? = null,
         evaluated: () -> Unit = {},
     ): List<ChannelDay> {
-        val build = Build(lineup, snapshots, filteredSnapshots, evaluated)
-        return build.days(scheduled, beforeChannel, reused, finished)
+        val build = Build(lineup, snapshots, filteredSnapshots, evaluated, libraries)
+        return build.days(scheduled, beforeChannel, reused, finished, unbuilt)
+    }
+
+    /**
+     * Where the build homes the titles of [snapshot] on [day]'s frozen curation ([Scheduled.curation], the on-set and
+     * flag of that day, never worked out again): the build's own homing, through its own curation channels (their
+     * rules for the day, ceiling, hold and recipe number), over another snapshot. Null for a day with no curation. A
+     * repair (spec 26) gives a title the selection adds only to its home here (ADR-0023 §3). Reads nothing.
+     */
+    internal fun homesFor(
+        lineup: Lineup,
+        day: Scheduled,
+        snapshot: RuleSnapshot,
+    ): Homes? {
+        val curation = day.curation ?: return null
+        val snapshots = mapOf(day.cutoffMs to snapshot)
+        return Build(lineup, snapshots, snapshots).curated(day.cut, curation).homes
+    }
+
+    /**
+     * What each channel of [scheduled] admits from [snapshots] (and [filteredSnapshots], as [days] reads them) of
+     * [libraries]: the days the build makes from them, each with its epoch pool before the trim window, so under its
+     * rules for the day, its ceiling and its kid or grown-up hold, and for a leftovers channel under the build's own
+     * claims. A repair (spec 26) reads it over a selection it does not build from. Reads nothing.
+     */
+    internal fun admitted(
+        lineup: Lineup,
+        scheduled: List<Scheduled>,
+        snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot>,
+        libraries: Set<ItemId>,
+    ): Admitted {
+        val build = Build(lineup, snapshots, filteredSnapshots, libraries = libraries)
+        val days = build.days(scheduled)
+        val pools = scheduled.associate { it.channel.id to build.epochPoolOf(it) }
+        return Admitted(days.associateBy { it.channel.id }, pools)
+    }
+
+    /**
+     * A repaired day's tail pool (spec 26) for [day]: [base] without what the new selection no longer holds (an item
+     * not in [present]), then what the channel takes of [added] (its admitted items of the libraries the change adds,
+     * [Admitted.pool]): a curated starter only the titles [homes] gives it a home (its home alone, never a guest spot
+     * in the middle of a day), a starter switched on after the basis only titles homed nowhere, and any other channel
+     * all of them (a custom channel or an edited starter never loses a title). A title already in one of today's day
+     * pools ([today]) is never homed again: a curated starter or a leftovers channel takes its new items only when the
+     * title is in its own day pool today ([own]). The leftovers' [added] is already what the build's claims leave
+     * them. In canonical-ID order.
+     */
+    @Suppress("LongParameterList") // The day, its two halves and the facts that decide the second.
+    internal fun tailPoolOf(
+        day: Scheduled,
+        base: List<ScheduleItem>,
+        present: Set<CanonicalId>,
+        added: List<ScheduleItem>,
+        homes: Homes?,
+        today: Set<CanonicalId>,
+        own: Set<CanonicalId>,
+    ): List<ScheduleItem> {
+        val id = day.channel.id
+        val curation = day.curation
+
+        // A title on the air today stays where it is; a new one goes where [homed] puts it.
+        fun takes(
+            item: ScheduleItem,
+            homed: (CanonicalId) -> Boolean,
+        ): Boolean = if (item.groupId in today) item.groupId in own else homed(item.groupId)
+        val taken =
+            when {
+                day.isCuratedDay() && curation != null -> {
+                    val homed = { title: CanonicalId -> homes?.homeOf(title)?.let { it == id } ?: (id !in curation.on) }
+                    added.filter { takes(it, homed) }
+                }
+
+                day.channel.source is ChannelSource.Leftovers -> {
+                    added.filter { item -> takes(item) { true } }
+                }
+
+                else -> {
+                    added
+                }
+            }
+        val out = LinkedHashMap<CanonicalId, ScheduleItem>()
+        for (item in base) if (item.id in present) out[item.id] = item
+        for (item in taken) out.putIfAbsent(item.id, item)
+        return out.values.sortedBy { it.id.value }
     }
 
     /**
@@ -920,8 +1098,19 @@ internal class LineupDays(
         private val snapshots: Map<Long, RuleSnapshot>,
         private val filteredSnapshots: Map<Long, RuleSnapshot>,
         private val evaluated: () -> Unit = {},
+        libraries: Set<ItemId>? = null,
     ) {
         private val withheldBy = HashMap<Cut, Set<CanonicalId>>()
+
+        // The libraries the days read, as IDs; null when the caller did not say (no day is LibraryNotChosen then).
+        private val chosen: Set<CanonicalId>? = libraries?.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) }
+
+        // Whether [rules] name libraries and every one is outside [chosen] (HiddenReason.LibraryNotChosen).
+        private fun notChosen(rules: ChannelRules): Boolean {
+            val chosen = chosen ?: return false
+            val named = rules.sources.filterIsInstance<Source.Library>()
+            return named.isNotEmpty() && named.none { it.id in chosen }
+        }
 
         // The pool of each scheduled channel's epoch, before the trim window: what a channel claims.
         private val epochPools = HashMap<Scheduled, List<ScheduleItem>>()
@@ -974,16 +1163,45 @@ internal class LineupDays(
 
         private fun builtDay(s: Scheduled): ChannelDay = if (s.starting) startingDay(s) else ruledDay(s)
 
+        // A day with no build claims nothing, so no leftovers day may be built beside it (its claims would miss).
+        private fun requireNoLeftoversBeside(
+            unbuilt: Set<ChannelId>,
+            scheduled: List<Scheduled>,
+            reused: Set<ChannelId>,
+        ) {
+            if (unbuilt.isEmpty()) return
+            val built = scheduled.filter { it.channel.id !in unbuilt && it.channel.id !in reused }
+            require(built.none { it.channel.source is ChannelSource.Leftovers }) {
+                "A leftovers day is built beside a day with no build"
+            }
+        }
+
+        // A repaired day whose cut-off is not read: no build, and it claims nothing (no leftovers day is built then).
+        private fun unbuiltDay(s: Scheduled): ChannelDay {
+            epochPools[s] = emptyList()
+            return dayOf(s, emptyList(), NO_FILMS, null, TitleKeeps.NONE, NO_WEIGHTS).unbuilt()
+        }
+
         fun days(
             scheduled: List<Scheduled>,
             beforeChannel: () -> Unit = {},
             reused: Map<ChannelId, ChannelDay> = emptyMap(),
             finished: (ChannelDay) -> Unit = {},
+            unbuilt: Set<ChannelId> = emptySet(),
         ): List<ChannelDay> {
+            requireNoLeftoversBeside(unbuilt, scheduled, reused.keys)
+
+            // A day taken over, one with no build (a repaired day whose cut-off is not read), or one built now.
+            fun dayFor(
+                s: Scheduled,
+                build: () -> ChannelDay,
+            ): ChannelDay =
+                reused[s.channel.id]?.let { reuse(s, it) }
+                    ?: if (s.channel.id in unbuilt) unbuiltDay(s) else build().also(finished)
             val ruled = HashMap<Scheduled, ChannelDay>()
             for (s in scheduled.filter { it.channel.source !is ChannelSource.Leftovers }) {
                 beforeChannel()
-                ruled[s] = reused[s.channel.id]?.let { reuse(s, it) } ?: builtDay(s).also(finished)
+                ruled[s] = dayFor(s) { builtDay(s) }
             }
             // The leftovers claim exactly (F5): the epoch pool of every channel that is on and not curated, and per
             // cut the curated claims of the day's curation ([ClaimChain]). Trimmed items stay claimed (plan Resolution
@@ -1008,13 +1226,16 @@ internal class LineupDays(
             for (s in inClaimOrder) {
                 beforeChannel()
                 leftoversDays[s] =
-                    reused[s.channel.id]?.let { reuse(s, it) } ?: if (s.starting) {
-                        // Starts at a later boundary: an empty day today, and it takes no place in the chain (#620).
-                        startingDay(s).also(finished)
-                    } else {
-                        val claims = claimsFor(s, curatedCuts)
-                        val chain = chains.getOrPut(s.cut to claims?.second) { ClaimChain(s.cut, claims, claimedByOn) }
-                        leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId).also(finished)
+                    dayFor(s) {
+                        if (s.starting) {
+                            // Starts at a later boundary: empty today, and no place in the chain (#620).
+                            startingDay(s)
+                        } else {
+                            val claims = claimsFor(s, curatedCuts)
+                            val chain =
+                                chains.getOrPut(s.cut to claims?.second) { ClaimChain(s.cut, claims, claimedByOn) }
+                            leftoversDay(s, chain, claimOrder[s.channel.id] ?: leftovers.size, byId)
+                        }
                     }
             }
             return scheduled.map { checkNotNull(ruled[it] ?: leftoversDays[it]) }
@@ -1126,7 +1347,8 @@ internal class LineupDays(
                     evaluate(r, s.cut, policy)
                 }
             epochPools[s] = ruled.day
-            return dayOf(s, ruled.day, ruled.films, hiddenReason(ruled.pool, ruled.day), TitleKeeps.NONE, NO_WEIGHTS)
+            val hidden = hiddenReason(ruled.pool, ruled.day, notChosen(rules))
+            return dayOf(s, ruled.day, ruled.films, hidden, TitleKeeps.NONE, NO_WEIGHTS)
         }
 
         /**
@@ -1161,7 +1383,7 @@ internal class LineupDays(
             epochPools[s] = epoch
             val films = GroupCollections.of(ruled, snapshot, epoch)
             // The window keeps at least one episode of each series, so emptiness (and its reason) is unchanged by it.
-            return dayOf(s, epoch, films, hiddenReason(pool, epoch), keeps, weights)
+            return dayOf(s, epoch, films, hiddenReason(pool, epoch, notChosen(rules)), keeps, weights)
         }
 
         // A starter switched on for a later boundary: nothing airs before it starts, and it claims nothing.
@@ -1407,6 +1629,31 @@ private fun unnamed(source: ChannelSource): ChannelSource =
         is ChannelSource.Leftovers, is ChannelSource.Unusable -> source
     }
 
+/**
+ * What each channel of a lineup admits from one library state ([LineupDays.admitted]): its [days] as the build makes
+ * them, and each one's epoch pool before the trim window ([pool]).
+ */
+internal class Admitted(
+    val days: Map<ChannelId, ChannelDay>,
+    private val pools: Map<ChannelId, List<ScheduleItem>>,
+) {
+    /** What [channel] admits: its epoch pool, empty for a channel that is not scheduled. */
+    fun pool(channel: ChannelId): List<ScheduleItem> = pools[channel].orEmpty()
+
+    /**
+     * Whether [channel] admits [candidate] today (spec 26): it is in the channel's pool (its rules for the day, its
+     * ceiling, the kid and grown-up holds) and airable under its settings ([SchedulerSettings.isAirable]).
+     */
+    fun admits(
+        channel: ChannelId,
+        candidate: CanonicalId,
+    ): Boolean {
+        val day = days[channel] ?: return false
+        val item = pool(channel).firstOrNull { it.id == candidate }
+        return item != null && day.settings.isAirable(item.runtimeMs, item.kind)
+    }
+}
+
 /** No title has a weight: a day that is not curated. */
 internal val NO_WEIGHTS: TitleWeights = TitleWeights.NONE
 
@@ -1450,10 +1697,14 @@ private fun LineupChannel.isUneditedStarter(): Boolean {
     return source is ChannelSource.Starter && !source.edited
 }
 
-/** Why a day is empty, in [HiddenReason]'s precedence; null when [day] has something. */
+/**
+ * Why a day is empty, in [HiddenReason]'s precedence; null when [day] has something. [notChosen] is whether every
+ * library the channel names is outside the libraries the day reads.
+ */
 internal fun hiddenReason(
     pool: Pool,
     day: List<ScheduleItem>,
+    notChosen: Boolean = false,
 ): HiddenReason? {
     val counts = pool.counts
     val unresolved = counts.unresolvedSources.isNotEmpty() || counts.unresolvedExclusions.isNotEmpty()
@@ -1463,6 +1714,7 @@ internal fun hiddenReason(
     return when {
         day.isNotEmpty() -> null
         !counts.collectionsSynced && unresolved -> HiddenReason.CollectionsNotSynced
+        notChosen -> HiddenReason.LibraryNotChosen
         matched == 0 -> HiddenReason.NoMatches
         pool.items.isEmpty() -> emptyPoolReason(counts)
         else -> HiddenReason.EmptyToday

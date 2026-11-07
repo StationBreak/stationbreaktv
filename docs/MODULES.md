@@ -209,7 +209,9 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   (`active_account`, schema 2), and sign-in and sign-out cancel the unique work first.
 - **Item history and the as-of read (specs 09 and 10).** The cache keeps the superseded versions of an item in `item_version`
   (series and collections have matching version tables), so a day can be built from the fields the client held before its
-  cut-off. `scheduleItems(account, libraries, cutoff)` and `ruleSnapshot(account, libraries, cutoff)` are that as-of read.
+  cut-off. `scheduleItems(account, libraries, cutoff)` and `ruleSnapshot(account, libraries, cutoff)` are that as-of read,
+  and `scheduleItemsOf(account, ids, cutoffMs)` (spec 26) is the same rule read by id, in any library (a repaired day's
+  tail pool and a repair's recorded tail items).
   Their **safe range is `cutoff >= now - 72 h`** (the longest epoch plus the largest grace window); an older cut-off is a
   documented contract, not a `require`, and degrades to the newest copy. The scheduler uses these, never `snapshot`, which
   hides deleted items and uses current fields.

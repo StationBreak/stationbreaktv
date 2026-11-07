@@ -60,7 +60,7 @@ class BuiltInScheduleSourceWindowTest {
         BuiltInScheduleSource(service, library, { day, ms -> timings += day to ms }, built = {
             builds += it
             onBuilt()
-        }) { chosen }
+        }) { selectionOf(chosen) }
 
     private val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
     private val crimes = starter("crimes", 120, ChannelState.On, rules("Crimes", Source.Genre("Crime")))
@@ -195,7 +195,7 @@ class BuiltInScheduleSourceWindowTest {
     @Test
     fun withNoLineupAsNeededIsEmptyAndCompleteAndCachedOnlyIsEmptyAndIncomplete() {
         val empty = LineupService(RecordingStore(), library, clock, { 0 }, {}, TestCatalog)
-        val none = BuiltInScheduleSource(empty, library) { LIBRARIES }
+        val none = BuiltInScheduleSource(empty, library) { selectionOf(LIBRARIES) }
         val hour = NOON + 1.hours
 
         assertEquals(
@@ -250,7 +250,7 @@ class BuiltInScheduleSourceWindowTest {
         runBlocking {
             val gated = GatedLibrary(counting)
             val gatedService = LineupService(store, gated, clock, { 0 }, {}, TestCatalog)
-            val gatedSource = BuiltInScheduleSource(gatedService, gated) { LIBRARIES }
+            val gatedSource = BuiltInScheduleSource(gatedService, gated) { selectionOf(LIBRARIES) }
             val warmer =
                 async(start = CoroutineStart.UNDISPATCHED) { gatedSource.channelDays(ACCOUNT, LIBRARIES, NOON) }
             withTimeout(WAIT_MS) { gated.entered.await() }

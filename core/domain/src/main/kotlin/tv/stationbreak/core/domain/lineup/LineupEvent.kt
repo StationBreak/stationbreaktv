@@ -59,4 +59,16 @@ enum class LineupEvent {
      * theirs, and the day was built all the same.
      */
     LeftoversClaimedFromAnotherDay,
+
+    /**
+     * The stored lineup's repair record (spec 26) could not be read. The lineup was loaded without it, and the days
+     * are built as they would be with no repair; the next repair records afresh.
+     */
+    RepairsUnreadable,
+
+    /**
+     * A selection change's save did not commit, and its repair (spec 26) could not be taken back out of the record.
+     * It is held back (its seq is above the saved one), so nothing on air changes; the next lost-block check drops it.
+     */
+    RepairUndoFailed,
 }

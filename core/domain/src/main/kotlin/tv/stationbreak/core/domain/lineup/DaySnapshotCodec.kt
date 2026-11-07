@@ -94,13 +94,14 @@ internal data class DayKey(
 @OptIn(ExperimentalSerializationApi::class)
 internal object DaySnapshotCodec {
     /**
-     * 6 (spec 23): a curated day may hold its weights (`weights`, with one table of title IDs in the body), the key
-     * holds the digest of the days' curations (`curation`), and the curated pools, keeps and weights are live, so a
-     * file of 5 is never read. 5: a day may hold its film-to-collection map (`films`, with one table of collection IDs
-     * in the body). 4: the key holds the digest of the day inputs (`inputs`), its channels and the body's days are in
-     * ID order, and each day names its channel.
+     * 7 (spec 26): a day may be empty for a new reason, `LibraryNotChosen`. 6 (spec 23): a curated day may hold its
+     * weights (`weights`, with one table of title IDs in the body), the key holds the digest of the days' curations
+     * (`curation`), and the curated pools, keeps and weights are live, so a file of 5 is never read. 5: a day may
+     * hold its film-to-collection map (`films`, with one table of collection IDs in the body). 4: the key holds the
+     * digest of the day inputs (`inputs`), its channels and the body's days are in ID order, and each day names its
+     * channel.
      */
-    const val VERSION = 6
+    const val VERSION = 7
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
     private const val MAX_HEADER = 256 * 1024

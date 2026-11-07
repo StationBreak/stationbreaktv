@@ -32,7 +32,8 @@ class BuiltInScheduleSourceOnAirTest {
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
     private var chosen: Set<ItemId>? = LIBRARIES
     private val timings = mutableListOf<Pair<Long, Long>>()
-    private val source = BuiltInScheduleSource(service, library, { day, ms -> timings += day to ms }) { chosen }
+    private val source =
+        BuiltInScheduleSource(service, library, { day, ms -> timings += day to ms }) { selectionOf(chosen) }
 
     private val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
     private val dayStart = Instant.parse("2026-10-19T06:00:00Z")
@@ -89,7 +90,7 @@ class BuiltInScheduleSourceOnAirTest {
         runBlocking { fresh.delegate.useAccount(ACCOUNT) }
         fresh.seed(gappy)
         val gapService = LineupService(store, fresh, clock, { 0 }, {}, TestCatalog)
-        val gapSource = BuiltInScheduleSource(gapService, fresh) { LIBRARIES }
+        val gapSource = BuiltInScheduleSource(gapService, fresh) { selectionOf(LIBRARIES) }
         val day = runBlocking { gapSource.channelDays(ACCOUNT, LIBRARIES, NOON) }.single().day
         val slate = day.blocks.first { it.content is ScheduleContent.Slate }
         val at = Instant.fromEpochMilliseconds(slate.startMs)
@@ -112,7 +113,7 @@ class BuiltInScheduleSourceOnAirTest {
         holding(laughs, sixHours)
         // The service holds the first lineup in memory, so the six-hour one is read by a fresh service.
         val quickService = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-        val fresh = BuiltInScheduleSource(quickService, library) { LIBRARIES }
+        val fresh = BuiltInScheduleSource(quickService, library) { selectionOf(LIBRARIES) }
         val quickAir = runBlocking { fresh.onAir(sixHours.id, NOON + 1.minutes, 1) }
         val expected = Instant.parse("2026-10-20T00:00:00Z").toEpochMilliseconds()
         assertEquals(expected, checkNotNull(quickAir).builtUntilMs)

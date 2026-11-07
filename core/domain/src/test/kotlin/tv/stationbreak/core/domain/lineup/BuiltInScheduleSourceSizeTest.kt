@@ -80,7 +80,7 @@ class BuiltInScheduleSourceSizeTest {
             service.refresh(ACCOUNT, LIBRARIES)
             library.snapshotCutoffs.clear()
             library.delegate.useAccount(ACCOUNT)
-            val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
 
             val began = System.nanoTime()
             val airings = source.airings(NOON)

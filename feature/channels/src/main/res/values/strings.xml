@@ -47,6 +47,8 @@
     <string name="channels_reset_not_chosen">Channels will be chosen after the next library check.</string>
     <string name="channels_reason_collections">Still reading your collections</string>
     <string name="channels_reason_household_off">Needs \"Use my collections\", which is off</string>
+    <!-- DESIGN(#632): placeholder. A channel's empty reason when no library it names is chosen on this TV (spec 26). -->
+    <string name="channels_reason_library_not_chosen">Its library isn\'t chosen on this TV</string>
     <string name="channels_reason_no_matches">Nothing in your libraries fits this channel</string>
     <string name="channels_reason_not_for_kids">No rated kids\' titles fit this channel</string>
     <string name="channels_reason_childrens_only">Kids\' titles air on the kids channels</string>

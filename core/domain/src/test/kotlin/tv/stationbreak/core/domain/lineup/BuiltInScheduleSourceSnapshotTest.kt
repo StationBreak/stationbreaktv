@@ -59,7 +59,7 @@ class BuiltInScheduleSourceSnapshotTest {
     private val builds = Collections.synchronizedList(mutableListOf<DayBuild>())
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
     private var chosen: Set<ItemId> = LIBRARIES
-    private val source = BuiltInScheduleSource(service, library, built = { builds += it }) { chosen }
+    private val source = BuiltInScheduleSource(service, library, built = { builds += it }) { selectionOf(chosen) }
 
     init {
         runBlocking { counting.delegate.useAccount(ACCOUNT) }
@@ -261,7 +261,8 @@ class BuiltInScheduleSourceSnapshotTest {
                 gcBlockMs = { 40L },
                 allocatedBytes = { allocated.also { allocated += 3L * 1024 } },
             )
-        val timed = BuiltInScheduleSource(service, library, built = { told += it }, probes = probes) { chosen }
+        val timed =
+            BuiltInScheduleSource(service, library, built = { told += it }, probes = probes) { selectionOf(chosen) }
         runBlocking { timed.channelDays(ACCOUNT, chosen, NOON) }
         val build = told.single()
 
@@ -289,7 +290,8 @@ class BuiltInScheduleSourceSnapshotTest {
         refresh()
         val told = mutableListOf<DayBuild>()
         val probes = BuildProbes({ -1L })
-        val blind = BuiltInScheduleSource(service, library, built = { told += it }, probes = probes) { chosen }
+        val blind =
+            BuiltInScheduleSource(service, library, built = { told += it }, probes = probes) { selectionOf(chosen) }
         runBlocking { blind.channelDays(ACCOUNT, chosen, NOON) }
         val b = told.single()
         assertEquals(

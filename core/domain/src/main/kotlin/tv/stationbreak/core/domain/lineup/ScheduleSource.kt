@@ -31,6 +31,12 @@ enum class HiddenReason {
      */
     HouseholdCollectionsOff,
 
+    /**
+     * Every library the channel names as a source is outside the libraries its day reads (none is chosen on this TV),
+     * so nothing it names can air (spec 26).
+     */
+    LibraryNotChosen,
+
     /** Nothing in the library matches the channel's sources. For a leftovers channel: nothing is left over. */
     NoMatches,
 

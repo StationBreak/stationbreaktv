@@ -86,9 +86,7 @@ class ExtrasWiringTest {
     private fun save(meta: RefreshMeta) = runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(held(), meta)) }
 
     private fun source(disk: PersistedDays? = null): BuiltInScheduleSource =
-        BuiltInScheduleSource(service, library, persisted = disk) {
-            LIBRARIES
-        }
+        BuiltInScheduleSource(service, library, persisted = disk) { selectionOf(LIBRARIES) }
 
     private fun daysAt(
         source: BuiltInScheduleSource,
@@ -117,7 +115,7 @@ class ExtrasWiringTest {
         val freshStore = RecordingStore()
         runBlocking { freshStore.inner.save(ACCOUNT, LineupCodec.encode(held(), RefreshMeta())) }
         val fresh = LineupService(freshStore, library, clock, { 0 }, {}, TestCatalog)
-        val unfiltered = BuiltInScheduleSource(fresh, library) { LIBRARIES }
+        val unfiltered = BuiltInScheduleSource(fresh, library) { selectionOf(LIBRARIES) }
         assertTrue(airedIds(daysAt(unfiltered, FOURTEEN)).containsAll(extras()), "the control airs both")
     }
 

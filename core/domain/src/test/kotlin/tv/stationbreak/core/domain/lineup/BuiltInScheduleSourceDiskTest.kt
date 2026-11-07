@@ -45,7 +45,7 @@ class BuiltInScheduleSourceDiskTest {
                 library,
                 built = { builds += it },
                 persisted = PersistedDays(disk, app, { events += it }),
-            ) { LIBRARIES }
+            ) { selectionOf(LIBRARIES) }
 
         fun days(at: Instant = NOON): List<ChannelDay> =
             runBlocking {
@@ -77,7 +77,7 @@ class BuiltInScheduleSourceDiskTest {
         assertTrue(next.events.single() is DaySnapshotEvent.Hit, "and nothing was written again")
 
         // The same days as a build that never saw the file.
-        val fresh = BuiltInScheduleSource(next.service, library) { LIBRARIES }
+        val fresh = BuiltInScheduleSource(next.service, library) { selectionOf(LIBRARIES) }
         assertEquals(describe(warm), describe(runBlocking { fresh.channelDays(ACCOUNT, LIBRARIES, NOON) }))
     }
 
@@ -101,7 +101,7 @@ class BuiltInScheduleSourceDiskTest {
 
         assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.Generation), next.events.first())
         assertEquals("miss", next.builds.single().snapshot)
-        val fresh = BuiltInScheduleSource(next.service, library) { LIBRARIES }
+        val fresh = BuiltInScheduleSource(next.service, library) { selectionOf(LIBRARIES) }
         assertEquals(describe(runBlocking { fresh.channelDays(ACCOUNT, LIBRARIES, NOON) }), describe(days))
         assertTrue(days.any { day -> day.pool.any { it.id == id(900) } }, "the new movie is in the days")
         assertTrue(next.events.last() is DaySnapshotEvent.Saved, "and the new days replace the file")
@@ -191,7 +191,7 @@ class BuiltInScheduleSourceDiskTest {
     }
 
     private fun fresh(process: Process): List<ChannelDay> {
-        val fresh = BuiltInScheduleSource(process.service, library) { LIBRARIES }
+        val fresh = BuiltInScheduleSource(process.service, library) { selectionOf(LIBRARIES) }
         return runBlocking { fresh.channelDays(ACCOUNT, LIBRARIES, NOON) }
     }
 
@@ -280,7 +280,7 @@ class BuiltInScheduleSourceDiskTest {
                 library,
                 probes = probes,
                 persisted = PersistedDays(disk, "1:100", { events += it }),
-            ) { LIBRARIES }
+            ) { selectionOf(LIBRARIES) }
 
         runBlocking { source.channelDays(ACCOUNT, LIBRARIES, NOON).also { source.awaitSaves() } }
 

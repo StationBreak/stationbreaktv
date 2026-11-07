@@ -29,6 +29,7 @@ import tv.stationbreak.core.domain.lineup.channel
 import tv.stationbreak.core.domain.lineup.id
 import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.domain.lineup.rules
+import tv.stationbreak.core.domain.lineup.selectionOf
 import tv.stationbreak.core.domain.lineup.starter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -75,7 +76,7 @@ class ChannelPreviewsTest {
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
     private val shared = SharedSnapshots(CoroutineScope(SupervisorJob()))
-    private val source = BuiltInScheduleSource(service, library, shared = shared) { LIBRARIES }
+    private val source = BuiltInScheduleSource(service, library, shared = shared) { selectionOf(LIBRARIES) }
     private val previews = BuiltInChannelPreviews(service, library, shared) { LIBRARIES }
     private val keyLabels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String> =
         { _, sources -> sources.associateWith { it.key } }

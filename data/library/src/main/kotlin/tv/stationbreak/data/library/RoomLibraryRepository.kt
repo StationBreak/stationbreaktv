@@ -267,6 +267,18 @@ class RoomLibraryRepository internal constructor(
         )
     }
 
+    // By id, with the as-of rule of [scheduleItems] and its checks ([ScheduleInputs.read]), never the whole library.
+    override suspend fun scheduleItemsOf(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+        cutoffMs: Long,
+    ): List<ScheduleItem> {
+        if (ids.isEmpty()) return emptyList()
+        val (server, user) = account.keys()
+        val rows = history.heldAsOfIds(server, user, cutoffMs, ids.map { it.value }, LibraryDao.MAX_VARIABLES)
+        return ScheduleInputs.read(rows).accepted.map { it.item }
+    }
+
     // The one as-of item read: the version of every item held before the cut-off, in ID chunks, as rows. Selection runs
     // over every item first, the libraries filter and the deletion test after (Vimes H4). [scheduleInputs] calls it,
     // and [CacheTransactionDao.ruleSnapshot] calls the same [ItemHistoryDao.heldAsOf] inside its transaction.

@@ -11,6 +11,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.longOrNull
+import tv.stationbreak.core.domain.lineup.repair.RepairsCodec
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
@@ -25,14 +27,22 @@ import tv.stationbreak.core.rules.RulesResult
 import tv.stationbreak.core.rules.RulesWriter
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 3` ([VERSION]). Only `core:domain` reads or
- * writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`, which reads as null;
- * before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each channel's `chosenByViewer`
- * is inferred from its state and overrides); it is written back as version 3, and the service keeps a copy of the old
- * bytes first (`LineupStore.keepCopy`). Version 3 added `useMyCollections`, `viewerChoicesKnown`, `curationBasis`,
- * the channel fields `chosenByViewer`, `leavesAtMs` and `shelfReason`, and the starter source fields `previousRules`
- * and `rulesFromMs`, and the meta field `replanFromMs`. A field of version 3 in an older file makes it
- * [Decoded.Unreadable].
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 3` or `4` ([VERSION] is the newest). Only
+ * `core:domain` reads or writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`,
+ * which reads as null; before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each
+ * channel's `chosenByViewer` is inferred from its state and overrides); it is written back as version 3, and the
+ * service keeps a copy of the old bytes first (`LineupStore.keepCopy`). Version 3 added `useMyCollections`,
+ * `viewerChoicesKnown`, `curationBasis`, the channel fields `chosenByViewer`, `leavesAtMs` and `shelfReason`, and the
+ * starter source fields `previousRules` and `rulesFromMs`, and the meta field `replanFromMs`. A field of version 3 in
+ * an older file makes it [Decoded.Unreadable].
+ *
+ * Version 4 (spec 26) adds the optional top-level `repairs` object, the per-TV repair record ([TodayRepairs], read and
+ * written by [RepairsCodec]). A file with no repairs is written as version 3, the lowest version that holds its
+ * content, so a version-4 file exists only while a record is held. A `repairs` key in a file below version 4 makes it
+ * [Decoded.Unreadable], and an older app sees version 4 as [Decoded.NewerVersion]. A `repairs` object that does not
+ * read loads the lineup with no record ([Decoded.Loaded.repairsUnreadable]): the record is per TV and rebuilt by the
+ * next repair, so it is never a reason to set the lineup aside. The service keeps a copy of a
+ * version-3 file (`keepCopy`, tag `v3`) before the first version-4 save.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
@@ -67,19 +77,27 @@ import tv.stationbreak.core.rules.RulesWriter
  * Decoding never throws.
  */
 internal object LineupCodec {
-    /** The schema version this app reads and writes. */
-    const val VERSION = 3
+    /** The newest schema version this app reads and writes (4: the repair record). */
+    const val VERSION = 4
+
+    /** The version written when there are no repairs: the lowest that holds the content. */
+    const val BASE_VERSION = 3
 
     /** What [decode] found. */
     sealed interface Decoded {
         /**
-         * A lineup of [fileVersion] (1 up to [VERSION]), perhaps with [ChannelSource.Unusable] channels, and its
-         * [meta]. A [fileVersion] below [VERSION] is an upgrade: the caller keeps the old bytes before it saves.
+         * A lineup of [fileVersion] (1 up to [VERSION]), perhaps with [ChannelSource.Unusable] channels, its [meta]
+         * and its [repairs] (none below version 4). A [fileVersion] below what the next save writes is an upgrade: the
+         * caller keeps the old bytes before it saves. The default [fileVersion] is [BASE_VERSION]: what a lineup with
+         * no repairs is written as. [repairsUnreadable] is true when the file's `repairs` object did not read: the
+         * lineup is loaded with no record ([repairs] is none), the file is not set aside, and the caller reports it.
          */
         data class Loaded(
             val lineup: Lineup,
             val meta: RefreshMeta = RefreshMeta(),
-            val fileVersion: Int = VERSION,
+            val repairs: TodayRepairs = TodayRepairs.NONE,
+            val fileVersion: Int = BASE_VERSION,
+            val repairsUnreadable: Boolean = false,
         ) : Decoded
 
         /** Not a lineup this version can read. The caller sets it aside before writing another. */
@@ -93,15 +111,16 @@ internal object LineupCodec {
 
     private val json = Json
 
-    /** The bytes to store for [lineup] and its [meta]. */
+    /** The bytes to store for [lineup], its [meta] and its [repairs]: version 4 only when there are repairs. */
     fun encode(
         lineup: Lineup,
         meta: RefreshMeta = RefreshMeta(),
+        repairs: TodayRepairs = TodayRepairs.NONE,
     ): ByteArray {
         val ids = lineup.channels.mapTo(HashSet()) { it.id }
         val file =
             FileV1(
-                version = VERSION,
+                version = if (repairs.isEmpty) BASE_VERSION else VERSION,
                 serverId = lineup.serverId.value,
                 userId = lineup.userId.value,
                 catalogVersion = lineup.catalogVersion,
@@ -112,6 +131,7 @@ internal object LineupCodec {
                 useMyCollections = if (lineup.useMyCollections) null else false,
                 viewerChoicesKnown = if (lineup.viewerChoicesKnown) null else false,
                 curationBasis = lineup.curationBasis?.let { BasisV1.of(it, ids) },
+                repairs = if (repairs.isEmpty) null else RepairsCodec.encode(repairs),
             )
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
@@ -122,9 +142,18 @@ internal object LineupCodec {
         try {
             val root = json.parseToJsonElement(bytes.decodeToString(throwOnInvalidSequence = true))
             when (val version = versionOf(root)) {
-                null -> Decoded.Unreadable
-                in 1..VERSION -> lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version)
-                else -> Decoded.NewerVersion(version)
+                null -> {
+                    Decoded.Unreadable
+                }
+
+                in 1..VERSION -> {
+                    val hasRepairs = (root as JsonObject).containsKey("repairs")
+                    lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version, hasRepairs)
+                }
+
+                else -> {
+                    Decoded.NewerVersion(version)
+                }
             }
         } catch (_: IllegalArgumentException) {
             // SerializationException is one: bad JSON, an unknown key or enum value, a missing field, a wrong type.
@@ -151,6 +180,7 @@ internal object LineupCodec {
     private fun lineupOf(
         file: FileV1,
         fileVersion: Int,
+        hasRepairs: Boolean,
     ): Decoded {
         val server = CanonicalId.parseCanonicalOrNull(file.serverId)
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
@@ -171,12 +201,35 @@ internal object LineupCodec {
                 viewerChoicesKnown = !inferred && file.viewerChoicesKnown != false,
             )
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
-        // Older versions are strict: a field of a later version in them was not written by this app.
-        val strayField =
-            (fileVersion < 2 && meta.extrasFromMs != null) ||
-                (inferred && (hasVersion3Field(file) || meta.replanFromMs != null))
-        return if (lineup != null && !strayField) Decoded.Loaded(lineup, meta, fileVersion) else Decoded.Unreadable
+        return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs)) {
+            val repairs = if (hasRepairs) repairsOf(file.repairs ?: JsonNull) else TodayRepairs.NONE
+            val unreadable = repairs == null
+            Decoded.Loaded(lineup, meta, repairs ?: TodayRepairs.NONE, fileVersion, repairsUnreadable = unreadable)
+        } else {
+            Decoded.Unreadable
+        }
     }
+
+    // The record, or null when it does not read (whatever its decoding throws): the lineup is loaded all the same,
+    // with none (spec 26).
+    @Suppress("TooGenericExceptionCaught") // Only the record's own decoding is guarded; the lineup's is strict.
+    private fun repairsOf(element: JsonElement): TodayRepairs? =
+        try {
+            RepairsCodec.decode(element)
+        } catch (_: RuntimeException) {
+            null
+        }
+
+    // Older versions are strict: a field of a later version in them was not written by this app.
+    private fun hasStrayField(
+        file: FileV1,
+        meta: RefreshMeta,
+        fileVersion: Int,
+        hasRepairs: Boolean,
+    ): Boolean =
+        (fileVersion < 2 && meta.extrasFromMs != null) ||
+            (fileVersion < BASE_VERSION && (hasVersion3Field(file) || meta.replanFromMs != null)) ||
+            (fileVersion < VERSION && hasRepairs)
 
     private fun hasVersion3Field(file: FileV1): Boolean =
         file.useMyCollections != null ||
@@ -413,6 +466,7 @@ private class FileV1(
     val useMyCollections: Boolean? = null,
     val viewerChoicesKnown: Boolean? = null,
     val curationBasis: BasisV1? = null,
+    val repairs: JsonElement? = null,
 )
 
 @Serializable

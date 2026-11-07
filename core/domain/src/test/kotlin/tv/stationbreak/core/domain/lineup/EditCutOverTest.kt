@@ -45,7 +45,7 @@ class EditCutOverTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library, built = { builds += it }) { LIBRARIES }
+    private val source = BuiltInScheduleSource(service, library, built = { builds += it }) { selectionOf(LIBRARIES) }
     private val mine = ChannelId("custom:mine")
 
     init {
@@ -159,7 +159,7 @@ class EditCutOverTest {
         val fresh = RecordingStore()
         holding(fresh, laughs(), custom(inOrder()))
         val other = LineupService(fresh, library, clock, { 0 }, {}, TestCatalog)
-        val expected = blockAt(BuiltInScheduleSource(other, library) { LIBRARIES }, mine, end)
+        val expected = blockAt(BuiltInScheduleSource(other, library) { selectionOf(LIBRARIES) }, mine, end)
         assertEquals(expected, afterEdit, "the new rules' block at the clock")
         assertNotEquals(rotationNext, afterEdit, "and not the old rules'")
     }

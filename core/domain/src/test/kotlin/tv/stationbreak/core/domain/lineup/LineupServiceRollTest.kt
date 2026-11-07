@@ -7,16 +7,25 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
+import tv.stationbreak.core.domain.lineup.repair.RepairConfig
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.fixOf
+import tv.stationbreak.core.domain.lineup.repair.repairOf
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.rolled
+import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.core.rules.Source
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -216,5 +225,475 @@ class LineupServiceRollTest {
             service.awaitRolls()
             assertEquals(1, service.rollAttempts.get())
             assertEquals(loads, store.calls.count { it == "load" }, "a roll works from the held lineup")
+        }
+
+    // ---- The repair record (spec 26) ----
+
+    private fun serviceWith(config: RepairConfig = RepairConfig()) =
+        LineupService(store, library, clock, { 0 }, {}, LineupSeams(TestCatalog, repairConfig = config))
+
+    private fun stored(): LineupCodec.Decoded.Loaded =
+        LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT))) as LineupCodec.Decoded.Loaded
+
+    private val nowMs get() = now.toEpochMilliseconds()
+
+    @Test
+    fun v3File_withRepairs_savesAsV4_withBakCopy() =
+        runBlocking<Unit> {
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            val v3Bytes = checkNotNull(store.inner.peek(ACCOUNT))
+            assertEquals(3, stored().fileVersion)
+            assertNull(store.inner.keptCopy(ACCOUNT, "v3"), "no copy for a save that stays at version 3")
+
+            val service = serviceWith()
+            val record = TodayRepairs(selection = listOf(repairOf(atMs = nowMs + 60_000L)))
+            assertTrue(service.recordRepairs(ACCOUNT) { record })
+
+            assertEquals(4, stored().fileVersion)
+            assertEquals(record, stored().repairs)
+            assertEquals(v3Bytes.toList(), checkNotNull(store.inner.keptCopy(ACCOUNT, "v3")).toList())
+            assertEquals(record, service.repairs(ACCOUNT).value)
+            assertEquals(record, checkNotNull(service.lineup(ACCOUNT).value).repairs)
+            // The copy is kept once: a later record is already version 4.
+            assertTrue(service.recordRepairs(ACCOUNT) { it.repairs.copy(lastSeq = 30L) })
+            assertEquals(v3Bytes.toList(), checkNotNull(store.inner.keptCopy(ACCOUNT, "v3")).toList())
+        }
+
+    @Test
+    fun aRefreshKeepsTheRepairs() =
+        runBlocking<Unit> {
+            val service = serviceWith()
+            service.refresh(ACCOUNT, LIBRARIES)
+            val record = TodayRepairs(fixes = listOf(fixOf(blockStartMs = nowMs)))
+            assertTrue(service.recordRepairs(ACCOUNT) { record })
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(record, service.repairs(ACCOUNT).value)
+            assertEquals(record, stored().repairs)
+            // A restarted session reads them back.
+            val restarted = serviceWith()
+            restarted.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(record, restarted.repairs(ACCOUNT).value)
+        }
+
+    @Test
+    fun recordRepairs_whenThereIsNoLineup_orItMayNotBeWritten_isFalse() =
+        runBlocking<Unit> {
+            assertFalse(serviceWith().recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(fixOf())) })
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            store.inner.failReads = true
+            val service = serviceWith()
+            assertFalse(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(fixOf())) })
+            store.inner.failReads = false
+            assertEquals(TodayRepairs.NONE, stored().repairs)
+        }
+
+    @Test
+    fun recordRepairs_saveFails_changesNothing() =
+        runBlocking<Unit> {
+            val service = serviceWith()
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = checkNotNull(store.inner.peek(ACCOUNT))
+            val published = checkNotNull(service.lineup(ACCOUNT).value)
+            store.inner.failWrites = true
+            assertFalse(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(fixOf())) })
+            store.inner.failWrites = false
+            assertEquals(before.toList(), checkNotNull(store.inner.peek(ACCOUNT)).toList())
+            assertEquals(published, service.lineup(ACCOUNT).value)
+            assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value)
+        }
+
+    @Test
+    fun rolled_aBackgroundRollPrunesEndedDaysFromTheRecordAndFile() =
+        runBlocking<Unit> {
+            val service = serviceWith()
+            service.refresh(ACCOUNT, LIBRARIES)
+            val soon = nowMs + 7_200_000L
+            val later = nowMs + 30 * 3_600_000L
+            val record =
+                TodayRepairs(
+                    selection =
+                        listOf(repairOf(n = 1L, dayEndMs = soon), repairOf(n = 2L, atMs = soon, dayEndMs = later)),
+                    fixes =
+                        listOf(fixOf(n = 1L, dayEndMs = soon), fixOf(n = 2L, dayEndMs = later, blockStartMs = soon)),
+                )
+            assertTrue(service.recordRepairs(ACCOUNT) { record })
+            pastDue()
+            val restarted = serviceWith()
+            val held = checkNotNull(restarted.loaded(ACCOUNT))
+            restarted.rollSoon(ACCOUNT, held)
+            restarted.awaitRolls()
+            val rolled = record.rolled(nowMs)
+            assertEquals(listOf(2L), rolled.selection.map { it.n })
+            assertEquals(rolled, restarted.repairs(ACCOUNT).value)
+            assertEquals(rolled, stored().repairs)
+        }
+
+    @Test
+    fun rolled_whenTheLastDayEnds_thePrunedFileIsVersion3Again() =
+        runBlocking<Unit> {
+            val service = serviceWith()
+            service.refresh(ACCOUNT, LIBRARIES)
+            val soon = nowMs + 7_200_000L
+            assertTrue(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(fixOf(dayEndMs = soon))) })
+            assertEquals(4, stored().fileVersion)
+            pastDue()
+            val restarted = serviceWith()
+            restarted.rollSoon(ACCOUNT, checkNotNull(restarted.loaded(ACCOUNT)))
+            restarted.awaitRolls()
+            assertEquals(3, stored().fileVersion)
+            assertEquals(TodayRepairs.NONE, restarted.repairs(ACCOUNT).value)
+        }
+
+    // The config that leaves [room] bytes under the cap for a file holding [with].
+    private fun configLeaving(
+        room: Int,
+        with: TodayRepairs,
+    ): RepairConfig {
+        val held = stored()
+        val size = LineupCodec.encode(held.lineup, held.meta, with).size
+        return RepairConfig(fileMargin = LineupLimits.MAX_FILE_BYTES - size - room)
+    }
+
+    private fun fixAt(
+        n: Long,
+        coversNow: Boolean = false,
+    ) = fixOf(
+        n = n,
+        dayEndMs = nowMs + n * 86_400_000L,
+        blockStartMs = if (coversNow) nowMs - 600_000L else nowMs + n * 86_400_000L - 7_200_000L,
+        gone = 100 + n.toInt(),
+    )
+
+    @Test
+    fun sizeTrim_neverDropsTheFixCoveringNow() =
+        runBlocking<Unit> {
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            // The covering fix belongs to the oldest day, so a plain oldest-first trim would drop it first.
+            val covering = fixAt(1L, coversNow = true)
+            val later = fixAt(2L)
+            val config = configLeaving(room = 50, with = TodayRepairs(fixes = listOf(covering)))
+            val service = serviceWith(config)
+            assertTrue(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(covering, later)) })
+            assertEquals(listOf(covering), service.repairs(ACCOUNT).value.fixes)
+            assertEquals(listOf(covering), stored().repairs.fixes)
+        }
+
+    @Test
+    fun sizeTrim_dropsTheOldestDayThenTheEarliestBlockFirst() =
+        runBlocking<Unit> {
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            val d2a = fixAt(2L)
+            val d2b = fixOf(n = 2L, dayEndMs = d2a.dayEndMs, blockStartMs = d2a.blockStartMs + 3_600_000L, gone = 102)
+            val d3 = fixAt(3L)
+            val d4 = fixAt(4L)
+            val config = configLeaving(room = 50, with = TodayRepairs(fixes = listOf(d2b, d3, d4)))
+            val service = serviceWith(config)
+            assertTrue(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(d4, d3, d2b, d2a)) })
+            val kept = service.repairs(ACCOUNT).value.fixes
+            assertEquals(listOf(d4, d3, d2b).toSet(), kept.toSet(), "the earliest block of the oldest day went")
+        }
+
+    @Test
+    fun sizeTrim_aCoveringFixThatDoesNotFit_isFalseAndNothingChanges() =
+        runBlocking<Unit> {
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            val config = configLeaving(room = 10, with = TodayRepairs.NONE)
+            val service = serviceWith(config)
+            service.loaded(ACCOUNT)
+            val before = checkNotNull(store.inner.peek(ACCOUNT))
+            val published = checkNotNull(service.lineup(ACCOUNT).value)
+            assertFalse(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(fixAt(1L, coversNow = true))) })
+            assertEquals(before.toList(), checkNotNull(store.inner.peek(ACCOUNT)).toList())
+            assertEquals(published, service.lineup(ACCOUNT).value)
+            assertNull(store.inner.keptCopy(ACCOUNT, "v3"), "a refused record keeps no upgrade copy either")
+        }
+
+    @Test
+    fun fixesAreCappedAtMaxFixes_oldestFirst() =
+        runBlocking<Unit> {
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            val service = serviceWith(RepairConfig(maxFixes = 3))
+            val fixes = (1L..5L).map { fixAt(it) }
+            assertTrue(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = fixes) })
+            assertEquals(
+                fixes.drop(2).toSet(),
+                service
+                    .repairs(ACCOUNT)
+                    .value.fixes
+                    .toSet(),
+            )
+        }
+
+    private fun fiftyChannelLineup(): Lineup {
+        val channels =
+            (1..50).map { n ->
+                val many = (1..150).map { Source.Collection(id(n * 1000 + it)) }
+                val source = ChannelSource.Custom(rules("Mine $n", *many.toTypedArray()))
+                channel("custom-$n", 600 + n, ChannelState.On, source)
+            }
+        return lineupOf(*channels.toTypedArray())
+    }
+
+    // A real 50-channel lineup close to the cap: twenty changes follow, each a selection repair and a fix.
+    @Test
+    fun nearLimitLineup_twentyChanges_fitsOrFailsCleanly() =
+        runBlocking<Unit> {
+            val lineup = fiftyChannelLineup()
+            val bare = LineupCodec.encode(lineup).size
+            assertTrue(bare in 1 until LineupLimits.MAX_FILE_BYTES, "the lineup alone is $bare bytes")
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
+            // Room for a handful of fixes, no more.
+            val room = 6 * 1_200
+            val limited = RepairConfig(fileMargin = LineupLimits.MAX_FILE_BYTES - bare - room)
+            val service = serviceWith(limited)
+            service.loaded(ACCOUNT)
+            val cap = LineupLimits.MAX_FILE_BYTES - limited.fileMargin
+
+            var accepted = 0
+            var lastAccepted = 0L
+            val acceptedNs = mutableListOf<Long>()
+            var severalKept = 0
+            for (n in 1L..20L) {
+                val fix = fixAt(n)
+                val repair = repairOf(channel = "custom-$n", n = 1L, seq = n, dayEndMs = nowMs + (n + 2) * 3_600_000L)
+                val before = service.repairs(ACCOUNT).value
+                val file = checkNotNull(store.inner.peek(ACCOUNT)).toList()
+                val ok =
+                    service.recordRepairs(ACCOUNT) {
+                        it.repairs.copy(
+                            selection = it.repairs.selection + repair,
+                            fixes =
+                                it.repairs.fixes + fix,
+                        )
+                    }
+                val bytes = checkNotNull(store.inner.peek(ACCOUNT))
+                if (ok) {
+                    accepted++
+                    lastAccepted = n
+                    acceptedNs += n
+                    val kept =
+                        service
+                            .repairs(ACCOUNT)
+                            .value.fixes
+                            .map { it.n }
+                    assertEquals(acceptedNs.takeLast(kept.size), kept, "in order, oldest dropped first")
+                    if (kept.size >= 2) severalKept++
+                    assertTrue(bytes.size <= cap, "file ${bytes.size} over $cap")
+                    assertTrue(repair in service.repairs(ACCOUNT).value.selection, "the new selection repair is held")
+                    assertEquals(service.repairs(ACCOUNT).value, stored().repairs)
+                } else {
+                    assertEquals(file, bytes.toList())
+                    assertEquals(before, service.repairs(ACCOUNT).value)
+                }
+            }
+            assertTrue(accepted in 1..19, "some changes fit and some do not: $accepted")
+            val held = service.repairs(ACCOUNT).value
+            assertTrue(held.fixes.size < accepted, "the oldest fixes were dropped to make room: ${held.fixes.size}")
+            assertTrue(held.fixes.any { it.n == lastAccepted }, "the newest accepted fix stays")
+            assertTrue(severalKept > 0, "the order was checked on a record of several fixes")
+
+            // A selection repair that cannot fit even with every droppable fix gone: false, nothing changes.
+            val file = checkNotNull(store.inner.peek(ACCOUNT)).toList()
+            val before = service.repairs(ACCOUNT).value
+            val huge = repairOf(channel = "custom-1", n = 99L, tailBlocks = 3_000, dayEndMs = nowMs + 99 * 3_600_000L)
+            assertFalse(service.recordRepairs(ACCOUNT) { it.repairs.copy(selection = it.repairs.selection + huge) })
+            assertEquals(file, checkNotNull(store.inner.peek(ACCOUNT)).toList())
+            assertEquals(before, service.repairs(ACCOUNT).value)
+            assertEquals(before, stored().repairs)
+        }
+
+    @Test
+    fun aTriedBoundaryCostsALookupNoRollingWork() =
+        runBlocking<Unit> {
+            storeDue(nowMs + 3_600_000L)
+            pastDue()
+            var looks = 0
+            val seams = LineupSeams(TestCatalog, rolledLineup = { lineup, ms -> looks++.let { lineup.rolled(ms) } })
+            val service = LineupService(store, library, clock, { 0 }, {}, seams)
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+            assertEquals(1, looks, "the first lookup of the boundary looks")
+            repeat(20) { service.rollSoon(ACCOUNT, held) }
+            assertEquals(1, looks, "later lookups of a tried boundary do not")
+        }
+
+    @Test
+    fun anEditStillSaves_whenTheLineupGrowsPastTheRoom_andTheRecordIsTrimmed() =
+        runBlocking<Unit> {
+            serviceWith().refresh(ACCOUNT, LIBRARIES)
+            val fixes = (1L..3L).map { fixAt(it) }
+            val record = TodayRepairs(fixes = fixes)
+            val config = configLeaving(room = 0, with = record)
+            val trims = mutableListOf<Triple<Int, Int, Int>>()
+            val seams =
+                LineupSeams(TestCatalog, repairConfig = config, trimmed = { a, b, c -> trims += Triple(a, b, c) })
+            val service = LineupService(store, library, clock, { 0 }, {}, seams)
+            assertTrue(service.recordRepairs(ACCOUNT) { record })
+            val before = checkNotNull(store.inner.peek(ACCOUNT)).size
+
+            service.loaded(ACCOUNT)
+            val edit = LineupEdit.SetNumber(laughs, 555)
+            assertTrue(service.edit(ACCOUNT, edit) is Saved.Ok<*>)
+
+            val after = checkNotNull(store.inner.peek(ACCOUNT))
+            assertEquals(
+                555,
+                stored()
+                    .lineup.channels
+                    .first { it.id == laughs }
+                    .numberOverride,
+                "the edit landed",
+            )
+            assertTrue(after.size <= before, "a lineup that grew by a few bytes cost the record a fix")
+            assertTrue(after.size <= LineupLimits.MAX_FILE_BYTES - config.fileMargin)
+            val kept = service.repairs(ACCOUNT).value.fixes
+            assertTrue(kept.size in 1..2, "the oldest fix went: ${kept.size}")
+            assertEquals(kept, stored().repairs.fixes)
+            assertEquals(listOf(Triple(3 - kept.size, 0, 0)), trims)
+        }
+
+    @Test
+    fun withTheDefaultMargin_aRecordNeverTakesTheFileWithin64KiBOfTheCap() =
+        runBlocking<Unit> {
+            val limit = LineupLimits.MAX_FILE_BYTES - RepairConfig().fileMargin
+            var channels = 30
+
+            fun lineupOfSize(count: Int) =
+                lineupOf(
+                    *(1..count)
+                        .map { n ->
+                            val many = (1..150).map { Source.Collection(id(n * 1000 + it)) }
+                            val source = ChannelSource.Custom(rules("M$n", *many.toTypedArray()))
+                            channel("custom-$n", 600 + n, ChannelState.On, source)
+                        }.toTypedArray(),
+                )
+            while (LineupCodec.encode(lineupOfSize(channels + 1)).size < limit - 3_000) channels++
+            val lineup = lineupOfSize(channels)
+            assertTrue(LineupCodec.encode(lineup).size < limit)
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineup))
+            val service = serviceWith()
+            service.loaded(ACCOUNT)
+
+            assertTrue(service.recordRepairs(ACCOUNT) { TodayRepairs(fixes = listOf(fixAt(1L))) })
+            val huge = repairOf(channel = "custom-1", tailBlocks = 5_000)
+            assertFalse(service.recordRepairs(ACCOUNT) { it.repairs.copy(selection = listOf(huge)) })
+            assertTrue(checkNotNull(store.inner.peek(ACCOUNT)).size <= limit)
+            assertEquals(listOf(fixAt(1L)), stored().repairs.fixes)
+        }
+
+    @Test
+    fun aRecordTheFormatCannotHold_isRefusedAndNothingChanges() =
+        runBlocking<Unit> {
+            val service = serviceWith()
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = checkNotNull(store.inner.peek(ACCOUNT)).toList()
+            val good = repairOf(atMs = nowMs + 60_000L)
+            val zero = good.copy(blocks = good.blocks.map { it.copy(endMs = it.startMs) })
+            val overlapped = good.blocks.mapIndexed { i, b -> if (i == 1) b.copy(startMs = b.startMs - 1) else b }
+            val overlap = good.copy(blocks = overlapped)
+            for (bad in listOf(zero, overlap)) {
+                assertFalse(service.recordRepairs(ACCOUNT) { TodayRepairs(selection = listOf(bad)) })
+                assertEquals(before, checkNotNull(store.inner.peek(ACCOUNT)).toList())
+                assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value)
+            }
+        }
+
+    // ---- Every lineup save fits the record (memory equals disk) ----
+
+    // A refreshed lineup stored with [record] (and [meta] if given), as a file of version 4.
+    private fun seed(
+        record: TodayRepairs,
+        meta: RefreshMeta? = null,
+    ): LineupCodec.Decoded.Loaded {
+        runBlocking { serviceWith().refresh(ACCOUNT, LIBRARIES) }
+        val base = stored()
+        runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(base.lineup, meta ?: base.meta, record)) }
+        return stored()
+    }
+
+    private fun sizeOf(
+        held: LineupCodec.Decoded.Loaded,
+        record: TodayRepairs,
+    ) = LineupCodec.encode(held.lineup, held.meta, record).size
+
+    // The config under which [record] is the most the file may hold.
+    private fun allowing(
+        held: LineupCodec.Decoded.Loaded,
+        record: TodayRepairs,
+    ) = RepairConfig(fileMargin = LineupLimits.MAX_FILE_BYTES - sizeOf(held, record))
+
+    private fun agree(service: LineupService): TodayRepairs {
+        val published = service.repairs(ACCOUNT).value
+        assertEquals(published, stored().repairs, "memory equals disk")
+        assertEquals(published, checkNotNull(service.lineup(ACCOUNT).value).repairs)
+        return published
+    }
+
+    @Test
+    fun aCollectionPass_trimsTheRecord_andPublishesWhatItSaved() =
+        runBlocking<Unit> {
+            val fixes = (1L..3L).map { fixAt(it) }
+            val record = TodayRepairs(fixes = fixes)
+            val seeded = seed(record, RefreshMeta(plannedGeneration = 1L, collectionPassActedOn = 5L))
+            val service = serviceWith(allowing(seeded, record))
+            service.loaded(ACCOUNT)
+            service.notePass(ACCOUNT, Instant.fromEpochMilliseconds(1_700_000_000_000L))
+            assertEquals(1_700_000_000_000L, checkNotNull(service.lineup(ACCOUNT).value).meta.collectionPassActedOn)
+            val kept = agree(service)
+            assertTrue(kept.fixes.size in 1..2, "the oldest fix went: ${kept.fixes.size}")
+            assertEquals(fixes.takeLast(kept.fixes.size), kept.fixes)
+        }
+
+    @Test
+    fun aRefresh_dropsSelectionRepairsToo_whenTheFixesAreNotEnough() =
+        runBlocking<Unit> {
+            val early = repairOf(n = 1L, atMs = nowMs + 60_000L, dayEndMs = nowMs + 4 * 3_600_000L)
+            val lateEnd = nowMs + 6 * 3_600_000L
+            val late = repairOf(channel = "starter:other", n = 2L, atMs = nowMs + 120_000L, dayEndMs = lateEnd)
+            val record = TodayRepairs(listOf(late, early), listOf(fixAt(2L)))
+            val seeded = seed(record)
+            val lateOnly = sizeOf(seeded, TodayRepairs(listOf(late)))
+            val both = sizeOf(seeded, TodayRepairs(listOf(late, early)))
+            val config = RepairConfig(fileMargin = LineupLimits.MAX_FILE_BYTES - (lateOnly + both) / 2)
+            val trims = mutableListOf<Triple<Int, Int, Int>>()
+            val note = { a: Int, b: Int, c: Int -> trims += Triple(a, b, c) }
+            val seams = LineupSeams(TestCatalog, repairConfig = config, trimmed = note)
+            val service = LineupService(store, library, clock, { 0 }, {}, seams)
+            service.refresh(ACCOUNT, LIBRARIES)
+            val kept = agree(service)
+            assertEquals(emptyList(), kept.fixes)
+            assertEquals(listOf(late), kept.selection, "the oldest atMs went")
+            assertEquals(listOf(Triple(1, 0, 1)), trims)
+        }
+
+    @Test
+    fun aRoll_trimsWhatIsLeft_andPublishesWhatItSaved() =
+        runBlocking<Unit> {
+            val soon = nowMs + 7_200_000L
+            val ending = fixOf(n = 1L, dayEndMs = soon, blockStartMs = nowMs)
+            val rest = (2L..4L).map { fixAt(it) }
+            val record = TodayRepairs(fixes = listOf(ending) + rest)
+            val seeded = seed(record)
+            val service = serviceWith(allowing(seeded, TodayRepairs(fixes = rest.takeLast(2))))
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            pastDue()
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+            assertEquals(rest.takeLast(2), agree(service).fixes, "the ended day went, then the oldest fix")
+        }
+
+    @Test
+    fun aSessionThatMayNotWrite_keepsTheRecordUntrimmed() =
+        runBlocking<Unit> {
+            val record = TodayRepairs(fixes = (1L..3L).map { fixAt(it) })
+            val seeded = seed(record)
+            val service = serviceWith(allowing(seeded, TodayRepairs(fixes = listOf(fixAt(3L)))))
+            val file = checkNotNull(store.inner.peek(ACCOUNT)).toList()
+            store.inner.failReads = true
+            service.refresh(ACCOUNT, LIBRARIES)
+            store.inner.failReads = false
+            assertEquals(file, checkNotNull(store.inner.peek(ACCOUNT)).toList())
+            assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value, "nothing was held, nothing is trimmed")
         }
 }

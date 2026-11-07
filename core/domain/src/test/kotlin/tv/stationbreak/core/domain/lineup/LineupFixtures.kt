@@ -190,6 +190,10 @@ internal class CountingLibrary(
     var scheduleItemsCalls = 0
     var programInfoCalls = 0
     var currentIdsCalls = 0
+    var scheduleItemsOfCalls = 0
+
+    /** Run after each `ruleSnapshot` read returns: a test lands a sync while a read is in flight. */
+    var afterSnapshot: () -> Unit = {}
 
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
@@ -197,7 +201,7 @@ internal class CountingLibrary(
         cutoff: Instant,
     ): RuleSnapshot {
         snapshotCutoffs += cutoff
-        return delegate.ruleSnapshot(account, libraries, cutoff)
+        return delegate.ruleSnapshot(account, libraries, cutoff).also { afterSnapshot() }
     }
 
     override suspend fun scheduleItems(
@@ -225,9 +229,31 @@ internal class CountingLibrary(
         return delegate.currentIds(account, ids)
     }
 
+    override suspend fun scheduleItemsOf(
+        account: LibraryAccount,
+        ids: Set<CanonicalId>,
+        cutoffMs: Long,
+    ): List<ScheduleItem> {
+        scheduleItemsOfCalls++
+        return delegate.scheduleItemsOf(account, ids, cutoffMs)
+    }
+
     fun seed(vararg items: RuleItem) = delegate.seedRule(ACCOUNT, *items)
 
     fun seed(items: List<RuleItem>) = delegate.seedRule(ACCOUNT, *items.toTypedArray())
 
     fun seedSeries(vararg series: RuleSeries) = delegate.seedSeries(ACCOUNT, *series)
 }
+
+/** [libraries] as a saved selection with [seq] (null for none): a schedule source's provider in tests. */
+internal fun selectionOf(
+    libraries: Set<ItemId>?,
+    seq: Long = 0L,
+): SavedSelection? = libraries?.let { SavedSelection(it, seq) }
+
+/** The switched-on channels' days at [at] over [libraries], in number order, at the saved seq: a test's shorthand. */
+internal suspend fun BuiltInScheduleSource.channelDays(
+    account: LibraryAccount,
+    libraries: Set<ItemId>,
+    at: Instant,
+): List<ChannelDay> = channelDays(account, SavedSelection(libraries, savedSelection()?.seq ?: 0L), at)

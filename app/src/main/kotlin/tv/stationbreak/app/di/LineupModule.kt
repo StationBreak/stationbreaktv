@@ -38,6 +38,7 @@ import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
+import tv.stationbreak.core.domain.lineup.SavedSelection
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SharedSnapshots
@@ -249,7 +250,8 @@ internal object LineupModule {
                 ),
             persisted = persisted,
             shared = shared,
-        ) { settings.loadLibraries() }
+            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows.
+        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L) } }
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source

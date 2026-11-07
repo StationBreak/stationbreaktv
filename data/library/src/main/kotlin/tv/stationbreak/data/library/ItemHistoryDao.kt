@@ -314,6 +314,78 @@ internal abstract class ItemHistoryDao {
         }
     }
 
+    // The as-of read by id (spec 26): the same three cases as [heldAsOf], for a list of at most MAX_VARIABLES IDs. Each
+    // is a lookup by the primary key's (serverId, userId, itemId) prefix, so no new index and no scan of the table.
+
+    @Query(
+        "SELECT $HELD_COLUMNS_OF_ITEM FROM item WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids)",
+    )
+    protected abstract suspend fun currentAmong(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<HeldRaw>
+
+    @Query(
+        "SELECT $HELD_COLUMNS_OF_VERSION FROM item_version " +
+            "WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids) " +
+            "AND seenFromMs < :cutoffMs AND supersededAtMs >= :cutoffMs",
+    )
+    protected abstract suspend fun coveringAmong(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        cutoffMs: Long,
+    ): List<HeldRaw>
+
+    @Query(
+        "SELECT $HELD_COLUMNS_OF_V FROM item_version v " +
+            "JOIN item i ON i.serverId = v.serverId AND i.userId = v.userId AND i.itemId = v.itemId " +
+            "AND i.firstSeenMs = v.seenFromMs " +
+            "WHERE v.serverId = :serverId AND v.userId = :userId AND v.itemId IN (:ids) AND v.seenFromMs >= :cutoffMs",
+    )
+    protected abstract suspend fun oldestAmong(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+        cutoffMs: Long,
+    ): List<HeldRaw>
+
+    /**
+     * The version of each of [ids] this TV held before [cutoffMs], by [heldAsOf]'s rule, whatever its library, less
+     * those whose held version was deleted before the cut-off; in chunks of [chunkSize] IDs in one read transaction,
+     * returned in item-ID order. Unknown IDs are absent. The genres, tags and studios of a current row are not read
+     * (an item's schedule fields need none of them).
+     */
+    @Transaction
+    open suspend fun heldAsOfIds(
+        serverId: String,
+        userId: String,
+        cutoffMs: Long,
+        ids: Collection<String>,
+        chunkSize: Int,
+    ): List<HeldRow> {
+        val held = ArrayList<HeldRow>()
+        val strings = Interner()
+        val none = SideLists()
+        for (chunk in ids.distinct().sorted().chunked(chunkSize)) {
+            val current = currentAmong(serverId, userId, chunk)
+            if (current.isEmpty()) continue
+            val covering = HashMap<String, HeldRaw>()
+            val oldest = HashMap<String, HeldRaw>()
+            if (current.any { it.seenFromMs >= cutoffMs }) {
+                coveringAmong(serverId, userId, chunk, cutoffMs).associateByTo(covering) { it.itemId }
+                oldestAmong(serverId, userId, chunk, cutoffMs).associateByTo(oldest) { it.itemId }
+            }
+            for (row in current.sortedBy { it.itemId }) {
+                val version = if (row.seenFromMs < cutoffMs) row else covering[row.itemId] ?: oldest[row.itemId] ?: row
+                val deletedAt = version.deletedAtMs
+                if (deletedAt == null || deletedAt >= cutoffMs) held += version.toHeld(none, strings)
+            }
+        }
+        return held
+    }
+
     // The held version of each item of a chunk, kept when it belongs to a wanted library and was not deleted before the
     // cut-off. Cases (b) and (c) are looked up only when some item of the chunk needs them.
     @Suppress("LongParameterList") // The account, the chunk, the cut-off and the libraries: one read.

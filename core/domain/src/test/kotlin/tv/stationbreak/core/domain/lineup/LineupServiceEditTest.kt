@@ -109,7 +109,7 @@ class LineupServiceEditTest {
     @Test
     fun aNewerAppsFileIsNeverWrittenAndEditReturnsNull() =
         runBlocking<Unit> {
-            val newer = """{"version":4,"whatever":"a newer app wrote"}""".encodeToByteArray()
+            val newer = """{"version":5,"whatever":"a newer app wrote"}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
             store.calls.clear()
             service.refresh(ACCOUNT, LIBRARIES)
@@ -360,7 +360,7 @@ class LineupServiceEditTest {
             assertTrue(checkNotNull(service.lineup(ACCOUNT).value).writable)
 
             val other = LibraryAccount(ACCOUNT.server, UserId(id(9).value))
-            store.inner.save(other, """{"version":4}""".encodeToByteArray())
+            store.inner.save(other, """{"version":5}""".encodeToByteArray())
             service.refresh(other, LIBRARIES)
             assertTrue(service.lineup(other).value?.writable != true)
         }

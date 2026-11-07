@@ -65,7 +65,7 @@ class DayReuseTest {
                 library,
                 built = { builds += it },
                 persisted = PersistedDays(disk, "1:100", { events += it }),
-            ) { LIBRARIES }
+            ) { selectionOf(LIBRARIES) }
 
         fun days(at: Instant = NOON): List<ChannelDay> =
             runBlocking { source.channelDays(ACCOUNT, LIBRARIES, at).also { source.awaitSaves() } }

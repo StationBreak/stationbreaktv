@@ -463,7 +463,7 @@ class CuratedDaysTest {
                 override fun now() = NOON
             }
         val service = LineupService(store, library, clock, { 0 }, {}, catalog)
-        val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+        val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
         val guide = runBlocking { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
         assertEquals(built.map { it.channel.id }, guide.map { it.channel.id })
         for (day in built) assertEquals(day.aired(), guide.dayOf(day.channel.id.value).aired(), "${day.channel.id}")

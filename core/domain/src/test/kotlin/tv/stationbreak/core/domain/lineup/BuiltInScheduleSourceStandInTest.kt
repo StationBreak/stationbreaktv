@@ -26,7 +26,7 @@ class BuiltInScheduleSourceStandInTest {
             override fun now(): Instant = NOON
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
-    private val source = BuiltInScheduleSource(service, library) { LIBRARIES }
+    private val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
     private val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
     private val comedyIds = (0 until 7).map { id(100 + it) }
 
@@ -90,7 +90,7 @@ class BuiltInScheduleSourceStandInTest {
     @Test
     fun standInsAreTheSameForTwoSourcesOnTheSameLibrary() {
         name(*(100..106).toList().toIntArray())
-        val other = BuiltInScheduleSource(service, library) { LIBRARIES }
+        val other = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
         val block = dead(lengthMs = 6 * 3_600_000L)
         val exclude = setOf(itemOf(block).itemId)
 

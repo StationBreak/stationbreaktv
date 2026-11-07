@@ -22,6 +22,8 @@ data class OnAir(
  * How a day used the cycle: the run it starts at, the number of runs the regular layout started, and the number of
  * runs in the cycle (those not left out).
  *
+ * A day composed from given blocks (`composedDay`) carries `RunPlan(0, 0, 0)`.
+ *
  * A test seam: nothing in production reads it. The continuity and end-fill tests need it to tell the regular layout
  * from the end-of-day fill, which the blocks alone do not say.
  */
