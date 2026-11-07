@@ -4,10 +4,12 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +19,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
@@ -24,6 +27,7 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * The details panel while the focus moves (spec 17): the title and the time follow every move at once, and the
@@ -65,6 +69,87 @@ class DetailsPanelTest {
     private fun show(details: CellDetails) {
         panel.value = details
         compose.mainClock.advanceTimeByFrame()
+    }
+
+    private fun meta() = compose.onNodeWithTag(GuideTags.PANEL_META, useUnmergedTree = true)
+
+    private fun withItem(item: ItemDetails?): CellDetails {
+        val cell = GuideCell(0, 30 * MIN, CellKind.Program, "Program 0", null, null)
+        return CellDetails(cell, 7, "Seven", item, loading = false)
+    }
+
+    @Test
+    fun theMetaLineShowsWithTheItemWithoutWaitingForTheDescription() {
+        val item = ItemDetails(ItemId("item-meta"), "About", 2018, listOf("Animation", "Family", "Kids"), 7.minutes)
+        show(withItem(item))
+        assertEquals("2018 · 7 min · Animation, Family", text(GuideTags.PANEL_META))
+        overview().assertDoesNotExist()
+        assertEquals("Program 0", text(GuideTags.PANEL_TITLE))
+        compose.onNodeWithTag(GuideTags.PANEL_TIME, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun noMetaLineWithoutAnItemOrWithAnEmptyOne() {
+        show(withItem(null))
+        meta().assertDoesNotExist()
+        show(withItem(ItemDetails(ItemId("item-bare"), "About", null, emptyList(), null)))
+        meta().assertDoesNotExist()
+        assertEquals("Program 0", text(GuideTags.PANEL_TITLE))
+        compose.onNodeWithTag(GuideTags.PANEL_TIME, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun anEpisodeOnNowKeepsItsTimeRowAndProgressBarInsideThePanel() {
+        val info = ScheduleFixtures.episodeInfo(1, "Test Series", 1, 19)
+        showOnNow(info, "Test Series")
+        val panelBottom = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot().bottom
+        val always =
+            listOf(
+                GuideTags.PANEL_CHANNEL,
+                GuideTags.PANEL_TITLE,
+                GuideTags.PANEL_EPISODE,
+                GuideTags.PANEL_TIME,
+                GuideTags.PANEL_PROGRESS,
+            )
+        for (tag in always) assertShownInside(tag, panelBottom)
+        // By design the meta line is dropped whole when the episode line leaves no room for it; if it is drawn at
+        // all, it must end inside the panel.
+        if (isDisplayed(GuideTags.PANEL_META)) assertShownInside(GuideTags.PANEL_META, panelBottom)
+    }
+
+    @Test
+    fun aMovieOnNowShowsItsMetaLineWithTheTimeRowAndProgressBar() {
+        showOnNow(ScheduleFixtures.info(1, "Test Movie 1"), "Test Movie 1")
+        val panelBottom = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot().bottom
+        for (tag in listOf(GuideTags.PANEL_META, GuideTags.PANEL_TIME, GuideTags.PANEL_PROGRESS)) {
+            assertShownInside(tag, panelBottom)
+        }
+        assertEquals("2018 · 22 min · Animation, Family", text(GuideTags.PANEL_META))
+    }
+
+    private fun showOnNow(
+        info: ProgramInfo,
+        title: String,
+    ) {
+        val cell = GuideCell(-MIN, 29 * MIN, CellKind.Program, title, info, null)
+        val item = ItemDetails(ItemId("item-fit"), null, 2018, listOf("Animation", "Family"), 22.minutes)
+        show(CellDetails(cell, 7, "Seven", item, loading = false))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+    }
+
+    private fun isDisplayed(tag: String): Boolean {
+        val node = compose.onNodeWithTag(tag, useUnmergedTree = true)
+        return runCatching { node.assertIsDisplayed() }.isSuccess
+    }
+
+    private fun assertShownInside(
+        tag: String,
+        panelBottom: Dp,
+    ) {
+        val node = compose.onNodeWithTag(tag, useUnmergedTree = true)
+        node.assertIsDisplayed()
+        val bottom = node.getBoundsInRoot().bottom
+        assertTrue("$tag ends at $bottom, panel at $panelBottom", bottom <= panelBottom)
     }
 
     private fun overview() = compose.onNodeWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true)

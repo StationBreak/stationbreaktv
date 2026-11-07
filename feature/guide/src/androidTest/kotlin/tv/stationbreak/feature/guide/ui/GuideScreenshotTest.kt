@@ -17,6 +17,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -24,9 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -41,6 +44,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -51,6 +55,7 @@ import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
@@ -62,10 +67,21 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.episodeInfo
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.info
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.core.model.Scheme
+import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.ServerInfo
+import tv.stationbreak.core.model.ServerVersion
+import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.GuideState
@@ -73,6 +89,7 @@ import tv.stationbreak.feature.guide.GuideViewModel
 import java.io.File
 import java.util.concurrent.Executors
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 /** No lineup to watch: these shots never open channel management. */
@@ -86,8 +103,9 @@ private object ScreenshotLineup : ChannelRepository {
  * The guide's focus treatment on the API 25 emulator (#566, #569), as PNG files for the proof. The same path as
  * `FirstSyncScreenshotTest`: UiAutomation's screenshot, because Compose's `captureToImage` needs API 26, written under
  * the test app's external files in [SCREENSHOT_DIR]. The lineup, the 960 by 540 host and the keys are the guide screen
- * test's. Dark is the default. The same three frames are taken again in Light. The focused cell is a long title, cut
- * at the card's end inset. A focused slate reads OFF AIR and the panel still says when it returns.
+ * test's. Dark is the default. The same three frames are taken again in Light. The focused cell is a wide episode with
+ * its "S1 E19" line and the panel's year, runtime and genres; a long movie title elsewhere is cut at its cell's end. A
+ * focused slate reads OFF AIR and the panel still says when it returns.
  */
 @RunWith(AndroidJUnit4::class)
 class GuideScreenshotTest {
@@ -131,9 +149,13 @@ class GuideScreenshotTest {
         showReady(CH7)
         cell(CH7, 60).assertIsSelected()
         channels().assertIsNotSelected()
-        val focusedTitle = GuideTags.cellText(CH7, T0 + 60 * MIN)
-        assertEquals(LONG_TITLE, text(focusedTitle))
-        assertTrue("the long title ends inside the card", ellipsized(focusedTitle))
+        assertEquals(SERIES, text(GuideTags.cellText(CH7, T0 + 60 * MIN)))
+        assertEquals("S1 E19", text(GuideTags.cellSecondLine(CH7, T0 + 60 * MIN)))
+        assertEquals(OTHER_SERIES, text(GuideTags.cellText(CH5, T0 + 60 * MIN)))
+        assertEquals("S2 E5", text(GuideTags.cellSecondLine(CH5, T0 + 60 * MIN)))
+        val longTitle = GuideTags.cellText(ChannelId("ch-3"), T0 + 60 * MIN)
+        assertEquals(LONG_TITLE, text(longTitle))
+        assertTrue("the long title ends inside the cell", ellipsized(longTitle))
         shoot("$FOCUSED_CELL$suffix.png")
 
         back()
@@ -145,8 +167,8 @@ class GuideScreenshotTest {
         channels().assertIsNotSelected()
         shoot("$RESTING_MENU$suffix.png")
 
+        shootFocusedMovie(suffix)
         if (shown != GuideTheme.Dark) return
-        press(Key.DirectionDown)
         press(Key.DirectionRight)
         cell(CH9, 150).assertIsSelected()
         assertEquals("OFF AIR", text(GuideTags.cellText(CH9, T0 + 150 * MIN)))
@@ -154,45 +176,94 @@ class GuideScreenshotTest {
         shoot(OFF_AIR)
     }
 
+    /** Down from the episode to channel 9's movie on now: no episode line, so the panel has room for the meta line. */
+    private fun shootFocusedMovie(suffix: String) {
+        press(Key.DirectionDown)
+        cell(CH9, 0).assertIsSelected()
+        awaitMeta()
+        compose.onNodeWithTag(GuideTags.PANEL_META, useUnmergedTree = true).assertIsDisplayed()
+        shoot("$FOCUSED_MOVIE$suffix.png")
+    }
+
     /** The guide screen test's lineup: channel 9's slate starts two and a half hours in. */
     private fun showReady(current: ChannelId) {
-        fake.channel(ChannelId("ch-3"), 3, (0L until 600L step 30).map { program(it, it + 30, 400) })
-        fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200 + (it / 60).toInt()) })
-        fake.channel(
-            CH7,
-            7,
-            (0L until 600L step 30).map { start ->
-                val n = 100 + (start / 30).toInt()
-                val title = if (start == 60L) LONG_TITLE else "Test Movie $n"
-                program(start, start + 30, n, info = info(n, title))
-            },
-        )
-        fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
+        fillLineup()
         if (!composed) {
+            signIn()
             val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
             vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
-            compose.setContent {
-                BackHandler { }
-                StationBreakTheme {
-                    CompositionLocalProvider(LocalGuideColors provides theme.value.colors) {
-                        Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
-                            GuideRoot(
-                                vm,
-                                GuideOpening(current, null, openedAt.longValue),
-                                pictureHole = HOLE,
-                                onTune = {},
-                                channels = { _, _, _, _ -> },
-                            )
-                        }
-                    }
-                }
-            }
+            compose.setContent { GuideHost(current) }
             composed = true
         } else {
             // A new opening restarts the session on the playing cell, in the theme set above. Wait for that cell:
             // the previous session is still Ready until the recomposition applies.
             openedAt.longValue += 1
         }
+        awaitPlaying(current)
+    }
+
+    /** The details cache reads nothing while nobody is signed in, so the panel's meta line needs a session. */
+    private fun signIn() {
+        val address = ServerAddress(Scheme.Https, "media.example.com", 443)
+        val info = ServerInfo("Home", ServerId("srv1"), ServerVersion(12, 2, 0))
+        runBlocking { sessions.save(Session(UserId("u1"), AccessToken("tok-0123456789"), info, address, null, true)) }
+    }
+
+    @Composable
+    private fun GuideHost(current: ChannelId) {
+        BackHandler { }
+        StationBreakTheme {
+            CompositionLocalProvider(LocalGuideColors provides theme.value.colors) {
+                Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
+                    GuideRoot(
+                        vm,
+                        GuideOpening(current, null, openedAt.longValue),
+                        pictureHole = HOLE,
+                        onTune = {},
+                        channels = { _, _, _, _ -> },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun fillLineup() {
+        // Four rows. Channel 3: a long movie title at 30 minutes (cut at the cell's end), mixed lengths around it.
+        fake.channel(
+            ChannelId("ch-3"),
+            3,
+            listOf(program(0, 30, 400), program(30, 60, 401), program(60, 90, 402, info = info(402, LONG_TITLE))) +
+                listOf(program(90, 180, 403)) +
+                (180L until 600L step 60).map { program(it, it + 60, 404 + (it / 60).toInt()) },
+        )
+        // Channel 5: a resting two-line episode of another series in view, then movies.
+        fake.channel(
+            CH5,
+            5,
+            listOf(
+                program(0, 60, 200),
+                program(60, 120, 201, info = episodeInfo(201, OTHER_SERIES, 2, 5)),
+                program(120, 210, 202),
+            ) + (210L until 600L step 60).map { program(it, minOf(it + 60, 600), 203 + (it / 60).toInt()) },
+        )
+        // Channel 7 (the playing channel, not the first row): the focused cell is a wide episode with numbers.
+        fake.channel(
+            CH7,
+            7,
+            listOf(
+                program(0, 30, 100),
+                program(30, 60, 101),
+                program(60, 120, FOCUSED_ITEM, info = episodeInfo(FOCUSED_ITEM, SERIES, 1, 19)),
+            ) + (120L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) },
+        )
+        fake.channel(CH9, 9, listOf(program(0, 150, 300), slate(150, 210), program(210, 600, 301)))
+        server.itemDetailsResult =
+            ServerResult.Success(
+                ItemDetails(itemOf(FOCUSED_ITEM), OVERVIEW, YEAR, listOf("Animation", "Family"), RUNTIME_MIN.minutes),
+            )
+    }
+
+    private fun awaitPlaying(current: ChannelId) {
         val playing = T0 + 60 * MIN
         compose.waitUntil(TIMEOUT_MS) {
             val snap = vm.snapshot.value
@@ -205,6 +276,15 @@ class GuideScreenshotTest {
         }
         compose.waitForIdle()
         compose.awaitWindowFocus()
+    }
+
+    /** The panel's year, runtime and genres line comes with the details fetch, a dwell after the focus rests. */
+    private fun awaitMeta() {
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.PANEL_META, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals("2018 · 22 min · Animation, Family", text(GuideTags.PANEL_META))
+        compose.waitForIdle()
     }
 
     private fun press(key: Key) {
@@ -284,10 +364,17 @@ class GuideScreenshotTest {
     }
 
     private companion object {
+        const val SERIES = "Test Series"
+        const val OTHER_SERIES = "Test Series Two"
+        const val FOCUSED_ITEM = 102
+        const val OVERVIEW = "A test episode about nothing in particular, long enough to fill a line of the panel."
+        const val YEAR = 2018
+        const val RUNTIME_MIN = 22
         const val LONG_TITLE = "The Late Late Picture Show With a Title Long Enough to Reach the Cell's End"
         const val LOG_TAG = "GuideScreenshot"
         const val SCREENSHOT_DIR = "guide-screenshots"
         const val FOCUSED_CELL = "guide-focused-cell"
+        const val FOCUSED_MOVIE = "guide-focused-movie"
         const val FOCUSED_MENU = "guide-focused-menu"
         const val OFF_AIR = "guide-off-air.png"
         const val RESTING_MENU = "guide-resting-menu"

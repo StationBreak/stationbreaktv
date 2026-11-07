@@ -74,6 +74,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.episodeInfo
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -267,6 +268,28 @@ class GuideScreenTest {
         compose
             .onAllNodesWithText("Test Movie 201")
             .assertCountEquals(1) // the panel's title only, never the cell's
+    }
+
+    @Test
+    fun anEpisodeCellHasASecondLineAndAMovieCellDoesNot() {
+        lineup()
+        // Channel 5 opens with a two-hour episode (in view from the 60-minute grid start: 60 min, 480 dp), then movies.
+        fake.channel(
+            CH5,
+            5,
+            listOf(program(0, 120, 200, info = episodeInfo(200, "Test Series", 1, 19))) +
+                (120L until 600L step 60).map { program(it, it + 60, 200 + (it / 60).toInt()) },
+        )
+        show(CH5)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        compose.waitForIdle()
+        // An episode of a known series is titled with the series; the numbers are the second line.
+        assertEquals("Test Series", text(GuideTags.cellText(CH5, min(0))))
+        assertEquals("S1 E19", text(GuideTags.cellSecondLine(CH5, min(0))))
+        // The numbers are no longer in the title, and the merged cell carries the description only.
+        assertEquals("Test Movie 202", text(GuideTags.cellText(CH5, min(120))))
+        compose.onNodeWithTag(GuideTags.cellSecondLine(CH5, min(120)), useUnmergedTree = true).assertDoesNotExist()
+        compose.onAllNodesWithText("S1 E19").assertCountEquals(0)
     }
 
     @Test
@@ -735,7 +758,9 @@ class GuideScreenTest {
         lineup()
         val ch2 = ChannelId("ch-2")
         fake.channel(ch2, 2, listOf(program(0, 66, 500), program(66, 600, 501)))
-        show(CH7)
+        // Five rows, four visible. The first grid opens with the focused row at the top, clamped to row 1
+        // (openingRowFor), so any channel below row 0 scrolls channel 2 out and its cells never compose: open on it.
+        show(ch2)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
         val before = (vm.snapshot.value.state as GuideState.Ready).model

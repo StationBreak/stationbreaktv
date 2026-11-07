@@ -5,11 +5,12 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
 
 /**
- * How many channel rows the guide shows at once; [GuideState.Ready.firstVisibleRow] scrolls through the rest. Six 38 dp
- * rows (228 dp) are what fit in the 5% safe area of a 960 x 540 dp screen under the details panel and the clock strip,
- * with the hint row below (the guide UX notes); the screen draws exactly this many.
+ * How many channel rows the guide shows at once; [GuideState.Ready.firstVisibleRow] scrolls through the rest. Four
+ * 57 dp rows share the same 228 dp band the six 38 dp rows did, which fits in the 5% safe area of a 960 x 540 dp screen
+ * under the details panel and the clock strip, with the hint row below (the guide UX notes). The room is for the rows
+ * to breathe, not for more text; the screen draws exactly this many.
  */
-internal const val GUIDE_VISIBLE_ROWS = 6
+internal const val GUIDE_VISIBLE_ROWS = 4
 
 /** What the guide's grid shows. The focus travels with it in a [GuideSnapshot]; the panel and the overlay are apart. */
 internal sealed interface GuideState {

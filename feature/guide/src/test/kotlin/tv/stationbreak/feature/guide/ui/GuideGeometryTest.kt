@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
 
 /** The guide lays its panel and grid out around the hole live TV gives it; it does not work out where that is. */
 class GuideGeometryTest {
@@ -38,6 +39,21 @@ class GuideGeometryTest {
         assertThrows(IllegalArgumentException::class.java) { GuideGeometry(screen, low) }
         val left = DpRect(left = 48.dp, top = 27.dp, right = 400.dp, bottom = 221.dp)
         assertThrows(IllegalArgumentException::class.java) { GuideGeometry(screen, left) }
+    }
+
+    @Test
+    fun rowsShareTheirBandExactly() {
+        assertEquals(RowsBandHeight, RowHeight * GUIDE_VISIBLE_ROWS)
+    }
+
+    @Test
+    fun bandsAlternateFromTheFirstVisibleRowNotTheFirstRowOfTheModel() {
+        // The rule is by model index, so a vertical scroll does not make a row blink between band and no band.
+        assertEquals(false, bandOf(0))
+        assertEquals(true, bandOf(1))
+        assertEquals(false, bandOf(2))
+        assertEquals(true, bandOf(3))
+        assertEquals(true, bandOf(11))
     }
 
     private companion object {

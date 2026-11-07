@@ -4,6 +4,7 @@ package tv.stationbreak.feature.guide.ui
 import android.content.res.Resources
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -33,15 +34,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -228,7 +226,6 @@ internal fun GuideCellView(
     channel: ChannelId,
     cell: GuideCell,
     place: CellPlace,
-    alternate: Boolean,
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
@@ -271,7 +268,7 @@ internal fun GuideCellView(
             .padding(CellInset)
             .cellLook(
                 CellPaint(
-                    resting = if (alternate) colors.cardAlternate else colors.card,
+                    resting = colors.card,
                     colors = colors,
                     slate = slate,
                     focusAmount = { focusAmount },
@@ -290,8 +287,13 @@ internal fun GuideCellView(
         contentAlignment = Alignment.CenterStart,
     ) {
         if (!place.compact && title.isNotEmpty()) {
-            val tag = Modifier.testTag(GuideTags.cellText(channel, cell.startMs))
-            CellText(cell, title, place, focused, tag.stickyText(place, viewportOf))
+            val slots =
+                CellTextSlots(
+                    titleTag = Modifier.testTag(GuideTags.cellText(channel, cell.startMs)),
+                    secondLineTag = GuideTags.cellSecondLine(channel, cell.startMs),
+                    layout = Modifier.stickyText(place, viewportOf),
+                )
+            CellText(cell, title, place, focused, slots)
         }
     }
 }
@@ -321,45 +323,60 @@ private fun Modifier.stickyText(
         layout(constraints.maxWidth, text.height) { text.placeRelative(start, 0) }
     }
 
-/** The cell's title (and "S2 E5" when it is 20 minutes or more wide), or a slate's "OFF AIR". */
+/** What [CellText] is given by its cell: the title's test tag, the second line's, and the sticky layout. */
+private class CellTextSlots(
+    val titleTag: Modifier,
+    val secondLineTag: String,
+    val layout: Modifier,
+)
+
+/**
+ * The cell's title, a slate's "OFF AIR", and under an episode's title its "S2 E5" when two lines fit ([secondLineOf]).
+ * The one or two lines are a block, centred in the cell by the box around it; the sticky layout [modifier] places the
+ * block ([CellTextSlots.layout]) and the title alone is tagged.
+ */
 @Composable
 private fun CellText(
     cell: GuideCell,
     title: String,
     place: CellPlace,
     focused: Boolean,
-    modifier: Modifier,
+    slots: CellTextSlots,
 ) {
     val colors = LocalGuideColors.current
     val slate = cell.kind == CellKind.Slate
     val resting = if (slate) colors.textSecondary else colors.programmeText
     val main = if (focused) colors.focusText else resting
-    val numbers =
-        cell.info?.takeIf { it.kind == ScheduleItemKind.Episode && place.width >= EpisodeFrom }?.let(::numbersOf)
-    // The numbers keep a span of their own colour. The title's colour is the text's own.
-    val minor =
-        when {
-            numbers == null -> Color.Unspecified
-            focused -> colors.focusText
-            else -> colors.textSecondary
-        }
-    val text =
-        remember(title, numbers, minor) {
-            buildAnnotatedString {
-                append(title)
-                numbers?.let { withStyle(SpanStyle(color = minor, fontWeight = FontWeight.Normal)) { append("  $it") } }
-            }
-        }
-    Text(
-        text = text,
-        modifier = modifier,
-        color = main,
-        // One style focused or not: a move recolours the title and does not lay it out again.
-        style = if (slate) SlateStyle else ProgramStyle,
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Ellipsis,
-    )
+    val fontScale = LocalDensity.current.fontScale
+    val second = secondLineOf(cell.info, place.width.value, fontScale, RowHeight.value)
+    val titleText: @Composable (Modifier) -> Unit = { own ->
+        Text(
+            text = title,
+            modifier = own,
+            color = main,
+            // One style focused or not: a move recolours the title and does not lay it out again.
+            style = if (slate) SlateStyle else ProgramStyle,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+    if (second == null) {
+        titleText(slots.titleTag.then(slots.layout))
+        return
+    }
+    Column(slots.layout) {
+        titleText(slots.titleTag)
+        Text(
+            text = second,
+            modifier = Modifier.testTag(slots.secondLineTag),
+            color = if (focused) colors.focusText else colors.textSecondary,
+            style = SecondLineStyle,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 private fun numbersOf(info: ProgramInfo): String? {
@@ -371,6 +388,39 @@ private fun numbersOf(info: ProgramInfo): String? {
         else -> null
     }
 }
+
+/** The line height, as a multiple of the font size, that the room for two lines is counted with. */
+internal const val LINE_HEIGHT_FACTOR = 1.25f
+private const val TITLE_SP = 19f
+private const val SECOND_LINE_SP = 16f
+
+/** The second line of an episode cell: 16 sp, in the figures face. */
+private val SecondLineStyle = guideFigures(SECOND_LINE_SP.sp, FontWeight.Medium)
+
+/**
+ * Whether a title line (19 sp) and a second line (16 sp), each [LINE_HEIGHT_FACTOR] tall at [fontScale], and the cell's
+ * 1 dp inset on both sides fit in a row [rowHeightDp] high. When they do not, the second line is dropped, not clipped.
+ */
+internal fun twoLinesFit(
+    fontScale: Float,
+    rowHeightDp: Float,
+): Boolean = (TITLE_SP + SECOND_LINE_SP) * fontScale * LINE_HEIGHT_FACTOR + 2 * CellInset.value <= rowHeightDp
+
+/**
+ * The second line of an episode's cell, "S1 E19" (or "E19"): null for a movie, a slate, an episode with no numbers, a
+ * cell narrower than [EpisodeFrom] and a row too short for two lines at [fontScale] ([twoLinesFit]); the cell then
+ * draws its title alone, centred.
+ */
+internal fun secondLineOf(
+    info: ProgramInfo?,
+    widthDp: Float,
+    fontScale: Float,
+    rowHeightDp: Float,
+): String? =
+    info
+        ?.takeIf { it.kind == ScheduleItemKind.Episode && widthDp >= EpisodeFrom.value }
+        ?.takeIf { twoLinesFit(fontScale, rowHeightDp) }
+        ?.let(::numbersOf)
 
 /** "Title, 8:30 – 9:00 PM", and ", on now" for the program airing: what a screen reader says about a cell. */
 private fun cellDescription(

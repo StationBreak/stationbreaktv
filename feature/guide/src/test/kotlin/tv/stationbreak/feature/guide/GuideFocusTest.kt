@@ -407,4 +407,23 @@ class GuideFocusTest {
     fun firstVisibleRowNeedsAtLeastOneVisibleRow() {
         assertThrows(IllegalArgumentException::class.java) { firstVisibleRowFor(0, 0, 0, 5) }
     }
+
+    @Test
+    fun aWindowOfFourKeepsTheFocusedRowInView() {
+        val count = 10
+        for (row in listOf(0, 3, 4, 9)) {
+            for (first in 0..count - GUIDE_VISIBLE_ROWS) {
+                val result = firstVisibleRowFor(row, first, GUIDE_VISIBLE_ROWS, count)
+                assertTrue("row $row from $first gave $result", result in 0..count - 4)
+                assertTrue("row $row from $first gave $result", row in result until result + 4)
+            }
+        }
+    }
+
+    @Test
+    fun fewerChannelsThanRowsShowAShortWindow() {
+        assertEquals(0, firstVisibleRowFor(2, 0, GUIDE_VISIBLE_ROWS, 3))
+        assertEquals(0, firstVisibleRowFor(3, 0, GUIDE_VISIBLE_ROWS, 4))
+        assertTrue(firstVisibleRowFor(4, 0, GUIDE_VISIBLE_ROWS, 5) <= 1)
+    }
 }

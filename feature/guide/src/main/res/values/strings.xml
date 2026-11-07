@@ -42,4 +42,9 @@
     <!-- What a screen reader says about a cell: its title and slot, then "on now" for the program airing. -->
     <string name="guide_cell_description">%1$s, %2$s</string>
     <string name="guide_cell_on_now">%1$s, on now</string>
+
+    <!-- The meta line under the title in the panel: runtime, then it is joined with the year and genres. -->
+    <string name="guide_runtime_minutes">%1$d min</string>
+    <string name="guide_runtime_hours_minutes">%1$d h %2$d min</string>
+    <string name="guide_runtime_hours">%1$d h</string>
 </resources>

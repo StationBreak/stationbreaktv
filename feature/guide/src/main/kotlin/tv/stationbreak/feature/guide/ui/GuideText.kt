@@ -13,6 +13,7 @@ import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
+import kotlin.time.Duration
 
 /** "3 · Test Channel": the channel line of the panel and the overlay. */
 internal fun channelLine(
@@ -50,6 +51,66 @@ internal fun episodeLine(
             copy = copy,
         )
     }
+
+/**
+ * The words of the meta line that carry numbers, from the guide's resources. A plain holder of formatters like
+ * [ProgramCopy], so [metaLine] is tested on the JVM without an Android runtime. Kept here, not in [ProgramCopy]: the
+ * meta line is the guide's alone.
+ */
+internal class MetaCopy(
+    val minutes: (minutes: Int) -> String,
+    val hoursMinutes: (hours: Int, minutes: Int) -> String,
+    val hours: (hours: Int) -> String,
+) {
+    companion object {
+        fun from(resources: android.content.res.Resources) =
+            MetaCopy(
+                minutes = { resources.getString(R.string.guide_runtime_minutes, it) },
+                hoursMinutes = { h, m -> resources.getString(R.string.guide_runtime_hours_minutes, h, m) },
+                hours = { resources.getString(R.string.guide_runtime_hours, it) },
+            )
+    }
+}
+
+private const val META_SEPARATOR = " · "
+private const val META_GENRES = 2
+private const val MINUTES_PER_HOUR = 60
+
+/**
+ * The one short line under the title: year, runtime (rounded down to whole minutes; under a minute counts as absent)
+ * and the first two genres, in that order; null when there is nothing to say.
+ */
+internal fun metaLine(
+    year: Int?,
+    runtime: Duration?,
+    genres: List<String>,
+    copy: MetaCopy,
+): String? {
+    val minutes = runtime?.inWholeMinutes?.toInt()?.takeIf { it > 0 }
+    val runtimeText =
+        minutes?.let {
+            val h = it / MINUTES_PER_HOUR
+            val m = it % MINUTES_PER_HOUR
+            when {
+                h == 0 -> copy.minutes(m)
+                m == 0 -> copy.hours(h)
+                else -> copy.hoursMinutes(h, m)
+            }
+        }
+    val genreText =
+        genres
+            .filter { it.isNotBlank() }
+            .take(META_GENRES)
+            .joinToString(", ")
+            .ifEmpty { null }
+    return listOfNotNull(year?.toString(), runtimeText, genreText).joinToString(META_SEPARATOR).ifEmpty { null }
+}
+
+@Composable
+internal fun metaCopy(): MetaCopy {
+    val resources = LocalResources.current
+    return remember(resources) { MetaCopy.from(resources) }
+}
 
 @Composable
 internal fun programCopy(): ProgramCopy {

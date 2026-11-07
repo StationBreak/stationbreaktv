@@ -44,6 +44,8 @@ internal const val CONTENT_SCALE = 1f
 private const val FOCUS_MOTION_MS = 160
 private val ShadowOffset = 4.dp
 private val ShadowBlur = 8.dp
+private const val RESTING_HIGHLIGHT_ALPHA = 0.25f
+private val RestingHighlightWidth = 1.dp
 
 /** 160 ms ease-out, or immediate when the TV's animator scale is off. */
 @Composable
@@ -141,6 +143,25 @@ internal fun DrawScope.drawGuideCard(
         topLeft = Offset(bounds.left, bounds.top),
         size = Size(bounds.width, bounds.height),
         cornerRadius = radius,
+    )
+    if (amount == 0f) drawRestingHighlight(colors, bounds, radius.x)
+}
+
+/** The lit top edge of a resting card: a 1 dp line inset by the corner radius so it stays inside the rounded ends. */
+private fun DrawScope.drawRestingHighlight(
+    colors: GuideColors,
+    bounds: Rect,
+    radius: Float,
+) {
+    val left = bounds.left + radius
+    val right = bounds.right - radius
+    if (right <= left) return
+    val width = RestingHighlightWidth.toPx()
+    drawLine(
+        color = colors.plateHighlight.copy(alpha = RESTING_HIGHLIGHT_ALPHA),
+        start = Offset(left, bounds.top + width / 2),
+        end = Offset(right, bounds.top + width / 2),
+        strokeWidth = width,
     )
 }
 
