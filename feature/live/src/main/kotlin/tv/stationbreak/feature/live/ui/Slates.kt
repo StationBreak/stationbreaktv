@@ -37,9 +37,9 @@ private const val STANDBY_GAP = 10f
 private const val WORDMARK_SIZE = 50f
 private const val NO_CHANNELS_SIZE = 13f
 private const val SPACING_EM = 0.13f
-private const val NOTE_TOP = 384f
-private const val NOTE_WIDTH = 176f
-private const val NOTE_SIZE = 9f
+private const val NOTE_TOP = 378f
+private const val NOTE_WIDTH = 166f
+private const val NOTE_SIZE = 8.5f
 private const val NOTE_SPACING_EM = 0.03f
 private const val NOTE_LINES = 2
 
@@ -128,7 +128,8 @@ internal fun NoChannelsSlate() {
 
 /**
  * The reason on an ident card: two lines at most, set small and tight so both sit inside the centre disc (radius 150
- * about y 288) below the wordmark, which ends near y 378. At its bottom line (about y 408) the disc is 180 wide.
+ * about y 288) below the wordmark, which ends at y 378. The box is 166 wide from y 378 to about y 403: its bottom
+ * corners are 142 from the centre, 8 inside the rim.
  */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.NoteLine(

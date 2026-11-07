@@ -26,8 +26,14 @@ class HintKindTest {
     private fun snapshotAt(
         nowMin: Long,
         focusMin: Long,
+        goneAt: Long? = null,
     ): GuideSnapshot {
-        val blocks = listOf(program(0, 150, 1), slate(150, 210), program(210, 600, 2))
+        val blocks =
+            if (goneAt == null) {
+                listOf(program(0, 150, 1), slate(150, 210), program(210, 600, 2))
+            } else {
+                listOf(program(0, goneAt, 1), program(goneAt, 600, 2, info = null))
+            }
         val channel = ChannelAiring(CH9, 9, "Test Channel 9", Instant.fromEpochMilliseconds(T0), null)
         val row = ChannelRow(channel, blocks, min(600))
         val model = buildGuideModel(ScheduleWindow(listOf(row), complete = true), min(nowMin))
@@ -53,6 +59,16 @@ class HintKindTest {
     @Test
     fun aLaterSlateHasOnlyBack() {
         assertEquals(HintKind.BackOnly, hintKindOf(snapshotAt(nowMin = 65, focusMin = 150)))
+    }
+
+    @Test
+    fun aLaterUnavailableCellHasOnlyBack() {
+        assertEquals(HintKind.BackOnly, hintKindOf(snapshotAt(nowMin = 65, focusMin = 150, goneAt = 150)))
+    }
+
+    @Test
+    fun anUnavailableCellOnNowIsWatched() {
+        assertEquals(HintKind.Watch, hintKindOf(snapshotAt(nowMin = 160, focusMin = 150, goneAt = 150)))
     }
 
     @Test

@@ -314,7 +314,7 @@ internal class GuideViewModel
                 val now = ready.nowMs
                 when {
                     cell.startMs <= now && now < cell.endMs -> eventChannel.trySend(GuideEvent.Tune(row.channel))
-                    cell.kind == CellKind.Slate -> Unit
+                    cell.kind != CellKind.Program -> Unit
                     else -> openInfo(row, cell)
                 }
             }
@@ -883,7 +883,7 @@ internal class GuideViewModel
                 return
             }
             dwellJob?.cancel()
-            val id = cell.itemId
+            val id = cell.detailsId()
             val cached = id?.let(details::cached)
             val waiting = id != null && cached == null
             shownPanel.value = CellDetails(cell, row.number, row.name, cached, waiting)
@@ -909,7 +909,7 @@ internal class GuideViewModel
             cell: GuideCell,
         ) {
             infoJob?.cancel()
-            val id = cell.itemId
+            val id = cell.detailsId()
             val cached = id?.let(details::cached)
             val waiting = id != null && cached == null
             val target = row.channel to cell.startMs
@@ -940,6 +940,9 @@ internal class GuideViewModel
                 // The cache gives null for what the server could not say; anything else is the same to the panel.
                 null
             }
+
+        /** The item whose details are fetched: none for a slate or a program that left the library. */
+        private fun GuideCell.detailsId(): CanonicalId? = itemId.takeIf { kind == CellKind.Program }
 
         private fun nowMs(): Long = clock.now().toEpochMilliseconds()
 

@@ -61,7 +61,10 @@ class BuiltInScheduleSourceGapFillTest {
         library.delegate.seed(ACCOUNT, LIBRARIES.first(), *items.toTypedArray())
     }
 
-    private fun onAir(next: Int = 3) = checkNotNull(runBlocking { source.onAir(laughs.id, NOON, next) })
+    private fun onAir(
+        next: Int = 3,
+        at: Instant = NOON,
+    ) = checkNotNull(runBlocking { source.onAir(laughs.id, at, next) })
 
     private fun window(until: Instant = NOON + 6.hours) =
         checkNotNull(runBlocking { source.schedule(NOON, until, ScheduleBuild.AsNeeded) }).rows.single().blocks
@@ -161,5 +164,42 @@ class BuiltInScheduleSourceGapFillTest {
         assertTrue(items.none { it.itemId == id(150) }, "an item outside the day pool is never picked")
         assertNotNull(items.firstOrNull { it.info == null }, "what is not covered stays unnamed")
         assertEquals(1, library.currentIdsCalls, "one liveness read over the pool")
+    }
+
+    /** The window with every other item named, so they fill the gone block: its pieces, then what follows. */
+    private fun fillWindow(): Pair<List<AiringBlock>, List<AiringBlock>> {
+        val gone = onAir().now
+        name((comedyIds - goneProgram(gone)) + id(150))
+        val cells = window()
+        return cells.filter { it.startMs >= gone.startMs && it.endMs <= gone.endMs } to
+            cells.filter { it.startMs >= gone.endMs }
+    }
+
+    @Test
+    fun onAirInTheSecondPieceOfAGoneBlock_isThatPieceAndTheRestFollow() {
+        val (pieces, after) = fillWindow()
+        assertTrue(pieces.size >= 2, "the fill leaves a second piece: ${pieces.size}")
+        val second = pieces[1]
+        val at = Instant.fromEpochMilliseconds(second.startMs + minute)
+
+        val live = onAir(next = 2, at = at)
+
+        assertEquals(second, live.now)
+        assertEquals(2, live.next.size)
+        assertEquals((pieces.drop(2) + after).take(2), live.next)
+    }
+
+    @Test
+    fun onAirExactlyOnAPieceBoundary_isThePieceThatStartsThere() {
+        val (pieces, after) = fillWindow()
+        assertTrue(pieces.size >= 2, "the fill leaves a second piece: ${pieces.size}")
+        val boundary = pieces[0].endMs
+
+        val live = onAir(next = 2, at = Instant.fromEpochMilliseconds(boundary))
+
+        assertEquals(pieces[1], live.now)
+        assertEquals(boundary, live.now.startMs)
+        assertEquals(2, live.next.size)
+        assertEquals((pieces.drop(2) + after).take(2), live.next)
     }
 }

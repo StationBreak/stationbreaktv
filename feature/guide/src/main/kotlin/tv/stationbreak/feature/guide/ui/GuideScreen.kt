@@ -311,17 +311,17 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
     val cell = ready.model.rows[located.first].cells[located.second]
     return when {
         cell.startMs <= ready.nowMs && ready.nowMs < cell.endMs -> HintKind.Watch
-        cell.kind == CellKind.Slate -> HintKind.BackOnly
+        cell.kind != CellKind.Program -> HintKind.BackOnly
         else -> HintKind.Info
     }
 }
 
 /**
  * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to
- * its channel), "OK Info" on a later program, nothing for OK on a later slate, and "Back Exit live TV", since
- * leaving from the guide is the one thing no one would guess, which becomes "Back To what's playing" while the focus
- * is off the playing channel's cell and "Back To the menu" on it. Key names sit on the key pill; what they do is
- * secondary. Recomposes only when the kind of the focused cell changes.
+ * its channel), "OK Info" on a later program, nothing for OK on a later slate or unavailable cell, and "Back Exit
+ * live TV", since leaving from the guide is the one thing no one would guess, which becomes "Back To what's playing"
+ * while the focus is off the playing channel's cell and "Back To the menu" on it. Key names sit on the key pill; what
+ * they do is secondary. Recomposes only when the kind of the focused cell changes.
  */
 @Composable
 private fun HintRow(
