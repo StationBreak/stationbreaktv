@@ -4,6 +4,7 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -93,6 +94,29 @@ class DetailsPanelTest {
         meta().assertDoesNotExist()
         assertEquals("Program 0", text(GuideTags.PANEL_TITLE))
         compose.onNodeWithTag(GuideTags.PANEL_TIME, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun everyLineOfAnEpisodeOnNowWithAMetaLineEndsInsideThePanel() {
+        val info = ScheduleFixtures.episodeInfo(1, "Test Series", 1, 19)
+        val cell = GuideCell(-MIN, 29 * MIN, CellKind.Program, "Test Series", info, null)
+        val item = ItemDetails(ItemId("item-fit"), null, 2018, listOf("Animation", "Family"), 22.minutes)
+        show(CellDetails(cell, 7, "Seven", item, loading = false))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        val panelBottom = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot().bottom
+        for (tag in listOf(
+            GuideTags.PANEL_CHANNEL,
+            GuideTags.PANEL_TITLE,
+            GuideTags.PANEL_EPISODE,
+            GuideTags.PANEL_META,
+            GuideTags.PANEL_TIME,
+            GuideTags.PANEL_PROGRESS,
+        )) {
+            val node = compose.onNodeWithTag(tag, useUnmergedTree = true)
+            node.assertIsDisplayed()
+            val bottom = node.getBoundsInRoot().bottom
+            assertTrue("$tag ends at $bottom, panel at $panelBottom", bottom <= panelBottom)
+        }
     }
 
     private fun overview() = compose.onNodeWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true)

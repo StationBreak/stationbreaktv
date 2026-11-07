@@ -4,8 +4,6 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +23,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +53,7 @@ private val ChipPadding = 8.dp
 private val ChipRadius = (20f / 3f).dp
 private val ProgressHeight = (4f / 1.5f).dp
 private val ProgressRadius = (2f / 1.5f).dp
+private val LineGap = 4.dp
 
 // One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
 // ellipsis reads better than one clipped mid-line.
@@ -82,16 +84,17 @@ internal fun DetailsPanel(
 ) {
     val details by panel.collectAsStateWithLifecycle()
     val now by remember(nowOf) { derivedStateOf(nowOf) }
-    Column(
+    PanelColumn(
         modifier
             .clipToBounds()
             .testTag(GuideTags.PANEL)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        val shown = details ?: return@Column
-        val rested = restedOn(shown.channelNumber to shown.cell.startMs)
-        PanelLines(shown, now ?: shown.cell.startMs, describe = rested)
+        val shown = details
+        if (shown != null) {
+            val rested = restedOn(shown.channelNumber to shown.cell.startMs)
+            PanelLines(shown, now ?: shown.cell.startMs, describe = rested)
+        }
     }
 }
 
@@ -111,8 +114,69 @@ private fun restedOn(cell: Pair<Int, Long>): Boolean {
     return rested == cell
 }
 
+private enum class PanelSlot { Channel, Title, Episode, Meta, Time, Progress, Overview }
+
+/** What drops first when the band is short: the last of these goes first, whole, never clipped through its glyphs. */
+private val DropOrder =
+    listOf(
+        PanelSlot.Channel,
+        PanelSlot.Title,
+        PanelSlot.Time,
+        PanelSlot.Progress,
+        PanelSlot.Episode,
+        PanelSlot.Meta,
+    )
+
 @Composable
-private fun ColumnScope.PanelLines(
+private fun Slot(
+    slot: PanelSlot,
+    content: @Composable () -> Unit,
+) = Box(Modifier.layoutId(slot)) { content() }
+
+/**
+ * A column of the [PanelSlot] lines in their own order, [LineGap] apart, that keeps what fits of them in the order of
+ * [DropOrder] and leaves out the rest whole. The overview takes the height that is left, and is drawn by [Overview]
+ * only when a whole line of it fits. A line that does not fit is not placed, so the panel's clip never cuts a glyph.
+ */
+@Composable
+private fun PanelColumn(
+    modifier: Modifier,
+    content: @Composable () -> Unit,
+) = Layout(content, modifier) { measurables, constraints ->
+    val gap = LineGap.roundToPx()
+    val loose = constraints.copy(minWidth = 0, minHeight = 0)
+    val bySlot = measurables.associateBy { it.layoutId as PanelSlot }
+    val measured = DropOrder.mapNotNull { slot -> bySlot[slot]?.let { slot to it.measure(loose) } }.toMap()
+    var used = 0
+    var count = 0
+    val kept = mutableSetOf<PanelSlot>()
+    for ((slot, placeable) in measured) {
+        val next = used + placeable.height + if (count > 0) gap else 0
+        if (next <= constraints.maxHeight) {
+            used = next
+            count++
+            kept += slot
+        }
+    }
+    val left = constraints.maxHeight - used - gap
+    val overview =
+        bySlot[PanelSlot.Overview]?.takeIf { left > 0 }?.measure(loose.copy(maxHeight = left))?.takeIf { it.height > 0 }
+    val lines =
+        PanelSlot.entries.mapNotNull { slot ->
+            if (slot == PanelSlot.Overview) overview else measured[slot]?.takeIf { slot in kept }
+        }
+    val width = lines.maxOfOrNull { it.width } ?: 0
+    layout(constraints.constrainWidth(width), constraints.maxHeight) {
+        var y = 0
+        for (line in lines) {
+            line.placeRelative(0, y)
+            y += line.height + gap
+        }
+    }
+}
+
+@Composable
+private fun PanelLines(
     details: CellDetails,
     nowMs: Long,
     describe: Boolean,
@@ -124,47 +188,55 @@ private fun ColumnScope.PanelLines(
     val item = details.item
     val meta = remember(item, metaCopy) { item?.let { metaLine(it.year, it.runtime, it.genres, metaCopy) } }
     val colors = LocalGuideColors.current
-    Text(
-        text = channelLine(details.channelNumber, details.channelName),
-        modifier = Modifier.testTag(GuideTags.PANEL_CHANNEL),
-        style = guideFigures(17.sp, FontWeight.SemiBold),
-        color = colors.textSecondary,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    Text(
-        text = cellTitle(cell, copy),
-        modifier = Modifier.fillMaxWidth().testTag(GuideTags.PANEL_TITLE),
-        style = guideText(40.sp, FontWeight.SemiBold),
-        color = colors.textPrimary,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    episode?.let {
+    Slot(PanelSlot.Channel) {
         Text(
-            text = it,
-            modifier = Modifier.testTag(GuideTags.PANEL_EPISODE),
-            style = guideText(17.sp, FontWeight.Medium),
-            color = colors.textSupporting,
+            text = channelLine(details.channelNumber, details.channelName),
+            modifier = Modifier.testTag(GuideTags.PANEL_CHANNEL),
+            style = guideFigures(17.sp, FontWeight.SemiBold),
+            color = colors.textSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+    Slot(PanelSlot.Title) {
+        Text(
+            text = cellTitle(cell, copy),
+            modifier = Modifier.fillMaxWidth().testTag(GuideTags.PANEL_TITLE),
+            style = guideText(40.sp, FontWeight.SemiBold),
+            color = colors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+    episode?.let {
+        Slot(PanelSlot.Episode) {
+            Text(
+                text = it,
+                modifier = Modifier.testTag(GuideTags.PANEL_EPISODE),
+                style = guideText(17.sp, FontWeight.Medium),
+                color = colors.textSupporting,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
     meta?.let {
-        Text(
-            text = it,
-            modifier = Modifier.testTag(GuideTags.PANEL_META),
-            style = guideText(17.sp, FontWeight.Medium),
-            color = colors.textSupporting,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Slot(PanelSlot.Meta) {
+            Text(
+                text = it,
+                modifier = Modifier.testTag(GuideTags.PANEL_META),
+                style = guideText(17.sp, FontWeight.Medium),
+                color = colors.textSupporting,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
     val onNow = cell.startMs <= nowMs && nowMs < cell.endMs
-    TimeRow(cell, nowMs, onNow, copy)
-    if (onNow && cell.kind == CellKind.Program) Progress(cell.startMs, cell.endMs, nowMs)
+    Slot(PanelSlot.Time) { TimeRow(cell, nowMs, onNow, copy) }
+    if (onNow && cell.kind == CellKind.Program) Slot(PanelSlot.Progress) { Progress(cell.startMs, cell.endMs, nowMs) }
     details.item?.overview?.takeIf { describe }?.let {
-        Overview(it, if (episode != null) OVERVIEW_LINES_WITH_EPISODE else OVERVIEW_LINES)
+        Slot(PanelSlot.Overview) { Overview(it, if (episode != null) OVERVIEW_LINES_WITH_EPISODE else OVERVIEW_LINES) }
     }
 }
 
@@ -174,12 +246,12 @@ private fun ColumnScope.PanelLines(
  * glyphs reads worse than a shorter text.
  */
 @Composable
-private fun ColumnScope.Overview(
+private fun Overview(
     text: String,
     maxLines: Int,
 ) {
     val lineHeight = with(LocalDensity.current) { OVERVIEW_LINE_HEIGHT.toDp() }
-    BoxWithConstraints(Modifier.weight(1f, fill = false)) {
+    BoxWithConstraints {
         val lines = minOf(maxLines, (maxHeight / lineHeight).toInt())
         if (lines > 0) {
             Text(
