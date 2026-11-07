@@ -848,6 +848,90 @@ internal class LineupDays(
     }
 
     /**
+     * Where the build homes the titles of [snapshot] on [day]'s frozen curation ([Scheduled.curation], the on-set and
+     * flag of that day, never worked out again): the build's own homing, through its own curation channels (their
+     * rules for the day, ceiling, hold and recipe number), over another snapshot. Null for a day with no curation. A
+     * repair (spec 26) gives a title the selection adds only to its home here (ADR-0023 §3). Reads nothing.
+     */
+    internal fun homesFor(
+        lineup: Lineup,
+        day: Scheduled,
+        snapshot: RuleSnapshot,
+    ): Homes? {
+        val curation = day.curation ?: return null
+        val snapshots = mapOf(day.cutoffMs to snapshot)
+        return Build(lineup, snapshots, snapshots).curated(day.cut, curation).homes
+    }
+
+    /**
+     * What each channel of [scheduled] admits from [snapshots] (and [filteredSnapshots], as [days] reads them) of
+     * [libraries]: the days the build makes from them, each with its epoch pool before the trim window, so under its
+     * rules for the day, its ceiling and its kid or grown-up hold, and for a leftovers channel under the build's own
+     * claims. A repair (spec 26) reads it over a selection it does not build from. Reads nothing.
+     */
+    internal fun admitted(
+        lineup: Lineup,
+        scheduled: List<Scheduled>,
+        snapshots: Map<Long, RuleSnapshot>,
+        filteredSnapshots: Map<Long, RuleSnapshot>,
+        libraries: Set<ItemId>,
+    ): Admitted {
+        val build = Build(lineup, snapshots, filteredSnapshots, libraries = libraries)
+        val days = build.days(scheduled)
+        val pools = scheduled.associate { it.channel.id to build.epochPoolOf(it) }
+        return Admitted(days.associateBy { it.channel.id }, pools)
+    }
+
+    /**
+     * A repaired day's tail pool (spec 26) for [day]: [base] without what the new selection no longer holds (an item
+     * not in [present]), then what the channel takes of [added] (its admitted items of the libraries the change adds,
+     * [Admitted.pool]): a curated starter only the titles [homes] gives it a home (its home alone, never a guest spot
+     * in the middle of a day), a starter switched on after the basis only titles homed nowhere, and any other channel
+     * all of them (a custom channel or an edited starter never loses a title). A title already in one of today's day
+     * pools ([today]) is never homed again: a curated starter or a leftovers channel takes its new items only when the
+     * title is in its own day pool today ([own]). The leftovers' [added] is already what the build's claims leave
+     * them. In canonical-ID order.
+     */
+    @Suppress("LongParameterList") // The day, its two halves and the facts that decide the second.
+    internal fun tailPoolOf(
+        day: Scheduled,
+        base: List<ScheduleItem>,
+        present: Set<CanonicalId>,
+        added: List<ScheduleItem>,
+        homes: Homes?,
+        today: Set<CanonicalId>,
+        own: Set<CanonicalId>,
+    ): List<ScheduleItem> {
+        val id = day.channel.id
+        val curation = day.curation
+
+        // A title on the air today stays where it is; a new one goes where [homed] puts it.
+        fun takes(
+            item: ScheduleItem,
+            homed: (CanonicalId) -> Boolean,
+        ): Boolean = if (item.groupId in today) item.groupId in own else homed(item.groupId)
+        val taken =
+            when {
+                day.isCuratedDay() && curation != null -> {
+                    val homed = { title: CanonicalId -> homes?.homeOf(title)?.let { it == id } ?: (id !in curation.on) }
+                    added.filter { takes(it, homed) }
+                }
+
+                day.channel.source is ChannelSource.Leftovers -> {
+                    added.filter { item -> takes(item) { true } }
+                }
+
+                else -> {
+                    added
+                }
+            }
+        val out = LinkedHashMap<CanonicalId, ScheduleItem>()
+        for (item in base) if (item.id in present) out[item.id] = item
+        for (item in taken) out.putIfAbsent(item.id, item)
+        return out.values.sortedBy { it.id.value }
+    }
+
+    /**
      * The day of [s] as a day kept on disk ([PersistedDays]) is made back into: [pool] is the day pool as it was kept
      * (already windowed, so it is made with [TitleKeeps.NONE]: the window is never applied twice), [films] is its
      * film-to-collection map, [hidden] its empty reason and [weights] its curated weights. Everything else of the day
@@ -1544,6 +1628,31 @@ private fun unnamed(source: ChannelSource): ChannelSource =
         is ChannelSource.Custom -> source.copy(rules = source.rules.copy(name = null))
         is ChannelSource.Leftovers, is ChannelSource.Unusable -> source
     }
+
+/**
+ * What each channel of a lineup admits from one library state ([LineupDays.admitted]): its [days] as the build makes
+ * them, and each one's epoch pool before the trim window ([pool]).
+ */
+internal class Admitted(
+    val days: Map<ChannelId, ChannelDay>,
+    private val pools: Map<ChannelId, List<ScheduleItem>>,
+) {
+    /** What [channel] admits: its epoch pool, empty for a channel that is not scheduled. */
+    fun pool(channel: ChannelId): List<ScheduleItem> = pools[channel].orEmpty()
+
+    /**
+     * Whether [channel] admits [candidate] today (spec 26): it is in the channel's pool (its rules for the day, its
+     * ceiling, the kid and grown-up holds) and airable under its settings ([SchedulerSettings.isAirable]).
+     */
+    fun admits(
+        channel: ChannelId,
+        candidate: CanonicalId,
+    ): Boolean {
+        val day = days[channel] ?: return false
+        val item = pool(channel).firstOrNull { it.id == candidate }
+        return item != null && day.settings.isAirable(item.runtimeMs, item.kind)
+    }
+}
 
 /** No title has a weight: a day that is not curated. */
 internal val NO_WEIGHTS: TitleWeights = TitleWeights.NONE

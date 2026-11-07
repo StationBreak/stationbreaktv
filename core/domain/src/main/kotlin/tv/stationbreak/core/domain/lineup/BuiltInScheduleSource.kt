@@ -646,6 +646,18 @@ class BuiltInScheduleSource(
         return wake?.let { Instant.fromEpochMilliseconds(it) }
     }
 
+    /**
+     * The switched-on channels' days at [at] over the libraries this source reads now: the days a tune sees. Empty
+     * when nothing is chosen. For the repair engine (spec 26), which runs off the tune path.
+     */
+    internal suspend fun currentDays(
+        account: LibraryAccount,
+        at: Instant,
+    ): List<ChannelDay> {
+        val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return emptyList()
+        return channelDays(account, chosen, at)
+    }
+
     /** The switched-on channels' days at [at], in number order. */
     internal suspend fun channelDays(
         account: LibraryAccount,
