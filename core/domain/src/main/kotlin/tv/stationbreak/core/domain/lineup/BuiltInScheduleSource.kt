@@ -519,8 +519,9 @@ class BuiltInScheduleSource(
     }
 
     /**
-     * The gone [block] as [pieces] laid end to end from its start (one whose row names nothing is dropped), then, if
-     * they stop short, the rest as an unnamed remainder of the gone item, still at its place in the media.
+     * The gone [block] as [pieces], each at the place the pick gave it, then, if they stop short, the rest as an
+     * unnamed remainder. A piece whose row names nothing is an unnamed span of the gone item like the remainder, so
+     * where a piece sits never depends on the second read.
      */
     private fun filled(
         block: ScheduleBlock,
@@ -528,18 +529,23 @@ class BuiltInScheduleSource(
         names: Map<CanonicalId, ProgramInfo>,
     ): List<AiringBlock> {
         val gone = block.content as ScheduleContent.Program
-        var cursor = block.startMs
         val laid = ArrayList<AiringBlock>()
+
+        fun unnamed(
+            from: Long,
+            to: Long,
+        ) = AiringBlock(from, to, Airing.Program(gone.itemId, gone.mediaStartOffsetMs + (from - block.startMs), null))
         for (piece in pieces) {
-            val named = names[piece.item.id] ?: continue
-            val end = cursor + piece.item.runtimeMs
-            laid += AiringBlock(cursor, end, Airing.Program(piece.item.id, 0, named))
-            cursor = end
+            val named = names[piece.item.id]
+            laid +=
+                if (named == null) {
+                    unnamed(piece.startMs, piece.endMs)
+                } else {
+                    AiringBlock(piece.startMs, piece.endMs, Airing.Program(piece.item.id, 0, named))
+                }
         }
-        if (cursor < block.endMs) {
-            val offset = gone.mediaStartOffsetMs + (cursor - block.startMs)
-            laid += AiringBlock(cursor, block.endMs, Airing.Program(gone.itemId, offset, null))
-        }
+        val covered = pieces.lastOrNull()?.endMs ?: block.startMs
+        if (covered < block.endMs) laid += unnamed(covered, block.endMs)
         return laid
     }
 

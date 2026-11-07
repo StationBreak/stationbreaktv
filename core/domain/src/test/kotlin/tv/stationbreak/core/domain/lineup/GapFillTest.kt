@@ -90,4 +90,17 @@ class GapFillTest {
 
         assertEquals(setOf(id(9), id(5), id(2)), excluded)
     }
+
+    @Test
+    fun pinnedOrder_forAFixedChannelSlotAndEqualRuntimes() {
+        val pool = (1..8).map { item(it, 30) }
+
+        val picked = pick(pool, gapMinutes = 90, on = ChannelId("pinned-channel"), at = 1_760_000_000_000L)
+
+        assertEquals(PINNED, picked.map { it.item.id })
+    }
+
+    private companion object {
+        val PINNED: List<CanonicalId> = listOf(id(4), id(7), id(1))
+    }
 }

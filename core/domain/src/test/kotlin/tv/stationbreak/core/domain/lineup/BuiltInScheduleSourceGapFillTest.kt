@@ -82,6 +82,10 @@ class BuiltInScheduleSourceGapFillTest {
         assertTrue(goneProgram(live.now) != goneId || live.now.startMs > gone.startMs, "the gone item is replaced")
         val filled = listOf(live.now) + live.next
         assertEquals(filled, cells.take(filled.size), "on air and the window name the same pieces")
+        val inGone = cells.filter { it.startMs >= gone.startMs && it.endMs <= gone.endMs }
+        assertTrue(inGone.programs().any { it.info != null }, "something named fills the gone block")
+        val onAirSpan = filled.filter { it.startMs >= gone.startMs && it.endMs <= gone.endMs }
+        assertEquals(onAirSpan, inGone.dropWhile { it.endMs <= live.now.startMs }.take(onAirSpan.size))
         assertTrue(cells.none { (it.airing as? Airing.Program)?.let { p -> p.itemId == id(150) } == true })
     }
 
@@ -153,7 +157,7 @@ class BuiltInScheduleSourceGapFillTest {
         val items = cells.programs()
 
         val filledWith = items.filter { it.info != null }.map { it.itemId }.toSet()
-        assertTrue(filledWith.all { it == piece }, "only a pool item with a current row: $filledWith")
+        assertEquals(setOf(piece), filledWith, "only a pool item with a current row, and it is used")
         assertTrue(items.none { it.itemId == id(150) }, "an item outside the day pool is never picked")
         assertNotNull(items.firstOrNull { it.info == null }, "what is not covered stays unnamed")
         assertEquals(1, library.currentIdsCalls, "one liveness read over the pool")
