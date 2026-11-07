@@ -729,6 +729,21 @@ class LineupService internal constructor(
         savedSeq = seq
     }
 
+    // The seq of the selection change whose save is under way (the repairer's turn), or null.
+    @Volatile private var savingSeq: Long? = null
+
+    /**
+     * Told by the repairer the seq whose save is under way ([seq]), and null once the save is over: until then a trim
+     * counts that seq's repairs as shown, so a save of another kind near the cap does not drop the change being saved.
+     * Pruning never uses it (the repair shown now must stay until the save is over).
+     */
+    internal fun saving(seq: Long?) {
+        savingSeq = seq
+    }
+
+    /** For tests: the seq whose save is under way ([saving]), or null. */
+    internal val savingNow: Long? get() = savingSeq
+
     // The saved seq now, read before the entry's lock is taken (the provider is the schedule source's, which must not
     // wait on it): null when unknown or when the read fails, and then a trim counts every selection repair as shown.
     @Suppress("TooGenericExceptionCaught") // Any failure of the provider: the save goes on without the seq.
@@ -805,7 +820,7 @@ class LineupService internal constructor(
     internal val repairConfig: RepairConfig get() = seams.repairConfig
 
     // [repairs] made to fit beside [lineup] for a save that has nothing to do with them: it never fails for their sake.
-    // The selection repairs above [savedSeq] (not shown) go first.
+    // The selection repairs above [savedSeq] (not shown) go first; those of a seq being saved count as shown.
     private fun trimmed(
         lineup: Lineup,
         meta: RefreshMeta,
@@ -817,7 +832,8 @@ class LineupService internal constructor(
         return if (repairs.isEmpty) {
             Trimmed(repairs, 0, 0, 0)
         } else {
-            repairs.trimmedToFit(nowMs, limit, savedSeq) { seams.encode(lineup, meta, it).size }
+            val shown = savedSeq?.let { saved -> maxOf(saved, savingSeq ?: saved) }
+            repairs.trimmedToFit(nowMs, limit, shown) { seams.encode(lineup, meta, it).size }
         }
     }
 

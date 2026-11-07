@@ -249,6 +249,34 @@ class TodayRepairsTest {
     }
 
     @Test
+    fun trimmedToFit_countsTheFixesOfAnUnsavedRepairWithIt_notAgainAmongTheFixes() {
+        val shown = repairOf(n = 1L, atMs = NOW_MS + 1, dayEndMs = day1End, seq = 4L)
+        val unsaved = repairOf(n = 2L, atMs = NOW_MS + 2, dayEndMs = day2End, seq = 5L)
+        // The unsaved repair's fix is the oldest: in the fix order it would come first.
+        val ofUnsaved = fixOf(n = 2L, dayEndMs = day1End, blockStartMs = NOW_MS + 4 * HALF_HOUR_MS, seq = 5L)
+        val ofShown = fixOf(n = 1L, dayEndMs = day2End, blockStartMs = day1End, seq = 4L)
+        val record = TodayRepairs(listOf(shown, unsaved), listOf(ofUnsaved, ofShown))
+
+        val trimmed = record.trimmedToFit(NOW_MS, 105, savedSeq = 4L) { sizeOf(it) }
+
+        assertEquals(listOf(shown), trimmed.record.selection)
+        assertEquals(emptyList(), trimmed.record.fixes)
+        assertEquals(Triple(1, 0, 1), Triple(trimmed.fixes, trimmed.coveringFixes, trimmed.selection))
+    }
+
+    @Test
+    fun trimmedToFit_thatDropsAShownRepair_clearsTheLostCheck() {
+        val older = repairOf(n = 1L, atMs = NOW_MS + 1, dayEndMs = day1End, seq = 4L)
+        val newer = repairOf(n = 2L, atMs = NOW_MS + 2, dayEndMs = day2End, seq = 4L)
+        val record = TodayRepairs(listOf(older, newer), emptyList(), LostCheck(5L, day1End))
+
+        val trimmed = record.trimmedToFit(NOW_MS, 150, savedSeq = 4L) { sizeOf(it) }
+
+        assertEquals(listOf(newer), trimmed.record.selection)
+        assertNull(trimmed.record.lostCheck, "the day now shows its build, which no check has seen")
+    }
+
+    @Test
     fun trimmedToFit_thatDropsAFix_clearsTheLostCheck() {
         val record = two()
         val kept = record.trimmedToFit(NOW_MS, 1_000, null) { sizeOf(it) }.record

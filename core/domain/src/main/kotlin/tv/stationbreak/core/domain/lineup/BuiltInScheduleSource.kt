@@ -98,12 +98,14 @@ import kotlin.time.TimeSource
  * disk is always the unrepaired build; a set with a repaired day that has none is not written. On a repaired day the
  * naming fill and the stand-ins read the tail pool, by id (`scheduleItemsOf`), once and only for a gone block.
  *
- * [saved] gives the TV's saved selection and its seq together ([SavedSelection]). It is called on the tune path, so it
- * must be a cheap, non-blocking read of what is held in memory. Once the caller's save of a selection and its seq
- * returns true, or its write has committed (even if the save then throws), [saved] must give the new seq: Part 4's
- * in-memory read reflects the write before the save returns. The repairer relies on it to tell a committed save from
- * a failed one. A selection repair shows only once its selection is saved: a lookup follows, per channel day, the
- * repair of the highest seq at or below the saved seq, with that repair's fixes of lost blocks only, and leaves out
+ * [saved] gives the TV's saved selection and its seq together ([SavedSelection]). It is called on the tune path, and by
+ * the repairer under `NonCancellable` after a failed save, so it must be a cheap, non-blocking read of what is held in
+ * memory. A non-null read always carries the seq actually saved, never a default 0 once a seq is stored; null means the
+ * selection is not known, and then the repairer drops, undoes and checks nothing. Once the caller's save of a selection
+ * and its seq returns true, or its write has committed (even if the save then throws), [saved] must give the new seq:
+ * Part 4's in-memory read reflects the write before the save returns. The repairer relies on it to tell a committed
+ * save from a failed one. A selection repair shows only once its selection is saved: a lookup follows, per channel day,
+ * the repair of the highest seq at or below the saved seq, with that repair's fixes of lost blocks only, and leaves out
  * every later one (the day is built as without it, with the fixes of the day as built). Until Part 4 stores the seq
  * with the selection, in one write, the seq is 0: no selection repair shows.
  *

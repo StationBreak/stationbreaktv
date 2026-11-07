@@ -47,6 +47,12 @@ sealed interface RepairOutcome<out T> {
      * shows. It is reported (`LineupEvent.RepairUndoFailed`), and the next lost-block check drops it.
      */
     data object UndoFailed : RepairOutcome<Nothing>
+
+    /** The saved selection could not be read (the provider gave none): nothing was changed, dropped or undone. */
+    data object SelectionUnknown : RepairOutcome<Nothing>
+
+    /** The seq given to `dropSelection` is saved (at or below the saved seq): its change committed, so nothing went. */
+    data object AlreadySaved : RepairOutcome<Nothing>
 }
 
 /**
@@ -108,11 +114,12 @@ class TodayRepairer internal constructor(
      *
      * When [save] returns false or throws (a cancellation included), the saved seq is read again: a save whose write
      * committed (the saved seq is at least the change's) is never undone, and the result is [RepairOutcome.Saved]
-     * when it returned false; else the record is put back as it was ([RepairOutcome.Unsaved]), or
-     * [RepairOutcome.UndoFailed] when that could not be done. A throwable from [save] reaches the caller after this,
-     * as it was thrown. The seq is worked out here, in one place (`TodayRepairs.nextSeq`): one above both the
-     * record's highest and the saved seq. It may throw [ArithmeticException] when that would pass `Long.MAX_VALUE`,
-     * which no real count of changes reaches.
+     * when it returned false; else the record is put back as it was ([RepairOutcome.Unsaved]). It is
+     * [RepairOutcome.UndoFailed], with nothing undone, when the undo's write fails or the saved seq cannot be read
+     * again (it throws, or gives null). A throwable from [save] reaches the caller after this, as it was thrown. With
+     * no saved selection read at the start nothing is recorded ([RepairOutcome.SelectionUnknown]). The seq is worked
+     * out here, in one place (`TodayRepairs.nextSeq`): one above both the record's highest and the saved seq. It may
+     * throw [ArithmeticException] when that would pass `Long.MAX_VALUE`, which no real count of changes reaches.
      *
      * Each day keeps what airs from the half hour at or before [atMs] to the end of the programme on air (the pin) and
      * lays out the rest of its day again: the day's pool as built today without the removed libraries' items (on a day
@@ -131,6 +138,8 @@ class TodayRepairer internal constructor(
         withContext(dispatcher) {
             turns.withLock {
                 val held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
+                // With no saved selection read, the seq shown is unknown: recording would drop what it cannot place.
+                source.savedSelection() ?: return@withLock RepairOutcome.SelectionUnknown
                 val (current, today) = source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
                 val seq = held.repairs.nextSeq(current.seq)
                 val change = SelectionChange(current.libraries, after, seq, atMs)
@@ -143,8 +152,11 @@ class TodayRepairer internal constructor(
                 var saved = false
                 var settled = Settled.Undone
                 try {
+                    // A trim while the save runs counts this seq as shown (`LineupService.saving`).
+                    service.saving(seq)
                     saved = save(seq)
                 } finally {
+                    service.saving(null)
                     if (!saved) settled = withContext(NonCancellable) { settle(account, held.repairs, written, seq) }
                 }
                 when {
@@ -170,8 +182,10 @@ class TodayRepairer internal constructor(
     ): Settled {
         val settled =
             try {
-                val savedSeq = source.savedSelection()?.seq ?: 0L
+                // No read (null) is no answer: nothing is undone on it.
+                val savedSeq = source.savedSelection()?.seq
                 when {
+                    savedSeq == null -> Settled.UndoFailed
                     savedSeq >= seq -> Settled.Committed
                     undo(account, before, written, seq) == LineupService.Recorded.Saved -> Settled.Undone
                     else -> Settled.UndoFailed
@@ -200,7 +214,8 @@ class TodayRepairer internal constructor(
      * Fixes every gone block from the one on air at [atMs] to each channel day's end, over the days a tune sees (the
      * days of the source's chosen libraries, each with the repair it shows), and records the pieces as fixes of that
      * repair (seq 0 on a day as built) with where the check ran (`LostCheck`: the library's content generation, and the
-     * end of the earliest of those days). First, in the same turn, it drops every selection repair above the saved seq
+     * end of the earliest of those days). With no saved selection read (the provider gives null) it does nothing at
+     * all (`Saved(0)`): no drop, no check. First, in the same turn, it drops every selection repair above the saved seq
      * with its fixes, and the lost-block check with them: no change is being saved outside a turn, so those are left by
      * a crash or by an undo that failed ([RepairOutcome.UndoFailed]). Then it does nothing more (`Saved(0)`) when the
      * record's check already covers that generation at [atMs], or when no day is on the air. [playable] are the chosen
@@ -216,7 +231,8 @@ class TodayRepairer internal constructor(
         withContext(dispatcher) {
             turns.withLock {
                 var held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
-                val applied = source.savedSelection()?.seq ?: 0L
+                // No saved selection read: nothing is dropped and nothing checked (the days it shows are unknown).
+                val applied = source.savedSelection()?.seq ?: return@withLock RepairOutcome.Saved(0)
                 if (held.repairs.selection.any { it.seq > applied }) {
                     // What shows stays as it is; the check is made again all the same, over the days as they show.
                     val dropped = record(account, held, 0) { it.applied(applied).copy(lostCheck = null) }
@@ -238,6 +254,10 @@ class TodayRepairer internal constructor(
      * recorded but not saved): each of those days shows again the repair it showed before, with that repair's fixes,
      * or its build when it had none. The change's own fixes go with it; every other fix stays. [seq] may be used
      * again, as nothing of it is left to show. The result is whether any repair had that seq.
+     *
+     * Nothing goes when [seq] is at or below the saved seq ([RepairOutcome.AlreadySaved]: that change committed and
+     * its repair is the one shown, or one a later saved seq superseded), nor when the saved selection cannot be read
+     * ([RepairOutcome.SelectionUnknown]).
      */
     suspend fun dropSelection(
         account: LibraryAccount,
@@ -246,8 +266,9 @@ class TodayRepairer internal constructor(
         withContext(dispatcher) {
             turns.withLock {
                 val held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
+                val applied = source.savedSelection()?.seq ?: return@withLock RepairOutcome.SelectionUnknown
+                if (seq <= applied) return@withLock RepairOutcome.AlreadySaved
                 val had = held.repairs.selection.any { it.seq == seq }
-                val applied = source.savedSelection()?.seq ?: 0L
                 record(account, held, had) { it.withoutSelection(seq).pruned(applied) }
             }
         }

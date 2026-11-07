@@ -135,8 +135,11 @@ cap with 64 KiB kept free:
 - **Any other save of the lineup** (a refresh, say) trims the record instead of failing. The selection repairs above the
   saved seq go first, because they are not shown. Then the oldest fixes not on air go, then fixes on air, then the other
   selection repairs by oldest repair time. A selection repair takes its fixes with it. The saved seq is read before
-  the lineup's lock is taken. Dropping a fix also forgets the lost-block check, so the next check makes it again. If
-  dropping everything still does not fit, the record is emptied.
+  the lineup's lock is taken. While a change's save is under way, its seq counts as shown, so its repair is not
+  dropped first. When the saved seq is unknown (no provider, or a read that fails), every repair counts as shown, and
+  the order is the older one: fixes first, then repairs by age. Dropping a fix or a shown repair also forgets the
+  lost-block check, so the next check runs over the days as they then show. If dropping everything still does not
+  fit, the record is emptied.
 
 What was dropped is reported as three counts and nothing else. A dropped selection repair means that day is then built
 from the saved selection, which can change the programme on air. This only happens near the file cap.
@@ -147,12 +150,15 @@ The repairer is one instance per process. Its calls take turns (one `Mutex` insi
 thread, never the caller's. Each plans from the record it read, and writes only if the lineup's revision and the
 record's selection repairs are still those it read. Each call says what it did: `Saved`, `Stale` (the lineup moved on;
 the caller retries once after a fresh read), `Refused` (the record could not be saved), `Unsaved` (the selection
-could not be saved), `UndoFailed` (the selection could not be saved, and its repair could not be taken back out) or
-`NoLineup`.
+could not be saved), `UndoFailed` (the selection could not be saved, and its repair could not be taken back out),
+`SelectionUnknown` (the saved selection could not be read, so nothing was changed), `AlreadySaved` (`dropSelection` was
+given a seq that is saved, so nothing was dropped) or `NoLineup`.
 
 The schedule source reads the saved selection and its seq together, from one provider: a cheap, in-memory read on the
-tune path. Once the caller's save returns true, or its write has committed, the provider gives the new seq. Part 4's
-in-memory read reflects the write before the save returns. Per channel day the source shows the repair of the highest
+tune path, and by the repairer under `NonCancellable`, so it must not block. Once the caller's save returns true, or
+its write has committed, the provider gives the new seq. Part 4's in-memory read reflects the write before the save
+returns. A non-null read always carries the seq actually saved, never a default 0 once a seq is stored. A null read
+means the selection is unknown: the repairer then records, drops, undoes and checks nothing. Per channel day the source shows the repair of the highest
 seq at or below the saved seq, with that repair's fixes only. A day that shows no repair gets the fixes of its build. A
 later repair is held back with its fixes. One that a saved later seq has superseded is pruned, with its fixes, at the
 next write of the record or at a roll.
@@ -169,12 +175,15 @@ saved:
 3. Call the caller's save: its one write of the new selection and seq N (Part 4's settings write).
 4. If the save returns true, the repair shows. If it returns false or throws (a cancellation included), the repairer
    reads the saved seq again, outside cancellation. When the saved seq is N or above, the write committed, so nothing is
-   undone. A false result then counts as `Saved`, and a throwable still reaches the caller. Otherwise the record is put
-   back as it was, so each day shows the repair it showed before, with its fixes. If that undo cannot be written, the
-   outcome is `UndoFailed` and it is reported. The repair stays held back above the saved seq.
+   undone. A false result then counts as `Saved`. A throw after the write committed leaves the repair in place, and
+   the throwable still reaches the caller. Otherwise the record is put back as it was, so each day shows the repair it
+   showed before, with its fixes. The outcome is `UndoFailed`, and it is reported, when the undo's write fails or when
+   the saved seq cannot be read again (the read throws or gives null). Nothing is undone then. The repair stays held
+   back above the saved seq.
 
 A crash between 2 and 3 leaves the repair unseen, and the next change drops it. Part 4's start-up resume can also
-finish the save or drop the repair (`dropSelection`, which takes the change's fixes with it). Each lost-block check
+finish the save or drop the repair (`dropSelection`, which takes the change's fixes with it, and drops nothing for a
+seq at or below the saved one). Each lost-block check
 starts by dropping every selection repair above the saved seq, with its fixes. No change is being saved outside the
 repairer's turn, so those can only be left by a crash or by a failed undo.
 

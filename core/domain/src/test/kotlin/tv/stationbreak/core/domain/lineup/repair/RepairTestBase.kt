@@ -118,6 +118,9 @@ internal open class RepairTestBase {
          * saves its own seq unless told not to.
          */
         var applied: Long = restart?.applied ?: repairs.latestSeq()
+
+        /** When set, the saved selection cannot be read: the source's provider gives null. */
+        @Volatile var unknown: Boolean = false
         val store: RecordingStore = restart?.store ?: RecordingStore()
         private val clock =
             object : Clock {
@@ -132,7 +135,7 @@ internal open class RepairTestBase {
                 library,
                 built = { builds += it },
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
-            ) { selectionOf(chosen, applied) }
+            ) { if (unknown) null else selectionOf(chosen, applied) }
         val repairer = TodayRepairer(service, source, library, successors)
 
         init {

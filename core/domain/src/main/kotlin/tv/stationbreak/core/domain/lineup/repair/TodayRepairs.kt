@@ -306,9 +306,10 @@ internal data class Trimmed(
  * [savedSeq] (not shown: a change not saved, or left by a crash), the oldest [ChannelRepair.atMs] first; then the
  * oldest fixes whose block is not on air at [nowMs]; then fixes whose block is; then the other selection repairs, the
  * oldest [ChannelRepair.atMs] first. A selection repair takes its fixes with it. With no [savedSeq] (unknown) every
- * selection repair counts as shown. When a fix goes the [TodayRepairs.lostCheck] goes too, so the next check makes it
- * again. When dropping everything still does not fit, the record is emptied ([TodayRepairs.NONE]).
- * [TodayRepairs.lastSeq] stays while a selection repair does. The same instance when it already fits.
+ * selection repair counts as shown. When a fix or a shown selection repair goes the [TodayRepairs.lostCheck] goes too,
+ * so the next check runs over the days as they then show. When dropping everything still does not fit, the record is
+ * emptied ([TodayRepairs.NONE]). [TodayRepairs.lastSeq] stays while a selection repair does. The same instance when
+ * it already fits.
  */
 internal fun TodayRepairs.trimmedToFit(
     nowMs: Long,
@@ -317,10 +318,13 @@ internal fun TodayRepairs.trimmedToFit(
     sizeOf: (TodayRepairs) -> Int,
 ): Trimmed {
     val order = compareBy<LostFix>({ it.dayEndMs }, { it.blockStartMs }, { it.channel.value }, { it.n })
-    val (covering, others) = fixes.partition { it.covers(nowMs) }
-    val fixOrder = others.sortedWith(order) + covering.sortedWith(order)
     val byAge = compareBy<ChannelRepair>({ it.atMs }, { it.channel.value }, { it.n })
     val (unsaved, shown) = selection.partition { savedSeq != null && it.seq > savedSeq }
+    // The fixes of the unsaved repairs go with them, first: they are not counted again among the fixes.
+    val unsavedKeys = unsaved.mapTo(HashSet()) { Triple(it.channel, it.n, it.seq) }
+    val (covering, others) =
+        fixes.filterNot { Triple(it.channel, it.n, it.seq) in unsavedKeys }.partition { it.covers(nowMs) }
+    val fixOrder = others.sortedWith(order) + covering.sortedWith(order)
     val unsavedOrder = unsaved.sortedWith(byAge)
     val shownOrder = shown.sortedWith(byAge)
 
@@ -328,14 +332,16 @@ internal fun TodayRepairs.trimmedToFit(
     fun without(count: Int): TodayRepairs {
         val unsavedCount = minOf(count, unsavedOrder.size)
         val fixCount = minOf(count - unsavedCount, fixOrder.size)
-        val dropped = (unsavedOrder.take(unsavedCount) + shownOrder.take(count - unsavedCount - fixCount)).toSet()
+        val shownCount = count - unsavedCount - fixCount
+        val dropped = (unsavedOrder.take(unsavedCount) + shownOrder.take(shownCount)).toSet()
         val kept = selection - dropped
         val goneWith = dropped.mapTo(HashSet()) { Triple(it.channel, it.n, it.seq) }
         val keptFixes = fixes - fixOrder.take(fixCount).toSet()
         return copy(
             fixes = keptFixes.filterNot { Triple(it.channel, it.n, it.seq) in goneWith },
             selection = kept,
-            lostCheck = if (fixCount > 0) null else lostCheck,
+            // A dropped fix, or a dropped shown repair (its day shows something no check has seen), clears the check.
+            lostCheck = if (fixCount > 0 || shownCount > 0) null else lostCheck,
             lastSeq = seqKeptWith(kept),
         )
     }

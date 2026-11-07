@@ -141,8 +141,8 @@ internal class LostRepair(
         gone: CanonicalId,
         pieces: List<KeptBlock>,
     ): LostFix {
-        // The fix patches the day as it shows now: of its repair's seq, or 0 on a day as built.
-        val seq = day.record?.repair?.seq ?: 0L
+        // The fix patches the day as it shows now: of the seq its record shows, or 0 on a day as built.
+        val seq = day.record?.seq ?: 0L
         return LostFix(day.channel.id, day.n, day.epochEndMs, block.startMs, block.endMs, gone, pieces, seq)
     }
 

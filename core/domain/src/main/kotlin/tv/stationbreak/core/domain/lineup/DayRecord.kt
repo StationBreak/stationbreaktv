@@ -18,11 +18,15 @@ internal typealias TailRead = suspend (ids: Set<CanonicalId>, cutoffMs: Long) ->
  * What the per-TV repair record (spec 26) holds for one channel day: its [repair] (null when there is none, or when
  * the stored one does not compose, which a saved record never does), its [fixes] in record order, and [digest]
  * (`TodayRepairs.digestFor`), which the day's keys carry so a change of the record is a change of exactly this day.
+ * [seq] is the seq of the selection repair whose fixes these are (0: of the day as built), the one a new fix of this
+ * day carries: so a fix written for the day is always one the day then shows, even when its stored repair does not
+ * compose and [repair] is null.
  */
 internal class DayRecord(
     val repair: ChannelRepair?,
     val fixes: List<LostFix>,
     val digest: String,
+    val seq: Long,
 ) {
     /** The distinct items of the recorded tail (the blocks from the pin's end), in the record's order. */
     val tailIds: Set<CanonicalId> =
@@ -73,7 +77,7 @@ internal fun TodayRepairs.recordFor(s: Scheduled): DayRecord? {
     val repair = latest?.takeIf { RepairedDay.compose(start, end, emptyList(), it, emptyList()).blocks.isNotEmpty() }
     // Only the fixes of the repair it holds (seq 0: of the day as built), as `TodayRepairs.applied` shows them.
     val seq = latest?.seq ?: 0L
-    return DayRecord(repair, fixes.filter { it.channel == id && it.n == s.n && it.seq == seq }, digest)
+    return DayRecord(repair, fixes.filter { it.channel == id && it.n == s.n && it.seq == seq }, digest, seq)
 }
 
 /** The record of every day of [scheduled] that has one, by channel; empty, and nothing worked out, with no record. */

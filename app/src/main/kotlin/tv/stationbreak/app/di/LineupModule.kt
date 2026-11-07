@@ -250,8 +250,8 @@ internal object LineupModule {
                 ),
             persisted = persisted,
             shared = shared,
-            // No seq is saved with the selection until Part 4 (spec 26): seq 0, so no selection repair shows.
-        ) { settings.loadLibraries()?.let { SavedSelection(it) } }
+            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows.
+        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L) } }
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
