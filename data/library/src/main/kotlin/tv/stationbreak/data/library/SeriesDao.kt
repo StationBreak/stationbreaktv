@@ -88,6 +88,28 @@ internal abstract class SeriesDao {
     ): List<TitleRow>
 
     // The names of the live series among [ids] (at most LibraryDao.MAX_VARIABLES of them).
+    // The re-id match's reads (spec 26): the series among [ids] (at most MAX_VARIABLES - 2) that are tombstones, and
+    // the live series of [libraries] (the same bound). The names are text a person typed and never reach a log.
+    @Query(
+        "SELECT seriesId, name, providerIds FROM series WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NOT NULL AND seriesId IN (:ids)",
+    )
+    abstract suspend fun goneSeriesSignalRows(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<SeriesSignalRow>
+
+    @Query(
+        "SELECT seriesId, name, providerIds FROM series WHERE serverId = :serverId AND userId = :userId " +
+            "AND deletedAtMs IS NULL AND libraryId IN (:libraries)",
+    )
+    abstract suspend fun liveSeriesSignalRows(
+        serverId: String,
+        userId: String,
+        libraries: List<String>,
+    ): List<SeriesSignalRow>
+
     @Query(
         "SELECT seriesId AS id, name AS name FROM series WHERE serverId = :serverId AND userId = :userId " +
             "AND deletedAtMs IS NULL AND seriesId IN (:ids)",
@@ -340,4 +362,13 @@ internal abstract class SeriesDao {
         /** The most series [heldAsOf] reads at once: their IDs go in one `IN` list, under SQLite 3.9's 999. */
         const val MAX_CHUNK = LibraryDao.MAX_VARIABLES - 3
     }
+}
+
+/** What the re-id match reads of one stored series (spec 26); the name and the ids are never logged. */
+internal class SeriesSignalRow(
+    val seriesId: String,
+    val name: String,
+    val providerIds: String,
+) {
+    override fun toString(): String = "SeriesSignalRow(seriesId=$seriesId)"
 }

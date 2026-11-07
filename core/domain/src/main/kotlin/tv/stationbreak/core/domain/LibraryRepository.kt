@@ -399,6 +399,20 @@ interface LibraryRepository : AccountCache {
 
     /** The chosen libraries that have not been fully fetched yet. */
     suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId>
+
+    /**
+     * Where each of the [gone] items (deleted, so kept as tombstones for 30 days) came back under a new id (spec 26),
+     * found only among the live rows of [libraries], the TV's playable libraries. Matching is conservative: a shared
+     * provider id, an episode of the same series with the same season and episode number, or a film of the same title
+     * and year, each with a runtime within 2 minutes or 2%, and only when exactly one live item fits and no other gone
+     * item claims it. A gone id with no row, or one still live, is absent from the result. The caller still checks a
+     * match against the channel's rules and holds.
+     */
+    suspend fun successors(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        gone: Set<CanonicalId>,
+    ): Map<CanonicalId, CanonicalId>
 }
 
 /** Whether a [TitleHit] is a show or a film. */

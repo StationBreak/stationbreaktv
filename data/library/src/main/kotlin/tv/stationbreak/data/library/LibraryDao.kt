@@ -70,6 +70,22 @@ internal data class ProgramRow(
             "seriesName=${if (seriesName == null) "null" else "<name>"}, seasonNumber=$seasonNumber, episodeNumber=$episodeNumber)"
 }
 
+/** What the re-id match reads of one stored movie or episode (spec 26); the text is never logged. */
+@Suppress("LongParameterList") // One parameter per column the query reads.
+internal class SignalRow(
+    val itemId: String,
+    val kind: String,
+    val seriesId: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+    val name: String,
+    val productionYear: Int?,
+    val runtimeMs: Long?,
+    val providerIds: String,
+) {
+    override fun toString(): String = "SignalRow(itemId=$itemId, kind=$kind)"
+}
+
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
 internal data class PageWrite(
     val inserted: Int,
@@ -276,6 +292,30 @@ internal abstract class LibraryDao {
         userId: String,
         ids: List<String>,
     ): List<ProgramRow>
+
+    // The re-id match's reads (spec 26): the movies and episodes among [ids] (at most MAX_VARIABLES - 2 of them) that
+    // are tombstones, and the live ones of [libraries] (the same bound).
+    @Query(
+        "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
+            "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NOT NULL " +
+            "AND kind IN ('Movie', 'Episode') AND itemId IN (:ids)",
+    )
+    abstract suspend fun goneSignalRows(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<SignalRow>
+
+    @Query(
+        "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
+            "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL " +
+            "AND kind IN ('Movie', 'Episode') AND libraryId IN (:libraries)",
+    )
+    abstract suspend fun liveSignalRows(
+        serverId: String,
+        userId: String,
+        libraries: List<String>,
+    ): List<SignalRow>
 
     // Which of [ids] (at most MAX_VARIABLES of them) are live items of the account: no join, no names (spec 14).
     @Query(

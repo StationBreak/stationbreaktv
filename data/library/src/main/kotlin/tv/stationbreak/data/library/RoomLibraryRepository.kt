@@ -368,6 +368,15 @@ class RoomLibraryRepository internal constructor(
         return dao.pendingLibraries(server, user).map(::ItemId).toSet()
     }
 
+    override suspend fun successors(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        gone: Set<CanonicalId>,
+    ): Map<CanonicalId, CanonicalId> {
+        val (server, user) = account.keys()
+        return reIdSuccessors(dao, seriesDao, server, user, libraries.mapTo(HashSet()) { it.value }, gone)
+    }
+
     override suspend fun useAccount(account: LibraryAccount) {
         val (server, user) = account.keys()
         // The unique sync work goes first, unless this is the account already syncing (the worker restores the

@@ -567,6 +567,34 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> = pending[account].orEmpty().toSet()
 
+    private val successorRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, CanonicalId>()
+
+    /**
+     * Says the item [gone] came back as [successor], for [successors]. The fake does no matching of its own: the
+     * conservative one is `data:library`'s. It answers only for a successor that is live in a library asked for.
+     */
+    fun seedSuccessor(
+        account: LibraryAccount,
+        gone: CanonicalId,
+        successor: CanonicalId,
+    ) {
+        successorRows[account to gone] = successor
+    }
+
+    override suspend fun successors(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        gone: Set<CanonicalId>,
+    ): Map<CanonicalId, CanonicalId> {
+        val liveIds = live(account, libraries).mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.item.id.value) }
+        val found = LinkedHashMap<CanonicalId, CanonicalId>()
+        for (id in gone) {
+            val successor = successorRows[account to id] ?: continue
+            if (successor in liveIds) found[id] = successor
+        }
+        return found
+    }
+
     override suspend fun useAccount(account: LibraryAccount) {
         activated += account
         active.value = account
@@ -596,6 +624,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         collectionsSynced.removeAll(forAccount)
         collectionNameRows.keys.removeAll { forAccount(it.first) }
         seriesNameRows.keys.removeAll { forAccount(it.first) }
+        successorRows.keys.removeAll { forAccount(it.first) }
         passes.value = passes.value.filterKeys { !forAccount(it) }
     }
 
