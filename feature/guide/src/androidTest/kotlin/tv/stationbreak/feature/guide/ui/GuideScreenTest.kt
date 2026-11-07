@@ -758,9 +758,9 @@ class GuideScreenTest {
         lineup()
         val ch2 = ChannelId("ch-2")
         fake.channel(ch2, 2, listOf(program(0, 66, 500), program(66, 600, 501)))
-        // Four rows are in view. Opening on channel 7 (the fifth of five) scrolls channel 2 out, so open on channel 5:
-        // the window stays on the first four rows and channel 2 is composed.
-        show(CH5)
+        // Five rows, four visible. The first grid opens with the focused row at the top, clamped to row 1
+        // (openingRowFor), so any channel below row 0 scrolls channel 2 out and its cells never compose: open on it.
+        show(ch2)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
         val before = (vm.snapshot.value.state as GuideState.Ready).model
