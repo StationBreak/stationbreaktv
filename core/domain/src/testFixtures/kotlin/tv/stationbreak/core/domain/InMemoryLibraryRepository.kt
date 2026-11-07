@@ -527,6 +527,14 @@ class InMemoryLibraryRepository : LibraryRepository {
         val stored =
             rows.filter { it.account == account }.map { it.library }.toSet() +
                 held.filter { it.account == account }.map { it.library } + waiting + marks.keys
+        // As the port says: a new stamp only for a library that is new, held or already being added.
+        for ((library, stamp) in addStamps) {
+            val mark = marks[library]
+            val landed = library in stored && mark?.heldUntilMs == null && mark?.addStamp == null
+            require(library !in keep || stamp == mark?.addStamp || !landed) {
+                "A new add stamp goes only to a library that is new, held or being added"
+            }
+        }
         val staying = keep.toMutableSet()
         var dropped = false
         for (library in stored - keep) {

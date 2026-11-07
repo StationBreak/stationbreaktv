@@ -86,15 +86,24 @@ internal abstract class CacheTransactionDao(
         val plan = history.planPage(items, existing, old, nowMs)
         library.insertItems(plan.toInsert)
         library.updateItems(plan.toUpdate)
-        val changedIds = (plan.toInsert + plan.toUpdate).map { it.itemId }
-        changedIds.chunked(LibraryDao.MAX_VARIABLES).forEach {
-            library.deleteGenres(server, user, it)
-            library.deleteTags(server, user, it)
-            library.deleteStudios(server, user, it)
+        // Each side table is rewritten only for the items whose list differs from the one held (a new item has none),
+        // so a page that changes provider ids alone, as the backfill's does, leaves every side row as it is.
+        val genreIds = ArrayList<String>()
+        val tagIds = ArrayList<String>()
+        val studioIds = ArrayList<String>()
+        for (row in plan.toInsert + plan.toUpdate) {
+            val id = row.itemId
+            val incoming = items.getValue(id)
+            if (incoming.genres.map { it.name } != old.genres[id].orEmpty()) genreIds += id
+            if (incoming.tags.map { it.name } != old.tags[id].orEmpty()) tagIds += id
+            if (incoming.studios.map { it.name } != old.studios[id].orEmpty()) studioIds += id
         }
-        library.insertGenres(changedIds.flatMap { items.getValue(it).genres })
-        library.insertTags(changedIds.flatMap { items.getValue(it).tags })
-        library.insertStudios(changedIds.flatMap { items.getValue(it).studios })
+        for (chunk in genreIds.chunked(LibraryDao.MAX_VARIABLES)) library.deleteGenres(server, user, chunk)
+        for (chunk in tagIds.chunked(LibraryDao.MAX_VARIABLES)) library.deleteTags(server, user, chunk)
+        for (chunk in studioIds.chunked(LibraryDao.MAX_VARIABLES)) library.deleteStudios(server, user, chunk)
+        library.insertGenres(genreIds.flatMap { items.getValue(it).genres })
+        library.insertTags(tagIds.flatMap { items.getValue(it).tags })
+        library.insertStudios(studioIds.flatMap { items.getValue(it).studios })
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
         // Read inside this transaction, so a selection change cannot slip between the read and the bump.

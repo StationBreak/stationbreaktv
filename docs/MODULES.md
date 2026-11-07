@@ -229,16 +229,19 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   `providerIds` to `item` and `series` and `heldUntilMs` and `addStamp` to `library` (spec 26, migrated). The migration
   to 10 sets `backfillPending` on every account, so the studios re-read writes the provider ids; a row tombstoned before
   the upgrade is never read again and keeps `''` (no ids) until it is revived or purged. From version 7 on the cache
-  migrates.
+  migrates. A file of version 6 or older, or one newer than the code, is dropped and rebuilt, and that also drops the
+  signed-in account. The schema is exported to `data/library/schemas/`.
 - **One selection writer (spec 26).** `applySelection(account, keep, addStamps, holds, nowMs)` replaced `select`. It keeps
   `keep`'s libraries with no hold (a new one pending, with its add stamp), keeps any other library whose hold lies after
   now (setting `holds`), and deletes every other library's rows. A library given a stamp it did not have is set pending
   and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a stamp. The content
   generation moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after its walk wrote
   rows), and a page moves it only for a field the scheduler or the rules read in a library that is not being added: a
-  provider-id-only change, a tick and the walk of an add never move it. Provider ids are stored as `key=value;key=value`, keys sorted,
-  and are never logged. A file of version 6 or older, or one newer than the code, is dropped and rebuilt, and that also drops
-  the signed-in account. The schema is exported to `data/library/schemas/`.
+  provider-id-only change, a tick and the walk of an add never move it. A new stamp for a chosen library that has landed
+  is refused. Before a library's rows go, a series row of it that a live episode of a library that stays still names
+  moves to the smallest such library. When the clock is past the purge's forward-jump guard, no hold expires. A page
+  rewrites an item's genre, tag or studio rows only when that list changed. Provider ids are stored as
+  `key=value;key=value`, keys sorted, and are never logged.
 - **Unit tests run Room on the JVM** over `androidx.sqlite:sqlite-bundled-jvm`, a test-only dependency that carries a native
   SQLite for the build machine. It is never in an APK. The instrumented test on the API 25 emulator runs the same schema on the
   platform SQLite.

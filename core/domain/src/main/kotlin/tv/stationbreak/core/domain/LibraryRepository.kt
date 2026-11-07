@@ -374,11 +374,15 @@ interface LibraryRepository : AccountCache {
      * - A library given a stamp it did not have (a new add, or the re-tick of a held or earlier library) is marked
      *   pending and its checkpoint deleted, in the same transaction, so it is read again from the start. A library in
      *   [keep] that [addStamps] does not name keeps the stamp it has. Only a library with no stamp is ever marked
-     *   fetched by the sync: the add lands it.
+     *   fetched by the sync: the add lands it. A new stamp for a chosen library that has landed (not new, not held,
+     *   not being added) throws [IllegalArgumentException] and changes nothing.
      * - [holds] gives, for a library leaving [keep], the moment until which its rows are kept (a repair of the days
      *   that used it reads them); a library left out of [keep] and [holds] keeps the hold it has. A hold at or before
      *   [nowMs] has expired, and the library's rows go. A stamp outside [keep], and a hold inside it or for a library
-     *   not saved, are ignored.
+     *   not saved, are ignored. When the device clock is far past the last successful sync (the history purge's
+     *   forward-jump guard), no hold expires in that call.
+     * - A series row of a library whose rows go, that a live episode of a library that stays still names, moves to
+     *   that library first (the smallest such ID), so a series shared by two libraries is not lost.
      *
      * [contentGeneration] moves only when this deletes a library's rows (an unticked library, a hold that expired, or
      * an add dropped after its walk wrote rows, which may have moved in from a chosen library), once per call.

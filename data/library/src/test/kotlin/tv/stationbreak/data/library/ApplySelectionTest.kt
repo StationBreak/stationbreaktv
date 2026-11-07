@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -281,6 +282,124 @@ class ApplySelectionTest {
 
             assertNull(row(SHOWS))
             assertEquals(before + 1, generation())
+        }
+
+    // Fix round 2 (Vimes). The purge's forward-jump guard: a clock far past the last success expires no hold.
+    @Test
+    fun aClockFarAheadOfTheLastSuccessExpiresNoHoldAndANormalLaterCallDoes() =
+        runBlocking {
+            apply(setOf(MOVIES, SHOWS))
+            fill(SHOWS, 2)
+            repository.finishSync(ALICE)
+            val until = clock.nowMs + 60_000
+            apply(setOf(MOVIES), holds = mapOf(SHOWS to until))
+            val before = generation()
+            val guard = HistoryRetention().millis - HistoryRetention.SAFE_LOOKBACK_MS
+            val lastSuccess = clock.nowMs
+
+            clock.atMs(lastSuccess + guard + 1)
+            apply(setOf(MOVIES))
+            assertEquals("the hold is kept", until, row(SHOWS)?.heldUntilMs)
+            assertEquals("and its rows", 1, storedIn(SHOWS).size)
+            assertEquals(before, generation())
+
+            clock.atMs(lastSuccess + guard)
+            apply(setOf(MOVIES))
+            assertNull("at the guard the clock is trusted, and the hold has ended", row(SHOWS))
+            assertEquals(before + 1, generation())
+        }
+
+    // Fix round 2 (Vimes). A series listed in two libraries has one row, in the library that wrote it last; dropping
+    // that library must not take the series from the other one's episodes.
+    @Test
+    fun aSharedSeriesOutlivesTheLibraryThatWroteItLast() =
+        runBlocking {
+            val show = 900
+            apply(setOf(MOVIES, SHOWS))
+            repository.put(ALICE, MOVIES, episodeOf(1, show, library = MOVIES), episodeOf(2, show, library = MOVIES))
+            repository.put(ALICE, SHOWS, episodeOf(3, show, library = SHOWS))
+            val shared = series(hexId(show), "TV-PG", listOf("Drama"), studios = listOf("Studio A"))
+            repository.putSeries(ALICE, MOVIES, shared)
+            repository.putSeries(ALICE, SHOWS, shared)
+            assertEquals(SHOWS.value, repository.currentSeries(ALICE).single().libraryId)
+            // A series only SHOWS names goes with it.
+            repository.putSeries(ALICE, SHOWS, series(hexId(901)))
+            val versions = repository.seriesVersions(ALICE).size
+
+            apply(setOf(MOVIES))
+
+            val kept = repository.currentSeries(ALICE).single()
+            assertEquals(hexId(show), kept.seriesId)
+            assertEquals(MOVIES.value, kept.libraryId)
+            assertEquals("the move takes no version", versions, repository.seriesVersions(ALICE).size)
+            val held = repository.ruleSnapshot(ALICE, setOf(MOVIES), at(clock.nowMs + 1)).series.getValue(canon(show))
+            assertEquals("TV-PG", held.officialRating)
+            assertEquals(listOf("Drama"), held.genres)
+            assertEquals(listOf("Studio A"), held.studios)
+        }
+
+    @Test
+    fun aSharedSeriesOfAnExpiredHoldGoesToTheSmallestLibraryThatStays() =
+        runBlocking {
+            val show = 900
+            apply(setOf(MOVIES, SHOWS, extra))
+            repository.put(ALICE, extra, episodeOf(1, show, library = extra))
+            repository.put(ALICE, MOVIES, episodeOf(2, show, library = MOVIES))
+            repository.putSeries(ALICE, SHOWS, series(hexId(show)))
+            apply(setOf(MOVIES, extra), holds = mapOf(SHOWS to clock.nowMs + 1_000))
+
+            clock.stepMs(1_000)
+            apply(setOf(MOVIES, extra))
+
+            assertNull(row(SHOWS))
+            assertEquals(MOVIES.value, repository.currentSeries(ALICE).single().libraryId)
+        }
+
+    // Fix round 2 (Vimes). The backfill writes provider ids into every row: it must not rewrite the side tables too.
+    @Test
+    fun aProviderIdOnlyChangeLeavesTheSideRowsUntouched() =
+        runBlocking {
+            apply(setOf(MOVIES))
+            val film =
+                sitem(1).copy(genres = listOf("Drama", "Comedy"), tags = listOf("t"), studios = listOf("Studio A"))
+            repository.put(ALICE, MOVIES, film)
+            val other = sitem(2).copy(genres = listOf("Drama"), tags = listOf("t"), studios = listOf("S"))
+            repository.put(ALICE, MOVIES, other)
+            val before = repository.sideRowIds(ALICE, hexId(1))
+            assertEquals(4, before.size)
+
+            repository.put(ALICE, MOVIES, film.copy(providerIds = mapOf("imdb" to "tt0000001")))
+            assertEquals("no side row rewritten", before, repository.sideRowIds(ALICE, hexId(1)))
+
+            repository.put(ALICE, MOVIES, film.copy(providerIds = mapOf("imdb" to "tt0000001"), tags = listOf("u")))
+            val after = repository.sideRowIds(ALICE, hexId(1))
+            val keptBefore = before.take(2) + before.last()
+            assertEquals("the genres and the studio are kept", keptBefore, after.take(2) + after.last())
+            assertNotEquals("the changed tag list is rewritten", before[2], after[2])
+            assertEquals(
+                listOf("u"),
+                repository
+                    .stored(ALICE)
+                    .single { it.item.id.value == hexId(1) }
+                    .item.tags,
+            )
+        }
+
+    // Fix round 2 (Vimes). A stamp starts an add; a chosen library that has landed is not one to add.
+    @Test
+    fun aNewStampForALandedChosenLibraryIsRefusedAndWritesNothing() =
+        runBlocking {
+            apply(setOf(MOVIES, SHOWS))
+            fill(SHOWS, 2)
+            val rowsBefore = rows()
+
+            val refused = runCatching { apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 1L)) }
+
+            assertTrue(refused.exceptionOrNull() is IllegalArgumentException)
+            assertEquals(rowsBefore, rows())
+            assertNotNull(repository.checkpoint(ALICE, SHOWS))
+            // A pending chosen library with no stamp has landed in the set too: refused the same way.
+            assertTrue(runCatching { apply(setOf(MOVIES, SHOWS), addStamps = mapOf(MOVIES to 1L)) }.isFailure)
         }
 
     @Test

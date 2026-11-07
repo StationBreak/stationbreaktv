@@ -358,6 +358,8 @@ class RoomLibraryRepository internal constructor(
             holds.mapKeys { it.key.value },
             nowMs,
             keepAdding,
+            // The purge's forward-jump guard (clockLooksWrong): past it, no hold expires.
+            retention.millis - HistoryRetention.SAFE_LOOKBACK_MS,
         )
     }
 
@@ -749,6 +751,30 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         return dao.allRows(server, user).map {
             StoredItem(it.toItem(), ItemId(it.item.libraryId), it.item.deletedAtMs?.let(Instant::fromEpochMilliseconds))
+        }
+    }
+
+    /**
+     * The SQLite rowids of [itemId]'s genre, tag and studio rows, in that order, for a test that proves a write left
+     * them alone (a rewrite gives new rowids above every row written since). For the tests only.
+     */
+    internal suspend fun sideRowIds(
+        account: LibraryAccount,
+        itemId: String,
+    ): List<Long> {
+        val (server, user) = account.keys()
+        return db.useReaderConnection { connection ->
+            val ids = ArrayList<Long>()
+            for (table in listOf("item_genre", "item_tag", "item_studio")) {
+                val sql =
+                    "SELECT rowid FROM `$table` WHERE serverId = ? AND userId = ? AND itemId = ? ORDER BY position"
+                connection.usePrepared(sql) { statement ->
+                    val keys = listOf(server, user, itemId)
+                    for ((index, value) in keys.withIndex()) statement.bindText(index + 1, value)
+                    while (statement.step()) ids += statement.getLong(0)
+                }
+            }
+            ids
         }
     }
 

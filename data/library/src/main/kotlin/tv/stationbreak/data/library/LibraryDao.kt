@@ -142,6 +142,26 @@ internal abstract class LibraryDao {
     @Update
     protected abstract suspend fun updateLibraries(rows: List<LibraryEntity>)
 
+    // The series rows of [ids] (at most MAX_VARIABLES libraries), tombstones included: the cascade would take them.
+    @Query("SELECT seriesId FROM series WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:ids)")
+    protected abstract suspend fun seriesIdsIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<String>
+
+    // Moves the series [ids] (at most MAX_VARIABLES of them) to [libraryId]: an unversioned write, as a page's is.
+    @Query(
+        "UPDATE series SET libraryId = :libraryId WHERE serverId = :serverId AND userId = :userId " +
+            "AND seriesId IN (:ids)",
+    )
+    protected abstract suspend fun rehomeSeries(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    )
+
     // Whether [libraryId] holds any item or series row, tombstones included: both lookups use the library index.
     @Query(
         "SELECT EXISTS(SELECT 1 FROM item WHERE serverId = :serverId AND userId = :userId " +
@@ -645,6 +665,14 @@ internal abstract class LibraryDao {
      * of them changes what a day is built from. With [keepAdding], every library
      * stored with a stamp also counts as in [keep], read inside this transaction (the first sync does not know the
      * adds). An account that is not signed in gets no rows back.
+     *
+     * A new stamp may go only to a library that is new, held or already being added, never to a chosen library that
+     * has landed: that throws [IllegalArgumentException] and writes nothing. Before a library's rows are deleted, each
+     * series row of it that a live episode of a library that stays (kept or held) still names moves to that library
+     * (the smallest such ID), so a series listed in two libraries outlives the one that wrote it last; the move alone
+     * bumps nothing. [holdClockGuardMs] is the purge's forward-jump guard: when [nowMs] is more than that after the
+     * account's last successful sync, the clock looks wrong and no hold expires in this call (its rows and its hold are
+     * kept). Null (tests) means no guard.
      */
     @Transaction
     @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its stamps and holds, and the clock.
@@ -656,10 +684,14 @@ internal abstract class LibraryDao {
         holds: Map<String, Long>,
         nowMs: Long,
         keepAdding: Boolean = false,
+        holdClockGuardMs: Long? = null,
     ) {
         // An account that is not signed in (it signed out while the sync ran) gets no rows back.
         if (activeCount(serverId, userId) == 0) return
         val stored = libraries(serverId, userId)
+        val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
+        // A clock far ahead of the last success (as the purge's guard reads it) expires no hold (Vimes, spec 26).
+        val holdsFrozen = holdClockGuardMs != null && lastSuccessMs != null && nowMs - lastSuccessMs > holdClockGuardMs
         val kept = if (keepAdding) keep + stored.filter { it.addStamp != null }.map { it.libraryId } else keep
         val byId = stored.associateBy { it.libraryId }
         val toUpdate = mutableListOf<LibraryEntity>()
@@ -669,7 +701,7 @@ internal abstract class LibraryDao {
         for (row in stored) {
             if (row.libraryId in kept) continue
             val until = holds[row.libraryId] ?: row.heldUntilMs
-            if (until != null && until > nowMs) {
+            if (until != null && (until > nowMs || holdsFrozen)) {
                 if (until != row.heldUntilMs) toUpdate += row.copy(heldUntilMs = until)
             } else {
                 toDelete += row.libraryId
@@ -688,6 +720,9 @@ internal abstract class LibraryDao {
                 continue
             }
             val newStamp = stamp != null && stamp != row.addStamp
+            require(!newStamp || row.heldUntilMs != null || row.addStamp != null) {
+                "A new add stamp goes only to a library that is new, held or being added"
+            }
             if (newStamp) rewalk += id
             val next =
                 row.copy(
@@ -698,10 +733,35 @@ internal abstract class LibraryDao {
             if (next != row) toUpdate += next
         }
         if (bump) bumpGeneration(serverId, userId)
+        if (toDelete.isNotEmpty()) {
+            rehomeSharedSeries(serverId, userId, toDelete, stored.map { it.libraryId } - toDelete.toSet())
+        }
         toDelete.chunked(MAX_VARIABLES).forEach { deleteLibrariesIn(serverId, userId, it) }
         rewalk.chunked(MAX_VARIABLES).forEach { deleteCheckpointsIn(serverId, userId, it) }
         if (toUpdate.isNotEmpty()) updateLibraries(toUpdate)
         toInsert.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
+    }
+
+    /**
+     * Before [gone] are deleted: each of their series rows that a live episode of one of [staying] names moves to the
+     * smallest such library, so the cascade does not take a series another library still uses. The episodes are read
+     * per staying library through the library index ([referencedSeriesIds]), never by scanning for a series ID.
+     */
+    private suspend fun rehomeSharedSeries(
+        serverId: String,
+        userId: String,
+        gone: List<String>,
+        staying: List<String>,
+    ) {
+        if (staying.isEmpty()) return
+        val orphans = HashSet<String>()
+        for (chunk in gone.chunked(MAX_VARIABLES)) orphans.addAll(seriesIdsIn(serverId, userId, chunk))
+        for (library in staying.sorted()) {
+            if (orphans.isEmpty()) return
+            val named = referencedSeriesIds(serverId, userId, library).filter { it in orphans }
+            for (chunk in named.chunked(MAX_VARIABLES)) rehomeSeries(serverId, userId, library, chunk)
+            orphans.removeAll(named.toSet())
+        }
     }
 
     /** The names of the genres, tags and studios of [ids], in order, by item. Chunked under MAX_VARIABLES. */

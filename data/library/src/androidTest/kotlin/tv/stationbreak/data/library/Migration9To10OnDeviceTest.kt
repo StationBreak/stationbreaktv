@@ -25,9 +25,9 @@ import kotlin.time.Instant
 /**
  * Spec 26, Part 3: version 9 to 10 on the platform SQLite of the API 25 emulator (SQLite 3.9, like Fire OS 6's).
  * Room's `MigrationTestHelper` creates the file from the committed `9.json`, runs [Migration9To10] and checks the
- * result against the committed `10.json`. The rows (a tombstone included) are kept with no provider ids and no hold or add,
- * every account is flagged for the re-read, an account with no `sync_meta` row gets one, and no generation moves. The
- * migrated file then opens through the same `create` the app uses, and the one selection writer runs on it.
+ * result against the committed `10.json`. The rows (a tombstone included) are kept with no provider ids and no hold
+ * or add, every account is flagged for the re-read, an account with no `sync_meta` row gets one, and no generation
+ * moves. The migrated file then opens through the same `create` the app uses, and the one selection writer runs on it.
  * `Migration9To10Test` runs the same on the JVM. Invented names only.
  */
 @RunWith(AndroidJUnit4::class)
