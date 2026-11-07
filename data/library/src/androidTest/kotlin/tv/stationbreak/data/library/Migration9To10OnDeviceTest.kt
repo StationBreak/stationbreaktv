@@ -112,7 +112,7 @@ class Migration9To10OnDeviceTest {
         assertEquals(listOf(null, null, 3000L), deleted)
         assertEquals(listOf("", ""), migrated.strings("SELECT providerIds FROM series ORDER BY userId"))
         assertEquals(listOf(null, null), migrated.longs("SELECT heldUntilMs FROM library ORDER BY userId"))
-        assertEquals(listOf(null, null), migrated.longs("SELECT addToken FROM library ORDER BY userId"))
+        assertEquals(listOf(null, null), migrated.longs("SELECT addStamp FROM library ORDER BY userId"))
         assertEquals(listOf(1L, 1L), migrated.longs("SELECT backfillPending FROM sync_meta ORDER BY userId"))
         val generations = migrated.longs("SELECT contentGeneration FROM sync_meta ORDER BY userId")
         assertEquals(listOf(GENERATION, SEED), generations)
@@ -135,7 +135,7 @@ class Migration9To10OnDeviceTest {
             repository.applySelection(account, setOf(added), mapOf(added to 1L), mapOf(library to held), nowMs)
             val rows = repository.dao.libraries("device-test-server", "device-test-user").associateBy { it.libraryId }
             assertEquals(held, rows.getValue(library.value).heldUntilMs)
-            assertEquals(1L, rows.getValue(added.value).addToken)
+            assertEquals(1L, rows.getValue(added.value).addStamp)
             assertNull(rows.getValue(added.value).heldUntilMs)
             assertEquals(GENERATION, repository.contentGeneration(account))
         }

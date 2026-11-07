@@ -133,7 +133,7 @@ internal abstract class LibraryDao {
     ): List<LibraryEntity>
 
     // The libraries being added (spec 26): what is written to them moves no content generation.
-    @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND addToken IS NOT NULL")
+    @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND addStamp IS NOT NULL")
     abstract suspend fun addingLibraryIds(
         serverId: String,
         userId: String,
@@ -161,10 +161,10 @@ internal abstract class LibraryDao {
         ids: List<String>,
     )
 
-    // A library being added is never landed here (spec 26): only a row with no add token is marked fetched.
+    // A library being added is never landed here (spec 26): only a row with no add stamp is marked fetched.
     @Query(
         "UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
-            "AND addToken IS NULL",
+            "AND addStamp IS NULL",
     )
     protected abstract suspend fun setFetched(
         serverId: String,
@@ -632,27 +632,27 @@ internal abstract class LibraryDao {
 
     /**
      * The one writer of the account's library set (spec 26). Every library in [keep] is kept with no hold: a new one
-     * is inserted pending, with its token from [addTokens] if it has one. A kept library given a token it did not have
+     * is inserted pending, with its stamp from [addStamps] if it has one. A kept library given a stamp it did not have
      * (a new add, or the re-tick of a held or earlier library) is set pending and its checkpoint deleted, so the sync
-     * walks it again from the start; one not named in [addTokens] keeps the token it has. Any other library is kept
+     * walks it again from the start; one not named in [addStamps] keeps the stamp it has. Any other library is kept
      * while its hold, from [holds] or else the one it has, lies after [nowMs], and its rows are deleted otherwise (with
-     * everything under them, through the foreign keys). A token or hold for a library it does not apply to (a token
+     * everything under them, through the foreign keys). A stamp or hold for a library it does not apply to (a stamp
      * outside [keep], a hold inside it, a hold for a library not stored) is ignored.
      *
      * The content generation moves once, and only when a library's rows are deleted: an unticked library, a hold that
      * expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or be a held
      * library's, re-ticked). A tick, a hold set or cleared, and an add dropped before it holds a row move nothing: none
      * of them changes what a day is built from. With [keepAdding], every library
-     * stored with a token also counts as in [keep], read inside this transaction (the first sync does not know the
+     * stored with a stamp also counts as in [keep], read inside this transaction (the first sync does not know the
      * adds). An account that is not signed in gets no rows back.
      */
     @Transaction
-    @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its tokens and holds, and the clock.
+    @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its stamps and holds, and the clock.
     open suspend fun applySelection(
         serverId: String,
         userId: String,
         keep: Set<String>,
-        addTokens: Map<String, Long>,
+        addStamps: Map<String, Long>,
         holds: Map<String, Long>,
         nowMs: Long,
         keepAdding: Boolean = false,
@@ -660,7 +660,7 @@ internal abstract class LibraryDao {
         // An account that is not signed in (it signed out while the sync ran) gets no rows back.
         if (activeCount(serverId, userId) == 0) return
         val stored = libraries(serverId, userId)
-        val kept = if (keepAdding) keep + stored.filter { it.addToken != null }.map { it.libraryId } else keep
+        val kept = if (keepAdding) keep + stored.filter { it.addStamp != null }.map { it.libraryId } else keep
         val byId = stored.associateBy { it.libraryId }
         val toUpdate = mutableListOf<LibraryEntity>()
         val toDelete = mutableListOf<String>()
@@ -676,24 +676,24 @@ internal abstract class LibraryDao {
                 // An add's rows can be ones a day was built from: an item or series that moved in from a chosen
                 // library (its versions go with it), or a held library re-ticked and then dropped. So an add goes
                 // without a bump only when it holds no row at all.
-                if (row.addToken == null || holdsRows(serverId, userId, row.libraryId)) bump = true
+                if (row.addStamp == null || holdsRows(serverId, userId, row.libraryId)) bump = true
             }
         }
         val toInsert = mutableListOf<LibraryEntity>()
         for (id in kept) {
             val row = byId[id]
-            val token = addTokens[id]
+            val stamp = addStamps[id]
             if (row == null) {
-                toInsert += LibraryEntity(serverId, userId, id, fetched = false, heldUntilMs = null, addToken = token)
+                toInsert += LibraryEntity(serverId, userId, id, fetched = false, heldUntilMs = null, addStamp = stamp)
                 continue
             }
-            val newToken = token != null && token != row.addToken
-            if (newToken) rewalk += id
+            val newStamp = stamp != null && stamp != row.addStamp
+            if (newStamp) rewalk += id
             val next =
                 row.copy(
-                    fetched = row.fetched && !newToken,
+                    fetched = row.fetched && !newStamp,
                     heldUntilMs = null,
-                    addToken = token ?: row.addToken,
+                    addStamp = stamp ?: row.addStamp,
                 )
             if (next != row) toUpdate += next
         }
@@ -791,7 +791,7 @@ internal abstract class LibraryDao {
         updateTotal(serverId, userId, total)
     }
 
-    /** [libraryId] has been read to its end. A library being added (it has an add token) is left pending. */
+    /** [libraryId] has been read to its end. A library being added (it has an add stamp) is left pending. */
     @Transaction
     open suspend fun markFetched(
         serverId: String,

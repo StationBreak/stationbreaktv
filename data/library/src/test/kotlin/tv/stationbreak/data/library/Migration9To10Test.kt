@@ -19,7 +19,7 @@ import kotlin.time.Instant
 
 /**
  * Spec 26, Part 3: the cache's third migration, version 9 to 10. `item` and `series` gain `providerIds` (`''`), and
- * `library` gains `heldUntilMs` and `addToken` (null). Every account with a saved library is flagged for the studios
+ * `library` gains `heldUntilMs` and `addStamp` (null). Every account with a saved library is flagged for the studios
  * re-read, which then writes the provider ids; an account with an `account_state` row and no `sync_meta` row gets
  * one. Nothing else moves: rows (tombstones included), versions, `account_state` and the content generation. A file
  * made from the committed `9.json` is opened through the builder the app uses, and Room checks the result against
@@ -133,7 +133,7 @@ class Migration9To10Test {
                 repository.dao
                     .libraries("server-1", "alice")
                     .single { it.libraryId == SHOWS.value }
-                    .addToken,
+                    .addStamp,
             )
             assertEquals(before, repository.contentGeneration(ALICE))
             repository.close()

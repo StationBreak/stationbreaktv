@@ -68,7 +68,7 @@ class CacheRebuildTest {
             assertTrue("$table needs studios", block.contains("\"columnName\": \"studios\""))
             assertTrue("$table: studios needs the default ''", block.contains("`studios` TEXT NOT NULL DEFAULT ''"))
         }
-        // Spec 26: provider ids default to '' (none), and the hold and the add token are nullable.
+        // Spec 26: provider ids default to '' (none), and the hold and the add stamp are nullable.
         for (table in listOf("item", "series")) {
             val block = tableBlock(text, table)
             val column = "`providerIds` TEXT NOT NULL DEFAULT ''"
@@ -76,7 +76,7 @@ class CacheRebuildTest {
         }
         val library = tableBlock(text, "library")
         assertTrue(library.contains("`heldUntilMs` INTEGER,"))
-        assertTrue(library.contains("`addToken` INTEGER,"))
+        assertTrue(library.contains("`addStamp` INTEGER,"))
         val meta = tableBlock(text, "sync_meta")
         assertTrue(meta.contains("`backfillPending` INTEGER NOT NULL DEFAULT 0"))
         val studio = tableBlock(text, "item_studio")

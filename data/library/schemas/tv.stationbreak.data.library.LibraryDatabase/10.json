@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 10,
-    "identityHash": "cc0b6dfa542459e35515b9c63bb17a83",
+    "identityHash": "adbf7d6608152802704c4b54063d180c",
     "entities": [
       {
         "tableName": "library",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `fetched` INTEGER NOT NULL, `heldUntilMs` INTEGER, `addToken` INTEGER, PRIMARY KEY(`serverId`, `userId`, `libraryId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `userId` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `fetched` INTEGER NOT NULL, `heldUntilMs` INTEGER, `addStamp` INTEGER, PRIMARY KEY(`serverId`, `userId`, `libraryId`))",
         "fields": [
           {
             "fieldPath": "serverId",
@@ -38,8 +38,8 @@
             "affinity": "INTEGER"
           },
           {
-            "fieldPath": "addToken",
-            "columnName": "addToken",
+            "fieldPath": "addStamp",
+            "columnName": "addStamp",
             "affinity": "INTEGER"
           }
         ],
@@ -1278,7 +1278,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cc0b6dfa542459e35515b9c63bb17a83')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'adbf7d6608152802704c4b54063d180c')"
     ]
   }
 }

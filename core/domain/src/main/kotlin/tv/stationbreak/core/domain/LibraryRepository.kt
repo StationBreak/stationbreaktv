@@ -331,7 +331,7 @@ interface LibraryRepository : AccountCache {
      * from in that account's library rows (an item, series or collection that is new, edited in a field the scheduler
      * or the rules read, deleted or back, a member added or removed, or a library's rows deleted by [applySelection]),
      * or when the first full collection pass turns `collectionsSynced` true. Since spec 26 a page written to a library
-     * being added (one with an add token), a change to provider ids alone, and a tick move nothing. The bump is in the
+     * being added (one with an add stamp), a change to provider ids alone, and a tick move nothing. The bump is in the
      * same transaction as the write, so a write that rolls back or finds everything as stored leaves it alone, and
      * another account's writes never move it. Because it is durable it can be compared across process
      * restarts: a reader keeps the value it planned from and finds the library changed since when the two differ,
@@ -366,29 +366,29 @@ interface LibraryRepository : AccountCache {
 
     /**
      * The one writer of the cached library set (spec 26; it replaces `select`). Keeps [keep]'s libraries (the chosen
-     * ones and the ones being added; an added one is pending, with its token), keeps any other library whose hold lies
+     * ones and the ones being added; an added one is pending, with its stamp), keeps any other library whose hold lies
      * after [nowMs] (and sets [holds]), and deletes every other library's rows.
      *
-     * - A library in [keep] has no hold. One not saved before is marked pending, to be fetched, with its token from
-     *   [addTokens] if it has one.
-     * - A library given a token it did not have (a new add, or the re-tick of a held or earlier library) is marked
+     * - A library in [keep] has no hold. One not saved before is marked pending, to be fetched, with its stamp from
+     *   [addStamps] if it has one.
+     * - A library given a stamp it did not have (a new add, or the re-tick of a held or earlier library) is marked
      *   pending and its checkpoint deleted, in the same transaction, so it is read again from the start. A library in
-     *   [keep] that [addTokens] does not name keeps the token it has. Only a library with no token is ever marked
+     *   [keep] that [addStamps] does not name keeps the stamp it has. Only a library with no stamp is ever marked
      *   fetched by the sync: the add lands it.
      * - [holds] gives, for a library leaving [keep], the moment until which its rows are kept (a repair of the days
      *   that used it reads them); a library left out of [keep] and [holds] keeps the hold it has. A hold at or before
-     *   [nowMs] has expired, and the library's rows go. A token outside [keep], and a hold inside it or for a library
+     *   [nowMs] has expired, and the library's rows go. A stamp outside [keep], and a hold inside it or for a library
      *   not saved, are ignored.
      *
      * [contentGeneration] moves only when this deletes a library's rows (an unticked library, a hold that expired, or
      * an add dropped after its walk wrote rows, which may have moved in from a chosen library), once per call.
-     * Ticking a library (pending, with a token), setting or clearing a hold, and dropping an add that holds no row
+     * Ticking a library (pending, with a stamp), setting or clearing a hold, and dropping an add that holds no row
      * move nothing.
      */
     suspend fun applySelection(
         account: LibraryAccount,
         keep: Set<ItemId>,
-        addTokens: Map<ItemId, Long> = emptyMap(),
+        addStamps: Map<ItemId, Long> = emptyMap(),
         holds: Map<ItemId, Long> = emptyMap(),
         nowMs: Long,
     )
@@ -410,7 +410,7 @@ data class TitleHit(
 
 /**
  * Brings the saved library in line with the libraries the user ticked, as `ServerSettings` stores them, through
- * [LibraryRepository.applySelection] at [nowMs] with no tokens and no new holds (a library still held stays until its
+ * [LibraryRepository.applySelection] at [nowMs] with no stamps and no new holds (a library still held stays until its
  * hold ends). Returns the chosen set, or null when none is stored (a new sign-in clears the choice), in which case the
  * saved library is left alone.
  */

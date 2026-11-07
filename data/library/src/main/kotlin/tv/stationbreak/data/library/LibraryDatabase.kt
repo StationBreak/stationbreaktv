@@ -29,7 +29,7 @@ import kotlin.time.Clock
  * `item_studio`, the `studios` columns of `item_version`, `series` and `series_version`, and
  * `sync_meta.backfillPending` (spec 18), through [Migration7To8]. Version 9 added `name` to `item_version`,
  * `series_version` and `collection_version` (spec 23, D8), through [Migration8To9]. Version 10 added `providerIds` to
- * `item` and `series`, and `heldUntilMs` and `addToken` to `library` (spec 26), through [Migration9To10].
+ * `item` and `series`, and `heldUntilMs` and `addStamp` to `library` (spec 26), through [Migration9To10].
  */
 @Database(
     entities = [

@@ -226,14 +226,14 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
 - **Cache schema version 10** (`LibraryDatabase.VERSION`). 4 added the item history, 5 added series, 6 added collections;
   7 added `sync_meta` (spec 12), 8 added studios and `backfillPending` (spec 18, migrated), 9 added a name to the
   item, series and collection version tables (spec 23, migrated with a backfill from the current rows), and 10 added
-  `providerIds` to `item` and `series` and `heldUntilMs` and `addToken` to `library` (spec 26, migrated). The migration
+  `providerIds` to `item` and `series` and `heldUntilMs` and `addStamp` to `library` (spec 26, migrated). The migration
   to 10 sets `backfillPending` on every account, so the studios re-read writes the provider ids; a row tombstoned before
   the upgrade is never read again and keeps `''` (no ids) until it is revived or purged. From version 7 on the cache
   migrates.
-- **One selection writer (spec 26).** `applySelection(account, keep, addTokens, holds, nowMs)` replaced `select`. It keeps
-  `keep`'s libraries with no hold (a new one pending, with its add token), keeps any other library whose hold lies after
-  now (setting `holds`), and deletes every other library's rows. A library given a token it did not have is set pending
-  and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a token. The content
+- **One selection writer (spec 26).** `applySelection(account, keep, addStamps, holds, nowMs)` replaced `select`. It keeps
+  `keep`'s libraries with no hold (a new one pending, with its add stamp), keeps any other library whose hold lies after
+  now (setting `holds`), and deletes every other library's rows. A library given a stamp it did not have is set pending
+  and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a stamp. The content
   generation moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after its walk wrote
   rows), and a page moves it only for a field the scheduler or the rules read in a library that is not being added: a
   provider-id-only change, a tick and the walk of an add never move it. Provider ids are stored as `key=value;key=value`, keys sorted,

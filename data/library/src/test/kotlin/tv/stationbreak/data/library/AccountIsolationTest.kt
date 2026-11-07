@@ -111,14 +111,6 @@ class AccountIsolationTest {
         val columns = SchemaFile.columnNames()
         assertEquals(true, columns.size > 20)
         val forbidden = listOf("token", "password", "secret", "credential", "authorization", "apikey")
-        val named = columns.filter { name -> forbidden.any { name.contains(it, true) } }
-        // The one exception, by exact name: `library.addToken` (spec 26) is a number the app makes to tell one add of a
-        // library from the next. It is no credential, and nothing from the server or the session is ever put in it.
-        assertEquals(emptyList<String>(), named - NOT_A_CREDENTIAL)
-        assertEquals(1, columns.count { it == "addToken" })
-    }
-
-    private companion object {
-        val NOT_A_CREDENTIAL = setOf("addToken")
+        assertEquals(emptyList<String>(), columns.filter { name -> forbidden.any { name.contains(it, true) } })
     }
 }

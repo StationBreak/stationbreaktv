@@ -4,7 +4,6 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
@@ -140,12 +139,9 @@ class SignOutClearsCacheTest {
 
             // The token is in the secret store only; the cache's schema has no place for it (AccountIsolationTest).
             assertEquals(true, store.snapshot().values.any { it.contains("fake-token-for-alice") })
-            // `library.addToken` (spec 26) is a number the app makes for an add, never a session's token: the only name
-            // allowed, and an INTEGER column, so no token text could be stored in it.
             assertEquals(
                 emptyList<String>(),
-                SchemaFile.columnNames().filter { it.contains("token", ignoreCase = true) && it != "addToken" },
+                SchemaFile.columnNames().filter { it.contains("token", ignoreCase = true) },
             )
-            assertTrue(SchemaFile.text().contains("`addToken` INTEGER,"))
         }
 }

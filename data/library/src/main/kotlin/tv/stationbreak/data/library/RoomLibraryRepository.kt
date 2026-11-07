@@ -324,14 +324,14 @@ class RoomLibraryRepository internal constructor(
     override suspend fun applySelection(
         account: LibraryAccount,
         keep: Set<ItemId>,
-        addTokens: Map<ItemId, Long>,
+        addStamps: Map<ItemId, Long>,
         holds: Map<ItemId, Long>,
         nowMs: Long,
-    ) = applySelection(account, keep, addTokens, holds, nowMs, keepAdding = false)
+    ) = applySelection(account, keep, addStamps, holds, nowMs, keepAdding = false)
 
     /**
      * [applySelection] for the first sync, which knows the chosen libraries and not the adds: every library stored with
-     * an add token is kept too, read in the same transaction, so a first sync never drops an add that is under way.
+     * an add stamp is kept too, read in the same transaction, so a first sync never drops an add that is under way.
      */
     internal suspend fun applySelectionKeepingAdds(
         account: LibraryAccount,
@@ -343,7 +343,7 @@ class RoomLibraryRepository internal constructor(
     private suspend fun applySelection(
         account: LibraryAccount,
         keep: Set<ItemId>,
-        addTokens: Map<ItemId, Long>,
+        addStamps: Map<ItemId, Long>,
         holds: Map<ItemId, Long>,
         nowMs: Long,
         keepAdding: Boolean,
@@ -354,7 +354,7 @@ class RoomLibraryRepository internal constructor(
             server,
             user,
             keep.mapTo(HashSet()) { it.value },
-            addTokens.mapKeys { it.key.value },
+            addStamps.mapKeys { it.key.value },
             holds.mapKeys { it.key.value },
             nowMs,
             keepAdding,

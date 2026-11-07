@@ -19,7 +19,7 @@ import tv.stationbreak.data.library.SyncWorld.shows
 
 /**
  * Spec 26, Part 3: `applySelection` is the one writer of the cached library set. A library in `keep` has no hold; any
- * other is kept while its hold lies ahead and deleted otherwise; a token it did not have makes it walk again from the
+ * other is kept while its hold lies ahead and deleted otherwise; a stamp it did not have makes it walk again from the
  * start; the content generation moves only when a library's rows go that was not being added. The first sync uses it
  * and never lands a library being added. Invented libraries and names only.
  */
@@ -51,9 +51,9 @@ class ApplySelectionTest {
 
     private suspend fun apply(
         keep: Set<ItemId>,
-        addTokens: Map<ItemId, Long> = emptyMap(),
+        addStamps: Map<ItemId, Long> = emptyMap(),
         holds: Map<ItemId, Long> = emptyMap(),
-    ) = repository.applySelection(ALICE, keep, addTokens, holds, clock.nowMs)
+    ) = repository.applySelection(ALICE, keep, addStamps, holds, clock.nowMs)
 
     @Test
     fun applySelection_keepsUnexpiredHold_dropsExpired() =
@@ -105,8 +105,8 @@ class ApplySelectionTest {
 
             val shows = row(SHOWS)!!
             assertNull(shows.heldUntilMs)
-            assertTrue("a re-tick with no token keeps what was fetched", shows.fetched)
-            assertNull(shows.addToken)
+            assertTrue("a re-tick with no stamp keeps what was fetched", shows.fetched)
+            assertNull(shows.addStamp)
             assertNotNull(repository.checkpoint(ALICE, SHOWS))
             assertEquals(1, storedIn(SHOWS).size)
             // The hold is gone: a later untick with no hold drops the library.
@@ -129,11 +129,11 @@ class ApplySelectionTest {
             fill(SHOWS, 2)
             apply(setOf(MOVIES), holds = mapOf(SHOWS to clock.nowMs + 60_000))
 
-            apply(setOf(MOVIES, SHOWS), addTokens = mapOf(SHOWS to 7L))
+            apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 7L))
 
             val shows = row(SHOWS)!!
-            assertFalse("a token it did not have makes it pending", shows.fetched)
-            assertEquals(7L, shows.addToken)
+            assertFalse("a stamp it did not have makes it pending", shows.fetched)
+            assertEquals(7L, shows.addStamp)
             assertNull(shows.heldUntilMs)
             assertNull("and its walk starts again", repository.checkpoint(ALICE, SHOWS))
             assertEquals("its rows stay until the walk replaces them", 1, storedIn(SHOWS).size)
@@ -141,43 +141,43 @@ class ApplySelectionTest {
         }
 
     @Test
-    fun theSameTokenAgainChangesNothingAndNoTokenKeepsTheOneItHas() =
+    fun theSameStampAgainChangesNothingAndNoStampKeepsTheOneItHas() =
         runBlocking {
-            apply(setOf(MOVIES, SHOWS), addTokens = mapOf(SHOWS to 7L))
-            // The walk of the add saved a checkpoint; the same token again must not throw it away.
+            apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 7L))
+            // The walk of the add saved a checkpoint; the same stamp again must not throw it away.
             repository.writePage(ALICE, SHOWS, listOf(sitem(2, library = SHOWS)), 1, 1, run = clock.nowMs)
 
-            apply(setOf(MOVIES, SHOWS), addTokens = mapOf(SHOWS to 7L))
+            apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 7L))
             assertNotNull(repository.checkpoint(ALICE, SHOWS))
             apply(setOf(MOVIES, SHOWS))
-            assertEquals(7L, row(SHOWS)?.addToken)
+            assertEquals(7L, row(SHOWS)?.addStamp)
             assertNotNull(repository.checkpoint(ALICE, SHOWS))
 
-            apply(setOf(MOVIES, SHOWS), addTokens = mapOf(SHOWS to 8L))
-            assertEquals(8L, row(SHOWS)?.addToken)
-            assertNull("a new token walks again", repository.checkpoint(ALICE, SHOWS))
+            apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 8L))
+            assertEquals(8L, row(SHOWS)?.addStamp)
+            assertNull("a new stamp walks again", repository.checkpoint(ALICE, SHOWS))
         }
 
     @Test
-    fun anEarlierLibraryAddedAgainIsNewAndPendingWithItsToken() =
+    fun anEarlierLibraryAddedAgainIsNewAndPendingWithItsStamp() =
         runBlocking {
             apply(setOf(MOVIES, SHOWS))
             fill(SHOWS, 2)
             apply(setOf(MOVIES))
             assertNull(row(SHOWS))
 
-            apply(setOf(MOVIES, SHOWS), addTokens = mapOf(SHOWS to 9L))
+            apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 9L))
 
             val shows = row(SHOWS)!!
             assertFalse(shows.fetched)
-            assertEquals(9L, shows.addToken)
+            assertEquals(9L, shows.addStamp)
             assertTrue(storedIn(SHOWS).isEmpty())
         }
 
     @Test
-    fun aTokenForALibraryOutsideKeepIsIgnored() =
+    fun aStampForALibraryOutsideKeepIsIgnored() =
         runBlocking {
-            apply(setOf(MOVIES), addTokens = mapOf(SHOWS to 3L))
+            apply(setOf(MOVIES), addStamps = mapOf(SHOWS to 3L))
 
             assertEquals(setOf(MOVIES), rows().keys)
         }
@@ -190,14 +190,14 @@ class ApplySelectionTest {
             fill(SHOWS, 2)
             val start = generation()
 
-            apply(setOf(MOVIES, SHOWS, extra), addTokens = mapOf(extra to 1L))
-            assertEquals("a tick with a token", start, generation())
+            apply(setOf(MOVIES, SHOWS, extra), addStamps = mapOf(extra to 1L))
+            assertEquals("a tick with a stamp", start, generation())
             apply(setOf(MOVIES, SHOWS, extra, gone))
-            assertEquals("a tick with no token", start, generation())
+            assertEquals("a tick with no stamp", start, generation())
             apply(setOf(MOVIES, SHOWS, gone))
             assertEquals("an add dropped before it held a row", start, generation())
 
-            apply(setOf(MOVIES, SHOWS, gone, extra), addTokens = mapOf(extra to 2L))
+            apply(setOf(MOVIES, SHOWS, gone, extra), addStamps = mapOf(extra to 2L))
             repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
             assertEquals("a page of a library being added", start, generation())
             apply(setOf(MOVIES, SHOWS, gone))
@@ -258,7 +258,7 @@ class ApplySelectionTest {
     @Test
     fun aRowThatMovesFromAChosenLibraryIntoOneBeingAddedMovesTheGeneration() =
         runBlocking {
-            apply(setOf(MOVIES, extra), addTokens = mapOf(extra to 1L))
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 1L))
             repository.put(ALICE, MOVIES, sitem(1))
             val before = generation()
 
@@ -274,7 +274,7 @@ class ApplySelectionTest {
             apply(setOf(MOVIES, SHOWS))
             fill(SHOWS, 2)
             apply(setOf(MOVIES), holds = mapOf(SHOWS to clock.nowMs + 60_000))
-            apply(setOf(MOVIES, SHOWS), addTokens = mapOf(SHOWS to 3L))
+            apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 3L))
             val before = generation()
 
             apply(setOf(MOVIES))
@@ -305,7 +305,7 @@ class ApplySelectionTest {
         runBlocking {
             val server = server(movies to films, extraLibrary to extras)
             // extra is being added and listed; gone is being added and not listed (the "pending but not listed" step).
-            apply(setOf(MOVIES, extra, gone), addTokens = mapOf(extra to 1L, gone to 2L))
+            apply(setOf(MOVIES, extra, gone), addStamps = mapOf(extra to 1L, gone to 2L))
 
             val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES, extra, gone))
 
@@ -322,7 +322,7 @@ class ApplySelectionTest {
             val engine = SyncWorld.engine(repository, server, clock)
             assertEquals(SyncOutcome.Completed, engine.run(session, ALICE, setOf(MOVIES, SHOWS)))
             val until = clock.nowMs + 60_000
-            apply(setOf(MOVIES, extra), addTokens = mapOf(extra to 4L), holds = mapOf(SHOWS to until))
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 4L), holds = mapOf(SHOWS to until))
             val before = generation()
 
             // The first sync knows only the chosen set: the held library and the add under way both stay.
@@ -330,14 +330,14 @@ class ApplySelectionTest {
 
             assertEquals(until, row(SHOWS)?.heldUntilMs)
             assertEquals(2, storedIn(SHOWS).size)
-            assertEquals(4L, row(extra)?.addToken)
+            assertEquals(4L, row(extra)?.addStamp)
             assertEquals(before, generation())
 
             clock.stepMs(60_000)
             assertEquals(SyncOutcome.Completed, engine.run(session, ALICE, setOf(MOVIES)))
             assertNull("the hold ended", row(SHOWS))
             assertTrue(storedIn(SHOWS).isEmpty())
-            assertEquals(4L, row(extra)?.addToken)
+            assertEquals(4L, row(extra)?.addStamp)
             assertTrue(generation() > before)
         }
 }

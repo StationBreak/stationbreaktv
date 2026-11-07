@@ -89,10 +89,10 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
 
-    // A library's hold and add token, as applySelection set them (spec 26).
+    // A library's hold and add stamp, as applySelection set them (spec 26).
     private data class LibraryMark(
         val heldUntilMs: Long? = null,
-        val addToken: Long? = null,
+        val addStamp: Long? = null,
     )
 
     private val libraryMarks = mutableMapOf<LibraryAccount, MutableMap<ItemId, LibraryMark>>()
@@ -514,11 +514,11 @@ class InMemoryLibraryRepository : LibraryRepository {
     ): Int = live(account, libraries).count { !it.item.runtime.usable() }
 
     // The contract of applySelection, in memory: a library is stored when it has rows, is pending, or has a hold or a
-    // token recorded here. The generation moves only when a library goes that had no token, or that held rows.
+    // stamp recorded here. The generation moves only when a library goes that had no stamp, or that held rows.
     override suspend fun applySelection(
         account: LibraryAccount,
         keep: Set<ItemId>,
-        addTokens: Map<ItemId, Long>,
+        addStamps: Map<ItemId, Long>,
         holds: Map<ItemId, Long>,
         nowMs: Long,
     ) {
@@ -539,7 +539,7 @@ class InMemoryLibraryRepository : LibraryRepository {
                 val hasRows =
                     rows.any { it.account == account && it.library == library } ||
                         held.any { it.account == account && it.library == library }
-                if (mark?.addToken == null || hasRows) dropped = true
+                if (mark?.addStamp == null || hasRows) dropped = true
                 marks.remove(library)
             }
         }
@@ -549,10 +549,10 @@ class InMemoryLibraryRepository : LibraryRepository {
         waiting.retainAll(staying)
         for (library in keep) {
             val mark = marks[library] ?: LibraryMark()
-            val token = addTokens[library]
-            if (token != null && token != mark.addToken) waiting += library
+            val stamp = addStamps[library]
+            if (stamp != null && stamp != mark.addStamp) waiting += library
             if (library !in saved) waiting += library
-            marks[library] = LibraryMark(heldUntilMs = null, addToken = token ?: mark.addToken)
+            marks[library] = LibraryMark(heldUntilMs = null, addStamp = stamp ?: mark.addStamp)
         }
         if (dropped) noteContentChange(account)
     }

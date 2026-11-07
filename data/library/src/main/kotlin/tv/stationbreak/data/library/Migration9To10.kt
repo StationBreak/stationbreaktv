@@ -11,7 +11,7 @@ import androidx.sqlite.execSQL
  * difference fails the open.
  *
  * - `providerIds` on `item` and `series` defaults to `''`, no ids ([ProviderIdsCodec]).
- * - `heldUntilMs` and `addToken` on `library` are nullable and start null: every library kept before now is chosen,
+ * - `heldUntilMs` and `addStamp` on `library` are nullable and start null: every library kept before now is chosen,
  *   none is held and none is being added.
  * - `sync_meta.backfillPending` is set on every row, so the studios re-read (`StayCurrentEngine.backfill`) reads every
  *   item and series again and writes their provider ids. A row is made first, seeded at [seed] as
@@ -30,7 +30,7 @@ internal class Migration9To10(
         connection.execSQL("ALTER TABLE `item` ADD COLUMN `providerIds` TEXT NOT NULL DEFAULT ''")
         connection.execSQL("ALTER TABLE `series` ADD COLUMN `providerIds` TEXT NOT NULL DEFAULT ''")
         connection.execSQL("ALTER TABLE `library` ADD COLUMN `heldUntilMs` INTEGER")
-        connection.execSQL("ALTER TABLE `library` ADD COLUMN `addToken` INTEGER")
+        connection.execSQL("ALTER TABLE `library` ADD COLUMN `addStamp` INTEGER")
         connection
             .prepare(
                 "INSERT OR IGNORE INTO `sync_meta` " +

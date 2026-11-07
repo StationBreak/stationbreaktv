@@ -18,7 +18,7 @@ import tv.stationbreak.core.model.CollectionMemberKind
  * One library of one account whose rows the cache keeps (spec 26): a chosen one, one being added, or one held after it
  * was unticked. [fetched] is false from the tick until the sync has read all of it. [heldUntilMs] is set while the
  * library is held: unticked, but its rows kept until that moment (a repair of the days that used it reads them), and
- * null for a library in the chosen set. [addToken] is set while the library is being added: ticked, but its rows not
+ * null for a library in the chosen set. [addStamp] is set while the library is being added: ticked, but its rows not
  * yet in use, so nothing written to it moves the content generation; null for every other library. Only
  * `LibraryDao.applySelection` writes these two.
  */
@@ -29,7 +29,7 @@ internal data class LibraryEntity(
     val libraryId: String,
     val fetched: Boolean,
     val heldUntilMs: Long? = null,
-    val addToken: Long? = null,
+    val addStamp: Long? = null,
 )
 
 /**
