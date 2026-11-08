@@ -97,25 +97,27 @@ class DeleteMoveTest {
     @Test
     fun deleteMove_targetPreference() =
         runBlocking {
+            // MOVIES (the smallest id) is held, SHOWS and MORE are chosen, ADDS is being added: a smaller id never
+            // beats a better class.
             select(setOf(gone, MOVIES, SHOWS, ADDS, MORE), mapOf(ADDS to STAMP))
             repository.put(ALICE, gone, sitem(1), sitem(2), sitem(3), sitem(4), sitem(5))
             repository.put(ALICE, SHOWS, sitem(1), sitem(4))
-            repository.put(ALICE, MOVIES, sitem(4))
             stamped(ADDS, STAMP, sitem(1), sitem(2))
-            repository.put(ALICE, MORE, sitem(1), sitem(2), sitem(3))
-            select(setOf(gone, MOVIES, SHOWS, ADDS), holds = mapOf(MORE to clock.nowMs + HOLD_MS))
+            repository.put(ALICE, MOVIES, sitem(1), sitem(2), sitem(3))
+            repository.put(ALICE, MORE, sitem(4))
+            select(setOf(gone, SHOWS, ADDS, MORE), holds = mapOf(MOVIES to clock.nowMs + HOLD_MS))
 
-            select(setOf(MOVIES, SHOWS, ADDS))
+            select(setOf(SHOWS, ADDS, MORE))
 
             assertEquals("chosen before adding before held", SHOWS, repository.ownerOf(ALICE, 1))
             assertEquals("adding before held", ADDS, repository.ownerOf(ALICE, 2))
-            assertEquals("a held lister still takes it", MORE, repository.ownerOf(ALICE, 3))
-            assertEquals("the smallest id within a class", MOVIES, repository.ownerOf(ALICE, 4))
+            assertEquals("a held lister still takes it", MOVIES, repository.ownerOf(ALICE, 3))
+            assertEquals("the smallest id within a class", SHOWS, repository.ownerOf(ALICE, 4))
             assertEquals("no lister: it goes with the library", null, repository.rowOf(ALICE, 5))
-            assertEquals(setOf(ADDS, MORE), repository.alsoListersOf(ALICE, 1))
-            assertEquals(setOf(MORE), repository.alsoListersOf(ALICE, 2))
+            assertEquals(setOf(ADDS, MOVIES), repository.alsoListersOf(ALICE, 1))
+            assertEquals(setOf(MOVIES), repository.alsoListersOf(ALICE, 2))
             assertEquals(emptySet<ItemId>(), repository.alsoListersOf(ALICE, 3))
-            assertEquals(setOf(SHOWS), repository.alsoListersOf(ALICE, 4))
+            assertEquals(setOf(MORE), repository.alsoListersOf(ALICE, 4))
         }
 
     // 4.4a-i LOW-4: a library marked for a rewalk is chosen, so it ranks before one being added.

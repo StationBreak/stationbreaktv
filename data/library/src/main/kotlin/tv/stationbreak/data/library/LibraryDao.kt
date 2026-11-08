@@ -950,6 +950,21 @@ internal abstract class LibraryDao {
     @Query("SELECT COUNT(*) FROM item_genre")
     abstract suspend fun countGenres(): Int
 
+    // INV-1 (spec 26, schema 11): also-listed rows that name the item's owner. Always 0.
+    @Query(
+        "SELECT COUNT(*) FROM item_also_listed a JOIN item i ON i.serverId = a.serverId AND i.userId = a.userId " +
+            "AND i.itemId = a.itemId WHERE a.libraryId = i.libraryId",
+    )
+    abstract suspend fun countOwnerListed(): Int
+
+    // INV-2: also-listed rows without their item or their library (the foreign keys forbid them). Always 0.
+    @Query(
+        "SELECT COUNT(*) FROM item_also_listed a WHERE NOT EXISTS (SELECT 1 FROM item i WHERE i.serverId = " +
+            "a.serverId AND i.userId = a.userId AND i.itemId = a.itemId) OR NOT EXISTS (SELECT 1 FROM library l " +
+            "WHERE l.serverId = a.serverId AND l.userId = a.userId AND l.libraryId = a.libraryId)",
+    )
+    abstract suspend fun countOrphanListed(): Int
+
     @Query("SELECT COUNT(*) FROM item_tag")
     abstract suspend fun countTags(): Int
 
