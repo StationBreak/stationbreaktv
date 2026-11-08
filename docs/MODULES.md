@@ -339,6 +339,8 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   ports: features through `LibraryChoices` and `LibrarySetup`, the add pass through `AddLandings`, the first sync
   through `FirstSyncLibraries`, stay current through `ServerListings`, and the app's start through `SelectionResume`.
   It asks for the add pass through `LibraryPasses`. The app binds it under `@AppStart` only, so nothing else can hold it.
+  Its work is split across internal collaborators in the same package (`SelectionOwnership`, `SelectionAllocation`,
+  `SelectionRoom`, `SelectionReconcile`, `SelectionListing`), built by it and run only under its lock.
   - **Order.** Locks are taken in one order: the selection's lock, then the repairer's turn, then the lineup's entry
     lock, then the settings' locks; Room transactions are leaves. Stores are written in one order: the repair record,
     then the settings (the truth), then the library cache. A cache write that fails after its save is put right by the

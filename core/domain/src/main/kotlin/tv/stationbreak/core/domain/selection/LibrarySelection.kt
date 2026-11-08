@@ -93,6 +93,12 @@ internal object InSelection : CoroutineContext.Element, CoroutineContext.Key<InS
  * through [SelectionResume]. Its writes reach the settings through [SelectionWriter] ([store]) alone. [resumed] is the
  * gate the app binds as [SelectionReady]: the resume opens it, and the selection waits on it; the selection is not a
  * [SelectionReady] itself, so nothing that waits can open it.
+ *
+ * Its work is split across internal collaborators it builds, each run only under its lock and taking none of its
+ * own: [SelectionOwnership] (whose a choice is, and what is published), [SelectionAllocation] (the seq and the
+ * settings writes), [SelectionRoom] (the cache's library rows), [SelectionReconcile] (the resume, the catch-up and the
+ * steps after a save) and [SelectionListing] (the server's listing). It keeps the lock, the re-entry marker and the
+ * ports.
  */
 @Suppress("LongParameterList", "TooManyFunctions") // The stores and ports it writes, one for one; one per step.
 class LibrarySelection(
@@ -121,9 +127,9 @@ class LibrarySelection(
     private val ownership = SelectionOwnership(library)
     private val allocation = SelectionAllocation(store, library, repairer, service, clock)
     private val cache = SelectionRoom(library, repairer, stayCurrent, clock, report)
-    private val reconcile =
+    private val reconciler =
         SelectionReconcile(store, library, passes, firstSync, ownership, allocation, cache, report)
-    private val serverListing = SelectionListing(config, clock, ownership, allocation, reconcile)
+    private val serverListing = SelectionListing(config, clock, ownership, allocation, reconciler)
 
     override val selection: StateFlow<ChoiceView?> = ownership.selection
 
@@ -148,7 +154,7 @@ class LibrarySelection(
         resumed.await()
         return mutex.withLock {
             withContext(NonCancellable + InSelection) {
-                if (catchUpFirst && cache.roomBehind) reconcile.catchUp(restartPasses = !fromAddPass)
+                if (catchUpFirst && cache.roomBehind) reconciler.catchUp(restartPasses = !fromAddPass)
                 block()
             }
         }
@@ -211,7 +217,7 @@ class LibrarySelection(
                 is Allocated.Failed -> return ChangeResult.Failed
                 is Allocated.Saved -> next(outcome.seq)
             }
-        reconcile.afterSave(account, stored, saved)
+        reconciler.afterSave(account, stored, saved)
         return ChangeResult.Saved
     }
 
@@ -239,7 +245,7 @@ class LibrarySelection(
             if (!allocation.reset(account, ids)) return@locked SetupResult.Failed
             // An add under way was of the old choice. The save has committed: what follows cannot fail the setup.
             if (held?.adding.orEmpty().isNotEmpty()) {
-                reconcile.followUp(SelectionEvent.SetupFollowUpFailed) { passes.restart() }
+                reconciler.followUp(SelectionEvent.SetupFollowUpFailed) { passes.restart() }
             }
             cache.room {
                 cache.branches(account, ids, library.storedLibraries(account))
@@ -252,7 +258,7 @@ class LibrarySelection(
             // The first sync reads the new libraries, replacing any run still going: one running now read the choice
             // this setup replaced (Task 4.4b, R1). On the same account, its first sync long finished, nothing else
             // would read them. Queued after the save, under this lock, so its library set is the new choice's.
-            reconcile.followUp(SelectionEvent.SetupFollowUpFailed) { firstSync.retry() }
+            reconciler.followUp(SelectionEvent.SetupFollowUpFailed) { firstSync.retry() }
             ownership.publishOwned(store.loadSelection())
             SetupResult.Saved
         }
@@ -267,7 +273,7 @@ class LibrarySelection(
             // The caller goes on (a sign-in, a switch of user); the picker's Done clears again before its setup.
             if (!cleared) report(SelectionEvent.ClearFailed)
             // Only an add under way has a worker to stop.
-            if (adding.isNotEmpty()) reconcile.restartPasses()
+            if (adding.isNotEmpty()) reconciler.restartPasses()
             ownership.publishOwned(store.loadSelection())
             cleared
         }
@@ -357,7 +363,7 @@ class LibrarySelection(
      * not ask for the add pass: the caller is that pass, which reads the adds again itself.
      */
     override suspend fun reconcile() {
-        locked(catchUpFirst = false, fromAddPass = true) { reconcile.catchUp(restartPasses = false) }
+        locked(catchUpFirst = false, fromAddPass = true) { reconciler.catchUp(restartPasses = false) }
     }
 
     // --- The server's listing ---------------------------------------------------------------------------------------
@@ -404,7 +410,7 @@ class LibrarySelection(
         val began = TimeSource.Monotonic.markNow()
         try {
             mutex.withLock {
-                withContext(NonCancellable + InSelection) { reconcile.resume() }
+                withContext(NonCancellable + InSelection) { reconciler.resume() }
             }
         } catch (e: CancellationException) {
             throw e
