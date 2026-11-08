@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup.repair
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.ADDED_MS
 import tv.stationbreak.core.domain.lineup.Airing
@@ -23,7 +24,6 @@ import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.RecordingStore
 import tv.stationbreak.core.domain.lineup.RefreshMeta
 import tv.stationbreak.core.domain.lineup.Saved
-import tv.stationbreak.core.domain.lineup.SavedSelection
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.TestCatalog
 import tv.stationbreak.core.domain.lineup.channel
@@ -34,6 +34,7 @@ import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.domain.lineup.movie
 import tv.stationbreak.core.domain.lineup.programmed
 import tv.stationbreak.core.domain.lineup.rules
+import tv.stationbreak.core.domain.lineup.savedSelectionOf
 import tv.stationbreak.core.domain.lineup.selectionOf
 import tv.stationbreak.core.domain.lineup.starter
 import tv.stationbreak.core.domain.lineup.timing
@@ -100,7 +101,9 @@ internal open class RepairTestBase {
 
     /**
      * One TV: its library, its lineup store, a service, a source over the [chosen] libraries and a repairer. With
-     * [disk] its days are kept on disk too; [sharedLibrary] is another TV's library (the same account's).
+     * [disk] its days are kept on disk too; [sharedLibrary] is another TV's library (the same account's). With
+     * [settings] the source reads the app's provider over them, and the repairer their stored seq, instead of the
+     * rig's own fields ([chosen], [applied], [playable], [resetSeq], [storedSeq]).
      */
     @Suppress("LongParameterList") // A TV's setup, one for one; all but the first three defaulted.
     protected inner class Rig(
@@ -112,7 +115,7 @@ internal open class RepairTestBase {
         private val restart: Rig? = null,
         disk: MemoryDayStore? = null,
         sharedLibrary: CountingLibrary? = null,
-        provider: (suspend () -> SavedSelection?)? = null,
+        settings: ServerSettings? = null,
     ) {
         val library: CountingLibrary = restart?.library ?: sharedLibrary ?: CountingLibrary()
 
@@ -165,15 +168,21 @@ internal open class RepairTestBase {
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
             ) {
                 providerReads.incrementAndGet()
-                // A test's own provider (the app's, over settings) stands in for the rig's fields.
-                val given = provider
+                // With [settings], the app's provider over them stands in for the rig's fields.
+                val given = settings
                 when {
-                    given != null -> given()
+                    given != null -> savedSelectionOf(given)()
                     unknown -> null
                     else -> selectionOf(chosen, applied, playable, resetSeq)
                 }
             }
-        val repairer = TodayRepairer(service, source, library, successors) { storedSeq() }
+
+        // With [settings], the repairer's stored seq is theirs too (as in the app), not [storedSeq].
+        val repairer =
+            TodayRepairer(service, source, library, successors) {
+                val given = settings
+                if (given != null) given.loadSelectionSeq() else storedSeq()
+            }
 
         init {
             runBlocking {

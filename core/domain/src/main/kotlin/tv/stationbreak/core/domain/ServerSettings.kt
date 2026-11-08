@@ -82,8 +82,11 @@ interface ServerSettings {
     suspend fun saveSelection(selection: StoredSelection): Boolean
 
     /**
-     * The libraries a repair may match or fill from: the chosen ones, or null when the selection is gone or none is
-     * stored. Never the libraries being added. One read of the same memory as [loadSelection].
+     * The playable libraries: the chosen ones, or null when the selection is gone or none is stored. Never the
+     * libraries being added. What plays from the saved library reads them: the schedule (and a repair's match or
+     * fill), the refresher, stay current's passes, the channel editor and the previews. One read of the same memory as
+     * [loadSelection], so it never waits on a writer. A caller that would take null as "no filter" (the builder's
+     * library picker) reads [loadLibraries] instead.
      */
     suspend fun loadPlayableLibraries(): Set<ItemId>?
 }

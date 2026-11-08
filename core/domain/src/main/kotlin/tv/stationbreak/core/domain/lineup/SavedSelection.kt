@@ -54,14 +54,9 @@ class SavedSelection(
  * is gone; the libraries being added are never in either. Null when nothing is chosen.
  */
 fun savedSelectionOf(settings: ServerSettings): suspend () -> SavedSelection? {
-    val read: suspend () -> SavedSelection? = { settings.loadSelection()?.let(::savedSelectionOf) }
+    val read: suspend () -> SavedSelection? = { settings.loadSelection()?.toSaved() }
     return read
 }
 
-private fun savedSelectionOf(stored: StoredSelection): SavedSelection =
-    SavedSelection(
-        stored.chosen,
-        seq = stored.seq,
-        playable = if (stored.gone) null else stored.chosen,
-        resetSeq = stored.resetSeq,
-    )
+private fun StoredSelection.toSaved(): SavedSelection =
+    SavedSelection(chosen, seq = seq, playable = if (gone) null else chosen, resetSeq = resetSeq)

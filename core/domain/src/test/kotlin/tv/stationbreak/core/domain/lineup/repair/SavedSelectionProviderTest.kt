@@ -76,7 +76,7 @@ internal class SavedSelectionProviderTest : RepairTestBase() {
                 lineupOf(laughs, whodunit),
                 comedies + crimes + comediesB,
                 setOf(libA, libB),
-                provider = savedSelectionOf(settings),
+                settings = settings,
             )
         val seq = assertNotNull(rig.changed(before = setOf(libA, libB), after = setOf(libA))).seq
         // The save Part 4 makes with the change: the new libraries and the change's seq.
@@ -102,7 +102,7 @@ internal class SavedSelectionProviderTest : RepairTestBase() {
     fun theGonePlayable_reachesWhatTheRepairerReads() {
         val settings = settingsWith(StoredSelection(setOf(libA, libB), seq = 2L, gone = true))
         val rig =
-            Rig(lineupOf(laughs), comedies, setOf(libA, libB), provider = savedSelectionOf(settings))
+            Rig(lineupOf(laughs), comedies, setOf(libA, libB), settings = settings)
 
         val read = assertNotNull(runBlocking { rig.source.savedSelection() })
         assertNull(read.playable)
