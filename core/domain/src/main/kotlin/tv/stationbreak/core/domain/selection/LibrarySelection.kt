@@ -12,13 +12,10 @@ import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
-import tv.stationbreak.core.domain.Missing
 import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.SelectionWriter
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.StayCurrentRequests
-import tv.stationbreak.core.domain.StoredLibrary
-import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
@@ -110,8 +107,8 @@ class LibrarySelection(
     private val firstSync: FirstSync,
     stayCurrent: StayCurrentRequests,
     private val resumed: ResumeGate,
-    private val config: SelectionConfig = SelectionConfig(),
-    private val clock: Clock = Clock.System,
+    config: SelectionConfig = SelectionConfig(),
+    clock: Clock = Clock.System,
     private val resumeTook: (Long) -> Unit = {},
     private val report: (SelectionEvent) -> Unit = {},
 ) : LibraryChoices,
@@ -126,9 +123,7 @@ class LibrarySelection(
     private val cache = SelectionRoom(library, repairer, stayCurrent, clock, report)
     private val reconcile =
         SelectionReconcile(store, library, passes, firstSync, ownership, allocation, cache, report)
-
-    // The libraries the last counted listing gave: a library may be added only if it was listed.
-    @Volatile private var lastListed: Set<ItemId>? = null
+    private val serverListing = SelectionListing(config, clock, ownership, allocation, reconcile)
 
     override val selection: StateFlow<ChoiceView?> = ownership.selection
 
@@ -170,8 +165,6 @@ class LibrarySelection(
     private suspend fun activeAccountOrReport(): LibraryAccount? =
         activeAccount().also { if (it == null) report(SelectionEvent.NoActiveAccount) }
 
-    private fun nowMs(): Long = clock.now().toEpochMilliseconds()
-
     // --- LibraryChoices ---------------------------------------------------------------------------------------------
 
     override suspend fun listing(): LibraryListing {
@@ -205,8 +198,7 @@ class LibrarySelection(
         if (chosen.isEmpty()) return ChangeResult.LastLibrary
         val kept = stored.adding.filterKeys { it in ticked }
         val added = ticked - stored.chosen - stored.adding.keys
-        val listed = lastListed
-        if (added.isNotEmpty() && (listed == null || !listed.containsAll(added))) return ChangeResult.NotListed
+        if (added.isNotEmpty() && !serverListing.lists(added)) return ChangeResult.NotListed
         if (chosen == stored.chosen && kept == stored.adding && added.isEmpty()) return ChangeResult.Saved
         val next = { seq: Long ->
             stored.copy(chosen = chosen, seq = seq, adding = kept + added.associateWith { seq }).withMissingKept()
@@ -243,7 +235,7 @@ class LibrarySelection(
                 }
             }
             // A listing of the last account's server says nothing about this choice.
-            lastListed = null
+            serverListing.forget()
             if (!allocation.reset(account, ids)) return@locked SetupResult.Failed
             // An add under way was of the old choice. The save has committed: what follows cannot fail the setup.
             if (held?.adding.orEmpty().isNotEmpty()) {
@@ -269,7 +261,7 @@ class LibrarySelection(
     // be written to its cache.
     override suspend fun clear(): Boolean =
         locked(catchUpFirst = false) {
-            lastListed = null
+            serverListing.forget()
             val adding = store.loadSelection()?.adding.orEmpty()
             val cleared = store.clearLibraries()
             // The caller goes on (a sign-in, a switch of user); the picker's Done clears again before its setup.
@@ -388,42 +380,13 @@ class LibrarySelection(
         locked {
             if (activeAccount() == account) {
                 val ids = libraries.mapTo(HashSet()) { it.id }
-                lastListed = ids
+                serverListing.listed(ids)
                 // Another account's choice is not followed for this one.
-                store.loadSelection()?.takeIf { ownership.owns(account, it) }?.let { follow(account, it, ids) }
+                store.loadSelection()?.takeIf { ownership.owns(account, it) }?.let {
+                    serverListing.follow(account, it, ids)
+                }
             }
         }
-    }
-
-    private suspend fun follow(
-        account: LibraryAccount,
-        stored: StoredSelection,
-        ids: Set<ItemId>,
-    ) {
-        val now = nowMs()
-        val listings = stored.listings + 1
-        // A miss from the future (the clock went back) is counted again from now.
-        val missing = stored.missing.filterValues { it.sinceMs <= now }.toMutableMap()
-        for (id in stored.chosen + stored.adding.keys) {
-            if (id in ids) missing.remove(id) else missing.putIfAbsent(id, Missing(now, listings))
-        }
-        val after = config.missingConfirmAfter.inWholeMilliseconds
-        val confirmed = missing.filterValues { listings > it.sincePass && now - it.sinceMs >= after }.keys
-        val left = stored.chosen - confirmed
-        val gone = left.isEmpty() || (stored.gone && stored.chosen.none { it in ids })
-        val chosen = left.ifEmpty { stored.chosen }
-        val adding = stored.adding - confirmed
-        val counted = stored.copy(missing = missing, listings = listings)
-        if (chosen == stored.chosen && adding == stored.adding && gone == stored.gone) {
-            // Bookkeeping only: the same seq, as nothing that plays changes.
-            if (allocation.write(counted, account)) ownership.publish(counted)
-            return
-        }
-        val next = { seq: Long ->
-            counted.copy(chosen = chosen, seq = seq, adding = adding, gone = gone).withMissingKept()
-        }
-        val outcome = allocation.allocate(account, stored, chosen.takeIf { it != stored.chosen }, next)
-        if (outcome is Allocated.Saved) reconcile.afterSave(account, stored, next(outcome.seq))
     }
 
     // --- Resume -----------------------------------------------------------------------------------------------------
@@ -452,11 +415,5 @@ class LibrarySelection(
             resumed.open()
             resumeTook(began.elapsedNow().inWholeMilliseconds)
         }
-    }
-
-    // A miss is kept only for a library still chosen or being added.
-    private fun StoredSelection.withMissingKept(): StoredSelection {
-        val kept = missing.filterKeys { it in chosen || it in adding }
-        return copy(missing = kept)
     }
 }
