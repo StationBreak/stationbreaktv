@@ -12,6 +12,7 @@ modules), or a symlink there, is missing from the manifest. Dot-folders and `bui
 - Author: the design partner, StationBreak Look.
 - Copied into the repo: 2026-11-07.
 - Pack commit date: 2026-11-08T00:49:37Z (committed by a Cursor agent on the design branch).
+  (Dates: the repo copy is dated in US Eastern, the pack commit timestamp is UTC, which is already the 8th.)
 - Licence: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore (the project's licence; owner decision 2026-11-07:
   the logos were made for this project, they are not third-party art). See ADR-0003.
 - What they are: 97 fictional in-app stations; not the StationBreak company brand.
@@ -34,6 +35,9 @@ icon-library markers on 2026-11-07 and found none.
 ## Rule
 
 Logos load only from the APK. Never from the server, the network or user content.
+
+Known gap: Android also merges `assets/` from dependency AARs, which the repo scan cannot see; a check of the merged
+assets in the built APK against this manifest is a tracked follow-up.
 
 ## Manifest
 
