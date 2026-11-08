@@ -225,6 +225,34 @@ class StampedWritesTest {
             assertNothingWritten(adding, before)
         }
 
+    // LOW-3: a refused hidden-series write leaves the read's memory as it was, so the next pass asks the same again.
+    @Test
+    fun refusedHiddenSeriesWrite_leavesTheMemoryAlone() =
+        runBlocking {
+            choose()
+            val memory = HiddenSeriesMemory()
+            memory.remember(ALICE, adding, setOf(ItemId("s-ghost")))
+            memory.moveOffset(ALICE, adding, 5)
+            val server = FakeMediaServer().apply { seriesByIdResult = ServerResult.Success(series("s-hidden")) }
+
+            val read =
+                server.readHiddenSeries(
+                    session,
+                    repository,
+                    ALICE,
+                    addingLibrary,
+                    setOf(ItemId("s-hidden")),
+                    memory,
+                    confirmAbsent = true,
+                    stamp = null,
+                    rewalk = false,
+                )
+
+            assertEquals(PageResult.StampMismatch, read.refused)
+            assertEquals("nothing forgotten", setOf(ItemId("s-ghost")), memory.absent(ALICE, adding))
+            assertEquals("no offset moved", 5, memory.offset(ALICE, adding))
+        }
+
     // The hidden-series read of [library] finding one series by ID, and storing it under no stamp.
     private suspend fun hiddenSeriesRead(
         library: ItemId,

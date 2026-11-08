@@ -6,8 +6,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.LibraryAccount
@@ -44,13 +48,17 @@ class LineupRefresherSelectionTest {
     private val events = CopyOnWriteArrayList<LineupEvent>()
     private val job = Job()
     private val scope = CoroutineScope(job)
-    private val writing = MutableStateFlow(false)
-    private val sync = SyncActivity { writing }
+    private val writing = WritingSignal()
+    private val sync = SyncActivity { writing.flow() }
 
     @Volatile private var libraries: Set<ItemId>? = LIBRARIES
 
-    // How many times the refresher read the libraries: once in every refresh it considers.
-    private val libraryReads = AtomicInteger()
+    // How many times the refresher read the libraries: once in every refresh it considers. A state, so a test can await
+    // a count instead of polling for it.
+    private val libraryReads = MutableStateFlow(0)
+
+    // How many lost-block checks have run, as a state to await.
+    private val checkCount = MutableStateFlow(0)
 
     // The selection's seq, as LibrarySelection will hold it.
     private val seq = MutableStateFlow(0L)
@@ -90,11 +98,12 @@ class LineupRefresherSelectionTest {
         val service = LineupService(store, lib, clock, { 0 }, { events += it }, TestCatalog)
         val afterSync: suspend (LibraryAccount) -> Unit = {
             checks += Check(seq.value, writing.value)
+            checkCount.update { count -> count + 1 }
             // The first change's check (the second check) waits here when a test holds it.
             if (checks.size == 2) held?.await()
         }
         val read = {
-            libraryReads.incrementAndGet()
+            libraryReads.update { it + 1 }
             libraries
         }
         return LineupRefresher(service, lib, read, sync, seq, BACKOFF_MS, afterSync) { events += it }
@@ -111,9 +120,13 @@ class LineupRefresherSelectionTest {
         beforeStart()
         refresher(lib, held).start(scope)
         until("the start check") { checks.isNotEmpty() }
+        writing.awaitRunEndsListening()
         assertEquals(before, refreshes, "current at start")
         return before
     }
+
+    // Waits, on the check hook itself, until [count] checks have run. The timeout only stops a hung test.
+    private suspend fun awaitChecks(count: Int) = withTimeout(WAIT_MS) { checkCount.first { it >= count } }
 
     // Saves one more change and waits for its check: everything owed before it has been handled by then.
     private suspend fun probe(): List<Check> {
@@ -178,25 +191,26 @@ class LineupRefresherSelectionTest {
             assertEquals(expected, probe(), "never while the run wrote; once for the change and the run's end")
         }
 
-    // Fix round 1, MED-2: whether a run writes is asked after the refresh, not before it.
+    // Fix round 1, MED-2: whether a run writes is asked after the refresh, not before it. Synchronised on hooks only
+    // (the run's start inside the planning read, the libraries read, the check hook), never on time or host load.
     @Test
     fun aRunThatBeginsDuringTheChangesRefresh_holdsTheCheckToItsEnd() =
         runBlocking<Unit> {
             val beginsARun = RunBeginsInRefresh(library, writing)
-            val before = startedCurrent(beginsARun)
+            startedCurrent(beginsARun)
 
             beginsARun.armed = true
             libraries = LIBRARIES + OTHER
             seq.value = 1L
-            until("the change's refresh") { refreshes == before + 1 }
-            val reads = libraryReads.get()
+            withTimeout(WAIT_MS) { beginsARun.began.await() }
+            val reads = libraryReads.value
             // A second change while the run writes: once its refresh is considered, the first change was handled.
             seq.value = 2L
-            until("the first change was handled") { libraryReads.get() > reads }
+            withTimeout(WAIT_MS) { libraryReads.first { it > reads } }
             assertEquals(listOf(Check(0L)), checks.toList(), "no check while the run that began in the refresh writes")
 
             writing.value = false
-            until("the check at that run's end") { checks.size == 2 }
+            awaitChecks(2)
             assertEquals(listOf(Check(0L), Check(2L), Check(2L + PROBE_STEP)), probe())
         }
 
@@ -205,11 +219,12 @@ class LineupRefresherSelectionTest {
         runBlocking<Unit> {
             writing.value = true
             LineupService(store, library, clock, { 0 }, {}, TestCatalog).refresh(ACCOUNT, LIBRARIES)
-            val reads = libraryReads.get()
+            val reads = libraryReads.value
             refresher(library).start(scope)
+            writing.awaitRunEndsListening()
 
             seq.value = 1L
-            until("the change was handled") { libraryReads.get() > reads }
+            until("the change was handled") { libraryReads.value > reads }
             assertEquals(emptyList(), checks.toList(), "neither check runs while the run writes")
 
             writing.value = false
@@ -321,12 +336,54 @@ private class FailingPassesOnSignal(
         }
 }
 
+/**
+ * A sync's writing signal for the tests: it gives its current value first and then every change, in order, to every
+ * collector, as [SyncActivity] asks. Unlike a `StateFlow` it never conflates: a run that starts and ends before a
+ * collector is scheduled is still seen to end. And a test can wait until the refresher's run-end listener is
+ * subscribed ([awaitRunEndsListening]) before it starts or ends a run, so no test depends on how busy the host is.
+ */
+private class WritingSignal {
+    private val values = MutableSharedFlow<Boolean>(replay = 1, extraBufferCapacity = BUFFER)
+    private val calls = AtomicInteger()
+    private val listening = CompletableDeferred<Unit>()
+
+    init {
+        check(values.tryEmit(false))
+    }
+
+    /**
+     * The flow for one `SyncActivity.writing()` call. The refresher's first call is the one that builds its run-end
+     * listener (when a follow begins, before any trigger is acted on); later calls are its one-value reads.
+     */
+    fun flow(): Flow<Boolean> {
+        val runEnds = calls.getAndIncrement() == 0
+        return if (runEnds) values.onSubscription { listening.complete(Unit) } else values
+    }
+
+    /** Waits until the refresher's run-end listener has subscribed. The timeout only stops a hung test. */
+    suspend fun awaitRunEndsListening() = withTimeout(LISTEN_WAIT_MS) { listening.await() }
+
+    @Volatile var value: Boolean = false
+        set(next) {
+            field = next
+            check(values.tryEmit(next)) { "the writing signal's buffer is full" }
+        }
+
+    private companion object {
+        const val BUFFER = 1024
+        const val LISTEN_WAIT_MS = 10_000L
+    }
+}
+
 /** A library whose planning read, once [armed], starts a sync run ([writing] goes true) in the middle of a refresh. */
 private class RunBeginsInRefresh(
     private val inner: CountingLibrary,
-    private val writing: MutableStateFlow<Boolean>,
+    private val writing: WritingSignal,
 ) : LibraryRepository by inner {
     @Volatile var armed = false
+
+    /** Completed when the run has begun, inside the planning read. */
+    val began = CompletableDeferred<Unit>()
 
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
@@ -336,6 +393,7 @@ private class RunBeginsInRefresh(
         if (armed) {
             armed = false
             writing.value = true
+            began.complete(Unit)
         }
         return inner.ruleSnapshot(account, libraries, cutoff)
     }

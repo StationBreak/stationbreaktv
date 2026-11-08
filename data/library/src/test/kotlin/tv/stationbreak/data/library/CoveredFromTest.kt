@@ -199,6 +199,34 @@ class CoveredFromTest {
             assertEquals("written during the pass: kept", RUN + 1, row(SHOWS).coveredFromMs)
         }
 
+    // Data review MED-1: a hold placed during the pass, on a library covered from earlier than now, leaves the value
+    // as it was (min(E, now) is E), so the compare-and-set alone would clear it. A held library keeps its coverage.
+    @Test
+    fun finishIncremental_heldDuringPass_keepsCoverage() =
+        runBlocking {
+            firstSyncDone()
+            clock.instant += 2.hours
+            cover(SHOWS, RUN)
+            // The series call of SHOWS comes after its last item page: SHOWS is unticked and held there.
+            var held = false
+            server.respond = { call ->
+                if (!held && call.library.id == SHOWS && call.series) {
+                    held = true
+                    runBlocking {
+                        val holds = mapOf(SHOWS to clock.nowMs + 60_000)
+                        repository.applySelection(ALICE, setOf(MOVIES), holds = holds, nowMs = clock.nowMs)
+                    }
+                }
+                null
+            }
+
+            val result = engine().incremental(session, ALICE, setOf(MOVIES, SHOWS))
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertTrue("the hold was placed during the pass", held)
+            assertEquals("held during the pass: its coverage stays", RUN, row(SHOWS).coveredFromMs)
+        }
+
     @Test
     fun finishIncremental_firstSyncRunning_clearsNothing() =
         runBlocking {

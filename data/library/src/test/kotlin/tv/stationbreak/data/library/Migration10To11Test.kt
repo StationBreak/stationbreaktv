@@ -77,6 +77,15 @@ class Migration10To11Test {
             }
         }
 
+    // The columns `library` had before 11, by key, as text: the migration must leave every one as it was.
+    private fun SQLiteConnection.oldLibraryColumns(): List<List<String?>> =
+        prepare(
+            "SELECT serverId, userId, libraryId, fetched, heldUntilMs, addStamp FROM library " +
+                "ORDER BY serverId, userId, libraryId",
+        ).use { st ->
+            buildList { while (st.step()) add((0 until 6).map { if (st.isNull(it)) null else st.getText(it) }) }
+        }
+
     private fun SQLiteConnection.strings(sql: String): List<String> =
         prepare(sql).use { st -> buildList { while (st.step()) add(st.getText(0)) } }
 
@@ -88,6 +97,7 @@ class Migration10To11Test {
             val metaBefore = raw(file) { it.dump("sync_meta") }
             val stateBefore = raw(file) { it.dump("account_state") }
             val itemsBefore = raw(file) { it.dump("item") }
+            val librariesBefore = raw(file) { it.oldLibraryColumns() }
 
             migrate(file).close()
 
@@ -113,6 +123,7 @@ class Migration10To11Test {
                 assertEquals("sync_meta is as it was (backfillPending, generation)", metaBefore, db.dump("sync_meta"))
                 assertEquals("account_state is as it was", stateBefore, db.dump("account_state"))
                 assertEquals("no item row moves", itemsBefore, db.dump("item"))
+                assertEquals("fetched, the hold and the stamp stay", librariesBefore, db.oldLibraryColumns())
                 assertEquals(listOf("11"), db.strings("PRAGMA user_version"))
             }
         }

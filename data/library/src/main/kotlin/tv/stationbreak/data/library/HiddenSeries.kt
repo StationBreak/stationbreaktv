@@ -102,9 +102,10 @@ private fun MediaServerError.isSessionLevel(): Boolean = toSyncFailure() != Sync
  * called absent, and if every one asked about is absent none is. Without it, ones the server already said were absent
  * are not asked again. A failure about one series makes it unknown and the reads go on; a session-level failure stops
  * them and is returned in [HiddenSeriesRead.failure]. What was found is stored all the same, under the walk's [stamp]
- * and [rewalk] (the guard of [RoomLibraryRepository.upsertSeries]); a refused write is [HiddenSeriesRead.refused].
+ * and [rewalk] (the guard of [RoomLibraryRepository.upsertSeries]); a refused write is [HiddenSeriesRead.refused],
+ * and leaves [memory] as it was (no offset moved, nothing remembered), so the next pass asks the same again.
  */
-@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 internal suspend fun MediaServer.readHiddenSeries(
     session: Session,
     repository: RoomLibraryRepository,
@@ -116,15 +117,17 @@ internal suspend fun MediaServer.readHiddenSeries(
     stamp: Long?,
     rewalk: Boolean,
 ): HiddenSeriesRead {
-    if (confirmAbsent) memory.remember(account, library.id, emptySet())
+    // A reconcile forgets what earlier passes called absent: its own two reads decide (remembered at the end).
     val pool = if (confirmAbsent) candidates else candidates - memory.absent(account, library.id)
-    if (pool.isEmpty()) return HiddenSeriesRead.NONE
+    if (pool.isEmpty()) {
+        if (confirmAbsent) memory.remember(account, library.id, emptySet())
+        return HiddenSeriesRead.NONE
+    }
     val sorted = pool.sortedBy { it.value }
     val start = memory.offset(account, library.id) % sorted.size
     val ordered = sorted.drop(start) + sorted.take(start)
     val wanted = ordered.take(HIDDEN_LOOKUPS_PER_PASS)
     val capped = ordered.size > wanted.size
-    memory.moveOffset(account, library.id, if (capped) (start + wanted.size) % sorted.size else 0)
     val found = ArrayList<SeriesInfo>()
     val resolved = LinkedHashSet<ItemId>()
     val unknown = LinkedHashSet<ItemId>()
@@ -168,6 +171,11 @@ internal suspend fun MediaServer.readHiddenSeries(
     val missing = if (confirmAbsent && first.isNotEmpty()) round(first) else first
     val written = if (found.isNotEmpty()) repository.upsertSeries(account, library.id, stamp, rewalk, found) else null
     val refused = written?.takeIf { it !is PageResult.Written }
+    // The library row refused the write (spec 26): nothing was stored, so the memory is not moved either.
+    if (refused != null) {
+        return HiddenSeriesRead(wanted.size, resolved, emptySet(), unknown, failure, capped, refused = refused)
+    }
+    memory.moveOffset(account, library.id, if (capped) (start + wanted.size) % sorted.size else 0)
     // Only a pair of reads that both found nothing makes a series absent; one that was not read twice is unknown.
     val settled = if (failure == null) missing else emptySet()
     val suspect = confirmAbsent && settled.isNotEmpty() && resolved.isEmpty()

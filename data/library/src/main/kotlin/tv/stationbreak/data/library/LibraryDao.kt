@@ -310,10 +310,12 @@ internal abstract class LibraryDao {
     ): Int
 
     // The incremental pass covered [libraryId]: its coverage goes, only while it is still [expectedMs] (the value read
-    // at the pass's start), so a landing or a hold during the pass keeps the one it wrote.
+    // at the pass's start) and the library is not held, so a landing or a hold during the pass keeps the coverage.
+    // A hold placed on a library whose coverage is already older than now leaves the value unchanged, so the hold
+    // check is what keeps it (data review MED-1).
     @Query(
         "UPDATE library SET coveredFromMs = NULL WHERE serverId = :serverId AND userId = :userId " +
-            "AND libraryId = :libraryId AND coveredFromMs = :expectedMs",
+            "AND libraryId = :libraryId AND coveredFromMs = :expectedMs AND heldUntilMs IS NULL",
     )
     protected abstract suspend fun clearCoveredFrom(
         serverId: String,
