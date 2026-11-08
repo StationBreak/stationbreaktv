@@ -59,9 +59,19 @@ class ChannelMarkManifestTest {
     ): Boolean = isMarkPath(dir.relativeTo(root).invariantSeparatorsPath.split("/") + "x")
 
     /** `<module...>/src/<set>/assets/channelmarks/<file>`. */
-    private fun isMarkPath(parts: List<String>): Boolean {
-        val src = parts.indexOf("src")
-        return src >= 1 && parts.size >= src + 5 && parts[src + 2] == "assets" && parts[src + 3] == "channelmarks"
+    internal fun isMarkPath(parts: List<String>): Boolean =
+        parts.indices.any { i ->
+            parts[i] == "src" && parts.size >= i + 5 && parts[i + 2] == "assets" && parts[i + 3] == "channelmarks"
+        }
+
+    @Test
+    fun theMarkPathCheckLooksAtEverySrcFolder() {
+        fun mark(path: String) = isMarkPath(path.split("/"))
+        assertTrue(mark("x/src/app/src/main/assets/channelmarks/a.png"))
+        assertTrue(mark("src/main/assets/channelmarks/a.png"))
+        assertTrue(mark("feature/guide/src/main/assets/channelmarks/a.png"))
+        assertTrue(!mark("feature/guide/src/main/assets/other/a.png"))
+        assertTrue(!mark("feature/guide/src/main/res/channelmarks/a.png"))
     }
 
     private fun repoRoot(): File = module.canonicalFile.parentFile.parentFile

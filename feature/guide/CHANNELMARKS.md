@@ -10,7 +10,8 @@ modules), or a symlink there, is missing from the manifest. Dot-folders and `bui
 - Source repository: `github.com/StationBreak/stationbreaktv`, branch `design/channelmarks-assets`, pinned commit
   `35f03e466c1ac27adb3ae83d58a939f569ebe1d2`, folder `design/channelmarks/station-logos/`.
 - Author: the design partner, StationBreak Look.
-- Date: 2026-11-07.
+- Copied into the repo: 2026-11-07.
+- Pack commit date: 2026-11-08T00:49:37Z (committed by a Cursor agent on the design branch).
 - Licence: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore (the project's licence; owner decision 2026-11-07:
   the logos were made for this project, they are not third-party art). See ADR-0003.
 - What they are: 97 fictional in-app stations; not the StationBreak company brand.
@@ -23,10 +24,12 @@ the sheets. Each file is 64 x 64 px and under 16 KB; the test checks both.
 
 ## How the art was made
 
-The 97 SVG masters are hand-authored vector primitives (rectangles, circles and short paths), rendered to PNG by the
-design partner's generator scripts in the pack (`build_logos.py` and `build_logos2.py`; SVG to cairosvg to PIL). They
-contain no metadata or comments and no path longer than 400 characters. The pack's own spec says "flat vector, no
-third-party IP". The controller checked all 97 SVGs for icon-library markers and found none (2026-11-07).
+The marks were produced by an AI-assisted design process (the project's design partner, StationBreak Look), directed
+by the owner. The 97 SVG masters are composed of simple vector primitives (rectangles, circles and short paths) and
+were not hand-drawn. They are rendered to PNG by generator scripts in the pack (`build_logos.py` and
+`build_logos2.py`; SVG to cairosvg to PIL). The SVGs contain no metadata or comments and no path data longer than 400
+characters. The pack's own spec says "flat vector, no third-party IP". The project's review checked all 97 SVGs for
+icon-library markers on 2026-11-07 and found none.
 
 ## Rule
 
