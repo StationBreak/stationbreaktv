@@ -975,12 +975,12 @@ class LineupService internal constructor(
         account: LibraryAccount,
         empty: Boolean,
     ): RecordReset {
-        val owner = ownerOf(account) ?: return RecordReset.Floor(0L, record = false)
+        val owner = ownerOf(account) ?: return RecordReset.Floor(0L, record = false, newer = false)
         val entry = entryOf(owner)
         return entry.mutex.withLock {
             when (val stored = store.load(owner.key)) {
                 StoredBytes.Absent -> {
-                    floorWithoutFile(entry, empty)
+                    floorWithoutFile(entry, empty, newer = false)
                 }
 
                 StoredBytes.Failed -> {
@@ -1005,22 +1005,23 @@ class LineupService internal constructor(
     ): RecordReset =
         when {
             decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup) -> {
-                if (empty) emptied(owner, entry, decoded) else RecordReset.Floor(decoded.repairs.latestSeq(), true)
+                if (empty) {
+                    emptied(owner, entry, decoded)
+                } else {
+                    RecordReset.Floor(decoded.repairs.latestSeq(), record = true, newer = false)
+                }
             }
 
             decoded is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
                 leftAlone(entry)
-                when (val floor = floorWithoutFile(entry, empty)) {
-                    is RecordReset.Floor -> floor.copy(newer = true)
-                    RecordReset.Failed -> floor
-                }
+                floorWithoutFile(entry, empty, newer = true)
             }
 
             // Unreadable, or another account's lineup: out of the way, as a refresh would.
             store.setAside(owner.key) -> {
                 report(LineupEvent.SetAsideUnreadable)
-                floorWithoutFile(entry, empty)
+                floorWithoutFile(entry, empty, newer = false)
             }
 
             else -> {
@@ -1032,16 +1033,17 @@ class LineupService internal constructor(
 
     // No readable record of this account on disk. For a reset ([empty]), a record held in memory (a session's, planned
     // while the file could not be read, or one whose file went) is emptied and published, with no write, and its
-    // latest seq is the floor; otherwise the floor is 0. Under the entry's lock.
+    // latest seq is the floor; otherwise the floor is 0. [newer]: the file is a newer app's. Under the entry's lock.
     private fun floorWithoutFile(
         entry: Entry,
         empty: Boolean,
+        newer: Boolean,
     ): RecordReset {
         val held = entry.state.value
         val repairs = held?.repairs ?: TodayRepairs.NONE
-        if (!empty || held == null || repairs == TodayRepairs.NONE) return RecordReset.Floor(0L, record = false)
+        if (!empty || held == null || repairs == TodayRepairs.NONE) return RecordReset.Floor(0L, record = false, newer)
         entry.set(held.copy(repairs = TodayRepairs.NONE))
-        return RecordReset.Floor(repairs.latestSeq(), record = false)
+        return RecordReset.Floor(repairs.latestSeq(), record = false, newer)
     }
 
     // A file this session must not write over: the held lineup is no longer one to save from.
@@ -1072,7 +1074,7 @@ class LineupService internal constructor(
             if (saveVerified(owner, decoded.lineup, decoded.meta, TodayRepairs.NONE)) {
                 publish(entry, decoded.lineup, decoded.meta, TodayRepairs.NONE)
                 entry.loaded = true
-                RecordReset.Floor(floor, record = true)
+                RecordReset.Floor(floor, record = true, newer = false)
             } else {
                 RecordReset.Failed
             }
@@ -1383,7 +1385,7 @@ internal sealed interface RecordReset {
     data class Floor(
         val seq: Long,
         val record: Boolean,
-        val newer: Boolean = false,
+        val newer: Boolean,
     ) : RecordReset
 
     /** The file could not be read, could not be set aside, or the emptied record could not be saved. */

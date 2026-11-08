@@ -64,7 +64,7 @@ class LineupServiceResetRecordTest {
             seed()
             val service = newService()
 
-            assertEquals(RecordReset.Floor(7L, record = true), service.resetRecord(ACCOUNT))
+            assertEquals(RecordReset.Floor(7L, record = true, newer = false), service.resetRecord(ACCOUNT))
 
             assertEquals(TodayRepairs.NONE, stored().repairs, "every selection repair, every fix")
             assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value, "and published")
@@ -92,7 +92,7 @@ class LineupServiceResetRecordTest {
         runBlocking<Unit> {
             val bytes = seed()
 
-            assertEquals(RecordReset.Floor(7L, record = true), newService().floorRecord(ACCOUNT))
+            assertEquals(RecordReset.Floor(7L, record = true, newer = false), newService().floorRecord(ACCOUNT))
 
             assertContentEquals(bytes, store.inner.peek(ACCOUNT))
             assertEquals(listOf("load"), store.calls)
@@ -119,8 +119,8 @@ class LineupServiceResetRecordTest {
         runBlocking<Unit> {
             val service = newService()
 
-            assertEquals(RecordReset.Floor(0L, record = false), service.resetRecord(ACCOUNT))
-            assertEquals(RecordReset.Floor(0L, record = false), service.floorRecord(ACCOUNT))
+            assertEquals(RecordReset.Floor(0L, record = false, newer = false), service.resetRecord(ACCOUNT))
+            assertEquals(RecordReset.Floor(0L, record = false, newer = false), service.floorRecord(ACCOUNT))
 
             assertEquals(listOf("load", "load"), store.calls)
             assertNull(store.inner.peek(ACCOUNT))
@@ -139,7 +139,7 @@ class LineupServiceResetRecordTest {
 
                 val got = if (reset) service.resetRecord(ACCOUNT) else service.floorRecord(ACCOUNT)
 
-                assertEquals(RecordReset.Floor(0L, record = false), got)
+                assertEquals(RecordReset.Floor(0L, record = false, newer = false), got)
                 assertEquals(listOf("load", "setAside"), store.calls)
                 assertNull(store.inner.peek(ACCOUNT))
                 assertContentEquals(garbage, store.inner.setAsideCopy(ACCOUNT))
@@ -157,7 +157,8 @@ class LineupServiceResetRecordTest {
 
                 val got = if (reset) service.resetRecord(ACCOUNT) else service.floorRecord(ACCOUNT)
 
-                assertEquals(RecordReset.Floor(0L, record = false), got, "another account's seqs are not a floor")
+                val floor = RecordReset.Floor(0L, record = false, newer = false)
+                assertEquals(floor, got, "another account's seqs are not a floor")
                 assertEquals(listOf("load", "setAside"), store.calls)
                 assertNull(store.inner.peek(ACCOUNT))
             }
@@ -248,7 +249,7 @@ class LineupServiceResetRecordTest {
                 assertEquals(record, checkNotNull(service.loaded(ACCOUNT)).repairs)
                 if (gone) store.inner.forget(ACCOUNT) else store.inner.save(ACCOUNT, "not a lineup".encodeToByteArray())
 
-                assertEquals(RecordReset.Floor(7L, record = false), service.resetRecord(ACCOUNT))
+                assertEquals(RecordReset.Floor(7L, record = false, newer = false), service.resetRecord(ACCOUNT))
 
                 assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value)
                 assertNull(store.inner.peek(ACCOUNT), "nothing written in its place")
@@ -262,7 +263,7 @@ class LineupServiceResetRecordTest {
             val service = newService()
             assertNull(service.lineup(ACCOUNT).value, "nothing held yet")
 
-            assertEquals(RecordReset.Floor(7L, record = true), service.floorRecord(ACCOUNT))
+            assertEquals(RecordReset.Floor(7L, record = true, newer = false), service.floorRecord(ACCOUNT))
         }
 
     @Test
@@ -271,8 +272,8 @@ class LineupServiceResetRecordTest {
             val odd = LibraryAccount(ServerId("not-an-id"), UserId("nor-this"))
             val service = newService()
 
-            assertEquals(RecordReset.Floor(0L, record = false), service.resetRecord(odd))
-            assertEquals(RecordReset.Floor(0L, record = false), service.floorRecord(odd))
+            assertEquals(RecordReset.Floor(0L, record = false, newer = false), service.resetRecord(odd))
+            assertEquals(RecordReset.Floor(0L, record = false, newer = false), service.floorRecord(odd))
             assertEquals(emptyList(), store.calls)
         }
 
