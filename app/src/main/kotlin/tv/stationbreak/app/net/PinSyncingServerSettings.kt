@@ -50,9 +50,12 @@ internal class PinSyncingServerSettings(
 
     override suspend fun loadSelectionSeq(): Long? = stored.loadSelectionSeq()
 
-    override suspend fun saveSelection(selection: StoredSelection): Boolean {
+    override suspend fun saveSelection(
+        selection: StoredSelection,
+        setup: Boolean,
+    ): Boolean {
         // A selection write, so it is ordered with the other writes (lock order: PinSyncing, then the file's own).
-        return lock.withLock { stored.saveSelection(selection) }
+        return lock.withLock { stored.saveSelection(selection, setup) }
     }
 
     override suspend fun loadPlayableLibraries(): Set<ItemId>? = stored.loadPlayableLibraries()

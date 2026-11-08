@@ -88,10 +88,14 @@ interface SelectionWriter {
      * Replaces the stored selection with [selection] in one atomic write with the record. Returns false, storing
      * nothing, when there is no record, when the write failed, or when [selection] breaks a rule of
      * [StoredSelection.mayReplace] (an empty or overlapping choice, a stamp above its seq, a seq below the stored one).
-     * With nothing chosen, the file store takes only a setup's save (its reset seq is its seq, nothing being added):
-     * a change saved over a selection dropped outside the selection's lock (an address change) is refused.
+     * With nothing chosen, the file store takes only a setup's save, which says so with [setup] (only the selection's
+     * setup sets it): a change saved over a selection dropped outside the selection's lock (an address change) is
+     * refused, whatever its shape.
      */
-    suspend fun saveSelection(selection: StoredSelection): Boolean
+    suspend fun saveSelection(
+        selection: StoredSelection,
+        setup: Boolean = false,
+    ): Boolean
 }
 
 /** A store of the server settings that also takes the selection's writes: what the app binds both ports to. */
@@ -119,6 +123,8 @@ data class Missing(
  * - [listings]: how many successful listings were counted. Kept by a clear.
  * - [resetSeq]: the seq the last setup saved (settings key `selectionResetSeq`). A selection repair below it predates
  *   that setup, so a build that reads it can hide such repairs without trusting the clock. Kept by a clear.
+ * - [owner]: the account whose choice this is (spec 26: every selection save writes it), or null when unknown (a
+ *   record an older build wrote). Goes with the selection.
  */
 data class StoredSelection(
     val chosen: Set<ItemId>,
@@ -128,6 +134,7 @@ data class StoredSelection(
     val missing: Map<ItemId, Missing> = emptyMap(),
     val listings: Long = 0,
     val resetSeq: Long = 0,
+    val owner: LibraryAccount? = null,
 ) {
     /** The rules a stored selection keeps on its own: what any reader of the store may rely on. */
     val isWellFormed: Boolean

@@ -122,14 +122,17 @@ internal class WatchedSettings(
 
     @Volatile var falseAfterWriting = 0
 
-    override suspend fun saveSelection(selection: StoredSelection): Boolean {
+    override suspend fun saveSelection(
+        selection: StoredSelection,
+        setup: Boolean,
+    ): Boolean {
         beforeSave(selection)
         val written =
             if (failSaves > 0) {
                 failSaves--
                 false
             } else {
-                inner.saveSelection(selection)
+                inner.saveSelection(selection, setup)
             }
         val reported = !(written && falseAfterWriting > 0)
         if (!reported) falseAfterWriting--

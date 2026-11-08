@@ -8,13 +8,16 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.Missing
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.SpkiPin
+import tv.stationbreak.core.model.UserId
 import java.util.concurrent.Executor
 
 /** The stored selection of spec 26: its seq, the libraries being added, gone, the misses and the counters. */
@@ -147,7 +150,8 @@ class FileServerSettingsSelectionTest {
             assertEquals(StoredSettings(ServerRecord(address, pin), seq = 9, listings = 5, resetSeq = 2), stored())
             // A seq is never reused: a new selection takes one above the kept seq.
             assertFalse(settings.saveSelection(StoredSelection(setOf(alpha), seq = 9, resetSeq = 9)))
-            assertTrue(settings.saveSelection(StoredSelection(setOf(alpha), seq = 10, listings = 5, resetSeq = 10)))
+            val setup = StoredSelection(setOf(alpha), seq = 10, listings = 5, resetSeq = 10)
+            assertTrue(settings.saveSelection(setup, setup = true))
 
             assertTrue(settings.save(ServerRecord(other)))
             assertNull(settings.loadSelection())
@@ -415,7 +419,40 @@ class FileServerSettingsSelectionTest {
             assertFalse("a change that is not a reset", settings.saveSelection(notAReset))
             assertNull(settings.loadSelection())
 
-            assertTrue(settings.saveSelection(StoredSelection(setOf(beta), seq = seq, resetSeq = seq)))
+            // Fix round 3: a no-adds change shaped like a setup is still a change; only the setup's marker counts.
+            val setupShaped = StoredSelection(setOf(beta), seq = seq, resetSeq = seq)
+            assertFalse("shaped like a setup, not one", settings.saveSelection(setupShaped))
+            assertNull(settings.loadSelection())
+
+            assertTrue(settings.saveSelection(setupShaped, setup = true))
             assertEquals(setOf(beta), settings.loadLibraries())
+        }
+
+    // Fix round 3: whose choice it is goes with the selection, in two keys; a record without them reads as unknown.
+    @Test
+    fun theOwner_roundTrips_goesWithAClear_andAnOlderRecordReadsAsUnknown() =
+        runBlocking {
+            val owner = LibraryAccount(ServerId("server-a"), UserId("user-b"))
+            assertTrue(settings.save(ServerRecord(address)))
+            assertTrue(settings.seed(full.copy(owner = owner)))
+            val keys = listOf("selectionOwnerServer=server-a", "selectionOwnerUser=user-b")
+            assertTrue(file.text!!.lines().containsAll(keys))
+            assertEquals(owner, rebuilt().loadSelection()?.owner)
+
+            val older =
+                file.text!!
+                    .lines()
+                    .filterNot { it.startsWith("selectionOwner") }
+                    .joinToString("\n")
+            file.text = older
+            assertNull(rebuilt().loadSelection()?.owner)
+
+            val half = file.text + "\nselectionOwnerServer=server-a"
+            file.text = half
+            assertNull("one half is no owner", rebuilt().loadSelection()?.owner)
+
+            val again = rebuilt()
+            assertTrue(again.clearLibraries())
+            assertTrue(file.text!!.lines().none { it.startsWith("selectionOwner") })
         }
 }

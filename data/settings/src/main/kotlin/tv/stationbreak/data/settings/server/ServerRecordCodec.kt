@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.settings.server
 
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.Missing
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.SpkiPin
+import tv.stationbreak.core.model.UserId
 
 /**
  * Everything the settings file holds: the [record] and, once chosen, the [libraries] picked on that server, with the
@@ -23,6 +26,7 @@ internal data class StoredSettings(
     val missing: Map<ItemId, Missing> = emptyMap(),
     val listings: Long = 0,
     val resetSeq: Long = 0,
+    val owner: LibraryAccount? = null,
 )
 
 /**
@@ -34,7 +38,9 @@ internal data class StoredSettings(
  * existed simply has none.
  *
  * Spec 26 Part 4 keeps `version=1` and only adds keys, each left out when it is empty or zero:
- * `seq=`, `adding=id:stamp,...`, `gone=1`, `missing=id:sinceMs:sincePass,...`, `listings=` and `selectionResetSeq=`.
+ * `seq=`, `adding=id:stamp,...`, `gone=1`, `missing=id:sinceMs:sincePass,...`, `listings=` and `selectionResetSeq=`,
+ * and with the libraries `selectionOwnerServer=` and `selectionOwnerUser=` (whose choice it is; a record without both
+ * reads as owner unknown).
  * A value this reader can't parse drops only its own key, never the record or `libraries`. One exception: a missing or
  * malformed `seq` is floored at the highest stamp in `adding` and `selectionResetSeq` (the reset seq alone when there
  * are no libraries), because a seq must never go back below one already used.
@@ -92,6 +98,12 @@ internal object ServerRecordCodec {
             }
             if (stored.listings != 0L) add("listings=${stored.listings}")
             if (stored.resetSeq != 0L) add("selectionResetSeq=${stored.resetSeq}")
+            // Whose choice it is: only with the libraries, as the rest of the selection.
+            val owner = stored.owner
+            if (stored.libraries != null && owner != null) {
+                add("selectionOwnerServer=${checked(owner.server.value)}")
+                add("selectionOwnerUser=${checked(owner.user.value)}")
+            }
         }
 
     fun decode(text: String): ServerRecord? = decodeStored(text)?.record
@@ -128,6 +140,7 @@ internal object ServerRecordCodec {
                         values["missing"]
                             ?.let { entriesOf(it, parts = 3) { (ms, pass) -> Missing(ms, pass) } }
                             .orEmpty(),
+                    owner = ownerOf(values["selectionOwnerServer"], values["selectionOwnerUser"]),
                 )
             }
         // A seq that is missing or can't be read is floored at the highest seq the file still proves was used (the
@@ -146,6 +159,15 @@ internal object ServerRecordCodec {
         } catch (_: IllegalArgumentException) {
             null
         }
+
+    // Both halves or no owner: a record without them (an older build's) reads as owner unknown.
+    private fun ownerOf(
+        server: String?,
+        user: String?,
+    ): LibraryAccount? {
+        if (server.isNullOrBlank() || user.isNullOrBlank()) return null
+        return LibraryAccount(ServerId(server), UserId(user))
+    }
 
     private fun countOf(text: String): Long? = text.toLongOrNull()?.takeIf { it >= 0 }
 

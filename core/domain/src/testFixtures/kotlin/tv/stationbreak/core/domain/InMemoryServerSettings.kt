@@ -76,7 +76,11 @@ class InMemoryServerSettings(
 
     override suspend fun loadSelectionSeq(): Long? = if (record == null) null else seq
 
-    override suspend fun saveSelection(selection: StoredSelection): Boolean {
+    // [setup] is taken and not checked: the file store's rule for a save over nothing chosen is not modelled here.
+    override suspend fun saveSelection(
+        selection: StoredSelection,
+        setup: Boolean,
+    ): Boolean {
         if (failSave || record == null) return false
         if (!selection.mayReplace(this.selection, seq, resetSeq)) return false
         keep(selection)

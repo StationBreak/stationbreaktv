@@ -12,5 +12,5 @@ suspend fun SelectionStore.storeChoice(ids: Set<ItemId>): Boolean {
     val seq = (loadSelectionSeq() ?: return false) + 1
     // A stored choice's listing count carries over; after a clear it cannot be read, and starts again.
     val listings = loadSelection()?.listings ?: 0L
-    return saveSelection(StoredSelection(ids, seq = seq, listings = listings, resetSeq = seq))
+    return saveSelection(StoredSelection(ids, seq = seq, listings = listings, resetSeq = seq), setup = true)
 }

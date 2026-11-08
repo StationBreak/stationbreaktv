@@ -100,15 +100,17 @@ class FileServerSettings internal constructor(
 
     override suspend fun loadSelectionSeq(): Long? = snapshot()?.seq
 
-    override suspend fun saveSelection(selection: StoredSelection): Boolean =
+    override suspend fun saveSelection(
+        selection: StoredSelection,
+        setup: Boolean,
+    ): Boolean =
         locked {
             val held = read()
             // With nothing chosen (a clear, or a save for another address dropped it, outside the selection's lock)
-            // only a setup's save is taken: one whose reset seq is its seq, with nothing being added.
-            val setupShaped = selection.resetSeq == selection.seq && selection.adding.isEmpty()
+            // only a setup's save is taken, by its marker: a change's save never is, whatever its shape.
             if (held == null || !selection.mayReplace(held.selection(), held.seq, held.resetSeq)) {
                 false
-            } else if (held.selection() == null && !setupShaped) {
+            } else if (held.selection() == null && !setup) {
                 false
             } else {
                 write(
@@ -120,6 +122,7 @@ class FileServerSettings internal constructor(
                         missing = selection.missing,
                         listings = selection.listings,
                         resetSeq = selection.resetSeq,
+                        owner = selection.owner,
                     ),
                 )
             }
@@ -193,11 +196,11 @@ class FileServerSettings internal constructor(
     }
 
     private fun StoredSettings.selection(): StoredSelection? =
-        libraries?.let { StoredSelection(it, seq, adding, gone, missing, listings, resetSeq) }
+        libraries?.let { StoredSelection(it, seq, adding, gone, missing, listings, resetSeq, owner) }
 
     // The selection goes; the seq, the reset seq and the listing count stay, so a seq is never taken twice.
     private fun StoredSettings.withoutSelection(): StoredSettings =
-        copy(libraries = null, adding = emptyMap(), gone = false, missing = emptyMap())
+        copy(libraries = null, adding = emptyMap(), gone = false, missing = emptyMap(), owner = null)
 
     private companion object {
         const val DIR_NAME = "settings"

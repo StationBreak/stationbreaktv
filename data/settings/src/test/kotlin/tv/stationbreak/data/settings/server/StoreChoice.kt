@@ -11,7 +11,7 @@ internal suspend fun SelectionStore.storeChoice(ids: Set<ItemId>): Boolean {
     val seq = (loadSelectionSeq() ?: return false) + 1
     // A stored choice's listing count carries over; after a clear it cannot be read, and starts again.
     val listings = loadSelection()?.listings ?: 0L
-    return saveSelection(StoredSelection(ids, seq = seq, listings = listings, resetSeq = seq))
+    return saveSelection(StoredSelection(ids, seq = seq, listings = listings, resetSeq = seq), setup = true)
 }
 
 // A stored selection for a test, through the store's own writes: a setup first (the store takes only a setup's save
@@ -20,5 +20,5 @@ internal suspend fun SelectionStore.seed(selection: StoredSelection): Boolean {
     val setup = minOf(selection.resetSeq, selection.seq - 1)
     if (setup < 1) return false
     val first = StoredSelection(selection.chosen, seq = setup, listings = selection.listings, resetSeq = setup)
-    return saveSelection(first) && saveSelection(selection)
+    return saveSelection(first, setup = true) && saveSelection(selection)
 }

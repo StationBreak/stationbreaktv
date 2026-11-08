@@ -48,9 +48,12 @@ class HookedSettings(
 ) : SelectionStore by inner {
     var beforeSaveLibraries: () -> Unit = {}
 
-    override suspend fun saveSelection(selection: StoredSelection): Boolean {
+    override suspend fun saveSelection(
+        selection: StoredSelection,
+        setup: Boolean,
+    ): Boolean {
         beforeSaveLibraries()
-        return inner.saveSelection(selection)
+        return inner.saveSelection(selection, setup)
     }
 }
 
