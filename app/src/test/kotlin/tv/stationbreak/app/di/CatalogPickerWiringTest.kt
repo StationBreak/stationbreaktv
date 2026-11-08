@@ -46,7 +46,10 @@ class CatalogPickerWiringTest {
             val server = FakeMediaServer()
             server.librariesResult =
                 ServerResult.Success(
-                    listOf(Library(chosen, "Library A", LibraryKind.Movies), Library(other, "Library B", LibraryKind.Movies)),
+                    listOf(
+                        Library(chosen, "Library A", LibraryKind.Movies),
+                        Library(other, "Library B", LibraryKind.Movies),
+                    ),
                 )
             val sessions = SessionRepository(InMemorySecretStore(), server)
             sessions.save(session)

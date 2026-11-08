@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
@@ -265,3 +267,6 @@ internal suspend fun BuiltInScheduleSource.channelDays(
     val saved = savedSelection()
     return channelDays(account, SavedSelection(libraries, saved?.seq ?: 0L, libraries, saved?.resetSeq ?: 0L), at)
 }
+
+/** A selection seq that never changes: a refresher whose test is not about selection changes. */
+internal val NO_CHANGES: StateFlow<Long> = MutableStateFlow(0L)

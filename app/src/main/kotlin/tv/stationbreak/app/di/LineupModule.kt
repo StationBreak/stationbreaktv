@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import tv.stationbreak.app.BuildConfig
 import tv.stationbreak.app.appBuildOf
 import tv.stationbreak.app.daySnapshotLine
@@ -191,8 +192,8 @@ internal object LineupModule {
         settings: ServerSettings,
     ): CatalogPicker {
         val libraries: suspend (LibraryAccount) -> List<Library>? = { serverLibraries(sessions, server, it) }
-        // The chosen libraries, not the playable ones: the picker takes null as "no filter", so a gone selection (nothing
-        // playable) would list every library on the server.
+        // The chosen libraries, not the playable ones: the picker takes null as "no filter", so a gone selection
+        // (nothing playable) would list every library on the server.
         return LibraryCatalogPicker(library, libraries) { settings.loadLibraries() }
     }
 
@@ -339,8 +340,17 @@ internal object LineupModule {
         val afterSync = LostRepairHook(repairer::repairLost, now, report)
         // The playable libraries: none while the selection is gone, never one being added.
         val playable: suspend () -> Set<ItemId>? = { settings.loadPlayableLibraries() }
-        // The selection's changes are a trigger once LibrarySelection announces them (spec 26, Task 4.3b).
-        return LineupRefresher(service, library, playable, sync, afterSync = afterSync::invoke, report = report)
+        // The selection's seq, whose changes are a trigger: a constant until LibrarySelection holds it (spec 26, 4.3b).
+        val selectionSeq = MutableStateFlow(0L)
+        return LineupRefresher(
+            service,
+            library,
+            playable,
+            sync,
+            selectionSeq,
+            afterSync = afterSync::invoke,
+            report = report,
+        )
     }
 }
 

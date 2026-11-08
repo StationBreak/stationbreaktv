@@ -131,7 +131,7 @@ class HouseholdReplanTest {
     private val boundary = NOON.toEpochMilliseconds() + 18 * 3_600_000L // 06:00 the next day
 
     private fun refresherOver(service: LineupService) =
-        LineupRefresher(service, library, { LIBRARIES }, SyncActivity { MutableStateFlow(false) }, report = {})
+        LineupRefresher(service, library, { LIBRARIES }, NOT_WRITING, NO_CHANGES, report = {})
 
     private fun storedMeta(): RefreshMeta {
         val bytes = checkNotNull(store.inner.peek(ACCOUNT))
@@ -183,7 +183,7 @@ class HouseholdReplanTest {
                     ): RuleSnapshot = error("library down")
                 }
             val broken = LineupService(store, failing, clock, { 0 }, {}, catalog)
-            LineupRefresher(broken, failing, { LIBRARIES }, SyncActivity { MutableStateFlow(false) }, report = {})
+            LineupRefresher(broken, failing, { LIBRARIES }, NOT_WRITING, NO_CHANGES, report = {})
                 .start(scope)
             delay(500)
             assertEquals(ChannelState.Shelf, broken.loaded(ACCOUNT)?.lineup?.state(houseId), "the re-plan failed")
@@ -344,3 +344,5 @@ class HouseholdReplanTest {
         const val DAY_MS = 86_400_000L
     }
 }
+
+private val NOT_WRITING = SyncActivity { MutableStateFlow(false) }
