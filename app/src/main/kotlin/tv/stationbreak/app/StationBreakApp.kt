@@ -19,6 +19,8 @@ import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.selection.ResumeGate
 import tv.stationbreak.core.domain.selection.SelectionResume
 import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
+import tv.stationbreak.data.library.AddedLibrariesRunner
+import tv.stationbreak.data.library.AddedLibrariesRunnerProvider
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.FirstSyncRunnerProvider
 import tv.stationbreak.data.library.StayCurrent
@@ -29,15 +31,16 @@ private const val LINEUP_TAG = "Lineup"
 /**
  * The Hilt root. The bindings live in `di/`; the server screen's ViewModel consumes `MediaServer` (F0.5).
  *
- * It also hands the sync workers what they run (spec 06, tasks 3.6 and 4.7). WorkManager builds a worker itself, from
- * its class name, so a worker cannot be injected; it asks the `Application` instead. The graph is built on first use,
- * so this is safe even if WorkManager starts a worker before `onCreate` has finished.
+ * It also hands the sync workers what they run (spec 06, tasks 3.6 and 4.7; the add pass, spec 26). WorkManager
+ * builds a worker itself, from its class name, so a worker cannot be injected; it asks the `Application` instead. The
+ * graph is built on first use, so this is safe even if WorkManager starts a worker before `onCreate` has finished.
  */
 @HiltAndroidApp
 class StationBreakApp :
     Application(),
     FirstSyncRunnerProvider,
-    StayCurrentProvider {
+    StayCurrentProvider,
+    AddedLibrariesRunnerProvider {
     /** What the sync workers reach the graph through. */
     @EntryPoint
     @InstallIn(SingletonComponent::class)
@@ -45,6 +48,8 @@ class StationBreakApp :
         fun firstSyncRunner(): FirstSyncRunner
 
         fun stayCurrent(): StayCurrent
+
+        fun addedLibrariesRunner(): AddedLibrariesRunner
 
         fun lineupRefresher(): LineupRefresher
 
@@ -122,4 +127,7 @@ class StationBreakApp :
 
     // The graph's one, so the open trigger, the on-open work and the periodic job share one runner and its gate.
     override fun stayCurrent(): StayCurrent = graph().stayCurrent()
+
+    // The graph's one, so its landing retries per stamp are counted for the life of the process (spec 26).
+    override fun addedLibrariesRunner(): AddedLibrariesRunner = graph().addedLibrariesRunner()
 }

@@ -110,7 +110,11 @@ class LaunchNavigationTest {
     @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
 
+    // The selection's resume, as the app's start runs it: where this test's app starts, after its seeds (spec 26).
     @get:Rule(order = 1)
+    val selection = SelectionResumeRule(atStart = false)
+
+    @get:Rule(order = 2)
     val compose = createAndroidComposeRule<HiltTestActivity>()
 
     /** Nested, so it applies to this test only. */
@@ -181,6 +185,8 @@ class LaunchNavigationTest {
         }
         Launched.store.writtenKeys.clear()
         hilt.inject()
+        // The library cache outlives each test on the device: no account an earlier test signed in stays active.
+        forgetTheActiveAccounts()
     }
 
     // A session an earlier run stored, as its sign-in did: the account is the active one in the library cache.
@@ -195,7 +201,7 @@ class LaunchNavigationTest {
     }
 
     private fun launchApp() {
-        resumeSelectionAsTheAppStartDoes()
+        selection.resume()
         compose.setContent { StationBreakTheme { AppNavHost() } }
         compose.waitForIdle()
     }

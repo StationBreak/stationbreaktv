@@ -52,7 +52,9 @@ import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.selection.AddLandings
 import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
@@ -67,6 +69,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.data.library.AddedLibrariesRunner
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
 import tv.stationbreak.feature.guide.ui.GuideTags
@@ -100,7 +103,11 @@ class FirstSyncNavigationTest {
     @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
 
+    // The selection's resume, as the app's start runs it: where this test's app starts, after its seeds (spec 26).
     @get:Rule(order = 1)
+    val selection = SelectionResumeRule(atStart = false)
+
+    @get:Rule(order = 2)
     val compose = createAndroidComposeRule<HiltTestActivity>()
 
     /** Nested, so it applies to this test only. The saved library is scripted; the rest is as in the launch test. */
@@ -171,6 +178,23 @@ class FirstSyncNavigationTest {
             libraries: FirstSyncLibraries,
             ready: SelectionReady,
         ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, libraries, ready, Clock.System)
+
+        // Nothing is added in this test: the selection's restart asks for nothing.
+        @Provides
+        fun libraryPasses(): LibraryPasses = LibraryPasses.None
+
+        // The Application's entry point asks for it; the add worker is not run in this test.
+        @Provides
+        @Singleton
+        @Suppress("LongParameterList") // As LibraryModule builds it.
+        fun addedLibrariesRunner(
+            settings: ServerSettings,
+            sessions: SessionRepository,
+            server: MediaServer,
+            repository: RoomLibraryRepository,
+            landings: AddLandings,
+            ready: SelectionReady,
+        ): AddedLibrariesRunner = AddedLibrariesRunner(settings, sessions, server, repository, landings, ready)
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
@@ -216,7 +240,7 @@ class FirstSyncNavigationTest {
     private var askedAtStart = 0
 
     private fun launchApp() {
-        resumeSelectionAsTheAppStartDoes()
+        selection.resume()
         askedAtStart = Syncing.firstSync.ensureCalls
         compose.setContent { StationBreakTheme { AppNavHost() } }
         compose.waitForIdle()
@@ -313,6 +337,8 @@ class FirstSyncNavigationTest {
         assertBackLeavesTheApp()
 
         assertEquals(0, Syncing.firstSync.retryCalls)
+        // The chosen library was never read: the start asked once, and the screen once more.
+        assertEquals("the start asked once", 1, askedAtStart)
         assertEquals("the screen asked once", 1, Syncing.firstSync.ensureCalls - askedAtStart)
     }
 

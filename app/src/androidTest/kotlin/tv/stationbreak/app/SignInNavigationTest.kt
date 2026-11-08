@@ -87,7 +87,11 @@ class SignInNavigationTest {
     @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
 
+    // The selection's resume, as the app's start runs it: where this test's app starts, after its seeds (spec 26).
     @get:Rule(order = 1)
+    val selection = SelectionResumeRule(atStart = false)
+
+    @get:Rule(order = 2)
     val compose = createAndroidComposeRule<HiltTestActivity>()
 
     /**
@@ -159,7 +163,7 @@ class SignInNavigationTest {
     }
 
     private fun launchApp() {
-        resumeSelectionAsTheAppStartDoes()
+        selection.resume()
         // The graph from the server screen, as a first launch reaches it. LaunchNavigationTest covers launch routing.
         compose.setContent { StationBreakTheme { AppNavGraph(startDestination = ServerRoute) } }
         compose.waitForIdle()
@@ -311,7 +315,7 @@ class SignInNavigationTest {
         navController: NavHostController,
         startDestination: Any,
     ) {
-        resumeSelectionAsTheAppStartDoes()
+        selection.resume()
         compose.setContent {
             StationBreakTheme {
                 AppNavGraph(startDestination = startDestination, navController = navController)

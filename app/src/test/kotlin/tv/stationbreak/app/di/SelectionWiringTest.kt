@@ -5,8 +5,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemoryFirstSync
@@ -29,6 +31,9 @@ import kotlin.time.Clock
 class SelectionWiringTest {
     private val gate = LineupModule.resumeGate()
 
+    // The add pass's restarts the selection asked for.
+    private var restarts = 0
+
     private fun selection(): LibrarySelection {
         val library = InMemoryLibraryRepository()
         val settings = InMemoryServerSettings()
@@ -44,6 +49,7 @@ class SelectionWiringTest {
             repairer,
             service,
             source,
+            { restarts++ },
             InMemoryFirstSync(),
             StayCurrentRequests {},
             gate,
@@ -61,6 +67,18 @@ class SelectionWiringTest {
         assertSame(selection, LineupModule.serverListings(selection))
         assertSame(selection, LineupModule.selectionResume(selection))
     }
+
+    // Task 4.4b: the restart is the add pass the graph binds, no longer one that asks for nothing.
+    @Test
+    fun theSelectionsRestart_isTheBoundAddPass() =
+        runBlocking {
+            val selection = selection()
+            selection.resumeAtStart()
+
+            assertTrue(selection.clear())
+
+            assertEquals(1, restarts)
+        }
 
     @Test
     fun theSeamTheWorkersWaitOn_completesOnlyWithTheResume() =

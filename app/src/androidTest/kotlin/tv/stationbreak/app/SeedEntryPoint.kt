@@ -7,6 +7,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.AccountCache
 import tv.stationbreak.core.domain.FakeMediaServer
@@ -49,6 +50,27 @@ private fun seeds(): SeedEntryPoint =
         ApplicationProvider.getApplicationContext<Application>(),
         SeedEntryPoint::class.java,
     )
+
+/**
+ * Signs every account out of the library cache, as a fresh install has none signed in. The cache is a real database
+ * on the device that outlives each test, so an account an earlier test left active would otherwise still be the one
+ * the selection and the workers see.
+ */
+internal fun forgetTheActiveAccounts() {
+    val repository = seeds().roomLibraryRepository()
+    val cache = seeds().accountCache()
+    runBlocking {
+        repeat(MAX_ACTIVE_ACCOUNTS) {
+            // As a sign-out forgets it: the library cache, then the days built from it.
+            val active = repository.activeAccount().first() ?: return@repeat
+            cache.forget(active)
+        }
+        check(repository.activeAccount().first() == null) { "an account is still active" }
+    }
+}
+
+// More than any test signs in: the bound on forgetting them, so a forget that does nothing cannot loop.
+private const val MAX_ACTIVE_ACCOUNTS = 8
 
 /** The library account of this session, as the app keys the library cache. */
 internal fun Session.account(): LibraryAccount = LibraryAccount(server.id, userId)

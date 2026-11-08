@@ -329,9 +329,9 @@ internal object LineupModule {
 
     /**
      * The one writer of the library selection (spec 26, Part 4): onboarding's setup, the Settings changes, the landing
-     * of an added library and the resume at start all go through it. Its events are names only. Until the add pass is
-     * built (Task 4.4b) nothing reads an added library, so its restart asks for nothing. It is bound under
-     * [AppStart] only, as its resume opens the gate: everything else gets one of its narrow ports.
+     * of an added library and the resume at start all go through it. Its events are names only. Its restart asks for
+     * the add pass ([LibraryPasses], in LibraryModule). It is bound under [AppStart] only, as its resume opens the
+     * gate: everything else gets one of its narrow ports.
      */
     @Provides
     @Singleton
@@ -345,6 +345,7 @@ internal object LineupModule {
         repairer: TodayRepairer,
         service: LineupService,
         source: BuiltInScheduleSource,
+        passes: LibraryPasses,
         firstSync: FirstSync,
         stayCurrent: StayCurrentRequests,
         @AppStart gate: ResumeGate,
@@ -357,7 +358,7 @@ internal object LineupModule {
             repairer,
             service,
             source,
-            LibraryPasses.None,
+            passes,
             firstSync,
             stayCurrent,
             gate,

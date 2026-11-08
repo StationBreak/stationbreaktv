@@ -23,7 +23,11 @@ class ServerRootFocusTest {
     @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
 
+    // The selection's resume, as the app's start runs it, before the activity starts (spec 26).
     @get:Rule(order = 1)
+    val selection = SelectionResumeRule()
+
+    @get:Rule(order = 2)
     val compose = createAndroidComposeRule<MainActivity>()
 
     private fun pressDpad(key: Key) = compose.onRoot().performKeyInput { pressKey(key) }
