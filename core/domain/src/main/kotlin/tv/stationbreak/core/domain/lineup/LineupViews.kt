@@ -45,7 +45,7 @@ internal fun LineupChannel.summary(
 
 // The catalog recipe key of a starter or leftovers channel; a custom or unusable one has none. No else, so a new source
 // decides.
-private fun ChannelSource.recipeKey(): String? =
+internal fun ChannelSource.recipeKey(): String? =
     when (this) {
         is ChannelSource.Starter -> recipeKey
 

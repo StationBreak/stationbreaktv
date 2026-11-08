@@ -67,7 +67,9 @@ enum class HiddenReason {
  * A switched-on channel in its broadcast day at a moment: the day that holds that moment starts at [epochStart].
  * [hidden] is null when the day has something to air, otherwise why it is hidden (#299). [ceilingRank] is the tier
  * (`RatingLadder`, 0 to 7) of the rating ceiling the channel is scheduled under, null for no ceiling (#375): names on
- * one tier share a rank, so TV-PG and PG are equal. A source with no ceilings leaves it null.
+ * one tier share a rank, so TV-PG and PG are equal. A source with no ceilings leaves it null. [recipeKey] is the
+ * catalog recipe key of a starter or leftovers channel, null for any other: a view field read by features (the guide
+ * uses it to find a bundled logo), not stored.
  */
 data class ChannelAiring(
     val id: ChannelId,
@@ -76,6 +78,7 @@ data class ChannelAiring(
     val epochStart: Instant,
     val hidden: HiddenReason?,
     val ceilingRank: Int? = null,
+    val recipeKey: String? = null,
 ) {
     companion object {
         /** The [ceilingRank] of PG and TV-PG: the top kid-safe tier. */

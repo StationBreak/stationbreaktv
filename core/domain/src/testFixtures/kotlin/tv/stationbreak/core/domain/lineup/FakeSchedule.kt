@@ -73,6 +73,8 @@ class FakeSchedule : ScheduleSource {
         var epochMs: Long = DAY,
         /** The tier of the channel's rating ceiling, null for none. */
         var ceilingRank: Int? = null,
+        /** The catalog recipe key of a starter or leftovers channel, null for any other. */
+        var recipeKey: String? = null,
     )
 
     val channels = linkedMapOf<ChannelId, Entry>()
@@ -109,13 +111,14 @@ class FakeSchedule : ScheduleSource {
         number: Int,
         blocks: List<AiringBlock>,
         hidden: HiddenReason? = null,
-    ): Entry = Entry(number, "Test Channel $number", hidden, blocks).also { channels[id] = it }
+        recipeKey: String? = null,
+    ): Entry = Entry(number, "Test Channel $number", hidden, blocks, recipeKey = recipeKey).also { channels[id] = it }
 
     private fun airing(
         id: ChannelId,
         e: Entry,
         at: Long,
-    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden, e.ceilingRank)
+    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden, e.ceilingRank, e.recipeKey)
 
     private fun dayStart(
         e: Entry,

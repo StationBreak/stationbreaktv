@@ -246,6 +246,34 @@ class BuiltInScheduleSourceTest {
     }
 
     @Test
+    fun aStarterAiringCarriesItsRecipeKey() {
+        library.seed(fillingLibrary())
+        holding(lineupOf(laughs()))
+
+        assertEquals("laughs", airings().single().recipeKey)
+    }
+
+    @Test
+    fun aLeftoversAiringCarriesItsRecipeKey() {
+        library.seed(fillingLibrary())
+        holding(lineupOf(laughs(), leftovers("odds-and-ends", 199, null)))
+
+        val byNumber = airings().associate { it.number to it.recipeKey }
+
+        assertEquals("odds-and-ends", byNumber[199])
+        assertEquals("laughs", byNumber[110])
+    }
+
+    @Test
+    fun aCustomAiringHasNoRecipeKey() {
+        library.seed(fillingLibrary())
+        val mine = ChannelSource.Custom(rules("Mine", Source.Genre("Comedy")))
+        holding(lineupOf(channel("custom-1", 600, ChannelState.On, mine)))
+
+        assertNull(airings().single().recipeKey)
+    }
+
+    @Test
     fun aCollectionChannelAirsItsMembers() {
         library.seed(fillingLibrary())
         library.delegate.setCollectionsSynced(ACCOUNT, true)
