@@ -35,7 +35,7 @@ internal class TodayRepairerUnknownTest : RepairTestBase() {
 
         assertEquals(
             RepairOutcome.SelectionUnknown,
-            runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) },
+            runBlocking { rig.repairer.repairLost(ACCOUNT, atMs) },
         )
 
         assertEquals(before, rig.record(), "nothing dropped, nothing checked")

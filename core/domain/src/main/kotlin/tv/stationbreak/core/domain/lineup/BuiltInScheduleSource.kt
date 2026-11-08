@@ -725,8 +725,8 @@ class BuiltInScheduleSource(
     ): Pair<SavedSelection, List<ChannelDay>> {
         val read = saved()
         val chosen =
-            read?.takeIf { it.libraries.isNotEmpty() } ?: return SavedSelection(emptySet(), read?.seq ?: 0L) to
-                emptyList()
+            read?.takeIf { it.libraries.isNotEmpty() }
+                ?: return SavedSelection(emptySet(), read?.seq ?: 0L, emptySet()) to emptyList()
         return chosen to channelDays(account, chosen, at)
     }
 

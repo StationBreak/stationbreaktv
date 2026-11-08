@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.repair
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.ChannelDay
@@ -13,9 +16,11 @@ import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.domain.lineup.rules
 import tv.stationbreak.core.domain.lineup.selectionOf
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.rules.Source
+import java.util.Collections
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -166,7 +171,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
         val onAir = rig.day(laughs.id).blockAt(atMs)
         val reads = rig.library.currentIdsCalls
 
-        runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs + minute) }
+        runBlocking { rig.repairer.repairLost(ACCOUNT, atMs + minute) }
 
         assertEquals(emptyList(), rig.record().selection, "the leftover is dropped")
         assertTrue(rig.record().fixes.none { it.seq == 3L }, "with its fixes")
@@ -199,7 +204,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     fun repairLost_withNoFix_keepsTheFileAtVersion3() {
         val rig = Rig(lineupOf(laughs), comedies, setOf(libA))
 
-        assertEquals(RepairOutcome.Saved(0), runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) })
+        assertEquals(RepairOutcome.Saved(0), runBlocking { rig.repairer.repairLost(ACCOUNT, atMs) })
 
         assertNotNull(rig.record().lostCheck, "the check is held in memory")
         val bytes = assertNotNull(rig.store.inner.peek(ACCOUNT))
@@ -329,14 +334,50 @@ internal class TodayRepairerContractTest : RepairTestBase() {
         val outcomes =
             runBlocking {
                 listOf(
-                    async { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) },
+                    async { rig.repairer.repairLost(ACCOUNT, atMs) },
                     async { rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs) { true } },
-                    async { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) },
+                    async { rig.repairer.repairLost(ACCOUNT, atMs) },
                 ).awaitAll()
             }
 
         assertTrue(outcomes.all { it is RepairOutcome.Saved<*> }, "$outcomes")
         assertEquals(4L, rig.record().latestSeq(), "one above the seeded, saved seq 3")
+    }
+
+    @Test
+    fun repairLost_readsThePlayableLibrariesUnderItsTurn_notWhenItWasAsked() {
+        val asked = Collections.synchronizedList(mutableListOf<Set<ItemId>>())
+        val successors =
+            Successors { _, libraries, _ ->
+                asked += libraries
+                emptyMap()
+            }
+        val rig = lostRig(successors)
+        val inSave = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val hook = LostRepairHook(rig.repairer::repairLost, { atMs }) {}
+
+        runBlocking {
+            // A change holds the turn (its save is running) while the hook fires with libA playable.
+            val change =
+                async(Dispatchers.Default) {
+                    rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs) {
+                        inSave.complete(Unit)
+                        release.await()
+                        false
+                    }
+                }
+            inSave.await()
+            val repair = async(Dispatchers.Default) { hook(ACCOUNT) }
+            delay(WAIT_FOR_THE_QUEUE_MS)
+            // The playable set moves on before the repair gets its turn.
+            rig.playable = setOf(libB)
+            release.complete(Unit)
+            change.await()
+            repair.await()
+        }
+
+        assertEquals(listOf(setOf(libB)), asked, "the value read under the lock, not the one when the hook fired")
     }
 
     @Test
@@ -346,6 +387,9 @@ internal class TodayRepairerContractTest : RepairTestBase() {
         assertEquals(rig.service.repairConfig.pauseHold, rig.repairer.pauseHold)
     }
 }
+
+// Long enough for a repair launched on another thread to queue on the repairer's lock.
+private const val WAIT_FOR_THE_QUEUE_MS = 200L
 
 /** A third library a change adds. */
 internal val LIB_C_ID: CanonicalId = CanonicalId.parse("e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1")

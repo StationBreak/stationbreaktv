@@ -6,7 +6,6 @@ import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.LineupEvent
-import tv.stationbreak.core.model.ItemId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -14,17 +13,15 @@ import kotlin.test.assertTrue
 
 internal class LostRepairHookTest : RepairTestBase() {
     private val events = mutableListOf<LineupEvent>()
-    private val asked = mutableListOf<Set<ItemId>?>()
+    private val asked = mutableListOf<Long>()
     private var answers = ArrayDeque<RepairOutcome<Int>>()
-    private var chosen: Set<ItemId>? = setOf(libA)
 
     private fun hook() =
         LostRepairHook(
-            repair = { _: LibraryAccount, playable: Set<ItemId>?, _: Long ->
-                asked += playable
+            repair = { _: LibraryAccount, at: Long ->
+                asked += at
                 answers.removeFirst()
             },
-            playable = { chosen },
             nowMs = { atMs },
             report = { events += it },
         )
@@ -65,7 +62,8 @@ internal class LostRepairHookTest : RepairTestBase() {
 
     @Test
     fun otherOutcomes_areReported_notRetried() {
-        for (outcome in listOf(RepairOutcome.Refused, RepairOutcome.UndoFailed, RepairOutcome.Unsaved)) {
+        val others = listOf(RepairOutcome.Refused, RepairOutcome.UndoFailed, RepairOutcome.Unsaved)
+        for (outcome in others + RepairOutcome.AlreadySaved) {
             events.clear()
             asked.clear()
             run(outcome)
@@ -75,16 +73,15 @@ internal class LostRepairHookTest : RepairTestBase() {
     }
 
     @Test
-    fun aGoneSelection_isPassedThroughAsNull() {
-        chosen = null
+    fun theRepairIsAskedAtTheTimeNow_andReadsThePlayableLibrariesItself() {
         run(RepairOutcome.Saved(0))
-        assertEquals(listOf<Set<ItemId>?>(null), asked)
+        assertEquals(listOf(atMs), asked)
     }
 
     @Test
     fun cancellation_reachesTheCaller() {
         val cancelling =
-            LostRepairHook({ _, _, _ -> throw CancellationException("stop") }, { chosen }, { atMs }) {
+            LostRepairHook({ _, _ -> throw CancellationException("stop") }, { atMs }) {
                 events += it
             }
         assertFailsWith<CancellationException> { runBlocking { cancelling(ACCOUNT) } }

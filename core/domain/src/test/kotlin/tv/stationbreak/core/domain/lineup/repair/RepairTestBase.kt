@@ -121,6 +121,19 @@ internal open class RepairTestBase {
 
         /** When set, the saved selection cannot be read: the source's provider gives null. */
         @Volatile var unknown: Boolean = false
+
+        @Volatile private var playableGiven = false
+
+        /**
+         * The playable libraries the source's provider gives with the selection (null: the selection is gone). It
+         * follows [chosen] until a test sets it.
+         */
+        @Volatile var playable: Set<ItemId>? = null
+            get() = if (playableGiven) field else chosen
+            set(value) {
+                field = value
+                playableGiven = true
+            }
         val store: RecordingStore = restart?.store ?: RecordingStore()
         private val clock =
             object : Clock {
@@ -135,7 +148,7 @@ internal open class RepairTestBase {
                 library,
                 built = { builds += it },
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
-            ) { if (unknown) null else selectionOf(chosen, applied) }
+            ) { if (unknown) null else selectionOf(chosen, applied, playable) }
         val repairer = TodayRepairer(service, source, library, successors)
 
         init {
@@ -218,11 +231,17 @@ internal open class RepairTestBase {
             }
         }
 
-        /** How many blocks [TodayRepairer.repairLost] fixed; 0 when it saved nothing. */
+        /**
+         * How many blocks [TodayRepairer.repairLost] fixed with [playable] as the provider's playable libraries; 0 when
+         * it saved nothing.
+         */
         fun lost(
             playable: Set<ItemId>?,
             at: Long = atMs,
-        ): Int = (runBlocking { repairer.repairLost(ACCOUNT, playable, at) } as? RepairOutcome.Saved)?.result ?: 0
+        ): Int {
+            this.playable = playable
+            return (runBlocking { repairer.repairLost(ACCOUNT, at) } as? RepairOutcome.Saved)?.result ?: 0
+        }
 
         fun gone(id: CanonicalId) = library.delegate.tombstone(ACCOUNT, listOf(ItemId(id.value)))
 

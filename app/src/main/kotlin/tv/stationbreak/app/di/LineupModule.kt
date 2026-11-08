@@ -255,8 +255,9 @@ internal object LineupModule {
                 ),
             persisted = persisted,
             shared = shared,
-            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows.
-        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L) } }
+            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows. The chosen
+            // libraries stand for the playable ones until Part 4 tells those apart (and gives null when it is gone).
+        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L, playable = it) } }
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
@@ -307,11 +308,11 @@ internal object LineupModule {
         repairer: TodayRepairer,
     ): LineupRefresher {
         val report: (LineupEvent) -> Unit = { Log.i(TAG, it.name) }
-        // After a run that wrote the library, the blocks whose item left it are repaired for today (spec 26). The
-        // chosen libraries stand for the playable ones until Part 4 tells those apart; null (the selection is gone)
-        // goes through as it is.
+        // After a run that wrote the library, and once after the start check, the blocks whose item left it are
+        // repaired for today (spec 26). The repairer reads the playable libraries itself, under its lock, from the
+        // schedule source's saved selection.
         val now = { Clock.System.now().toEpochMilliseconds() }
-        val afterSync = LostRepairHook(repairer::repairLost, { settings.loadLibraries() }, now, report)
+        val afterSync = LostRepairHook(repairer::repairLost, now, report)
         val chosen: suspend () -> Set<ItemId>? = { settings.loadLibraries() }
         return LineupRefresher(service, library, chosen, sync, afterSync = afterSync::invoke, report = report)
     }
