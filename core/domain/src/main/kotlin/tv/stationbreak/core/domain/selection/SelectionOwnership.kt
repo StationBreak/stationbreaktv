@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.StoredSelection
+import tv.stationbreak.core.model.ItemId
 
 /**
  * Whose the stored choice is, and what features see of it (spec 26, Part 4 §2): the active account, the account that
@@ -21,6 +22,9 @@ internal class SelectionOwnership(
 ) {
     private val view = MutableStateFlow<ChoiceView?>(null)
     private val seqs = MutableStateFlow(0L)
+
+    // The adds the add pass gave up in this process, each by its stamp: published as stalled while still stored.
+    private val givenUp = mutableSetOf<Pair<ItemId, Long>>()
 
     // The account that adopted an older build's record (one naming no owner) at the resume: that record is its own
     // for the life of the process, even when the write naming it the owner failed. Set only by the resume.
@@ -60,9 +64,21 @@ internal class SelectionOwnership(
         publish(stored?.takeIf { account != null && owns(account, it) })
     }
 
+    // Records that the add pass gave up the add of [id] under [stamp] for the life of the process.
+    fun giveUp(
+        id: ItemId,
+        stamp: Long,
+    ) {
+        givenUp += id to stamp
+    }
+
     // Publishes the selection to features, and its seq to the refresher (never back).
     fun publish(stored: StoredSelection?) {
-        view.value = stored?.let { ChoiceView(it.chosen, it.adding.keys, it.gone) }
+        view.value =
+            stored?.let { saved ->
+                val stalled = saved.adding.filter { (id, stamp) -> id to stamp in givenUp }.keys
+                ChoiceView(saved.chosen, saved.adding.keys, saved.gone, stalled)
+            }
         if (stored != null) seqs.value = maxOf(seqs.value, stored.seq)
     }
 }

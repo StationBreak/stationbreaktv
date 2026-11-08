@@ -278,7 +278,8 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   `AddedLibrariesRunner`. The runner waits for the selection's resume, takes its work from the selection
   (`AddLandings.pendingAdds`), walks each add under its stamp and hands it to the selection to land
   (`AddLandings.passLanded`); it never lands anything itself. A landing that may pass is tried again a few times per
-  stamp with a doubling wait; one that cannot is given up until the next start. The selection's `LibraryPasses.restart`
+  stamp with a doubling wait; one that cannot is given up until the next start, and the runner tells the selection
+  (`AddLandings.addGivenUp`), which publishes it as stalled (`ChoiceView.stalled`). The selection's `LibraryPasses.restart`
   enqueues it with `REPLACE`. It stays out of the sync signal the lineup refresher holds its triggers on.
 - **After stay current's passes (spec 26).** A run whose passes completed, or whose incremental pass completed and
   which was not cancelled, asks the selection to expire the holds that have ended (`HoldExpiry`, the cache write of the

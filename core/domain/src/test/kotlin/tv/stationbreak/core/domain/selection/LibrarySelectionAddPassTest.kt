@@ -165,4 +165,32 @@ internal class LibrarySelectionAddPassTest : SelectionTestBase() {
         assertEquals(setOf(libB), assertNotNull(tv.stored()).adding.keys)
         assertTrue(SelectionEvent.RestartFailed in tv.events)
     }
+
+    // Issue #654 item 1: an add the add pass gave up for this run of the app is published as stalled, so a screen
+    // never shows it as being added for ever. Ticked again, it is a new add under a new stamp, and not stalled.
+    @Test
+    fun anAddGivenUp_isPublishedAsStalled_untilTickedAgain() {
+        val (tv, stamp) = adding()
+        assertTrue(assertNotNull(tv.selection.selection.value).stalled.isEmpty())
+
+        runBlocking { tv.selection.addGivenUp(ACCOUNT, libB, stamp) }
+
+        val view = assertNotNull(tv.selection.selection.value)
+        assertEquals(setOf(libB), view.stalled)
+        assertEquals(setOf(libB), view.adding, "still stored as being added: the next start asks again")
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA)))
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB)))
+        assertTrue(assertNotNull(tv.selection.selection.value).stalled.isEmpty())
+    }
+
+    // An older stamp, or another account, gives up nothing that is stored now.
+    @Test
+    fun aGiveUpOfAnOlderStampOrAnotherAccount_stallsNothing() {
+        val (tv, stamp) = adding()
+
+        runBlocking { tv.selection.addGivenUp(ACCOUNT, libB, stamp - 1) }
+        runBlocking { tv.selection.addGivenUp(other, libB, stamp) }
+
+        assertTrue(assertNotNull(tv.selection.selection.value).stalled.isEmpty())
+    }
 }

@@ -53,6 +53,17 @@ interface AddLandings {
 
     /** Puts the library cache in line with the stored selection. */
     suspend fun reconcile()
+
+    /**
+     * Says the add pass gave up the add of [id] under [stamp] for this run of the app (its retries ran out, or its
+     * landing cannot succeed): the published choice shows it as stalled until it is ticked again or the app starts
+     * again. Nothing is stored.
+     */
+    suspend fun addGivenUp(
+        account: LibraryAccount,
+        id: ItemId,
+        stamp: Long,
+    )
 }
 
 /** The first sync's side of the selection: the library set it writes and reads, under the selection's lock. */

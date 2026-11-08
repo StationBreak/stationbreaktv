@@ -90,6 +90,7 @@ class AddedLibrariesRunnerTest {
     ) : AddLandings {
         var landings = 0
         var reconciles = 0
+        val givenUp = mutableListOf<Pair<ItemId, Long>>()
 
         override suspend fun pendingAdds(account: LibraryAccount): Map<ItemId, Long> {
             val stored = settings.loadSelection()
@@ -107,6 +108,14 @@ class AddedLibrariesRunnerTest {
 
         override suspend fun reconcile() {
             reconciles++
+        }
+
+        override suspend fun addGivenUp(
+            account: LibraryAccount,
+            id: ItemId,
+            stamp: Long,
+        ) {
+            givenUp += id to stamp
         }
     }
 
@@ -173,6 +182,7 @@ class AddedLibrariesRunnerTest {
             assertEquals(listOf(2, 4, 8, 16, 32).map { it.seconds }, slept)
             assertTrue("AddLandingStuck" in lines)
             assertTrue("still being added, its walk proved", stampedAndProved())
+            assertEquals("the selection is told: shown stalled", listOf(SHOWS to 2L), landings.givenUp)
 
             // The stamp is given up for the life of the process: a later run does not try it again.
             assertEquals(SyncOutcome.Completed, runner.outcome())
@@ -198,6 +208,7 @@ class AddedLibrariesRunnerTest {
             assertEquals(1, landings.landings)
             assertTrue(slept.isEmpty())
             assertTrue("AddLandingFailed" in lines)
+            assertEquals("the selection is told once", listOf(SHOWS to 2L), landings.givenUp)
         }
 
     @Test

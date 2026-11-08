@@ -375,6 +375,22 @@ class LibrarySelection(
         locked(catchUpFirst = false, fromAddPass = true) { reconciler.catchUp(restartPasses = false) }
     }
 
+    /**
+     * The add pass gave up the add of [id] under [stamp] for this run of the app: published as stalled while that
+     * stamp is still the stored one. Another account's, or an older stamp, changes nothing. Nothing is stored.
+     */
+    override suspend fun addGivenUp(
+        account: LibraryAccount,
+        id: ItemId,
+        stamp: Long,
+    ) {
+        locked(catchUpFirst = false, fromAddPass = true) {
+            if (activeAccount() != account) return@locked
+            ownership.giveUp(id, stamp)
+            ownership.publishOwned(store.loadSelection(), account)
+        }
+    }
+
     // --- The server's listing ---------------------------------------------------------------------------------------
 
     /**

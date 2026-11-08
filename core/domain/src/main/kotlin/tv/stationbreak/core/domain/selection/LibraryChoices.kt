@@ -23,15 +23,20 @@ enum class ChangeResult {
 
 /**
  * The stored selection as features see it: the [chosen] libraries, the ones being [adding], and whether the
- * selection is [gone] (the server lists none of the chosen libraries any more). No stamp, seq or miss. Its text
- * holds counts only.
+ * selection is [gone] (the server lists none of the chosen libraries any more). [stalled] are the adds the add pass
+ * gave up for this run of the app (a subset of [adding]): they stay stored, and the next start asks for them again.
+ * No stamp, seq or miss. Its text holds counts only.
  */
 data class ChoiceView(
     val chosen: Set<ItemId>,
     val adding: Set<ItemId>,
     val gone: Boolean,
+    val stalled: Set<ItemId> = emptySet(),
 ) {
-    override fun toString(): String = "ChoiceView(chosen=${chosen.size}, adding=${adding.size}, gone=$gone)"
+    override fun toString(): String {
+        val counts = "chosen=${chosen.size}, adding=${adding.size}, stalled=${stalled.size}"
+        return "ChoiceView($counts, gone=$gone)"
+    }
 }
 
 /** One read of the server's libraries, with the stored selection after it was followed. */
