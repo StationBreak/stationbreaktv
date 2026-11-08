@@ -566,12 +566,14 @@ class InMemoryLibraryRepository : LibraryRepository {
         if (dropped) noteContentChange(account)
     }
 
-    // As the port says: only the stamp the add has (and no hold) lands it, and then the generation moves once.
+    // As the port says: only the stamp the add has (and no hold) lands it, and then the generation moves once. As in
+    // Room, an account that is not the signed-in one lands nothing.
     override suspend fun landAdd(
         account: LibraryAccount,
         library: ItemId,
         stamp: Long,
     ): Boolean {
+        if (active.value != account) return false
         val marks = libraryMarks[account] ?: return false
         val mark = marks[library]
         if (mark?.addStamp != stamp || mark.heldUntilMs != null) return false

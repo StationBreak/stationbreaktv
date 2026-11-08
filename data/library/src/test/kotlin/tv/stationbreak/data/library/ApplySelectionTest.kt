@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import androidx.room.execSQL
+import androidx.room.useWriterConnection
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -26,7 +28,9 @@ import tv.stationbreak.data.library.SyncWorld.shows
  */
 class ApplySelectionTest {
     private val clock = FakeClock()
-    private val repository = TestLibraries.inMemory(clock, signedIn = listOf(ALICE))
+    private val opened = TestLibraries.inMemoryWithDatabase(clock, signedIn = listOf(ALICE))
+    private val repository = opened.first
+    private val database = opened.second
     private val extra = ItemId(hexId(0xB003))
     private val gone = ItemId(hexId(0xB004))
 
@@ -38,6 +42,14 @@ class ApplySelectionTest {
     private suspend fun row(library: ItemId) = rows()[library]
 
     private suspend fun generation() = repository.contentGeneration(ALICE)
+
+    // A row as an older build of this branch could leave it, held and stamped: the code no longer writes one.
+    private suspend fun stampHeld(
+        library: ItemId,
+        stamp: Long,
+    ) = database.useWriterConnection {
+        it.execSQL("UPDATE library SET addStamp = $stamp WHERE libraryId = '${library.value}' AND heldUntilMs IS NOT NULL")
+    }
 
     // One item in [library] and its checkpoint, as a page of the first sync leaves them; then the library is fetched.
     private suspend fun fill(
@@ -363,12 +375,61 @@ class ApplySelectionTest {
             repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
             apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 1_000))
             // A row left with both (as an older build of this branch could write) is kept only by its hold.
-            repository.dao.forceStampForTest("server-1", "alice", extra.value, 7L)
+            stampHeld(extra, 7L)
+            assertEquals(7L, row(extra)?.addStamp)
             clock.stepMs(1_000)
 
             repository.applySelectionKeepingAdds(ALICE, setOf(MOVIES), clock.nowMs)
 
             assertNull("the hold ended, so it went: its stamp kept nothing", row(extra))
+        }
+
+    @Test
+    fun landAdd_onAHeldRowThatStillHasTheStamp_changesNothing() =
+        runBlocking {
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
+            fill(MOVIES, 1)
+            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 2, run = clock.nowMs)
+            apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 60_000))
+            stampHeld(extra, 7L)
+            val before = generation()
+            val stored = row(extra)
+
+            assertFalse(repository.landAdd(ALICE, extra, 7L))
+
+            assertEquals(stored, row(extra))
+            assertEquals(before, generation())
+        }
+
+    @Test
+    fun landAdd_forAnAccountNotSignedIn_changesNothing() =
+        runBlocking {
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
+            fill(MOVIES, 1)
+            val before = generation()
+            val stored = row(extra)
+            database.useWriterConnection { it.execSQL("DELETE FROM active_account") }
+
+            assertFalse(repository.landAdd(ALICE, extra, 7L))
+
+            assertEquals(stored, row(extra))
+            assertEquals(before, generation())
+        }
+
+    // Round 2 (data MED-A): an untick of a partly walked add holds it; the sync must not then call it fetched.
+    @Test
+    fun aHeldPartlyWalkedAddIsNeverMarkedFetchedByTheSync() =
+        runBlocking {
+            val server = server(movies to films, extraLibrary to extras)
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 1L))
+            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 2, run = clock.nowMs)
+            apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 60_000))
+
+            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
+
+            assertEquals(SyncOutcome.Completed, outcome)
+            assertFalse("held, so never fetched", checkNotNull(row(extra)).fetched)
+            assertTrue("and still pending", extra in repository.pendingLibraries(ALICE))
         }
 
     // A held library's rows are a day's; re-ticked (so it is an add) and dropped again, they go with a bump.

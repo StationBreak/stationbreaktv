@@ -211,10 +211,11 @@ internal abstract class LibraryDao {
         ids: List<String>,
     )
 
-    // A library being added is never landed here (spec 26): only a row with no add stamp is marked fetched.
+    // A library being added is never landed here (spec 26): only a row with no add stamp is marked fetched. Nor is a
+    // held one (an untick of a partly walked add): its walk did not end, so it stays pending.
     @Query(
         "UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
-            "AND addStamp IS NULL",
+            "AND addStamp IS NULL AND heldUntilMs IS NULL",
     )
     protected abstract suspend fun setFetched(
         serverId: String,
@@ -233,18 +234,6 @@ internal abstract class LibraryDao {
         libraryId: String,
         stamp: Long,
     ): Int
-
-    /** A test seam: [stamp] written on [libraryId] as it is, for a row an older build left both held and stamped. */
-    @Query(
-        "UPDATE library SET addStamp = :stamp WHERE serverId = :serverId AND userId = :userId " +
-            "AND libraryId = :libraryId",
-    )
-    internal abstract suspend fun forceStampForTest(
-        serverId: String,
-        userId: String,
-        libraryId: String,
-        stamp: Long,
-    )
 
     @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND fetched = 0")
     abstract suspend fun pendingLibraries(
@@ -960,7 +949,7 @@ internal abstract class LibraryDao {
         updateTotal(serverId, userId, total)
     }
 
-    /** [libraryId] has been read to its end. A library being added (it has an add stamp) is left pending. */
+    /** [libraryId] has been read to its end. A library being added (it has an add stamp) or held is left pending. */
     @Transaction
     open suspend fun markFetched(
         serverId: String,

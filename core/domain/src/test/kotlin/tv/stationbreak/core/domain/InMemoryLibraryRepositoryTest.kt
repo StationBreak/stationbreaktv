@@ -171,6 +171,18 @@ class InMemoryLibraryRepositoryTest {
         }
 
     @Test
+    fun anAddOfAnAccountNotSignedIn_neverLands() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.applySelection(alice, setOf(movies, shows), addStamps = mapOf(shows to 7L), nowMs = 0)
+            val before = repository.contentGeneration(alice)
+
+            assertFalse(repository.landAdd(alice, shows, 7L), "as Room: only the signed-in account lands")
+            assertEquals(before, repository.contentGeneration(alice))
+            assertTrue(shows in repository.pendingLibraries(alice))
+        }
+
+    @Test
     fun aHeldAddLosesItsStamp_soItNeverLands() =
         runBlocking {
             val repository = InMemoryLibraryRepository()

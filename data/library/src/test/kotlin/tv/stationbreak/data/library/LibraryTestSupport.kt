@@ -165,6 +165,18 @@ internal object TestLibraries {
         return signedIn(repository, signedIn)
     }
 
+    /**
+     * [inMemory], with its database too, for a test that must write a row the code itself can no longer write (raw SQL
+     * through `useWriterConnection`: the JVM tests run Room over a driver, which has no `openHelper`).
+     */
+    fun inMemoryWithDatabase(
+        clock: Clock = FakeClock(),
+        signedIn: List<LibraryAccount> = STANDARD_ACCOUNTS,
+    ): Pair<RoomLibraryRepository, LibraryDatabase> {
+        val database = builder(null, null, clock).build()
+        return signedIn(RoomLibraryRepository(database, clock), signedIn) to database
+    }
+
     /** A database file named [name] under [dir]; opening the same name again reads what the last open stored. */
     fun onDisk(
         dir: File,
