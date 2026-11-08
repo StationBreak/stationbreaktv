@@ -48,7 +48,8 @@ class ApplySelectionTest {
         library: ItemId,
         stamp: Long,
     ) = database.useWriterConnection {
-        val held = "libraryId = '${library.value}' AND heldUntilMs IS NOT NULL"
+        val held =
+            "serverId = 'server-1' AND userId = 'alice' AND libraryId = '${library.value}' AND heldUntilMs IS NOT NULL"
         it.execSQL("UPDATE library SET addStamp = $stamp WHERE $held")
     }
 
@@ -393,6 +394,7 @@ class ApplySelectionTest {
             repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 2, run = clock.nowMs)
             apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 60_000))
             stampHeld(extra, 7L)
+            assertEquals("the raw write took", 7L, row(extra)?.addStamp)
             val before = generation()
             val stored = row(extra)
 

@@ -65,6 +65,7 @@ import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.scheduler.Epochs
 import tv.stationbreak.core.scheduler.layoutTail
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -119,6 +120,9 @@ internal open class RepairTestBase {
          */
         var applied: Long = restart?.applied ?: repairs.latestSeq()
 
+        /** How many times the source's saved-selection provider was read. */
+        val providerReads = AtomicInteger()
+
         /** When set, the saved selection cannot be read: the source's provider gives null. */
         @Volatile var unknown: Boolean = false
 
@@ -148,7 +152,10 @@ internal open class RepairTestBase {
                 library,
                 built = { builds += it },
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
-            ) { if (unknown) null else selectionOf(chosen, applied, playable) }
+            ) {
+                providerReads.incrementAndGet()
+                if (unknown) null else selectionOf(chosen, applied, playable)
+            }
         val repairer = TodayRepairer(service, source, library, successors)
 
         init {

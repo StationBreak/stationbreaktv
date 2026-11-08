@@ -345,6 +345,21 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     }
 
     @Test
+    fun repairLost_readsTheSavedSelectionOnce() {
+        val rig = lostRig()
+        val before = rig.providerReads.get()
+
+        assertTrue(rig.lost(setOf(libA)) > 0, "it fixed the lost block")
+        assertEquals(before + 1, rig.providerReads.get(), "one read, in its turn")
+
+        // A leftover above the saved seq is dropped first: still the one read.
+        rig.applied = 2
+        val dropping = rig.providerReads.get()
+        runBlocking { rig.repairer.repairLost(ACCOUNT, atMs + minute) }
+        assertEquals(dropping + 1, rig.providerReads.get())
+    }
+
+    @Test
     @Suppress("InjectDispatcher") // A test: the change and the repair each need a thread of their own.
     fun repairLost_readsThePlayableLibrariesUnderItsTurn_notWhenItWasAsked() {
         val asked = Collections.synchronizedList(mutableListOf<Set<ItemId>>())
