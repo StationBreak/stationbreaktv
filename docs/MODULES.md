@@ -75,7 +75,7 @@ stationbreaktv/
     ├── live/           [Android] Full-screen player, up/down flipping, channel banner, info overlay, last-channel recall
     ├── guide/          [Android] Grid guide (>=6h) drawn over live TV: details panel, clock strip, model-driven focus
     ├── channels/       [Android] Channel list + custom channel builder
-    └── settings/       [Android] Settings, diagnostics, about/licenses
+    └── settings/       [Android] Settings: Libraries (spec 26); later diagnostics, about/licenses
 
 Deferred: `benchmark/` (Macrobenchmark + Baseline Profiles) is added in F2.5. `core:common` is not created
 until something genuinely needs sharing.
@@ -138,6 +138,16 @@ taken from the engine, so the screen keeps no copy of the bands or the rules. Li
 `ChannelsDestination` (a feature may not depend on another), over the picture and around the same hole. It tells its host when
 it is finished with one `onDone(tune)` call. Everything in `feature:channels` is internal except `ChannelsDestination` and
 `ChannelsTags` for `app`'s tests.
+
+`feature:settings` exists since spec 26 (library settings). It holds the Libraries screen: `LibrariesSettingsViewModel` (the
+server's libraries as rows, ticked from the stored choice, the focus as a value, and one change at a time) and its D-pad-only
+screen (Up and Down move, Select ticks or unticks at once, Back leaves). It depends on `core:domain`, `core:model` and
+`core:ui` only, with a narrower allowlist than other features (no `core:playback`), and applies the `hilt` convention plugin.
+It reaches the selection only through `LibraryChoices`: one listing per visit, the stored choice as `ChoiceView` (an add the
+add pass gave up shows as stalled, not as being added) and `change`. When the server cannot be asked it shows the stored choice
+read-only. Like the channel screen it is not a route: its host draws `LibrariesDestination` as a slot that `app` fills, over
+the picture and around the same hole, and it tells its host it is finished with one `onDone()` call. Everything in
+`feature:settings` is internal except `LibrariesDestination` and `SettingsTags` for `app`'s tests.
 
 The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan
 inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where live puts the corner
