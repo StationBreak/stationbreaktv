@@ -44,9 +44,14 @@ sealed interface LibraryListing {
         override fun toString(): String = "Listed(libraries=${libraries.size}, selection=$selection)"
     }
 
-    /** The server could not be asked: [error] says why, or is null when nobody is signed in. */
+    /** The server could not be asked: [error] says why. */
     data class Unavailable(
-        val error: MediaServerError?,
+        val error: MediaServerError,
+        val selection: ChoiceView?,
+    ) : LibraryListing
+
+    /** Nobody is signed in, so the server was not asked. */
+    data class NotSignedIn(
         val selection: ChoiceView?,
     ) : LibraryListing
 }

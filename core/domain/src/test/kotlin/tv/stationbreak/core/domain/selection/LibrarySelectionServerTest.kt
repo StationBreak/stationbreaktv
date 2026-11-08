@@ -168,6 +168,21 @@ internal class LibrarySelectionServerTest : SelectionTestBase() {
         assertEquals(1L, assertNotNull(tv.stored()).listings)
         tv.signedIn = null
         val signedOut = runBlocking { tv.selection.listing() }
-        assertEquals(LibraryListing.Unavailable(null, tv.selection.selection.value), signedOut)
+        assertEquals(LibraryListing.NotSignedIn(tv.selection.selection.value), signedOut)
+    }
+
+    // Binding item 2 (Task 4.5): a server that could not be asked is Unavailable, always with its error; nobody signed
+    // in is its own case, so the Settings screen never reads a missing error as "signed out".
+    @Test
+    fun aFailedListing_isUnavailableWithItsError_andNotSignedInIsItsOwnCase() {
+        val tv = Tv(lineup = lineupOf(laughs)).also { it.resume() }
+        val error = MediaServerError.Timeout()
+        tv.server.librariesResult = ServerResult.Failure(error)
+
+        val failed = runBlocking { tv.selection.listing() }
+
+        assertEquals(LibraryListing.Unavailable(error, tv.selection.selection.value), failed)
+        tv.signedIn = null
+        assertIs<LibraryListing.NotSignedIn>(runBlocking { tv.selection.listing() })
     }
 }

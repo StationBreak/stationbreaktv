@@ -176,7 +176,7 @@ class LibrarySelection(
 
     override suspend fun listing(): LibraryListing {
         refuseReentry()
-        val held = session() ?: return LibraryListing.Unavailable(null, selection.value)
+        val held = session() ?: return LibraryListing.NotSignedIn(selection.value)
         val listed = server.libraries(held)
         followServer(LibraryAccount(held.server.id, held.userId), listed)
         return when (listed) {
