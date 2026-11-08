@@ -101,6 +101,16 @@ internal class SignalRow(
     override fun toString(): String = "SignalRow(itemId=$itemId, kind=$kind)"
 }
 
+/**
+ * What [LibraryDao.applySelectionRows] left to do (spec 26): the libraries to delete ([deleted], not yet deleted), the
+ * ones that stay ([staying], kept or held), and the coverage each deleted one had ([coveredFrom], none left out).
+ */
+internal class SelectionChange(
+    val deleted: List<String>,
+    val staying: List<String>,
+    val coveredFrom: Map<String, Long>,
+)
+
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
 internal data class PageWrite(
     val inserted: Int,
@@ -601,6 +611,46 @@ internal abstract class LibraryDao {
         adding: List<String>,
     ): Boolean
 
+    // The also-listed rows of the items that [owners] (at most MAX_VARIABLES of them) own, with each lister's class:
+    // where those items go when their owner is deleted. Through the item's library index, then the primary keys.
+    @Query(
+        "SELECT a.itemId AS itemId, a.libraryId AS libraryId, l.addStamp AS addStamp, " +
+            "l.heldUntilMs AS heldUntilMs FROM item_also_listed a JOIN item i ON i.serverId = a.serverId " +
+            "AND i.userId = a.userId AND i.itemId = a.itemId JOIN library l ON l.serverId = a.serverId " +
+            "AND l.userId = a.userId AND l.libraryId = a.libraryId WHERE a.serverId = :serverId " +
+            "AND a.userId = :userId AND i.libraryId IN (:owners)",
+    )
+    abstract suspend fun listersOfOwned(
+        serverId: String,
+        userId: String,
+        owners: List<String>,
+    ): List<AlsoLister>
+
+    // The also-listed rows of [ids] (at most MAX_VARIABLES of them), with each lister's class.
+    @Query(
+        "SELECT a.itemId AS itemId, a.libraryId AS libraryId, l.addStamp AS addStamp, " +
+            "l.heldUntilMs AS heldUntilMs FROM item_also_listed a JOIN library l ON l.serverId = a.serverId " +
+            "AND l.userId = a.userId AND l.libraryId = a.libraryId WHERE a.serverId = :serverId " +
+            "AND a.userId = :userId AND a.itemId IN (:ids)",
+    )
+    abstract suspend fun listersOf(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<AlsoLister>
+
+    // An item moved into [libraryId] from a library covered from [fromMs]: its coverage becomes the earlier of the two.
+    @Query(
+        "UPDATE library SET coveredFromMs = :fromMs WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId AND (coveredFromMs IS NULL OR coveredFromMs > :fromMs)",
+    )
+    abstract suspend fun lowerCoveredFrom(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        fromMs: Long,
+    )
+
     // Genres, tags and studios.
 
     @Insert
@@ -869,7 +919,9 @@ internal abstract class LibraryDao {
     // commits whole or rolls back whole.
 
     /**
-     * The one writer of the account's library set (spec 26). Every library in [keep] is kept with no hold: a new one
+     * The library rows of the one writer of the account's library set (spec 26; CacheTransactionDao.applySelection is
+     * that writer, which moves the shared items and deletes [SelectionChange.deleted] after this). Every library in
+     * [keep] is kept with no hold: a new one
      * is inserted pending, with its stamp from [addStamps] if it has one. A kept library given a stamp it did not have
      * (a new add, or the re-tick of a held or earlier library) is set pending and its checkpoint deleted, so the sync
      * walks it again from the start; one not named in [addStamps] keeps the stamp it has. Any other library is kept
@@ -886,19 +938,17 @@ internal abstract class LibraryDao {
      * stamp, its walk's proof and its rewalk mark: a held library is never one being added. A hold for a library
      * already held keeps the later of the two; a hold placed now sets the library's coverage to the earlier of the one
      * it has and [nowMs]. A kept library given a new stamp loses its proof and its mark; any other kept library keeps
-     * its proof, mark and coverage. An account that is not signed in gets no rows back.
+     * its proof, mark and coverage. An account that is not signed in gets no rows back, and null.
      *
      * A new stamp may go only to a library that is new, held or already being added, never to a chosen library that
-     * has landed: that throws [IllegalArgumentException] and writes nothing. Before a library's rows are deleted, each
-     * series row of it that a live episode of a library that stays (kept or held) still names moves to that library
-     * (the smallest such ID), so a series listed in two libraries outlives the one that wrote it last; the move alone
-     * bumps nothing. [holdClockGuardMs] is the purge's forward-jump guard: when [nowMs] is more than that after the
-     * account's last successful sync, the clock looks wrong and no hold expires in this call (its rows and its hold are
-     * kept). Null (tests) means no guard.
+     * has landed: that throws [IllegalArgumentException] and writes nothing. The libraries to delete are returned,
+     * not deleted: [deleteLeavers] does that. [holdClockGuardMs] is the purge's forward-jump guard: when [nowMs] is
+     * more than that after the account's last successful sync, the clock looks wrong and no hold expires in this call
+     * (its rows and its hold are kept). Null (tests) means no guard.
      */
     @Transaction
     @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its stamps and holds, and the clock.
-    open suspend fun applySelection(
+    open suspend fun applySelectionRows(
         serverId: String,
         userId: String,
         keep: Set<String>,
@@ -907,9 +957,9 @@ internal abstract class LibraryDao {
         nowMs: Long,
         keepAdding: Boolean = false,
         holdClockGuardMs: Long? = null,
-    ) {
+    ): SelectionChange? {
         // An account that is not signed in (it signed out while the sync ran) gets no rows back.
-        if (activeCount(serverId, userId) == 0) return
+        if (activeCount(serverId, userId) == 0) return null
         val stored = libraries(serverId, userId)
         val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
         // A clock far ahead of the last success (as the purge's guard reads it) expires no hold (Vimes, spec 26).
@@ -963,13 +1013,30 @@ internal abstract class LibraryDao {
             if (next != row) toUpdate += next
         }
         if (bump) bumpGeneration(serverId, userId)
-        if (toDelete.isNotEmpty()) {
-            rehomeSharedSeries(serverId, userId, toDelete, stored.map { it.libraryId } - toDelete.toSet())
-        }
-        toDelete.chunked(MAX_VARIABLES).forEach { deleteLibrariesIn(serverId, userId, it) }
+        // The rows that stay are written first, so the moves before the deletes see each library as it now is.
         rewalk.chunked(MAX_VARIABLES).forEach { deleteCheckpointsIn(serverId, userId, it) }
         if (toUpdate.isNotEmpty()) updateLibraries(toUpdate)
         toInsert.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
+        val covered = HashMap<String, Long>()
+        for (id in toDelete) byId[id]?.coveredFromMs?.let { covered[id] = it }
+        return SelectionChange(toDelete, stored.map { it.libraryId } - toDelete.toSet(), covered)
+    }
+
+    /**
+     * The end of a selection change (spec 26): each series row of [gone] that a live episode of one of [staying] names
+     * moves to that library ([rehomeSharedSeries]), and then [gone] are deleted, with everything under them (the
+     * foreign keys). Call it inside the change's transaction, after the items of [gone] that another library lists
+     * have moved (CacheTransactionDao.applySelection), so the moved episodes keep their series.
+     */
+    suspend fun deleteLeavers(
+        serverId: String,
+        userId: String,
+        gone: List<String>,
+        staying: List<String>,
+    ) {
+        if (gone.isEmpty()) return
+        rehomeSharedSeries(serverId, userId, gone, staying)
+        gone.chunked(MAX_VARIABLES).forEach { deleteLibrariesIn(serverId, userId, it) }
     }
 
     /**

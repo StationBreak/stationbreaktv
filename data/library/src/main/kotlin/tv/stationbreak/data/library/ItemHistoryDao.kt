@@ -94,6 +94,12 @@ internal class RevivalPlan(
     val revived: List<ItemEntity>,
 )
 
+/** What [ItemHistoryDao.planMove] works out: the [versions] to keep, and the [moved] rows to write back. */
+internal class MovePlan(
+    val versions: List<ItemVersionEntity>,
+    val moved: List<ItemEntity>,
+)
+
 /**
  * The history of the saved items (spec 09): the `item_version` rows, the rule for when a change makes one, the stamp
  * that keeps their intervals increasing, and the as-of read that returns the library as this TV held it before a
@@ -186,6 +192,32 @@ internal abstract class ItemHistoryDao {
                 it.toVersion(stamps.getValue(id), genres, tags, studios)
             }
         return RevivalPlan(versions, rows.map { it.copy(deletedAtMs = null, seenFromMs = stamps.getValue(it.itemId)) })
+    }
+
+    /**
+     * Works out the move of [rows] to the libraries [to] names (spec 26, schema 11) at [nowMs], live or tombstoned
+     * alike: each is copied as a version first, with its genres, tags and studios ([names]), ending at the new stamp,
+     * so a day built from before the move still finds it in its old library. This reads and writes nothing.
+     */
+    fun planMove(
+        rows: List<ItemEntity>,
+        to: Map<String, String>,
+        names: SideNames,
+        nowMs: Long,
+    ): MovePlan {
+        val versions = ArrayList<ItemVersionEntity>(rows.size)
+        val moved = ArrayList<ItemEntity>(rows.size)
+        for (row in rows) {
+            val target = to[row.itemId] ?: continue
+            val id = row.itemId
+            val stamp = nextStamp(row, nowMs)
+            val genres = names.genres[id].orEmpty()
+            val tags = names.tags[id].orEmpty()
+            val studios = names.studios[id].orEmpty()
+            versions += row.toVersion(stamp, genres, tags, studios)
+            moved += row.copy(libraryId = target, seenFromMs = stamp)
+        }
+        return MovePlan(versions, moved)
     }
 
     // The as-of read (spec 09, Unit 2). All three select the same columns, from the item row or from a version, so one

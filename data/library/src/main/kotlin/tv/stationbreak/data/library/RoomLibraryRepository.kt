@@ -353,8 +353,9 @@ class RoomLibraryRepository internal constructor(
         keepAdding: Boolean,
     ) {
         val (server, user) = account.keys()
-        // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade).
-        dao.applySelection(
+        // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade),
+        // after each item another library lists moved to it.
+        transactions.applySelection(
             server,
             user,
             keep.mapTo(HashSet()) { it.value },

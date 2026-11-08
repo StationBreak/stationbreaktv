@@ -87,7 +87,7 @@ internal abstract class CacheTransactionDao(
      * that is gone. A [rewalk] write also refuses, with [PageResult.FirstSyncRunning], while the account runs a first
      * sync. Neither refusal moves the generation.
      *
-     * Who owns an item two libraries list ([route], spec 26, schema 11): the first writer. A chosen writer takes an
+     * Who owns an item two libraries list ([routePage], spec 26, schema 11): the first writer. A chosen writer takes an
      * item from an owner being added, and any writer takes a tombstone; each is a versioned move. Otherwise the owner
      * stays and the writer gets an `item_also_listed` row, while the fields are still the writer's, versioned under
      * the owner. The rows change in this transaction, after the guard; a change to them alone moves nothing. An add's
@@ -119,7 +119,7 @@ internal abstract class CacheTransactionDao(
         val libs = library.libraries(server, user)
         val stamped = libs.filter { it.addStamp != null }.mapTo(HashSet()) { it.libraryId }
         val addingOwners = addingLibraries(libs)
-        val routed = route(server, user, libraryId, stamp, items, existing, addingOwners)
+        val routed = routePage(server, user, libraryId, stamp, items, existing, addingOwners)
         // The old genres, tags and studios are read here, inside the transaction and before they are deleted below.
         val old = library.sideNames(server, user, existing.keys)
         val plan = history.planPage(routed.items, existing, old, nowMs)
@@ -190,65 +190,6 @@ internal abstract class CacheTransactionDao(
     }
 
     /**
-     * The rows of a page as the ownership rules write them (spec 26, schema 11): [items] with each one's owner, the
-     * [listed] rows to insert (`INSERT OR IGNORE`) and the items [nowOwned] by the writer, whose row for it goes.
-     */
-    private class Routed(
-        val items: Map<String, ItemRows>,
-        val listed: List<ItemAlsoListedEntity>,
-        val nowOwned: List<String>,
-    )
-
-    /**
-     * Who owns each item of a page that [libraryId] writes under [stamp] (spec 26, schema 11), given the rows held
-     * ([existing]) and the libraries being added and not held ([addingOwners]). A new item, or one the writer owns, is
-     * the writer's. A tombstone goes to whoever writes it (a revival, versioned by the plan), and never gives its old
-     * owner a row: that owner's listing dropped it. A chosen writer (no stamp) takes an item from an owner that is
-     * being added, which keeps a row. Otherwise the owner stays, the row is written under it, and the writer gets a
-     * row. The fields are always the writer's: the server's item is the same whichever library lists it.
-     */
-    @Suppress("LongParameterList") // The account, the writer and its stamp, the page, and what the transaction read.
-    private fun route(
-        server: String,
-        user: String,
-        libraryId: String,
-        stamp: Long?,
-        items: Map<String, ItemRows>,
-        existing: Map<String, ItemEntity>,
-        addingOwners: Set<String>,
-    ): Routed {
-        val routed = LinkedHashMap<String, ItemRows>(items.size)
-        val listed = ArrayList<ItemAlsoListedEntity>()
-        val nowOwned = ArrayList<String>()
-        for ((id, rows) in items) {
-            val held = existing[id]
-            val owner = held?.libraryId
-            when {
-                held == null || owner == null || owner == libraryId -> {
-                    routed[id] = rows
-                }
-
-                held.deletedAtMs != null -> {
-                    routed[id] = rows
-                    nowOwned += id
-                }
-
-                owner in addingOwners && stamp == null -> {
-                    routed[id] = rows
-                    nowOwned += id
-                    listed += ItemAlsoListedEntity(server, user, id, owner)
-                }
-
-                else -> {
-                    routed[id] = ItemRows(rows.item.copy(libraryId = owner), rows.genres, rows.tags, rows.studios)
-                    listed += ItemAlsoListedEntity(server, user, id, libraryId)
-                }
-            }
-        }
-        return Routed(routed, listed, nowOwned)
-    }
-
-    /**
      * True when the page changed a field the scheduler or the rules read (a new row, or one that took a version: an
      * edit to a versioned field or a revival) in a library that is not being added, before or after the write (spec
      * 26). A change to an unversioned field alone (the parent, the provider ids) is stored and moves nothing.
@@ -316,6 +257,56 @@ internal abstract class CacheTransactionDao(
         val size = (LibraryDao.MAX_VARIABLES - outside.size).coerceAtLeast(MAX_SPELLINGS)
         for (chunk in spellings.chunked(size)) if (library.seriesNamedOutside(server, user, chunk, outside)) return true
         return false
+    }
+
+    /**
+     * The one writer of the account's library set (spec 26): [LibraryDao.applySelectionRows] keeps, holds, stamps and
+     * inserts the library rows (see there for every rule, the content generation's included). Then, before the
+     * libraries that go are deleted, each item one of them owns that a staying library lists moves to that library
+     * (spec 26, schema 11), live or tombstoned: a chosen one first, then one being added, then a held one, then the
+     * smallest id. Each move is versioned, deletes the target's also-listed row and lowers the target's coverage to
+     * the deleted library's. Only then are the shared series re-homed, so a moved episode keeps its series, and the
+     * libraries deleted, with what is left under them. One transaction.
+     */
+    @Transaction
+    @Suppress("LongParameterList") // The selection, its stamps and holds, the clock and its guard.
+    open suspend fun applySelection(
+        serverId: String,
+        userId: String,
+        keep: Set<String>,
+        addStamps: Map<String, Long>,
+        holds: Map<String, Long>,
+        nowMs: Long,
+        keepAdding: Boolean = false,
+        holdClockGuardMs: Long? = null,
+    ) {
+        val change =
+            library.applySelectionRows(serverId, userId, keep, addStamps, holds, nowMs, keepAdding, holdClockGuardMs)
+                ?: return
+        if (change.deleted.isEmpty()) return
+        moveBeforeDelete(serverId, userId, change, nowMs)
+        library.deleteLeavers(serverId, userId, change.deleted, change.staying)
+    }
+
+    // The delete-time moves (spec 26, schema 11): each item a deleted library owns goes to its best staying lister.
+    private suspend fun moveBeforeDelete(
+        serverId: String,
+        userId: String,
+        change: SelectionChange,
+        nowMs: Long,
+    ) {
+        val deleted = change.deleted.toHashSet()
+        val listers = ArrayList<AlsoLister>()
+        for (chunk in change.deleted.chunked(LibraryDao.MAX_VARIABLES)) {
+            for (row in library.listersOfOwned(serverId, userId, chunk)) if (row.libraryId !in deleted) listers += row
+        }
+        val moved = moveItems(library, history, serverId, userId, bestTargets(listers), nowMs, ownedBy = null)
+        // Each target is covered from the earliest of its own coverage and that of every library it took items from.
+        val lowered = HashSet<Pair<String, String>>()
+        for ((from, to) in moved) {
+            val fromMs = change.coveredFrom[from] ?: continue
+            if (lowered.add(from to to)) library.lowerCoveredFrom(serverId, userId, to, fromMs)
+        }
     }
 
     /**
@@ -752,10 +743,6 @@ internal abstract class CacheTransactionDao(
         sinceMs: Long,
         trace: ((String) -> Unit)? = null,
     ): ReIdRows = reIdRows(library, series, server, user, libraries, gone, sinceMs, trace)
-
-    // The libraries being added and not held, of [libs]: an owner a chosen writer takes from, and D8's adds.
-    private fun addingLibraries(libs: List<LibraryEntity>): Set<String> =
-        libs.filter { it.addStamp != null && it.heldUntilMs == null }.mapTo(HashSet()) { it.libraryId }
 
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */
