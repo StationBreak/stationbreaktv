@@ -272,8 +272,10 @@ class LibrarySelection(
             // Any add under way was of the old choice. The save has committed: what follows cannot fail the setup.
             followUp(SelectionEvent.SetupFollowUpFailed) { passes.restart() }
             room { branches(account, ids, library.storedLibraries(account)) }
-            // The same account, its first sync long finished: nothing else would read the new libraries.
-            followUp(SelectionEvent.SetupFollowUpFailed) { firstSync.ensureRunning() }
+            // The first sync reads the new libraries, replacing any run still going: one running now read the choice
+            // this setup replaced (Task 4.4b, R1). On the same account, its first sync long finished, nothing else
+            // would read them. Queued after the save, under this lock, so its library set is the new choice's.
+            followUp(SelectionEvent.SetupFollowUpFailed) { firstSync.retry() }
             publish(store.loadSelection())
             SetupResult.Saved
         }
@@ -355,6 +357,20 @@ class LibrarySelection(
             branches(account, stored.chosen, library.storedLibraries(account))
             applyRoom(account, stored, library.storedLibraries(account))
             stored.chosen
+        }
+
+    /**
+     * The libraries being added for [account], each with its stamp: empty when [account] is not the active account or
+     * the stored choice is not its own. The add pass reads its work from this alone.
+     */
+    override suspend fun pendingAdds(account: LibraryAccount): Map<ItemId, Long> =
+        locked(fromAddPass = true) {
+            if (activeAccount() != account) return@locked emptyMap()
+            store
+                .loadSelection()
+                ?.takeIf { owns(account, it) }
+                ?.adding
+                .orEmpty()
         }
 
     /**
@@ -694,11 +710,13 @@ class LibrarySelection(
 
             RepairOutcome.NoLineup -> null
 
+            // A refused record is a save that failed as well as one that does not fit: LineupService does not tell the
+            // two apart, so it may pass, and the add pass's cap bounds what trying again costs.
+            RepairOutcome.Refused,
             RepairOutcome.Unsaved,
             RepairOutcome.UndoFailed,
             -> Allocated.Failed(terminal = false)
 
-            RepairOutcome.Refused,
             RepairOutcome.SelectionUnknown,
             RepairOutcome.AlreadySaved,
             -> Allocated.Failed(terminal = true)

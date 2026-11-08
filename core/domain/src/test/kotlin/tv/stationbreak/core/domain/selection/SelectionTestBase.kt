@@ -126,9 +126,12 @@ internal class WatchedSettings(
     /** How many times the selection was read. */
     val loads = AtomicInteger()
 
+    /** The read whose number ([loads] after it) this is gives no selection, as one that could not be read. */
+    @Volatile var unreadableLoad = 0
+
     override suspend fun loadSelection(): StoredSelection? {
-        loads.incrementAndGet()
-        return inner.loadSelection()
+        val load = loads.incrementAndGet()
+        return if (load == unreadableLoad) null else inner.loadSelection()
     }
 
     override suspend fun saveSelection(

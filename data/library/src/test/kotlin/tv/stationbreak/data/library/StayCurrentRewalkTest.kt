@@ -149,6 +149,31 @@ class StayCurrentRewalkTest {
             assertEquals(1, checkNotNull(runner.lastRewalk).unlisted)
         }
 
+    // Fix round 1 (A9): a library whose mark goes while it is rewalked (another walk's end cleared it) is not a
+    // failure: nothing of it was this step's to finish.
+    @Test
+    fun rewalk_aLibraryUnmarkedMeanwhile_isCountedApart_notFailed() =
+        runBlocking {
+            markedShows()
+            var cleared = false
+            server.respond = { call ->
+                if (!cleared && call.isRewalkPage()) {
+                    cleared = true
+                    runBlocking { repository.markWalked(ALICE, SHOWS) }
+                }
+                null
+            }
+            val runner = runner()
+
+            assertEquals(SyncOutcome.Completed, runner.outcome(SyncPlan.Both))
+
+            val rewalk = checkNotNull(runner.lastRewalk)
+            assertEquals(1, rewalk.unmarked)
+            assertEquals(0, rewalk.failed)
+            val shows = repository.stored(ALICE).count { it.library == SHOWS }
+            assertEquals("its rewalk wrote nothing once unmarked", 2, shows)
+        }
+
     @Test
     fun rewalk_failure_otherPassesComplete() =
         runBlocking {

@@ -195,6 +195,25 @@ class StampedWritesTest {
             assertNothingWritten(SHOWS, before)
         }
 
+    // Task 4.4b fix round 1 (data LOW): a rewalk's writes need the mark. A rewalk that outlived a whole first sync
+    // (whose walk end cleared the mark) must not move that walk's checkpoint back, nor write anything else.
+    @Test
+    fun rewalkWrite_unmarkedRow_writesNothing() =
+        runBlocking {
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = clock.nowMs)
+            chosenRow()
+            val before = generation()
+
+            assertEquals("writePage", PageResult.StampMismatch, page(SHOWS, stamp = null, rewalk = true))
+            val items = repository.upsertItems(ALICE, SHOWS, null, rewalk = true, listOf(sitem(2, library = SHOWS)))
+            assertEquals("upsertItems", PageResult.StampMismatch, items)
+            val series = repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = true, listOf(series("s-1")))
+            assertEquals("upsertSeries", PageResult.StampMismatch, series)
+
+            assertNothingWritten(SHOWS, before)
+            assertTrue("the same page, not a rewalk's, is taken", page(SHOWS, stamp = null) is PageResult.Written)
+        }
+
     @Test
     fun normalWrite_firstSyncRunning_stillWrites() =
         runBlocking {

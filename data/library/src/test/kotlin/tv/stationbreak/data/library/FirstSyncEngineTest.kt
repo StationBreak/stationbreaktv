@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,6 +22,7 @@ import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.InMemoryLineupStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.LibraryStatus
+import tv.stationbreak.core.domain.PagedCall
 import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.StayCurrentRequests
@@ -31,9 +39,13 @@ import tv.stationbreak.core.domain.selection.LibrarySelection
 import tv.stationbreak.core.domain.selection.ResumeGate
 import tv.stationbreak.core.domain.selection.SetupResult
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.data.library.SyncWorld.movies
 import tv.stationbreak.data.library.SyncWorld.session
 import tv.stationbreak.data.library.SyncWorld.shows
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * The first sync's library set (spec 26, Part 4 §2, Task 4.4b): it comes from the selection's `firstSyncLibraries`,
@@ -68,11 +80,12 @@ class FirstSyncEngineTest {
 
             override fun status(): Flow<LibraryStatus?> = flowOf(null)
 
-            override fun ensureRunning() {
+            override fun ensureRunning() = Unit
+
+            // A setup asks with a replacing request (Task 4.4b, R1).
+            override fun retry() {
                 asked++
             }
-
-            override fun retry() = Unit
         }
 
     private val selection: LibrarySelection =
@@ -237,6 +250,146 @@ class FirstSyncEngineTest {
             assertNull(repository.lastSuccess(ALICE))
         }
 
+    // --- Fix round 1 ----------------------------------------------------------------------------------------------
+
+    // An item page of [id] (not an ID listing, not a series page).
+    private fun PagedCall.isItemPageOf(id: ItemId): Boolean {
+        val itemPage = !idsOnly && !series
+        return itemPage && library.id == id
+    }
+
+    private val extras = SyncWorld.source("x", 2, extra)
+    private val extraLibrary = Library(extra, "Invented Extra", LibraryKind.Movies)
+
+    // A first sync shaped like its unique work: ensureRunning keeps a run that is going; retry replaces it, and the new
+    // run starts once the old one has unwound. Each run is the engine over the selection's library set.
+    private class UniqueWork(
+        private val scope: CoroutineScope,
+        private val run: suspend () -> SyncOutcome,
+    ) : FirstSync {
+        @Volatile var job: Job? = null
+
+        override fun status(): Flow<LibraryStatus?> = flowOf(null)
+
+        override fun ensureRunning() {
+            if (job?.isActive != true) start(null)
+        }
+
+        override fun retry() {
+            val old = job
+            old?.cancel()
+            start(old)
+        }
+
+        // A worker thread of its own, as WorkManager's: the test's thread stays free to set up meanwhile.
+        @Suppress("InjectDispatcher")
+        private fun start(after: Job?) {
+            job =
+                scope.launch(Dispatchers.IO) {
+                    after?.join()
+                    run()
+                }
+        }
+    }
+
+    // R1: a setup on the same account while a first sync of the old choice is still walking replaces that run. The
+    // new libraries are walked, the dropped library's rows go, and nothing of the old choice is left once it ends.
+    @Test
+    fun sameAccountSetup_whileAnOldFirstSyncRuns_replacesIt_andWalksTheNewChoice() =
+        runBlocking {
+            val withExtra =
+                PagedMediaServer(
+                    listOf(movies, shows, extraLibrary),
+                    mapOf(MOVIES to films, SHOWS to episodes, extra to extras),
+                )
+            val stored = InMemoryServerSettings(ServerRecord(session.address))
+            val old = StoredSelection(setOf(MOVIES, SHOWS), seq = 1, resetSeq = 1, owner = ALICE)
+            assertTrue(stored.saveSelection(old, true))
+            // The old run is held on its first page of SHOWS, as a slow server would hold it.
+            val reached = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            withExtra.respond = { call ->
+                if (call.isItemPageOf(SHOWS) && reached.count > 0) {
+                    reached.countDown()
+                    release.await(WAIT_S, TimeUnit.SECONDS)
+                }
+                null
+            }
+            val scope = CoroutineScope(SupervisorJob())
+            lateinit var selection: LibrarySelection
+            val engine = SyncWorld.engine(repository, withExtra, clock)
+            val work = UniqueWork(scope) { engine.run(session, ALICE, selection) }
+            selection = selectionOver(repository, stored, withExtra, clock, firstSync = work)
+            try {
+                // The start finds the chosen libraries unread and asks for the first sync: the old run.
+                selection.resumeAtStart()
+                assertTrue("the old run is walking SHOWS", reached.await(WAIT_S, TimeUnit.SECONDS))
+
+                // The same user signs in again and keeps MOVIES, drops SHOWS and adds extra.
+                assertTrue(selection.clear())
+                assertEquals(SetupResult.Saved, selection.choose(setOf(MOVIES, extra)))
+                val replacing = checkNotNull(work.job)
+                release.countDown()
+                withTimeout(WAIT_S * MS) { replacing.join() }
+
+                assertTrue("the new library is walked", row(extra)!!.fetched)
+                assertEquals(2, repository.stored(ALICE).count { it.library == extra })
+                assertNull("the dropped library's row went", row(SHOWS))
+                assertTrue("nothing of it is served", repository.stored(ALICE).none { it.library == SHOWS })
+                assertTrue(row(MOVIES)!!.fetched)
+                assertFalse(repository.isFirstSyncRunning(ALICE))
+            } finally {
+                release.countDown()
+                scope.cancel()
+            }
+        }
+
+    // D-MED-2: a pending row another write of the set put in while this run walked is not this run's to call fetched.
+    @Test
+    fun firstSync_aPendingRowPutInMidRun_isNotMarkedFetched_andIsWalkedLater() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            val withExtra = PagedMediaServer(listOf(movies, extraLibrary), mapOf(MOVIES to films, extra to extras))
+            var put = false
+            withExtra.respond = { call ->
+                if (!put && call.isItemPageOf(MOVIES)) {
+                    put = true
+                    runBlocking { repository.applySelection(ALICE, setOf(MOVIES, extra), nowMs = clock.nowMs) }
+                }
+                null
+            }
+            val engine = SyncWorld.engine(repository, withExtra, clock)
+
+            assertEquals(SyncOutcome.Completed, engine.run(session, ALICE, setOf(MOVIES)))
+            assertFalse("never walked, so not fetched", row(extra)!!.fetched)
+
+            assertEquals(SyncOutcome.Completed, engine.run(session, ALICE, setOf(MOVIES, extra)))
+            assertTrue(row(extra)!!.fetched)
+            assertEquals(2, repository.stored(ALICE).count { it.library == extra })
+        }
+
+    // A7: the first sync's checkpoints keep its own count on every page after the first, as they always have; the
+    // server's count goes only into the first page's.
+    @Test
+    fun firstSync_checkpointsAfterTheFirstPage_keepTheRunsCount() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            // Counted at 3, then an item is added before the first page: the server's first page says 4.
+            var added = false
+            server.respond = { call ->
+                if (!added && call.isItemPageOf(MOVIES)) {
+                    added = true
+                    films.items += SyncWorld.item("m", 9)
+                }
+                null
+            }
+
+            val outcome = SyncWorld.engine(repository, server, clock, pageSize = 2).run(session, ALICE, setOf(MOVIES))
+
+            assertEquals(SyncOutcome.Completed, outcome)
+            assertEquals(3, repository.checkpoint(ALICE, MOVIES)?.totalCount)
+        }
+
     // Amendment 4 (D18): the first sync's unlisted step leaves a marked library pending and marked.
     @Test
     fun firstSync_unlistedMarkedLibrary_keepsMarkAndPending() =
@@ -253,4 +406,9 @@ class FirstSyncEngineTest {
             assertFalse("the server does not list it: still pending", row(SHOWS)!!.fetched)
             assertTrue("and still marked", row(SHOWS)!!.rewalkPending)
         }
+
+    private companion object {
+        const val WAIT_S = 10L
+        const val MS = 1_000L
+    }
 }

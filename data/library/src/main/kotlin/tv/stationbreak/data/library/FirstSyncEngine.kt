@@ -13,7 +13,6 @@ import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 /** How a run of the first sync ended. A closed set: nothing here carries a cause, an address or a token. */
@@ -47,12 +46,12 @@ internal sealed interface SyncOutcome {
  */
 @Suppress("LongParameterList") // The sync's knobs, and where its counts-only log lines go.
 internal class FirstSyncEngine(
-    internal val repository: RoomLibraryRepository,
+    private val repository: RoomLibraryRepository,
     private val server: MediaServer,
-    internal val clock: Clock,
+    private val clock: Clock,
     private val pageSize: Int = MediaServer.MAX_PAGE_SIZE,
-    private val margin: Duration = DEFAULT_MARGIN,
-    private val maxSkippedItems: Int = MAX_SKIPPED_ITEMS,
+    private val margin: Duration = LibraryPass.DEFAULT_MARGIN,
+    private val maxSkippedItems: Int = LibraryPass.MAX_SKIPPED_ITEMS,
     private val report: (String) -> Unit = {},
     private val librarySetReads: Int = LIBRARY_SET_READS,
 ) {
@@ -106,8 +105,8 @@ internal class FirstSyncEngine(
 
         // One library's walk with no stamp (spec 26, Part 4 §4: LibraryPass(null)).
         private fun pass(): LibraryPass {
-            val stamp: Long? = null
-            return LibraryPass(repository, server, session, account, stamp, false, pageSize, margin, skips, report)
+            val budget = skips
+            return LibraryPass.firstSync(repository, server, session, account, pageSize, margin, budget, report)
         }
 
         suspend fun sync(set: FirstSyncLibraries): SyncOutcome {
@@ -118,9 +117,10 @@ internal class FirstSyncEngine(
                 }
             var reads = 0
             var walking: List<Library>
+            var chosen: Set<ItemId>
             do {
                 // The one selection writer (spec 26): the chosen and the adds kept, the rest held or gone.
-                val chosen = set.firstSyncLibraries(account)
+                chosen = set.firstSyncLibraries(account)
                 // Nothing chosen is this account's: no first sync begins, and no success is recorded. Once one began
                 // (the set read again after a refusal), it is not left running: the worker's retry reads the next one.
                 if (chosen.isEmpty()) return if (reads == 0) SyncOutcome.Cancelled else failUnread()
@@ -135,11 +135,13 @@ internal class FirstSyncEngine(
                 // A chosen library refused a write: read the set again, as long as there are reads left.
                 if (reads == librarySetReads) return failUnread()
             } while (true)
-            // A library the user ticked that the server no longer lists has nothing to fetch. One being added, held or
-            // marked for a rewalk stays pending (markUnlisted leaves it): only the add itself lands an add (spec 26),
-            // and only a walk's end clears a mark.
+            // A library the user ticked that the server no longer lists has nothing to fetch. Only the chosen ones of
+            // the last set read count: a row put in the cache while this ran (another write of the set) is not this
+            // run's to call fetched, unwalked. One held or marked for a rewalk stays pending (markUnlisted leaves it),
+            // as only a walk's end clears a mark.
             val pending = repository.pendingLibraries(account)
-            (pending - walking.map { it.id }.toSet()).forEach { repository.markUnlisted(account, it) }
+            val unlisted = (chosen intersect pending) - walking.map { it.id }.toSet()
+            unlisted.forEach { repository.markUnlisted(account, it) }
             // Recorded as when the walk began, never when it ended: changes made during it are fetched next time.
             repository.finishSync(account, earliestWalk)
             collections()
@@ -227,12 +229,6 @@ internal class FirstSyncEngine(
     }
 
     companion object {
-        /** The safety margin of the changed-since pass, for clock skew and items saved while the walk ran. */
-        val DEFAULT_MARGIN: Duration = 10.minutes
-
-        /** Items that may be skipped for failing to decode before the sync gives up on the server. */
-        const val MAX_SKIPPED_ITEMS = 20
-
         /** How many times one run reads its library set while a chosen library's writes are refused. */
         const val LIBRARY_SET_READS = 3
     }

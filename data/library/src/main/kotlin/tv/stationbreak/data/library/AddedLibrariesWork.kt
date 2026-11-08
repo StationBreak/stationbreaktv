@@ -61,6 +61,11 @@ class AddedLibrariesWorker(
 /**
  * The selection's [LibraryPasses] over WorkManager (spec 26, Part 4 §2): [restart] only enqueues, replacing any add
  * work queued or running, so the pass that runs reads the adds as they are stored now. It never waits for the work.
+ *
+ * The replacement overlaps briefly: the replaced worker stops only at its next suspension, so for a moment two passes
+ * may walk the same stamp. That is benign. Every write is guarded by the stamp and is an idempotent upsert, the proof
+ * is a compare-and-set on the stamp, and only the selection lands an add, under its lock, once per stamp (a second
+ * landing of the same stamp is not current).
  */
 class WorkManagerLibraryPasses internal constructor(
     private val enqueuer: WorkEnqueuer,

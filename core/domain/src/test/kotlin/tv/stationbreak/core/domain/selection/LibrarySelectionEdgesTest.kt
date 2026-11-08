@@ -236,7 +236,7 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
         assertEquals(SetupResult.Saved, runBlocking { tv.selection.choose(setOf(libA, libC)) })
 
         assertEquals(setOf(libA, libC), assertNotNull(tv.stored()).chosen)
-        assertEquals(1, tv.firstSync.ensureCalls)
+        assertEquals(1, tv.firstSync.retryCalls)
         assertTrue(SelectionEvent.SetupFollowUpFailed in tv.events)
     }
 

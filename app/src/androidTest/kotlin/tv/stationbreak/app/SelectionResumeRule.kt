@@ -18,7 +18,8 @@ import org.junit.runners.model.Statement
  * Order it after `HiltAndroidRule`, whose graph it reads, and before any rule that launches an activity. By default it
  * resumes before the test, as the app's start does before any screen. A test that seeds an earlier run of the app
  * first (its settings and library cache, before this run's start) passes `atStart = false` and calls [resume] where its
- * app starts; the seeds themselves never wait on the gate. [resume] runs once per test, however often it is called.
+ * app starts; the seeds themselves never wait on the gate. [resume] runs once per test, however often it is called, and
+ * such a test that ends without calling it fails.
  */
 class SelectionResumeRule(
     private val atStart: Boolean = true,
@@ -45,7 +46,12 @@ class SelectionResumeRule(
             override fun evaluate() {
                 resumed = false
                 if (atStart) resume()
+                // A test that fails reports its own failure (it is thrown from here as it is).
                 base.evaluate()
+                // A test that defers the resume and never makes it would wait on the gate silently: it fails here.
+                if (!resumed) {
+                    throw AssertionError("${description.displayName} never called SelectionResumeRule.resume()")
+                }
             }
         }
 }

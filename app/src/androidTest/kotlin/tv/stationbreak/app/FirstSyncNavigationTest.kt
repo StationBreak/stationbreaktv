@@ -354,9 +354,11 @@ class FirstSyncNavigationTest {
 
         awaitExists(FirstSyncTags.HEADLINE)
         assertEquals(setOf(movies.id), Syncing.settings.currentLibraries)
-        // Nothing was chosen at the start; the setup asks for the first sync (spec 26), and its screen asks again.
+        // Nothing was chosen at the start. The setup asks for the first sync, replacing any run still reading the old
+        // choice (spec 26, Task 4.4b R1), and its screen asks again, keeping that run.
         assertEquals(0, askedAtStart)
-        assertEquals(2, Syncing.firstSync.ensureCalls)
+        assertEquals(1, Syncing.firstSync.retryCalls)
+        assertEquals(1, Syncing.firstSync.ensureCalls)
     }
 
     @Test

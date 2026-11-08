@@ -5,30 +5,35 @@ import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.StoredLibrary
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
 
-// How one library's rewalk ended: walked to its end, stopped by a first sync that began, or failed (for this library
-// alone, or for every library after it too: the session or the network).
+// How one library's rewalk ended: walked to its end, stopped by a first sync that began, unmarked meanwhile (by
+// another walk's end, or the library left the choice), or failed (for this library alone, or for every library after
+// it too: the session or the network).
 private enum class Rewalked {
     Walked,
     FirstSyncBegan,
+    Unmarked,
     Failed,
     FailedAll,
 }
 
 /**
  * What a rewalk step did (spec 26, Part 4 §4), counts only: the chosen libraries [marked] for a rewalk, those [walked]
- * to their end, those the listing left out ([unlisted], kept marked), those that [failed] (kept marked, for the next
- * run), and whether a first sync that began [stopped] it.
+ * to their end, those the listing left out ([unlisted], kept marked), those [unmarked] while they were walked (by
+ * another walk's end, or because they left the choice: nothing of them was this step's to finish), those that
+ * [failed] (kept marked, for the next run), and whether a first sync that began [stopped] it.
  */
 internal data class RewalkSummary(
     val marked: Int = 0,
     val walked: Int = 0,
     val unlisted: Int = 0,
+    val unmarked: Int = 0,
     val failed: Int = 0,
     val stopped: Boolean = false,
 )
@@ -72,7 +77,7 @@ internal class Rewalk(
         if (summary.marked > 0 || summary.failed > 0) {
             val line =
                 "Rewalk marked=${summary.marked} walked=${summary.walked} unlisted=${summary.unlisted} " +
-                    "failed=${summary.failed} stopped=${summary.stopped}"
+                    "unmarked=${summary.unmarked} failed=${summary.failed} stopped=${summary.stopped}"
             // Logging is best effort: a report that fails never changes the step.
             runCatching { report(line) }
         }
@@ -85,10 +90,7 @@ internal class Rewalk(
         account: LibraryAccount,
         chosen: Set<ItemId>,
     ): RewalkSummary {
-        val marked =
-            repository.storedLibraries(account).filter {
-                it.id in chosen && it.rewalkPending && it.addStamp == null && it.heldUntilMs == null
-            }
+        val marked = repository.storedLibraries(account).filter { it.isCandidate(chosen) }
         if (marked.isEmpty()) return RewalkSummary()
         val listed =
             when (val result = server.libraries(session)) {
@@ -112,6 +114,10 @@ internal class Rewalk(
                     return summary.copy(stopped = true)
                 }
 
+                Rewalked.Unmarked -> {
+                    summary = summary.copy(unmarked = summary.unmarked + 1)
+                }
+
                 Rewalked.Failed -> {
                     summary = summary.copy(failed = summary.failed + 1)
                 }
@@ -125,25 +131,19 @@ internal class Rewalk(
         return summary
     }
 
+    // A chosen library marked for a rewalk, with no stamp and no hold.
+    private fun StoredLibrary.isCandidate(chosen: Set<ItemId>): Boolean {
+        val free = addStamp == null && heldUntilMs == null
+        return id in chosen && rewalkPending && free
+    }
+
     // One marked library's rewalk, from its checkpoint with no stamp, and its end.
     private suspend fun rewalkOne(
         session: Session,
         account: LibraryAccount,
         library: Library,
     ): Rewalked {
-        val pass =
-            LibraryPass(
-                repository,
-                server,
-                session,
-                account,
-                null,
-                true,
-                MediaServer.MAX_PAGE_SIZE,
-                FirstSyncEngine.DEFAULT_MARGIN,
-                SkipBudget(FirstSyncEngine.MAX_SKIPPED_ITEMS),
-                report,
-            )
+        val pass = LibraryPass.rewalk(repository, server, session, account, report)
         return when (val end = pass.walk(library, null, clock.now())) {
             is PassEnd.Walked -> {
                 when (repository.finishRewalk(account, library.id, end.run)) {
@@ -151,13 +151,13 @@ internal class Rewalk(
 
                     RewalkFinish.FirstSyncRunning -> Rewalked.FirstSyncBegan
 
-                    // Unmarked meanwhile (the library left the choice): nothing of it was this step's to finish.
-                    RewalkFinish.NotMarked -> Rewalked.Failed
+                    // Unmarked meanwhile: nothing of it was this step's to finish.
+                    RewalkFinish.NotMarked -> Rewalked.Unmarked
                 }
             }
 
             is PassEnd.Refused -> {
-                if (end.result is PageResult.FirstSyncRunning) Rewalked.FirstSyncBegan else Rewalked.Failed
+                refused(account, library, end.result)
             }
 
             is PassEnd.Failed -> {
@@ -166,5 +166,17 @@ internal class Rewalk(
                 if (all) Rewalked.FailedAll else Rewalked.Failed
             }
         }
+    }
+
+    // A rewalk write the cache refused: a first sync began, or the row lost its mark (it is unmarked, or gone with
+    // the choice), or something else about the row changed (held, stamped again), which the next run reads again.
+    private suspend fun refused(
+        account: LibraryAccount,
+        library: Library,
+        result: PageResult,
+    ): Rewalked {
+        if (result is PageResult.FirstSyncRunning) return Rewalked.FirstSyncBegan
+        val row = repository.storedLibraries(account).firstOrNull { it.id == library.id }
+        return if (row?.rewalkPending == true) Rewalked.Failed else Rewalked.Unmarked
     }
 }

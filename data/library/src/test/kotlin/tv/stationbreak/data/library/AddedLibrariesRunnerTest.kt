@@ -83,12 +83,18 @@ class AddedLibrariesRunnerTest {
 
     private suspend fun row(id: ItemId) = repository.storedLibraries(ALICE).singleOrNull { it.id == id }
 
-    // The add pass's side of a selection that answers [land] to every landing and counts the calls.
-    private class ScriptedLandings(
+    // The add pass's side of a selection that answers [land] to every landing and counts the calls. Its adds are the
+    // stored ones (the tests' choices are this account's own).
+    private inner class ScriptedLandings(
         var land: () -> LandResult,
     ) : AddLandings {
         var landings = 0
         var reconciles = 0
+
+        override suspend fun pendingAdds(account: LibraryAccount): Map<ItemId, Long> {
+            val stored = settings.loadSelection()
+            return stored?.adding.orEmpty()
+        }
 
         override suspend fun passLanded(
             account: LibraryAccount,
@@ -228,20 +234,54 @@ class AddedLibrariesRunnerTest {
             assertTrue(repository.stored(ALICE).none { it.library == SHOWS })
         }
 
+    // A3: the work list is the selection's own, owner-checked: another account's choice gives no work at all.
     @Test
-    fun anotherAccountsChoice_isNotWalked() =
+    fun anotherAccountsChoice_givesNoWork() =
         runBlocking {
             signedInWithMovies()
             addingShows()
             val stored = settings.loadSelection()!!
             val foreign = stored.copy(seq = stored.seq + 1, adding = mapOf(SHOWS to stored.seq + 1), owner = BOB)
             assertTrue(settings.saveSelection(foreign))
+            // The cache carries the same stamp, so only the owner check keeps the pass from walking it.
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), mapOf(SHOWS to foreign.seq), nowMs = clock.nowMs)
+            val selection = selectionOver(repository, settings, server, clock)
+            selection.resumeAtStart()
+
+            assertEquals(SyncOutcome.Completed, runner(selection).outcome())
+
+            assertTrue("nothing asked of the server", server.calls.isEmpty())
+            assertEquals(foreign.seq, row(SHOWS)?.addStamp)
+            assertNull("nothing walked", row(SHOWS)?.walkedStamp)
+        }
+
+    // D-LOW: a walk proved before a restart (the landing's save had not committed) is landed at once: not read again.
+    @Test
+    fun aProvedAdd_onARestart_isLandedWithNoReadOfTheServer() =
+        runBlocking {
+            signedInWithMovies()
+            addingShows()
+            assertTrue(repository.markAddWalked(ALICE, SHOWS, 2L, clock.nowMs))
             val landings = ScriptedLandings { LandResult.Landed }
 
-            assertEquals(SyncOutcome.Cancelled, runner(landings).outcome())
+            assertEquals(SyncOutcome.Completed, runner(landings).outcome())
 
-            assertTrue(server.calls.isEmpty())
-            assertEquals(0, landings.landings)
+            assertEquals(1, landings.landings)
+            assertTrue("no page of it asked for", server.calls.none { it.library.id == SHOWS })
+        }
+
+    // A7: with no count of its own, the add walk's checkpoints keep the server's first-page count on later pages.
+    @Test
+    fun theAddWalksCheckpoints_keepTheFirstPagesCount() =
+        runBlocking {
+            signedInWithMovies()
+            addingShows()
+            server.maxItemsPerResponse = 1
+            val landings = ScriptedLandings { LandResult.Landed }
+
+            assertEquals(SyncOutcome.Completed, runner(landings).outcome())
+
+            assertEquals(2, repository.checkpoint(ALICE, SHOWS)?.totalCount)
         }
 
     @Test

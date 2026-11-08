@@ -57,15 +57,48 @@ internal class LibrarySelectionAddPassTest : SelectionTestBase() {
         assertEquals(before, tv.restarts)
     }
 
-    // Binding item 2: a result that trying again in this process cannot change (the record refuses) is not a retry.
+    // Fix round 1 (A2): a record that refuses may be a save that failed, which the record does not tell apart from
+    // one that does not fit: it may pass, so it is a retry (the add pass's cap bounds the cost).
     @Test
-    fun aLandingTheRecordRefuses_isFailed_notRetry() {
+    fun aLandingTheRecordRefuses_isRetry() {
         val (tv, stamp) = adding()
         tv.rig.store.inner.failWrites = true
+
+        assertEquals(LandResult.Retry, runBlocking { tv.selection.passLanded(ACCOUNT, libB, stamp) })
+
+        assertEquals(stamp, assertNotNull(tv.stored()).adding[libB], "nothing landed")
+        tv.rig.store.inner.failWrites = false
+        assertEquals(LandResult.Landed, runBlocking { tv.selection.passLanded(ACCOUNT, libB, stamp) }, "it passed")
+    }
+
+    // Binding item 2: a result that trying again in this process cannot change (the saved selection could not be read
+    // when the repair asked for it) is not a retry.
+    @Test
+    fun aLandingWhoseSelectionCannotBeRead_isFailed_notRetry() {
+        val (tv, stamp) = adding()
+        // The landing reads the selection, then the repair reads it again: that second read fails.
+        tv.settings.unreadableLoad = tv.settings.loads.get() + 2
 
         assertEquals(LandResult.Failed, runBlocking { tv.selection.passLanded(ACCOUNT, libB, stamp) })
 
         assertEquals(stamp, assertNotNull(tv.stored()).adding[libB], "nothing landed")
+    }
+
+    // Fix round 1 (A3): the add pass's work list is the selection's own, owner-checked.
+    @Test
+    fun pendingAdds_areTheAccountsOwnAdds() {
+        val (tv, stamp) = adding()
+
+        assertEquals(mapOf(libB to stamp), runBlocking { tv.selection.pendingAdds(ACCOUNT) })
+        assertEquals(emptyMap(), runBlocking { tv.selection.pendingAdds(other) }, "not the active account")
+    }
+
+    @Test
+    fun pendingAdds_ofAnotherAccountsChoice_areNone() {
+        val tv = Tv(stored = StoredSelection(setOf(libA), seq = 2L, adding = mapOf(libB to 2L), owner = other))
+        tv.resume()
+
+        assertEquals(emptyMap(), runBlocking { tv.selection.pendingAdds(ACCOUNT) })
     }
 
     // Binding item 2: a save that failed may succeed next time: still a retry.

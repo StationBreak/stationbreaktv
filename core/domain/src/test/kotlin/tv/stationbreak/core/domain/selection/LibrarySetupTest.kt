@@ -113,7 +113,7 @@ internal class LibrarySetupTest : SelectionTestBase() {
 
         assertNull(tv.stored(), "nothing chosen, so nothing shows")
         assertEquals(kept, runBlocking { tv.settings.loadSelectionSeq() })
-        assertEquals(0, tv.firstSync.ensureCalls)
+        assertEquals(0, tv.firstSync.retryCalls)
     }
 
     // Binding item 5 (the same account, its first sync long finished): setup must start the first sync itself.
@@ -123,10 +123,12 @@ internal class LibrarySetupTest : SelectionTestBase() {
         tv.settings.failSaves = 1
 
         assertEquals(SetupResult.Failed, runBlocking { tv.selection.choose(setOf(libA, libC)) })
-        assertEquals(0, tv.firstSync.ensureCalls, "nothing saved, nothing to read")
+        assertEquals(0, tv.firstSync.retryCalls, "nothing saved, nothing to read")
 
         assertEquals(SetupResult.Saved, runBlocking { tv.selection.choose(setOf(libA, libC)) })
-        assertEquals(1, tv.firstSync.ensureCalls)
+        // R1 (Task 4.4b fix round 1): a replacing request, so a run still reading the old choice gives way.
+        assertEquals(1, tv.firstSync.retryCalls)
+        assertEquals(0, tv.firstSync.ensureCalls)
         assertTrue(tv.restarts >= 1, "any add under way is cancelled")
     }
 

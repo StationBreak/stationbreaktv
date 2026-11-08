@@ -75,8 +75,12 @@ internal object SyncWorld {
         server: PagedMediaServer,
         clock: Clock,
         pageSize: Int = 100,
-        maxSkipped: Int = FirstSyncEngine.MAX_SKIPPED_ITEMS,
-    ) = FirstSyncEngine(repository, server, clock, pageSize = pageSize, maxSkippedItems = maxSkipped)
+        maxSkipped: Int = LibraryPass.MAX_SKIPPED_ITEMS,
+    ) = TestFirstSync(
+        FirstSyncEngine(repository, server, clock, pageSize = pageSize, maxSkippedItems = maxSkipped),
+        repository,
+        clock,
+    )
 }
 
 /**
@@ -102,12 +106,26 @@ internal class StoredChoice(
     }
 }
 
-/** Runs the first sync over [chosen] for [account], as the selection would give it (see [StoredChoice]). */
-internal suspend fun FirstSyncEngine.run(
-    session: Session,
-    account: LibraryAccount,
-    chosen: Set<ItemId>,
-): SyncOutcome = run(session, account, StoredChoice(repository, clock) { chosen })
+/** The first sync's engine as the tests run it: over the selection's library set, or over a set of chosen ids. */
+internal class TestFirstSync(
+    private val engine: FirstSyncEngine,
+    private val repository: RoomLibraryRepository,
+    private val clock: Clock,
+) {
+    /** Runs the first sync over the library set [libraries] gives. */
+    suspend fun run(
+        session: Session,
+        account: LibraryAccount,
+        libraries: FirstSyncLibraries,
+    ): SyncOutcome = engine.run(session, account, libraries)
+
+    /** Runs the first sync over [chosen] for [account], as the selection would give it (see [StoredChoice]). */
+    suspend fun run(
+        session: Session,
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+    ): SyncOutcome = engine.run(session, account, StoredChoice(repository, clock) { chosen })
+}
 
 /**
  * The first-sync runner as the app builds it, with the selection already resumed and its library set the one the

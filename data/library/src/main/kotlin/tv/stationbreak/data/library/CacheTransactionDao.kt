@@ -85,7 +85,7 @@ internal abstract class CacheTransactionDao(
      * unstamped one). Otherwise nothing is written and it returns [PageResult.StampMismatch]: so a write can never land
      * in a library that was dropped, held or re-stamped since its walk began, nor reach a foreign-key throw for a row
      * that is gone. A [rewalk] write also refuses, with [PageResult.FirstSyncRunning], while the account runs a first
-     * sync. Neither refusal moves the generation.
+     * sync, and with [PageResult.StampMismatch] when the row has no rewalk mark. No refusal moves the generation.
      *
      * Who owns an item two libraries list ([routePage], spec 26, schema 11): the first writer. A chosen writer takes an
      * item from an owner being added, and any writer takes a tombstone; each is a versioned move. Otherwise the owner
@@ -172,7 +172,10 @@ internal abstract class CacheTransactionDao(
         }
         val row = library.libraryRow(server, user, libraryId)
         // A stamped write needs that stamp, an unstamped one none; neither goes to a held row, or to one that is gone.
-        val accepted = row != null && row.heldUntilMs == null && row.addStamp == stamp
+        // A rewalk's write also needs the rewalk mark: a rewalk that outlived a whole first sync (whose walk end
+        // cleared the mark) must not move that walk's checkpoint back.
+        val takes = row != null && row.heldUntilMs == null && row.addStamp == stamp
+        val accepted = takes && (!rewalk || row.rewalkPending)
         return if (accepted) null else PageResult.StampMismatch
     }
 

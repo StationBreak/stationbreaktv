@@ -15,7 +15,9 @@ import tv.stationbreak.core.domain.selection.LandResult
 import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.UserId
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -44,8 +46,9 @@ data class AddPassConfig(
  * library unticked, held or ticked again meanwhile takes nothing from it.
  *
  * - It waits for the selection's resume at start ([ready]) before it reads the adds, then reads them again after each
- *   one, so an add ticked while it runs is read in this run. What it calls on the selection never asks for the add
- *   pass again (that would replace this very worker).
+ *   one, so an add ticked while it runs is read in this run. The adds are the selection's own
+ *   ([AddLandings.pendingAdds]): it never reads the stored selection itself, so another account's choice gives none.
+ *   What it calls on the selection never asks for the add pass again (that would replace this very worker).
  * - A walk the cache refused while the settings still name the stamp (or with no row at all) asks the selection to
  *   put the cache in line ([AddLandings.reconcile]), once per stamp and run, and then reads that add again.
  * - [LandResult.Retry] is tried again after a wait that doubles each time, at most [AddPassConfig.landRetries] times
@@ -70,8 +73,12 @@ class AddedLibrariesRunner(
     private val config: AddPassConfig = AddPassConfig(),
     private val report: (String) -> Unit = {},
 ) {
-    // The landing retries of each stamp, for the life of the process; past the cap a stamp is given up.
+    // The landing retries of each stamp, for the life of the process.
     private val retries = ConcurrentHashMap<AddKey, Int>()
+
+    // The stamps given up for the life of the process (past the cap, or a landing that cannot succeed): the next
+    // start's resume asks for the pass again.
+    private val givenUp: MutableSet<AddKey> = ConcurrentHashMap.newKeySet()
 
     /** Test seam: the wait between landing retries. A plain delay in the app. */
     internal var sleep: suspend (Duration) -> Unit = { delay(it) }
@@ -84,7 +91,10 @@ class AddedLibrariesRunner(
         // The selection's resume at start comes first (spec 26): it may still be putting the library cache in line.
         ready.await()
         val record = settings.load() ?: return SyncOutcome.Cancelled
-        if (settings.loadSelection()?.adding.isNullOrEmpty()) return SyncOutcome.Completed
+        // The adds are the selection's own, for the active account and only of its own choice: none, nothing to do.
+        val signedIn = repository.dao.activeAccounts().singleOrNull() ?: return SyncOutcome.Cancelled
+        val active = LibraryAccount(ServerId(signedIn.serverId), UserId(signedIn.userId))
+        if (landings.pendingAdds(active).isEmpty()) return SyncOutcome.Completed
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
                 val session = restored.session
@@ -142,11 +152,11 @@ class AddedLibrariesRunner(
 
         suspend fun run(): SyncOutcome {
             while (true) {
-                val stored = settings.loadSelection() ?: return done()
-                // Another account's choice (a clear that failed) is not this account's to add to.
-                if (stored.owner != null && stored.owner != account) return SyncOutcome.Cancelled
+                // The selection's own list: another account's choice (a clear that failed) gives none.
                 val next =
-                    stored.adding.entries
+                    landings
+                        .pendingAdds(account)
+                        .entries
                         .sortedBy { it.key.value }
                         .map { AddKey(account, it.key, it.value) }
                         .firstOrNull { it !in handled } ?: return done()
@@ -166,7 +176,7 @@ class AddedLibrariesRunner(
 
         private suspend fun add(key: AddKey): Step {
             // A stamp given up earlier in this process waits for the next start.
-            if ((retries[key] ?: 0) > config.landRetries) return Step.Next
+            if (key in givenUp) return Step.Next
             val library =
                 when (val known = library(key.id)) {
                     is Listed.Failed -> return Step.Stop(SyncOutcome.Failed(known.failure))
@@ -235,6 +245,7 @@ class AddedLibrariesRunner(
                 LandResult.Retry -> {
                     val tries = retries.merge(key, 1, Int::plus) ?: 1
                     if (tries > config.landRetries) {
+                        givenUp += key
                         Landing.Done(given("AddLandingStuck"))
                     } else {
                         sleep(config.firstRetryWait * (1 shl (tries - 1)))
@@ -243,7 +254,7 @@ class AddedLibrariesRunner(
                 }
 
                 LandResult.Failed -> {
-                    retries[key] = config.landRetries + 1
+                    givenUp += key
                     Landing.Done(given("AddLandingFailed"))
                 }
             }
@@ -253,19 +264,7 @@ class AddedLibrariesRunner(
             key: AddKey,
             library: Library,
         ): Step? {
-            val pass =
-                LibraryPass(
-                    repository,
-                    server,
-                    session,
-                    account,
-                    key.stamp,
-                    false,
-                    MediaServer.MAX_PAGE_SIZE,
-                    FirstSyncEngine.DEFAULT_MARGIN,
-                    SkipBudget(FirstSyncEngine.MAX_SKIPPED_ITEMS),
-                    report,
-                )
+            val pass = LibraryPass.add(repository, server, session, account, key.stamp, report)
             return when (val end = pass.walk(library, null, clock.now())) {
                 // The proof, with the walk's coverage, in the walk's own last guarded write.
                 is PassEnd.Walked -> {
@@ -289,7 +288,7 @@ class AddedLibrariesRunner(
             key: AddKey,
             row: StoredLibrary?,
         ): Step {
-            val named = settings.loadSelection()?.adding?.get(key.id) == key.stamp
+            val named = landings.pendingAdds(account)[key.id] == key.stamp
             if ((named || row == null) && reconciled.add(key)) {
                 report("AddReconcile")
                 landings.reconcile()

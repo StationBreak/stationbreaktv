@@ -84,7 +84,7 @@ internal class CollectionPass(
     private val server: MediaServer,
     private val clock: Clock,
     private val pageSize: Int = MediaServer.MAX_PAGE_SIZE,
-    private val margin: Duration = FirstSyncEngine.DEFAULT_MARGIN,
+    private val margin: Duration = LibraryPass.DEFAULT_MARGIN,
     private val relistInterval: Duration = CollectionRelist.DEFAULT_INTERVAL,
 ) {
     init {

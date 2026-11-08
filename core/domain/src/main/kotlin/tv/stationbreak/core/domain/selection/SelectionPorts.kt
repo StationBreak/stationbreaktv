@@ -18,25 +18,32 @@ enum class LandResult {
     Unproven,
 
     /**
-     * Not landed now, nothing written, for a passing fault: the save did not commit (`Unsaved`, `UndoFailed`, a plain
-     * save that did not commit, a record that could not be read), or the lineup or the record moved twice running
-     * (`Stale`). The add pass tries again, a few times per stamp, waiting longer each time (Task 4.4b).
+     * Not landed now, nothing written, for a fault that may pass: the save did not commit (`Unsaved`, `UndoFailed`, a
+     * plain save that did not commit, a record that could not be read), the record refused the write (`Refused`: a
+     * save that failed, or a record that does not fit, which the record does not tell apart), or the lineup or the
+     * record moved twice running (`Stale`). The add pass tries again, a few times per stamp, waiting longer each time
+     * (Task 4.4b).
      */
     Retry,
 
     /**
-     * Not landed, nothing written, and trying again in this process would not change that: the record refused the
-     * write (`Refused`), the saved selection could not be read (`SelectionUnknown`), or the seq had already been saved
-     * (`AlreadySaved`). The add pass stops trying this stamp; the next start's resume asks again.
+     * Not landed, nothing written, and trying again in this process would not change that: the saved selection could
+     * not be read (`SelectionUnknown`), or the seq had already been saved (`AlreadySaved`). The add pass stops trying
+     * this stamp; the next start's resume asks again.
      */
     Failed,
 }
 
 /**
- * The add pass's side of the selection (spec 26, Part 4 §2): it lands an add once its read has ended, and asks for
- * the library cache to be put in line with the stored selection after a write the cache refused.
+ * The add pass's side of the selection (spec 26, Part 4 §2): it reads the adds, lands an add once its read has ended,
+ * and asks for the library cache to be put in line with the stored selection after a write the cache refused. Only
+ * the add pass calls these, from inside its own worker, so none of them ever asks for the add pass again (that would
+ * replace the very worker that called); the worker reads the adds again itself.
  */
 interface AddLandings {
+    /** The libraries [account] is adding, each with its stamp; empty when the stored choice is not its own. */
+    suspend fun pendingAdds(account: LibraryAccount): Map<ItemId, Long>
+
     /** Lands the add of [id] under [stamp] for [account]: saved as chosen, then landed in the cache. */
     suspend fun passLanded(
         account: LibraryAccount,

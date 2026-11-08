@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.Session
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 /** How one walk of a library ended (see [LibraryPass]). Nothing here carries a cause, an address or a token. */
@@ -50,7 +51,7 @@ internal class SkipBudget(
  * failure means is the caller's.
  */
 @Suppress("LongParameterList", "ReturnCount") // The walk's own knobs; each early return is where it stopped.
-internal class LibraryPass(
+internal class LibraryPass private constructor(
     private val repository: RoomLibraryRepository,
     private val server: MediaServer,
     private val session: Session,
@@ -67,9 +68,11 @@ internal class LibraryPass(
     }
 
     /**
-     * Walks [library] from its checkpoint. [total] is the library's count when the caller knows it (it goes into each
-     * checkpoint until the server's first page says otherwise). [started] is when this run began: the walk's start
-     * for a library with no checkpoint.
+     * Walks [library] from its checkpoint. [total] is the library's count when the caller knows it (the first sync
+     * counts each library first): each checkpoint saves the server's own count on the first page and [total] on the
+     * others, as the first sync always has. With no [total] (the add walk, the rewalk), the count this walk has seen
+     * goes on instead (the checkpoint's, then the first page's), so no later checkpoint saves none. [started] is when
+     * this run began: the walk's start for a library with no checkpoint.
      */
     suspend fun walk(
         library: Library,
@@ -79,11 +82,11 @@ internal class LibraryPass(
         val checkpoint = repository.checkpoint(account, library.id)
         // The walk's start is the first run's, however many times it was started again (a resume keeps it).
         val run = checkpoint?.run ?: started.toEpochMilliseconds()
-        var known = total ?: checkpoint?.totalCount
+        var seen = checkpoint?.totalCount
         val limit = PageLimit(pageSize)
         read(library, checkpoint?.nextStartIndex ?: 0, null, limit) { items, next, firstTotal ->
-            known = firstTotal ?: known
-            repository.writePage(account, library.id, stamp, rewalk, items, next, known, run)
+            if (firstTotal != null) seen = firstTotal
+            repository.writePage(account, library.id, stamp, rewalk, items, next, firstTotal ?: total ?: seen, run)
         }?.let { return it }
         val since = Instant.fromEpochMilliseconds(run) - margin
         read(library, 0, since, limit) { items, _, _ ->
@@ -185,5 +188,64 @@ internal class LibraryPass(
     private fun refusal(result: PageResult): PassEnd? {
         if (result is PageResult.Written) return null
         return PassEnd.Refused(result)
+    }
+
+    companion object {
+        /** The safety margin of the changed-since pass, for clock skew and items saved while the walk ran. */
+        val DEFAULT_MARGIN: Duration = 10.minutes
+
+        /** Items that may be skipped for failing to decode before a walk gives up on the server. */
+        const val MAX_SKIPPED_ITEMS = 20
+
+        /** The first sync's walk: no stamp, with the run's page size, margin and shared skip budget. */
+        @Suppress("LongParameterList") // The first sync's own knobs, one for one.
+        fun firstSync(
+            repository: RoomLibraryRepository,
+            server: MediaServer,
+            session: Session,
+            account: LibraryAccount,
+            pageSize: Int,
+            margin: Duration,
+            skips: SkipBudget,
+            report: (String) -> Unit,
+        ): LibraryPass {
+            val stamp: Long? = null
+            return LibraryPass(repository, server, session, account, stamp, false, pageSize, margin, skips, report)
+        }
+
+        /** The add walk of a library being added under [stamp]. */
+        fun add(
+            repository: RoomLibraryRepository,
+            server: MediaServer,
+            session: Session,
+            account: LibraryAccount,
+            stamp: Long,
+            report: (String) -> Unit,
+        ): LibraryPass = background(repository, server, session, account, stamp, rewalk = false, report)
+
+        /** The rewalk of a chosen library marked for one: no stamp, and every write checks no first sync runs. */
+        fun rewalk(
+            repository: RoomLibraryRepository,
+            server: MediaServer,
+            session: Session,
+            account: LibraryAccount,
+            report: (String) -> Unit,
+        ): LibraryPass = background(repository, server, session, account, null, rewalk = true, report)
+
+        // A walk of the background passes: the largest page, the standard margin, a skip budget of its own.
+        @Suppress("LongParameterList") // The walk's guard and what it reads with.
+        private fun background(
+            repository: RoomLibraryRepository,
+            server: MediaServer,
+            session: Session,
+            account: LibraryAccount,
+            stamp: Long?,
+            rewalk: Boolean,
+            report: (String) -> Unit,
+        ): LibraryPass {
+            val skips = SkipBudget(MAX_SKIPPED_ITEMS)
+            val size = MediaServer.MAX_PAGE_SIZE
+            return LibraryPass(repository, server, session, account, stamp, rewalk, size, DEFAULT_MARGIN, skips, report)
+        }
     }
 }

@@ -46,11 +46,12 @@ class SameAccountSetupTest {
 
             override fun status(): Flow<LibraryStatus?> = flowOf(null)
 
-            override fun ensureRunning() {
+            override fun ensureRunning() = Unit
+
+            // A setup asks with a replacing request (Task 4.4b, R1).
+            override fun retry() {
                 asked++
             }
-
-            override fun retry() = Unit
         }
 
     private val selection: LibrarySelection =

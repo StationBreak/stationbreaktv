@@ -159,7 +159,7 @@ class CoveredFromTest {
             val result = engine().incremental(session, ALICE, setOf(MOVIES, SHOWS))
 
             assertEquals(SyncOutcome.Completed, result.outcome)
-            val margin = FirstSyncEngine.DEFAULT_MARGIN
+            val margin = LibraryPass.DEFAULT_MARGIN
             assertEquals("the account's window", setOf(last - margin), sinceOf(MOVIES))
             assertEquals("its own, earlier coverage, items and series alike", setOf(covered - margin), sinceOf(SHOWS))
             assertTrue("the series were read too", server.calls.any { it.library.id == SHOWS && it.series })
@@ -176,7 +176,7 @@ class CoveredFromTest {
 
             StayCurrentWorld.engine(repository, server, clock).incremental(session, ALICE, setOf(MOVIES, SHOWS))
 
-            assertEquals(setOf(last - FirstSyncEngine.DEFAULT_MARGIN), sinceOf(SHOWS))
+            assertEquals(setOf(last - LibraryPass.DEFAULT_MARGIN), sinceOf(SHOWS))
         }
 
     @Test

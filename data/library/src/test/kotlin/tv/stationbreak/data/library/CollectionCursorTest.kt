@@ -22,7 +22,7 @@ class CollectionCursorTest {
     private val rig = CollectionRig()
     private val repository get() = rig.repository
     private val start = rig.clock.nowMs
-    private val margin = FirstSyncEngine.DEFAULT_MARGIN
+    private val margin = LibraryPass.DEFAULT_MARGIN
 
     @After
     fun close() = repository.close()
