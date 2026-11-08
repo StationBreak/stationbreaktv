@@ -120,6 +120,15 @@ internal open class RepairTestBase {
          */
         var applied: Long = restart?.applied ?: repairs.latestSeq()
 
+        /** The reset seq saved with this TV's selection (the last setup's seq); 0 for none. */
+        var resetSeq: Long = restart?.resetSeq ?: 0L
+
+        /**
+         * What `ServerSettings.loadSelectionSeq` gives the repairer: the stored seq, which outlives the selection. It
+         * follows [applied] until a test sets it.
+         */
+        var storedSeq: () -> Long? = restart?.storedSeq ?: { applied }
+
         /** How many times the source's saved-selection provider was read. */
         val providerReads = AtomicInteger()
 
@@ -154,9 +163,9 @@ internal open class RepairTestBase {
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
             ) {
                 providerReads.incrementAndGet()
-                if (unknown) null else selectionOf(chosen, applied, playable)
+                if (unknown) null else selectionOf(chosen, applied, playable, resetSeq)
             }
-        val repairer = TodayRepairer(service, source, library, successors)
+        val repairer = TodayRepairer(service, source, library, successors) { storedSeq() }
 
         init {
             runBlocking {
@@ -188,7 +197,7 @@ internal open class RepairTestBase {
 
         /** [channel]'s repair as this TV shows it (at its saved seq), however many the record holds. */
         fun repairOf(channel: ChannelId): ChannelRepair {
-            val shown = record().applied(applied).selection
+            val shown = record().applied(applied, resetSeq).selection
             return shown.single { it.channel == channel }
         }
 
@@ -215,6 +224,7 @@ internal open class RepairTestBase {
          * A change through the repairer's whole protocol, as Part 4 runs it: [whileRecorded] runs inside the save
          * callback (the change recorded, the old libraries and seq still the saved ones), then the save writes the new
          * libraries and seq in one go when [save], or fails ([fail] thrown, else false) and the repairer undoes it.
+         * [atLeast] is the seq floor (Part 4: one above the highest add stamp in the library).
          */
         fun changeOutcome(
             before: Set<ItemId>,
@@ -222,11 +232,12 @@ internal open class RepairTestBase {
             at: Long = atMs,
             save: Boolean = true,
             fail: Throwable? = null,
+            atLeast: Long = 0L,
             whileRecorded: suspend (seq: Long) -> Unit = {},
         ): RepairOutcome<SelectionRepaired> {
             assertEquals(chosen, before, "the change is from the selection the source reads")
             return runBlocking {
-                repairer.selectionChanged(ACCOUNT, after, at) { seq ->
+                repairer.selectionChanged(ACCOUNT, after, at, atLeast) { seq ->
                     whileRecorded(seq)
                     if (fail != null) throw fail
                     if (save) {

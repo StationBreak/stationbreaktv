@@ -257,7 +257,8 @@ internal object LineupModule {
             shared = shared,
             // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows. The chosen
             // libraries stand for the playable ones until Part 4 tells those apart (and gives null when it is gone).
-        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L, playable = it) } }
+            // No reset seq until Part 4 reads it with the selection.
+        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L, playable = it, resetSeq = 0L) } }
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
@@ -287,7 +288,8 @@ internal object LineupModule {
 
     /**
      * The repair engine (spec 26): one per process, as its calls take turns on one lock. Its successors are the
-     * library's own conservative matches of an item that came back under a new id.
+     * library's own conservative matches of an item that came back under a new id; its stored seq is the one the
+     * settings keep after a sign-out, for a setup.
      */
     @Provides
     @Singleton
@@ -295,7 +297,11 @@ internal object LineupModule {
         service: LineupService,
         source: BuiltInScheduleSource,
         library: LibraryRepository,
-    ): TodayRepairer = TodayRepairer(service, source, library, Successors { a, l, g -> library.successors(a, l, g) })
+        settings: ServerSettings,
+    ): TodayRepairer =
+        TodayRepairer(service, source, library, Successors { a, l, g -> library.successors(a, l, g) }) {
+            settings.loadSelectionSeq()
+        }
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides

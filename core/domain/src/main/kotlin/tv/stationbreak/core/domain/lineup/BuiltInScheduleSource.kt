@@ -253,7 +253,7 @@ class BuiltInScheduleSource(
     ): Lookup {
         val cuts = scheduled.map { it.cut }.distinct().sorted()
         val inputs = inputsOf(held.lineup, held.meta.extrasFromMs)
-        val repairs = appliedOf(held.repairs, selection.seq)
+        val repairs = appliedOf(held.repairs, selection.seq, selection.resetSeq)
         val records = repairs.digestsFor(scheduled)
         val key = Key(account, selection.libraries, inputs.digest, held.meta.plannedGeneration, cuts, records)
         return Lookup(held, scheduled, key, inputs.ms, repairs, selection)
@@ -283,23 +283,47 @@ class BuiltInScheduleSource(
         return plain to filtered
     }
 
+    /**
+     * Drops the shared snapshots of [account] that name [library] ([SnapshotCache.evictNaming]): Part 4 calls it
+     * before an add of [library] lands, whose walk wrote its pages with no generation bump.
+     */
+    internal fun evictSnapshotsNaming(
+        account: LibraryAccount,
+        library: ItemId,
+    ) = snapshots.evictNaming(account, library)
+
     /** The TV's saved selection and its seq now ([saved]); null when there is none. */
     internal suspend fun savedSelection(): SavedSelection? = saved()
 
-    // The last record held back to an applied seq, and what it gave: a record's digests are worked out once.
-    @Volatile private var lastApplied: Triple<TodayRepairs, Long, TodayRepairs>? = null
+    // A record held back to an applied seq and reset seq, and what it gave.
+    private class Applied(
+        val repairs: TodayRepairs,
+        val seq: Long,
+        val resetSeq: Long,
+        val shown: TodayRepairs,
+    ) {
+        fun isOf(
+            repairs: TodayRepairs,
+            seq: Long,
+            resetSeq: Long,
+        ): Boolean = this.repairs === repairs && this.seq == seq && this.resetSeq == resetSeq
+    }
 
-    /** [repairs] as a lookup follows them at the saved [seq] ([TodayRepairs.applied]). */
+    // The last record held back, and what it gave: a record's digests are worked out once.
+    @Volatile private var lastApplied: Applied? = null
+
+    /** [repairs] as a lookup follows them at the saved [seq] and [resetSeq] ([TodayRepairs.applied]). */
     private fun appliedOf(
         repairs: TodayRepairs,
         seq: Long,
+        resetSeq: Long,
     ): TodayRepairs {
         if (repairs.isEmpty) return repairs
         val last = lastApplied
-        return if (last != null && last.first === repairs && last.second == seq) {
-            last.third
+        return if (last != null && last.isOf(repairs, seq, resetSeq)) {
+            last.shown
         } else {
-            repairs.applied(seq).also { lastApplied = Triple(repairs, seq, it) }
+            repairs.applied(seq, resetSeq).also { lastApplied = Applied(repairs, seq, resetSeq, it) }
         }
     }
 
@@ -728,7 +752,7 @@ class BuiltInScheduleSource(
         val read = saved()
         val chosen =
             read?.takeIf { it.libraries.isNotEmpty() }
-                ?: return SavedSelection(emptySet(), read?.seq ?: 0L, emptySet()) to emptyList()
+                ?: return SavedSelection(emptySet(), read?.seq ?: 0L, emptySet(), read?.resetSeq ?: 0L) to emptyList()
         return chosen to channelDays(account, chosen, at)
     }
 

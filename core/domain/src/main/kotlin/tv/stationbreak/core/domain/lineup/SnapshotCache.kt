@@ -78,6 +78,9 @@ internal class SnapshotCache(
         var waiters = 0
         var superseded = false
         var stopped = false
+
+        // Evicted while under way ([evictNaming]): its waiters get the snapshot, and it is never kept.
+        var evicted = false
     }
 
     private val lock = Any()
@@ -93,6 +96,29 @@ internal class SnapshotCache(
 
     /** True when every one of [keys] is kept and not dropped by the garbage collector. Reads nothing. */
     fun holdsAll(keys: List<Key>): Boolean = synchronized(lock) { keys.all { kept[it]?.get() != null } }
+
+    /**
+     * Drops every snapshot of [account] whose libraries include [library], kept or being read (spec 26, Part 4 §2): an
+     * add's walk writes its pages with no generation bump, so before it lands what was read of that library may be
+     * out of date under the same key. A read under way goes on for the callers that wait on it, takes no new one, and
+     * is not kept. Reads nothing.
+     */
+    fun evictNaming(
+        account: LibraryAccount,
+        library: ItemId,
+    ) {
+        val mine = canonicalAccount(account)
+        val names = { key: Key -> library in key.libraries && canonicalAccount(key.account) == mine }
+        synchronized(lock) {
+            kept.keys.removeAll(names)
+            for ((key, flight) in inFlight) {
+                if (names(key)) {
+                    flight.superseded = true
+                    flight.evicted = true
+                }
+            }
+        }
+    }
 
     /** What [claim] found: a kept snapshot, or the read to wait for. */
     private class Claim(
@@ -143,7 +169,7 @@ internal class SnapshotCache(
                             f.superseded = true
                         }
                     }
-                    created.deferred = scope.async(start = CoroutineStart.LAZY) { fetch(key, read) }
+                    created.deferred = scope.async(start = CoroutineStart.LAZY) { fetch(key, created, read) }
                     inFlight[key] = created
                 }
             flight.waiters++
@@ -167,12 +193,13 @@ internal class SnapshotCache(
 
     private suspend fun fetch(
         key: Key,
+        flight: Flight,
         read: suspend () -> RuleSnapshot,
     ): RuleSnapshot {
         val snapshot = read()
         synchronized(lock) {
-            // A read of an older state finishing late must not push out a newer one.
-            if (kept.keys.none { it.sameSnapshotAs(key) && it.newerThan(key) }) {
+            // A read of an older state finishing late must not push out a newer one; an evicted read is not kept.
+            if (!flight.evicted && kept.keys.none { it.sameSnapshotAs(key) && it.newerThan(key) }) {
                 kept.keys.removeAll { it != key && it.sameSnapshotAs(key) }
                 kept[key] = SoftReference(snapshot)
                 while (kept.size > capacity) kept.remove(kept.keys.first())

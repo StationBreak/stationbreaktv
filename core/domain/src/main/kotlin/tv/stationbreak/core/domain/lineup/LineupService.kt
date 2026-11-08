@@ -138,9 +138,10 @@ class LineupService internal constructor(
      * [unknownSeries] is told, at each planning read, how many live episodes name a series the saved library does not
      * hold (a count, nothing else): a gap there is a show whose episodes cannot be named or homed (issue 604).
      * [derived] is told when a lineup is forgotten ([forget]): what was built from it (the days on disk, #480) goes
-     * too.
+     * too. [trimmed] is told what a lineup save trimmed from the repair record to fit (three counts: fixes, fixes
+     * covering now, selection repairs; nothing else).
      */
-    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and four numbers-only hooks.
+    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and five numbers-only hooks.
     constructor(
         store: LineupStore,
         library: LibraryRepository,
@@ -150,14 +151,18 @@ class LineupService internal constructor(
         timed: (Long) -> Unit,
         derived: DayStore? = null,
         unknownSeries: (Int) -> Unit = {},
+        trimmed: (fixes: Int, coveringFixes: Int, selection: Int) -> Unit = { _, _, _ -> },
     ) : this(
         store,
         library,
         clock,
         standardOffsetMinutes,
         report,
-        LineupSeams(timed = timed, derived = derived, unknownSeries = unknownSeries),
+        LineupSeams(timed = timed, derived = derived, unknownSeries = unknownSeries, trimmed = trimmed),
     )
+
+    /** For tests: the hook told what a save trimmed from the record ([LineupSeams.trimmed]). */
+    internal val trimmedHook: (Int, Int, Int) -> Unit get() = seams.trimmed
 
     internal val catalog: StarterCatalogView get() = seams.catalog
     private val days = LineupDays(seams.catalog)
@@ -937,6 +942,114 @@ class LineupService internal constructor(
     }
 
     /**
+     * Empties [account]'s repair record for a setup (spec 26, Part 4 §2), from what the file holds now: it reads the
+     * file itself (never the lineup held in memory, which may be one planned while the file could not be read) and
+     * acts on it under the account's lock, in the same hold of it.
+     *
+     * - A readable lineup of this account: saved with an empty record (every selection repair, every fix; the
+     *   lost-block check goes from memory too) and published. [RecordReset.Floor] at the old record's latest seq.
+     * - No file: nothing is done. `Floor(0)`.
+     * - An unreadable file, or another account's: set aside. `Floor(0)`, or [RecordReset.Failed] when it will not
+     *   move.
+     * - A newer app's file: left untouched (a newer build's channels must survive a downgrade). `Floor(0)`.
+     * - A read that fails, or a save that fails or is rejected: nothing changes. [RecordReset.Failed].
+     *
+     * An account whose IDs are not IDs has no file: `Floor(0)`.
+     */
+    internal suspend fun resetRecord(account: LibraryAccount): RecordReset = onDisk(account, empty = true)
+
+    /**
+     * The floor a resume raises the selection seq to (spec 26, Part 4 §2): read like [resetRecord], and under the same
+     * lock it writes nothing but the set-aside of an unreadable file or another account's. A readable lineup of this
+     * account gives `Floor(latestSeq, record = true)`; no file, a set-aside one and a newer app's give
+     * `Floor(0, record = false)`; a read or a set-aside that fails gives [RecordReset.Failed].
+     */
+    internal suspend fun floorRecord(account: LibraryAccount): RecordReset = onDisk(account, empty = false)
+
+    // [resetRecord] when [empty], else [floorRecord].
+    private suspend fun onDisk(
+        account: LibraryAccount,
+        empty: Boolean,
+    ): RecordReset {
+        val owner = ownerOf(account) ?: return RecordReset.Floor(0L, record = false)
+        val entry = entryOf(owner)
+        return entry.mutex.withLock {
+            when (val stored = store.load(owner.key)) {
+                StoredBytes.Absent -> {
+                    RecordReset.Floor(0L, record = false)
+                }
+
+                StoredBytes.Failed -> {
+                    report(LineupEvent.ReadFailedLeftAlone)
+                    leftAlone(entry)
+                    RecordReset.Failed
+                }
+
+                is StoredBytes.Present -> {
+                    onDisk(owner, entry, LineupCodec.decode(stored.bytes), empty)
+                }
+            }
+        }
+    }
+
+    // The branches of a file that is there. Under the entry's lock.
+    private suspend fun onDisk(
+        owner: Owner,
+        entry: Entry,
+        decoded: LineupCodec.Decoded,
+        empty: Boolean,
+    ): RecordReset =
+        when {
+            decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup) -> {
+                if (empty) emptied(owner, entry, decoded) else RecordReset.Floor(decoded.repairs.latestSeq(), true)
+            }
+
+            decoded is LineupCodec.Decoded.NewerVersion -> {
+                report(LineupEvent.NewerVersionLeftAlone)
+                leftAlone(entry)
+                RecordReset.Floor(0L, record = false)
+            }
+
+            // Unreadable, or another account's lineup: out of the way, as a refresh would.
+            store.setAside(owner.key) -> {
+                report(LineupEvent.SetAsideUnreadable)
+                RecordReset.Floor(0L, record = false)
+            }
+
+            else -> {
+                report(LineupEvent.UnreadableLeftAlone)
+                leftAlone(entry)
+                RecordReset.Failed
+            }
+        }
+
+    // A file this session must not write over: the held lineup is no longer one to save from.
+    private fun leftAlone(entry: Entry) {
+        entry.writable = false
+        noteWritable(entry)
+    }
+
+    // [decoded]'s lineup saved with an empty record and published. Under the entry's lock; the save finishes even if
+    // the caller is cancelled, so the file and the published record never part.
+    private suspend fun emptied(
+        owner: Owner,
+        entry: Entry,
+        decoded: LineupCodec.Decoded.Loaded,
+    ): RecordReset =
+        withContext(NonCancellable) {
+            droppedUnreadableRecord(owner, entry, decoded)
+            if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
+            entry.writable = true
+            if (saveVerified(owner, decoded.lineup, decoded.meta, TodayRepairs.NONE)) {
+                publish(entry, decoded.lineup, decoded.meta, TodayRepairs.NONE)
+                entry.loaded = true
+                RecordReset.Floor(decoded.repairs.latestSeq(), record = true)
+            } else {
+                RecordReset.Failed
+            }
+        }
+
+    /**
      * Called by a reader (the schedule source) with the lineup it holds: when something in it is past ([rolled]), a
      * roll is attempted in the background. It never waits and never blocks the caller: the days are right without it
      * (`rulesFor`, `householdFor` and `leavesAtMs` give the days of the right rules), so this only tidies the stored
@@ -1225,6 +1338,25 @@ internal sealed interface Saved<out T> {
 
     /** A reset could not read the library; nothing changed. */
     data object Unavailable : Saved<Nothing>
+}
+
+/**
+ * What [LineupService.resetRecord] or [LineupService.floorRecord] found on disk (spec 26, Part 4 §2): a [Floor] for the
+ * next selection seq, or [Failed] when the file could not be read, set aside or written.
+ */
+internal sealed interface RecordReset {
+    /**
+     * [seq] is the highest selection seq the record held (`TodayRepairs.latestSeq`), 0 when there was none to read.
+     * [record] is true when the file held a readable lineup of this account (so a record this build reads), false when
+     * there was no file, it was another account's or unreadable (and was set aside), or a newer app's (left alone).
+     */
+    data class Floor(
+        val seq: Long,
+        val record: Boolean,
+    ) : RecordReset
+
+    /** The file could not be read, could not be set aside, or the emptied record could not be saved. */
+    data object Failed : RecordReset
 }
 
 /** An edit's outcome, its meta, and whether it was [planned] again (only a plan sets the meta afresh). */

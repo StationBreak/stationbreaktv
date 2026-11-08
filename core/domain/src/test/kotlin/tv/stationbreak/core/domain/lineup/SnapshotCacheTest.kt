@@ -12,7 +12,10 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.AfterEach
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -163,6 +166,67 @@ class SnapshotCacheTest {
 
             assertEquals(SnapshotCache.Found.Miss, cache.get(key(6)) { snapshot() }.found)
             assertEquals(2, cache.reads)
+        }
+
+    // --- Eviction of the snapshots that name a library (spec 26, Part 4 §2: before an add lands) -------------------
+
+    private val other = ItemId("d0".repeat(16))
+
+    private fun keyOf(
+        libraries: Set<ItemId>,
+        account: LibraryAccount = ACCOUNT,
+    ) = SnapshotCache.Key(account, libraries, 0L, 1L, extras = false)
+
+    @Test
+    fun evictNaming_dropsTheKeptSnapshotsThatNameTheLibrary_andNoOthers() =
+        runBlocking {
+            val withOther = keyOf(LIBRARIES + other)
+            val plain = keyOf(LIBRARIES)
+            val otherAccount = keyOf(LIBRARIES + other, LibraryAccount(ACCOUNT.server, UserId(id(5).value)))
+            for (key in listOf(withOther, plain, otherAccount)) cache.get(key) { snapshot() }
+
+            cache.evictNaming(ACCOUNT, other)
+
+            assertEquals(SnapshotCache.Found.Miss, cache.get(withOther) { snapshot() }.found, "read again")
+            assertEquals(SnapshotCache.Found.Hit, cache.get(plain) { error("kept") }.found)
+            assertEquals(SnapshotCache.Found.Hit, cache.get(otherAccount) { error("another account's") }.found)
+        }
+
+    @Test
+    fun evictNaming_aReadUnderWayIsServedToItsWaiters_butNotKept_norJoined() =
+        runBlocking {
+            val key = keyOf(LIBRARIES + other)
+            val read = Read(snapshot())
+            val waiter = async(start = CoroutineStart.UNDISPATCHED) { cache.get(key) { read.run() } }
+            withTimeout(WAIT_MS) { read.entered.await() }
+
+            cache.evictNaming(ACCOUNT, other)
+            val after = Read(snapshot())
+            val late = async(start = CoroutineStart.UNDISPATCHED) { cache.get(key) { after.run() } }
+            withTimeout(WAIT_MS) { after.entered.await() }
+            assertEquals(2, cache.reads, "a caller after the eviction does not join the read before it")
+            read.release.complete(Unit)
+
+            assertSame(read.result, withTimeout(WAIT_MS) { waiter.await() }.snapshot)
+            after.release.complete(Unit)
+            assertSame(after.result, withTimeout(WAIT_MS) { late.await() }.snapshot)
+            val kept = cache.get(key) { error("the read after the eviction is kept") }
+            assertSame(after.result, kept.snapshot)
+        }
+
+    @Test
+    fun evictNaming_aReadUnderWayThatFinishesAlone_isNotKept() =
+        runBlocking {
+            val key = keyOf(LIBRARIES + other)
+            val read = Read(snapshot())
+            val waiter = async(start = CoroutineStart.UNDISPATCHED) { cache.get(key) { read.run() } }
+            withTimeout(WAIT_MS) { read.entered.await() }
+
+            cache.evictNaming(ACCOUNT, other)
+            read.release.complete(Unit)
+            withTimeout(WAIT_MS) { waiter.await() }
+
+            assertEquals(SnapshotCache.Found.Miss, cache.get(key) { snapshot() }.found, "read before the eviction")
         }
 
     private companion object {

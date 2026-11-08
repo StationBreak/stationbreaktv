@@ -170,12 +170,12 @@ class TodayRepairsTest {
     @Test
     fun applied_leavesOutTheSelectionRepairsOfALaterSeq_withTheirFixes() {
         val record = two()
-        assertSame(record, record.applied(7L))
-        val held = record.applied(6L)
+        assertSame(record, record.applied(7L, resetSeq = 0L))
+        val held = record.applied(6L, resetSeq = 0L)
         assertEquals(listOf(4L), held.selection.map { it.seq })
         assertEquals(listOf(record.fixes[0]), held.fixes, "the held-back repair's fix is held back with it")
-        assertEquals(emptyList(), record.applied(0L).selection)
-        assertEquals(emptyList(), record.applied(0L).fixes)
+        assertEquals(emptyList(), record.applied(0L, resetSeq = 0L).selection)
+        assertEquals(emptyList(), record.applied(0L, resetSeq = 0L).fixes)
     }
 
     @Test
@@ -188,13 +188,13 @@ class TodayRepairsTest {
         val stray = fixOf(n = 1L, dayEndMs = day1End, blockStartMs = NOW_MS + 6 * HALF_HOUR_MS, seq = 0L)
         val record = TodayRepairs(listOf(first, second), listOf(built, ofFirst, ofSecond, stray))
 
-        val atFirst = record.applied(5L)
+        val atFirst = record.applied(5L, resetSeq = 0L)
         assertEquals(listOf(first), atFirst.selection)
         assertEquals(listOf(built, ofFirst), atFirst.fixes, "the first repair's fix, and the built day's")
-        val atSecond = record.applied(6L)
+        val atSecond = record.applied(6L, resetSeq = 0L)
         assertEquals(listOf(second), atSecond.selection)
         assertEquals(listOf(built, ofSecond), atSecond.fixes)
-        val none = record.applied(3L)
+        val none = record.applied(3L, resetSeq = 0L)
         assertEquals(emptyList(), none.selection)
         assertEquals(listOf(built, stray), none.fixes, "a day that shows no repair shows the fixes of its build")
     }

@@ -246,18 +246,22 @@ internal class CountingLibrary(
 }
 
 /**
- * [libraries] as a saved selection with [seq] (null for none) and [playable] (all of them unless said): a schedule
- * source's provider in tests.
+ * [libraries] as a saved selection with [seq] (null for none), [playable] (all of them unless said) and [resetSeq]
+ * (none unless said): a schedule source's provider in tests.
  */
 internal fun selectionOf(
     libraries: Set<ItemId>?,
     seq: Long = 0L,
     playable: Set<ItemId>? = libraries,
-): SavedSelection? = libraries?.let { SavedSelection(it, seq, playable) }
+    resetSeq: Long = 0L,
+): SavedSelection? = libraries?.let { SavedSelection(it, seq, playable, resetSeq) }
 
 /** The switched-on channels' days at [at] over [libraries], in number order, at the saved seq: a test's shorthand. */
 internal suspend fun BuiltInScheduleSource.channelDays(
     account: LibraryAccount,
     libraries: Set<ItemId>,
     at: Instant,
-): List<ChannelDay> = channelDays(account, SavedSelection(libraries, savedSelection()?.seq ?: 0L, libraries), at)
+): List<ChannelDay> {
+    val saved = savedSelection()
+    return channelDays(account, SavedSelection(libraries, saved?.seq ?: 0L, libraries, saved?.resetSeq ?: 0L), at)
+}

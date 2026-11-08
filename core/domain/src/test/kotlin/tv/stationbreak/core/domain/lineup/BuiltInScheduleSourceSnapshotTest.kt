@@ -87,6 +87,23 @@ class BuiltInScheduleSourceSnapshotTest {
         assertNotSame(first, second)
     }
 
+    // Spec 26, Part 4 §2: an add's walk writes its pages with no generation bump, so before it lands the snapshots
+    // that name its library are dropped.
+    @Test
+    fun theSnapshotsThatNameALibrary_areEvicted_andReadAgain() {
+        refresh()
+        days()
+        source.evictSnapshotsNaming(ACCOUNT, ItemId("d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"))
+        runBlocking { switchOff() }
+        days()
+        assertEquals(1, source.snapshotReads(), "no kept snapshot names that library")
+
+        source.evictSnapshotsNaming(ACCOUNT, LIBRARIES.single())
+        runBlocking { switchOff("whodunit") }
+        days()
+        assertEquals(2, source.snapshotReads(), "read again")
+    }
+
     @Test
     fun aChangeToTheLibraryMakesTheNextBuildReadAgain() {
         refresh()

@@ -14,11 +14,15 @@ import java.util.Objects
  * then fills from the recorded tail only). It travels in the same read as [libraries] and [seq], so the repairer reads
  * all three under its own lock (`TodayRepairer.repairLost`). Like [seq], it has no default. A playable library
  * outside [libraries] is dropped (the playable set is always within the chosen one).
+ *
+ * [resetSeq] is the seq the last setup saved (the settings key `selectionResetSeq`), 0 for none: a selection repair of
+ * a lower seq was recorded for a selection before that setup and never shows (`TodayRepairs.applied`). No default.
  */
 class SavedSelection(
     val libraries: Set<ItemId>,
     val seq: Long,
     playable: Set<ItemId>?,
+    val resetSeq: Long,
 ) {
     /**
      * The playable libraries as given, less any that is not in [libraries]: this is read on the tune path, so a
@@ -27,9 +31,16 @@ class SavedSelection(
     val playable: Set<ItemId>? = playable?.let { if (libraries.containsAll(it)) it else it intersect libraries }
 
     override fun equals(other: Any?): Boolean =
-        other is SavedSelection && libraries == other.libraries && seq == other.seq && playable == other.playable
+        other is SavedSelection &&
+            libraries == other.libraries &&
+            seq == other.seq &&
+            playable == other.playable &&
+            resetSeq == other.resetSeq
 
-    override fun hashCode(): Int = Objects.hash(libraries, seq, playable)
+    override fun hashCode(): Int = Objects.hash(libraries, seq, playable, resetSeq)
 
-    override fun toString(): String = "SavedSelection(libraries=$libraries, seq=$seq, playable=$playable)"
+    override fun toString(): String {
+        val read = "libraries=$libraries, seq=$seq, playable=$playable"
+        return "SavedSelection($read, resetSeq=$resetSeq)"
+    }
 }

@@ -138,11 +138,15 @@ internal data class TodayRepairs(
      * The record as a lookup follows it when the TV's saved selection has seq [appliedSeq] (spec 26, ADR-0025 §7): per
      * channel day, only the repair of the highest seq at or below [appliedSeq], with that repair's fixes only (on a day
      * that shows no repair, the fixes of the day as built, seq 0). A repair of a later seq (its selection not saved
-     * yet) is left out with its fixes, and so is one a saved later seq has superseded. This very instance when nothing
-     * is left out.
+     * yet) is left out with its fixes, and so is one a saved later seq has superseded. A repair of a seq below
+     * [resetSeq] (the seq the last setup saved, `SavedSelection.resetSeq`; 0 for none) is left out too, with its fixes:
+     * it was recorded for a selection before that setup. This very instance when nothing is left out.
      */
-    fun applied(appliedSeq: Long): TodayRepairs {
-        val shown = shownAt(appliedSeq)
+    fun applied(
+        appliedSeq: Long,
+        resetSeq: Long,
+    ): TodayRepairs {
+        val shown = shownAt(appliedSeq, resetSeq)
         val seqs = seqsOf(shown)
         val shownFixes = fixes.filter { it.seq == (seqs[it.channel to it.n] ?: 0L) }
         return if (shown.size == selection.size && shownFixes.size == fixes.size) {
@@ -174,11 +178,15 @@ internal data class TodayRepairs(
         }
     }
 
-    // Per channel day, the repair of the highest seq at or below [appliedSeq], in record order.
-    private fun shownAt(appliedSeq: Long): List<ChannelRepair> {
+    // Per channel day, the repair of the highest seq at or below [appliedSeq] and not below [resetSeq], in record
+    // order.
+    private fun shownAt(
+        appliedSeq: Long,
+        resetSeq: Long = 0L,
+    ): List<ChannelRepair> {
         val best = HashMap<Pair<ChannelId, Long>, ChannelRepair>()
         for (repair in selection) {
-            if (repair.seq > appliedSeq) continue
+            if (repair.seq > appliedSeq || repair.seq < resetSeq) continue
             val day = repair.channel to repair.n
             val now = best[day]
             if (now == null || repair.seq > now.seq) best[day] = repair
