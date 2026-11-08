@@ -23,7 +23,7 @@ class RevivalVersionTest {
     fun close() = repository.close()
 
     private suspend fun startWithTombstone() {
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         repository.put(ALICE, MOVIES, a)
         clock.stepMs(10_000)
         repository.tombstone(ALICE, listOf(ItemId("a")))
@@ -77,7 +77,7 @@ class RevivalVersionTest {
     @Test
     fun aRevivalInTheSameMillisecondAsTheStampStillGetsALaterStamp() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, a)
             repository.tombstone(ALICE, listOf(ItemId("a")))
 
@@ -90,7 +90,7 @@ class RevivalVersionTest {
     @Test
     fun reviveingALiveItemOrAnUnknownOneChangesNothing() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, a)
             clock.stepMs(1_000)
 
@@ -122,7 +122,7 @@ class RevivalVersionTest {
     @Test
     fun aTombstoneAndRevivalCycleKeepsEveryRoundContiguous() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, a)
             repeat(5) {
                 clock.stepMs(1_000)

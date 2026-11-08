@@ -113,7 +113,7 @@ class ContentGenerationTest {
     fun writingTheSamePageAgainChangesNothing() =
         runBlocking {
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val items = (0 until 3).map { SyncWorld.item("m", it) }
             repository.upsertItems(ALICE, MOVIES, items)
             val written = changes()
@@ -156,7 +156,7 @@ class ContentGenerationTest {
     fun aWriteThatRollsBackLeavesTheGenerationAndTheRowsAsTheyWere() =
         runBlocking {
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
             val before = changes()
             repository.faultBetweenItemsAndCheckpoint = { error("the write died") }
@@ -172,7 +172,7 @@ class ContentGenerationTest {
     fun aCommittedWriteThatChangedRowsRaisesItAndOnlyThatAccountsMovesIt() =
         runBlocking {
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             assertEquals(0L, repository.contentGeneration(BOB))
 
             repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
@@ -185,7 +185,7 @@ class ContentGenerationTest {
     fun theGenerationOnlyGoesUpAndSurvivesReopeningTheSameDatabase() =
         runBlocking {
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val seen = mutableListOf(changes())
             for (n in 0 until 3) {
                 repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", n)))
@@ -199,7 +199,7 @@ class ContentGenerationTest {
     fun aRecreatedMetaRowNeverRepeatsAnEarlierGeneration() =
         runBlocking {
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
             val old = changes()
             val reached = mutableSetOf(old)
@@ -208,7 +208,7 @@ class ContentGenerationTest {
             repository.forget(ALICE)
             rig.clock.instant += 1.hours
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             for (n in 1..50) {
                 repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", n)))
                 reached += changes()
@@ -222,7 +222,7 @@ class ContentGenerationTest {
     fun everyWriteThatChangesRowsBumpsIncludingSeries() =
         runBlocking {
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val series = listOf(series("s1"))
             repository.upsertSeries(ALICE, MOVIES, series)
             var seen = changes()
@@ -239,7 +239,7 @@ class ContentGenerationTest {
     fun anotherAccountSigningInDropsTheOldOnesGeneration() =
         runBlocking {
             repository.useAccount(ALICE)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
             assertNotEquals(0L, changes())
 

@@ -48,7 +48,7 @@ class ItemHistoryDaoSplitTest {
     @Test
     fun theVersionsAreKeptAndReadByTheHistoryDao() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 100.minutes))
@@ -66,7 +66,7 @@ class ItemHistoryDaoSplitTest {
     @Test
     fun theAsOfReadThroughTheHistoryDaoPicksTheVersionHeldBeforeTheCutoff() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 100.minutes))
@@ -86,7 +86,7 @@ class ItemHistoryDaoSplitTest {
     @Test
     fun theChangeTestVersionsAScheduleFieldAndTheNameAndNothingElse() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
             val old = stored(hexId(1))
 
@@ -116,7 +116,7 @@ class ItemHistoryDaoSplitTest {
     @Test
     fun theStampIsAlwaysAfterTheOneItReplaces() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
             val old = stored(hexId(1))
             val edit = old.copy(runtimeMs = 1)
@@ -134,7 +134,7 @@ class ItemHistoryDaoSplitTest {
     @Test
     fun aNewItemIsStampedNowAndHasNoVersion() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
             val fresh = stored(hexId(1)).copy(itemId = hexId(2), seenFromMs = 0, firstSeenMs = 0)
 
@@ -147,7 +147,7 @@ class ItemHistoryDaoSplitTest {
     @Test
     fun aRevivalIsCopiedAsAVersionEndingAtTheNewStamp() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
             clock.stepMs(10_000)
             repository.tombstone(ALICE, listOf(ItemId(hexId(1))))

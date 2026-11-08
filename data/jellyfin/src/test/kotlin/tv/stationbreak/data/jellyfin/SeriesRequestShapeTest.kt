@@ -66,7 +66,7 @@ class SeriesRequestShapeTest {
 
     @Test
     fun namesGenresTagsAndStudiosAsTheOnlyFields() {
-        assertEquals(listOf("Genres", "Tags", "Studios"), sent().listOf("fields"))
+        assertEquals(listOf("Genres", "Tags", "Studios", "ProviderIds"), sent().listOf("fields"))
     }
 
     @Test

@@ -38,7 +38,8 @@ class SeriesByIdTest {
         fetch({ jellyfin.json("""{"Id":"h1","Name":"Night Shift","Type":"Series"}""") })
 
         val url = jellyfin.requests("/Items/h1").single().url
-        assertEquals(listOf("Genres", "Tags", "Studios"), url.queryParameter("fields").orEmpty().split(','))
+        val fields = url.queryParameter("fields").orEmpty().split(',')
+        assertEquals(listOf("Genres", "Tags", "Studios", "ProviderIds"), fields)
         assertEquals("user1", url.queryParameter("userId"))
     }
 
@@ -46,12 +47,21 @@ class SeriesByIdTest {
     fun decodesTheSameInfoTheListProduces() {
         val body =
             """{"Id":"h1","Name":"Night Shift","Type":"Series","OfficialRating":"TV-14",
-            "Genres":["Drama"],"Tags":["slow"],"Studios":[{"Name":"Acme"}]}"""
+            "Genres":["Drama"],"Tags":["slow"],"Studios":[{"Name":"Acme"}],
+            "ProviderIds":{"Imdb":"tt1","Bad":"a;b"}}"""
 
         val found = fetch({ jellyfin.json(body) }).getOrNull()
 
         assertEquals(
-            SeriesInfo(ItemId("h1"), "Night Shift", "TV-14", listOf("Drama"), listOf("slow"), listOf("Acme")),
+            SeriesInfo(
+                ItemId("h1"),
+                "Night Shift",
+                "TV-14",
+                listOf("Drama"),
+                listOf("slow"),
+                listOf("Acme"),
+                mapOf("imdb" to "tt1"),
+            ),
             found,
         )
     }

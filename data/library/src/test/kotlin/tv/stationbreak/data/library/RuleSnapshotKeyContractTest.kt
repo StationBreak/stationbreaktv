@@ -46,7 +46,7 @@ class RuleSnapshotKeyContractTest {
     @Test
     fun aCompletedPassMovesTheSignalAtTheSameTimeAsCollectionsSynced() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val before = state()
             assertFalse(before.snapshot.collectionsSynced)
             assertNull(before.pass)
@@ -63,7 +63,7 @@ class RuleSnapshotKeyContractTest {
     @Test
     fun whenNeitherNumberMovesTheSnapshotIsTheSame() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val states = mutableListOf(state())
 
             rig.serve(1, *rig.movies(10))
@@ -98,7 +98,7 @@ class RuleSnapshotKeyContractTest {
     @Test
     fun theGenerationAloneTellsSnapshotsApart() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             // One cut-off for every read, so only the library's state differs between them.
             val cutoff = Instant.fromEpochMilliseconds(rig.clock.nowMs + FAR_MS)
             val states = mutableListOf(state(cutoff))
@@ -139,7 +139,7 @@ class RuleSnapshotKeyContractTest {
     fun anotherChoiceOfLibrariesIsAnotherSnapshotUnderTheSameGenerationAndPass() =
         runBlocking {
             val shows = ItemId(hexId(0xB002))
-            repository.select(ALICE, setOf(MOVIES, shows))
+            repository.applySelection(ALICE, setOf(MOVIES, shows), nowMs = 0)
             repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
             repository.upsertItems(ALICE, shows, listOf(SyncWorld.item("s", 1)))
             val cutoff = Instant.fromEpochMilliseconds(rig.clock.nowMs + FAR_MS)

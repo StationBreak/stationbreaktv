@@ -22,7 +22,7 @@ class SeriesHistoryTest {
     @After
     fun close() = repository.close()
 
-    private suspend fun open() = repository.select(ALICE, setOf(MOVIES, SHOWS))
+    private suspend fun open() = repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
 
     private suspend fun current() = repository.currentSeries(ALICE).single()
 

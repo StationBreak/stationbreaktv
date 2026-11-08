@@ -35,6 +35,7 @@ import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelManager
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
+import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
@@ -53,6 +54,10 @@ import tv.stationbreak.core.domain.lineup.builder.NewSeed
 import tv.stationbreak.core.domain.lineup.builder.SourceLabels
 import tv.stationbreak.core.domain.lineup.builder.newCustomId
 import tv.stationbreak.core.domain.lineup.eitherWriting
+import tv.stationbreak.core.domain.lineup.repair.LostRepairHook
+import tv.stationbreak.core.domain.lineup.repair.Successors
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.StayCurrent
@@ -250,8 +255,9 @@ internal object LineupModule {
                 ),
             persisted = persisted,
             shared = shared,
-            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows.
-        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L) } }
+            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows. The chosen
+            // libraries stand for the playable ones until Part 4 tells those apart (and gives null when it is gone).
+        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L, playable = it) } }
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
@@ -279,6 +285,18 @@ internal object LineupModule {
         stayCurrent: StayCurrent,
     ): SyncActivity = eitherWriting(firstSync.running, stayCurrent.runner.running)
 
+    /**
+     * The repair engine (spec 26): one per process, as its calls take turns on one lock. Its successors are the
+     * library's own conservative matches of an item that came back under a new id.
+     */
+    @Provides
+    @Singleton
+    fun todayRepairer(
+        service: LineupService,
+        source: BuiltInScheduleSource,
+        library: LibraryRepository,
+    ): TodayRepairer = TodayRepairer(service, source, library, Successors { a, l, g -> library.successors(a, l, g) })
+
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides
     @Singleton
@@ -287,10 +305,17 @@ internal object LineupModule {
         library: LibraryRepository,
         settings: ServerSettings,
         sync: SyncActivity,
-    ): LineupRefresher =
-        LineupRefresher(service, library, { settings.loadLibraries() }, sync) {
-            Log.i(TAG, it.name)
-        }
+        repairer: TodayRepairer,
+    ): LineupRefresher {
+        val report: (LineupEvent) -> Unit = { Log.i(TAG, it.name) }
+        // After a run that wrote the library, and once after the start check, the blocks whose item left it are
+        // repaired for today (spec 26). The repairer reads the playable libraries itself, under its lock, from the
+        // schedule source's saved selection.
+        val now = { Clock.System.now().toEpochMilliseconds() }
+        val afterSync = LostRepairHook(repairer::repairLost, now, report)
+        val chosen: suspend () -> Set<ItemId>? = { settings.loadLibraries() }
+        return LineupRefresher(service, library, chosen, sync, afterSync = afterSync::invoke, report = report)
+    }
 }
 
 /**

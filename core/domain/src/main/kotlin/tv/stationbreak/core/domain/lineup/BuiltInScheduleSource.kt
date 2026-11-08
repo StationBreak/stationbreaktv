@@ -707,13 +707,15 @@ class BuiltInScheduleSource(
     }
 
     /**
-     * The switched-on channels' days at [at] over the libraries this source reads now: the days a tune sees. Empty
-     * when nothing is chosen. For the repair engine (spec 26), which runs off the tune path.
+     * The switched-on channels' days at [at] over [selection], a read of this source's saved selection the caller
+     * already holds: the days a tune sees. Empty when nothing is chosen. For the repair engine (spec 26), which runs
+     * off the tune path and reads the selection once, in its turn.
      */
     internal suspend fun currentDays(
         account: LibraryAccount,
+        selection: SavedSelection,
         at: Instant,
-    ): List<ChannelDay> = chosenDays(account, at).second
+    ): List<ChannelDay> = if (selection.libraries.isEmpty()) emptyList() else channelDays(account, selection, at)
 
     /**
      * The saved selection now (none chosen: no libraries, and the seq as saved, 0 when unknown) and [currentDays] over
@@ -725,8 +727,8 @@ class BuiltInScheduleSource(
     ): Pair<SavedSelection, List<ChannelDay>> {
         val read = saved()
         val chosen =
-            read?.takeIf { it.libraries.isNotEmpty() } ?: return SavedSelection(emptySet(), read?.seq ?: 0L) to
-                emptyList()
+            read?.takeIf { it.libraries.isNotEmpty() }
+                ?: return SavedSelection(emptySet(), read?.seq ?: 0L, emptySet()) to emptyList()
         return chosen to channelDays(account, chosen, at)
     }
 

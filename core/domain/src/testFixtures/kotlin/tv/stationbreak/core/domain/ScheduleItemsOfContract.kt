@@ -53,7 +53,7 @@ object ScheduleItemsOfContract {
     suspend fun check(fixture: Fixture) {
         val repo = fixture.repository
         val account = fixture.account
-        repo.select(account, setOf(LIBRARY_A, LIBRARY_B))
+        repo.applySelection(account, setOf(LIBRARY_A, LIBRARY_B), nowMs = 0)
         fixture.save(
             LIBRARY_A,
             listOf(

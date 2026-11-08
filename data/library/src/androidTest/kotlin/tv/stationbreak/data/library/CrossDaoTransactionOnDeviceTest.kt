@@ -63,7 +63,7 @@ class CrossDaoTransactionOnDeviceTest {
     @Test
     fun aFaultAfterTheItemRowsLeavesNoItemVersionOrCheckpointRow() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1)
             val before = repository.rowCounts()
             val rowsBefore = repository.currentRows(account)
@@ -83,7 +83,7 @@ class CrossDaoTransactionOnDeviceTest {
     @Test
     fun theSamePageWritesWholeOnceTheFaultIsGone() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1)
             repository.faultBetweenItemsAndHistory = { error("the process died here") }
             assertThrows(IllegalStateException::class.java) {
@@ -109,7 +109,7 @@ class CrossDaoTransactionOnDeviceTest {
     @Test
     fun aFaultAfterTheSeriesRowsLeavesNoItemSeriesVersionOrCheckpointRow() =
         runBlocking {
-            repository.select(account, setOf(library))
+            repository.applySelection(account, setOf(library), nowMs = 0)
             val firstSeries = listOf(series("s1", "A"))
             repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1, series = firstSeries)
             val before = repository.rowCounts()

@@ -20,7 +20,7 @@ class AccountIsolationTest {
         account: LibraryAccount,
         vararg ids: String,
     ) {
-        repository.select(account, setOf(MOVIES))
+        repository.applySelection(account, setOf(MOVIES), nowMs = 0)
         val items = ids.map { item(it).copy(genres = listOf("g-$it"), tags = listOf("t-$it")) }
         repository.writePage(account, MOVIES, items, nextStartIndex = ids.size, totalCount = ids.size, run = 1)
     }

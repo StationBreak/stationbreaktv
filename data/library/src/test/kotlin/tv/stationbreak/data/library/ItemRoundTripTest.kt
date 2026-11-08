@@ -41,7 +41,7 @@ class ItemRoundTripTest {
     @Test
     fun everyFieldOfAnItemSurvivesAWriteAndARead() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(everyField), nextStartIndex = 1, totalCount = 1, run = 1)
 
             val read = repository.snapshot(ALICE, setOf(MOVIES), EPOCH)
@@ -53,7 +53,7 @@ class ItemRoundTripTest {
     fun anItemWithOnlyTheRequiredFieldsReadsBackWithTheOptionalOnesEmpty() =
         runBlocking {
             val bare = MediaItem(ItemId("item-bare"), "Bare", ItemKind.Other, null, null)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(bare), nextStartIndex = 1, totalCount = 1, run = 1)
 
             val stored = repository.stored(ALICE).single()
@@ -72,7 +72,7 @@ class ItemRoundTripTest {
                     tags = listOf("2", "1", "3"),
                     studios = listOf("Zed", "Alpha", "Mid"),
                 )
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(ordered), nextStartIndex = 1, totalCount = 1, run = 1)
 
             assertEquals(ordered, repository.stored(ALICE).single().item)
@@ -82,7 +82,7 @@ class ItemRoundTripTest {
     fun everyItemKindRoundTrips() =
         runBlocking {
             val items = ItemKind.entries.map { MediaItem(ItemId("kind-${it.name}"), it.name, it, 1.minutes, null) }
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, items, nextStartIndex = items.size, totalCount = items.size, run = 1)
 
             assertEquals(items.map { it.kind }.toSet(), repository.stored(ALICE).map { it.item.kind }.toSet())
@@ -98,7 +98,7 @@ class ItemRoundTripTest {
                     val moment = Instant.fromEpochMilliseconds(created[index])
                     item("edge-$index", created = moment, runtime = runtimes[index].milliseconds)
                 }
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, items, nextStartIndex = items.size, totalCount = items.size, run = 1)
 
             val read = repository.stored(ALICE).map { it.item }.sortedBy { it.id.value }
@@ -110,7 +110,7 @@ class ItemRoundTripTest {
     @Test
     fun anItemWithNoPremiereDateReadsBackWithNone() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val bare = listOf(item("no-premiere"))
             repository.writePage(ALICE, MOVIES, bare, nextStartIndex = 1, totalCount = 1, run = 1)
 

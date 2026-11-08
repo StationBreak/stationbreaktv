@@ -53,6 +53,9 @@ internal object ServerSeeding {
     val SERIES_TAGS = listOf("contract slow burn")
     const val SERIES_RATING = "TV-14"
 
+    /** The provider ids the series and every seeded movie are given (spec 26), as the server stores them. Synthetic. */
+    val PROVIDER_IDS = mapOf("Imdb" to "tt0000001", "Tmdb" to "424242")
+
     /** The metadata every seeded movie is given (spec 17, item details). Synthetic. */
     const val MOVIE_OVERVIEW = "A contract-test lighthouse keeper charts a very quiet sea."
     const val MOVIE_YEAR = 2002
@@ -235,6 +238,7 @@ internal object ServerSeeding {
                         "Genres" to JsonArray(SERIES_GENRES.map(::JsonPrimitive)),
                         "Tags" to JsonArray(SERIES_TAGS.map(::JsonPrimitive)),
                         "OfficialRating" to JsonPrimitive(SERIES_RATING),
+                        "ProviderIds" to providerIdsJson(),
                     ),
             )
         http.expectOk("set series metadata", http.post("Items/$id", edited.toString(), token))
@@ -257,11 +261,14 @@ internal object ServerSeeding {
                             "Overview" to JsonPrimitive(MOVIE_OVERVIEW),
                             "ProductionYear" to JsonPrimitive(MOVIE_YEAR),
                             "Genres" to JsonArray(MOVIE_GENRES.map(::JsonPrimitive)),
+                            "ProviderIds" to providerIdsJson(),
                         ),
                 )
             http.expectOk("set movie metadata", http.post("Items/$id", edited.toString(), token))
         }
     }
+
+    private fun providerIdsJson() = JsonObject(PROVIDER_IDS.mapValues { JsonPrimitive(it.value) })
 
     /** The episode whose file is in the series folder, not under `Season 01`. */
     private fun findLooseEpisode(

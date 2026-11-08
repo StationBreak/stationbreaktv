@@ -27,7 +27,7 @@ class ProgramInfoReadTest {
     private val movieId = ItemId(hexId(0x1002))
 
     private suspend fun save(account: LibraryAccount) {
-        repository.select(account, setOf(SHOWS))
+        repository.applySelection(account, setOf(SHOWS), nowMs = 0)
         val episode =
             MediaItem(
                 episodeId,

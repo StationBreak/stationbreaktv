@@ -58,6 +58,11 @@ internal abstract class CacheTransactionDao(
      *
      * [seriesRows] are the page's series (a series page holds no items, and an item page no series). They are written
      * through [SeriesDao] after the item versions and before the second seam, in the same transaction.
+     *
+     * The content generation moves only for a change to a field the scheduler or the rules read (spec 26): for an
+     * item, only in a library that is not being added ([itemsMoveTheDay]), so the walk of an add moves nothing; for a
+     * series, in any library, as episodes of other libraries read a series row by its id. A provider-id-only change
+     * never moves it.
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seams.
@@ -82,32 +87,65 @@ internal abstract class CacheTransactionDao(
         val plan = history.planPage(items, existing, old, nowMs)
         library.insertItems(plan.toInsert)
         library.updateItems(plan.toUpdate)
-        val changedIds = (plan.toInsert + plan.toUpdate).map { it.itemId }
-        changedIds.chunked(LibraryDao.MAX_VARIABLES).forEach {
-            library.deleteGenres(server, user, it)
-            library.deleteTags(server, user, it)
-            library.deleteStudios(server, user, it)
+        // Each side table is rewritten only for the items whose list differs from the one held (a new item has none),
+        // so a page that changes provider ids alone, as the backfill's does, leaves every side row as it is.
+        val genreIds = ArrayList<String>()
+        val tagIds = ArrayList<String>()
+        val studioIds = ArrayList<String>()
+        for (row in plan.toInsert + plan.toUpdate) {
+            val id = row.itemId
+            val incoming = items.getValue(id)
+            if (incoming.genres.map { it.name } != old.genres[id].orEmpty()) genreIds += id
+            if (incoming.tags.map { it.name } != old.tags[id].orEmpty()) tagIds += id
+            if (incoming.studios.map { it.name } != old.studios[id].orEmpty()) studioIds += id
         }
-        library.insertGenres(changedIds.flatMap { items.getValue(it).genres })
-        library.insertTags(changedIds.flatMap { items.getValue(it).tags })
-        library.insertStudios(changedIds.flatMap { items.getValue(it).studios })
+        for (chunk in genreIds.chunked(LibraryDao.MAX_VARIABLES)) library.deleteGenres(server, user, chunk)
+        for (chunk in tagIds.chunked(LibraryDao.MAX_VARIABLES)) library.deleteTags(server, user, chunk)
+        for (chunk in studioIds.chunked(LibraryDao.MAX_VARIABLES)) library.deleteStudios(server, user, chunk)
+        library.insertGenres(genreIds.flatMap { items.getValue(it).genres })
+        library.insertTags(tagIds.flatMap { items.getValue(it).tags })
+        library.insertStudios(studioIds.flatMap { items.getValue(it).studios })
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
+        // Read inside this transaction, so a selection change cannot slip between the read and the bump.
+        val adding = library.addingLibraryIds(server, user).toHashSet()
         val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
         // Inside this transaction, so a write that rolls back leaves the generation as it was.
-        val changed = changedIds.isNotEmpty() || seriesWrite.inserted + seriesWrite.updated > 0
-        if (changed) library.bumpGeneration(server, user)
+        if (itemsMoveTheDay(plan, items, adding) || seriesWrite.movesTheDay) library.bumpGeneration(server, user)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
-        return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite)
+        return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite.write)
     }
+
+    /**
+     * True when the page changed a field the scheduler or the rules read (a new row, or one that took a version: an
+     * edit to a versioned field or a revival) in a library that is not being added, before or after the write (spec
+     * 26). A change to an unversioned field alone (the parent, the provider ids) is stored and moves nothing.
+     */
+    private fun itemsMoveTheDay(
+        plan: PagePlan,
+        items: Map<String, ItemRows>,
+        adding: Set<String>,
+    ): Boolean {
+        var moves = false
+        for (row in plan.toInsert) if (row.libraryId !in adding) moves = true
+        for (version in plan.versions) {
+            if (version.libraryId !in adding || items.getValue(version.itemId).item.libraryId !in adding) moves = true
+        }
+        return moves
+    }
+
+    private class SeriesWrite(
+        val write: PageWrite,
+        val movesTheDay: Boolean,
+    )
 
     private suspend fun writeSeries(
         server: String,
         user: String,
         rows: Map<String, SeriesEntity>,
         nowMs: Long,
-    ): PageWrite {
+    ): SeriesWrite {
         val existing =
             rows.keys
                 .chunked(LibraryDao.MAX_VARIABLES)
@@ -117,7 +155,11 @@ internal abstract class CacheTransactionDao(
         series.insert(plan.toInsert)
         series.update(plan.toUpdate)
         series.insertVersions(plan.versions)
-        return PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged)
+        // A new or versioned series moves the day, whatever library holds its row: an episode of any library reads it
+        // by its id, so an add is not exempt here (whole-part review, data MED-1). A library-only or provider-id-only
+        // change takes no version and moves nothing.
+        val moves = plan.toInsert.isNotEmpty() || plan.versions.isNotEmpty()
+        return SeriesWrite(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), moves)
     }
 
     /**
@@ -511,7 +553,7 @@ internal abstract class CacheTransactionDao(
         val seriesIds = TreeSet<String>()
         for (row in items) {
             val seriesId = row.seriesId
-            if (row.kind == EPISODE_KIND && seriesId != null) seriesIds.addAll(spellings(seriesId))
+            if (row.kind == EPISODE_KIND && seriesId != null) seriesIds.addAll(idSpellings(seriesId))
         }
         val heldSeries = series.heldAsOf(serverId, userId, cutoffMs, seriesIds.toList(), strings)
         val heldCollections = collections.heldAsOf(serverId, userId, cutoffMs, COLLECTION_CHUNK)
@@ -539,21 +581,21 @@ internal abstract class CacheTransactionDao(
             else -> null
         }
 
-    // The spellings a series may be stored under for an episode's [raw] series ID: the one it names, the canonical one
-    // and the dashed one, each in lower and upper case. SQL cannot compare canonical forms, and a series is stored
-    // as the server spelled it; the caller matches the rows it gets back by canonical ID (spec 10, Vimes L).
-    private fun spellings(raw: String): List<String> {
-        val canonical = CanonicalId.parseOrNull(raw)?.value ?: return listOf(raw)
-        val dashed =
-            listOf(
-                canonical.substring(0, 8),
-                canonical.substring(8, 12),
-                canonical.substring(12, 16),
-                canonical.substring(16, 20),
-                canonical.substring(20),
-            ).joinToString("-")
-        return listOf(raw, canonical, canonical.uppercase(), dashed, dashed.uppercase())
-    }
+    /**
+     * [reIdRows] in one read transaction (spec 26): the tombstones, the series and the live candidates are read from
+     * one state. [sinceMs] is the oldest tombstone that counts. It returns the rows only: the caller runs the match
+     * ([ReIdRows.match]) after the transaction, so the match never holds up a sync write or the repairer.
+     */
+    @Transaction
+    @Suppress("LongParameterList") // The account, what to find, the retention cut and the test seam.
+    open suspend fun successors(
+        server: String,
+        user: String,
+        libraries: Set<String>,
+        gone: Set<CanonicalId>,
+        sinceMs: Long,
+        trace: ((String) -> Unit)? = null,
+    ): ReIdRows = reIdRows(library, series, server, user, libraries, gone, sinceMs, trace)
 
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */

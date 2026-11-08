@@ -210,9 +210,11 @@ interface LibraryRepository : AccountCache {
      *
      * **Cache contract (#392, #480).** The result depends only on [account], [libraries], [cutoff] and the state of
      * the saved library, and every change to that state moves [contentGeneration]: a write to an item, series or
-     * collection, or to the chosen libraries, and the collection pass that turns `collectionsSynced` true (it writes no
-     * row, but changes the result). A caller may therefore keep a snapshot under the key (account, libraries, cutoff,
-     * generation), the generation read *before* the snapshot, and reuse it while that key holds: the in-memory cache
+     * collection, the delete of a library's rows ([applySelection]), and the collection pass that turns
+     * `collectionsSynced` true (it writes no row, but changes the result). A write to a library being added moves
+     * nothing (spec 26), so [libraries] must never name one: the add lands before its library is read for a day. A
+     * caller may therefore keep a snapshot under the key (account, libraries, cutoff, generation), the generation read
+     * *before* the snapshot, and reuse it while that key holds: the in-memory cache
      * and the persisted day key both key on the generation alone (#487, #480), and [collectionPassCompleted], which
      * every completed pass moves, is no part of either. A purge must not change what this returns: it deletes only
      * rows superseded or tombstoned before any cut-off a day build reads, which is why it does not bump. Anything new
@@ -325,9 +327,11 @@ interface LibraryRepository : AccountCache {
 
     /**
      * [account]'s content generation: a number kept with the saved library that goes up for that account and never
-     * repeats a value the account held before. It changes exactly when a committed write changed that account's
-     * library rows (an item, series or collection that is new, edited, deleted or back, a member added or removed, or
-     * the chosen libraries), or when the first full collection pass turns `collectionsSynced` true: the bump is in the
+     * repeats a value the account held before. It changes exactly when a committed write changed what a day is built
+     * from in that account's library rows (an item, series or collection that is new, edited in a field the scheduler
+     * or the rules read, deleted or back, a member added or removed, or a library's rows deleted by [applySelection]),
+     * or when the first full collection pass turns `collectionsSynced` true. Since spec 26 a page written to a library
+     * being added (one with an add stamp), a change to provider ids alone, and a tick move nothing. The bump is in the
      * same transaction as the write, so a write that rolls back or finds everything as stored leaves it alone, and
      * another account's writes never move it. Because it is durable it can be compared across process
      * restarts: a reader keeps the value it planned from and finds the library changed since when the two differ,
@@ -361,16 +365,83 @@ interface LibraryRepository : AccountCache {
     ): Int
 
     /**
-     * Makes [libraries] the chosen set (owner answer 2, from `ServerSettings.loadLibraries()`): the saved rows of any
-     * library left out are deleted, and a library not saved before is marked pending, to be fetched.
+     * The one writer of the cached library set (spec 26; it replaces `select`). Keeps [keep]'s libraries (the chosen
+     * ones and the ones being added; an added one is pending, with its stamp), keeps any other library whose hold lies
+     * after [nowMs] (and sets [holds]), and deletes every other library's rows.
+     *
+     * **The add lifecycle.** Ticking a library gives it a stamp here (in [keep] and [addStamps]): it is pending and
+     * being added, and the pages its walk writes move no [contentGeneration], so no day reads it yet. When its walk
+     * has ended, [landAdd] with the same stamp lands it: the stamp is cleared, the library is fetched and the
+     * generation moves once, and from then on it is a chosen library like any other (its writes move the generation).
+     * Unticking a library, added or chosen, either holds it (left out of [keep], with a hold in [holds]: its rows stay
+     * until the hold ends, and a held library loses its stamp, so it is never being added and never lands) or deletes
+     * it (left out of [keep] and [holds]).
+     *
+     * - A library in [keep] has no hold. One not saved before is marked pending, to be fetched, with its stamp from
+     *   [addStamps] if it has one.
+     * - A library given a stamp it did not have (a new add, or the re-tick of a held or earlier library) is marked
+     *   pending and its checkpoint deleted, in the same transaction, so it is read again from the start. A library in
+     *   [keep] that [addStamps] does not name keeps the stamp it has. Only a library with no stamp is ever marked
+     *   fetched by the sync: [landAdd] lands an add. A new stamp for a chosen library that has landed (not new, not
+     *   held, not being added) throws [IllegalArgumentException] and changes nothing.
+     * - [holds] gives, for a library leaving [keep], the moment until which its rows are kept (a repair of the days
+     *   that used it reads them); a library left out of [keep] and [holds] keeps the hold it has. A held library has no
+     *   stamp (a stamp it had is cleared), and is kept by its hold alone. A hold at or before
+     *   [nowMs] has expired, and the library's rows go. A stamp outside [keep], and a hold inside it or for a library
+     *   not saved, are ignored. When the device clock is far past the last successful sync (the history purge's
+     *   forward-jump guard), no hold expires in that call.
+     * - A series row of a library whose rows go, that a live episode of a library that stays still names, moves to
+     *   that library first (the smallest such ID), so a series shared by two libraries is not lost.
+     *
+     * [contentGeneration] moves only when this deletes a library's rows (an unticked library, a hold that expired, or
+     * an add dropped after its walk wrote rows, which may have moved in from a chosen library), once per call.
+     * Ticking a library (pending, with a stamp), setting or clearing a hold, and dropping an add that holds no row
+     * move nothing.
      */
-    suspend fun select(
+    suspend fun applySelection(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        keep: Set<ItemId>,
+        addStamps: Map<ItemId, Long> = emptyMap(),
+        holds: Map<ItemId, Long> = emptyMap(),
+        nowMs: Long,
     )
+
+    /**
+     * Lands the add of [library] that [applySelection] stamped with [stamp] (spec 26), once its walk has ended: in one
+     * transaction, when the library still has that stamp, the stamp is cleared, the library is marked fetched and
+     * [contentGeneration] moves once (the rows its walk wrote moved nothing, and now become a day's inputs). It returns
+     * true then. With any other stamp, none (already landed, held, or never added), or no such library, nothing changes
+     * and it returns false, so a landing that lost a race with a newer tick or an untick does no harm.
+     */
+    suspend fun landAdd(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean
 
     /** The chosen libraries that have not been fully fetched yet. */
     suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId>
+
+    /**
+     * Where each of the [gone] items (deleted, so kept as tombstones for 30 days) came back under a new id (spec 26),
+     * found only among the live rows of [libraries], the TV's playable libraries. Matching is conservative, and the
+     * first rule that finds any candidate decides:
+     * 1. A shared identity id: the provider ids `imdb`, `tmdb` and `tvdb` only (never another key, such as a
+     *    collection's), with no identity key on both sides that disagrees.
+     * 2. An episode of the same series with the same season and episode number (a series that came back under a new id
+     *    is found the same way, by a shared identity id, else by its name when exactly one live series has it).
+     * 3. A film of the same title and year.
+     *
+     * A disagreeing identity id rules a candidate out of rules 2 and 3 (the name fallbacks), and when it rules out one
+     * of several candidates, none is taken. Each match also needs a runtime within 2 minutes or 2%, and only when
+     * exactly one live item fits and no other gone item claims it or saw it. A gone id with no row, or one still live,
+     * is absent from the result. The caller still checks a match against the channel's rules and holds.
+     */
+    suspend fun successors(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        gone: Set<CanonicalId>,
+    ): Map<CanonicalId, CanonicalId>
 }
 
 /** Whether a [TitleHit] is a show or a film. */
@@ -383,17 +454,3 @@ data class TitleHit(
     val kind: TitleKind,
     val year: Int?,
 )
-
-/**
- * Brings the saved library in line with the libraries the user ticked, as `ServerSettings` stores them. Returns the
- * chosen set, or null when none is stored (a new sign-in clears the choice), in which case the saved library is left
- * alone.
- */
-suspend fun LibraryRepository.followSelection(
-    account: LibraryAccount,
-    settings: ServerSettings,
-): Set<ItemId>? {
-    val chosen = settings.loadLibraries() ?: return null
-    select(account, chosen)
-    return chosen
-}

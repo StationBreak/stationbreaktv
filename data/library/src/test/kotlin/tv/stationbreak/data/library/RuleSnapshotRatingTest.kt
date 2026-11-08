@@ -22,7 +22,7 @@ class RuleSnapshotRatingTest {
     @Test
     fun itemRatingsStayAsStored() =
         runBlocking {
-            repository.select(ALICE, setOf(RULE_LIBRARY))
+            repository.applySelection(ALICE, setOf(RULE_LIBRARY), nowMs = 0)
             ratings.forEachIndexed { n, rating ->
                 repository.put(ALICE, RULE_LIBRARY, episodeOf(n + 1, null, rating = rating))
             }
@@ -35,7 +35,7 @@ class RuleSnapshotRatingTest {
     @Test
     fun seriesRatingsStayAsStored() =
         runBlocking {
-            repository.select(ALICE, setOf(RULE_LIBRARY))
+            repository.applySelection(ALICE, setOf(RULE_LIBRARY), nowMs = 0)
             ratings.forEachIndexed { n, rating ->
                 repository.put(ALICE, RULE_LIBRARY, episodeOf(n + 1, 900 + n))
                 repository.putSeries(ALICE, RULE_LIBRARY, series(hexId(900 + n), rating))
@@ -49,7 +49,7 @@ class RuleSnapshotRatingTest {
     @Test
     fun aRatingEditedFromNullToBlankToEmptyIsReadAsItWasHeld() =
         runBlocking {
-            repository.select(ALICE, setOf(RULE_LIBRARY))
+            repository.applySelection(ALICE, setOf(RULE_LIBRARY), nowMs = 0)
             val cutoffs = ArrayList<Long>()
             for (rating in listOf<String?>(null, " ", "")) {
                 repository.put(ALICE, RULE_LIBRARY, episodeOf(1, null, rating = rating))

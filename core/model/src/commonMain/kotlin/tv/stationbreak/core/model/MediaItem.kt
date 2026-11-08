@@ -24,7 +24,9 @@ enum class ItemKind {
  * [seasonNumber] and [episodeNumber] only mean something for an episode ([seasonId] is null for an episode with no
  * season folder). [runtime] is in whole milliseconds and [dateCreated] at millisecond precision, exactly as the rules
  * format maps them (spec 09); [premiereDate] is the UTC calendar date of the premiere as `YYYY-MM-DD`.
- * [officialRating] is the server's text as sent: null, `""` and `" "` are three different values.
+ * [officialRating] is the server's text as sent: null, `""` and `" "` are three different values. [providerIds] are the
+ * item's ids at outside databases (spec 26), already cleaned: keys [a-z0-9._-]{1,32}, values printable ASCII, no
+ * spaces, ';' or '=', at most 64 chars, at most eight; never log them.
  */
 data class MediaItem(
     val id: ItemId,
@@ -43,6 +45,7 @@ data class MediaItem(
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     val studios: List<String> = emptyList(),
+    val providerIds: Map<String, String> = emptyMap(),
 )
 
 /** One page of a library: [totalCount] counts every item, [items] the ones from [startIndex] on. */

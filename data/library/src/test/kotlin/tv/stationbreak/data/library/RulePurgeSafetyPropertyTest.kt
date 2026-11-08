@@ -159,7 +159,7 @@ class RulePurgeSafetyPropertyTest {
     private suspend fun build(gen: SeededGen) {
         repository.forget(ALICE)
         repository.useAccount(ALICE)
-        repository.select(ALICE, libraries)
+        repository.applySelection(ALICE, libraries, nowMs = 0)
         val randomSteps =
             List(OPS_PER_CASE) {
                 val span = if (gen.chance(35)) 4.days.inWholeMilliseconds else NINETY_DAYS_MS
@@ -236,7 +236,7 @@ class RulePurgeSafetyPropertyTest {
     @Test
     fun theFixedOperationsLeaveTheSnapshotAloneButAMutatedPurgeLosesAMember() =
         runBlocking {
-            repository.select(ALICE, libraries)
+            repository.applySelection(ALICE, libraries, nowMs = 0)
             fixedSteps().sortedBy { it.atMs }.forEach {
                 clock.atMs(it.atMs)
                 it.run()

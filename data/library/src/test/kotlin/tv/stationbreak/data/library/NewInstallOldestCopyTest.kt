@@ -32,7 +32,7 @@ class NewInstallOldestCopyTest {
     @Test
     fun anItemEditedTwiceAndAskedForBeforeAnythingIsOlderGivesItsOldestVersion() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 100.minutes))
@@ -47,7 +47,7 @@ class NewInstallOldestCopyTest {
     @Test
     fun anItemWithNoVersionAndFirstSeenAfterTheCutoffGivesItsCurrentRow() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
 
             val held = runtimes(t0 - 1.hours.inWholeMilliseconds)
@@ -58,7 +58,7 @@ class NewInstallOldestCopyTest {
     @Test
     fun theCutoffExactlyAtTheFirstSeenTimeIsStillNotOlder() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 100.minutes))
@@ -73,7 +73,7 @@ class NewInstallOldestCopyTest {
     @Test
     fun theRuleIsPerItemSoAnOldItemAndANewOneAreEachJudgedOnTheirOwnHistory() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(1.hours.inWholeMilliseconds)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 100.minutes), sitem(2, runtime = 60.minutes))
@@ -94,7 +94,7 @@ class NewInstallOldestCopyTest {
     @Test
     fun anItemFirstSeenOnlyAfterTheCutoffWithEditsGivesItsOldestVersionNotItsLatest() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             clock.stepMs(1.hours.inWholeMilliseconds)
             repository.put(ALICE, MOVIES, sitem(5, runtime = 30.minutes))
             clock.stepMs(1_000)
@@ -108,7 +108,7 @@ class NewInstallOldestCopyTest {
     @Test
     fun anAccountWithNothingReadsAsEmpty() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
             assertEquals(emptyList<ScheduleItem>(), read(t0))
             assertEquals(emptyList<ScheduleItem>(), repository.scheduleItems(ALICE, emptySet(), at(t0)))

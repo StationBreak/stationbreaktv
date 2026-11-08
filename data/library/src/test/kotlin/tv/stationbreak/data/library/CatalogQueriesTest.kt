@@ -74,7 +74,7 @@ class CatalogQueriesTest {
         shows: List<SeriesInfo> = emptyList(),
         episodes: List<MediaItem> = shows.mapIndexed { i, s -> episode(i, s) },
     ) {
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         val items = movies + episodes
         repository.writePage(ALICE, MOVIES, items, items.size, items.size, run = ++run, series = shows)
     }

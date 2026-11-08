@@ -84,7 +84,7 @@ class RuleSnapshotItemsMatchScheduleItemsTest {
     fun anItemInALibraryWhoseIdIsNotCanonicalIsLeftOutOfBothAndCounted() =
         runBlocking {
             val odd = ItemId("lib-odd")
-            repository.select(ALICE, setOf(odd, RULE_LIBRARY))
+            repository.applySelection(ALICE, setOf(odd, RULE_LIBRARY), nowMs = 0)
             repository.put(ALICE, odd, episodeOf(1, null, library = odd))
             repository.put(ALICE, RULE_LIBRARY, episodeOf(2, null))
             val cutoff = at(clock.nowMs + 1)

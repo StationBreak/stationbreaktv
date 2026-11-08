@@ -31,7 +31,7 @@ class EpisodeSeasonVersionTest {
     @Test
     fun aSeasonChangeAloneMakesAnItemVersion() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, episode("season-a"))
             clock.stepMs(5_000)
 
@@ -48,7 +48,7 @@ class EpisodeSeasonVersionTest {
     @Test
     fun anEpisodeThatGainsAOrLosesASeasonFolderIsAChangeToo() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, episode(null))
             clock.stepMs(1_000)
             repository.put(ALICE, MOVIES, episode("season-a"))
@@ -63,7 +63,7 @@ class EpisodeSeasonVersionTest {
     @Test
     fun theSameSeasonWrittenAgainIsUnchanged() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, episode("season-a"))
 
             val again = repository.put(ALICE, MOVIES, episode("season-a"))
@@ -75,7 +75,7 @@ class EpisodeSeasonVersionTest {
     @Test
     fun heldAsOfReturnsTheSeasonAsHeldBeforeTheCutoff() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, episode("season-a"))
             clock.stepMs(10_000)
             repository.put(ALICE, MOVIES, episode("season-b"))
@@ -89,7 +89,7 @@ class EpisodeSeasonVersionTest {
     @Test
     fun anItemWithNoSeasonIsHeldWithNone() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
 
             assertNull(held(start + 5_000).seasonId)

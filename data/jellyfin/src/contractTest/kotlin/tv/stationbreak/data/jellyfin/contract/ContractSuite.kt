@@ -481,6 +481,40 @@ abstract class ContractSuite {
         }
     }
 
+    /**
+     * Provider ids (spec 26): asked for with the item and series fields, they arrive with keys lower-cased by the
+     * adapter, for a movie from the recursive item list and for a series from the series list.
+     */
+    @Test
+    @Suppress("FunctionNaming") // The name is the plan's (spec 26): the test names the server line it was written for.
+    fun jellyfin12_returnsProviderIds() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val expected = ServerSeeding.PROVIDER_IDS.mapKeys { it.key.lowercase() }
+            val movies = Library(ItemId(server.seeded.moviesLibrary), "Movies", LibraryKind.Movies)
+            val shows = Library(ItemId(server.seeded.tvLibrary), "Shows", LibraryKind.TvShows)
+
+            val movieItems =
+                adapter
+                    .libraryItems(session, movies, 0, BIG_PAGE)
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
+            val series =
+                adapter
+                    .librarySeries(session, shows, 0, BIG_PAGE)
+                    .getOrNull()
+                    ?.series
+                    .orEmpty()
+
+            assertEquals(server.seeded.movieIds.size, movieItems.size)
+            assertTrue(movieItems.all { it.providerIds == expected }, "movies: ${movieItems.map { it.providerIds }}")
+            assertEquals(listOf(expected), series.map { it.providerIds })
+            finding("provider ids arrive as ${series.single().providerIds}")
+        }
+    }
+
     @Test
     fun premiereDateArrives() {
         runBlocking {

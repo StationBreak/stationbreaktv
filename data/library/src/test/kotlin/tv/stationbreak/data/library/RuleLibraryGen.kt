@@ -80,7 +80,7 @@ internal object RuleLibraryGen {
         repository.forget(ALICE)
         repository.useAccount(ALICE)
         val libraries = listOf(LIBRARY_A, LIBRARY_B)
-        repository.select(ALICE, libraries.toSet())
+        repository.applySelection(ALICE, libraries.toSet(), nowMs = 0)
         val start = EPOCH.toEpochMilliseconds()
         val ids = idsOf(gen)
         val library = ids.associateWith { if (gen.chance(60)) LIBRARY_A else LIBRARY_B }.toMutableMap()

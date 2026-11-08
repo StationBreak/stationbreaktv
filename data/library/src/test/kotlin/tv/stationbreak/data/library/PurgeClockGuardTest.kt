@@ -29,7 +29,7 @@ class PurgeClockGuardTest {
 
     // Item 1 was deleted 5 days before EPOCH; the last sync succeeded at EPOCH. Item 2 is live.
     private suspend fun syncedAtEpoch() {
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         clock.atMs(epochMs - 10.days.inWholeMilliseconds)
         repository.writePage(ALICE, MOVIES, listOf(sitem(1), sitem(2)), nextStartIndex = 2, totalCount = 2, run = 1)
         clock.atMs(epochMs - 5.days.inWholeMilliseconds)
@@ -123,7 +123,7 @@ class PurgeClockGuardTest {
     @Test
     fun withNoReferenceThereIsNothingToCompareWithAndThePurgeRuns() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, listOf(sitem(1)), nextStartIndex = 1, totalCount = 1, run = 1)
             repository.tombstone(ALICE, listOf(tombstone))
             clock.stepMs(retentionMs + 1)
@@ -136,7 +136,7 @@ class PurgeClockGuardTest {
         runBlocking {
             val short = TestLibraries.inMemory(clock, retention = HistoryRetention(days = 5))
             try {
-                short.select(ALICE, setOf(MOVIES))
+                short.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
                 short.finishSync(ALICE)
                 // 5 days minus 72 h is 2 days.
                 clock.stepMs(2.days.inWholeMilliseconds + 1)
@@ -153,7 +153,7 @@ class PurgeClockGuardTest {
     fun aWrongClockLeavesSeriesAndTheirVersionsAlone() =
         runBlocking {
             syncedAtEpoch()
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             clock.atMs(epochMs - 400.days.inWholeMilliseconds)
             repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "A"), series("s2")))
             clock.stepMs(1_000)

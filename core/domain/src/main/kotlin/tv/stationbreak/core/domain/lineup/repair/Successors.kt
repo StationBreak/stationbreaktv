@@ -8,8 +8,10 @@ import tv.stationbreak.core.model.ItemId
 /**
  * Where an item that left the library came back under a new id (spec 26): for each of [of]'s `gone` ids that it
  * matches, the new id, found only among the [of]'s `libraries`. A match is a candidate only; the repair still checks
- * it against the channel's rules for the day and its holds, and fills the block instead when it fails. Part 3 supplies
- * the real, conservative one; until then [None] matches nothing.
+ * it against the channel's rules for the day and its holds, and fills the block instead when it fails. The app's is
+ * `LibraryRepository.successors`, which is conservative: a shared identity id (`imdb`, `tmdb` or `tvdb` only) with no
+ * identity key that disagrees, else the same series, season and episode, else the same film title and year; a
+ * disagreeing identity id blocks those name fallbacks. [None] matches nothing.
  */
 fun interface Successors {
     suspend fun of(

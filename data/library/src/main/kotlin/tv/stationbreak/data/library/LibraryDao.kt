@@ -10,6 +10,20 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Clock
 
+// The value of one identity key in the `key=value;key=value` text of the provider ids column (the six characters of
+// ';key=' are skipped), or NULL when the key is not there (spec 26). Used by the re-id read to find a successor by id.
+private const val PROVIDER_TEXT = "(';' || providerIds || ';')"
+
+private const val IMDB_REST = "substr($PROVIDER_TEXT, instr($PROVIDER_TEXT, ';imdb=') + 6)"
+private const val TMDB_REST = "substr($PROVIDER_TEXT, instr($PROVIDER_TEXT, ';tmdb=') + 6)"
+private const val TVDB_REST = "substr($PROVIDER_TEXT, instr($PROVIDER_TEXT, ';tvdb=') + 6)"
+private const val IMDB_VALUE =
+    "CASE WHEN instr($PROVIDER_TEXT, ';imdb=') > 0 THEN substr($IMDB_REST, 1, instr($IMDB_REST, ';') - 1) END"
+private const val TMDB_VALUE =
+    "CASE WHEN instr($PROVIDER_TEXT, ';tmdb=') > 0 THEN substr($TMDB_REST, 1, instr($TMDB_REST, ';') - 1) END"
+private const val TVDB_VALUE =
+    "CASE WHEN instr($PROVIDER_TEXT, ';tvdb=') > 0 THEN substr($TVDB_REST, 1, instr($TVDB_REST, ';') - 1) END"
+
 /** How a purge ended (spec 09, Unit 3). */
 internal sealed interface PurgeOutcome {
     /**
@@ -70,6 +84,22 @@ internal data class ProgramRow(
             "seriesName=${if (seriesName == null) "null" else "<name>"}, seasonNumber=$seasonNumber, episodeNumber=$episodeNumber)"
 }
 
+/** What the re-id match reads of one stored movie or episode (spec 26); the text is never logged. */
+@Suppress("LongParameterList") // One parameter per column the query reads.
+internal class SignalRow(
+    val itemId: String,
+    val kind: String,
+    val seriesId: String?,
+    val seasonNumber: Int?,
+    val episodeNumber: Int?,
+    val name: String,
+    val productionYear: Int?,
+    val runtimeMs: Long?,
+    val providerIds: String,
+) {
+    override fun toString(): String = "SignalRow(itemId=$itemId, kind=$kind)"
+}
+
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
 internal data class PageWrite(
     val inserted: Int,
@@ -126,12 +156,84 @@ internal abstract class LibraryDao {
         userId: String,
     )
 
-    @Query("UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId")
+    @Query("SELECT * FROM library WHERE serverId = :serverId AND userId = :userId")
+    abstract suspend fun libraries(
+        serverId: String,
+        userId: String,
+    ): List<LibraryEntity>
+
+    // The libraries being added (spec 26): what is written to them moves no content generation.
+    @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND addStamp IS NOT NULL")
+    abstract suspend fun addingLibraryIds(
+        serverId: String,
+        userId: String,
+    ): List<String>
+
+    @Update
+    protected abstract suspend fun updateLibraries(rows: List<LibraryEntity>)
+
+    // The series rows of [ids] (at most MAX_VARIABLES libraries), tombstones included: the cascade would take them.
+    @Query("SELECT seriesId FROM series WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:ids)")
+    protected abstract suspend fun seriesIdsIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<String>
+
+    // Moves the series [ids] (at most MAX_VARIABLES of them) to [libraryId]: an unversioned write, as a page's is.
+    @Query(
+        "UPDATE series SET libraryId = :libraryId WHERE serverId = :serverId AND userId = :userId " +
+            "AND seriesId IN (:ids)",
+    )
+    protected abstract suspend fun rehomeSeries(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    )
+
+    // Whether [libraryId] holds any item or series row, tombstones included: both lookups use the library index.
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId) OR EXISTS(SELECT 1 FROM series WHERE serverId = :serverId " +
+            "AND userId = :userId AND libraryId = :libraryId)",
+    )
+    protected abstract suspend fun holdsRows(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ): Boolean
+
+    @Query("DELETE FROM checkpoint WHERE serverId = :serverId AND userId = :userId AND libraryId IN (:ids)")
+    protected abstract suspend fun deleteCheckpointsIn(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    )
+
+    // A library being added is never landed here (spec 26): only a row with no add stamp is marked fetched. Nor is a
+    // held one (an untick of a partly walked add): its walk did not end, so it stays pending.
+    @Query(
+        "UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
+            "AND addStamp IS NULL AND heldUntilMs IS NULL",
+    )
     protected abstract suspend fun setFetched(
         serverId: String,
         userId: String,
         libraryId: String,
     )
+
+    // An add lands (spec 26): its stamp is cleared and it is fetched, only while it still has [stamp]. The row count.
+    @Query(
+        "UPDATE library SET addStamp = NULL, fetched = 1 WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId AND addStamp = :stamp AND heldUntilMs IS NULL",
+    )
+    protected abstract suspend fun clearStamp(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+    ): Int
 
     @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND fetched = 0")
     abstract suspend fun pendingLibraries(
@@ -217,6 +319,56 @@ internal abstract class LibraryDao {
         userId: String,
         ids: List<String>,
     ): List<ProgramRow>
+
+    // The re-id match's reads (spec 26). The tombstones among [ids] (at most MAX_VARIABLES - 2 of them) deleted at or
+    // after [sinceMs], the cache's retention: older ones are as good as purged.
+    @Query(
+        "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
+            "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NOT NULL " +
+            "AND deletedAtMs >= :sinceMs AND kind IN ('Movie', 'Episode') AND itemId IN (:ids)",
+    )
+    abstract suspend fun goneSignalRows(
+        serverId: String,
+        userId: String,
+        sinceMs: Long,
+        ids: List<String>,
+    ): List<SignalRow>
+
+    // The live movies and episodes of [libraries] that can be a gone item's successor: an episode of one of
+    // [seriesIds] (stored spellings), a film whose lower-cased name is one of [names] (SQLite's lower() folds ASCII
+    // only, as foldNameAscii does), or an item with one of the identity ids. The caller checks every row it gets back
+    // with the rules; this only keeps the rest of the library out of memory. At most MAX_VARIABLES binds in all.
+    @Suppress("LongParameterList") // One list per way a successor is found.
+    @Query(
+        "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
+            "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL " +
+            "AND kind IN ('Movie', 'Episode') AND libraryId IN (:libraries) AND (seriesId IN (:seriesIds) " +
+            "OR lower(name) IN (:names) OR " + IMDB_VALUE + " IN (:imdb) OR " + TMDB_VALUE + " IN (:tmdb) " +
+            "OR " + TVDB_VALUE + " IN (:tvdb))",
+    )
+    abstract suspend fun liveSignalRows(
+        serverId: String,
+        userId: String,
+        libraries: List<String>,
+        seriesIds: List<String>,
+        names: List<String>,
+        imdb: List<String>,
+        tmdb: List<String>,
+        tvdb: List<String>,
+    ): List<SignalRow>
+
+    // Every live movie and episode of [libraries] (at most MAX_VARIABLES - 2 of them): the re-id read when the gone
+    // items are too many for a few narrowed reads to be cheaper (spec 26).
+    @Query(
+        "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
+            "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL " +
+            "AND kind IN ('Movie', 'Episode') AND libraryId IN (:libraries)",
+    )
+    abstract suspend fun allLiveSignalRows(
+        serverId: String,
+        userId: String,
+        libraries: List<String>,
+    ): List<SignalRow>
 
     // Which of [ids] (at most MAX_VARIABLES of them) are live items of the account: no join, no names (spec 14).
     @Query(
@@ -591,24 +743,123 @@ internal abstract class LibraryDao {
     // platform's SQLiteOpenHelper (the app) or over a SQLiteDriver (the JVM tests). Each runs as one transaction: it
     // commits whole or rolls back whole.
 
-    /** Makes [chosen] the account's libraries: the others go (with everything under them), new ones are pending. */
+    /**
+     * The one writer of the account's library set (spec 26). Every library in [keep] is kept with no hold: a new one
+     * is inserted pending, with its stamp from [addStamps] if it has one. A kept library given a stamp it did not have
+     * (a new add, or the re-tick of a held or earlier library) is set pending and its checkpoint deleted, so the sync
+     * walks it again from the start; one not named in [addStamps] keeps the stamp it has. Any other library is kept
+     * while its hold, from [holds] or else the one it has, lies after [nowMs], and its rows are deleted otherwise (with
+     * everything under them, through the foreign keys). A stamp or hold for a library it does not apply to (a stamp
+     * outside [keep], a hold inside it, a hold for a library not stored) is ignored.
+     *
+     * The content generation moves once, and only when a library's rows are deleted: an unticked library, a hold that
+     * expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or be a held
+     * library's, re-ticked). A tick, a hold set or cleared, and an add dropped before it holds a row move nothing: none
+     * of them changes what a day is built from. With [keepAdding], every library
+     * stored with a stamp and no hold also counts as in [keep], read inside this transaction (the first sync does not
+     * know the adds); a held row is kept by its hold alone. A library that is held (here, or from before) loses its
+     * stamp: a held library is never one being added. An account that is not signed in gets no rows back.
+     *
+     * A new stamp may go only to a library that is new, held or already being added, never to a chosen library that
+     * has landed: that throws [IllegalArgumentException] and writes nothing. Before a library's rows are deleted, each
+     * series row of it that a live episode of a library that stays (kept or held) still names moves to that library
+     * (the smallest such ID), so a series listed in two libraries outlives the one that wrote it last; the move alone
+     * bumps nothing. [holdClockGuardMs] is the purge's forward-jump guard: when [nowMs] is more than that after the
+     * account's last successful sync, the clock looks wrong and no hold expires in this call (its rows and its hold are
+     * kept). Null (tests) means no guard.
+     */
     @Transaction
-    open suspend fun select(
+    @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its stamps and holds, and the clock.
+    open suspend fun applySelection(
         serverId: String,
         userId: String,
-        chosen: List<String>,
+        keep: Set<String>,
+        addStamps: Map<String, Long>,
+        holds: Map<String, Long>,
+        nowMs: Long,
+        keepAdding: Boolean = false,
+        holdClockGuardMs: Long? = null,
     ) {
         // An account that is not signed in (it signed out while the sync ran) gets no rows back.
         if (activeCount(serverId, userId) == 0) return
-        // A "NOT IN" list can't be chunked, so find the libraries to drop here and delete them in chunks.
-        val keep = chosen.toSet()
-        val held = libraryIds(serverId, userId)
-        if (held.toSet() != keep) bumpGeneration(serverId, userId)
-        held.filter { it !in keep }.chunked(MAX_VARIABLES).forEach {
-            deleteLibrariesIn(serverId, userId, it)
+        val stored = libraries(serverId, userId)
+        val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
+        // A clock far ahead of the last success (as the purge's guard reads it) expires no hold (Vimes, spec 26).
+        val holdsFrozen = holdClockGuardMs != null && lastSuccessMs != null && nowMs - lastSuccessMs > holdClockGuardMs
+        // A held row is kept by its hold alone, never by a stamp it may still carry.
+        val adding = stored.filter { it.addStamp != null && it.heldUntilMs == null }.map { it.libraryId }
+        val kept = if (keepAdding) keep + adding else keep
+        val byId = stored.associateBy { it.libraryId }
+        val toUpdate = mutableListOf<LibraryEntity>()
+        val toDelete = mutableListOf<String>()
+        val rewalk = mutableListOf<String>()
+        var bump = false
+        for (row in stored) {
+            if (row.libraryId in kept) continue
+            val until = holds[row.libraryId] ?: row.heldUntilMs
+            if (until != null && (until > nowMs || holdsFrozen)) {
+                // A held library is never one being added: its stamp goes, so it can never land.
+                val next = row.copy(heldUntilMs = until, addStamp = null)
+                if (next != row) toUpdate += next
+            } else {
+                toDelete += row.libraryId
+                // An add's rows can be ones a day was built from: an item or series that moved in from a chosen
+                // library (its versions go with it), or a held library re-ticked and then dropped. So an add goes
+                // without a bump only when it holds no row at all.
+                if (row.addStamp == null || holdsRows(serverId, userId, row.libraryId)) bump = true
+            }
         }
-        val rows = chosen.map { LibraryEntity(serverId, userId, it, fetched = false) }
-        rows.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
+        val toInsert = mutableListOf<LibraryEntity>()
+        for (id in kept) {
+            val row = byId[id]
+            val stamp = addStamps[id]
+            if (row == null) {
+                toInsert += LibraryEntity(serverId, userId, id, fetched = false, heldUntilMs = null, addStamp = stamp)
+                continue
+            }
+            val newStamp = stamp != null && stamp != row.addStamp
+            require(!newStamp || row.heldUntilMs != null || row.addStamp != null) {
+                "A new add stamp goes only to a library that is new, held or being added"
+            }
+            if (newStamp) rewalk += id
+            val next =
+                row.copy(
+                    fetched = row.fetched && !newStamp,
+                    heldUntilMs = null,
+                    addStamp = stamp ?: row.addStamp,
+                )
+            if (next != row) toUpdate += next
+        }
+        if (bump) bumpGeneration(serverId, userId)
+        if (toDelete.isNotEmpty()) {
+            rehomeSharedSeries(serverId, userId, toDelete, stored.map { it.libraryId } - toDelete.toSet())
+        }
+        toDelete.chunked(MAX_VARIABLES).forEach { deleteLibrariesIn(serverId, userId, it) }
+        rewalk.chunked(MAX_VARIABLES).forEach { deleteCheckpointsIn(serverId, userId, it) }
+        if (toUpdate.isNotEmpty()) updateLibraries(toUpdate)
+        toInsert.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
+    }
+
+    /**
+     * Before [gone] are deleted: each of their series rows that a live episode of one of [staying] names moves to the
+     * smallest such library, so the cascade does not take a series another library still uses. The episodes are read
+     * per staying library through the library index ([referencedSeriesIds]), never by scanning for a series ID.
+     */
+    private suspend fun rehomeSharedSeries(
+        serverId: String,
+        userId: String,
+        gone: List<String>,
+        staying: List<String>,
+    ) {
+        if (staying.isEmpty()) return
+        val orphans = HashSet<String>()
+        for (chunk in gone.chunked(MAX_VARIABLES)) orphans.addAll(seriesIdsIn(serverId, userId, chunk))
+        for (library in staying.sorted()) {
+            if (orphans.isEmpty()) return
+            val named = referencedSeriesIds(serverId, userId, library).filter { it in orphans }
+            for (chunk in named.chunked(MAX_VARIABLES)) rehomeSeries(serverId, userId, library, chunk)
+            orphans.removeAll(named.toSet())
+        }
     }
 
     /** The names of the genres, tags and studios of [ids], in order, by item. Chunked under MAX_VARIABLES. */
@@ -698,7 +949,7 @@ internal abstract class LibraryDao {
         updateTotal(serverId, userId, total)
     }
 
-    /** [libraryId] has been read to its end. */
+    /** [libraryId] has been read to its end. A library being added (it has an add stamp) or held is left pending. */
     @Transaction
     open suspend fun markFetched(
         serverId: String,
@@ -707,6 +958,25 @@ internal abstract class LibraryDao {
     ) {
         requireActive(serverId, userId)
         setFetched(serverId, userId, libraryId)
+    }
+
+    /**
+     * The add of [libraryId] under [stamp] lands (spec 26): when the library still has that stamp (and no hold), the
+     * stamp is cleared, the library is marked fetched and the content generation moves once, all in this transaction,
+     * as the rows its walk wrote (which moved nothing) become a day's inputs. Otherwise (another stamp, none, a hold,
+     * no such library, or an account that is not signed in) nothing changes and it returns false.
+     */
+    @Transaction
+    open suspend fun landAdd(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+    ): Boolean {
+        // An account that is not signed in lands nothing; nor does a stamp that is no longer the library's.
+        val landed = activeCount(serverId, userId) > 0 && clearStamp(serverId, userId, libraryId, stamp) > 0
+        if (landed) bumpGeneration(serverId, userId)
+        return landed
     }
 
     /** A sync ended well at [nowMs]: idle, and the time of the success kept with the saved library. */

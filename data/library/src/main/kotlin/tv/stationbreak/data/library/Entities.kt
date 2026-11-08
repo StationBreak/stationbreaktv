@@ -14,20 +14,31 @@ import tv.stationbreak.core.model.CollectionMemberKind
 // the foreign keys, so unticking a library, signing out and a change of account are each one DELETE. SQLite on API 25
 // is 3.9: no UPSERT, no window functions, no row values, at most 999 variables in a statement. The DAO sticks to that.
 
-/** One chosen library of one account. [fetched] is false from the tick until the sync has read all of it. */
+/**
+ * One library of one account whose rows the cache keeps (spec 26): a chosen one, one being added, or one held after it
+ * was unticked. [fetched] is false from the tick until the sync has read all of it. [heldUntilMs] is set while the
+ * library is held: unticked, but its rows kept until that moment (a repair of the days that used it reads them), and
+ * null for a library in the chosen set. [addStamp] is set while the library is being added: ticked, but its rows not
+ * yet in use, so nothing written to it moves the content generation; null for every other library. Only
+ * `LibraryDao.applySelection` writes these two.
+ */
 @Entity(tableName = "library", primaryKeys = ["serverId", "userId", "libraryId"])
 internal data class LibraryEntity(
     val serverId: String,
     val userId: String,
     val libraryId: String,
     val fetched: Boolean,
+    val heldUntilMs: Long? = null,
+    val addStamp: Long? = null,
 )
 
 /**
  * One video item. [deletedAtMs] is the tombstone: set when the server no longer has the item, cleared if it returns,
  * and the row is purged 30 days after it. The runtime is kept in whole milliseconds, exactly
  * floorDiv(RunTimeTicks, 10000) (rules format v1); it may be null, zero or negative, and then the item is stored
- * but never in a snapshot.
+ * but never in a snapshot. [providerIds] are the item's ids at outside databases (spec 26) as one [ProviderIdsCodec]
+ * column, `''` for none: no version keeps them and no read for a day uses them, so a change to them alone is stored
+ * without a version and moves no content generation. They are never logged.
  */
 @Entity(
     tableName = "item",
@@ -67,8 +78,9 @@ internal data class ItemEntity(
     val deletedAtMs: Long?,
     val seenFromMs: Long,
     val firstSeenMs: Long,
+    @ColumnInfo(defaultValue = "") val providerIds: String = "",
 ) {
-    // A name is text a person typed: it never reaches a log.
+    // A name is text a person typed, and provider ids are never logged: neither reaches a log.
     override fun toString(): String = "ItemEntity(serverId=$serverId, userId=$userId, itemId=$itemId, name=<name>)"
 }
 
@@ -168,8 +180,9 @@ internal data class SeriesEntity(
     val seenFromMs: Long,
     val firstSeenMs: Long,
     @ColumnInfo(defaultValue = "") val studios: String,
+    @ColumnInfo(defaultValue = "") val providerIds: String = "",
 ) {
-    // A name is text a person typed: it never reaches a log.
+    // A name is text a person typed, and provider ids are never logged: neither reaches a log.
     override fun toString(): String = "SeriesEntity(serverId=$serverId, userId=$userId, seriesId=$seriesId, name=<name>)"
 }
 

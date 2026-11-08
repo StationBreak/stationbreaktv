@@ -26,7 +26,7 @@ class ForgottenAccountTest {
 
     private suspend fun signedInAndSelected() {
         repository.useAccount(ALICE)
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
     }
 
     // The note's own test: the sync calls select after the account was forgotten.
@@ -37,7 +37,7 @@ class ForgottenAccountTest {
             repository.useAccount(ALICE)
             repository.forget(ALICE)
 
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
@@ -45,7 +45,7 @@ class ForgottenAccountTest {
     @Test
     fun selectForAnAccountThatNeverSignedInStoresNothing() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
@@ -142,8 +142,8 @@ class ForgottenAccountTest {
             repository.useAccount(ALICE)
             repository.useAccount(BOB)
 
-            repository.select(ALICE, setOf(MOVIES))
-            repository.select(BOB, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
+            repository.applySelection(BOB, setOf(MOVIES), nowMs = 0)
 
             assertEquals(emptySet<tv.stationbreak.core.model.ItemId>(), repository.pendingLibraries(ALICE))
             assertEquals(setOf(MOVIES), repository.pendingLibraries(BOB))

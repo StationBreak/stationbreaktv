@@ -24,7 +24,7 @@ class RatingDistinctRoundTripTest {
     @Test
     fun seriesRatingsRoundTripDistinct() =
         runBlocking {
-            repository.select(ALICE, setOf(SHOWS))
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
 
             repository.upsertSeries(ALICE, SHOWS, ratings.mapIndexed { i, rating -> series("s$i", rating = rating) })
 
@@ -34,7 +34,7 @@ class RatingDistinctRoundTripTest {
     @Test
     fun episodeRatingsRoundTripDistinct() =
         runBlocking {
-            repository.select(ALICE, setOf(SHOWS))
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
             val episodes =
                 ratings.mapIndexed {
                     i,
@@ -54,7 +54,7 @@ class RatingDistinctRoundTripTest {
         runBlocking {
             val clock = FakeClock()
             val tracked = TestLibraries.inMemory(clock)
-            tracked.select(ALICE, setOf(SHOWS))
+            tracked.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
             val id = ItemId(hexId(1))
             for (rating in listOf<String?>(null, "", " ")) {
                 tracked.upsertSeries(ALICE, SHOWS, listOf(series(id.value, rating = rating)))

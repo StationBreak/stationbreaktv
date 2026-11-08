@@ -21,7 +21,7 @@ class HistoryCascadeTest {
     fun close() = repository.close()
 
     private suspend fun twoLibrariesWithHistory() {
-        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
         repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes), sitem(2, runtime = 90.minutes))
         repository.put(ALICE, SHOWS, sitem(3, runtime = 90.minutes, library = SHOWS))
         clock.stepMs(1_000)
@@ -35,7 +35,7 @@ class HistoryCascadeTest {
             twoLibrariesWithHistory()
             assertEquals(3, repository.versions(ALICE).size)
 
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
             assertEquals(setOf(hexId(1), hexId(2)), repository.versions(ALICE).map { it.itemId }.toSet())
         }
@@ -44,7 +44,7 @@ class HistoryCascadeTest {
     fun aChangeOfAccountDeletesTheOtherAccountsHistory() =
         runBlocking {
             twoLibrariesWithHistory()
-            repository.select(BOB, setOf(MOVIES))
+            repository.applySelection(BOB, setOf(MOVIES), nowMs = 0)
             repository.put(BOB, MOVIES, sitem(1, runtime = 90.minutes))
             repository.put(BOB, MOVIES, sitem(1, runtime = 95.minutes))
             assertEquals(1, repository.versions(BOB).size)
@@ -59,7 +59,7 @@ class HistoryCascadeTest {
     fun forgetDeletesTheHistoryAndLeavesAnotherAccountsAlone() =
         runBlocking {
             twoLibrariesWithHistory()
-            repository.select(BOB, setOf(MOVIES))
+            repository.applySelection(BOB, setOf(MOVIES), nowMs = 0)
             repository.put(BOB, MOVIES, sitem(1, runtime = 90.minutes))
             repository.put(BOB, MOVIES, sitem(1, runtime = 95.minutes))
 
@@ -86,7 +86,7 @@ class HistoryCascadeTest {
     // Spec 10 task 1.8: the series and their versions follow the same cascades.
 
     private suspend fun twoLibrariesWithSeriesHistory() {
-        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
         repository.upsertSeries(ALICE, MOVIES, listOf(series("m1", "A")))
         repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "A"), series("s2", "A")))
         clock.stepMs(1_000)
@@ -100,7 +100,7 @@ class HistoryCascadeTest {
             twoLibrariesWithSeriesHistory()
             assertEquals(3, repository.seriesVersions(ALICE).size)
 
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
             assertEquals(listOf("m1"), repository.currentSeries(ALICE).map { it.seriesId })
             assertEquals(listOf("m1"), repository.seriesVersions(ALICE).map { it.seriesId })
@@ -110,7 +110,7 @@ class HistoryCascadeTest {
     fun aChangeOfAccountDeletesTheOtherAccountsSeriesAndVersions() =
         runBlocking {
             twoLibrariesWithSeriesHistory()
-            repository.select(BOB, setOf(SHOWS))
+            repository.applySelection(BOB, setOf(SHOWS), nowMs = 0)
             repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "A")))
             repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "B")))
 
@@ -125,7 +125,7 @@ class HistoryCascadeTest {
     fun forgetDeletesTheSeriesAndTheirVersionsAndLeavesAnotherAccountsAlone() =
         runBlocking {
             twoLibrariesWithSeriesHistory()
-            repository.select(BOB, setOf(SHOWS))
+            repository.applySelection(BOB, setOf(SHOWS), nowMs = 0)
             repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "A")))
             repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "B")))
 

@@ -134,6 +134,9 @@ class RoomLibraryRepository internal constructor(
      */
     internal var faultDuringRuleSnapshot: (() -> Unit)? = null
 
+    /** Test seam: hears each read [successors] makes ("series", "live:narrowed", "live:all"). Null in the app. */
+    internal var traceSuccessors: ((String) -> Unit)? = null
+
     // The port.
 
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
@@ -321,18 +324,72 @@ class RoomLibraryRepository internal constructor(
         return dao.excludedCount(server, user, libraries.map { it.value })
     }
 
-    override suspend fun select(
+    override suspend fun applySelection(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        keep: Set<ItemId>,
+        addStamps: Map<ItemId, Long>,
+        holds: Map<ItemId, Long>,
+        nowMs: Long,
+    ) = applySelection(account, keep, addStamps, holds, nowMs, keepAdding = false)
+
+    /**
+     * [applySelection] for the first sync, which knows the chosen libraries and not the adds: every library stored with
+     * an add stamp is kept too, read in the same transaction, so a first sync never drops an add that is under way.
+     */
+    internal suspend fun applySelectionKeepingAdds(
+        account: LibraryAccount,
+        chosen: Set<ItemId>,
+        nowMs: Long,
+    ) = applySelection(account, chosen, emptyMap(), emptyMap(), nowMs, keepAdding = true)
+
+    @Suppress("LongParameterList") // The port's call and the first sync's flag.
+    private suspend fun applySelection(
+        account: LibraryAccount,
+        keep: Set<ItemId>,
+        addStamps: Map<ItemId, Long>,
+        holds: Map<ItemId, Long>,
+        nowMs: Long,
+        keepAdding: Boolean,
     ) {
         val (server, user) = account.keys()
-        // Unticked libraries go, with their items, genres, tags, studios and checkpoint (foreign keys cascade).
-        dao.select(server, user, libraries.map { it.value })
+        // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade).
+        dao.applySelection(
+            server,
+            user,
+            keep.mapTo(HashSet()) { it.value },
+            addStamps.mapKeys { it.key.value },
+            holds.mapKeys { it.key.value },
+            nowMs,
+            keepAdding,
+            // The purge's forward-jump guard (clockLooksWrong): past it, no hold expires.
+            retention.millis - HistoryRetention.SAFE_LOOKBACK_MS,
+        )
+    }
+
+    override suspend fun landAdd(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean {
+        val (server, user) = account.keys()
+        return dao.landAdd(server, user, library.value, stamp)
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> {
         val (server, user) = account.keys()
         return dao.pendingLibraries(server, user).map(::ItemId).toSet()
+    }
+
+    override suspend fun successors(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        gone: Set<CanonicalId>,
+    ): Map<CanonicalId, CanonicalId> {
+        val (server, user) = account.keys()
+        val sinceMs = clock.now().toEpochMilliseconds() - retention.millis
+        val wanted = libraries.mapTo(HashSet()) { it.value }
+        // The read is one transaction; the match runs after it, holding no connection.
+        return transactions.successors(server, user, wanted, gone, sinceMs, traceSuccessors).match()
     }
 
     override suspend fun useAccount(account: LibraryAccount) {
@@ -355,9 +412,9 @@ class RoomLibraryRepository internal constructor(
      * Saves one [page][items] of [library] and the checkpoint that goes with it, in one transaction: after a crash both
      * are there or neither is. Writing the same page again changes nothing (an item that is unchanged is not
      * rewritten; a tombstoned one that came back is revived), so a resume can replay the last page.
-     * [library] must have been chosen with [select] first. [series], if any, are written in the same transaction (the
-     * transactions across DAOs are one method of `CacheTransactionDao`). That parameter is for tests: the sync writes
-     * series apart, with [upsertSeries].
+     * [library] must have been chosen with [applySelection] first. [series], if any, are written in the same
+     * transaction (the transactions across DAOs are one method of `CacheTransactionDao`). That parameter is for tests:
+     * the sync writes series apart, with [upsertSeries].
      */
     @Suppress("LongParameterList") // One cohesive call: the page, and the checkpoint that goes with it.
     internal suspend fun writePage(
@@ -721,6 +778,30 @@ class RoomLibraryRepository internal constructor(
         }
     }
 
+    /**
+     * The SQLite rowids of [itemId]'s genre, tag and studio rows, in that order, for a test that proves a write left
+     * them alone (a rewrite gives new rowids above every row written since). For the tests only.
+     */
+    internal suspend fun sideRowIds(
+        account: LibraryAccount,
+        itemId: String,
+    ): List<Long> {
+        val (server, user) = account.keys()
+        return db.useReaderConnection { connection ->
+            val ids = ArrayList<Long>()
+            for (table in listOf("item_genre", "item_tag", "item_studio")) {
+                val sql =
+                    "SELECT rowid FROM `$table` WHERE serverId = ? AND userId = ? AND itemId = ? ORDER BY position"
+                connection.usePrepared(sql) { statement ->
+                    val keys = listOf(server, user, itemId)
+                    for ((index, value) in keys.withIndex()) statement.bindText(index + 1, value)
+                    while (statement.step()) ids += statement.getLong(0)
+                }
+            }
+            ids
+        }
+    }
+
     /** The `secure_delete` setting of the open database: 1 when freed pages are overwritten. */
     internal suspend fun pragmaSecureDelete(): Int =
         db.useReaderConnection { connection ->
@@ -987,6 +1068,7 @@ private fun MediaItem.toRows(
             // The DAO stamps both when it writes the row (spec 09, Vimes H1).
             seenFromMs = 0,
             firstSeenMs = 0,
+            providerIds = ProviderIdsCodec.encode(providerIds),
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
@@ -1026,6 +1108,7 @@ private fun SeriesInfo.toEntity(
     // The DAO stamps both when it writes the row.
     seenFromMs = 0,
     firstSeenMs = 0,
+    providerIds = ProviderIdsCodec.encode(providerIds),
 )
 
 private fun ItemRows.toItem() =
@@ -1046,4 +1129,5 @@ private fun ItemRows.toItem() =
         seasonId = item.seasonId?.let(::ItemId),
         seasonNumber = item.seasonNumber,
         episodeNumber = item.episodeNumber,
+        providerIds = ProviderIdsCodec.decode(item.providerIds),
     )

@@ -31,7 +31,7 @@ class CollectionTombstoneCascadeTest {
 
     // Two items and a series cached, and two collections that hold them (the film in both).
     private suspend fun world() {
-        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
         repository.put(ALICE, MOVIES, sitem(1), sitem(2))
         repository.putSeries(ALICE, SHOWS, series(show.value))
         val aMembers = listOf(cm(film.value), cm(other.value), cm(show.value, CollectionMemberKind.Series))
@@ -210,7 +210,7 @@ class CollectionTombstoneCascadeTest {
     @Test
     fun aManyIdTombstoneIsChunked() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val ids = (0 until 1_000).map { ItemId(hexId(it + 10)) }
             repository.put(ALICE, MOVIES, *ids.map { sitem(it.value.toInt(16)) }.toTypedArray())
             repository.writeCollection(ALICE, boxA, "A", ids.map { cm(it.value) })
@@ -263,7 +263,7 @@ class CollectionTombstoneCascadeTest {
     private val canonicalFilm = "abcdef0123456789abcdef0123456789"
 
     private suspend fun rawWorld() {
-        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
         repository.put(ALICE, MOVIES, sitem(1).copy(id = ItemId(rawFilm)))
         repository.putSeries(ALICE, SHOWS, series(rawFilm.replace('A', 'B')))
         repository.writeCollection(

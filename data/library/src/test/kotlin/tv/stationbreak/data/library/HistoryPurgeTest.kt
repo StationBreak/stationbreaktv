@@ -28,7 +28,7 @@ class HistoryPurgeTest {
 
     // Items 1 to 4 for [account], each with genres and tags, all first seen at the current clock.
     private suspend fun fourItems(account: tv.stationbreak.core.domain.LibraryAccount = ALICE) {
-        repository.select(account, setOf(MOVIES))
+        repository.applySelection(account, setOf(MOVIES), nowMs = 0)
         val items = (1..4).map { sitem(it).copy(genres = listOf("g$it"), tags = listOf("t$it")) }
         repository.writePage(account, MOVIES, items, nextStartIndex = items.size, totalCount = items.size, run = 1)
     }
@@ -78,7 +78,7 @@ class HistoryPurgeTest {
 
     // Item 1: first seen at the start, edited 1 s later. The first version is superseded at start + 1000.
     private suspend fun oneEditedItem() {
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
         clock.stepMs(1_000)
         repository.put(ALICE, MOVIES, sitem(1, runtime = 91.minutes))
@@ -251,7 +251,7 @@ class HistoryPurgeTest {
         runBlocking {
             val short = TestLibraries.inMemory(clock, retention = HistoryRetention(days = 5))
             try {
-                short.select(ALICE, setOf(MOVIES))
+                short.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
                 short.writePage(ALICE, MOVIES, listOf(sitem(1)), nextStartIndex = 1, totalCount = 1, run = 1)
                 short.tombstone(ALICE, listOf(id(1)))
                 clock.stepMs(5.days.inWholeMilliseconds + 1)
@@ -267,14 +267,14 @@ class HistoryPurgeTest {
     private fun sid(n: Int) = ItemId(hexId(n))
 
     private suspend fun fourSeries(account: tv.stationbreak.core.domain.LibraryAccount = ALICE) {
-        repository.select(account, setOf(SHOWS))
+        repository.applySelection(account, setOf(SHOWS), nowMs = 0)
         val rows = (1..4).map { series(hexId(it), "TV-14", listOf("g$it"), listOf("t$it")) }
         repository.upsertSeries(account, SHOWS, rows)
     }
 
     // Series 1: first seen at the start, edited 1 s later. The first version is superseded at start + 1000.
     private suspend fun oneEditedSeries() {
-        repository.select(ALICE, setOf(SHOWS))
+        repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
         repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-14")))
         clock.stepMs(1_000)
         repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-MA")))
@@ -326,7 +326,7 @@ class HistoryPurgeTest {
         runBlocking {
             fourItems()
             repository.tombstone(ALICE, listOf(id(1)))
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             val three = listOf(series(hexId(1), "TV-14"), series(hexId(2)), series(hexId(3), "G"))
             repository.upsertSeries(ALICE, SHOWS, three)
             clock.stepMs(1_000)

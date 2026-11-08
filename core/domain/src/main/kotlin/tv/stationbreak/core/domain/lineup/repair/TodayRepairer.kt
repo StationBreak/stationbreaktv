@@ -215,24 +215,27 @@ class TodayRepairer internal constructor(
      * days of the source's chosen libraries, each with the repair it shows), and records the pieces as fixes of that
      * repair (seq 0 on a day as built) with where the check ran (`LostCheck`: the library's content generation, and the
      * end of the earliest of those days). With no saved selection read (the provider gives null) it does nothing at
-     * all (`Saved(0)`): no drop, no check. First, in the same turn, it drops every selection repair above the saved seq
-     * with its fixes, and the lost-block check with them: no change is being saved outside a turn, so those are left by
-     * a crash or by an undo that failed ([RepairOutcome.UndoFailed]). Then it does nothing more (`Saved(0)`) when the
-     * record's check already covers that generation at [atMs], or when no day is on the air. [playable] are the chosen
-     * libraries a match or a fill may come from now (those whose rows are fetched and current; never more than the
-     * chosen set); null when the selection is gone, and then nothing is taken from the libraries. The result of
-     * [RepairOutcome.Saved] is how many blocks were fixed.
+     * all ([RepairOutcome.SelectionUnknown]): no drop, no check. First, in the same turn, it drops every selection
+     * repair above the saved seq with its fixes, and the lost-block check with them: no change is being saved outside a
+     * turn, so those are left by a crash or by an undo that failed ([RepairOutcome.UndoFailed]). Then it does nothing
+     * more (`Saved(0)`) when the record's check already covers that generation at [atMs], or when no day is on the air.
+     *
+     * The libraries a match or a fill may come from are the saved selection's [SavedSelection.playable], read in this
+     * turn from the same provider read as the saved seq, so a selection that changes while the call waits for its turn
+     * is the one it uses. Null there means the selection is gone, and then nothing is taken from the libraries (the
+     * recorded tail only); that is not the same as no saved selection read at all. The result of [RepairOutcome.Saved]
+     * is how many blocks were fixed.
      */
     suspend fun repairLost(
         account: LibraryAccount,
-        playable: Set<ItemId>?,
         atMs: Long,
     ): RepairOutcome<Int> =
         withContext(dispatcher) {
             turns.withLock {
                 var held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
                 // No saved selection read: nothing is dropped and nothing checked (the days it shows are unknown).
-                val applied = source.savedSelection()?.seq ?: return@withLock RepairOutcome.Saved(0)
+                val saved = source.savedSelection() ?: return@withLock RepairOutcome.SelectionUnknown
+                val applied = saved.seq
                 if (held.repairs.selection.any { it.seq > applied }) {
                     // What shows stays as it is; the check is made again all the same, over the days as they show.
                     val dropped = record(account, held, 0) { it.applied(applied).copy(lostCheck = null) }
@@ -241,9 +244,10 @@ class TodayRepairer internal constructor(
                 }
                 val generation = library.contentGeneration(account)
                 if (held.repairs.lostCheck?.covers(generation, atMs) == true) return@withLock RepairOutcome.Saved(0)
-                val today = source.currentDays(account, Instant.fromEpochMilliseconds(atMs))
+                // The days of the same read: the provider is read once in this turn.
+                val today = source.currentDays(account, saved, Instant.fromEpochMilliseconds(atMs))
                 if (today.isEmpty()) return@withLock RepairOutcome.Saved(0)
-                val fixes = LostRepair(days, library, successors, account, held, playable, atMs).fixes(today)
+                val fixes = LostRepair(days, library, successors, account, held, saved.playable, atMs).fixes(today)
                 val check = LostCheck(generation, today.minOf { it.epochEndMs })
                 record(account, held, fixes.size) { it.withFixes(fixes, check).pruned(applied) }
             }

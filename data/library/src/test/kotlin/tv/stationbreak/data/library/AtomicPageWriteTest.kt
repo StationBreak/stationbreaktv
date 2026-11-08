@@ -27,7 +27,7 @@ class AtomicPageWriteTest {
     @Test
     fun aPageAndItsCheckpointAreStoredTogether() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
             repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
 
@@ -39,7 +39,7 @@ class AtomicPageWriteTest {
     @Test
     fun aFailureBetweenTheItemsAndTheCheckpointStoresNeither() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
 
@@ -55,7 +55,7 @@ class AtomicPageWriteTest {
     @Test
     fun aFailureLeavesTheSideTablesAloneToo() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
 
             assertThrows(IllegalStateException::class.java) {
@@ -70,7 +70,7 @@ class AtomicPageWriteTest {
     @Test
     fun theWriteWorksAgainOnceTheFaultIsGone() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
             assertThrows(IllegalStateException::class.java) {
                 runBlocking { repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7) }
@@ -97,7 +97,7 @@ class AtomicPageWriteTest {
     @Test
     fun writingAPageTwiceChangesNothing() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val first = repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
             val before = repository.stored(ALICE)
 
@@ -112,7 +112,7 @@ class AtomicPageWriteTest {
     @Test
     fun aChangedSincePageSavesItemsAndMovesNoCheckpoint() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
             val before = repository.checkpoint(ALICE, MOVIES)
 
@@ -126,7 +126,7 @@ class AtomicPageWriteTest {
     @Test
     fun aChangedItemIsUpdatedAndItsGenresAreReplaced() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
             val renamed = page1[0].copy(name = "Renamed", genres = listOf("new-1", "new-2"))
 
@@ -140,7 +140,7 @@ class AtomicPageWriteTest {
     @Test
     fun aTombstonedItemThatComesBackInAPageIsRevived() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 2, run = 1)
             repository.tombstone(ALICE, listOf(page1[0].id))
 
@@ -155,7 +155,7 @@ class AtomicPageWriteTest {
         runBlocking {
             // The platform SQLite on API 25 allows 999 variables in a statement; the write chunks its lookups.
             val many = (0 until 1500).map { item("many-${it.toString().padStart(4, '0')}") }
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
             repository.writePage(ALICE, MOVIES, many, nextStartIndex = many.size, totalCount = many.size, run = 1)
             val replay = repository.writePage(ALICE, MOVIES, many, many.size, many.size, run = 1)

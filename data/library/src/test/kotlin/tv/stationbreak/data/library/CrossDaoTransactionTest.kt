@@ -28,7 +28,7 @@ class CrossDaoTransactionTest {
     private val second = listOf(sitem(1, runtime = 100.minutes), sitem(2))
 
     private suspend fun writeFirst() {
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         repository.writePage(ALICE, MOVIES, first, nextStartIndex = 1, totalCount = 2, run = 1)
         clock.stepMs(10_000)
     }
@@ -78,7 +78,7 @@ class CrossDaoTransactionTest {
     private val seriesSecond = listOf(series("s1", rating = "B", genres = listOf("x")), series("s2"))
 
     private suspend fun writeFirstWithSeries() {
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         repository.writePage(ALICE, MOVIES, first, nextStartIndex = 1, totalCount = 2, run = 1, series = seriesFirst)
         clock.stepMs(10_000)
     }

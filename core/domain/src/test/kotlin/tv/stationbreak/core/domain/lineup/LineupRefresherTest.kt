@@ -85,7 +85,8 @@ class LineupRefresherTest {
     private fun refresher(
         lib: LibraryRepository = library,
         backoffMs: Long = LineupRefresher.INITIAL_BACKOFF_MS,
-    ) = LineupRefresher(service, lib, { libraries }, sync, backoffMs) { events += it }
+        afterSync: suspend (LibraryAccount) -> Unit = {},
+    ) = LineupRefresher(service, lib, { libraries }, sync, backoffMs, afterSync) { events += it }
 
     private val refreshes get() = library.snapshotCutoffs.size
 
@@ -568,6 +569,158 @@ class LineupRefresherTest {
         return before
     }
 
+    // --- The check after a run's writing ends (spec 26, #633) ---------------------------------------------------
+
+    @Test
+    fun endOfWriting_runsAfterSyncOnce() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+            refresher(afterSync = { seen += it }).start(scope)
+            until("the check after the start check") { seen.isNotEmpty() }
+            settle()
+            assertEquals(listOf(ACCOUNT), seen, "the start check runs it once")
+
+            writing.value = true
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T11:01:00Z"))
+            library.delegate.noteContentChange(ACCOUNT)
+            settle()
+            assertEquals(listOf(ACCOUNT), seen, "the run's own writes are held, and so is the check")
+            writing.value = false
+            until("the check after the run") { seen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(ACCOUNT, ACCOUNT), seen, "once more, after the refresh the run's writes asked for")
+            assertTrue(refreshes >= 1)
+        }
+
+    @Test
+    fun startCheck_withTheLineupCurrent_runsAfterSyncOnce_andRefreshesNothing() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = refreshes
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+
+            refresher(afterSync = { seen += it }).start(scope)
+            until("the check after the start check") { seen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(ACCOUNT), seen)
+            assertEquals(before, refreshes, "nothing was behind")
+        }
+
+    @Test
+    fun startCheck_withTheLineupBehind_refreshesFirst_thenRunsAfterSyncOnce() =
+        runBlocking<Unit> {
+            val refreshesSeen = CopyOnWriteArrayList<Int>()
+
+            refresher(afterSync = { refreshesSeen += refreshes }).start(scope)
+            until("the check after the start check") { refreshesSeen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(1), refreshesSeen, "once, after the start refresh")
+        }
+
+    // Round 2 (arch MED-1): a start while a sync writes leaves the check to that run's end, so it is still made once.
+    @Test
+    fun startCheck_whileASyncWrites_leavesAfterSyncToTheRunsEnd() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+            writing.value = true
+
+            refresher(afterSync = { seen += it }).start(scope)
+            settle()
+            assertEquals(emptyList(), seen, "not while the run writes")
+
+            writing.value = false
+            until("the check after the run") { seen.isNotEmpty() }
+            settle()
+            assertEquals(listOf(ACCOUNT), seen, "exactly once")
+        }
+
+    // Round 3 (data): a start that meets a run writing, then a trigger source that fails, then the run's end during the
+    // backoff (so runEnds, listening again, starts from "not writing" and never sees it): the owed check is still
+    // made, by the Start the resubscription sends, and only once.
+    @Test
+    fun startCheck_whileASyncWrites_thenASourceFails_andTheRunEndsInTheBackoff_runsAfterSyncOnce() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+            writing.value = true
+            val passes = ThrowingOnceLaterPasses(library)
+
+            refresher(passes, backoffMs = BACKOFF_IN_TEST_MS, afterSync = { seen += it }).start(scope)
+            until("the source failed") { LineupEvent.RefreshFailed in events }
+            assertEquals(emptyList(), seen, "not while the run writes")
+            writing.value = false
+            until("the check after the start that was asked again") { seen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(ACCOUNT), seen, "exactly once")
+            assertEquals(2, passes.collected.get(), "it was listened to again, after the run ended")
+        }
+
+    @Test
+    fun startCheck_runsAfterSyncOnce_evenWhenATriggerSourceIsListenedToAgain() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val calls = AtomicInteger()
+            refresher(ThrowingOncePasses(library), backoffMs = 10, afterSync = { calls.incrementAndGet() }).start(scope)
+            until("the failure was reported") { LineupEvent.RefreshFailed in events }
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:00:00Z"))
+            settle()
+
+            assertEquals(1, calls.get(), "the start check that is asked again does not run it again")
+        }
+
+    @Test
+    fun afterSyncThrows_isReported_refresherContinues() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val calls = AtomicInteger()
+            refresher(afterSync = {
+                calls.incrementAndGet()
+                error("the repair broke")
+            }).start(scope)
+            until("the check after the start check") { calls.get() == 1 }
+            settle()
+
+            writing.value = true
+            settle()
+            writing.value = false
+            until("the first check after a run") { calls.get() == 2 }
+            until("reported") { events.count { it == LineupEvent.AfterSyncFailed } == 2 }
+
+            val before = refreshes
+            writing.value = true
+            settle()
+            library.delegate.noteContentChange(ACCOUNT)
+            writing.value = false
+            until("the refresher still refreshes, and checks again") { calls.get() == 3 && refreshes == before + 1 }
+        }
+
+    @Test
+    fun afterSyncCancelled_isNotReported() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val entered = CompletableDeferred<Unit>()
+            refresher(afterSync = {
+                entered.complete(Unit)
+                awaitCancellation()
+            }).start(scope)
+            settle()
+            writing.value = true
+            settle()
+            writing.value = false
+            withTimeout(WAIT_MS) { entered.await() }
+            job.cancel()
+            settle()
+
+            assertTrue(LineupEvent.AfterSyncFailed !in events)
+        }
+
     @Test
     fun aSyncRunThatChangedNothingRefreshesNothingAndRecordsItsPass() =
         runBlocking<Unit> {
@@ -716,7 +869,8 @@ class LineupRefresherTest {
             }
             // No libraries are chosen, so nothing is ever planned and the lineup stays stale: every resubscription
             // emits Start again; the collection-pass source always throws.
-            val refresher = LineupRefresher(service, AlwaysThrowingPasses(library), { libraries }, sync, 1_000L, report)
+            val passes = AlwaysThrowingPasses(library)
+            val refresher = LineupRefresher(service, passes, { libraries }, sync, 1_000L, report = report)
 
             refresher.start(backgroundScope)
             testScheduler.advanceTimeBy(15_010L)
@@ -928,6 +1082,28 @@ private class AlwaysThrowingPasses(
             error("the trigger flow failed")
         }
 }
+
+/**
+ * A library whose first collection-pass flow throws a little after it is collected (so the start check is handled
+ * first); later collections are the real one.
+ */
+private class ThrowingOnceLaterPasses(
+    private val inner: CountingLibrary,
+) : LibraryRepository by inner {
+    val collected = AtomicInteger()
+
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> =
+        flow {
+            if (collected.getAndIncrement() == 0) {
+                delay(SLOW_MS)
+                error("the trigger flow failed")
+            }
+            inner.collectionPassCompleted(account).collect { emit(it) }
+        }
+}
+
+// Long enough for a test to end the run while the refresher waits to listen again.
+private const val BACKOFF_IN_TEST_MS = 400L
 
 /** A library whose first collection-pass flow throws when collected; later collections are the real one. */
 private class ThrowingOncePasses(

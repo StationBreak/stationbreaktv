@@ -12,7 +12,7 @@ import kotlin.time.Instant
 /**
  * #480: the content generation moves in the transaction of every write that changes what a rule snapshot holds, and
  * in no other. Each kind of change moves it (an item or series new, edited, deleted or back; a collection new, deleted
- * or back; a member added or removed; another choice of libraries; the first full collection pass, which turns
+ * or back; a member added or removed; a library unticked; the first full collection pass, which turns
  * `collectionsSynced` true). A call that finds every row already as it would leave it moves nothing, whichever write
  * it is.
  */
@@ -30,7 +30,7 @@ class GenerationOnlyOnChangeTest {
     fun close() = repository.close()
 
     private suspend fun world() {
-        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
         repository.put(ALICE, MOVIES, sitem(1), sitem(2))
         repository.putSeries(ALICE, SHOWS, series(show.value))
         repository.writeCollection(ALICE, box, "Box", stored)
@@ -58,7 +58,7 @@ class GenerationOnlyOnChangeTest {
     @Test
     fun everyKindOfChangeMovesIt() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             check("an item that is new") { repository.put(ALICE, MOVIES, sitem(1)) }
             check("an item that is edited") { repository.put(ALICE, MOVIES, sitem(1).copy(name = "Renamed")) }
             check("an item that is deleted") { repository.tombstone(ALICE, listOf(film)) }
@@ -75,7 +75,9 @@ class GenerationOnlyOnChangeTest {
             check("a collection that is back") {
                 repository.writeCollection(ALICE, box, "Box", listOf(cm(other.value)))
             }
-            check("another choice of libraries") { repository.select(ALICE, setOf(MOVIES, SHOWS)) }
+            // Spec 26: a tick changes no day (the new library has no rows yet); an untick deletes rows, and moves it.
+            still("a library ticked") { repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0) }
+            check("a library unticked") { repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0) }
         }
 
     @Test
@@ -97,7 +99,7 @@ class GenerationOnlyOnChangeTest {
 
             still("the same page again") { repository.put(ALICE, MOVIES, sitem(1)) }
             still("the same series again") { repository.putSeries(ALICE, SHOWS, series(show.value)) }
-            still("the same choice of libraries") { repository.select(ALICE, setOf(SHOWS, MOVIES)) }
+            still("the same choice of libraries") { repository.applySelection(ALICE, setOf(SHOWS, MOVIES), nowMs = 0) }
             still("the same collection again") { repository.writeCollection(ALICE, box, "Box", stored) }
             still("an item already deleted") { repository.tombstone(ALICE, listOf(other)) }
             still("an item that is live") { repository.revive(ALICE, listOf(film)) }

@@ -87,7 +87,7 @@ class CollectionNamesTest {
             assertNull(signal.first())
 
             // The sync engine finishes the items first, and the pass has not completed: no signal yet.
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.beginFirstSync(ALICE)
             repository.finishSync(ALICE, clock.now())
             write(ALICE, 1000, "Synthetic Name")

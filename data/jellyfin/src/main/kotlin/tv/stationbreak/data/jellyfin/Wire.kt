@@ -130,6 +130,7 @@ internal class ItemDto(
     @SerialName("Genres") val genres: List<String>? = null,
     @SerialName("Tags") val tags: List<String>? = null,
     @SerialName("Studios") val studios: List<StudioDto?>? = null,
+    @SerialName("ProviderIds") val providerIds: JsonElement? = null,
     @SerialName("SeriesId") val seriesId: String? = null,
     @SerialName("SeasonId") val seasonId: String? = null,
     @SerialName("ParentIndexNumber") val seasonNumber: Int? = null,
@@ -154,6 +155,7 @@ internal class SeriesItemsDto(
 )
 
 @Serializable
+@Suppress("LongParameterList") // One property per wire field.
 internal class SeriesDto(
     @SerialName("Id") val id: String,
     @SerialName("Name") val name: String = "",
@@ -161,6 +163,7 @@ internal class SeriesDto(
     @SerialName("Genres") val genres: List<String>? = null,
     @SerialName("Tags") val tags: List<String>? = null,
     @SerialName("Studios") val studios: List<StudioDto?>? = null,
+    @SerialName("ProviderIds") val providerIds: JsonElement? = null,
 )
 
 /** The kind of an item, read by the by-id series call to check that what came back is a series. */

@@ -88,6 +88,14 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val passes = MutableStateFlow<Map<LibraryAccount, Instant>>(emptyMap())
     private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
+
+    // A library's hold and add stamp, as applySelection set them (spec 26).
+    private data class LibraryMark(
+        val heldUntilMs: Long? = null,
+        val addStamp: Long? = null,
+    )
+
+    private val libraryMarks = mutableMapOf<LibraryAccount, MutableMap<ItemId, LibraryMark>>()
     private val statuses = MutableStateFlow<Map<LibraryAccount, LibraryStatus>>(emptyMap())
     private val active = MutableStateFlow<LibraryAccount?>(null)
 
@@ -505,20 +513,109 @@ class InMemoryLibraryRepository : LibraryRepository {
         libraries: Set<ItemId>,
     ): Int = live(account, libraries).count { !it.item.runtime.usable() }
 
-    override suspend fun select(
+    // The contract of applySelection, in memory: a library is stored when it has rows, is pending, or has a hold or a
+    // stamp recorded here. The generation moves only when a library goes that had no stamp, or that held rows.
+    override suspend fun applySelection(
         account: LibraryAccount,
-        libraries: Set<ItemId>,
+        keep: Set<ItemId>,
+        addStamps: Map<ItemId, Long>,
+        holds: Map<ItemId, Long>,
+        nowMs: Long,
     ) {
-        rows.removeAll { it.account == account && it.library !in libraries }
-        held.removeAll { it.account == account && it.library !in libraries }
+        val marks = libraryMarks.getOrPut(account) { mutableMapOf() }
+        val waiting = pending.getOrPut(account) { mutableSetOf() }
+        val stored =
+            rows.filter { it.account == account }.map { it.library }.toSet() +
+                held.filter { it.account == account }.map { it.library } + waiting + marks.keys
+        // As the port says: a new stamp only for a library that is new, held or already being added.
+        for ((library, stamp) in addStamps) {
+            val mark = marks[library]
+            val landed = library in stored && mark?.heldUntilMs == null && mark?.addStamp == null
+            require(library !in keep || stamp == mark?.addStamp || !landed) {
+                "A new add stamp goes only to a library that is new, held or being added"
+            }
+        }
+        val staying = keep.toMutableSet()
+        var dropped = false
+        for (library in stored - keep) {
+            val mark = marks[library]
+            val until = holds[library] ?: mark?.heldUntilMs
+            if (until != null && until > nowMs) {
+                // A held library is never one being added: its stamp goes.
+                marks[library] = LibraryMark(heldUntilMs = until, addStamp = null)
+                staying += library
+            } else {
+                val hasRows =
+                    rows.any { it.account == account && it.library == library } ||
+                        held.any { it.account == account && it.library == library }
+                if (mark?.addStamp == null || hasRows) dropped = true
+                marks.remove(library)
+            }
+        }
+        rows.removeAll { it.account == account && it.library !in staying }
+        held.removeAll { it.account == account && it.library !in staying }
         val saved = rows.filter { it.account == account }.map { it.library }.toSet()
-        val held = pending.getOrPut(account) { mutableSetOf() }
-        held.retainAll(libraries)
-        held += libraries - saved
+        waiting.retainAll(staying)
+        for (library in keep) {
+            val mark = marks[library] ?: LibraryMark()
+            val stamp = addStamps[library]
+            if (stamp != null && stamp != mark.addStamp) waiting += library
+            if (library !in saved) waiting += library
+            marks[library] = LibraryMark(heldUntilMs = null, addStamp = stamp ?: mark.addStamp)
+        }
+        if (dropped) noteContentChange(account)
+    }
+
+    // As the port says: only the stamp the add has (and no hold) lands it, and then the generation moves once. As in
+    // Room, an account that is not the signed-in one lands nothing.
+    override suspend fun landAdd(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean {
+        if (active.value != account) return false
+        val marks = libraryMarks[account] ?: return false
+        val mark = marks[library]
+        if (mark?.addStamp != stamp || mark.heldUntilMs != null) return false
+        marks[library] = mark.copy(addStamp = null)
+        pending[account]?.remove(library)
         noteContentChange(account)
+        return true
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> = pending[account].orEmpty().toSet()
+
+    private val successorRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, CanonicalId>()
+
+    /**
+     * Says the item [gone] came back as [successor], for [successors]. The fake does no matching of its own: the
+     * conservative one is `data:library`'s. It answers only for a successor that is live in a library asked for.
+     */
+    fun seedSuccessor(
+        account: LibraryAccount,
+        gone: CanonicalId,
+        successor: CanonicalId,
+    ) {
+        successorRows[account to gone] = successor
+    }
+
+    override suspend fun successors(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        gone: Set<CanonicalId>,
+    ): Map<CanonicalId, CanonicalId> {
+        val liveIds = live(account, libraries).mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.item.id.value) }
+        val found = LinkedHashMap<CanonicalId, CanonicalId>()
+        val rowIds = rows.filter { it.account == account }.groupBy { CanonicalId.parseOrNull(it.item.id.value) }
+        for (id in gone) {
+            // Only a tombstone is gone: an id with no row, or with a live one, is absent, as the real read has it.
+            val own = rowIds[id].orEmpty()
+            if (own.isEmpty() || own.any { !it.tombstoned }) continue
+            val successor = successorRows[account to id] ?: continue
+            if (successor in liveIds) found[id] = successor
+        }
+        return found
+    }
 
     override suspend fun useAccount(account: LibraryAccount) {
         activated += account
@@ -527,6 +624,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         held.removeAll { it.account != account }
         clearRuleInputs { it != account }
         pending.keys.retainAll(setOf(account))
+        libraryMarks.keys.retainAll(setOf(account))
         statuses.value = statuses.value.filterKeys { it == account }
     }
 
@@ -537,6 +635,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         held.removeAll { it.account == account }
         clearRuleInputs { it == account }
         pending.remove(account)
+        libraryMarks.remove(account)
         statuses.value = statuses.value - account
         if (active.value == account) active.value = null
     }
@@ -547,6 +646,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         collectionsSynced.removeAll(forAccount)
         collectionNameRows.keys.removeAll { forAccount(it.first) }
         seriesNameRows.keys.removeAll { forAccount(it.first) }
+        successorRows.keys.removeAll { forAccount(it.first) }
         passes.value = passes.value.filterKeys { !forAccount(it) }
     }
 

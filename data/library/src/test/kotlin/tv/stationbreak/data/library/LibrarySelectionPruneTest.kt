@@ -6,17 +6,11 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import tv.stationbreak.core.domain.InMemoryServerSettings
-import tv.stationbreak.core.domain.ServerRecord
-import tv.stationbreak.core.domain.followSelection
 import tv.stationbreak.core.model.ItemId
-import tv.stationbreak.core.model.Scheme
-import tv.stationbreak.core.model.ServerAddress
 
 /** Spec 06 task 2.10 (owner answer 2): the cache holds only the libraries ticked, as `ServerSettings` has them. */
 class LibrarySelectionPruneTest {
     private val repository = TestLibraries.inMemory()
-    private val record = ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example", 443))
     private val extra = ItemId("lib-extra")
 
     @After
@@ -36,7 +30,7 @@ class LibrarySelectionPruneTest {
     @Test
     fun tickingMarksALibraryPendingAndFetched() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
 
             assertEquals(setOf(MOVIES, SHOWS), repository.pendingLibraries(ALICE))
 
@@ -48,11 +42,11 @@ class LibrarySelectionPruneTest {
     @Test
     fun untickingALibraryRemovesItsRowsAndNothingElse() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             fill(MOVIES)
             fill(SHOWS)
 
-            repository.select(ALICE, setOf(SHOWS))
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
 
             assertEquals(listOf("${SHOWS.value}-1"), repository.stored(ALICE).map { it.item.id.value })
             assertNull(repository.checkpoint(ALICE, MOVIES))
@@ -64,11 +58,11 @@ class LibrarySelectionPruneTest {
     @Test
     fun selectingAgainKeepsWhatIsSavedAndItsFetchedMark() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             fill(MOVIES)
             repository.markFetched(ALICE, MOVIES)
 
-            repository.select(ALICE, setOf(MOVIES, extra))
+            repository.applySelection(ALICE, setOf(MOVIES, extra), nowMs = 0)
 
             assertEquals(1, repository.stored(ALICE).size)
             assertEquals(setOf(extra), repository.pendingLibraries(ALICE))
@@ -77,12 +71,12 @@ class LibrarySelectionPruneTest {
     @Test
     fun aLibraryUntickedAndTickedAgainStartsFromScratch() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             fill(MOVIES)
             repository.markFetched(ALICE, MOVIES)
-            repository.select(ALICE, setOf(SHOWS))
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
 
-            repository.select(ALICE, setOf(MOVIES, SHOWS))
+            repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
 
             assertEquals(emptyList<String>(), repository.stored(ALICE).map { it.item.id.value })
             assertEquals(setOf(MOVIES, SHOWS), repository.pendingLibraries(ALICE))
@@ -91,42 +85,14 @@ class LibrarySelectionPruneTest {
     @Test
     fun anotherAccountsSelectionIsNotTouched() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
-            repository.select(BOB, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
+            repository.applySelection(BOB, setOf(MOVIES), nowMs = 0)
             fill(MOVIES)
             repository.writePage(BOB, MOVIES, listOf(item("bobs")), 1, 1, run = 1)
 
-            repository.select(ALICE, setOf(SHOWS))
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
 
             assertEquals(listOf("bobs"), repository.stored(BOB).map { it.item.id.value })
             assertEquals(setOf(MOVIES), repository.pendingLibraries(BOB))
-        }
-
-    @Test
-    fun theSelectionFollowsServerSettings() =
-        runBlocking {
-            val settings = InMemoryServerSettings(record, initialLibraries = setOf(MOVIES, SHOWS))
-            assertEquals(setOf(MOVIES, SHOWS), repository.followSelection(ALICE, settings))
-            fill(MOVIES)
-            fill(SHOWS)
-
-            settings.saveLibraries(setOf(SHOWS, extra))
-            val chosen = repository.followSelection(ALICE, settings)
-
-            assertEquals(setOf(SHOWS, extra), chosen)
-            assertEquals(listOf("${SHOWS.value}-1"), repository.stored(ALICE).map { it.item.id.value })
-            assertEquals(setOf(SHOWS, extra), repository.pendingLibraries(ALICE))
-        }
-
-    @Test
-    fun noStoredSelectionLeavesTheCacheAlone() =
-        runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
-            fill(MOVIES)
-            val settings = InMemoryServerSettings(record, initialLibraries = null)
-
-            assertNull(repository.followSelection(ALICE, settings))
-
-            assertEquals(1, repository.stored(ALICE).size)
         }
 }

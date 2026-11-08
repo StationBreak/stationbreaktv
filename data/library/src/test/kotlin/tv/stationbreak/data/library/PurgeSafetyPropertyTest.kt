@@ -140,7 +140,7 @@ class PurgeSafetyPropertyTest {
                 val gen = PurgeGen(seed)
                 repository.forget(ALICE)
                 repository.useAccount(ALICE)
-                repository.select(ALICE, libraries)
+                repository.applySelection(ALICE, libraries, nowMs = 0)
                 val steps = (timesOf(gen).map { Step(it) } + fixedSteps()).sortedBy { it.atMs }
                 steps.forEach { apply(gen, it) }
                 steppedBackTombstone()
@@ -168,7 +168,7 @@ class PurgeSafetyPropertyTest {
     fun aCutOffOlderThanTheRetentionIsOutsideTheContractAndLosesTheOldestCopy() =
         runBlocking {
             // First seen 60 days ago, edited 50 days ago and 10 days ago: two versions, [-60, -50) and [-50, -10).
-            repository.select(ALICE, libraries)
+            repository.applySelection(ALICE, libraries, nowMs = 0)
             clock.atMs(nowMs - 60.days.inWholeMilliseconds)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 60.minutes))
             clock.atMs(nowMs - 50.days.inWholeMilliseconds)
@@ -192,7 +192,7 @@ class PurgeSafetyPropertyTest {
     @Test
     fun sixtyDaysOfDailyEditsKeepOnlyTheVersionsSupersededInTheLastThirtyDays() =
         runBlocking {
-            repository.select(ALICE, libraries)
+            repository.applySelection(ALICE, libraries, nowMs = 0)
             val retentionMs = HistoryRetention().millis
             val sizes = mutableListOf<Int>()
             repeat(SIMULATED_DAYS) { day ->
@@ -277,7 +277,7 @@ class PurgeSafetyPropertyTest {
                 val gen = PurgeGen(seed)
                 repository.forget(ALICE)
                 repository.useAccount(ALICE)
-                repository.select(ALICE, libraries)
+                repository.applySelection(ALICE, libraries, nowMs = 0)
                 val steps = (timesOf(gen).map { Step(it) } + fixedSteps()).sortedBy { it.atMs }
                 steps.forEach { applySeries(gen, it) }
                 steppedBackSeriesTombstone()

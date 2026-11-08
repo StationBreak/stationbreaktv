@@ -230,7 +230,7 @@ class Migration7To8Test {
         runBlocking {
             // A brand-new install is created at version 8 with no migration: its first sync reads studios anyway.
             val repository = TestLibraries.onDisk(folder.root, name = "new.db", clock = clock)
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1))
 
             assertFalse(repository.dao.metaRow(alice.first, alice.second)!!.backfillPending)

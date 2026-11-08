@@ -98,7 +98,8 @@ internal class FirstSyncEngine(
                     is ServerResult.Failure -> return fail(result.error)
                 }
             val libraries = listed.filter { it.id in chosen }
-            repository.select(account, chosen)
+            // The one selection writer (spec 26): a held library stays until its hold ends, and an add under way stays.
+            repository.applySelectionKeepingAdds(account, chosen, clock.now().toEpochMilliseconds())
             repository.beginFirstSync(account)
 
             // The total is every library's count, known before the first page, so the bar never jumps back.
@@ -123,7 +124,8 @@ internal class FirstSyncEngine(
                 if (library.id !in pending) continue
                 sync(library, totals.getValue(library.id))?.let { return it }
             }
-            // A library the user ticked that the server no longer lists has nothing to fetch.
+            // A library the user ticked that the server no longer lists has nothing to fetch. One being added stays
+            // pending (markFetched leaves it): only the add itself lands it (spec 26).
             (pending - libraries.map { it.id }.toSet()).forEach { repository.markFetched(account, it) }
             // Recorded as when the walk began, never when it ended: changes made during it are fetched next time.
             repository.finishSync(account, earliestWalk)

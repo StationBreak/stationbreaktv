@@ -18,7 +18,7 @@ class RuntimeExclusionTest {
     fun close() = repository.close()
 
     private suspend fun saveMixed() {
-        repository.select(ALICE, setOf(MOVIES, SHOWS))
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
         repository.writePage(
             ALICE,
             MOVIES,

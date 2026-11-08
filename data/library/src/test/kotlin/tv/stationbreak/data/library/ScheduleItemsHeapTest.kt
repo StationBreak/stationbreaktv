@@ -36,7 +36,7 @@ class ScheduleItemsHeapTest {
 
     /** Writes the whole library [round] times; each round changes the rating, so every round supersedes the last. */
     private suspend fun fill() {
-        repository.select(ALICE, setOf(MOVIES))
+        repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         repeat(ROUNDS) { round ->
             clock.stepMs(1.hours.inWholeMilliseconds)
             var start = 0

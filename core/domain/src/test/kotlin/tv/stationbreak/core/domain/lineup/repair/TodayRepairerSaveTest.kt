@@ -170,7 +170,7 @@ internal class TodayRepairerSaveTest : RepairTestBase() {
         assertEquals(onAir, rig.day(laughs.id).blockAt(atMs))
 
         rig.store.inner.failWrites = false
-        runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA, libB), atMs) }
+        runBlocking { rig.repairer.repairLost(ACCOUNT, atMs) }
 
         assertEquals(emptyList(), rig.record().selection, "the next check drops it")
         assertNotNull(rig.record().lostCheck, "and checks")

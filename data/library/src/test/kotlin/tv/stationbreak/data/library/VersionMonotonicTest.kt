@@ -21,7 +21,7 @@ class VersionMonotonicTest {
     @After
     fun close() = repository.close()
 
-    private suspend fun open() = repository.select(ALICE, setOf(MOVIES))
+    private suspend fun open() = repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
     private suspend fun current() = repository.currentRows(ALICE).single()
 

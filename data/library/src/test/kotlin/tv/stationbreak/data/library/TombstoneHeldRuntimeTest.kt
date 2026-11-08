@@ -45,7 +45,7 @@ class TombstoneHeldRuntimeTest {
     @Test
     fun aDeletedItemKeepsItsRuntimeAndDeletedAtUntilTheCutoffPassesTheDeletion() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(2 * hour)
             repository.tombstone(ALICE, listOf(a))
@@ -64,7 +64,7 @@ class TombstoneHeldRuntimeTest {
     @Test
     fun aRuntimeEditJustBeforeTheDeletionFollowsTheCutoffRule() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(hour)
             val editedAt = clock.nowMs
@@ -86,7 +86,7 @@ class TombstoneHeldRuntimeTest {
     @Test
     fun anItemDeletedBeforeTheCutoffAndRevivedAfterItIsNotInDayNAndIsInDayNPlusOne() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(hour)
             repository.tombstone(ALICE, listOf(a))
@@ -109,7 +109,7 @@ class TombstoneHeldRuntimeTest {
     @Test
     fun anItemRevivedByAPageThatAlsoEditsItIsHeldAsDeletedUntilTheNextCutoff() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(hour)
             repository.tombstone(ALICE, listOf(a))
@@ -142,7 +142,7 @@ class TombstoneHeldRuntimeTest {
                     null,
                 )
             val cutoff = 0L
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             clock.atMs(cutoff - hour)
             val old = Instant.fromEpochMilliseconds(-1)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes).copy(dateCreated = old))
@@ -168,7 +168,7 @@ class TombstoneHeldRuntimeTest {
     @Test
     fun aTombstoneThatIsNeverRevivedStaysHeldForEveryCutoffUpToItsDeletion() =
         runBlocking {
-            repository.select(ALICE, setOf(MOVIES))
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.put(ALICE, MOVIES, sitem(1, runtime = 90.minutes))
             clock.stepMs(hour)
             repository.tombstone(ALICE, listOf(a))
