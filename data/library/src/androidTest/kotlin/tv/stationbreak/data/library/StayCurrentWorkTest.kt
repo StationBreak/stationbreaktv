@@ -100,8 +100,9 @@ class StayCurrentWorkTest {
         val sessions = SessionRepository(InMemorySecretStore(), server, repository)
         val settings = InMemoryServerSettings(ServerRecord(address), setOf(movies.id))
         val listings = ServerListings { _, _ -> }
+        val ready = SelectionReady.Complete
         val runner =
-            StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, listings, HoldExpiry {}, Clock.System)
+            StayCurrentRunner(settings, sessions, server, repository, ready, listings, HoldExpiry {}, Clock.System)
         enqueuer = WorkManagerEnqueuer(appContext)
         stayCurrent = StayCurrent(enqueuer, enqueuer, repository, SyncTriggerPolicy(Clock.System), runner)
         runBlocking {

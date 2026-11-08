@@ -243,8 +243,8 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
         assertTrue(SelectionEvent.SetupFollowUpFailed in tv.events)
     }
 
-    // Binding item 4 (Task 4.5): the setup's save committed, but the read for its cache write gave nothing. The cache is
-    // left behind, so the next operation puts it in line first.
+    // Binding item 4 (Task 4.5): the setup's save committed, but the read for its cache write gave nothing. The cache
+    // is left behind, so the next operation puts it in line first.
     @Test
     fun aSetupWhoseReadAfterTheSaveGivesNothing_leavesTheCacheBehind() {
         val tv = Tv().ready(setOf(libA, libB, libC))

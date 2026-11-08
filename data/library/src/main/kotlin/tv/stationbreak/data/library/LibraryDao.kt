@@ -999,14 +999,14 @@ internal abstract class LibraryDao {
      *
      * The content generation moves once, and only when a library that holds rows is deleted: an unticked library, a
      * hold that expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or
-     * be a held library's, re-ticked). A tick, a hold set or cleared, and the deletion of a library that holds no row (a
-     * pending library unticked, a held add that wrote nothing) move nothing: none of them changes what a day is built
-     * from. A held row is kept by its hold alone, never by a stamp it may still
-     * carry. A library that is held (here, or from before) loses its
-     * stamp, its walk's proof and its rewalk mark: a held library is never one being added. A hold for a library
-     * already held keeps the later of the two; a hold placed now sets the library's coverage to the earlier of the one
-     * it has and [nowMs]. A kept library given a new stamp loses its proof and its mark; any other kept library keeps
-     * its proof, mark and coverage. An account that is not signed in gets no rows back, and null.
+     * be a held library's, re-ticked). A tick, a hold set or cleared, and the deletion of a library that holds no row
+     * (a pending library unticked, a held add that wrote nothing) move nothing: none of them changes what a day is
+     * built from. A held row is kept by its hold alone, never by a stamp it may still carry. A library that is held
+     * (here, or from before) loses its stamp, its walk's proof and its rewalk mark: a held library is never one being
+     * added. A hold for a library already held keeps the later of the two; a hold placed now sets the library's
+     * coverage to the earlier of the one it has and [nowMs]. A kept library given a new stamp loses its proof and its
+     * mark; any other kept library keeps its proof, mark and coverage. An account that is not signed in gets no rows
+     * back, and null.
      *
      * A new stamp may go only to a library that is new, held or already being added, never to a chosen library that
      * has landed: that throws [IllegalArgumentException] and writes nothing. The libraries to delete are returned,

@@ -27,7 +27,8 @@ internal class LibrarySelectionExpiryTest : SelectionTestBase() {
         val tv = Tv(lineup = lineupOf(laughs), chosen = setOf(libA, libB))
         tv.resume()
         val stored = assertNotNull(tv.stored())
-        assertTrue(runBlocking { tv.settings.inner.saveSelection(stored.copy(chosen = setOf(libA), seq = stored.seq + 1)) })
+        val unticked = stored.copy(chosen = setOf(libA), seq = stored.seq + 1)
+        assertTrue(runBlocking { tv.settings.inner.saveSelection(unticked) })
         val holds = mapOf(libB to tv.nowMs + holdMs)
         runBlocking { tv.fake.applySelection(ACCOUNT, setOf(libA), holds = holds, nowMs = tv.nowMs) }
         assertNotNull(tv.row(libB)?.heldUntilMs, "libB is held")

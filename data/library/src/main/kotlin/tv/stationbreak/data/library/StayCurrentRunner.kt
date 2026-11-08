@@ -9,7 +9,6 @@ import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.RestoreOutcome
-import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
@@ -17,7 +16,6 @@ import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.ItemId
-import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
@@ -84,14 +82,16 @@ class StayCurrentRunner(
     private val server: MediaServer,
     private val repository: RoomLibraryRepository,
     private val ready: SelectionReady,
-    private val listings: ServerListings,
-    private val holds: HoldExpiry,
+    listings: ServerListings,
+    holds: HoldExpiry,
     private val clock: Clock = Clock.System,
     private val timeSource: TimeSource = TimeSource.Monotonic,
     private val report: (String) -> Unit = {},
 ) {
     private val gate = Mutex()
     private val runningNow = MutableStateFlow(false)
+    private val steps =
+        SelectionSteps(settings, server, listings, holds, Rewalk(repository, server, clock, report), report)
 
     // What a walk could not find, kept across runs in this process.
     private val unfindable = UnfindableIds()
@@ -191,10 +191,15 @@ class StayCurrentRunner(
         if (firstSyncOpen) return report.skipped(plan, Skip.FirstSyncOpen)
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
-                if (chosen == null) {
-                    gone(restored.session, account, plan)
-                } else {
+                if (chosen != null) {
                     safely(account) { passes(restored.session, account, chosen, plan) }
+                } else if (restored.session.server.id != account.server || restored.session.userId != account.user) {
+                    report.skipped(plan, Skip.AccountChanged)
+                } else {
+                    // While the selection is gone (D11): no pass and no rewalk, as nothing chosen plays, but the
+                    // server is still listed and followed, so a chosen library listed again ends the gone state.
+                    steps.follow(restored.session, account)
+                    report.skipped(plan, Skip.Gone)
                 }
             }
 
@@ -244,74 +249,10 @@ class StayCurrentRunner(
         report.say(wrote(generationBefore, repository.generationOrNull(account), ran))
         // Only after passes that completed (spec 26, Part 4 §4): the holds, the listing, the rewalk. None of them ever
         // changes how the run ended.
-        if (outcome == SyncOutcome.Completed) afterPasses(session, account)
+        if (outcome == SyncOutcome.Completed) steps.afterPasses(session, account)?.let { lastRewalk = it }
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
         if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome
-    }
-
-    // While the selection is gone (D11): no pass and no rewalk, as nothing chosen plays, but the server is still
-    // listed and the listing followed, so a chosen library that is listed again ends the gone state.
-    private suspend fun gone(
-        session: Session,
-        account: LibraryAccount,
-        plan: SyncPlan,
-    ): SyncOutcome {
-        if (session.server.id != account.server || session.userId != account.user) {
-            return report.skipped(plan, Skip.AccountChanged)
-        }
-        follow(session, account)
-        return report.skipped(plan, Skip.Gone)
-    }
-
-    // After passes that completed (spec 26, Part 4 §4, D12): the holds that ended expire, then this run's one listing of
-    // the server's libraries is followed, then the rewalk walks on that same listing. The selection may end gone on
-    // that listing, so the rewalk reads what plays again first, and is skipped while it is gone.
-    private suspend fun afterPasses(
-        session: Session,
-        account: LibraryAccount,
-    ) {
-        housekeeping("HoldExpiry") { holds.expireHolds(account) }
-        val listed = follow(session, account)
-        val playing = settings.loadPlayableLibraries()?.takeIf { it.isNotEmpty() }
-        when {
-            playing == null -> report.say("RewalkSkipped reason=Gone")
-            listed == null -> report.say("RewalkSkipped reason=NoListing")
-            else -> lastRewalk = Rewalk(repository, server, clock, report).step(session, account, playing, listed)
-        }
-    }
-
-    // The run's one listing of the server's libraries, handed to the selection to follow; null only when reading it
-    // threw (a listing that failed is handed over as it is, and the selection drops it).
-    private suspend fun follow(
-        session: Session,
-        account: LibraryAccount,
-    ): ServerResult<List<Library>>? {
-        var listed: ServerResult<List<Library>>? = null
-        housekeeping("Listing") {
-            val read = server.libraries(session)
-            listed = read
-            listings.followServer(account, read)
-        }
-        return listed
-    }
-
-    // One step the selection runs for stay current: whatever it throws is said, by [step]'s name only, and never
-    // changes how the run ended. Cancellation and a sign-out pass through, the same as for the passes.
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun housekeeping(
-        step: String,
-        block: suspend () -> Unit,
-    ) {
-        try {
-            block()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (signedOut: AccountNotActiveException) {
-            throw signedOut
-        } catch (_: Exception) {
-            report.say("${step}Failed")
-        }
     }
 
     @Suppress("ReturnCount") // Each early return is a pass that did not complete.

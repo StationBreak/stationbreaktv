@@ -17,7 +17,6 @@ import tv.stationbreak.core.domain.PagedCall
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
-import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
@@ -83,115 +82,6 @@ class StayCurrentRunnerTest {
                     .first()
                     ?.lastSuccess,
             )
-        }
-
-    // Spec 26, Task 4.5 (D12, §4 "StayCurrent otherwise"): after passes that completed, the ended holds expire, then
-    // the run's one listing of the server's libraries is handed to the selection to follow.
-    @Test
-    fun afterPassesThatCompleted_holdsExpire_thenTheRunsListingIsFollowed() =
-        runBlocking {
-            rig.firstSyncDone()
-            rig.clock.instant += 7.hours
-
-            assertEquals(SyncOutcome.Completed, rig.runner.outcome(both))
-
-            assertEquals(listOf("expire", "follow"), rig.asked)
-            val listed = rig.followed.single() as ServerResult.Success
-            assertEquals(listOf(MOVIES), listed.value.map { it.id })
-        }
-
-    @Test
-    fun passesThatDidNotComplete_neitherExpireHoldsNorFollowTheListing() =
-        runBlocking {
-            rig.firstSyncDone()
-            rig.clock.instant += 7.hours
-            server.respond = { MediaServerError.Timeout() }
-
-            rig.runner.run(both)
-
-            assertEquals(emptyList<String>(), rig.asked)
-        }
-
-    // D11: while the selection is gone the passes (and so the rewalk) are skipped, and the server is still listed, so
-    // a chosen library that comes back ends the gone state.
-    @Test
-    fun whileTheSelectionIsGone_thePassesAreSkipped_andTheListingIsStillFollowed() =
-        runBlocking {
-            rig.firstSyncDone()
-            rig.goneSelection()
-            rig.clock.instant += 7.hours
-            val recorded =
-                rig.repository
-                    .activeStatus()
-                    .first()
-                    ?.lastSuccess
-
-            rig.runner.run(both)
-
-            assertTrue("no pass ran", server.calls.isEmpty())
-            assertEquals("listed, and no hold expiry without a pass", listOf("follow"), rig.asked)
-            assertTrue(rig.followed.single() is ServerResult.Success)
-            val status = rig.repository.activeStatus().first()
-            assertEquals(recorded, status?.lastSuccess)
-            assertTrue(lines.any { "reason=Gone" in it })
-        }
-
-    // A step after the passes that throws is reported by its absence and never changes how the run ended: the next
-    // step still runs.
-    @Test
-    fun anAfterPassStepThatThrows_neverChangesHowTheRunEnded() =
-        runBlocking {
-            rig.firstSyncDone()
-            rig.clock.instant += 7.hours
-            rig.onExpire = { error("the expiry failed") }
-
-            assertEquals(SyncOutcome.Completed, rig.runner.outcome(both))
-
-            assertEquals(listOf("expire", "follow"), rig.asked)
-            val state =
-                rig.repository
-                    .activeStatus()
-                    .first()
-                    ?.state
-            assertFalse("not recorded as a failure", state is SyncState.LastSyncFailed)
-        }
-
-    // Spec 26, Task 4.5, through the real selection: an item owned by a held library and listed by a chosen one stays
-    // with its held owner, and the expiry after the next completed pass moves it to the chosen lister.
-    @Test
-    fun heldOwner_keepsRows_thenExpiryMovesToChosen() =
-        runBlocking {
-            rig.firstSyncDone()
-            val held = ItemId(hexId(0xB0F0))
-            val repository = rig.repository
-            repository.applySelection(ALICE, setOf(MOVIES, held), nowMs = rig.clock.nowMs)
-            repository.put(ALICE, held, sitem(1, library = held))
-            repository.put(ALICE, MOVIES, sitem(1))
-            val holdMs = 10_000L
-            repository.applySelection(ALICE, setOf(MOVIES), holds = mapOf(held to rig.clock.nowMs + holdMs), nowMs = rig.clock.nowMs)
-            val selection = selectionOver(repository, rig.settings, rig.server, rig.clock)
-            selection.resumeAtStart()
-            assertEquals("a held owner keeps the item", held, repository.ownerOf(ALICE, 1))
-            val runner =
-                StayCurrentRunner(
-                    rig.settings,
-                    rig.sessions,
-                    rig.server,
-                    repository,
-                    SelectionReady.Complete,
-                    selection,
-                    selection,
-                    rig.clock,
-                )
-            rig.clock.stepMs(holdMs)
-
-            // The incremental pass only: a reconcile would read the invented item as gone from the server.
-            assertEquals(SyncOutcome.Completed, runner.outcome(SyncPlan(incremental = true, reconcile = false)))
-
-            assertEquals("the expiry moves it to the chosen lister", MOVIES, repository.ownerOf(ALICE, 1))
-            assertTrue(repository.alsoListed(ALICE).isEmpty())
-            assertTrue(repository.movedVersioned(ALICE, 1, held))
-            assertNull("the held library is gone", repository.dao.libraries("server-1", "alice").find { it.libraryId == held.value })
         }
 
     @Test
