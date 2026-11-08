@@ -67,7 +67,9 @@ enum class ChannelKind {
  * switch on. [playKey] stands for what the channel's rules do to its schedule (its order, seed, sources and the rest,
  * but not its name): it differs when the days built from the rules would, though the channel and its number do not.
  * [shelfReason] is why the planner shelved the channel, or why it leaves at the next day start; null for every other
- * channel, including one that starts at the next day start.
+ * channel, including one that starts at the next day start. [markKey] is the recipe key of a starter or leftovers
+ * channel, which is what a bundled logo is looked up by; null for a custom channel and for an unusable one. It is a
+ * view-model field, never stored.
  */
 data class ChannelSummary(
     val id: ChannelId,
@@ -81,6 +83,7 @@ data class ChannelSummary(
     val optIn: Boolean,
     val playKey: PlayKey,
     val shelfReason: ShelfReason? = null,
+    val markKey: String? = null,
 )
 
 /**

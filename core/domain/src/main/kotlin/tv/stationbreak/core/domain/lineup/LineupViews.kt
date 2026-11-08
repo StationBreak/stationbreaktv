@@ -40,7 +40,17 @@ internal fun LineupChannel.summary(
     optIn = isOptIn(catalog),
     playKey = playKey,
     shelfReason = shownShelfReason(nowMs),
+    markKey = source.markKey(),
 )
+
+// The recipe key a bundled logo is found by; a custom or unusable channel has none. No else, so a new source decides.
+private fun ChannelSource.markKey(): String? =
+    when (this) {
+        is ChannelSource.Starter -> recipeKey
+        is ChannelSource.Leftovers -> recipeKey
+        is ChannelSource.Custom -> null
+        is ChannelSource.Unusable -> null
+    }
 
 // A shelved channel's reason, or the one the planner stored when it set a leave that is yet to come: a channel on the
 // air today that goes at the next day start. A channel that starts at the next day start has none.
