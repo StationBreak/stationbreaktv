@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
@@ -54,6 +55,9 @@ private val ChipRadius = (20f / 3f).dp
 private val ProgressHeight = (4f / 1.5f).dp
 private val ProgressRadius = (2f / 1.5f).dp
 private val LineGap = 4.dp
+
+/** The title's letter-spacing, in em: -0.015. */
+private const val TITLE_TRACKING = -0.015f
 
 // One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
 // ellipsis reads better than one clipped mid-line.
@@ -192,7 +196,7 @@ private fun PanelLines(
         Text(
             text = channelLine(details.channelNumber, details.channelName),
             modifier = Modifier.testTag(GuideTags.PANEL_CHANNEL),
-            style = guideFigures(17.sp, FontWeight.SemiBold),
+            style = guideFigures(11.sp, FontWeight.Normal),
             color = colors.textSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -202,7 +206,7 @@ private fun PanelLines(
         Text(
             text = cellTitle(cell, copy),
             modifier = Modifier.fillMaxWidth().testTag(GuideTags.PANEL_TITLE),
-            style = guideText(40.sp, FontWeight.SemiBold),
+            style = guideText(24.sp, FontWeight.SemiBold).copy(letterSpacing = TITLE_TRACKING.em),
             color = colors.textPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -213,7 +217,7 @@ private fun PanelLines(
             Text(
                 text = it,
                 modifier = Modifier.testTag(GuideTags.PANEL_EPISODE),
-                style = guideText(17.sp, FontWeight.Medium),
+                style = guideText(11.sp, FontWeight.Normal),
                 color = colors.textSupporting,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -225,7 +229,7 @@ private fun PanelLines(
             Text(
                 text = it,
                 modifier = Modifier.testTag(GuideTags.PANEL_META),
-                style = guideText(17.sp, FontWeight.Medium),
+                style = guideText(11.sp, FontWeight.Normal),
                 color = colors.textSupporting,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -278,7 +282,7 @@ private fun TimeRow(
     val is24h = is24Hour()
     val slot = ProgramText.slotOn(cell.startMs, cell.endMs, nowMs, zone, is24h)
     val colors = LocalGuideColors.current
-    val time = guideFigures(17.sp, FontWeight.Medium)
+    val time = guideFigures(11.sp, FontWeight.Medium)
     Row(
         Modifier.testTag(GuideTags.PANEL_TIME),
         verticalAlignment = Alignment.CenterVertically,
@@ -292,7 +296,7 @@ private fun TimeRow(
                         .clip(RoundedCornerShape(ChipRadius))
                         .drawBehind { drawRect(colors.nowChipFill) }
                         .padding(horizontal = ChipPadding, vertical = 2.dp),
-                style = guideText(16.sp, FontWeight.Bold),
+                style = guideText(11.sp, FontWeight.Bold),
                 color = colors.nowChipText,
                 maxLines = 1,
             )
