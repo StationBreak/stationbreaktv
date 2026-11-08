@@ -17,7 +17,8 @@ import kotlin.time.Duration.Companion.hours
  */
 class HoldGuardAndBumpsTest {
     private val clock = FakeClock()
-    private val repository = TestLibraries.inMemory(clock, signedIn = listOf(ALICE))
+    private val lines = mutableListOf<String>()
+    private val repository = TestLibraries.inMemory(clock, signedIn = listOf(ALICE)) { lines += it }
     private val extra = ItemId(hexId(0xB003))
 
     @After
@@ -73,6 +74,22 @@ class HoldGuardAndBumpsTest {
             assertEquals("the hold is kept", until, row(SHOWS)?.heldUntilMs)
             assertEquals("and its rows", 1, storedIn(SHOWS).size)
             assertEquals(before, generation())
+            assertEquals("said, as a number only", listOf("HoldExpiryFrozen sinceSuccessMin=180"), lines)
+        }
+
+    // Fix round 1: a call that expires nothing for the guard says nothing.
+    @Test
+    fun aHoldStillAhead_isNotSaidToBeFrozen() =
+        runBlocking {
+            apply(setOf(MOVIES, SHOWS))
+            fill(SHOWS, 2)
+            repository.finishSync(ALICE)
+            apply(setOf(MOVIES), holds = mapOf(SHOWS to clock.nowMs + 4.hours.inWholeMilliseconds))
+
+            clock.stepMs(3.hours.inWholeMilliseconds)
+            apply(setOf(MOVIES))
+
+            assertEquals(emptyList<String>(), lines)
         }
 
     // Binding item 6 (Task 4.5): unticking a library still pending with no rows (set up, never walked) changes no

@@ -160,8 +160,9 @@ internal object TestLibraries {
         sync: SyncControl = SyncControl.None,
         signedIn: List<LibraryAccount> = STANDARD_ACCOUNTS,
         retention: HistoryRetention = HistoryRetention(),
+        report: (String) -> Unit = {},
     ): RoomLibraryRepository {
-        val repository = RoomLibraryRepository.testing(builder(null, null, clock), clock, sync, retention)
+        val repository = RoomLibraryRepository.testing(builder(null, null, clock), clock, sync, retention, report)
         return signedIn(repository, signedIn)
     }
 

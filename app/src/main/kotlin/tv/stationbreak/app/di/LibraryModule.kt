@@ -45,7 +45,9 @@ internal object LibraryModule {
         @ApplicationContext context: Context,
     ): RoomLibraryRepository {
         val relist = CollectionRelist()
-        return RoomLibraryRepository.create(context, Clock.System, HistoryRetention(), relist)
+        // Numbers only (a hold the clock guard kept past its end, say). Logging is best effort.
+        val report: (String) -> Unit = { runCatching { Log.i(SYNC_TAG, it) } }
+        return RoomLibraryRepository.create(context, Clock.System, HistoryRetention(), relist, report)
     }
 
     @Provides

@@ -104,11 +104,14 @@ internal class SignalRow(
 /**
  * What [LibraryDao.applySelectionRows] left to do (spec 26): the libraries to delete ([deleted], not yet deleted), the
  * ones that stay ([staying], kept or held), and the coverage each deleted one had ([coveredFrom], none left out).
+ * [frozenSinceSuccessMs] is how far past the last successful sync the clock read when the hold-expiry clock guard kept
+ * a hold that had ended, or null when it kept none.
  */
 internal class SelectionChange(
     val deleted: List<String>,
     val staying: List<String>,
     val coveredFrom: Map<String, Long>,
+    val frozenSinceSuccessMs: Long? = null,
 )
 
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
@@ -1013,7 +1016,7 @@ internal abstract class LibraryDao {
      * not deleted: [deleteLeavers] does that. [holdClockGuardMs] is the hold-expiry clock guard, sized to a hold:
      * when [nowMs] is more than that after the account's last successful sync, the clock may have jumped forward and
      * no hold expires in this call (its rows and its hold are kept); the next call soon after a sync that succeeded
-     * expires it. Null (tests) means no guard.
+     * expires it; the change says so ([SelectionChange.frozenSinceSuccessMs]). Null (tests) means no guard.
      */
     @Transaction
     @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its stamps and holds, and the clock.
@@ -1037,11 +1040,13 @@ internal abstract class LibraryDao {
         val toDelete = mutableListOf<String>()
         val rewalk = mutableListOf<String>()
         var bump = false
+        var frozeOne = false
         for (row in stored) {
             if (row.libraryId in keep) continue
             // A hold for a library already held keeps the later of the two (D5).
             val until = maxOfNullable(holds[row.libraryId], row.heldUntilMs)
             if (until != null && (until > nowMs || holdsFrozen)) {
+                if (until <= nowMs) frozeOne = true
                 val next = heldRow(row, until, nowMs)
                 if (next != row) toUpdate += next
             } else {
@@ -1084,7 +1089,8 @@ internal abstract class LibraryDao {
         toInsert.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
         val covered = HashMap<String, Long>()
         for (id in toDelete) byId[id]?.coveredFromMs?.let { covered[id] = it }
-        return SelectionChange(toDelete, stored.map { it.libraryId } - toDelete.toSet(), covered)
+        val frozenSince = if (frozeOne && lastSuccessMs != null) nowMs - lastSuccessMs else null
+        return SelectionChange(toDelete, stored.map { it.libraryId } - toDelete.toSet(), covered, frozenSince)
     }
 
     /**
