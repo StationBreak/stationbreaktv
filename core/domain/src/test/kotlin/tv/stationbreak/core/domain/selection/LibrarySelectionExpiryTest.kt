@@ -44,7 +44,10 @@ internal class LibrarySelectionExpiryTest : SelectionTestBase() {
 
         assertNull(tv.row(libB), "the ended hold is gone")
         assertNotNull(tv.row(libA))
-        val write = tv.library.applied.drop(applied).single()
+        val write =
+            tv.library.applied
+                .drop(applied)
+                .single()
         assertEquals(setOf(libA), write.keep)
         assertEquals(emptyMap(), write.holds, "no new hold: the pins on air are not asked for")
     }
