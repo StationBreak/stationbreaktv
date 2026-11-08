@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -543,10 +544,13 @@ class GuideScreenTest {
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
         compose.onAllNodesWithText("\u2026", useUnmergedTree = true).assertCountEquals(0)
         cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
-        assertTrue("an ellipsis in the programme text", pixelsNear(short, GuideColors.Dark.programmeText) > 0)
+        // The text colour has an alpha: what is on screen is it composited over the card, over the page.
+        val dark = GuideColors.Dark
+        val seen = dark.programmeText.compositeOver(dark.card.compositeOver(dark.page))
+        assertTrue("an ellipsis in the programme text", pixelsNear(short, seen) > 0)
         // Negative control: the scan is for the mark's own colour, not just any drawing; unfocused, nothing is the
-        // focus text.
-        assertEquals("no focus text in an unfocused cell", 0, pixelsNear(short, GuideColors.Dark.focusText))
+        // focus fill's orange.
+        assertEquals("no focus fill in an unfocused cell", 0, pixelsNear(short, dark.focusFill))
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
@@ -845,7 +849,9 @@ class GuideScreenTest {
         val number = inGrid("123").getBoundsInRoot()
         // The column is 84 dp: the number (22 dp), 8 dp, the 50 dp mark box, 4 dp. The mark is centred in its box.
         assertTrue("the number ends before the mark", number.right <= mark.left)
-        assertTrue("the number is inside the column", number.left >= 0.dp && mark.right <= ChannelColumnWidth)
+        val columnLeft = ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)).left
+        assertTrue("the number is inside the column", number.left >= columnLeft)
+        assertTrue("the mark is inside the column", mark.right <= columnLeft + ChannelColumnWidth)
         assertTrue("the number is not cut", !isEllipsized("123"))
         compose.onAllNodesWithText("Test Channel 123", useUnmergedTree = true).assertCountEquals(1) // the panel only
     }

@@ -24,6 +24,8 @@ internal class GuideColors(
     val accent: Color,
     val focusFill: Color,
     val focusText: Color,
+    /** Secondary text on the focus fill: 90%, the least that keeps 11 sp text at 4.5:1 in both themes. */
+    val focusTextSecondary: Color,
     val nowChipFill: Color,
     val nowChipText: Color,
     val nowLine: Color,
@@ -54,6 +56,7 @@ internal class GuideColors(
                 accent = Color(0xFFE8642C),
                 focusFill = Color(0xFFE8642C),
                 focusText = Color(0xFF1A0D06),
+                focusTextSecondary = Color(0xFF1A0D06).copy(alpha = FOCUS_SECONDARY_ALPHA),
                 nowChipFill = Color(0xFFE8642C),
                 nowChipText = Color(0xFF1A0D06),
                 nowLine = Color(0xFFE8642C),
@@ -83,6 +86,7 @@ internal class GuideColors(
                 accent = Color(0xFFB74719),
                 focusFill = Color(0xFFB74719),
                 focusText = Color(0xFFFFFFFF),
+                focusTextSecondary = Color(0xFFFFFFFF).copy(alpha = FOCUS_SECONDARY_ALPHA),
                 nowChipFill = Color(0xFFB74719),
                 nowChipText = Color(0xFFFFFFFF),
                 nowLine = Color(0xFFB74719),
@@ -114,6 +118,7 @@ private const val TERTIARY_ALPHA_DARK = 0.38f
 private const val SECONDARY_ALPHA_LIGHT = 0.64f
 private const val TERTIARY_ALPHA_LIGHT = 0.52f
 private const val CARD_ALPHA = 0.06f
+private const val FOCUS_SECONDARY_ALPHA = 0.90f
 private const val TRACK_ALPHA = 0.08f
 private const val LINE_ALPHA = 0.10f
 private const val NOW_LINE_ALPHA = 0.35f

@@ -112,7 +112,6 @@ private val TextEnd = 12.dp
 private val ChevronInset = 6.dp
 private val ChevronStroke = 1.5.dp
 private val ProgressHeight = 1.5.dp
-private const val FOCUSED_META_ALPHA = 0.72f
 private const val FOCUSED_TRACK_ALPHA = 0.2f
 private val ChevronSize = 5.dp
 private val ChevronRoom = 14.dp
@@ -385,7 +384,7 @@ private fun CellText(
         Text(
             text = second,
             modifier = Modifier.testTag(slots.secondLineTag),
-            color = if (focused) colors.focusText.copy(alpha = FOCUSED_META_ALPHA) else colors.textSecondary,
+            color = if (focused) colors.focusTextSecondary else colors.textSecondary,
             style = SecondLineStyle,
             maxLines = 1,
             softWrap = false,

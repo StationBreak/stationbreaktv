@@ -65,8 +65,6 @@ private val NowTriangle = 6.dp
 private val RuleHeight = 1.dp
 private val NumberWidth = 22.dp
 private val NumberGap = 8.dp
-private val MarkBoxWidth = 50.dp
-private val MarkBoxHeight = 28.dp
 private val ColumnEnd = 4.dp
 private val LabelGap = 6.dp
 private const val MARK_LOOKAHEAD = 2
@@ -198,14 +196,7 @@ private fun ChannelCell(
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.width(NumberGap))
-        Box(Modifier.size(MarkBoxWidth, MarkBoxHeight), contentAlignment = Alignment.Center) {
-            ChannelMark(
-                row.markKey,
-                row.initials,
-                markBandOf(row.number),
-                Modifier.testTag(GuideTags.channelMark(row.channel)),
-            )
-        }
+        ChannelMark(row.markKey, row.initials, Modifier.testTag(GuideTags.channelMark(row.channel)))
     }
 }
 

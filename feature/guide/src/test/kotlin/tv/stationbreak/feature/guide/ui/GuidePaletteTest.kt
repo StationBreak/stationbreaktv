@@ -51,6 +51,8 @@ class GuidePaletteTest {
             assertContrast(3.0, c.focusFill, card, "$name focus on a card", c.page)
             assertContrast(3.0, c.focusFill, c.page, "$name focus on the page", c.page)
             assertContrast(4.5, c.focusText, c.focusFill, "$name focus text", c.page)
+            // The focused cell's 11 sp second line.
+            assertContrast(4.5, c.focusTextSecondary, c.focusFill, "$name focused second line", c.page)
             assertContrast(4.5, c.textPrimary, c.page, "$name primary text", c.page)
             assertContrast(4.5, c.textSecondary, c.page, "$name secondary text", c.page)
             assertContrast(4.5, c.textSecondary, card, "$name secondary text on a card", c.page)
@@ -64,6 +66,11 @@ class GuidePaletteTest {
             assertContrast(3.0, c.menuPillFocused, pill, "$name focused menu", c.page)
             // Tertiary is for numbers, chevrons and the panel's channel line: 3:1, as large text.
             assertContrast(3.0, c.textSupporting, c.page, "$name tertiary text", c.page)
+            assertContrast(3.0, c.textSupporting, card, "$name tertiary on a card (chevrons)", c.page)
+            // The progress line on a card, and its focused form on the focus fill.
+            assertContrast(3.0, c.progressFill, c.progressTrack.compositeOver(card), "$name progress on a card", c.page)
+            val focusedTrack = c.focusText.copy(alpha = 0.2f).compositeOver(c.focusFill)
+            assertContrast(3.0, c.focusText, focusedTrack, "$name focused progress", c.page)
         }
     }
 
