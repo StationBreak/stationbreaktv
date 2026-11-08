@@ -127,12 +127,12 @@ class RecordFileDurabilityTest {
             val faulty = DiskRecordFile(base) { if (armed) throw IOException("sync refused") }
             val settings = FileServerSettings(faulty, inPlace)
             assertTrue(settings.save(ServerRecord(address)))
-            assertTrue(settings.saveSelection(StoredSelection(setOf(ItemId("alpha")), seq = 1)))
+            assertTrue(settings.saveSelection(StoredSelection(setOf(ItemId("alpha")), seq = 1, resetSeq = 1)))
             armed = true
             // The rename landed, then the follow-up threw: the caller hears "failed", the memory follows the disk.
-            assertFalse(settings.saveSelection(StoredSelection(setOf(ItemId("beta")), seq = 2)))
+            assertFalse(settings.saveSelection(StoredSelection(setOf(ItemId("beta")), seq = 2, resetSeq = 1)))
             armed = false
-            assertEquals(StoredSelection(setOf(ItemId("beta")), seq = 2), settings.loadSelection())
+            assertEquals(StoredSelection(setOf(ItemId("beta")), seq = 2, resetSeq = 1), settings.loadSelection())
             assertEquals(2L, FileServerSettings(DiskRecordFile(base) {}, inPlace).loadSelectionSeq())
         }
 

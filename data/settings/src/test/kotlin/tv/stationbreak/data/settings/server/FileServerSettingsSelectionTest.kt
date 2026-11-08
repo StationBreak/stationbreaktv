@@ -62,7 +62,7 @@ class FileServerSettingsSelectionTest {
     fun roundTrip_allFields() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            assertTrue(settings.saveSelection(full))
+            assertTrue(settings.seed(full))
             assertEquals(full, settings.loadSelection())
             assertEquals(full, rebuilt().loadSelection())
             assertEquals(ServerRecord(address, pin), rebuilt().load())
@@ -72,8 +72,11 @@ class FileServerSettingsSelectionTest {
     @Test
     fun emptyFields_omitted_versionStill1() =
         runBlocking {
-            settings.save(ServerRecord(address))
-            assertTrue(settings.saveSelection(StoredSelection(setOf(alpha), seq = 1)))
+            // A selection with nothing but its choice and seq (as an older build left it), saved again through the
+            // store's writer as a bookkeeping write: only the keys that hold something are written.
+            val older = StoredSettings(ServerRecord(address), libraries = setOf(alpha), seq = 1)
+            file.text = ServerRecordCodec.encode(older)
+            assertTrue(rebuilt().saveSelection(StoredSelection(setOf(alpha), seq = 1)))
             val lines = file.text!!.lines()
             assertEquals("version=1", lines.first())
             assertTrue(lines.toString(), "seq=1" in lines)
@@ -89,7 +92,7 @@ class FileServerSettingsSelectionTest {
     fun allFields_writeTheirKeys() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             val lines = file.text!!.lines()
             assertTrue(lines.toString(), "seq=9" in lines)
             assertTrue(lines.toString(), "adding=gamma:9" in lines)
@@ -114,7 +117,7 @@ class FileServerSettingsSelectionTest {
     fun setupSave_bumpsSeq_clearsAdding() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             assertTrue(settings.storeChoice(setOf(beta)))
             assertEquals(
                 StoredSelection(chosen = setOf(beta), seq = 10, listings = 5, resetSeq = 10),
@@ -134,7 +137,7 @@ class FileServerSettingsSelectionTest {
     fun clearAndNewAddress_keepSeq() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
 
             assertTrue(settings.clearLibraries())
             assertNull(settings.loadSelection())
@@ -159,7 +162,7 @@ class FileServerSettingsSelectionTest {
     fun clear_withNothingChosen_keepsTheCountersAndWritesNothing() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             settings.clearLibraries()
             val writes = file.writes
             assertTrue(settings.clearLibraries())
@@ -171,7 +174,7 @@ class FileServerSettingsSelectionTest {
     fun sameAddressSave_keepsTheWholeSelection() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             assertTrue(settings.clearPin())
             assertTrue(settings.save(ServerRecord(address)))
             assertEquals(full, settings.loadSelection())
@@ -191,7 +194,7 @@ class FileServerSettingsSelectionTest {
     fun saveSelection_lowerSeq_refused() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             val writes = file.writes
             assertFalse(settings.saveSelection(full.copy(seq = 8, adding = mapOf(gamma to 8))))
             // An equal seq is bookkeeping only: a change to chosen, adding, gone or the reset seq takes a new seq.
@@ -207,7 +210,7 @@ class FileServerSettingsSelectionTest {
     fun saveSelection_equalSeq_bookkeepingStored() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             val kept = full.copy(missing = emptyMap(), listings = 6)
             assertTrue(settings.saveSelection(kept))
             assertEquals(kept, settings.loadSelection())
@@ -234,15 +237,15 @@ class FileServerSettingsSelectionTest {
                 )
             for (selection in broken) assertFalse(selection.toString(), settings.saveSelection(selection))
             assertNull(settings.loadSelection())
-            val good = base.copy(adding = mapOf(beta to 4), missing = mapOf(beta to Missing(1, 1)))
-            assertTrue(settings.saveSelection(good))
+            val good = base.copy(adding = mapOf(beta to 4), missing = mapOf(beta to Missing(1, 1)), resetSeq = 4)
+            assertTrue(settings.seed(good))
         }
 
     @Test
     fun saveSelection_resetSeqBelowStored_refused() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             // A writer that forgot to carry the reset seq is refused rather than allowed to lose it.
             val forgot = full.copy(seq = 10, adding = emptyMap(), missing = emptyMap(), resetSeq = 0)
             assertFalse(settings.saveSelection(forgot))
@@ -253,7 +256,7 @@ class FileServerSettingsSelectionTest {
     fun playable_nullWhenGone() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             assertNull(settings.loadPlayableLibraries())
             // The choice is kept while gone: routing still sees a selection.
             assertEquals(setOf(alpha, beta), settings.loadLibraries())
@@ -266,7 +269,7 @@ class FileServerSettingsSelectionTest {
     fun malformedNewKey_dropsOnlyThatKey() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             val good = file.text!!
             val cases =
                 mapOf(
@@ -320,7 +323,7 @@ class FileServerSettingsSelectionTest {
     fun save_readFault_keepsSeq_andFails() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             val before = file.text
             file.failReads = true
             // A read fault is not "no file": saving would wipe the seq, so nothing is written.
@@ -357,7 +360,7 @@ class FileServerSettingsSelectionTest {
                     resetSeq = Long.MAX_VALUE,
                 )
             settings.save(ServerRecord(address))
-            assertTrue(settings.saveSelection(selection))
+            assertTrue(settings.seed(selection))
             assertEquals(selection, rebuilt().loadSelection())
         }
 
@@ -387,11 +390,32 @@ class FileServerSettingsSelectionTest {
     fun aFailedSelectionWrite_keepsTheOldSelection() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveSelection(full)
+            assertTrue(settings.seed(full))
             file.failWrites = true
             assertFalse(settings.saveSelection(full.copy(seq = 10)))
             assertFalse(settings.storeChoice(setOf(alpha)))
             assertEquals(full, settings.loadSelection())
             assertEquals(full, rebuilt().loadSelection())
+        }
+
+    // Spec 26 fix round 2: an address change drops the selection outside the selection's lock, so a change computed
+    // from the dropped one must not be stored over the gap; only a setup's save is.
+    @Test
+    fun withNothingChosen_onlyASetupsSaveIsTaken() =
+        runBlocking {
+            assertTrue(settings.save(ServerRecord(address)))
+            assertTrue(settings.storeChoice(setOf(alpha)))
+            assertTrue(settings.save(ServerRecord(other)))
+            assertNull(settings.loadSelection())
+            val seq = checkNotNull(settings.loadSelectionSeq()) + 1
+
+            val withAnAdd = StoredSelection(setOf(alpha), seq = seq, adding = mapOf(beta to seq), resetSeq = seq)
+            assertFalse("a change with an add", settings.saveSelection(withAnAdd))
+            val notAReset = StoredSelection(setOf(alpha), seq = seq, resetSeq = 1)
+            assertFalse("a change that is not a reset", settings.saveSelection(notAReset))
+            assertNull(settings.loadSelection())
+
+            assertTrue(settings.saveSelection(StoredSelection(setOf(beta), seq = seq, resetSeq = seq)))
+            assertEquals(setOf(beta), settings.loadLibraries())
         }
 }

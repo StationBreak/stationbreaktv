@@ -103,7 +103,12 @@ class FileServerSettings internal constructor(
     override suspend fun saveSelection(selection: StoredSelection): Boolean =
         locked {
             val held = read()
+            // With nothing chosen (a clear, or a save for another address dropped it, outside the selection's lock)
+            // only a setup's save is taken: one whose reset seq is its seq, with nothing being added.
+            val setupShaped = selection.resetSeq == selection.seq && selection.adding.isEmpty()
             if (held == null || !selection.mayReplace(held.selection(), held.seq, held.resetSeq)) {
+                false
+            } else if (held.selection() == null && !setupShaped) {
                 false
             } else {
                 write(

@@ -88,6 +88,8 @@ interface SelectionWriter {
      * Replaces the stored selection with [selection] in one atomic write with the record. Returns false, storing
      * nothing, when there is no record, when the write failed, or when [selection] breaks a rule of
      * [StoredSelection.mayReplace] (an empty or overlapping choice, a stamp above its seq, a seq below the stored one).
+     * With nothing chosen, the file store takes only a setup's save (its reset seq is its seq, nothing being added):
+     * a change saved over a selection dropped outside the selection's lock (an address change) is refused.
      */
     suspend fun saveSelection(selection: StoredSelection): Boolean
 }

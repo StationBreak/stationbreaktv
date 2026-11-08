@@ -153,7 +153,10 @@ class FileServerSettingsDiskTest {
         runBlocking {
             store().save(ServerRecord(address))
             val settings = store()
-            for (seq in 1L..20L) assertTrue(settings.saveSelection(StoredSelection(setOf(ItemId("movies")), seq)))
+            // A setup, then nineteen changes over it (the store takes only a setup's save while nothing is chosen).
+            for (seq in 1L..20L) {
+                assertTrue(settings.saveSelection(StoredSelection(setOf(ItemId("movies")), seq, resetSeq = 1)))
+            }
             assertEquals(20L, store().loadSelection()?.seq)
             assertEquals(listOf("server"), dir.list().orEmpty().toList())
         }
