@@ -9,7 +9,6 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
-import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -85,11 +84,8 @@ internal class FirstSyncEngine(
         private val account: LibraryAccount,
         private val started: Instant,
     ) {
-        private var skipped = 0
-
-        // Set when the library row refused a write of the library being walked (spec 26, schema 11): its walk stops
-        // without marking it fetched, and the sync goes on with the next library. Task 4.4b gives it its own outcome.
-        private var refused = false
+        // The items skipped for failing to decode, across every library of this run.
+        private val skips = SkipBudget(maxSkippedItems)
 
         // The earliest walk start across the libraries: what the next incremental pass counts from (a long walk, or a
         // resume, must not push it past changes made while an early library was being read).
@@ -156,139 +152,26 @@ internal class FirstSyncEngine(
                 }
         }
 
-        // A write the library row refused (spec 26): a library that was dropped, held or stamped since this run chose
-        // it. Nothing was written; the walk of that library stops and leaves it pending.
-        private fun accepted(result: PageResult): Boolean {
-            if (result !is PageResult.Written) refused = true
-            return !refused
-        }
-
+        // One library's walk with no stamp (spec 26, Part 4 §4: LibraryPass(null)). A write the library row refused
+        // (a library dropped, held or stamped since this run chose it) stops that library and leaves it pending; the
+        // sync goes on with the next library.
         private suspend fun sync(
             library: Library,
             total: Int,
         ): SyncOutcome? {
-            refused = false
-            val checkpoint = repository.checkpoint(account, library.id)
-            // The walk's start is the first run's, however many times the sync was started again (a resume keeps it).
-            val run = checkpoint?.run ?: started.toEpochMilliseconds()
-            earliestWalk = minOf(earliestWalk, Instant.fromEpochMilliseconds(run))
-            val limit = PageLimit(pageSize)
-            val walked =
-                read(library, checkpoint?.nextStartIndex ?: 0, null, limit) { items, next, firstTotal ->
-                    val written =
-                        repository.writePage(
-                            account,
-                            library.id,
-                            stamp = null,
-                            rewalk = false,
-                            items,
-                            next,
-                            firstTotal ?: total,
-                            run,
-                        )
-                    accepted(written)
+            val pass = LibraryPass(repository, server, session, account, null, false, pageSize, margin, skips, report)
+            return when (val end = pass.walk(library, total, started)) {
+                is PassEnd.Walked -> {
+                    repository.markWalked(account, library.id)
+                    null
                 }
-            if (walked != null || refused) return walked
-            val since = Instant.fromEpochMilliseconds(run) - margin
-            val caught =
-                read(library, 0, since, limit) { items, _, _ ->
-                    accepted(repository.upsertItems(account, library.id, stamp = null, rewalk = false, items))
+
+                is PassEnd.Refused -> {
+                    null
                 }
-            if (caught != null || refused) return caught
-            // The series follow the library's items, through the same page loop and from the same cursor: the walk's
-            // start less the margin. They are written by upsert, so a resume simply reads them again from the start.
-            val seriesWalked = readSeries(library, null, limit)
-            if (seriesWalked != null || refused) return seriesWalked
-            val seriesCaught = readSeries(library, since, limit)
-            if (seriesCaught != null || refused) return seriesCaught
-            val hiddenFailed = readHiddenSeries(library)
-            if (hiddenFailed != null || refused) return hiddenFailed
-            repository.markWalked(account, library.id)
-            return null
-        }
 
-        // The series the library's episodes name that the server's series list left out (issue 604): read by ID, once
-        // each, after the list's own. A series the server fails on is only counted and left for a later pass; only a
-        // session-level failure (an expired session, a server that cannot be reached) fails the sync.
-        private suspend fun readHiddenSeries(library: Library): SyncOutcome? {
-            val missing = repository.unstoredReferencedSeries(account, library)
-            val read =
-                server.readHiddenSeries(
-                    session,
-                    repository,
-                    account,
-                    library,
-                    missing,
-                    HiddenSeriesMemory(),
-                    confirmAbsent = false,
-                    stamp = null,
-                    rewalk = false,
-                )
-            if (read.asked > 0) report(read.line())
-            read.refused?.let { accepted(it) }
-            return read.failure?.let { fail(it) }
-        }
-
-        /**
-         * Reads [library] from [startAt] to the page that comes back empty, giving each page to [onPage] with the
-         * position after it and, for the first page, the library's total. Null when it reached the end, or when
-         * [onPage] said a page was refused (false).
-         */
-        private suspend fun read(
-            library: Library,
-            startAt: Int,
-            changedSince: Instant?,
-            limit: PageLimit,
-            onPage: suspend (items: List<MediaItem>, next: Int, firstTotal: Int?) -> Boolean,
-        ): SyncOutcome? {
-            var next = startAt
-            while (true) {
-                when (val fetched = server.fetchPage(session, library, next, changedSince, limit)) {
-                    is Fetched.Failed -> {
-                        return fail(fetched.error)
-                    }
-
-                    Fetched.Malformed -> {
-                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
-                        next += 1
-                        if (!onPage(emptyList(), next, null)) return null
-                    }
-
-                    is Fetched.Page -> {
-                        if (fetched.items.isEmpty()) return null
-                        next += fetched.items.size
-                        val total = if (fetched.startIndex == 0) fetched.totalCount else null
-                        if (!onPage(fetched.items, next, total)) return null
-                    }
-                }
-            }
-        }
-
-        /** Reads [library]'s series from the start, saving each page. Null when it reached the end. */
-        private suspend fun readSeries(
-            library: Library,
-            changedSince: Instant?,
-            limit: PageLimit,
-        ): SyncOutcome? {
-            var next = 0
-            while (true) {
-                when (val fetched = server.fetchSeriesPage(session, library, next, changedSince, limit)) {
-                    is Fetched.Failed -> {
-                        return fail(fetched.error)
-                    }
-
-                    Fetched.Malformed -> {
-                        if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
-                        next += 1
-                    }
-
-                    is Fetched.Page -> {
-                        if (fetched.items.isEmpty()) return null
-                        next += fetched.items.size
-                        val written =
-                            repository.upsertSeries(account, library.id, stamp = null, rewalk = false, fetched.items)
-                        if (!accepted(written)) return null
-                    }
+                is PassEnd.Failed -> {
+                    fail(end.error)
                 }
             }
         }
