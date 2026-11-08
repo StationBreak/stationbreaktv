@@ -42,6 +42,7 @@ import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.SelectionWriter
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
@@ -108,6 +109,9 @@ class SignInNavigationTest {
         fun serverSettings(): ServerSettings = Scripted.settings
 
         @Provides
+        fun selectionWriter(): SelectionWriter = Scripted.settings
+
+        @Provides
         @Singleton
         fun sessions(
             store: SecretStore,
@@ -153,6 +157,7 @@ class SignInNavigationTest {
     }
 
     private fun launchApp() {
+        resumeSelectionAsTheAppStartDoes()
         // The graph from the server screen, as a first launch reaches it. LaunchNavigationTest covers launch routing.
         compose.setContent { StationBreakTheme { AppNavGraph(startDestination = ServerRoute) } }
         compose.waitForIdle()

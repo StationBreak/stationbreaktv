@@ -86,7 +86,7 @@ class FileServerSettingsDiskTest {
     fun theLibrarySelectionSurvivesARebuiltStoreBesideTheRecord() =
         runBlocking {
             store().save(ServerRecord(address, pin))
-            assertTrue(store().saveLibraries(setOf(ItemId("movies"), ItemId("shows"))))
+            assertTrue(store().storeChoice(setOf(ItemId("movies"), ItemId("shows"))))
             assertEquals(setOf(ItemId("movies"), ItemId("shows")), store().loadLibraries())
             assertEquals(ServerRecord(address, pin), store().load())
         }
@@ -95,8 +95,8 @@ class FileServerSettingsDiskTest {
     fun aSelectionWriteIsAnAtomicReplaceThatLeavesOneFileAndTheRecordWhole() =
         runBlocking {
             store().save(ServerRecord(address, pin))
-            store().saveLibraries(setOf(ItemId("movies")))
-            store().saveLibraries(setOf(ItemId("shows")))
+            store().storeChoice(setOf(ItemId("movies")))
+            store().storeChoice(setOf(ItemId("shows")))
             assertEquals(setOf(ItemId("shows")), store().loadLibraries())
             assertEquals(ServerRecord(address, pin), store().load())
             assertEquals(listOf("server"), dir.list().orEmpty().toList())
@@ -110,7 +110,7 @@ class FileServerSettingsDiskTest {
             assertNull(store().load())
             assertNull(store().loadLibraries())
             assertTrue(store().save(ServerRecord(address)))
-            assertTrue(store().saveLibraries(setOf(ItemId("movies"))))
+            assertTrue(store().storeChoice(setOf(ItemId("movies"))))
             assertEquals(setOf(ItemId("movies")), store().loadLibraries())
         }
 
@@ -144,7 +144,7 @@ class FileServerSettingsDiskTest {
             assertTrue(store().clearLibraries())
             assertNull(store().loadSelection())
             assertEquals(6L, store().loadSelectionSeq())
-            assertTrue(store().saveLibraries(setOf(ItemId("shows"))))
+            assertTrue(store().storeChoice(setOf(ItemId("shows"))))
             assertEquals(7L, store().loadSelection()?.seq)
         }
 
@@ -184,7 +184,7 @@ class FileServerSettingsDiskTest {
     fun anotherServerStartsWithoutTheOldSelectionOnDisk() =
         runBlocking {
             store().save(ServerRecord(address))
-            store().saveLibraries(setOf(ItemId("movies")))
+            store().storeChoice(setOf(ItemId("movies")))
             store().save(ServerRecord(ServerAddress(Scheme.Https, "other.example.test", 443)))
             assertNull(store().loadLibraries())
         }

@@ -176,7 +176,7 @@ class LibrariesScreenTest {
 
         compose.onNodeWithTag(LibrariesTags.REASON).assertExists()
         compose.onNodeWithTag(LibrariesTags.DONE).assertIsNotEnabled()
-        assertTrue(settings.savedLibraries.isEmpty())
+        assertTrue(settings.savedSelections.isEmpty())
     }
 
     @Test

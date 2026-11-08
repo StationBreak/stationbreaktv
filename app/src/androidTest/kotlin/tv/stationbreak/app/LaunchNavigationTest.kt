@@ -42,6 +42,7 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.SelectionWriter
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
@@ -127,6 +128,9 @@ class LaunchNavigationTest {
         fun serverSettings(): ServerSettings = Launched.settings
 
         @Provides
+        fun selectionWriter(): SelectionWriter = Launched.settings
+
+        @Provides
         @Singleton
         fun sessions(
             store: SecretStore,
@@ -178,6 +182,7 @@ class LaunchNavigationTest {
     private fun storeSession() = runBlocking { SessionRepository(Launched.store, Launched.server).save(session) }
 
     private fun launchApp() {
+        resumeSelectionAsTheAppStartDoes()
         compose.setContent { StationBreakTheme { AppNavHost() } }
         compose.waitForIdle()
     }
