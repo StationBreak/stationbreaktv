@@ -20,6 +20,7 @@ class SelectionWriterScanTest {
 
     // The selection's collaborators: built inside it, internal to core:domain, and run only under its lock.
     private val allocation = "$selectionDir/SelectionAllocation.kt"
+    private val room = "$selectionDir/SelectionRoom.kt"
     private val file = "data/settings/src/main/kotlin/tv/stationbreak/data/settings/server/FileServerSettings.kt"
     private val pinSyncing = "app/src/main/kotlin/tv/stationbreak/app/net/PinSyncingServerSettings.kt"
     private val mediaServerModule = "app/src/main/kotlin/tv/stationbreak/app/di/MediaServerModule.kt"
@@ -79,7 +80,7 @@ class SelectionWriterScanTest {
     // its DAOs carry them out. A pass that wrote them itself (hold expiry, say) would be a second writer.
     @Test
     fun theCacheRowWrites_areCalledOnlyByTheSelectionTheRepositoryAndItsDaos() {
-        val allowed = setOf(selection, roomRepository, cacheDao, libraryDao)
+        val allowed = setOf(selection, room, roomRepository, cacheDao, libraryDao)
 
         val users = usersOf(Regex("""\.(applySelection|landAdd|revertUnproven)\("""))
 

@@ -103,12 +103,12 @@ class LibrarySelection(
     private val library: LibraryRepository,
     private val server: MediaServer,
     private val session: () -> Session?,
-    private val repairer: TodayRepairer,
+    repairer: TodayRepairer,
     service: LineupService,
     private val source: BuiltInScheduleSource,
     private val passes: LibraryPasses,
     private val firstSync: FirstSync,
-    private val stayCurrent: StayCurrentRequests,
+    stayCurrent: StayCurrentRequests,
     private val resumed: ResumeGate,
     private val config: SelectionConfig = SelectionConfig(),
     private val clock: Clock = Clock.System,
@@ -123,11 +123,7 @@ class LibrarySelection(
     private val mutex = Mutex()
     private val ownership = SelectionOwnership(library)
     private val allocation = SelectionAllocation(store, library, repairer, service, clock)
-
-    // Set until a resume or a catch-up has put the cache in line, and again when a cache write failed after its save
-    // committed: the next operation reconciles the cache first. It starts set, so an instance that never resumed (one
-    // built after the start's resume failed) catches up on its first operation.
-    @Volatile private var roomBehind = true
+    private val cache = SelectionRoom(library, repairer, stayCurrent, clock, report)
 
     // The libraries the last counted listing gave: a library may be added only if it was listed.
     @Volatile private var lastListed: Set<ItemId>? = null
@@ -155,7 +151,7 @@ class LibrarySelection(
         resumed.await()
         return mutex.withLock {
             withContext(NonCancellable + InSelection) {
-                if (catchUpFirst && roomBehind) catchUp(restartPasses = !fromAddPass)
+                if (catchUpFirst && cache.roomBehind) catchUp(restartPasses = !fromAddPass)
                 block()
             }
         }
@@ -249,12 +245,12 @@ class LibrarySelection(
             if (!allocation.reset(account, ids)) return@locked SetupResult.Failed
             // An add under way was of the old choice. The save has committed: what follows cannot fail the setup.
             if (held?.adding.orEmpty().isNotEmpty()) followUp(SelectionEvent.SetupFollowUpFailed) { passes.restart() }
-            room {
-                branches(account, ids, library.storedLibraries(account))
+            cache.room {
+                cache.branches(account, ids, library.storedLibraries(account))
                 // The cache follows the new choice now, not only when the first sync reads its set: a stay-current
                 // pass before that run meets every chosen library's row, and none of a library the setup dropped.
                 store.loadSelection()?.takeIf { ownership.owns(account, it) }?.let {
-                    applyRoom(account, it, library.storedLibraries(account))
+                    cache.applyRoom(account, it, library.storedLibraries(account))
                 }
             }
             // The first sync reads the new libraries, replacing any run still going: one running now read the choice
@@ -321,12 +317,12 @@ class LibrarySelection(
                 is Allocated.Failed -> return if (outcome.terminal) LandResult.Failed else LandResult.Retry
                 is Allocated.Saved -> next(outcome.seq)
             }
-        room {
+        cache.room {
             if (!library.landAdd(account, id, stamp)) {
                 // Lost a race in the cache: branch it again, so a chosen library never keeps a stamp.
-                branches(account, setOf(id), library.storedLibraries(account))
+                cache.branches(account, setOf(id), library.storedLibraries(account))
             }
-            if (stored.gone) applyRoom(account, saved, library.storedLibraries(account))
+            if (stored.gone) cache.applyRoom(account, saved, library.storedLibraries(account))
         }
         ownership.publish(saved)
         return LandResult.Landed
@@ -341,8 +337,8 @@ class LibrarySelection(
     override suspend fun firstSyncLibraries(account: LibraryAccount): Set<ItemId> =
         locked {
             val stored = store.loadSelection()?.takeIf { ownership.owns(account, it) } ?: return@locked emptySet()
-            branches(account, stored.chosen, library.storedLibraries(account))
-            applyRoom(account, stored, library.storedLibraries(account))
+            cache.branches(account, stored.chosen, library.storedLibraries(account))
+            cache.applyRoom(account, stored, library.storedLibraries(account))
             stored.chosen
         }
 
@@ -474,7 +470,7 @@ class LibrarySelection(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            roomBehind = true
+            cache.roomBehind = true
             report(SelectionEvent.SelectionResumeFailed)
         } finally {
             resumed.open()
@@ -518,18 +514,18 @@ class LibrarySelection(
         val stored = store.loadSelection()
         if (stored == null) {
             // Nothing chosen: nothing to put in line.
-            roomBehind = false
+            cache.roomBehind = false
             return
         }
         // Another account's choice never reaches this account's cache; it stays behind until a setup replaces it. There
         // is nothing of it to put in line, so it is not looked at again on every call (a slow TV).
         if (!ownership.owns(account, stored)) {
-            roomBehind = false
+            cache.roomBehind = false
             return
         }
-        val changed = branches(account, stored.chosen, library.storedLibraries(account))
-        applyRoom(account, stored, library.storedLibraries(account))
-        roomBehind = false
+        val changed = cache.branches(account, stored.chosen, library.storedLibraries(account))
+        cache.applyRoom(account, stored, library.storedLibraries(account))
+        cache.roomBehind = false
         // The cache is written: a restart that throws now must not skip the first sync's request below (D6).
         if (stored.adding.isNotEmpty() && restartPasses) restartPasses()
         // A setup the process did not see to its end: the first sync was never asked for.
@@ -547,48 +543,6 @@ class LibrarySelection(
 
     // --- Shared steps -----------------------------------------------------------------------------------------------
 
-    // The two branches of a stamped chosen row: a proven one lands, an unproven one is set back, and stay current is
-    // asked to read it again. True when either changed the cache.
-    private suspend fun branches(
-        account: LibraryAccount,
-        ids: Set<ItemId>,
-        rows: List<StoredLibrary>,
-    ): Boolean {
-        var changed = false
-        for (row in rows) {
-            val stamp = row.addStamp
-            if (row.id !in ids || stamp == null || row.heldUntilMs != null) continue
-            changed = branch(account, row.id, stamp, proven = row.walkedStamp == stamp) || changed
-        }
-        return changed
-    }
-
-    // One stamped chosen row: landed when proven, else set back. A set-back that loses its compare-and-set to the add
-    // walk's proof (the add pass does not hold this lock) reads the row again and lands it when it is proven now.
-    private suspend fun branch(
-        account: LibraryAccount,
-        id: ItemId,
-        stamp: Long,
-        proven: Boolean,
-    ): Boolean =
-        when {
-            proven -> {
-                library.landAdd(account, id, stamp)
-            }
-
-            library.revertUnproven(account, id, stamp) -> {
-                report(SelectionEvent.UnprovenReverted)
-                stayCurrent.request()
-                true
-            }
-
-            else -> {
-                val now = library.storedLibraries(account).firstOrNull { it.id == id }
-                val provenNow = now?.addStamp == stamp && now.walkedStamp == stamp && now.heldUntilMs == null
-                provenNow && library.landAdd(account, id, stamp)
-            }
-        }
-
     // After a save that changed the choice: the cache follows it, the passes restart when the adds changed, and the
     // new selection is published.
     private suspend fun afterSave(
@@ -596,60 +550,9 @@ class LibrarySelection(
         stored: StoredSelection,
         saved: StoredSelection,
     ) {
-        room { applyRoom(account, saved, library.storedLibraries(account)) }
+        cache.room { cache.applyRoom(account, saved, library.storedLibraries(account)) }
         if (saved.adding.keys != stored.adding.keys) restartPasses()
         ownership.publish(saved)
-    }
-
-    // The cache write of a selection: the chosen and the adding libraries kept, every add with its stamp, and the
-    // holds of the pins on air. The cache refuses a new stamp on a row with neither a hold nor a stamp (one set back
-    // to be read again, or one whose untick never reached the cache), so such a row is held first, in a write of its
-    // own, and then stamped: no add is ever dropped or left unstamped for that (D1).
-    private suspend fun applyRoom(
-        account: LibraryAccount,
-        saved: StoredSelection,
-        rows: List<StoredLibrary>,
-    ) {
-        val now = nowMs()
-        val keep = saved.chosen + saved.adding.keys
-        // A hold matters only for a library that leaves: with none leaving, the repairer's turn is not taken.
-        val holds = if (rows.any { it.id !in keep }) holdsFor(account, rows, now) else emptyMap()
-        val byId = rows.associateBy { it.id }
-        val refused = saved.adding.keys.filterTo(HashSet()) { byId[it]?.refusesAStamp() == true }
-        if (refused.isNotEmpty()) {
-            report(SelectionEvent.HeldBeforeStamp)
-            // At least a millisecond ahead: a hold at or before now would delete the row instead (NIT, a zero pause).
-            val until = now + maxOf(repairer.pauseHold.inWholeMilliseconds, 1L)
-            val first = holds + refused.associateWith { maxOf(holds[it] ?: until, until) }
-            library.applySelection(account, keep - refused, saved.adding - refused, first, now)
-        }
-        library.applySelection(account, keep, saved.adding, holds, now)
-    }
-
-    // The cache's rule (LibraryDao.applySelection): a new stamp only for no row, or a row with a hold or a stamp.
-    private fun StoredLibrary.refusesAStamp(): Boolean = heldUntilMs == null && addStamp == null
-
-    // The holds of the libraries pinned on air, each never below the hold its row already has.
-    private suspend fun holdsFor(
-        account: LibraryAccount,
-        rows: List<StoredLibrary>,
-        now: Long,
-    ): Map<ItemId, Long> {
-        val existing = rows.associate { it.id to it.heldUntilMs }
-        return repairer.heldPins(account, now).mapValues { (id, until) -> maxOf(until, existing[id] ?: until) }
-    }
-
-    // A cache write after a committed save: a failure is reported, and the next operation catches up (D13).
-    @Suppress("TooGenericExceptionCaught") // Whatever the cache throws, the save stands.
-    private suspend fun room(block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            roomBehind = true
-            report(SelectionEvent.RoomBehind)
-        }
     }
 
     // A step after a committed write (D6): a failure is reported as [event] and does not undo or fail the write, nor
