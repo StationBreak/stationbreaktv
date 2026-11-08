@@ -37,6 +37,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
@@ -96,7 +97,7 @@ class StayCurrentWorkTest {
         repository = RoomLibraryRepository.create(appContext)
         val sessions = SessionRepository(InMemorySecretStore(), server, repository)
         val settings = InMemoryServerSettings(ServerRecord(address), setOf(movies.id))
-        val runner = StayCurrentRunner(settings, sessions, server, repository, Clock.System)
+        val runner = StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, Clock.System)
         enqueuer = WorkManagerEnqueuer(appContext)
         stayCurrent = StayCurrent(enqueuer, enqueuer, repository, SyncTriggerPolicy(Clock.System), runner)
         runBlocking {

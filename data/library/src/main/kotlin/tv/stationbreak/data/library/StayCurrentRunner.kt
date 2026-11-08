@@ -12,6 +12,7 @@ import tv.stationbreak.core.domain.RestoreOutcome
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
@@ -72,6 +73,7 @@ class StayCurrentRunner(
     private val sessions: SessionRepository,
     private val server: MediaServer,
     private val repository: RoomLibraryRepository,
+    private val ready: SelectionReady,
     private val clock: Clock = Clock.System,
     private val timeSource: TimeSource = TimeSource.Monotonic,
     private val report: (String) -> Unit = {},
@@ -101,6 +103,10 @@ class StayCurrentRunner(
      * sync state; the next run with the incremental pass is the retry.
      */
     internal var lastBackfill: StayResult<PassSummary>? = null
+        private set
+
+    /** How the last rewalk of this process went, or null if none has run (spec 26): counts only. */
+    internal var lastRewalk: RewalkSummary? = null
         private set
 
     /** Test seam: the purge the run does after a completed reconcile. The repository's own in the app. */
@@ -134,10 +140,10 @@ class StayCurrentRunner(
         val blocked =
             if (plan.isEmpty) {
                 Skip.EmptyPlan
-            } else if (!gate.tryLock()) {
-                Skip.Busy
             } else {
-                null
+                // The selection's resume at start comes first (spec 26), before the gate: a run waiting holds none.
+                ready.await()
+                if (!gate.tryLock()) Skip.Busy else null
             }
         if (blocked != null) return report.skipped(plan, blocked)
         try {
@@ -218,6 +224,10 @@ class StayCurrentRunner(
         val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         report.say(wrote(generationBefore, repository.generationOrNull(account), ran))
+        // The rewalk runs only after passes that completed (spec 26, Part 4 §4); it never changes how the run ended.
+        if (outcome == SyncOutcome.Completed) {
+            lastRewalk = Rewalk(repository, server, clock, report).step(session, account, chosen)
+        }
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
         if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome

@@ -16,6 +16,7 @@ import tv.stationbreak.core.domain.SeriesSource
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.CollectionInfo
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionMemberKind
@@ -64,7 +65,8 @@ class QuietOpenGenerationTest {
     private val settings =
         InMemoryServerSettings(ServerRecord(SyncWorld.session.address), libraries.map { it.id }.toSet())
     private val lines = mutableListOf<String>()
-    private val runner = StayCurrentRunner(settings, sessions, server, repository, clock, report = { lines += it })
+    private val runner =
+        StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, clock) { lines += it }
     private val open = SyncPlan(incremental = false, reconcile = true)
     private val both = SyncPlan(incremental = true, reconcile = true)
 

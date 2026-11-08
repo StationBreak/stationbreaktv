@@ -13,6 +13,7 @@ import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.SelectionReady
 import kotlin.time.Clock
 import kotlin.time.TimeSource
 
@@ -73,7 +74,8 @@ internal class StayCurrentRig(
     val store = InMemorySecretStore()
     val sessions = SessionRepository(store, server, repository)
     val settings = InMemoryServerSettings(ServerRecord(SyncWorld.session.address), setOf(MOVIES))
-    val runner = StayCurrentRunner(settings, sessions, server, repository, clock, timeSource, report)
+    val runner =
+        StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, clock, timeSource, report)
 
     /** Signs in and runs the first sync to its end; the recorded moment is the clock at that time. */
     suspend fun firstSyncDone() {
