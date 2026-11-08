@@ -6,12 +6,15 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.domain.Missing
 import tv.stationbreak.core.domain.ServerRecord
+import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
@@ -21,7 +24,8 @@ import java.util.UUID
 
 /**
  * The record and the library selection on a real disk on the API 25 emulator: both survive a rebuilt store, and a
- * rewrite is an atomic replace of the one file.
+ * rewrite is an atomic replace of the one file. Since spec 26 Part 4 the replace is `.new`, sync, rename and a sync of
+ * the directory through `android.system.Os` (not AtomicFile), and an older build's `.bak` is put back once.
  */
 @RunWith(AndroidJUnit4::class)
 class FileServerSettingsDiskTest {
@@ -108,6 +112,72 @@ class FileServerSettingsDiskTest {
             assertTrue(store().save(ServerRecord(address)))
             assertTrue(store().saveLibraries(setOf(ItemId("movies"))))
             assertEquals(setOf(ItemId("movies")), store().loadLibraries())
+        }
+
+    private val selection =
+        StoredSelection(
+            chosen = setOf(ItemId("movies")),
+            seq = 6,
+            adding = mapOf(ItemId("shows") to 6),
+            gone = true,
+            missing = mapOf(ItemId("shows") to Missing(sinceMs = 1_000, sincePass = 2)),
+            listings = 2,
+            resetSeq = 3,
+        )
+
+    @Test
+    fun theWholeStoredSelectionSurvivesARebuiltStore() =
+        runBlocking {
+            store().save(ServerRecord(address, pin))
+            assertTrue(store().saveSelection(selection))
+            assertEquals(selection, store().loadSelection())
+            assertNull(store().loadPlayableLibraries())
+            assertEquals(ServerRecord(address, pin), store().load())
+            assertEquals(listOf("server"), dir.list().orEmpty().toList())
+        }
+
+    @Test
+    fun aClearKeepsTheSeqOnDisk() =
+        runBlocking {
+            store().save(ServerRecord(address))
+            store().saveSelection(selection)
+            assertTrue(store().clearLibraries())
+            assertNull(store().loadSelection())
+            assertEquals(6L, store().loadSelectionSeq())
+            assertTrue(store().saveLibraries(setOf(ItemId("shows"))))
+            assertEquals(7L, store().loadSelection()?.seq)
+        }
+
+    @Test
+    fun manyWritesLeaveOneFileAndNoStagedOrBackupCopy() =
+        runBlocking {
+            store().save(ServerRecord(address))
+            val settings = store()
+            for (seq in 1L..20L) assertTrue(settings.saveSelection(StoredSelection(setOf(ItemId("movies")), seq)))
+            assertEquals(20L, store().loadSelection()?.seq)
+            assertEquals(listOf("server"), dir.list().orEmpty().toList())
+        }
+
+    @Test
+    fun anOlderBuildsBackupIsPutBackOverATornRecord() =
+        runBlocking {
+            store().save(ServerRecord(address, pin))
+            // An AtomicFile write cut off: the good copy is in server.bak, server is torn.
+            File(dir, "server").renameTo(File(dir, "server.bak"))
+            File(dir, "server").writeText("version=1\nscheme=ht")
+            assertEquals(ServerRecord(address, pin), store().load())
+            assertFalse(File(dir, "server.bak").exists())
+            assertTrue(store().save(ServerRecord(address)))
+            assertEquals(ServerRecord(address), store().load())
+        }
+
+    @Test
+    fun aStagedCopyLeftByAnInterruptedWriteIsNeverReadAndIsRemoved() =
+        runBlocking {
+            store().save(ServerRecord(address))
+            File(dir, "server.new").writeText("version=1\nscheme=https\nhost=other.example.test\nport=443")
+            assertEquals(ServerRecord(address), store().load())
+            assertFalse(File(dir, "server.new").exists())
         }
 
     @Test

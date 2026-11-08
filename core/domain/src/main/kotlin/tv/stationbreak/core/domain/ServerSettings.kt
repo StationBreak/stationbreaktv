@@ -29,7 +29,7 @@ data class ServerRecord(
  *
  * The library selection (S0.5.4) lives beside the record and is written with it, so the two can never disagree about
  * which server the choice was made on: [save] keeps the selection when the address is the same one and drops it when
- * the address is another server's, and [clearPin] keeps it.
+ * the address is another server's (keeping the seq and the counters, see [loadSelectionSeq]), and [clearPin] keeps it.
  */
 interface ServerSettings {
     /** The stored record, or null when none was saved (or it couldn't be read). */
@@ -45,15 +45,119 @@ interface ServerSettings {
     suspend fun loadLibraries(): Set<ItemId>?
 
     /**
-     * Stores [ids] as the chosen libraries, in one atomic write with the record. Returns true when it was stored.
-     * Returns false, storing nothing, when there is no record to attach it to, when [ids] is empty (a selection is
-     * never empty), or when the write failed.
+     * Stores [ids] as the chosen libraries, in one atomic write with the record: a setup. It takes the stored seq + 1,
+     * makes that the reset seq, and clears the libraries being added, gone and the misses. Returns true when it was
+     * stored. Returns false, storing nothing, when there is no record to attach it to, when [ids] is empty (a selection
+     * is never empty), or when the write failed.
      */
     suspend fun saveLibraries(ids: Set<ItemId>): Boolean
 
     /**
      * Drops the library selection and keeps the record and its pin, in one atomic write. True when it was dropped or
-     * there was nothing to drop. A new sign-in or a switch of user starts the choice again (S0.5.4).
+     * there was nothing to drop. A new sign-in or a switch of user starts the choice again (S0.5.4). The seq, the reset
+     * seq and the listing count are kept, so a seq is never reused.
      */
     suspend fun clearLibraries(): Boolean
+
+    /**
+     * The whole stored selection (spec 26): the chosen libraries with their seq, the libraries being added, whether the
+     * selection is gone, the libraries a listing missed, and the counters. Null when nothing is chosen, when there is
+     * no record, or when the file can't be read. Served from memory after the first read: a selection read never waits
+     * on a writer, because it is on the tune path.
+     */
+    suspend fun loadSelection(): StoredSelection?
+
+    /**
+     * The stored seq, which outlives the selection: [clearLibraries] and [save] for another address keep it. 0 when no
+     * seq was ever stored. Null when there is no record or the file can't be read. A new selection saved after a
+     * clear must carry a seq above this one.
+     */
+    suspend fun loadSelectionSeq(): Long?
+
+    /**
+     * Replaces the stored selection with [selection] in one atomic write with the record. Returns false, storing
+     * nothing, when there is no record, when the write failed, or when [selection] breaks a rule of
+     * [StoredSelection.mayReplace] (an empty or overlapping choice, a stamp above its seq, a seq below the stored one).
+     */
+    suspend fun saveSelection(selection: StoredSelection): Boolean
+
+    /**
+     * The libraries a repair may match or fill from: the chosen ones, or null when the selection is gone or none is
+     * stored. Never the libraries being added. One read of the same memory as [loadSelection].
+     */
+    suspend fun loadPlayableLibraries(): Set<ItemId>?
+}
+
+/**
+ * The first time a listing missed a chosen or adding library: when ([sinceMs]), and in which counted listing
+ * ([sincePass]).
+ */
+data class Missing(
+    val sinceMs: Long,
+    val sincePass: Long,
+)
+
+/**
+ * The stored library selection (spec 26, Part 4).
+ *
+ * - [chosen]: the libraries on the TV's channels. Never empty in a stored selection.
+ * - [seq]: the seq of the last selection change. It never goes back: a clear or another address keeps it.
+ * - [adding]: the libraries being added, each with its stamp (the seq of the change that ticked it). Never in [chosen].
+ * - [gone]: the server no longer lists any chosen library. [chosen] is kept; nothing is playable.
+ * - [missing]: chosen and adding libraries a listing omitted, with their first miss.
+ * - [listings]: how many successful listings were counted. Kept by a clear.
+ * - [resetSeq]: the seq the last setup saved (settings key `selectionResetSeq`). A selection repair below it predates
+ *   that setup, so a build that reads it can hide such repairs without trusting the clock. Kept by a clear.
+ */
+data class StoredSelection(
+    val chosen: Set<ItemId>,
+    val seq: Long = 0,
+    val adding: Map<ItemId, Long> = emptyMap(),
+    val gone: Boolean = false,
+    val missing: Map<ItemId, Missing> = emptyMap(),
+    val listings: Long = 0,
+    val resetSeq: Long = 0,
+) {
+    /** The rules a stored selection keeps on its own: what any reader of the store may rely on. */
+    val isWellFormed: Boolean
+        get() =
+            chosen.isNotEmpty() &&
+                seq >= 0 &&
+                listings >= 0 &&
+                resetSeq in 0..seq &&
+                adding.keys.none { it in chosen } &&
+                adding.values.all { it in 0..seq } &&
+                missing.keys.all { it in chosen || it in adding } &&
+                missing.values.all { it.sinceMs >= 0 && it.sincePass >= 0 }
+
+    /**
+     * Whether this selection may replace what is stored: [stored] (null when nothing is chosen), whose seq is
+     * [storedSeq] and whose reset seq is [storedResetSeq] (both kept when the selection is dropped). It must be well
+     * formed, its seq at or above the stored one, and its reset seq never below the stored one. An equal seq is only
+     * for bookkeeping, [missing] and [listings]: anything else is a change and takes a new seq.
+     */
+    fun mayReplace(
+        stored: StoredSelection?,
+        storedSeq: Long,
+        storedResetSeq: Long,
+    ): Boolean =
+        isWellFormed &&
+            resetSeq >= storedResetSeq &&
+            when {
+                seq > storedSeq -> {
+                    true
+                }
+
+                seq < storedSeq -> {
+                    false
+                }
+
+                else -> {
+                    stored != null &&
+                        chosen == stored.chosen &&
+                        adding == stored.adding &&
+                        gone == stored.gone &&
+                        resetSeq == stored.resetSeq
+                }
+            }
 }

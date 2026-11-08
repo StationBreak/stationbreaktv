@@ -5,14 +5,20 @@ import tv.stationbreak.core.model.ItemId
 
 /**
  * A [ServerSettings] in memory for tests (ADR-0004). It can be told to fail, and it records every change, so a test can
- * prove that a pin was cleared or an address kept. Follows the port's contract: it never throws for a fault.
+ * prove that a pin was cleared or an address kept. Follows the port's contract: it never throws for a fault, and the
+ * stored selection keeps the same rules as the file ([StoredSelection.mayReplace]; a clear keeps the seq).
  */
 class InMemoryServerSettings(
     initial: ServerRecord? = null,
     initialLibraries: Set<ItemId>? = null,
 ) : ServerSettings {
     private var record: ServerRecord? = initial
-    private var libraries: Set<ItemId>? = initialLibraries
+    private var selection: StoredSelection? = initialLibraries?.let(::StoredSelection)
+
+    // What outlives a selection: a clear or another address keeps them.
+    private var seq = 0L
+    private var listings = 0L
+    private var resetSeq = 0L
 
     var failSave = false
 
@@ -32,14 +38,19 @@ class InMemoryServerSettings(
 
     val current: ServerRecord? get() = record
 
-    val currentLibraries: Set<ItemId>? get() = libraries
+    /** Every stored selection saved through [saveSelection], in order. */
+    val savedSelections = mutableListOf<StoredSelection>()
+
+    val currentLibraries: Set<ItemId>? get() = selection?.chosen
+
+    val currentSelection: StoredSelection? get() = selection
 
     override suspend fun load(): ServerRecord? = record
 
     override suspend fun save(record: ServerRecord): Boolean {
         if (failSave) return false
         // A choice of libraries belongs to the server it was made on.
-        if (this.record?.address != record.address) libraries = null
+        if (this.record?.address != record.address) selection = null
         this.record = record
         saved += record
         return true
@@ -55,19 +66,42 @@ class InMemoryServerSettings(
         return true
     }
 
-    override suspend fun loadLibraries(): Set<ItemId>? = libraries
+    override suspend fun loadLibraries(): Set<ItemId>? = selection?.chosen
 
     override suspend fun clearLibraries(): Boolean {
-        if (libraries == null) return true
+        if (selection == null) return true
         if (failSave) return false
-        libraries = null
+        selection = null
         return true
     }
 
+    override suspend fun loadSelection(): StoredSelection? = selection
+
+    override suspend fun loadSelectionSeq(): Long? = if (record == null) null else seq
+
+    override suspend fun saveSelection(selection: StoredSelection): Boolean {
+        if (failSave || record == null) return false
+        if (!selection.mayReplace(this.selection, seq, resetSeq)) return false
+        keep(selection)
+        savedSelections += selection
+        return true
+    }
+
+    override suspend fun loadPlayableLibraries(): Set<ItemId>? = selection?.takeUnless { it.gone }?.chosen
+
     override suspend fun saveLibraries(ids: Set<ItemId>): Boolean {
         if (failSave || record == null || ids.isEmpty()) return false
-        libraries = ids
+        // A setup: the next seq, which is also the reset seq; nothing carries over but the listing count.
+        val next = seq + 1
+        keep(StoredSelection(ids, seq = next, listings = listings, resetSeq = next))
         savedLibraries += ids
         return true
+    }
+
+    private fun keep(stored: StoredSelection) {
+        selection = stored
+        seq = stored.seq
+        listings = stored.listings
+        resetSeq = stored.resetSeq
     }
 }
