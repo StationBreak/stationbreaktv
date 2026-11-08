@@ -6,16 +6,20 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Spec 26, Part 4: the library selection has one writer. In production code (comments aside), only it, the ports'
- * own file, the stores that implement the writes and the DI modules that bind them may name `SelectionWriter` or
- * `SelectionStore`, and only the stores and the selection call the writes; the cache's library-row writes are called
- * only by the selection and carried out by the repository and its DAOs. The selection itself is named only by the
- * module that binds it (anything holding it could open the resume gate). Each DI module takes one store. A new user
- * fails this test.
+ * Spec 26, Part 4: the library selection has one writer. In production code (comments aside), only it and the
+ * collaborators it builds (internal to its package, run only under its lock), the ports' own file, the stores that
+ * implement the writes and the DI modules that bind them may name `SelectionWriter` or `SelectionStore`, and only the
+ * stores and the selection call the writes; the cache's library-row writes are called only by the selection and
+ * carried out by the repository and its DAOs. The selection itself is named only by the module that binds it
+ * (anything holding it could open the resume gate). Each DI module takes one store. A new user fails this test.
  */
 class SelectionWriterScanTest {
     private val ports = "core/domain/src/main/kotlin/tv/stationbreak/core/domain/ServerSettings.kt"
-    private val selection = "core/domain/src/main/kotlin/tv/stationbreak/core/domain/selection/LibrarySelection.kt"
+    private val selectionDir = "core/domain/src/main/kotlin/tv/stationbreak/core/domain/selection"
+    private val selection = "$selectionDir/LibrarySelection.kt"
+
+    // The selection's collaborators: built inside it, internal to core:domain, and run only under its lock.
+    private val allocation = "$selectionDir/SelectionAllocation.kt"
     private val file = "data/settings/src/main/kotlin/tv/stationbreak/data/settings/server/FileServerSettings.kt"
     private val pinSyncing = "app/src/main/kotlin/tv/stationbreak/app/net/PinSyncingServerSettings.kt"
     private val mediaServerModule = "app/src/main/kotlin/tv/stationbreak/app/di/MediaServerModule.kt"
@@ -55,7 +59,7 @@ class SelectionWriterScanTest {
 
     @Test
     fun theWritePorts_areNamedOnlyByTheirWriterTheStoresAndTheirBindings() {
-        val allowed = setOf(ports, selection, file, pinSyncing, mediaServerModule, lineupModule)
+        val allowed = setOf(ports, selection, allocation, file, pinSyncing, mediaServerModule, lineupModule)
 
         val users = usersOf(Regex("""\bSelection(Writer|Store)\b"""))
 
@@ -64,7 +68,7 @@ class SelectionWriterScanTest {
 
     @Test
     fun theWrites_areCalledOnlyByTheSelectionAndTheStores() {
-        val allowed = setOf(selection, file, pinSyncing)
+        val allowed = setOf(selection, allocation, file, pinSyncing)
 
         val users = usersOf(Regex("""\.(saveSelection|clearLibraries)\("""))
 
