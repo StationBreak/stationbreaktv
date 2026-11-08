@@ -269,6 +269,7 @@ class ReconcileOwnershipTest {
             assertEquals("never revived under the other owner", SHOWS.value, row.libraryId)
             assertNull(row.deletedAtMs)
             assertTrue(repository.movedVersioned(ALICE, 1, MOVIES))
+            assertEquals("one row came back, counted once", 1, outcome.summary.revived)
         }
 
     // Review LOW-4: the summary counts what the write did, not what the pass read.

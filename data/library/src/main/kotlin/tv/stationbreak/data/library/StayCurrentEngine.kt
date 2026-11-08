@@ -630,7 +630,7 @@ internal class StayCurrentEngine(
             reconciled +=
                 ReconcileSummary(
                     tombstoned = written.tombstoned,
-                    revived = items.returning.size + written.takenOver,
+                    revived = written.revived + written.takenOver,
                     seriesTombstoned = seriesGone.size,
                     seriesRevived = seriesReturning.size,
                     moved = written.moved,
