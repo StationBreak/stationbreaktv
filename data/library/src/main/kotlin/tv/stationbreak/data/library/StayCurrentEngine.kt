@@ -432,8 +432,10 @@ internal class StayCurrentEngine(
                 if (seriesFailed != null) return StayResult(seriesFailed, counted())
             }
             currentCoroutineContext().ensureActive()
-            // The flag clears only if every chosen library is covered: walked here, or marked for a rewalk, which reads
-            // it from the start with its studios (spec 26, Task 4.4b). One the server did not list keeps it set.
+            // The flag clears only if every chosen library is covered: walked here, or left out by [walkable], whose
+            // own read covers it with its studios: a marked library's rewalk (spec 26, Task 4.4b), a still-stamped
+            // one's add walk, a held one's walk before it was held (Task 4.5). One the server did not list keeps it
+            // set.
             val allWalked = walking.all { id -> libraries.any { it.id == id } }
             val finished = repository.finishBackfill(account, allWalked)
             return StayResult(if (finished) SyncOutcome.Completed else SyncOutcome.Cancelled, counted())

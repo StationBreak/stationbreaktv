@@ -168,8 +168,8 @@ class StayCurrent internal constructor(
         /**
          * Stay-current on the app's WorkManager, over the very stores [firstSync] reads (the stored server, the ticked
          * libraries, the session, the server and the saved library), so the two cannot disagree about whose it is.
-         * After each run's completed passes it asks the selection to expire the ended holds ([holds]) and to follow
-         * the run's listing ([listings]) (spec 26, Task 4.5). [report] gets the runner's numbers-only timing lines.
+         * After a run's passes it asks the selection to expire the ended holds ([holds]) and to follow the run's
+         * listing ([listings]) (spec 26, Task 4.5). [report] gets the runner's numbers-only timing lines.
          */
         fun create(
             context: Context,

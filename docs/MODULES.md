@@ -280,13 +280,19 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   (`AddLandings.passLanded`); it never lands anything itself. A landing that may pass is tried again a few times per
   stamp with a doubling wait; one that cannot is given up until the next start. The selection's `LibraryPasses.restart`
   enqueues it with `REPLACE`. It stays out of the sync signal the lineup refresher holds its triggers on.
-- **After stay current's passes (spec 26).** A run whose passes completed asks the selection to expire the holds that
-  have ended (`HoldExpiry`, the cache write of the stored selection with no new hold), then lists the server's
-  libraries once and hands that listing to the selection (`ServerListings`, the two-read rule), then runs the rewalk on
-  that same listing: each chosen, marked library it lists is walked from its checkpoint, and a failure keeps the mark
-  for the next run. The rewalk reads what plays again first and is skipped when the listing left the selection gone.
-  While the selection is gone, a run makes no pass and no rewalk, and still lists and follows, so a chosen library
-  that comes back ends the gone state. None of these steps changes how the run ended. The passes leave out a chosen
+- **After stay current's passes (spec 26).** A run whose passes completed, or whose incremental pass completed and
+  which was not cancelled, asks the selection to expire the holds that have ended (`HoldExpiry`, the cache write of the
+  stored selection with no new hold), then lists the server's libraries once and hands that listing to the selection
+  (`ServerListings`, the two-read rule). When the whole run completed, the rewalk runs on that same listing: each
+  chosen, marked library it lists is walked from its checkpoint, and a failure keeps the mark for the next run. The
+  rewalk reads what plays again first and is skipped when the listing left the selection gone. While the selection is
+  gone, a run makes no pass, no hold expiry and no rewalk, and still lists and follows, so a chosen library that comes
+  back ends the gone state. None of these steps changes how the run ended.
+  - **When holds really expire.** The cache trusts the clock for hold expiry only within the pause hold (60 minutes)
+    of the account's last successful sync, which only the incremental pass records. So holds expire in the hook of a
+    run whose incremental pass completed, and the resume's expiry acts only within 60 minutes of one; after a longer
+    gap an ended hold waits for the next incremental pass (at most about 6 hours). A call the guard froze logs
+    `HoldExpiryFrozen sinceSuccessMin=<n>`. A monotonic clock pair is the follow-up that would tell a jump from a gap. The passes leave out a chosen
   library that is marked, still stamped (saved as chosen a moment before it lands) or held.
 - **Hidden views.** The library listing asks `UserViews` with `includeHidden=true`: a library the user hid from the
   server's home screen is still listed, so it stays choosable and never reads as going missing.
