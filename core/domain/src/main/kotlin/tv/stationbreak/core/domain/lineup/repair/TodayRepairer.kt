@@ -253,7 +253,9 @@ class TodayRepairer internal constructor(
      * end of the earliest of those days). With no saved selection read (the provider gives null) it does nothing at
      * all ([RepairOutcome.SelectionUnknown]): no drop, no check. First, in the same turn, it drops every selection
      * repair above the saved seq with its fixes, and the lost-block check with them: no change is being saved outside a
-     * turn, so those are left by a crash or by an undo that failed ([RepairOutcome.UndoFailed]). Then it does nothing
+     * turn, so those are left by a crash or by an undo that failed ([RepairOutcome.UndoFailed]); and so does every one
+     * below the saved reset seq, which can never show again (its day shows its build, whose lost blocks this then
+     * fixes). Then it does nothing
      * more (`Saved(0)`) when the record's check already covers that generation at [atMs], or when no day is on the air.
      *
      * The libraries a match or a fill may come from are the saved selection's [SavedSelection.playable], read in this
@@ -272,7 +274,7 @@ class TodayRepairer internal constructor(
                 // No saved selection read: nothing is dropped and nothing checked (the days it shows are unknown).
                 val saved = source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
                 val applied = saved.seq
-                if (held.repairs.selection.any { it.seq > applied }) {
+                if (held.repairs.selection.any { it.seq > applied || it.seq < saved.resetSeq }) {
                     // What shows stays as it is; the check is made again all the same, over the days as they show.
                     val dropped =
                         record(account, held, 0) { it.applied(applied, saved.resetSeq).copy(lostCheck = null) }
@@ -286,7 +288,7 @@ class TodayRepairer internal constructor(
                 if (today.isEmpty()) return@run RepairOutcome.Saved(0)
                 val fixes = LostRepair(days, library, successors, account, held, saved.playable, atMs).fixes(today)
                 val check = LostCheck(generation, today.minOf { it.epochEndMs })
-                record(account, held, fixes.size) { it.withFixes(fixes, check).pruned(applied) }
+                record(account, held, fixes.size) { it.withFixes(fixes, check).pruned(applied, saved.resetSeq) }
             }
         }
 
@@ -307,10 +309,11 @@ class TodayRepairer internal constructor(
         turn {
             run {
                 val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup
-                val applied = source.savedSelection()?.seq ?: return@run RepairOutcome.SelectionUnknown
+                val saved = source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
+                val applied = saved.seq
                 if (seq <= applied) return@run RepairOutcome.AlreadySaved
                 val had = held.repairs.selection.any { it.seq == seq }
-                record(account, held, had) { it.withoutSelection(seq).pruned(applied) }
+                record(account, held, had) { it.withoutSelection(seq).pruned(applied, saved.resetSeq) }
             }
         }
 
@@ -349,10 +352,15 @@ class TodayRepairer internal constructor(
 
     /**
      * A setup's save (Part 4 §2): empties the account's repair record through `LineupService.resetRecord`, which reads
-     * the lineup file itself, then calls [save] with the seq one above the stored seq ([storedSeq], which a sign-out
-     * keeps), the latest seq the old record held, and `atLeast − 1`; the result of [RepairOutcome.Saved] is that seq,
-     * which the caller saves as the reset seq too. A record of another account, or one that cannot be read, is set
-     * aside; a newer app's is left as it is (its seqs are hidden by the reset seq).
+     * the lineup file itself, then calls [save] with the seq `max(stored + 1, floor + 1, atLeast)`: one above the
+     * stored seq ([storedSeq], which a sign-out keeps) and the latest seq the old record held (on disk or in memory),
+     * and at least [atLeast]. The result of [RepairOutcome.Saved] is that seq, which the caller saves as the reset seq
+     * too. A record of another account, or one that cannot be read, is set aside; a newer app's is left as it is (its
+     * seqs are hidden by the reset seq).
+     *
+     * The emptied record keeps no `lastSeq`. So when the save then fails, the next setup may take a seq at or below
+     * the old record's latest seq again. That is harmless: nothing holds those seqs any more (the record was emptied
+     * before the save), so no repair of them can show.
      *
      * [RepairOutcome.SelectionUnknown], with nothing done, when the stored seq cannot be read;
      * [RepairOutcome.Refused], with nothing saved, when the file cannot be read, set aside or written. A false or a
@@ -371,7 +379,7 @@ class TodayRepairer internal constructor(
                         is RecordReset.Floor -> reset.seq
                         RecordReset.Failed -> return@run RepairOutcome.Refused
                     }
-                val seq = Math.addExact(maxOf(stored, floor, atLeast - 1), 1L)
+                val seq = maxOf(Math.addExact(stored, 1L), Math.addExact(floor, 1L), atLeast)
                 savedAt(seq, save) { storedSeq() }
             }
         }

@@ -158,13 +158,17 @@ internal data class TodayRepairs(
 
     /**
      * Without the selection repairs a saved later seq has superseded, and their fixes: per channel day the repair
-     * [applied] shows at [appliedSeq] stays, and so does every repair of a later seq (a change whose save may be under
-     * way), each with its own fixes. A fix of the day as built (seq 0) stays while its day shows no repair. This very
-     * instance when nothing goes.
+     * [applied] shows at [appliedSeq] and [resetSeq] stays, and so does every repair of a later seq (a change whose
+     * save may be under way), each with its own fixes. A repair below [resetSeq] goes with its fixes: it can never
+     * show again. A fix of the day as built (seq 0) stays while its day shows no repair. This very instance when
+     * nothing goes.
      */
-    fun pruned(appliedSeq: Long): TodayRepairs {
-        val shown = shownAt(appliedSeq)
-        val kept = selection.filter { it.seq > appliedSeq || shown.any { s -> s === it } }
+    fun pruned(
+        appliedSeq: Long,
+        resetSeq: Long,
+    ): TodayRepairs {
+        val shown = shownAt(appliedSeq, resetSeq)
+        val kept = selection.filter { it.seq >= resetSeq && (it.seq > appliedSeq || shown.any { s -> s === it }) }
         val held = kept.mapTo(HashSet()) { Triple(it.channel, it.n, it.seq) }
         val shownDays = seqsOf(shown).keys
         val keptFixes =
@@ -182,7 +186,7 @@ internal data class TodayRepairs(
     // order.
     private fun shownAt(
         appliedSeq: Long,
-        resetSeq: Long = 0L,
+        resetSeq: Long,
     ): List<ChannelRepair> {
         val best = HashMap<Pair<ChannelId, Long>, ChannelRepair>()
         for (repair in selection) {
@@ -311,7 +315,8 @@ internal data class Trimmed(
 /**
  * This record made to fit a lineup save that must not fail because of it ([sizeOf] is the whole file's size with a
  * record in it, [limit] the most it may be). What goes, in order, until it fits: the selection repairs of a seq above
- * [savedSeq] (not shown: a change not saved, or left by a crash), the oldest [ChannelRepair.atMs] first; then the
+ * [savedSeq] or below [resetSeq] (not shown: a change not saved, one left by a crash, or one from before the last
+ * setup), the oldest [ChannelRepair.atMs] first; then the
  * oldest fixes whose block is not on air at [nowMs]; then fixes whose block is; then the other selection repairs, the
  * oldest [ChannelRepair.atMs] first. A selection repair takes its fixes with it. With no [savedSeq] (unknown) every
  * selection repair counts as shown. When a fix or a shown selection repair goes the [TodayRepairs.lostCheck] goes too,
@@ -323,11 +328,12 @@ internal fun TodayRepairs.trimmedToFit(
     nowMs: Long,
     limit: Int,
     savedSeq: Long?,
+    resetSeq: Long,
     sizeOf: (TodayRepairs) -> Int,
 ): Trimmed {
     val order = compareBy<LostFix>({ it.dayEndMs }, { it.blockStartMs }, { it.channel.value }, { it.n })
     val byAge = compareBy<ChannelRepair>({ it.atMs }, { it.channel.value }, { it.n })
-    val (unsaved, shown) = selection.partition { savedSeq != null && it.seq > savedSeq }
+    val (unsaved, shown) = selection.partition { savedSeq != null && (it.seq > savedSeq || it.seq < resetSeq) }
     // The fixes of the unsaved repairs go with them, first: they are not counted again among the fixes.
     val unsavedKeys = unsaved.mapTo(HashSet()) { Triple(it.channel, it.n, it.seq) }
     val (covering, others) =

@@ -99,12 +99,14 @@ internal class TodayRepairerResetSelectionTest : RepairTestBase() {
     }
 
     @Test
-    fun anUnreadableFile_isSetAside_andTheSeqIsTheStoredPlusOne() {
+    fun anUnreadableFile_isSetAside_andTheHeldRecordFloorsTheSeq() {
         val rig = signedOut()
         val garbage = "not a lineup".encodeToByteArray()
         runBlocking { rig.store.inner.save(ACCOUNT, garbage) }
 
-        assertEquals(RepairOutcome.Saved(2L), rig.setup())
+        // The record this session still holds (seq 2, hidden) floors the seq, and is emptied.
+        assertEquals(RepairOutcome.Saved(3L), rig.setup())
+        assertEquals(TodayRepairs.NONE, rig.service.repairs(ACCOUNT).value)
         assertNull(rig.file())
         assertContentEquals(garbage, rig.store.inner.setAsideCopy(ACCOUNT))
     }
@@ -116,19 +118,23 @@ internal class TodayRepairerResetSelectionTest : RepairTestBase() {
         val seqs = TodayRepairs(selection = listOf(repairOf(seq = 40L)))
         runBlocking { rig.store.inner.save(ACCOUNT, LineupCodec.encode(other, RefreshMeta(), seqs)) }
 
-        assertEquals(RepairOutcome.Saved(2L), rig.setup())
+        // The record this session still holds (seq 2, hidden) floors the seq, and is emptied.
+        assertEquals(RepairOutcome.Saved(3L), rig.setup())
+        assertEquals(TodayRepairs.NONE, rig.service.repairs(ACCOUNT).value)
         assertNull(rig.file())
     }
 
     @Test
-    fun aNewerAppsFile_isLeftUntouched_andTheSeqIsTheStoredPlusOne() {
+    fun aNewerAppsFile_isLeftUntouched_andTheHeldRecordFloorsTheSeq() {
         val rig = signedOut()
         val newer = """{"version":5}""".encodeToByteArray()
         runBlocking { rig.store.inner.save(ACCOUNT, newer) }
 
-        assertEquals(RepairOutcome.Saved(2L), rig.setup())
+        // The record this session still holds (seq 2, hidden) floors the seq, and is emptied.
+        assertEquals(RepairOutcome.Saved(3L), rig.setup())
+        assertEquals(TodayRepairs.NONE, rig.service.repairs(ACCOUNT).value)
         assertContentEquals(newer, rig.file())
-        assertEquals(2L, rig.resetSeq, "the reset seq is the seq saved: a newer build hides what is below it")
+        assertEquals(3L, rig.resetSeq, "the reset seq is the seq saved: a newer build hides what is below it")
     }
 
     @Test
@@ -193,6 +199,11 @@ internal class TodayRepairerResetSelectionTest : RepairTestBase() {
         val rig = signedOut()
 
         assertEquals(RepairOutcome.Saved(20L), rig.setup(atLeast = 20L))
+    }
+
+    @Test
+    fun theLowestAtLeast_neverWraps() {
+        assertEquals(RepairOutcome.Saved(3L), signedOut().setup(atLeast = Long.MIN_VALUE))
     }
 
     @Test

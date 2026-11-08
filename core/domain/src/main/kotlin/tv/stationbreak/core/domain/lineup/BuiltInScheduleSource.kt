@@ -185,8 +185,8 @@ class BuiltInScheduleSource(
 
     init {
         service.alsoForget(::forget)
-        // A roll of the record prunes the repairs a saved later seq has superseded.
-        service.savedSeqFrom { saved()?.seq }
+        // A roll of the record prunes the repairs a saved later seq has superseded, or the reset seq hides.
+        service.savedSeqFrom { saved()?.let { SavedSeqs(it.seq, it.resetSeq) } }
     }
 
     /**

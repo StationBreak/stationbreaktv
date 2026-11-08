@@ -4,10 +4,12 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.repair.LostCheck
+import tv.stationbreak.core.domain.lineup.repair.RepairConfig
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.domain.lineup.repair.fixOf
 import tv.stationbreak.core.domain.lineup.repair.repairOf
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
@@ -15,7 +17,6 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -226,9 +227,27 @@ class LineupServiceResetRecordTest {
             store.inner.save(ACCOUNT, newer)
 
             assertEquals(RecordReset.Floor(0L, record = false), service.floorRecord(ACCOUNT))
-            assertEquals(RecordReset.Floor(0L, record = false), service.resetRecord(ACCOUNT))
+            assertEquals(RecordReset.Floor(7L, record = false), service.resetRecord(ACCOUNT), "the held record's seqs")
 
             assertContentEquals(newer, store.inner.peek(ACCOUNT), "the newer file is never written over")
+            assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value, "what was held in memory shows no more")
+            assertNotNull(service.lineup(ACCOUNT).value, "the lineup itself stays")
+        }
+
+    @Test
+    fun aRecordHeldInMemory_isEmptied_whenTheFileIsGoneOrSetAside() =
+        runBlocking<Unit> {
+            for (gone in listOf(true, false)) {
+                seed()
+                val service = newService()
+                assertEquals(record, checkNotNull(service.loaded(ACCOUNT)).repairs)
+                if (gone) store.inner.forget(ACCOUNT) else store.inner.save(ACCOUNT, "not a lineup".encodeToByteArray())
+
+                assertEquals(RecordReset.Floor(7L, record = false), service.resetRecord(ACCOUNT))
+
+                assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value)
+                assertNull(store.inner.peek(ACCOUNT), "nothing written in its place")
+            }
         }
 
     @Test
@@ -255,9 +274,37 @@ class LineupServiceResetRecordTest {
     // --- The trim hook ----------------------------------------------------------------------------------------------
 
     @Test
-    fun theAppsConstructor_takesTheTrimHook() {
-        val note: (Int, Int, Int) -> Unit = { _, _, _ -> }
-        val service = LineupService(store, library, clock, { 0 }, {}, timed = {}, trimmed = note)
-        assertSame(note, service.trimmedHook)
-    }
+    fun theAppsConstructor_tellsTheTrimHookWhatASaveTrimmed() =
+        runBlocking<Unit> {
+            seed(TodayRepairs.NONE)
+            val base = stored()
+            // Fixes of days to come, none on air now: a file between the default cap less its margin and the cap.
+            val probe = TodayRepairs(fixes = fixesFrom(PROBE))
+            val each = (LineupCodec.encode(base.lineup, base.meta, probe).size - base.bytes()).toDouble() / PROBE
+            val limit = LineupLimits.MAX_FILE_BYTES - RepairConfig().fileMargin
+            val count = (((limit + LineupLimits.MAX_FILE_BYTES) / 2 - base.bytes()) / each).toInt()
+            val bytes = LineupCodec.encode(base.lineup, base.meta, TodayRepairs(fixes = fixesFrom(count)))
+            assertTrue(bytes.size in (limit + 1) until LineupLimits.MAX_FILE_BYTES, "${bytes.size}")
+            store.inner.save(ACCOUNT, bytes)
+            val trims = mutableListOf<Triple<Int, Int, Int>>()
+            val note = { a: Int, b: Int, c: Int -> trims += Triple(a, b, c) }
+            val service = LineupService(store, library, clock, { 0 }, {}, timed = {}, trimmed = note)
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            val kept = stored().repairs.fixes.size
+            assertTrue(kept < count, "the save trimmed the record")
+            assertEquals(listOf(Triple(count - kept, 0, 0)), trims, "and the hook was told how many fixes went")
+        }
+
+    // [count] fixes of hour-long blocks to come, end to end from an hour ahead, none covering now.
+    private fun fixesFrom(count: Int) =
+        (0 until count).map {
+            val start = NOON.toEpochMilliseconds() + (1L + it) * 3_600_000L
+            fixOf(n = 1L + it / 24, dayEndMs = start + 86_400_000L, blockStartMs = start)
+        }
+
+    private fun LineupCodec.Decoded.Loaded.bytes(): Int = LineupCodec.encode(lineup, meta, TodayRepairs.NONE).size
 }
+
+private const val PROBE = 2_000

@@ -87,6 +87,21 @@ internal class TodayRepairerInTurnTest : RepairTestBase() {
     }
 
     @Test
+    fun aSecondCall_fromTheSameCoroutine_afterItsTurnEnded_goesThrough() {
+        val rig = Rig(lineupOf(laughs), comedies, setOf(libA))
+
+        runBlocking {
+            val first = rig.repairer.saveWithoutRepair(ACCOUNT, atLeast = 0L) { seq -> true.also { rig.applied = seq } }
+            assertEquals(RepairOutcome.Saved(1L), first)
+            // The marker went with the turn: the same coroutine enters again.
+            assertEquals(RepairOutcome.Saved(0), rig.repairer.repairLost(ACCOUNT, atMs))
+            assertEquals(emptyMap(), rig.repairer.heldPins(ACCOUNT, atMs))
+            val again = rig.repairer.resetSelection(ACCOUNT, atLeast = 0L) { seq -> true.also { rig.applied = seq } }
+            assertEquals(RepairOutcome.Saved(2L), again)
+        }
+    }
+
+    @Test
     fun outsideATurn_theCallsGoThrough() {
         val rig = Rig(lineupOf(laughs), comedies, setOf(libA))
 
