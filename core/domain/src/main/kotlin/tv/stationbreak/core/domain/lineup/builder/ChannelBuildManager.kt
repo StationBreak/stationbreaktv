@@ -32,9 +32,12 @@ class ChannelBuildManager(
     private val service: LineupService,
     private val newSeed: NewSeed,
     private val newId: () -> String,
-    private val labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
-    private val studioNames: StudioNames,
+    labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
+    studioNames: StudioNames,
 ) : ChannelBuilder {
+    // The one reading of rules into words, shared with a channel's properties.
+    private val reader = DraftReader(labels, studioNames) { service.reportEvent(LineupEvent.BuildFailed) }
+
     override suspend fun blank(
         account: LibraryAccount,
         kids: Boolean,
@@ -93,7 +96,7 @@ class ChannelBuildManager(
         rules: ChannelRules,
         channel: LineupChannel,
     ): ChannelDraft {
-        val draft = draftOf(account, rules, channel.number)
+        val draft = reader.draftOf(account, rules, channel.number)
         // The rules hold the channel's own name, not the built-in it was copied from, which is not stored: name nobody.
         val kept = draft.kept?.copy(fromName = null)
         return draft.copy(origin = channel.id, kept = kept).kidsNormalised()
@@ -108,7 +111,7 @@ class ChannelBuildManager(
         val name = channel.displayName(service.catalog)
         val kids = KidStatus.isKidChannel(channel)
         val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
-        val draft = draftOf(account, rules.copy(seed = newSeed.next()), number)
+        val draft = reader.draftOf(account, rules.copy(seed = newSeed.next()), number)
         val kept = draft.kept?.copy(fromName = name)
         val opened = draft.copy(name = name, kids = kids, kept = kept, origin = channel.id).kidsNormalised()
         return OpenResult.Opened(opened, name)
@@ -119,51 +122,6 @@ class ChannelBuildManager(
         when (val source = source) {
             is ChannelSource.Starter -> source.rules.takeIf { copy }
             is ChannelSource.Custom -> source.rules.takeIf { !copy }
-            else -> null
-        }
-
-    // The words come first, because they are looked up with a suspend call and the conversion to a draft is not.
-    private suspend fun draftOf(
-        account: LibraryAccount,
-        rules: ChannelRules,
-        number: Int?,
-    ): ChannelDraft {
-        val bare = DraftRules.fromRules(rules, number) { it.label }
-        val words = guarded(emptyMap()) { labels(account, (bare.sources + bare.leaveOut).distinct()) }
-        val draft = DraftRules.fromRules(rules, number) { words[it] ?: it.key }
-        return withStudioNames(account, draft)
-    }
-
-    // A studio the rules hold folded is shown by a spelling the library holds. Only the kept lines change: the rules
-    // that are saved come from the stored ones.
-    private suspend fun withStudioNames(
-        account: LibraryAccount,
-        draft: ChannelDraft,
-    ): ChannelDraft {
-        val kept = draft.kept
-        val names =
-            kept
-                ?.items
-                .orEmpty()
-                .mapNotNull { studioOf(it) }
-                .distinct()
-        if (kept == null || names.isEmpty()) return draft
-        val shown = guarded(emptyMap()) { studioNames(account, names) }
-        val items =
-            kept.items.map { item ->
-                when (item) {
-                    is KeptItem.StudioSource -> KeptItem.StudioSource(shown[item.name] ?: item.name)
-                    is KeptItem.StudioExclusion -> KeptItem.StudioExclusion(shown[item.name] ?: item.name)
-                    else -> item
-                }
-            }
-        return draft.copy(kept = kept.copy(items = items))
-    }
-
-    private fun studioOf(item: KeptItem): String? =
-        when (item) {
-            is KeptItem.StudioSource -> item.name
-            is KeptItem.StudioExclusion -> item.name
             else -> null
         }
 

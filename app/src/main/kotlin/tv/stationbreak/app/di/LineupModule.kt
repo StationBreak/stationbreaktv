@@ -34,9 +34,11 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.domain.lineup.BuildProbes
+import tv.stationbreak.core.domain.lineup.BuiltInChannelProperties
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelManager
+import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupEvent
@@ -222,6 +224,23 @@ internal object LineupModule {
     ): ChannelBuilder {
         val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
         return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke, labels::studios)
+    }
+
+    /**
+     * What a channel's properties screen reads (#631): the lineup, the catalog and the schedule's hidden reason, with
+     * the sources' words from the same lookups the builder's open uses.
+     */
+    @Provides
+    @Singleton
+    fun channelProperties(
+        service: LineupService,
+        library: LibraryRepository,
+        schedule: ScheduleSource,
+        sessions: SessionRepository,
+        server: MediaServer,
+    ): ChannelPropertiesReader {
+        val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
+        return BuiltInChannelProperties(service, library, schedule, labels::invoke, labels::studios)
     }
 
     /**
