@@ -622,6 +622,24 @@ class LineupRefresherTest {
             assertEquals(listOf(1), refreshesSeen, "once, after the start refresh")
         }
 
+    // Round 2 (arch MED-1): a start while a sync writes leaves the check to that run's end, so it is still made once.
+    @Test
+    fun startCheck_whileASyncWrites_leavesAfterSyncToTheRunsEnd() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+            writing.value = true
+
+            refresher(afterSync = { seen += it }).start(scope)
+            settle()
+            assertEquals(emptyList(), seen, "not while the run writes")
+
+            writing.value = false
+            until("the check after the run") { seen.isNotEmpty() }
+            settle()
+            assertEquals(listOf(ACCOUNT), seen, "exactly once")
+        }
+
     @Test
     fun startCheck_runsAfterSyncOnce_evenWhenATriggerSourceIsListenedToAgain() =
         runBlocking<Unit> {

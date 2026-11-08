@@ -72,8 +72,9 @@ import kotlin.time.Instant
  * Once each check after a run's writing ends, whatever it did (a refresh, a recorded pass or nothing), [afterSync] runs
  * (spec 26: the repair of today's blocks whose item left the library). It also runs once after the start check, for
  * each account followed, whether that check refreshed or found the lineup current (the lost-block check is held in
- * memory only, so a new process checks once; ADR-0025 §4); a start check asked again when a trigger source is listened
- * to again does not run it again. It runs when no libraries are chosen too, and only while the account is still the
+ * memory only, so a new process checks once; ADR-0025 §4); when a sync run is writing at that start, the check waits
+ * for the run's end, which runs it anyway. A start check asked again when a trigger source is listened to again does
+ * not run it again. It runs when no libraries are chosen too, and only while the account is still the
  * active one. One that throws is reported ([LineupEvent.AfterSyncFailed]) and
  * changes nothing else.
  *
@@ -176,7 +177,8 @@ class LineupRefresher(
             .collect { trigger ->
                 val first = (trigger == Trigger.Start || trigger == Trigger.StartCurrent) && !startChecked
                 if (first) startChecked = true
-                act(account, trigger, afterStart = first)
+                // A start while a sync writes leaves the check to that run's end (runEnds), which always makes it.
+                act(account, trigger, afterStart = first && !sync.writing().first())
             }
     }
 
