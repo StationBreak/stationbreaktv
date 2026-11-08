@@ -140,12 +140,15 @@ class LibrarySelection(
 
     // Refused from inside a repairer turn or this lock; waits for the resume; then under the lock, to its end, with
     // the cache put in line first when an earlier write left it behind.
-    private suspend fun <T> locked(block: suspend () -> T): T {
+    private suspend fun <T> locked(
+        catchUpFirst: Boolean = true,
+        block: suspend () -> T,
+    ): T {
         refuseReentry()
         resumed.await()
         return mutex.withLock {
             withContext(NonCancellable + InSelection) {
-                if (roomBehind) catchUp()
+                if (catchUpFirst && roomBehind) catchUp()
                 block()
             }
         }
@@ -305,7 +308,7 @@ class LibrarySelection(
 
     /** Puts the library cache in line with the stored selection (the add pass calls it after a refused write). */
     suspend fun reconcile() {
-        locked { catchUp() }
+        locked(catchUpFirst = false) { catchUp() }
     }
 
     // --- The server's listing ---------------------------------------------------------------------------------------
