@@ -89,10 +89,12 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val changes = MutableStateFlow<Map<LibraryAccount, Long>>(emptyMap())
     private val pending = mutableMapOf<LibraryAccount, MutableSet<ItemId>>()
 
-    // A library's hold and add stamp, as applySelection set them (spec 26).
+    // A library's hold and add stamp, as applySelection set them (spec 26), and its walk's proof and rewalk mark.
     private data class LibraryMark(
         val heldUntilMs: Long? = null,
         val addStamp: Long? = null,
+        val walkedStamp: Long? = null,
+        val rewalkPending: Boolean = false,
     )
 
     private val libraryMarks = mutableMapOf<LibraryAccount, MutableMap<ItemId, LibraryMark>>()
@@ -539,10 +541,11 @@ class InMemoryLibraryRepository : LibraryRepository {
         var dropped = false
         for (library in stored - keep) {
             val mark = marks[library]
-            val until = holds[library] ?: mark?.heldUntilMs
+            // As Room: a hold for a library already held keeps the later of the two.
+            val until = listOfNotNull(holds[library], mark?.heldUntilMs).maxOrNull()
             if (until != null && until > nowMs) {
-                // A held library is never one being added: its stamp goes.
-                marks[library] = LibraryMark(heldUntilMs = until, addStamp = null)
+                // A held library is never one being added: its stamp, its proof and its rewalk mark go.
+                marks[library] = LibraryMark(heldUntilMs = until)
                 staying += library
             } else {
                 val hasRows =
@@ -554,20 +557,26 @@ class InMemoryLibraryRepository : LibraryRepository {
         }
         rows.removeAll { it.account == account && it.library !in staying }
         held.removeAll { it.account == account && it.library !in staying }
-        val saved = rows.filter { it.account == account }.map { it.library }.toSet()
         waiting.retainAll(staying)
         for (library in keep) {
             val mark = marks[library] ?: LibraryMark()
             val stamp = addStamps[library]
-            if (stamp != null && stamp != mark.addStamp) waiting += library
-            if (library !in saved) waiting += library
-            marks[library] = LibraryMark(heldUntilMs = null, addStamp = stamp ?: mark.addStamp)
+            val newStamp = stamp != null && stamp != mark.addStamp
+            // As Room: a library not stored before is new, so pending; one that was fetched stays fetched.
+            if (newStamp || library !in stored) waiting += library
+            // A new stamp clears the proof of an earlier walk, and the rewalk mark; anything else keeps both.
+            marks[library] =
+                if (newStamp) {
+                    LibraryMark(addStamp = stamp)
+                } else {
+                    mark.copy(heldUntilMs = null)
+                }
         }
         if (dropped) noteContentChange(account)
     }
 
-    // As the port says: only the stamp the add has (and no hold) lands it, and then the generation moves once. As in
-    // Room, an account that is not the signed-in one lands nothing.
+    // As the port says: only the stamp the add has, with its walk's proof (and no hold), lands it, and then the
+    // generation moves once. As in Room, an account that is not the signed-in one lands nothing.
     override suspend fun landAdd(
         account: LibraryAccount,
         library: ItemId,
@@ -576,14 +585,59 @@ class InMemoryLibraryRepository : LibraryRepository {
         if (active.value != account) return false
         val marks = libraryMarks[account] ?: return false
         val mark = marks[library]
-        if (mark?.addStamp != stamp || mark.heldUntilMs != null) return false
-        marks[library] = mark.copy(addStamp = null)
+        if (mark?.addStamp != stamp || mark.walkedStamp != stamp || mark.heldUntilMs != null) return false
+        marks[library] = mark.copy(addStamp = null, walkedStamp = null, rewalkPending = false)
         pending[account]?.remove(library)
         noteContentChange(account)
         return true
     }
 
+    /**
+     * Records that the add walk of [library] under [stamp] ended, as Room's `markAddWalked` does in the walk's last
+     * transaction: only while the library has that stamp and no hold. False (nothing recorded) otherwise.
+     */
+    fun proveWalk(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean {
+        val marks = libraryMarks[account] ?: return false
+        val mark = marks[library]
+        if (mark?.addStamp != stamp || mark.heldUntilMs != null) return false
+        marks[library] = mark.copy(walkedStamp = stamp)
+        return true
+    }
+
+    // As Room's compare-and-set: the stamp it has, no proof for it and no hold, for the signed-in account only. The
+    // generation moves once when the library holds rows, which are a chosen library's from now on.
+    override suspend fun revertUnproven(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean {
+        if (active.value != account) return false
+        val marks = libraryMarks[account] ?: return false
+        val mark = marks[library]
+        if (mark?.addStamp != stamp || mark.walkedStamp == stamp || mark.heldUntilMs != null) return false
+        marks[library] = mark.copy(addStamp = null, walkedStamp = null, rewalkPending = true)
+        pending.getOrPut(account) { mutableSetOf() } += library
+        val hasRows =
+            rows.any { it.account == account && it.library == library } ||
+                held.any { it.account == account && it.library == library }
+        if (hasRows) noteContentChange(account)
+        return true
+    }
+
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> = pending[account].orEmpty().toSet()
+
+    override suspend fun storedLibraries(account: LibraryAccount): List<StoredLibrary> {
+        val waiting = pending[account].orEmpty()
+        return libraryMarks[account]
+            .orEmpty()
+            .map { (id, mark) ->
+                StoredLibrary(id, id !in waiting, mark.addStamp, mark.walkedStamp, mark.heldUntilMs, mark.rewalkPending)
+            }.sortedBy { it.id.value }
+    }
 
     private val successorRows = mutableMapOf<Pair<LibraryAccount, CanonicalId>, CanonicalId>()
 

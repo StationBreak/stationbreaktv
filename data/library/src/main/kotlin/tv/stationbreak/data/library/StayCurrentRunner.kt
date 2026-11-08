@@ -12,6 +12,7 @@ import tv.stationbreak.core.domain.RestoreOutcome
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
@@ -72,6 +73,7 @@ class StayCurrentRunner(
     private val sessions: SessionRepository,
     private val server: MediaServer,
     private val repository: RoomLibraryRepository,
+    private val ready: SelectionReady,
     private val clock: Clock = Clock.System,
     private val timeSource: TimeSource = TimeSource.Monotonic,
     private val report: (String) -> Unit = {},
@@ -101,6 +103,10 @@ class StayCurrentRunner(
      * sync state; the next run with the incremental pass is the retry.
      */
     internal var lastBackfill: StayResult<PassSummary>? = null
+        private set
+
+    /** How the last rewalk of this process went, or null if none has run (spec 26): counts only. */
+    internal var lastRewalk: RewalkSummary? = null
         private set
 
     /** Test seam: the purge the run does after a completed reconcile. The repository's own in the app. */
@@ -134,10 +140,10 @@ class StayCurrentRunner(
         val blocked =
             if (plan.isEmpty) {
                 Skip.EmptyPlan
-            } else if (!gate.tryLock()) {
-                Skip.Busy
             } else {
-                null
+                // The selection's resume at start comes first (spec 26), before the gate: a run waiting holds none.
+                ready.await()
+                if (!gate.tryLock()) Skip.Busy else null
             }
         if (blocked != null) return report.skipped(plan, blocked)
         try {
@@ -161,7 +167,7 @@ class StayCurrentRunner(
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun start(plan: SyncPlan): SyncOutcome {
         val record = settings.load() ?: return report.skipped(plan, Skip.NoServer)
-        val libraries = settings.loadLibraries()
+        val libraries = settings.loadPlayableLibraries()
         val chosen = libraries?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
         val accounts = repository.dao.activeAccounts()
         val active = accounts.singleOrNull() ?: return report.skipped(plan, Skip.NoAccount, "accounts=${accounts.size}")
@@ -218,6 +224,10 @@ class StayCurrentRunner(
         val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         report.say(wrote(generationBefore, repository.generationOrNull(account), ran))
+        // The rewalk runs only after passes that completed (spec 26, Part 4 §4); it never changes how the run ended.
+        if (outcome == SyncOutcome.Completed) {
+            lastRewalk = Rewalk(repository, server, clock, report).step(session, account, chosen)
+        }
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
         if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome
@@ -380,7 +390,8 @@ private class Ran(
 // What a run's passes wrote, numbers only (#480): how many times the content generation moved while they ran (the
 // studios re-read after them logs its own BackfillWrote line), and the counts
 // behind it, so a device log shows which write moved it. The counts are inserted/updated for the incremental pass,
-// tombstoned/revived/fetched/seriesTombstoned/seriesRevived for the reconcile, and inserted/changed/revived/tombstoned
+// tombstoned/revived/fetched/seriesTombstoned/seriesRevived/moved for the reconcile (moved: items that went to a
+// library that still lists them; counts only, never ids), and inserted/changed/revived/tombstoned
 // for the collection pass; a pass that did not run is `none`. A generation that could not be read is `unknown`, and
 // one whose row was made again meanwhile (a sign-out) is `reset`.
 private fun wrote(
@@ -392,7 +403,7 @@ private fun wrote(
     val passed = ran.passed?.let { "${it.inserted}/${it.updated}" } ?: NONE
     val reconciled =
         ran.reconciled?.let {
-            "${it.tombstoned}/${it.revived}/${it.fetched}/${it.seriesTombstoned}/${it.seriesRevived}"
+            "${it.tombstoned}/${it.revived}/${it.fetched}/${it.seriesTombstoned}/${it.seriesRevived}/${it.moved}"
         } ?: NONE
     val collections = ran.collections?.let { "${it.inserted}/${it.changed}/${it.revived}/${it.tombstoned}" } ?: NONE
     return "StayCurrentWrote generation=$moved incremental=$passed reconcile=$reconciled collections=$collections"

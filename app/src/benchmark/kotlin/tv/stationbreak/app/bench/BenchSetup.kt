@@ -23,6 +23,8 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.LibrarySetup
+import tv.stationbreak.core.domain.selection.SetupResult
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.Session
 import kotlin.time.Duration
@@ -32,14 +34,16 @@ import kotlin.time.Duration.Companion.minutes
  * The setup and sign-out the playback matrix runs without driving the onboarding screens (spec 13). It does what the
  * screens do, through the same domain calls: `discover` for the address, `quickConnect` for the sign-in,
  * [SessionRepository.save], the server record, and [LibraryDefaults] for the library choice the picker's Done stores
- * when its defaults are accepted. Every line it emits is one of `QC <code>`, `SETUP OK`, `SETUP ERROR <reason>`,
- * `SIGNOUT OK revoked|not-revoked` or `SIGNOUT ERROR <reason>`. Reasons are short fixed codes: never an address, a
- * token, a user, a library name or a message that could hold one.
+ * when its defaults are accepted (through [LibrarySetup], as the picker does). Every line it emits is one of
+ * `QC <code>`, `SETUP OK`, `SETUP ERROR <reason>`, `SIGNOUT OK revoked|not-revoked` or `SIGNOUT ERROR <reason>`.
+ * Reasons are short fixed codes: never an address, a token, a user, a library name or a message that could hold one.
  */
+@Suppress("LongParameterList") // The stores the screens use, one for one, the line sink and the wait limit.
 class BenchSetup(
     private val server: MediaServer,
     private val sessions: SessionRepository,
     private val settings: ServerSettings,
+    private val librarySetup: LibrarySetup,
     private val secrets: SecretStore,
     private val emit: (String) -> Unit,
     private val waitLimit: Duration = 6.minutes,
@@ -185,8 +189,8 @@ class BenchSetup(
             return SetupReason.SETTINGS_NOT_SAVED
         }
         if (sessions.save(session) == PersistOutcome.NotSaved) return SetupReason.SESSION_NOT_SAVED
-        // A new sign-in starts the library choice again, as the sign-in screen does.
-        settings.clearLibraries()
+        // A new sign-in starts the library choice again, as the sign-in screen does, through the library setup.
+        librarySetup.clear()
         val libraries =
             when (val listed = server.libraries(session)) {
                 is ServerResult.Success -> listed.value
@@ -194,7 +198,23 @@ class BenchSetup(
             }
         val ticked = LibraryDefaults.ticked(libraries)
         if (ticked.isEmpty()) return SetupReason.NO_LIBRARIES
-        return if (settings.saveLibraries(ticked)) null else SetupReason.LIBRARIES_NOT_SAVED
+        // As the picker's Done does: a choice still stored (the clear above failed) is cleared once more.
+        val saved =
+            when (librarySetup.choose(ticked)) {
+                SetupResult.Saved -> {
+                    true
+                }
+
+                SetupResult.ChoiceStillStored -> {
+                    librarySetup.clear()
+                    librarySetup.choose(ticked) == SetupResult.Saved
+                }
+
+                SetupResult.Failed -> {
+                    false
+                }
+            }
+        return if (saved) null else SetupReason.LIBRARIES_NOT_SAVED
     }
 
     private companion object {

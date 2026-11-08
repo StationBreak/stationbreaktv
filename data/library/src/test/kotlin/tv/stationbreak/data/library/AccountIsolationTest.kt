@@ -22,7 +22,16 @@ class AccountIsolationTest {
     ) {
         repository.applySelection(account, setOf(MOVIES), nowMs = 0)
         val items = ids.map { item(it).copy(genres = listOf("g-$it"), tags = listOf("t-$it")) }
-        repository.writePage(account, MOVIES, items, nextStartIndex = ids.size, totalCount = ids.size, run = 1)
+        repository.writePage(
+            account,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            items,
+            nextStartIndex = ids.size,
+            totalCount = ids.size,
+            run = 1,
+        )
     }
 
     @Test
@@ -51,6 +60,8 @@ class AccountIsolationTest {
             repository.writePage(
                 BOB,
                 MOVIES,
+                stamp = null,
+                rewalk = false,
                 listOf(item("shared").copy(name = "Bob's copy")),
                 nextStartIndex = 1,
                 totalCount = 1,

@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
+import tv.stationbreak.core.domain.StoredLibrary
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.domain.TitleHit
@@ -330,37 +331,17 @@ class RoomLibraryRepository internal constructor(
         addStamps: Map<ItemId, Long>,
         holds: Map<ItemId, Long>,
         nowMs: Long,
-    ) = applySelection(account, keep, addStamps, holds, nowMs, keepAdding = false)
-
-    /**
-     * [applySelection] for the first sync, which knows the chosen libraries and not the adds: every library stored with
-     * an add stamp is kept too, read in the same transaction, so a first sync never drops an add that is under way.
-     */
-    internal suspend fun applySelectionKeepingAdds(
-        account: LibraryAccount,
-        chosen: Set<ItemId>,
-        nowMs: Long,
-    ) = applySelection(account, chosen, emptyMap(), emptyMap(), nowMs, keepAdding = true)
-
-    @Suppress("LongParameterList") // The port's call and the first sync's flag.
-    private suspend fun applySelection(
-        account: LibraryAccount,
-        keep: Set<ItemId>,
-        addStamps: Map<ItemId, Long>,
-        holds: Map<ItemId, Long>,
-        nowMs: Long,
-        keepAdding: Boolean,
     ) {
         val (server, user) = account.keys()
-        // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade).
-        dao.applySelection(
+        // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade),
+        // after each item another library lists moved to it.
+        transactions.applySelection(
             server,
             user,
             keep.mapTo(HashSet()) { it.value },
             addStamps.mapKeys { it.key.value },
             holds.mapKeys { it.key.value },
             nowMs,
-            keepAdding,
             // The purge's forward-jump guard (clockLooksWrong): past it, no hold expires.
             retention.millis - HistoryRetention.SAFE_LOOKBACK_MS,
         )
@@ -378,6 +359,31 @@ class RoomLibraryRepository internal constructor(
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> {
         val (server, user) = account.keys()
         return dao.pendingLibraries(server, user).map(::ItemId).toSet()
+    }
+
+    override suspend fun storedLibraries(account: LibraryAccount): List<StoredLibrary> {
+        val (server, user) = account.keys()
+        return dao
+            .libraries(server, user)
+            .map {
+                StoredLibrary(
+                    ItemId(it.libraryId),
+                    it.fetched,
+                    it.addStamp,
+                    it.walkedStamp,
+                    it.heldUntilMs,
+                    it.rewalkPending,
+                )
+            }.sortedBy { it.id.value }
+    }
+
+    override suspend fun revertUnproven(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean {
+        val (server, user) = account.keys()
+        return dao.revertUnproven(server, user, library.value, stamp)
     }
 
     override suspend fun successors(
@@ -412,48 +418,64 @@ class RoomLibraryRepository internal constructor(
      * Saves one [page][items] of [library] and the checkpoint that goes with it, in one transaction: after a crash both
      * are there or neither is. Writing the same page again changes nothing (an item that is unchanged is not
      * rewritten; a tombstoned one that came back is revived), so a resume can replay the last page.
-     * [library] must have been chosen with [applySelection] first. [series], if any, are written in the same
-     * transaction (the transactions across DAOs are one method of `CacheTransactionDao`). That parameter is for tests:
-     * the sync writes series apart, with [upsertSeries].
+     * [series], if any, are written in the same transaction (the transactions across DAOs are one method of
+     * `CacheTransactionDao`). That parameter is for tests: the sync writes series apart, with [upsertSeries].
+     *
+     * The write is guarded by [library]'s row (spec 26, schema 11; see [CacheTransactionDao.writePage]): [stamp] is the
+     * add's stamp for an add walk and null for any other write, and [rewalk] is set for a rewalk's write. A refused
+     * write stores nothing and returns [PageResult.StampMismatch] or [PageResult.FirstSyncRunning]. Neither has a
+     * default: every caller says which write it is.
      */
-    @Suppress("LongParameterList") // One cohesive call: the page, and the checkpoint that goes with it.
+    @Suppress("LongParameterList") // One cohesive call: the page, its guard, and the checkpoint that goes with it.
     internal suspend fun writePage(
         account: LibraryAccount,
         library: ItemId,
+        stamp: Long?,
+        rewalk: Boolean,
         items: List<MediaItem>,
         nextStartIndex: Int,
         totalCount: Int?,
         run: Long,
         series: List<SeriesInfo> = emptyList(),
-    ): PageWrite {
+    ): PageResult {
         val (server, user) = account.keys()
         val checkpoint = CheckpointEntity(server, user, library.value, nextStartIndex, totalCount, run)
         val rows = rowsOf(items, server, user, library)
         val seriesRows = LinkedHashMap<String, SeriesEntity>()
         series.forEach { seriesRows[it.id.value] = it.toEntity(server, user, library.value) }
         val now = clock.now().toEpochMilliseconds()
-        return write(server, user, checkpoint, rows, seriesRows, now).items
+        return write(server, user, Guard(library.value, stamp, rewalk), checkpoint, rows, seriesRows, now)
     }
 
     /**
      * Saves [items] of [library] with no checkpoint: a page of a changed-since pass, which moves no position. The same
-     * idempotent upsert as [writePage], and the same check that the account is still signed in.
+     * idempotent upsert as [writePage], the same check that the account is still signed in, and the same guard.
      */
     internal suspend fun upsertItems(
         account: LibraryAccount,
         library: ItemId,
+        stamp: Long?,
+        rewalk: Boolean,
         items: List<MediaItem>,
-    ): PageWrite {
+    ): PageResult {
         val (server, user) = account.keys()
         val rows = rowsOf(items, server, user, library)
         val now = clock.now().toEpochMilliseconds()
-        return write(server, user, null, rows, emptyMap(), now).items
+        return write(server, user, Guard(library.value, stamp, rewalk), null, rows, emptyMap(), now)
     }
 
-    @Suppress("LongParameterList") // The page, its checkpoint, the time: what the transaction takes.
+    // Which library a write is for and under which stamp, as the transaction's guard reads them.
+    private class Guard(
+        val library: String,
+        val stamp: Long?,
+        val rewalk: Boolean,
+    )
+
+    @Suppress("LongParameterList") // The page, its guard, its checkpoint, the time: what the transaction takes.
     private suspend fun write(
         server: String,
         user: String,
+        guard: Guard,
         checkpoint: CheckpointEntity?,
         rows: Map<String, ItemRows>,
         seriesRows: Map<String, SeriesEntity>,
@@ -462,6 +484,9 @@ class RoomLibraryRepository internal constructor(
         transactions.writePage(
             server,
             user,
+            guard.library,
+            guard.stamp,
+            guard.rewalk,
             checkpoint,
             rows,
             seriesRows,
@@ -472,18 +497,21 @@ class RoomLibraryRepository internal constructor(
 
     /**
      * Saves [series] of [library], with no checkpoint: a series page of the first sync or of a changed-since pass. The
-     * same idempotent upsert as for items, in one transaction after the check that the account is still signed in.
-     * The counts are of series.
+     * same idempotent upsert as for items, in one transaction after the check that the account is still signed in, and
+     * under the same guard as [writePage]. The counts are the written page's series.
      */
     internal suspend fun upsertSeries(
         account: LibraryAccount,
         library: ItemId,
+        stamp: Long?,
+        rewalk: Boolean,
         series: List<SeriesInfo>,
-    ): PageWrite {
+    ): PageResult {
         val (server, user) = account.keys()
         val rows = LinkedHashMap<String, SeriesEntity>()
         series.forEach { rows[it.id.value] = it.toEntity(server, user, library.value) }
-        return write(server, user, null, emptyMap(), rows, clock.now().toEpochMilliseconds()).series
+        val now = clock.now().toEpochMilliseconds()
+        return write(server, user, Guard(library.value, stamp, rewalk), null, emptyMap(), rows, now)
     }
 
     /**
@@ -508,28 +536,59 @@ class RoomLibraryRepository internal constructor(
     }
 
     /**
-     * Writes one library's reconcile decisions in one transaction: the items and series that are gone are tombstoned,
-     * and those that returned are revived, each with its version. Nothing is written when there is nothing to write.
+     * Writes [library]'s reconcile decisions in one transaction (see [CacheTransactionDao.reconcileWrite]): the items
+     * and series that are gone are tombstoned, or moved to a library that lists them, those that returned are revived,
+     * and [library]'s also-listed rows follow its listing ([alsoAdd], [alsoDrop]; a listed tombstone another library
+     * owns is taken over). Nothing is written when there is nothing to write. [ReconcileApplied.Refused] when
+     * [library]'s row does not take a reconcile.
      */
+    @Suppress("LongParameterList") // The library and each kind of decision, all optional but the library.
     internal suspend fun applyReconcile(
         account: LibraryAccount,
-        itemsGone: Collection<ItemId>,
-        itemsReturning: Collection<ItemId>,
-        seriesGone: Collection<ItemId>,
-        seriesReturning: Collection<ItemId>,
-    ) {
-        if (listOf(itemsGone, itemsReturning, seriesGone, seriesReturning).all { it.isEmpty() }) return
+        library: ItemId,
+        itemsGone: Collection<ItemId> = emptyList(),
+        itemsReturning: Collection<ItemId> = emptyList(),
+        seriesGone: Collection<ItemId> = emptyList(),
+        seriesReturning: Collection<ItemId> = emptyList(),
+        alsoAdd: Collection<ItemId> = emptyList(),
+        alsoDrop: Collection<ItemId> = emptyList(),
+    ): ReconcileApplied {
+        val decisions =
+            ReconcileDecisions(
+                itemsGone.map { it.value },
+                itemsReturning.map { it.value },
+                seriesGone.map { it.value },
+                seriesReturning.map { it.value },
+                alsoAdd.map { it.value },
+                alsoDrop.map { it.value },
+                foreignListed = alsoAdd.map { it.value },
+            )
+        if (decisions.isEmpty) return ReconcileApplied.Written(0, 0, 0, 0)
         val (server, user) = account.keys()
-        transactions.reconcileWrite(
+        val now = clock.now().toEpochMilliseconds()
+        return transactions.reconcileWrite(
             server,
             user,
-            itemsGone.map { it.value },
-            itemsReturning.map { it.value },
-            seriesGone.map { it.value },
-            seriesReturning.map { it.value },
-            clock.now().toEpochMilliseconds(),
+            library.value,
+            decisions,
+            now,
             faultBetweenReconcileTombstonesAndRevives,
         )
+    }
+
+    /**
+     * Tombstones the rows of chosen libraries the server no longer has (#495), in one transaction: [items] are the
+     * items each removed library owns, [series] their series (see [CacheTransactionDao.removedWrite]).
+     */
+    internal suspend fun applyRemoved(
+        account: LibraryAccount,
+        items: Map<ItemId, Collection<ItemId>>,
+        series: Collection<ItemId>,
+    ): ReconcileApplied {
+        val (server, user) = account.keys()
+        val byLibrary = items.entries.associate { (library, ids) -> library.value to ids.map { it.value } }
+        val now = clock.now().toEpochMilliseconds()
+        return transactions.removedWrite(server, user, byLibrary, series.map { it.value }, now)
     }
 
     /** The IDs of [library]'s live series, in order: what the series reconcile compares the server's list with. */
@@ -592,13 +651,63 @@ class RoomLibraryRepository internal constructor(
         }
     }
 
-    /** Marks [library] as fully fetched: it is no longer in [pendingLibraries]. */
-    internal suspend fun markFetched(
+    /**
+     * The first sync's walk of [library] ended: it is fetched (no longer in [pendingLibraries]) and a rewalk mark goes
+     * (see [LibraryDao.markWalked]). A library being added or held stays pending.
+     */
+    internal suspend fun markWalked(
         account: LibraryAccount,
         library: ItemId,
     ) {
         val (server, user) = account.keys()
-        dao.markFetched(server, user, library.value)
+        dao.markWalked(server, user, library.value)
+    }
+
+    /**
+     * A chosen [library] the server no longer lists is fetched, unless it is marked, being added or held (see
+     * [LibraryDao.markUnlisted]).
+     */
+    internal suspend fun markUnlisted(
+        account: LibraryAccount,
+        library: ItemId,
+    ) {
+        val (server, user) = account.keys()
+        dao.markUnlisted(server, user, library.value)
+    }
+
+    /** The rewalk of the marked [library] ended at the walk's [runMs] (see [LibraryDao.finishRewalk]). */
+    internal suspend fun finishRewalk(
+        account: LibraryAccount,
+        library: ItemId,
+        runMs: Long,
+    ): RewalkFinish {
+        val (server, user) = account.keys()
+        return dao.finishRewalk(server, user, library.value, runMs)
+    }
+
+    /**
+     * The add walk of [library] under [stamp] ended at [runMs]: the proof [landAdd] needs, in the walk's own last
+     * transaction (see [LibraryDao.markAddWalked]). False means the stamp no longer matches.
+     */
+    internal suspend fun markAddWalked(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+        runMs: Long,
+    ): Boolean {
+        val (server, user) = account.keys()
+        return dao.markAddWalked(server, user, library.value, stamp, runMs)
+    }
+
+    /**
+     * Where each of [account]'s libraries with a coverage must start its next incremental read (spec 26, schema 11):
+     * the libraries with none are left out.
+     */
+    internal suspend fun coveredFrom(account: LibraryAccount): Map<ItemId, Long> {
+        val (server, user) = account.keys()
+        val covered = HashMap<ItemId, Long>()
+        for (row in dao.libraries(server, user)) row.coveredFromMs?.let { covered[ItemId(row.libraryId)] = it }
+        return covered
     }
 
     /** The account's first sync starts (or starts again): the state is running with no total yet. */
@@ -631,14 +740,16 @@ class RoomLibraryRepository internal constructor(
 
     /**
      * An incremental pass ended well (see [LibraryDao.finishIncremental]): like [finishSync], but it does nothing while
-     * the account runs a first sync, and then returns false.
+     * the account runs a first sync, and then returns false. [covered] are the libraries the pass walked, with the
+     * coverage it read for each at its start: each is cleared while it is still that value.
      */
     internal suspend fun finishIncremental(
         account: LibraryAccount,
         recorded: Instant,
+        covered: Map<ItemId, Long>,
     ): Boolean {
         val (server, user) = account.keys()
-        return dao.finishIncremental(server, user, recorded.toEpochMilliseconds())
+        return dao.finishIncremental(server, user, recorded.toEpochMilliseconds(), covered.mapKeys { it.key.value })
     }
 
     /**
@@ -729,6 +840,15 @@ class RoomLibraryRepository internal constructor(
     ): List<ItemId> {
         val (server, user) = account.keys()
         return dao.liveItemIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of the items [library] lists without owning them (spec 26, schema 11), in order. */
+    internal suspend fun alsoListedIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return dao.alsoListedIds(server, user, library.value).map(::ItemId)
     }
 
     /** The IDs of [library]'s tombstoned items: deleted on the server, not yet purged. */
@@ -828,6 +948,12 @@ class RoomLibraryRepository internal constructor(
             collectionMembers = collectionDao.countMembers(),
             collectionSyncs = collectionDao.countSyncRows(),
         )
+
+    /** Every also-listed row of [account] as (item, library), in order: for the tests and diagnostics. */
+    internal suspend fun alsoListed(account: LibraryAccount): List<Pair<ItemId, ItemId>> {
+        val (server, user) = account.keys()
+        return dao.allAlsoListed(server, user).map { ItemId(it.itemId) to ItemId(it.libraryId) }
+    }
 
     /** The account's item rows as they are on disk (the current versions), by item ID. */
     internal suspend fun currentRows(account: LibraryAccount): List<ItemEntity> {

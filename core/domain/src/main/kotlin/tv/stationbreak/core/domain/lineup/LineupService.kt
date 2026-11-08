@@ -138,9 +138,10 @@ class LineupService internal constructor(
      * [unknownSeries] is told, at each planning read, how many live episodes name a series the saved library does not
      * hold (a count, nothing else): a gap there is a show whose episodes cannot be named or homed (issue 604).
      * [derived] is told when a lineup is forgotten ([forget]): what was built from it (the days on disk, #480) goes
-     * too.
+     * too. [trimmed] is told what a lineup save trimmed from the repair record to fit (three counts: fixes, fixes
+     * covering now, selection repairs; nothing else).
      */
-    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and four numbers-only hooks.
+    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and five numbers-only hooks.
     constructor(
         store: LineupStore,
         library: LibraryRepository,
@@ -150,13 +151,14 @@ class LineupService internal constructor(
         timed: (Long) -> Unit,
         derived: DayStore? = null,
         unknownSeries: (Int) -> Unit = {},
+        trimmed: (fixes: Int, coveringFixes: Int, selection: Int) -> Unit = { _, _, _ -> },
     ) : this(
         store,
         library,
         clock,
         standardOffsetMinutes,
         report,
-        LineupSeams(timed = timed, derived = derived, unknownSeries = unknownSeries),
+        LineupSeams(timed = timed, derived = derived, unknownSeries = unknownSeries, trimmed = trimmed),
     )
 
     internal val catalog: StarterCatalogView get() = seams.catalog
@@ -718,15 +720,16 @@ class LineupService internal constructor(
         forgetters += forget
     }
 
-    // The seq saved with the TV's selection, for a roll to prune the repairs it supersedes; null while unknown.
-    @Volatile private var savedSeq: suspend () -> Long? = { null }
+    // The seqs saved with the TV's selection, for a roll to prune the repairs they supersede; null while unknown.
+    @Volatile private var savedSeq: suspend () -> SavedSeqs? = { null }
 
     /**
-     * [seq] gives the seq saved with the TV's selection (the schedule source's): a roll of the record then prunes the
-     * selection repairs a saved later seq has superseded (`TodayRepairs.pruned`). Without it nothing is pruned.
+     * [seqs] gives the seq and the reset seq saved with the TV's selection (the schedule source's): a roll of the
+     * record then prunes the selection repairs a saved later seq has superseded, and those below the reset seq
+     * (`TodayRepairs.pruned`), and a trim drops the repairs not shown first. Without it nothing is pruned.
      */
-    internal fun savedSeqFrom(seq: suspend () -> Long?) {
-        savedSeq = seq
+    internal fun savedSeqFrom(seqs: suspend () -> SavedSeqs?) {
+        savedSeq = seqs
     }
 
     // The seq of the selection change whose save is under way (the repairer's turn), or null.
@@ -747,7 +750,7 @@ class LineupService internal constructor(
     // The saved seq now, read before the entry's lock is taken (the provider is the schedule source's, which must not
     // wait on it): null when unknown or when the read fails, and then a trim counts every selection repair as shown.
     @Suppress("TooGenericExceptionCaught") // Any failure of the provider: the save goes on without the seq.
-    private suspend fun savedSeqNow(): Long? =
+    private suspend fun savedSeqNow(): SavedSeqs? =
         try {
             savedSeq()
         } catch (cancelled: CancellationException) {
@@ -820,20 +823,22 @@ class LineupService internal constructor(
     internal val repairConfig: RepairConfig get() = seams.repairConfig
 
     // [repairs] made to fit beside [lineup] for a save that has nothing to do with them: it never fails for their sake.
-    // The selection repairs above [savedSeq] (not shown) go first; those of a seq being saved count as shown.
+    // The selection repairs above [savedSeq]'s seq or below its reset seq (not shown) go first; those of a seq being
+    // saved count as shown.
     private fun trimmed(
         lineup: Lineup,
         meta: RefreshMeta,
         repairs: TodayRepairs,
         nowMs: Long,
-        savedSeq: Long?,
+        savedSeq: SavedSeqs?,
     ): Trimmed {
         val limit = LineupLimits.MAX_FILE_BYTES - seams.repairConfig.fileMargin
         return if (repairs.isEmpty) {
             Trimmed(repairs, 0, 0, 0)
         } else {
-            val shown = savedSeq?.let { saved -> maxOf(saved, savingSeq ?: saved) }
-            repairs.trimmedToFit(nowMs, limit, shown) { seams.encode(lineup, meta, it).size }
+            val shown = savedSeq?.let { saved -> maxOf(saved.seq, savingSeq ?: saved.seq) }
+            val resetSeq = savedSeq?.resetSeq ?: 0L
+            repairs.trimmedToFit(nowMs, limit, shown, resetSeq) { seams.encode(lineup, meta, it).size }
         }
     }
 
@@ -852,7 +857,7 @@ class LineupService internal constructor(
         lineup: Lineup,
         meta: RefreshMeta,
         repairs: TodayRepairs,
-        savedSeq: Long?,
+        savedSeq: SavedSeqs?,
     ): TodayRepairs {
         if (!entry.writable) return repairs
         val trimmed = trimmed(lineup, meta, repairs, nowMs(), savedSeq)
@@ -937,6 +942,145 @@ class LineupService internal constructor(
     }
 
     /**
+     * Empties [account]'s repair record for a setup (spec 26, Part 4 §2), from what the file holds now: it reads the
+     * file itself (never the lineup held in memory, which may be one planned while the file could not be read) and
+     * acts on it under the account's lock, in the same hold of it.
+     *
+     * - A readable lineup of this account: saved with an empty record (every selection repair, every fix; the
+     *   lost-block check goes from memory too) and published. [RecordReset.Floor] at the old record's latest seq.
+     * - No file: nothing is written. `Floor(0)`.
+     * - An unreadable file, or another account's: set aside. `Floor(0)`, or [RecordReset.Failed] when it will not
+     *   move.
+     * - A newer app's file: left untouched (a newer build's channels must survive a downgrade). `Floor(0)`.
+     *
+     * In those three, a record held in memory (a session's) is emptied and published too, with no write, and the floor
+     * is its latest seq. With a readable lineup the floor is the latest of the file's and memory's.
+     * - A read that fails, or a save that fails or is rejected: nothing changes. [RecordReset.Failed].
+     *
+     * An account whose IDs are not IDs has no file: `Floor(0)`.
+     */
+    internal suspend fun resetRecord(account: LibraryAccount): RecordReset = onDisk(account, empty = true)
+
+    /**
+     * The floor a resume raises the selection seq to (spec 26, Part 4 §2): read like [resetRecord], and under the same
+     * lock it writes nothing but the set-aside of an unreadable file or another account's. A readable lineup of this
+     * account gives `Floor(latestSeq, record = true)`; no file, a set-aside one and a newer app's give
+     * `Floor(0, record = false)` (a newer app's with `newer = true`); a read or a set-aside that fails gives
+     * [RecordReset.Failed].
+     */
+    internal suspend fun floorRecord(account: LibraryAccount): RecordReset = onDisk(account, empty = false)
+
+    // [resetRecord] when [empty], else [floorRecord].
+    private suspend fun onDisk(
+        account: LibraryAccount,
+        empty: Boolean,
+    ): RecordReset {
+        val owner = ownerOf(account) ?: return RecordReset.Floor(0L, record = false, newer = false)
+        val entry = entryOf(owner)
+        return entry.mutex.withLock {
+            when (val stored = store.load(owner.key)) {
+                StoredBytes.Absent -> {
+                    floorWithoutFile(entry, empty, newer = false)
+                }
+
+                StoredBytes.Failed -> {
+                    report(LineupEvent.ReadFailedLeftAlone)
+                    leftAlone(entry)
+                    RecordReset.Failed
+                }
+
+                is StoredBytes.Present -> {
+                    onDisk(owner, entry, LineupCodec.decode(stored.bytes), empty)
+                }
+            }
+        }
+    }
+
+    // The branches of a file that is there. Under the entry's lock.
+    private suspend fun onDisk(
+        owner: Owner,
+        entry: Entry,
+        decoded: LineupCodec.Decoded,
+        empty: Boolean,
+    ): RecordReset =
+        when {
+            decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup) -> {
+                if (empty) {
+                    emptied(owner, entry, decoded)
+                } else {
+                    RecordReset.Floor(decoded.repairs.latestSeq(), record = true, newer = false)
+                }
+            }
+
+            decoded is LineupCodec.Decoded.NewerVersion -> {
+                report(LineupEvent.NewerVersionLeftAlone)
+                leftAlone(entry)
+                floorWithoutFile(entry, empty, newer = true)
+            }
+
+            // Unreadable, or another account's lineup: out of the way, as a refresh would.
+            store.setAside(owner.key) -> {
+                report(LineupEvent.SetAsideUnreadable)
+                floorWithoutFile(entry, empty, newer = false)
+            }
+
+            else -> {
+                report(LineupEvent.UnreadableLeftAlone)
+                leftAlone(entry)
+                RecordReset.Failed
+            }
+        }
+
+    // No readable record of this account on disk. For a reset ([empty]), a record held in memory (a session's, planned
+    // while the file could not be read, or one whose file went) is emptied and published, with no write, and its
+    // latest seq is the floor; otherwise the floor is 0. [newer]: the file is a newer app's. Under the entry's lock.
+    private fun floorWithoutFile(
+        entry: Entry,
+        empty: Boolean,
+        newer: Boolean,
+    ): RecordReset {
+        val held = entry.state.value
+        val repairs = held?.repairs ?: TodayRepairs.NONE
+        if (!empty || held == null || repairs == TodayRepairs.NONE) return RecordReset.Floor(0L, record = false, newer)
+        entry.set(held.copy(repairs = TodayRepairs.NONE))
+        return RecordReset.Floor(repairs.latestSeq(), record = false, newer)
+    }
+
+    // A file this session must not write over: the held lineup is no longer one to save from.
+    private fun leftAlone(entry: Entry) {
+        entry.writable = false
+        noteWritable(entry)
+    }
+
+    // [decoded]'s lineup saved with an empty record and published. Under the entry's lock; the save finishes even if
+    // the caller is cancelled, so the file and the published record never part.
+    private suspend fun emptied(
+        owner: Owner,
+        entry: Entry,
+        decoded: LineupCodec.Decoded.Loaded,
+    ): RecordReset =
+        withContext(NonCancellable) {
+            // What memory holds counts too: a seq it used must not come round while its repairs could still show.
+            val floor =
+                maxOf(
+                    decoded.repairs.latestSeq(),
+                    entry.state.value
+                        ?.repairs
+                        ?.latestSeq() ?: 0L,
+                )
+            droppedUnreadableRecord(owner, entry, decoded)
+            if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
+            entry.writable = true
+            if (saveVerified(owner, decoded.lineup, decoded.meta, TodayRepairs.NONE)) {
+                publish(entry, decoded.lineup, decoded.meta, TodayRepairs.NONE)
+                entry.loaded = true
+                RecordReset.Floor(floor, record = true, newer = false)
+            } else {
+                RecordReset.Failed
+            }
+        }
+
+    /**
      * Called by a reader (the schedule source) with the lineup it holds: when something in it is past ([rolled]), a
      * roll is attempted in the background. It never waits and never blocks the caller: the days are right without it
      * (`rulesFor`, `householdFor` and `leavesAtMs` give the days of the right rules), so this only tidies the stored
@@ -1004,7 +1148,7 @@ class LineupService internal constructor(
         try {
             val held = entry.state.value
             val rolled = held?.lineup?.rolled(nowMs)
-            val rolledRepairs = held?.repairs?.rolled(nowMs)?.let { if (applied == null) it else it.pruned(applied) }
+            val rolledRepairs = held?.repairs?.rolled(nowMs)?.prunedAt(applied)
             // The roll never does the first version-3 write: a lineup decoded from a version 1 or 2 file has none of
             // the fields `rolled` clears (no leavesAtMs, previous rules or basis), so it comes back unchanged and is
             // not saved here; the first save of a new version is a refresh's or an edit's, which keep the old file's
@@ -1226,6 +1370,39 @@ internal sealed interface Saved<out T> {
     /** A reset could not read the library; nothing changed. */
     data object Unavailable : Saved<Nothing>
 }
+
+/**
+ * What [LineupService.resetRecord] or [LineupService.floorRecord] found on disk (spec 26, Part 4 §2): a [Floor] for the
+ * next selection seq, or [Failed] when the file could not be read, set aside or written.
+ */
+internal sealed interface RecordReset {
+    /**
+     * [seq] is the highest selection seq the record held (`TodayRepairs.latestSeq`), 0 when there was none to read.
+     * [record] is true when the file held a readable lineup of this account (so a record this build reads), false when
+     * there was no file, it was another account's or unreadable (and was set aside), or a newer app's (left alone).
+     * [newer] is true only for that last one: a resume that raises the seq over it saves the reset seq too (D17).
+     */
+    data class Floor(
+        val seq: Long,
+        val record: Boolean,
+        val newer: Boolean,
+    ) : RecordReset
+
+    /** The file could not be read, could not be set aside, or the emptied record could not be saved. */
+    data object Failed : RecordReset
+}
+
+// Pruned at [saved] (`TodayRepairs.pruned`); as it is when the saved seqs are unknown.
+private fun TodayRepairs.prunedAt(saved: SavedSeqs?): TodayRepairs = saved?.let { pruned(it.seq, it.resetSeq) } ?: this
+
+/**
+ * The seqs saved with the TV's selection, as the service reads them before a save: the [seq] whose repairs show and
+ * the [resetSeq] of the last setup, below which no repair shows (`TodayRepairs.applied`).
+ */
+internal data class SavedSeqs(
+    val seq: Long,
+    val resetSeq: Long,
+)
 
 /** An edit's outcome, its meta, and whether it was [planned] again (only a plan sets the meta afresh). */
 private class Replan(

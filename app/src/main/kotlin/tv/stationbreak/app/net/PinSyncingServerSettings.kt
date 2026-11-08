@@ -3,8 +3,9 @@ package tv.stationbreak.app.net
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
-import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
 
@@ -14,12 +15,15 @@ import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
  * can't leave the client trusting what the disk no longer says. A clear withdraws trust from the client first, whether
  * or not the write reaches disk: trust is withdrawn before it is forgotten. A [load] applies the stored pin, so a
  * caller that reads the settings before it connects has the pin in force by then: launch routing reads them first
- * thing. The library selection passes straight through, under the same lock; it has no bearing on trust.
+ * thing. The library selection has no bearing on trust. Its writes pass through under the same lock; its reads pass
+ * through with no lock at all (spec 26 Part 4, §2), because they are on the tune path and must never wait behind a
+ * save, a clear or a pin check. The store below answers them from memory.
  */
+@Suppress("TooManyFunctions") // The port's functions, one each, over the one lock.
 internal class PinSyncingServerSettings(
-    private val stored: ServerSettings,
+    private val stored: SelectionStore,
     private val clients: PinnedHttpClients,
-) : ServerSettings {
+) : SelectionStore {
     private val lock = Mutex()
 
     override suspend fun load(): ServerRecord? = lock.withLock { stored.load().also(::apply) }
@@ -38,11 +42,23 @@ internal class PinSyncingServerSettings(
             stored.clearPin()
         }
 
-    override suspend fun loadLibraries(): Set<ItemId>? = lock.withLock { stored.loadLibraries() }
-
-    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean = lock.withLock { stored.saveLibraries(ids) }
+    override suspend fun loadLibraries(): Set<ItemId>? = stored.loadLibraries()
 
     override suspend fun clearLibraries(): Boolean = lock.withLock { stored.clearLibraries() }
+
+    override suspend fun loadSelection(): StoredSelection? = stored.loadSelection()
+
+    override suspend fun loadSelectionSeq(): Long? = stored.loadSelectionSeq()
+
+    override suspend fun saveSelection(
+        selection: StoredSelection,
+        setup: Boolean,
+    ): Boolean {
+        // A selection write, so it is ordered with the other writes (lock order: PinSyncing, then the file's own).
+        return lock.withLock { stored.saveSelection(selection, setup) }
+    }
+
+    override suspend fun loadPlayableLibraries(): Set<ItemId>? = stored.loadPlayableLibraries()
 
     private fun apply(record: ServerRecord?) {
         val pin = record?.pin

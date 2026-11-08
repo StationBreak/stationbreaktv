@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import java.util.Objects
 
@@ -14,11 +16,15 @@ import java.util.Objects
  * then fills from the recorded tail only). It travels in the same read as [libraries] and [seq], so the repairer reads
  * all three under its own lock (`TodayRepairer.repairLost`). Like [seq], it has no default. A playable library
  * outside [libraries] is dropped (the playable set is always within the chosen one).
+ *
+ * [resetSeq] is the seq the last setup saved (the settings key `selectionResetSeq`), 0 for none: a selection repair of
+ * a lower seq was recorded for a selection before that setup and never shows (`TodayRepairs.applied`). No default.
  */
 class SavedSelection(
     val libraries: Set<ItemId>,
     val seq: Long,
     playable: Set<ItemId>?,
+    val resetSeq: Long,
 ) {
     /**
      * The playable libraries as given, less any that is not in [libraries]: this is read on the tune path, so a
@@ -27,9 +33,31 @@ class SavedSelection(
     val playable: Set<ItemId>? = playable?.let { if (libraries.containsAll(it)) it else it intersect libraries }
 
     override fun equals(other: Any?): Boolean =
-        other is SavedSelection && libraries == other.libraries && seq == other.seq && playable == other.playable
+        other is SavedSelection &&
+            libraries == other.libraries &&
+            seq == other.seq &&
+            playable == other.playable &&
+            resetSeq == other.resetSeq
 
-    override fun hashCode(): Int = Objects.hash(libraries, seq, playable)
+    override fun hashCode(): Int = Objects.hash(libraries, seq, playable, resetSeq)
 
-    override fun toString(): String = "SavedSelection(libraries=$libraries, seq=$seq, playable=$playable)"
+    /** Counts only: never a library id (a log line may print a selection). */
+    override fun toString(): String {
+        val read = "libraries=${libraries.size}, seq=$seq, playable=${playable?.size ?: "none"}"
+        return "SavedSelection($read, resetSeq=$resetSeq)"
+    }
 }
+
+/**
+ * The schedule source's saved selection over [settings] (spec 26 Part 4, §3): one lock-free read of the stored
+ * selection ([ServerSettings.loadSelection], served from memory, so the tune path never waits on a writer) gives the
+ * chosen libraries, their seq and the reset seq. The playable libraries are the chosen ones, or null when the selection
+ * is gone; the libraries being added are never in either. Null when nothing is chosen.
+ */
+fun savedSelectionOf(settings: ServerSettings): suspend () -> SavedSelection? {
+    val read: suspend () -> SavedSelection? = { settings.loadSelection()?.toSaved() }
+    return read
+}
+
+private fun StoredSelection.toSaved(): SavedSelection =
+    SavedSelection(chosen, seq = seq, playable = if (gone) null else chosen, resetSeq = resetSeq)

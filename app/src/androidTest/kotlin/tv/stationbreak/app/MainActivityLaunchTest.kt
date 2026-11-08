@@ -18,8 +18,12 @@ import java.time.LocalDate
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class MainActivityLaunchTest {
-    @get:Rule
+    @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
+
+    // The selection's resume, as the app's start runs it, so nothing that waits on it waits for ever (spec 26).
+    @get:Rule(order = 1)
+    val selection = SelectionResumeRule()
 
     @Test
     fun launchReachesResumed() {

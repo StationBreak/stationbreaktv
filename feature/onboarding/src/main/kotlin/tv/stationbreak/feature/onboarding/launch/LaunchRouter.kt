@@ -76,6 +76,7 @@ internal class LaunchRouter
             }
         }
 
+        // The chosen libraries, not the playable ones (spec 26): a gone selection keeps its choice and opens the guide.
         private suspend fun restoredRoute(session: Session): LaunchRoute =
             when {
                 settings.loadLibraries().isNullOrEmpty() -> LaunchRoute.Libraries(session)

@@ -36,6 +36,8 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
@@ -95,14 +97,20 @@ class StayCurrentWorkTest {
         repository = RoomLibraryRepository.create(appContext)
         val sessions = SessionRepository(InMemorySecretStore(), server, repository)
         val settings = InMemoryServerSettings(ServerRecord(address), setOf(movies.id))
-        val runner = StayCurrentRunner(settings, sessions, server, repository, Clock.System)
+        val runner = StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, Clock.System)
         enqueuer = WorkManagerEnqueuer(appContext)
         stayCurrent = StayCurrent(enqueuer, enqueuer, repository, SyncTriggerPolicy(Clock.System), runner)
         runBlocking {
             sessions.save(session)
             fake.resumeResult = ServerResult.Success(session)
             // The first sync, through the real engine, so the account is past it.
-            FirstSyncEngine(repository, server, Clock.System).run(session, account, setOf(movies.id))
+            // Its library set as the selection writes it: the one chosen library.
+            val chosen =
+                FirstSyncLibraries {
+                    repository.applySelection(it, setOf(movies.id), nowMs = Clock.System.now().toEpochMilliseconds())
+                    setOf(movies.id)
+                }
+            FirstSyncEngine(repository, server, Clock.System).run(session, account, chosen)
         }
         server.calls.clear()
         provider = Provider(appContext, stayCurrent)

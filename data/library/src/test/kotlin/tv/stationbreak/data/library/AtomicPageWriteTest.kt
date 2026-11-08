@@ -29,7 +29,16 @@ class AtomicPageWriteTest {
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
-            repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                page1,
+                nextStartIndex = 2,
+                totalCount = 4,
+                run = 7,
+            )
 
             assertEquals(listOf("p1-a", "p1-b"), idsStored())
             val expected = Checkpoint(MOVIES, nextStartIndex = 2, totalCount = 4, run = 7)
@@ -40,11 +49,31 @@ class AtomicPageWriteTest {
     fun aFailureBetweenTheItemsAndTheCheckpointStoresNeither() =
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                page1,
+                nextStartIndex = 2,
+                totalCount = 4,
+                run = 7,
+            )
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
 
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.writePage(ALICE, MOVIES, page2, nextStartIndex = 4, totalCount = 4, run = 7) }
+                runBlocking {
+                    repository.writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        page2,
+                        nextStartIndex = 4,
+                        totalCount = 4,
+                        run = 7,
+                    )
+                }
             }
 
             // Page 2's items are not there, and the checkpoint still says the next page is page 2.
@@ -59,7 +88,18 @@ class AtomicPageWriteTest {
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
 
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7) }
+                runBlocking {
+                    repository.writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        page1,
+                        nextStartIndex = 2,
+                        totalCount = 4,
+                        run = 7,
+                    )
+                }
             }
 
             assertEquals(0, repository.rowCounts().items)
@@ -73,35 +113,87 @@ class AtomicPageWriteTest {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7) }
+                runBlocking {
+                    repository.writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        page1,
+                        nextStartIndex = 2,
+                        totalCount = 4,
+                        run = 7,
+                    )
+                }
             }
             repository.faultBetweenItemsAndCheckpoint = null
 
-            repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                page1,
+                nextStartIndex = 2,
+                totalCount = 4,
+                run = 7,
+            )
 
             assertEquals(listOf("p1-a", "p1-b"), idsStored())
         }
 
     @Test
-    fun aPageForALibraryThatWasNotSelectedStoresNothing() {
-        assertThrows(Exception::class.java) {
-            runBlocking {
-                repository.writePage(ALICE, ItemId("never-selected"), page1, 2, 4, run = 1)
-            }
-        }
+    fun aPageForALibraryThatWasNotSelectedStoresNothing() =
         runBlocking {
+            // Schema 11: the library row's guard refuses it, before the foreign key could throw.
+            val write =
+                repository.writePage(
+                    ALICE,
+                    ItemId("never-selected"),
+                    stamp = null,
+                    rewalk = false,
+                    page1,
+                    2,
+                    4,
+                    run = 1,
+                )
+
+            assertEquals(PageResult.StampMismatch, write)
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
-    }
 
     @Test
     fun writingAPageTwiceChangesNothing() =
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            val first = repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            val first =
+                repository
+                    .writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        page1,
+                        nextStartIndex = 2,
+                        totalCount = 4,
+                        run = 7,
+                    ).written()
+                    .items
             val before = repository.stored(ALICE)
 
-            val replay = repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            val replay =
+                repository
+                    .writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        page1,
+                        nextStartIndex = 2,
+                        totalCount = 4,
+                        run = 7,
+                    ).written()
+                    .items
 
             assertEquals(PageWrite(inserted = 2, updated = 0, unchanged = 0), first)
             assertEquals(PageWrite(inserted = 0, updated = 0, unchanged = 2), replay)
@@ -113,10 +205,28 @@ class AtomicPageWriteTest {
     fun aChangedSincePageSavesItemsAndMovesNoCheckpoint() =
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                page1,
+                nextStartIndex = 2,
+                totalCount = 4,
+                run = 7,
+            )
             val before = repository.checkpoint(ALICE, MOVIES)
 
-            val write = repository.upsertItems(ALICE, MOVIES, listOf(page1[0].copy(name = "Changed"), page2[0]))
+            val write =
+                repository
+                    .upsertItems(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        listOf(page1[0].copy(name = "Changed"), page2[0]),
+                    ).written()
+                    .items
 
             assertEquals(PageWrite(inserted = 1, updated = 1, unchanged = 0), write)
             assertEquals(before, repository.checkpoint(ALICE, MOVIES))
@@ -127,10 +237,31 @@ class AtomicPageWriteTest {
     fun aChangedItemIsUpdatedAndItsGenresAreReplaced() =
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 4, run = 7)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                page1,
+                nextStartIndex = 2,
+                totalCount = 4,
+                run = 7,
+            )
             val renamed = page1[0].copy(name = "Renamed", genres = listOf("new-1", "new-2"))
 
-            val write = repository.writePage(ALICE, MOVIES, listOf(renamed, page1[1]), 2, 4, run = 8)
+            val write =
+                repository
+                    .writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        listOf(renamed, page1[1]),
+                        2,
+                        4,
+                        run = 8,
+                    ).written()
+                    .items
 
             assertEquals(PageWrite(inserted = 0, updated = 1, unchanged = 1), write)
             assertEquals(renamed, repository.stored(ALICE).first { it.item.id == renamed.id }.item)
@@ -141,10 +272,31 @@ class AtomicPageWriteTest {
     fun aTombstonedItemThatComesBackInAPageIsRevived() =
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 2, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                page1,
+                nextStartIndex = 2,
+                totalCount = 2,
+                run = 1,
+            )
             repository.tombstone(ALICE, listOf(page1[0].id))
 
-            val write = repository.writePage(ALICE, MOVIES, page1, nextStartIndex = 2, totalCount = 2, run = 2)
+            val write =
+                repository
+                    .writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        page1,
+                        nextStartIndex = 2,
+                        totalCount = 2,
+                        run = 2,
+                    ).written()
+                    .items
 
             assertEquals(1, write.updated)
             assertNull(repository.stored(ALICE).first { it.item.id == page1[0].id }.deletedAt)
@@ -157,8 +309,29 @@ class AtomicPageWriteTest {
             val many = (0 until 1500).map { item("many-${it.toString().padStart(4, '0')}") }
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
 
-            repository.writePage(ALICE, MOVIES, many, nextStartIndex = many.size, totalCount = many.size, run = 1)
-            val replay = repository.writePage(ALICE, MOVIES, many, many.size, many.size, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                many,
+                nextStartIndex = many.size,
+                totalCount = many.size,
+                run = 1,
+            )
+            val replay =
+                repository
+                    .writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        many,
+                        many.size,
+                        many.size,
+                        run = 1,
+                    ).written()
+                    .items
 
             assertEquals(1500, repository.stored(ALICE).size)
             assertEquals(1500, replay.unchanged)

@@ -54,7 +54,7 @@ class BackfillTest {
         repository.dao.setBackfillPending(ALICE.server.value, ALICE.user.value, set)
     }
 
-    private fun stay(maxSkipped: Int = FirstSyncEngine.MAX_SKIPPED_ITEMS) =
+    private fun stay(maxSkipped: Int = LibraryPass.MAX_SKIPPED_ITEMS) =
         StayCurrentEngine(repository, server, clock, pageSize = 100, maxSkippedItems = maxSkipped)
 
     /** The server now knows the studios of the first ten films and of one series; the rest are untouched. */

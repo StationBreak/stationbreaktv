@@ -19,6 +19,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibrarySetup
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.ServerRecord
@@ -72,7 +73,14 @@ class LibrariesScreenTest {
     private fun launch(libraries: List<Library> = listOf(movies, shows, home, musicVideos)) {
         server.librariesResult = ServerResult.Success(libraries)
         handOff.put(SignInResult(session, persisted = true, username = "sam"))
-        val viewModel = LibrariesViewModel(server, SessionRepository(InMemorySecretStore(), server), settings, handOff)
+        val viewModel =
+            LibrariesViewModel(
+                server,
+                SessionRepository(InMemorySecretStore(), server),
+                settings,
+                InMemoryLibrarySetup(settings),
+                handOff,
+            )
         compose.setContent {
             StationBreakTheme {
                 LibrariesRoot(
@@ -168,7 +176,7 @@ class LibrariesScreenTest {
 
         compose.onNodeWithTag(LibrariesTags.REASON).assertExists()
         compose.onNodeWithTag(LibrariesTags.DONE).assertIsNotEnabled()
-        assertTrue(settings.savedLibraries.isEmpty())
+        assertTrue(settings.savedSelections.isEmpty())
     }
 
     @Test
@@ -239,7 +247,14 @@ class LibrariesScreenTest {
 
     @Test
     fun noSessionHeldHandsBackToLaunchRoutingAndShowsNoPicker() {
-        val viewModel = LibrariesViewModel(server, SessionRepository(InMemorySecretStore(), server), settings, handOff)
+        val viewModel =
+            LibrariesViewModel(
+                server,
+                SessionRepository(InMemorySecretStore(), server),
+                settings,
+                InMemoryLibrarySetup(settings),
+                handOff,
+            )
         compose.setContent {
             StationBreakTheme {
                 LibrariesRoot(viewModel, onBack = {}, onDone = {}, onSessionLost = {}, onMissingSession = { missing++ })

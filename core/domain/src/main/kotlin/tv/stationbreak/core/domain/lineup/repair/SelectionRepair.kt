@@ -47,18 +47,19 @@ internal class PlannedRepair(
     val pins: List<Pin>,
 ) {
     /**
-     * [record] with these beside what it shows at [appliedSeq] (the saved selection's seq): per channel day the repair
-     * [TodayRepairs.applied] shows, with that repair's fixes (or the fixes of the day as built), stays until this
-     * change's seq is saved, so a failed save or a later `dropSelection` goes back to it whole. Every other repair goes
-     * with its fixes (one a saved later seq superseded, or one of a change never saved). This change's fixes (those of
-     * its kept windows, of [seq]) are added, and [seq] is the `lastSeq` if higher. The lost-block check is cleared: the
-     * new tails were never checked, so the next `repairLost` checks them.
+     * [record] with these beside what it shows at [appliedSeq] and [resetSeq] (the saved selection's): per channel day
+     * the repair [TodayRepairs.applied] shows, with that repair's fixes (or the fixes of the day as built), stays until
+     * this change's seq is saved, so a failed save or a later `dropSelection` goes back to it whole. Every other repair
+     * goes with its fixes (one a saved later seq superseded, one of a change never saved, or one below the reset
+     * seq). This change's fixes (those of its kept windows, of [seq]) are added, and [seq] is the `lastSeq` if higher.
+     * The lost-block check is cleared: the new tails were never checked, so the next `repairLost` checks them.
      */
     fun into(
         record: TodayRepairs,
         appliedSeq: Long,
+        resetSeq: Long,
     ): TodayRepairs {
-        val shown = record.applied(appliedSeq)
+        val shown = record.applied(appliedSeq, resetSeq)
         val selection = shown.selection + repairs
         return record.copy(
             selection = selection,

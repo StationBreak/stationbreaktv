@@ -75,7 +75,8 @@ internal class TodayRepairerUnknownTest : RepairTestBase() {
         val before = rig.record()
         rig.unknown = true
 
-        val outcome = runBlocking { rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs) { true } }
+        val outcome =
+            runBlocking { rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs, atLeast = 0L) { true } }
 
         assertEquals(RepairOutcome.SelectionUnknown, outcome)
         assertEquals(before, rig.record(), "the shown repair is not dropped")

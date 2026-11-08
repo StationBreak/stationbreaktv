@@ -44,7 +44,16 @@ class SyncStateFlowTest {
             assertEquals(LibraryStatus(SyncState.FirstSyncRunning(copied = 0, total = null), null), status())
 
             repository.setTotal(ALICE, 4)
-            repository.writePage(ALICE, MOVIES, listOf(item("a"), item("b")), 2, 4, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a"), item("b")),
+                2,
+                4,
+                run = 1,
+            )
 
             assertEquals(LibraryStatus(SyncState.FirstSyncRunning(copied = 2, total = 4), null), status())
         }
@@ -57,11 +66,38 @@ class SyncStateFlowTest {
             repository.setTotal(ALICE, 6)
 
             val seen = repository.status(ALICE)
-            repository.writePage(ALICE, MOVIES, listOf(item("a"), item("b")), 2, 6, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a"), item("b")),
+                2,
+                6,
+                run = 1,
+            )
             seen.until(LibraryStatus(SyncState.FirstSyncRunning(2, 6), null))
-            repository.writePage(ALICE, MOVIES, listOf(item("c"), item("d")), 4, 6, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("c"), item("d")),
+                4,
+                6,
+                run = 1,
+            )
             seen.until(LibraryStatus(SyncState.FirstSyncRunning(4, 6), null))
-            repository.writePage(ALICE, MOVIES, listOf(item("e"), item("f")), 6, 6, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("e"), item("f")),
+                6,
+                6,
+                run = 1,
+            )
             seen.until(LibraryStatus(SyncState.FirstSyncRunning(6, 6), null))
             Unit
         }
@@ -73,8 +109,8 @@ class SyncStateFlowTest {
             repository.beginFirstSync(ALICE)
             val page = listOf(item("a"), item("b"))
 
-            repository.writePage(ALICE, MOVIES, page, 2, 4, run = 1)
-            repository.writePage(ALICE, MOVIES, page, 2, 4, run = 1)
+            repository.writePage(ALICE, MOVIES, stamp = null, rewalk = false, page, 2, 4, run = 1)
+            repository.writePage(ALICE, MOVIES, stamp = null, rewalk = false, page, 2, 4, run = 1)
 
             assertEquals(SyncState.FirstSyncRunning(copied = 2, total = null), status().state)
         }

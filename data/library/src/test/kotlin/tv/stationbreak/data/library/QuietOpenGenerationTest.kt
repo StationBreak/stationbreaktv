@@ -16,6 +16,7 @@ import tv.stationbreak.core.domain.SeriesSource
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.CollectionInfo
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionMemberKind
@@ -64,7 +65,8 @@ class QuietOpenGenerationTest {
     private val settings =
         InMemoryServerSettings(ServerRecord(SyncWorld.session.address), libraries.map { it.id }.toSet())
     private val lines = mutableListOf<String>()
-    private val runner = StayCurrentRunner(settings, sessions, server, repository, clock, report = { lines += it })
+    private val runner =
+        StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, clock) { lines += it }
     private val open = SyncPlan(incremental = false, reconcile = true)
     private val both = SyncPlan(incremental = true, reconcile = true)
 
@@ -149,7 +151,7 @@ class QuietOpenGenerationTest {
         assertEquals("the collection pass completed", SyncOutcome.Completed, runner.lastCollectionPass?.outcome)
         val incremental = if (plan.incremental) "0/0" else "none"
         assertEquals(
-            "StayCurrentWrote generation=0 incremental=$incremental reconcile=0/0/0/0/0 collections=0/0/0/0",
+            "StayCurrentWrote generation=0 incremental=$incremental reconcile=0/0/0/0/0/0 collections=0/0/0/0",
             lines.single { it.startsWith("StayCurrentWrote") },
         )
     }
@@ -157,7 +159,7 @@ class QuietOpenGenerationTest {
     private suspend fun settled() {
         sessions.save(SyncWorld.session)
         fake.resumeResult = ServerResult.Success(SyncWorld.session)
-        val verdict = FirstSyncRunner(settings, sessions, server, repository, clock).run(attempt = 0)
+        val verdict = firstSyncRunner(settings, sessions, server, repository, clock).run(attempt = 0)
         check(verdict == SyncVerdict.Success) { "the first sync should finish: $verdict" }
         clock.instant += 1.hours
         runner.run(both)
@@ -176,7 +178,7 @@ class QuietOpenGenerationTest {
             runner.run(open)
 
             assertEquals(
-                "StayCurrentWrote generation=1 incremental=none reconcile=1/0/0/0/0 collections=0/0/0/0",
+                "StayCurrentWrote generation=1 incremental=none reconcile=1/0/0/0/0/0 collections=0/0/0/0",
                 lines.single { it.startsWith("StayCurrentWrote") },
             )
         }

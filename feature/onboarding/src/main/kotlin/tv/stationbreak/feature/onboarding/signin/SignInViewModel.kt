@@ -20,9 +20,9 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.PersistOutcome
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ServerResult
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.logName
+import tv.stationbreak.core.domain.selection.LibrarySetup
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
@@ -141,7 +141,7 @@ internal class SignInViewModel
         private val sessions: SessionRepository,
         private val handOff: ServerHandOff,
         private val signedInHandOff: SignedInHandOff,
-        private val settings: ServerSettings,
+        private val setup: LibrarySetup,
     ) : ViewModel() {
         private val connected: ConnectedServer? = handOff.peek()
 
@@ -327,8 +327,10 @@ internal class SignInViewModel
                     // A session that couldn't be saved must not leave an older one behind to be restored later.
                     if (saved == PersistOutcome.NotSaved) sessions.clear()
                     // A new sign-in starts the library choice again: another user's choice is not this one's, and a
-                    // restart must ask for it instead of finding it done.
-                    settings.clearLibraries()
+                    // restart must ask for it instead of finding it done. Through the setup, under the selection's
+                    // lock, so no change of the old choice lands after it. One that fails is reported by the selection,
+                    // and the sign-in goes on: the picker's Done clears again.
+                    setup.clear()
                     saved
                 } ?: return
             connected?.let(handOff::clear)

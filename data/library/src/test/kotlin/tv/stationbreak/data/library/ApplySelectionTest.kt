@@ -58,11 +58,27 @@ class ApplySelectionTest {
         library: ItemId,
         n: Int,
     ) {
-        repository.writePage(ALICE, library, listOf(sitem(n, library = library)), 1, 1, run = clock.nowMs)
-        repository.markFetched(ALICE, library)
+        repository.writePage(
+            ALICE,
+            library,
+            stamp = null,
+            rewalk = false,
+            listOf(sitem(n, library = library)),
+            1,
+            1,
+            run = clock.nowMs,
+        )
+        repository.markWalked(ALICE, library)
     }
 
     private suspend fun storedIn(library: ItemId) = repository.stored(ALICE).filter { it.library == library }
+
+    // A series page of the add of [library] under [stamp], as its walk writes one.
+    private suspend fun addSeries(
+        library: ItemId,
+        stamp: Long,
+        info: tv.stationbreak.core.model.SeriesInfo,
+    ) = repository.upsertSeries(ALICE, library, stamp = stamp, rewalk = false, listOf(info)).written()
 
     private suspend fun apply(
         keep: Set<ItemId>,
@@ -160,7 +176,16 @@ class ApplySelectionTest {
         runBlocking {
             apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 7L))
             // The walk of the add saved a checkpoint; the same stamp again must not throw it away.
-            repository.writePage(ALICE, SHOWS, listOf(sitem(2, library = SHOWS)), 1, 1, run = clock.nowMs)
+            repository.writePage(
+                ALICE,
+                SHOWS,
+                stamp = 7L,
+                rewalk = false,
+                listOf(sitem(2, library = SHOWS)),
+                1,
+                1,
+                run = clock.nowMs,
+            )
 
             apply(setOf(MOVIES, SHOWS), addStamps = mapOf(SHOWS to 7L))
             assertNotNull(repository.checkpoint(ALICE, SHOWS))
@@ -213,7 +238,16 @@ class ApplySelectionTest {
             assertEquals("an add dropped before it held a row", start, generation())
 
             apply(setOf(MOVIES, SHOWS, gone, extra), addStamps = mapOf(extra to 2L))
-            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 2L,
+                rewalk = false,
+                listOf(sitem(3, library = extra)),
+                1,
+                1,
+                run = clock.nowMs,
+            )
             assertEquals("a page of a library being added", start, generation())
             apply(setOf(MOVIES, SHOWS, gone))
             assertEquals("an add dropped after its walk wrote rows: they may be a day's", start + 1, generation())
@@ -270,16 +304,28 @@ class ApplySelectionTest {
             assertEquals(before + 1, generation())
         }
 
+    // Spec 26, schema 11: an add that lists a chosen library's item no longer takes it (the first-owner rule), so the
+    // day keeps it and nothing moves; the add gets an also-listed row.
     @Test
-    fun aRowThatMovesFromAChosenLibraryIntoOneBeingAddedMovesTheGeneration() =
+    fun aRowAChosenLibraryHoldsStaysThereWhenAnAddListsIt() =
         runBlocking {
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 1L))
             repository.put(ALICE, MOVIES, sitem(1))
             val before = generation()
 
-            repository.put(ALICE, extra, sitem(1, library = extra))
+            repository
+                .upsertItems(
+                    ALICE,
+                    extra,
+                    stamp = 1L,
+                    rewalk = false,
+                    listOf(sitem(1, library = extra)),
+                ).written()
 
-            assertEquals("the chosen library lost the item", before + 1, generation())
+            val owner = repository.currentRows(ALICE).single().libraryId
+            assertEquals("the chosen library keeps the item", MOVIES.value, owner)
+            assertEquals(listOf(ItemId(hexId(1)) to extra), repository.alsoListed(ALICE))
+            assertEquals("nothing a day reads changed", before, generation())
         }
 
     // Whole-part fix (data MED-1): a series row feeds the episodes of other libraries by its id, so a series write
@@ -290,11 +336,11 @@ class ApplySelectionTest {
             val show = 910
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 1L))
             repository.put(ALICE, MOVIES, episodeOf(1, show, library = MOVIES))
-            repository.putSeries(ALICE, extra, series(hexId(show), "TV-PG"))
+            addSeries(extra, 1L, series(hexId(show), "TV-PG"))
             assertEquals(extra.value, repository.currentSeries(ALICE).single().libraryId)
             val before = generation()
 
-            repository.putSeries(ALICE, extra, series(hexId(show), "TV-MA"))
+            addSeries(extra, 1L, series(hexId(show), "TV-MA"))
 
             assertEquals("the chosen library's episodes read the new rating", before + 1, generation())
         }
@@ -307,9 +353,19 @@ class ApplySelectionTest {
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
             // A chosen library's row first, so the generation has left its first value (a bump is then +1).
             fill(MOVIES, 1)
-            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
-            repository.markFetched(ALICE, extra)
-            assertTrue("markFetched never lands an add", extra in repository.pendingLibraries(ALICE))
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 7L,
+                rewalk = false,
+                listOf(sitem(3, library = extra)),
+                1,
+                1,
+                run = clock.nowMs,
+            )
+            repository.markWalked(ALICE, extra)
+            assertTrue("markWalked never lands an add", extra in repository.pendingLibraries(ALICE))
+            assertTrue(repository.markAddWalked(ALICE, extra, 7L, clock.nowMs))
             val before = generation()
 
             assertTrue(repository.landAdd(ALICE, extra, 7L))
@@ -345,7 +401,17 @@ class ApplySelectionTest {
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
             // A chosen library's row first, so the generation has left its first value (a bump is then +1).
             fill(MOVIES, 1)
-            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 7L,
+                rewalk = false,
+                listOf(sitem(3, library = extra)),
+                1,
+                1,
+                run = clock.nowMs,
+            )
+            repository.markAddWalked(ALICE, extra, 7L, clock.nowMs)
             val beforeLanding = generation()
             repository.landAdd(ALICE, extra, 7L)
             val landed = generation()
@@ -360,7 +426,17 @@ class ApplySelectionTest {
     fun holdingALibraryBeingAddedClearsItsStamp() =
         runBlocking {
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
-            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 7L,
+                rewalk = false,
+                listOf(sitem(3, library = extra)),
+                1,
+                1,
+                run = clock.nowMs,
+            )
+            repository.markAddWalked(ALICE, extra, 7L, clock.nowMs)
 
             apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 60_000))
 
@@ -374,14 +450,23 @@ class ApplySelectionTest {
     fun theFirstSyncNeverKeepsAHeldRowByItsStamp() =
         runBlocking {
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
-            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 7L,
+                rewalk = false,
+                listOf(sitem(3, library = extra)),
+                1,
+                1,
+                run = clock.nowMs,
+            )
             apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 1_000))
             // A row left with both (as an older build of this branch could write) is kept only by its hold.
             stampHeld(extra, 7L)
             assertEquals(7L, row(extra)?.addStamp)
             clock.stepMs(1_000)
 
-            repository.applySelectionKeepingAdds(ALICE, setOf(MOVIES), clock.nowMs)
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = clock.nowMs)
 
             assertNull("the hold ended, so it went: its stamp kept nothing", row(extra))
         }
@@ -391,7 +476,16 @@ class ApplySelectionTest {
         runBlocking {
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
             fill(MOVIES, 1)
-            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 2, run = clock.nowMs)
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 7L,
+                rewalk = false,
+                listOf(sitem(3, library = extra)),
+                1,
+                2,
+                run = clock.nowMs,
+            )
             apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 60_000))
             stampHeld(extra, 7L)
             assertEquals("the raw write took", 7L, row(extra)?.addStamp)
@@ -425,7 +519,16 @@ class ApplySelectionTest {
         runBlocking {
             val server = server(movies to films, extraLibrary to extras)
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 1L))
-            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 2, run = clock.nowMs)
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 1L,
+                rewalk = false,
+                listOf(sitem(3, library = extra)),
+                1,
+                2,
+                run = clock.nowMs,
+            )
             apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 60_000))
 
             val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
@@ -593,11 +696,13 @@ class ApplySelectionTest {
             // extra is being added and listed; gone is being added and not listed (the "pending but not listed" step).
             apply(setOf(MOVIES, extra, gone), addStamps = mapOf(extra to 1L, gone to 2L))
 
-            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES, extra, gone))
+            // The adds are never among the chosen (the selection keeps them apart); the library set keeps them.
+            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
 
             assertEquals(SyncOutcome.Completed, outcome)
             assertEquals(setOf(extra, gone), repository.pendingLibraries(ALICE))
-            assertEquals("the add was walked", 2, storedIn(extra).size)
+            // The first sync walks the chosen libraries only: an add is the add pass's, read under its stamp.
+            assertTrue("the first sync writes nothing to an add", storedIn(extra).isEmpty())
             assertTrue(row(MOVIES)!!.fetched)
         }
 

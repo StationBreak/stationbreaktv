@@ -36,12 +36,14 @@ import tv.stationbreak.app.nav.AppNavGraph
 import tv.stationbreak.app.nav.LibrariesRoute
 import tv.stationbreak.app.nav.ServerRoute
 import tv.stationbreak.app.nav.SignInRoute
+import tv.stationbreak.core.domain.AccountCache
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
@@ -85,7 +87,11 @@ class SignInNavigationTest {
     @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
 
+    // The selection's resume, as the app's start runs it: where this test's app starts, after its seeds (spec 26).
     @get:Rule(order = 1)
+    val selection = SelectionResumeRule(atStart = false)
+
+    @get:Rule(order = 2)
     val compose = createAndroidComposeRule<HiltTestActivity>()
 
     /**
@@ -108,11 +114,15 @@ class SignInNavigationTest {
         fun serverSettings(): ServerSettings = Scripted.settings
 
         @Provides
+        fun selectionStore(): SelectionStore = Scripted.settings
+
+        @Provides
         @Singleton
         fun sessions(
             store: SecretStore,
             server: MediaServer,
-        ): SessionRepository = SessionRepository(store, server)
+            library: AccountCache,
+        ): SessionRepository = SessionRepository(store, server, library)
 
         // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
         @Provides
@@ -153,6 +163,7 @@ class SignInNavigationTest {
     }
 
     private fun launchApp() {
+        selection.resume()
         // The graph from the server screen, as a first launch reaches it. LaunchNavigationTest covers launch routing.
         compose.setContent { StationBreakTheme { AppNavGraph(startDestination = ServerRoute) } }
         compose.waitForIdle()
@@ -304,6 +315,7 @@ class SignInNavigationTest {
         navController: NavHostController,
         startDestination: Any,
     ) {
+        selection.resume()
         compose.setContent {
             StationBreakTheme {
                 AppNavGraph(startDestination = startDestination, navController = navController)

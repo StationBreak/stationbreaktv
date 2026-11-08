@@ -7,6 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -84,9 +85,15 @@ import kotlin.time.Instant
  * after a wait that starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no
  * libraries are chosen ([libraries] gives null or none).
  *
- * The account is [LibraryRepository.activeAccount], the one the sync uses; [libraries] reads the user's chosen
- * libraries each time it is asked, so a changed choice is seen by the next trigger. Nothing in the settings announces
- * a changed choice, so it is not a trigger of its own: it waits for the next sync, pass or start.
+ * The account is [LibraryRepository.activeAccount], the one the sync uses; [libraries] reads the user's playable
+ * libraries each time it is asked, so a changed choice is seen by the next trigger.
+ *
+ * A saved change of the choice is a trigger of its own (spec 26 Part 4, D14): each value of [selectionChanges]
+ * refreshes if the lineup is behind, then runs [afterSync], held to a run's end while a sync writes, by the start
+ * check's rule (one check made then covers both), and judged after the refresh, so a run that began during it keeps
+ * the check for its end. [selectionChanges] is the selection's seq, a state: the seq as the account's follow began is
+ * no change, and a source listened to again (after a failure) gives the newest seq, so a change made meanwhile is
+ * still seen. One change waits at most: changes that arrive while one is handled make one more, never one each.
  */
 @Suppress("LongParameterList") // The ports it listens to and acts through, each with its own meaning.
 class LineupRefresher(
@@ -94,6 +101,7 @@ class LineupRefresher(
     private val library: LibraryRepository,
     private val libraries: suspend () -> Set<ItemId>?,
     private val sync: SyncActivity,
+    private val selectionChanges: StateFlow<Long>,
     private val initialBackoffMs: Long = INITIAL_BACKOFF_MS,
     private val afterSync: suspend (LibraryAccount) -> Unit = {},
     private val report: (LineupEvent) -> Unit,
@@ -157,16 +165,16 @@ class LineupRefresher(
                 .map { Trigger.SyncEnded }
         // A household change reached its boundary (said by the background roll): the lineup is behind then.
         val replans = service.replanRequests.filter { it == account }.map { Trigger.Replan }
+        // The selection's seq as this follow began counts as seen: only a later, different value is a change.
+        val owed = Owed(selectionChanges.value)
+        // A state: listened to again after a failure, it gives its newest value, so no change is lost (D14).
+        val selections = selectionChanges.map { Trigger.Selection }
         val backoff = Backoff(initialBackoffMs)
-        // A resubscription asks the start check again; the check after it is owed once for this account. When the first
-        // start meets a sync writing, it stays owed: the next trigger that finds no sync writing (a run's end, or the
-        // Start a resubscription sends after a run ended unseen) makes it, and clears it.
-        var startChecked = false
-        var startHookOwed = false
-        merge(start, passes, successes, runEnds, replans)
+        merge(start, passes, successes, runEnds, replans, selections)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
-            // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
-            .onEach { if (it != Trigger.Start && it != Trigger.StartCurrent) backoff.reset() }
+            // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale. Nor is
+            // Selection: every resubscription replays the seq.
+            .onEach { if (it !in REPLAYED) backoff.reset() }
             .retryWhen { cause, _ ->
                 // A trigger source that fails is reported and listened to again after a wait that doubles to a cap.
                 if (cause is CancellationException) {
@@ -181,14 +189,45 @@ class LineupRefresher(
             // never cancels the check in hand: that check runs on in the collector, and its triggers after it.
             .buffer()
             .collect { trigger ->
-                if ((trigger == Trigger.Start || trigger == Trigger.StartCurrent) && !startChecked) {
-                    startChecked = true
-                    startHookOwed = true
-                }
-                val owedNow = startHookOwed && !sync.writing().first()
-                if (owedNow) startHookOwed = false
-                act(account, trigger, afterStart = owedNow)
+                if (owed.take(trigger, selectionChanges.value)) act(account, trigger, owed)
             }
+    }
+
+    /**
+     * What one followed account owes: the check after the start check, and after a selection change. A resubscription
+     * asks the start check again; the check after it is owed once for this account. When the first start meets a sync
+     * writing, it stays owed: the next trigger that finds no sync writing (a run's end, or the Start a resubscription
+     * sends after a run ended unseen) makes it, and clears it. A selection change owes it by the same rule.
+     *
+     * A selection change is judged by the seq now, not by the value its trigger came with (D14): the first trigger
+     * that finds a seq other than [lastSeen] handles every change up to it, and the triggers queued behind it find the
+     * same seq and do nothing. So a burst is one more check, and older changes are dropped.
+     */
+    private class Owed(
+        private var lastSeen: Long,
+    ) {
+        private var startChecked = false
+        private var check = false
+
+        /** Whether [trigger] is acted on, given the selection's seq [now]; marks the check owed. */
+        fun take(
+            trigger: Trigger,
+            now: Long,
+        ): Boolean {
+            if (trigger == Trigger.Selection) {
+                if (now == lastSeen) return false
+                lastSeen = now
+                check = true
+            }
+            if ((trigger == Trigger.Start || trigger == Trigger.StartCurrent) && !startChecked) {
+                startChecked = true
+                check = true
+            }
+            return true
+        }
+
+        /** Whether the owed check is made now: only when no sync run is [writing]. Making it clears it. */
+        fun checkNow(writing: Boolean): Boolean = (check && !writing).also { if (it) check = false }
     }
 
     @Suppress("TooGenericExceptionCaught") // An unreadable start state just means: refresh.
@@ -231,14 +270,16 @@ class LineupRefresher(
     private suspend fun act(
         account: LibraryAccount,
         trigger: Trigger,
-        afterStart: Boolean,
+        owed: Owed,
     ) {
         // A run's own success or pass is held until it stops writing: its end is a trigger of its own, which
         // checks everything these would. A start is not: what it finds behind was there before this run.
         val ownWrite = trigger == Trigger.Success || trigger == Trigger.Pass
         if (ownWrite && sync.writing().first()) return
         if (trigger != Trigger.StartCurrent) refreshFor(account, trigger)
-        if (trigger == Trigger.SyncEnded || afterStart) runAfterSync(account)
+        // Asked after the refresh: a run that began during it keeps an owed check for its own end.
+        val owedNow = owed.checkNow(writing = sync.writing().first())
+        if (trigger == Trigger.SyncEnded || owedNow) runAfterSync(account)
     }
 
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
@@ -292,7 +333,7 @@ class LineupRefresher(
         pass: Instant?,
     ): Boolean =
         when (trigger) {
-            Trigger.Start, Trigger.StartCurrent, Trigger.Success, Trigger.Replan -> {
+            Trigger.Start, Trigger.StartCurrent, Trigger.Success, Trigger.Replan, Trigger.Selection -> {
                 behind(account, held, chosen)
             }
 
@@ -310,6 +351,9 @@ class LineupRefresher(
     internal companion object {
         /** The wait after the first trigger failure; each further one doubles it, up to [MAX_BACKOFF_MS]. */
         const val INITIAL_BACKOFF_MS = 1_000L
+
+        /** The triggers every resubscription can send again, so none of them shows a source is healthy. */
+        private val REPLAYED: Set<Trigger> = setOf(Trigger.Start, Trigger.StartCurrent, Trigger.Selection)
 
         /** The longest wait between listening again: five minutes. */
         const val MAX_BACKOFF_MS = 300_000L
@@ -356,5 +400,8 @@ class LineupRefresher(
         data object SyncEnded : Trigger
 
         data object Replan : Trigger
+
+        /** The selection's seq changed: refresh if behind, then the check after it (held while a run writes). */
+        data object Selection : Trigger
     }
 }

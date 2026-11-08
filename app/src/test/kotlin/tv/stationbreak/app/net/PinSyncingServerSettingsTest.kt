@@ -10,6 +10,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
@@ -18,8 +19,11 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.InMemoryServerSettings
+import tv.stationbreak.core.domain.Missing
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
-import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.StoredSelection
+import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
@@ -130,7 +134,7 @@ class PinSyncingServerSettingsTest {
     private class SlowSave(
         private val inner: InMemoryServerSettings,
         val gate: CompletableDeferred<Unit>,
-    ) : ServerSettings by inner {
+    ) : SelectionStore by inner {
         override suspend fun save(record: ServerRecord): Boolean {
             val written = inner.save(record)
             gate.await()
@@ -188,7 +192,7 @@ class PinSyncingServerSettingsTest {
         runBlocking {
             settings.save(ServerRecord(address, pin))
             val built = clients.current()
-            assertTrue(settings.saveLibraries(setOf(ItemId("movies"))))
+            assertTrue(settings.storeChoice(setOf(ItemId("movies"))))
             assertEquals(setOf(ItemId("movies")), settings.loadLibraries())
             assertEquals(setOf(ItemId("movies")), stored.currentLibraries)
             assertSame(built, clients.current())
@@ -198,7 +202,7 @@ class PinSyncingServerSettingsTest {
     fun clearingTheSelectionPassesThroughAndLeavesTheClientAlone() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveLibraries(setOf(ItemId("movies")))
+            settings.storeChoice(setOf(ItemId("movies")))
             val built = clients.current()
 
             assertTrue(settings.clearLibraries())
@@ -207,7 +211,67 @@ class PinSyncingServerSettingsTest {
             assertSame(built, clients.current())
         }
 
+    @Test
+    fun pinSyncing_forwardsSelection() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin))
+            val built = clients.current()
+            val selection =
+                StoredSelection(
+                    chosen = setOf(ItemId("movies")),
+                    seq = 3,
+                    adding = mapOf(ItemId("shows") to 3),
+                    missing = mapOf(ItemId("shows") to Missing(sinceMs = 10, sincePass = 1)),
+                    listings = 1,
+                    resetSeq = 1,
+                )
+            assertTrue(settings.saveSelection(selection))
+            assertEquals(selection, settings.loadSelection())
+            assertEquals(selection, stored.currentSelection)
+            assertEquals(setOf(ItemId("movies")), settings.loadPlayableLibraries())
+            assertEquals(3L, settings.loadSelectionSeq())
+            assertTrue(settings.saveSelection(selection.copy(seq = 4, gone = true)))
+            assertNull(settings.loadPlayableLibraries())
+            assertFalse(settings.saveSelection(selection.copy(seq = 2)))
+            assertSame(built, clients.current())
+        }
+
+    /** Holds the lock inside [save] until [gate] opens. */
+    private class StuckSave(
+        private val inner: InMemoryServerSettings,
+        val entered: CompletableDeferred<Unit>,
+        val gate: CompletableDeferred<Unit>,
+    ) : SelectionStore by inner {
+        override suspend fun save(record: ServerRecord): Boolean {
+            entered.complete(Unit)
+            gate.await()
+            return inner.save(record)
+        }
+    }
+
+    @Test
+    fun selectionReads_doNotWaitForTheLock() =
+        runBlocking {
+            stored.save(ServerRecord(address))
+            stored.saveSelection(StoredSelection(setOf(ItemId("movies")), seq = 1))
+            val entered = CompletableDeferred<Unit>()
+            val gate = CompletableDeferred<Unit>()
+            val stuck = PinSyncingServerSettings(StuckSave(stored, entered, gate), clients)
+            val saving = launch { stuck.save(ServerRecord(address, pin)) }
+            entered.await()
+            // A save holds the lock; the tune path's reads still answer.
+            withTimeout(READ_MS) {
+                assertEquals(setOf(ItemId("movies")), stuck.loadPlayableLibraries())
+                assertEquals(1L, stuck.loadSelection()?.seq)
+                assertEquals(setOf(ItemId("movies")), stuck.loadLibraries())
+                assertEquals(1L, stuck.loadSelectionSeq())
+            }
+            gate.complete(Unit)
+            saving.join()
+        }
+
     private companion object {
+        const val READ_MS = 2_000L
         const val RACE_ROUNDS = 200
         const val RACE_CALLS = 8
     }

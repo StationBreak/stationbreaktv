@@ -13,6 +13,7 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SecretStore
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.LibrarySetup
 import javax.inject.Inject
 
 private const val TAG = "SBPLAY"
@@ -38,6 +39,8 @@ class BenchSetupActivity : ComponentActivity() {
 
     @Inject lateinit var secrets: SecretStore
 
+    @Inject lateinit var librarySetup: LibrarySetup
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Exported, so any app can start it: with debugging off, nothing started it by adb, and it does nothing.
@@ -47,7 +50,7 @@ class BenchSetupActivity : ComponentActivity() {
             return finish()
         }
         val args = parseArgs() ?: return finish()
-        val setup = BenchSetup(server, sessions, settings, secrets, emit = { Log.i(TAG, it) })
+        val setup = BenchSetup(server, sessions, settings, librarySetup, secrets, emit = { Log.i(TAG, it) })
         lifecycleScope.launch {
             try {
                 when (args) {

@@ -35,8 +35,9 @@ internal data class PassSummary(
 }
 
 /**
- * What a reconciliation did: items tombstoned, tombstones cleared, and items the cache lacked that were fetched; and,
- * for the series pass, series tombstoned and revived.
+ * What a reconciliation did: items tombstoned, tombstones cleared (another library's taken over included), and items
+ * the cache lacked that were fetched; for the series pass, series tombstoned and revived; and items [moved] to a
+ * library that still lists them instead of being tombstoned (spec 26, schema 11).
  */
 internal data class ReconcileSummary(
     val tombstoned: Int = 0,
@@ -44,6 +45,7 @@ internal data class ReconcileSummary(
     val fetched: Int = 0,
     val seriesTombstoned: Int = 0,
     val seriesRevived: Int = 0,
+    val moved: Int = 0,
 ) {
     operator fun plus(other: ReconcileSummary) =
         ReconcileSummary(
@@ -52,6 +54,7 @@ internal data class ReconcileSummary(
             fetched + other.fetched,
             seriesTombstoned + other.seriesTombstoned,
             seriesRevived + other.seriesRevived,
+            moved + other.moved,
         )
 }
 
@@ -224,8 +227,8 @@ internal class StayCurrentEngine(
     private val server: MediaServer,
     private val clock: Clock,
     private val pageSize: Int = MediaServer.MAX_PAGE_SIZE,
-    private val margin: Duration = FirstSyncEngine.DEFAULT_MARGIN,
-    private val maxSkippedItems: Int = FirstSyncEngine.MAX_SKIPPED_ITEMS,
+    private val margin: Duration = LibraryPass.DEFAULT_MARGIN,
+    private val maxSkippedItems: Int = LibraryPass.MAX_SKIPPED_ITEMS,
     private val unfindable: UnfindableIds = UnfindableIds(),
     private val report: (String) -> Unit = {},
     private val hiddenMemory: HiddenSeriesMemory = HiddenSeriesMemory(),
@@ -336,6 +339,30 @@ internal class StayCurrentEngine(
         private var passed = PassSummary()
         private var reconciled = ReconcileSummary()
 
+        // Set when a library row refused one of this pass's writes (spec 26, schema 11): a library dropped, held or
+        // stamped since the pass read the choice. Nothing was written; the pass stops as Cancelled, with no failure
+        // recorded and neither the recorded moment nor any flag moved, so the next run tries again (MED-8).
+        private var refused = false
+
+        // What a write did, or null when the library row refused it (and the pass is then stopping).
+        private fun accepted(result: PageResult): PageResult.Written? {
+            if (result is PageResult.Written) return result
+            refused = true
+            return null
+        }
+
+        // The chosen libraries this pass walks: a library marked for a rewalk is left to the rewalk (spec 26, §4 step
+        // 4), read from the stored rows at the start of the pass.
+        private suspend fun unmarked(chosen: Set<ItemId>): Set<ItemId> {
+            val marked =
+                repository
+                    .storedLibraries(account)
+                    .filter { it.rewalkPending }
+                    .map { it.id }
+                    .toSet()
+            return chosen - marked
+        }
+
         // The item and series IDs the listed libraries' complete lists held in this pass.
         private val listedItems = HashSet<ItemId>()
         private val listedSeries = HashSet<ItemId>()
@@ -348,18 +375,25 @@ internal class StayCurrentEngine(
             last: Instant,
             started: Instant,
         ): StayResult<PassSummary> {
+            val walking = unmarked(chosen)
+            // Each library's own coverage (a hold placed, an add or a rewalk that landed), read before the server.
+            val coverage = repository.coveredFrom(account)
             val libraries =
                 when (val listed = server.libraries(session)) {
-                    is ServerResult.Success -> listed.value.filter { it.id in chosen }
+                    is ServerResult.Success -> listed.value.filter { it.id in walking }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), passed)
                 }
             // A last success ahead of now means the clock went back: count from the older of the two.
-            val since = minOf(last, started) - margin
+            val accountSince = minOf(last, started) - margin
             for (library in libraries) {
+                // A library covered from earlier than the account's window reads from there (schema 11).
+                val covered = coverage[library.id]?.let { Instant.fromEpochMilliseconds(it) - margin }
+                val since = if (covered == null) accountSince else minOf(accountSince, covered)
                 val failed =
                     walk(library, since) { items ->
-                        passed += repository.upsertItems(account, library.id, items)
-                        true
+                        val written = repository.upsertItems(account, library.id, stamp = null, rewalk = false, items)
+                        accepted(written)?.let { passed += it.items }
+                        !refused
                     }
                 if (failed != null) return StayResult(failed, passed)
                 // The series follow the library's items, from the same cursor; a failed page fails the pass.
@@ -370,37 +404,44 @@ internal class StayCurrentEngine(
                 if (hiddenFailed != null) return StayResult(hiddenFailed, passed)
             }
             currentCoroutineContext().ensureActive()
-            // A first sync that started meanwhile owns the account: this pass stops rather than race it.
-            val finished = repository.finishIncremental(account, started)
+            // A first sync that started meanwhile owns the account: this pass stops rather than race it. The coverage
+            // of each library walked is cleared with the recorded moment, if it is still what was read above.
+            val walked = libraries.map { it.id }.toSet()
+            val finished = repository.finishIncremental(account, started, coverage.filterKeys { it in walked })
             return StayResult(if (finished) SyncOutcome.Completed else SyncOutcome.Cancelled, passed)
         }
 
         suspend fun backfill(chosen: Set<ItemId>): StayResult<PassSummary> {
+            val walking = unmarked(chosen)
             val libraries =
                 when (val listed = server.libraries(session)) {
-                    is ServerResult.Success -> listed.value.filter { it.id in chosen }
+                    is ServerResult.Success -> listed.value.filter { it.id in walking }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), counted())
                 }
             for (library in libraries) {
                 val failed =
                     walk(library, since = null) { items ->
-                        passed += repository.upsertItems(account, library.id, items)
-                        true
+                        val written = repository.upsertItems(account, library.id, stamp = null, rewalk = false, items)
+                        accepted(written)?.let { passed += it.items }
+                        !refused
                     }
                 if (failed != null) return StayResult(failed, counted())
                 val seriesFailed = walkSeries(library, since = null)
                 if (seriesFailed != null) return StayResult(seriesFailed, counted())
             }
             currentCoroutineContext().ensureActive()
-            // The flag clears only if every chosen library was walked; one the server did not list keeps it set.
-            val allWalked = chosen.all { id -> libraries.any { it.id == id } }
+            // The flag clears only if every chosen library is covered: walked here, or marked for a rewalk, which reads
+            // it from the start with its studios (spec 26, Task 4.4b). One the server did not list keeps it set.
+            val allWalked = walking.all { id -> libraries.any { it.id == id } }
             val finished = repository.finishBackfill(account, allWalked)
             return StayResult(if (finished) SyncOutcome.Completed else SyncOutcome.Cancelled, counted())
         }
 
         private fun counted() = passed.copy(skipped = skipped)
 
-        suspend fun reconcile(chosen: Set<ItemId>): StayResult<ReconcileSummary> {
+        suspend fun reconcile(everyChosen: Set<ItemId>): StayResult<ReconcileSummary> {
+            // A marked library is neither reconciled nor taken for removed: the rewalk reads it from the start.
+            val chosen = unmarked(everyChosen)
             val libraries =
                 when (val listed = server.libraries(session)) {
                     is ServerResult.Success -> listed.value.filter { it.id in chosen }
@@ -458,11 +499,15 @@ internal class StayCurrentEngine(
                     is Existing.Failed -> return read.outcome
                     is Existing.Sound -> read.ids
                 }
-            val gone = missing.filterKeys { it !in again }.values
-            val items = gone.flatMap { it.first }
-            val series = gone.flatMap { it.second }
-            repository.applyReconcile(account, items, emptySet(), series, emptySet())
-            reconciled += ReconcileSummary(tombstoned = items.size, seriesTombstoned = series.size)
+            val gone = missing.filterKeys { it !in again }
+            val series = gone.values.flatMap { it.second }
+            val write = repository.applyRemoved(account, gone.mapValues { it.value.first }, series)
+            if (write !is ReconcileApplied.Written) {
+                refused = true
+                return SyncOutcome.Cancelled
+            }
+            // What the write tombstoned: an item another pass got to first is not counted.
+            reconciled += ReconcileSummary(tombstoned = write.tombstoned, seriesTombstoned = series.size)
             return null
         }
 
@@ -481,17 +526,23 @@ internal class StayCurrentEngine(
                 }
             }
 
+        // One library's items, then its series, each guarded; the early returns are the guards' stops.
+        @Suppress("CyclomaticComplexMethod")
         private suspend fun reconcile(
             library: Library,
             reconciling: List<Library>,
         ): SyncOutcome? {
             // The cache first, then the server: whatever another pass saves while the list is read is not "gone".
+            // [also] are the items the library lists and another owns (spec 26, schema 11): they are held like its own
+            // for the guards, so a row goes only when both reads lack the item.
             val live = repository.liveItemIds(account, library.id).toSet()
             val tombstoned = repository.tombstonedItemIds(account, library.id).toSet()
+            val also = repository.alsoListedIds(account, library.id).toSet()
             val known = repository.allItemIds(account).toSet()
             val itemIds: IdLister = { start, count -> server.libraryItemIds(session, library, start, count) }
+            val held = live + also
             val items =
-                when (val decided = decide(live, tombstoned, itemIds)) {
+                when (val decided = decide(held, tombstoned, itemIds, suspectLive = held)) {
                     is Decision.Stop -> return decided.outcome
                     is Decision.Ready -> decided
                 }
@@ -514,6 +565,8 @@ internal class StayCurrentEngine(
             // that could not be asked about is kept as well, so a failed read tombstones nothing.
             val ready = series as? Decision.Ready
             val hidden = ready?.let { confirmHidden(library, reconciling, it.list.ids) } ?: HiddenSeries.NONE
+            // The library row refused the found series: the library changed under the pass, which writes nothing more.
+            if (refused) return SyncOutcome.Cancelled
             ready?.let {
                 listedSeries += it.list.ids + hidden.kept
                 if (!it.list.trusted) untrusted = true
@@ -524,14 +577,8 @@ internal class StayCurrentEngine(
             val seriesGone = goneSeries(ready, hidden, emptyList)
             val seriesReturning = ready?.returning.orEmpty()
             // One transaction for both (the item reconcile and the series reconcile).
-            repository.applyReconcile(account, items.gone, items.returning, seriesGone, seriesReturning)
-            reconciled +=
-                ReconcileSummary(
-                    tombstoned = items.gone.size,
-                    revived = items.returning.size,
-                    seriesTombstoned = seriesGone.size,
-                    seriesRevived = seriesReturning.size,
-                )
+            val owned = OwnedSets(live, also, known)
+            if (!writeDecisions(library, items, owned, seriesGone, seriesReturning)) return SyncOutcome.Cancelled
             // The item fetch runs whatever became of the series read (Granny M1), then the series' own recovery.
             val itemsFailed = fetchMissing(library, items.list, items.list.ids - known)
             if (itemsFailed != null) return itemsFailed
@@ -541,6 +588,54 @@ internal class StayCurrentEngine(
             if (emptyList && (seriesLive - referenced).isNotEmpty()) return suspect()
             val seriesKnown = repository.allSeriesIds(account).toSet()
             return fetchMissingSeries(library, (series as Decision.Ready).list.ids - seriesKnown)
+        }
+
+        // What the reconcile read of the cache before the server: the library's [live] items, the ones it lists that
+        // another owns ([also]), and every item the account holds ([known]).
+        private inner class OwnedSets(
+            val live: Set<ItemId>,
+            val also: Set<ItemId>,
+            val known: Set<ItemId>,
+        )
+
+        // Writes one library's decisions with its also-listed rows (spec 26, schema 11): the items it owns that are
+        // gone, the rows of the others it lists no more, and a row for each listed item another library holds (a
+        // tombstone of which it takes over). False, with nothing written, when the library row refused it: the
+        // library changed under the pass, which writes nothing more.
+        private suspend fun writeDecisions(
+            library: Library,
+            items: Decision.Ready,
+            owned: OwnedSets,
+            seriesGone: Set<ItemId>,
+            seriesReturning: Set<ItemId>,
+        ): Boolean {
+            val itemsGone = items.gone intersect owned.live
+            val alsoAdd = (items.list.ids intersect owned.known) - owned.live - owned.also
+            val write =
+                repository.applyReconcile(
+                    account,
+                    library.id,
+                    itemsGone,
+                    items.returning,
+                    seriesGone,
+                    seriesReturning,
+                    alsoAdd = alsoAdd,
+                    alsoDrop = items.gone intersect owned.also,
+                )
+            val written = write as? ReconcileApplied.Written
+            if (written == null) {
+                refused = true
+                return false
+            }
+            reconciled +=
+                ReconcileSummary(
+                    tombstoned = written.tombstoned,
+                    revived = written.revived + written.takenOver,
+                    seriesTombstoned = seriesGone.size,
+                    seriesRevived = seriesReturning.size,
+                    moved = written.moved,
+                )
+            return true
         }
 
         private suspend fun confirmHidden(
@@ -558,8 +653,11 @@ internal class StayCurrentEngine(
                     candidates,
                     hiddenMemory,
                     confirmAbsent = true,
+                    stamp = null,
+                    rewalk = false,
                 )
             if (read.asked > 0) report(read.line())
+            read.refused?.let { accepted(it) }
             return HiddenSeries(read.keep(candidates), read.absent, read.failure)
         }
 
@@ -577,8 +675,12 @@ internal class StayCurrentEngine(
                     missing,
                     hiddenMemory,
                     confirmAbsent = false,
+                    stamp = null,
+                    rewalk = false,
                 )
             if (read.asked > 0) report(read.line())
+            read.refused?.let { accepted(it) }
+            if (refused) return SyncOutcome.Cancelled
             return read.failure?.let { fail(it) }
         }
 
@@ -663,12 +765,14 @@ internal class StayCurrentEngine(
                 ) { items ->
                     val found = items.filter { it.id in wanted }
                     if (found.isNotEmpty()) {
-                        repository.upsertItems(account, library.id, found)
+                        val written = repository.upsertItems(account, library.id, stamp = null, rewalk = false, found)
+                        if (accepted(written) == null) return@walk false
                         wanted -= found.map { it.id }.toSet()
                         reconciled += ReconcileSummary(fetched = found.size)
                     }
                     wanted.isNotEmpty()
                 }
+            // A refused write ends the walk as Cancelled, so nothing is given up on.
             if (failed == null) unfindable.remember(account, library.id, list.fingerprint, wanted + given)
             return failed
         }
@@ -703,7 +807,8 @@ internal class StayCurrentEngine(
                         run.page(fetched.totalCount)
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
-                        if (!onPage(fetched.items)) return null
+                        // A page the library row refused ends the walk, and the pass, as Cancelled.
+                        if (!onPage(fetched.items)) return if (refused) SyncOutcome.Cancelled else null
                     }
                 }
             }
@@ -737,7 +842,9 @@ internal class StayCurrentEngine(
                         next += fetched.items.size
                         val found = fetched.items.filter { it.id in wanted }
                         if (found.isNotEmpty()) {
-                            repository.upsertSeries(account, library.id, found)
+                            val written =
+                                repository.upsertSeries(account, library.id, stamp = null, rewalk = false, found)
+                            if (accepted(written) == null) return SyncOutcome.Cancelled
                             wanted -= found.map { it.id }.toSet()
                         }
                     }
@@ -769,7 +876,9 @@ internal class StayCurrentEngine(
                         run.page(fetched.totalCount)
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
-                        repository.upsertSeries(account, library.id, fetched.items)
+                        val written =
+                            repository.upsertSeries(account, library.id, stamp = null, rewalk = false, fetched.items)
+                        if (accepted(written) == null) return SyncOutcome.Cancelled
                     }
                 }
             }

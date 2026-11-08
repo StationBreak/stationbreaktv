@@ -2,6 +2,7 @@
 package tv.stationbreak.data.library
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -100,6 +101,16 @@ internal class SignalRow(
     override fun toString(): String = "SignalRow(itemId=$itemId, kind=$kind)"
 }
 
+/**
+ * What [LibraryDao.applySelectionRows] left to do (spec 26): the libraries to delete ([deleted], not yet deleted), the
+ * ones that stay ([staying], kept or held), and the coverage each deleted one had ([coveredFrom], none left out).
+ */
+internal class SelectionChange(
+    val deleted: List<String>,
+    val staying: List<String>,
+    val coveredFrom: Map<String, Long>,
+)
+
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
 internal data class PageWrite(
     val inserted: Int,
@@ -115,6 +126,18 @@ internal data class StatusRow(
     val lastSuccessMs: Long?,
     val copied: Int,
 )
+
+/** How [LibraryDao.finishRewalk] ended (spec 26, schema 11). */
+internal enum class RewalkFinish {
+    /** The marked library is fetched, its mark cleared and its coverage written. */
+    Finished,
+
+    /** Nothing changed: the library has no mark (or no row, a stamp or a hold). */
+    NotMarked,
+
+    /** Nothing changed: the account is running a first sync, which takes the library over. */
+    FirstSyncRunning,
+}
 
 /** The account a sync belongs to is no longer the signed-in one: nothing it was about to write may be kept. */
 internal class AccountNotActiveException : IllegalStateException("The account is not signed in any more")
@@ -162,12 +185,12 @@ internal abstract class LibraryDao {
         userId: String,
     ): List<LibraryEntity>
 
-    // The libraries being added (spec 26): what is written to them moves no content generation.
-    @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND addStamp IS NOT NULL")
-    abstract suspend fun addingLibraryIds(
+    @Query("SELECT * FROM library WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId")
+    abstract suspend fun libraryRow(
         serverId: String,
         userId: String,
-    ): List<String>
+        libraryId: String,
+    ): LibraryEntity?
 
     @Update
     protected abstract suspend fun updateLibraries(rows: List<LibraryEntity>)
@@ -211,28 +234,98 @@ internal abstract class LibraryDao {
         ids: List<String>,
     )
 
-    // A library being added is never landed here (spec 26): only a row with no add stamp is marked fetched. Nor is a
-    // held one (an untick of a partly walked add): its walk did not end, so it stays pending.
+    // The library-row lifecycle (spec 26, schema 11). Each UPDATE is its write's compare-and-set: the WHERE clause that
+    // has to match for the write to happen. None touches a library being added (a stamp) or held, unless it says so.
+
+    // A walk of [libraryId] with no stamp ended (the first sync's walk end): fetched, and a rewalk mark goes with it.
     @Query(
-        "UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
-            "AND addStamp IS NULL AND heldUntilMs IS NULL",
+        "UPDATE library SET fetched = 1, rewalkPending = 0 WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId AND addStamp IS NULL AND heldUntilMs IS NULL",
     )
-    protected abstract suspend fun setFetched(
+    protected abstract suspend fun setWalked(
         serverId: String,
         userId: String,
         libraryId: String,
     )
 
-    // An add lands (spec 26): its stamp is cleared and it is fetched, only while it still has [stamp]. The row count.
+    // A chosen library the server no longer lists has nothing to fetch; one marked for a rewalk keeps its mark and
+    // stays pending, because only a walk's end clears the mark (Amendment 4).
     @Query(
-        "UPDATE library SET addStamp = NULL, fetched = 1 WHERE serverId = :serverId AND userId = :userId " +
-            "AND libraryId = :libraryId AND addStamp = :stamp AND heldUntilMs IS NULL",
+        "UPDATE library SET fetched = 1 WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
+            "AND addStamp IS NULL AND heldUntilMs IS NULL AND rewalkPending = 0",
+    )
+    protected abstract suspend fun setUnlisted(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    )
+
+    // The rewalk of a marked library ended at the walk's [runMs]: fetched, unmarked, and covered from that run.
+    @Query(
+        "UPDATE library SET fetched = 1, rewalkPending = 0, coveredFromMs = :runMs WHERE serverId = :serverId " +
+            "AND userId = :userId AND libraryId = :libraryId AND addStamp IS NULL AND heldUntilMs IS NULL " +
+            "AND rewalkPending = 1",
+    )
+    protected abstract suspend fun setRewalked(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        runMs: Long,
+    ): Int
+
+    // The add walk under [stamp] ended at [runMs]: the proof, and where the library's next incremental reads from.
+    @Query(
+        "UPDATE library SET walkedStamp = :stamp, coveredFromMs = :runMs WHERE serverId = :serverId " +
+            "AND userId = :userId AND libraryId = :libraryId AND addStamp = :stamp AND heldUntilMs IS NULL",
+    )
+    protected abstract suspend fun setWalkProof(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+        runMs: Long,
+    ): Int
+
+    // An add lands (spec 26): only while it still has [stamp] and the proof that its walk under it ended. Its stamp and
+    // proof are cleared, it is fetched, and a rewalk mark (there can be none with a stamp) is cleared. The row count.
+    @Query(
+        "UPDATE library SET addStamp = NULL, walkedStamp = NULL, fetched = 1, rewalkPending = 0 " +
+            "WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId AND addStamp = :stamp " +
+            "AND walkedStamp = :stamp AND heldUntilMs IS NULL",
     )
     protected abstract suspend fun clearStamp(
         serverId: String,
         userId: String,
         libraryId: String,
         stamp: Long,
+    ): Int
+
+    // An add under [stamp] whose walk was never proven goes back to plain pending, marked for a rewalk. The row count.
+    @Query(
+        "UPDATE library SET addStamp = NULL, walkedStamp = NULL, fetched = 0, rewalkPending = 1 " +
+            "WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId AND addStamp = :stamp " +
+            "AND walkedStamp IS NOT :stamp AND heldUntilMs IS NULL",
+    )
+    protected abstract suspend fun revertStamp(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+    ): Int
+
+    // The incremental pass covered [libraryId]: its coverage goes, only while it is still [expectedMs] (the value read
+    // at the pass's start) and the library is not held, so a landing or a hold during the pass keeps the coverage.
+    // A hold placed on a library whose coverage is already older than now leaves the value unchanged, so the hold
+    // check is what keeps it (data review MED-1).
+    @Query(
+        "UPDATE library SET coveredFromMs = NULL WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId AND coveredFromMs = :expectedMs AND heldUntilMs IS NULL",
+    )
+    protected abstract suspend fun clearCoveredFrom(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        expectedMs: Long,
     ): Int
 
     @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND fetched = 0")
@@ -474,6 +567,139 @@ internal abstract class LibraryDao {
         serverId: String,
         userId: String,
         cutoffMs: Long,
+    ): Int
+
+    // The also-listed rows (spec 26, schema 11): the libraries that list an item they do not own.
+
+    // Every also-listed row of the account, for the tests and diagnostics.
+    @Query("SELECT * FROM item_also_listed WHERE serverId = :serverId AND userId = :userId ORDER BY itemId, libraryId")
+    abstract suspend fun allAlsoListed(
+        serverId: String,
+        userId: String,
+    ): List<ItemAlsoListedEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertAlsoListed(rows: List<ItemAlsoListedEntity>)
+
+    // The rows (by primary key) go: an item moved into the library that listed it.
+    @Delete
+    abstract suspend fun deleteAlsoListed(rows: List<ItemAlsoListedEntity>)
+
+    // [libraryId] no longer lists [ids] (at most MAX_VARIABLES of them), or now owns them.
+    @Query(
+        "DELETE FROM item_also_listed WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
+            "AND itemId IN (:ids)",
+    )
+    abstract suspend fun deleteAlsoListedIn(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    )
+
+    // D8: whether an episode of a library that is not being added ([adding]) names one of the series [spellings]
+    // (every stored spelling of each, at most MAX_VARIABLES binds in all). Tombstoned episodes count: it errs on the
+    // side of a bump. Through the (serverId, userId, seriesId) index.
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND seriesId IN (:spellings) AND libraryId NOT IN (:adding))",
+    )
+    abstract suspend fun seriesNamedOutside(
+        serverId: String,
+        userId: String,
+        spellings: List<String>,
+        adding: List<String>,
+    ): Boolean
+
+    // The also-listed rows of the items that [owners] (at most MAX_VARIABLES of them) own, with each lister's class:
+    // where those items go when their owner is deleted. Through the item's library index, then the primary keys.
+    @Query(
+        "SELECT a.itemId AS itemId, a.libraryId AS libraryId, l.addStamp AS addStamp, " +
+            "l.heldUntilMs AS heldUntilMs FROM item_also_listed a JOIN item i ON i.serverId = a.serverId " +
+            "AND i.userId = a.userId AND i.itemId = a.itemId JOIN library l ON l.serverId = a.serverId " +
+            "AND l.userId = a.userId AND l.libraryId = a.libraryId WHERE a.serverId = :serverId " +
+            "AND a.userId = :userId AND i.libraryId IN (:owners)",
+    )
+    abstract suspend fun listersOfOwned(
+        serverId: String,
+        userId: String,
+        owners: List<String>,
+    ): List<AlsoLister>
+
+    // The also-listed rows of [ids] (at most MAX_VARIABLES of them), with each lister's class.
+    @Query(
+        "SELECT a.itemId AS itemId, a.libraryId AS libraryId, l.addStamp AS addStamp, " +
+            "l.heldUntilMs AS heldUntilMs FROM item_also_listed a JOIN library l ON l.serverId = a.serverId " +
+            "AND l.userId = a.userId AND l.libraryId = a.libraryId WHERE a.serverId = :serverId " +
+            "AND a.userId = :userId AND a.itemId IN (:ids)",
+    )
+    abstract suspend fun listersOf(
+        serverId: String,
+        userId: String,
+        ids: List<String>,
+    ): List<AlsoLister>
+
+    // An item moved into [libraryId] from a library covered from [fromMs]: its coverage becomes the earlier of the two.
+    @Query(
+        "UPDATE library SET coveredFromMs = :fromMs WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId AND (coveredFromMs IS NULL OR coveredFromMs > :fromMs)",
+    )
+    abstract suspend fun lowerCoveredFrom(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        fromMs: Long,
+    )
+
+    // The items [libraryId] lists without owning them, in order: the reconcile's "also" set.
+    @Query(
+        "SELECT itemId FROM item_also_listed WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId ORDER BY itemId",
+    )
+    abstract suspend fun alsoListedIds(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ): List<String>
+
+    // The reconcile's add half: [libraryId] lists [ids] (at most MAX_VARIABLES - 2 of them). A row goes in only for an
+    // item another library owns, checked here, in the write, so no row ever names its owner.
+    @Query(
+        "INSERT OR IGNORE INTO item_also_listed (serverId, userId, itemId, libraryId) " +
+            "SELECT serverId, userId, itemId, :libraryId FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND itemId IN (:ids) AND libraryId <> :libraryId",
+    )
+    abstract suspend fun addAlsoListed(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    )
+
+    // The tombstones among [ids] (at most MAX_VARIABLES - 2 of them) that a library other than [libraryId] owns.
+    @Query(
+        "SELECT * FROM item WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids) " +
+            "AND deletedAtMs IS NOT NULL AND libraryId <> :libraryId",
+    )
+    abstract suspend fun foreignTombstones(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    ): List<ItemEntity>
+
+    // Tombstones the live items among [ids] (at most MAX_VARIABLES - 2 of them) that [libraryId] still owns: an item
+    // that moved meanwhile is left alone (LOW-16). The rows it tombstoned.
+    @Query(
+        "UPDATE item SET deletedAtMs = :atMs WHERE serverId = :serverId AND userId = :userId " +
+            "AND itemId IN (:ids) AND libraryId = :libraryId AND deletedAtMs IS NULL",
+    )
+    abstract suspend fun tombstoneOwned(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+        atMs: Long,
     ): Int
 
     // Genres, tags and studios.
@@ -724,6 +950,21 @@ internal abstract class LibraryDao {
     @Query("SELECT COUNT(*) FROM item_genre")
     abstract suspend fun countGenres(): Int
 
+    // INV-1 (spec 26, schema 11): also-listed rows that name the item's owner. Always 0.
+    @Query(
+        "SELECT COUNT(*) FROM item_also_listed a JOIN item i ON i.serverId = a.serverId AND i.userId = a.userId " +
+            "AND i.itemId = a.itemId WHERE a.libraryId = i.libraryId",
+    )
+    abstract suspend fun countOwnerListed(): Int
+
+    // INV-2: also-listed rows without their item or their library (the foreign keys forbid them). Always 0.
+    @Query(
+        "SELECT COUNT(*) FROM item_also_listed a WHERE NOT EXISTS (SELECT 1 FROM item i WHERE i.serverId = " +
+            "a.serverId AND i.userId = a.userId AND i.itemId = a.itemId) OR NOT EXISTS (SELECT 1 FROM library l " +
+            "WHERE l.serverId = a.serverId AND l.userId = a.userId AND l.libraryId = a.libraryId)",
+    )
+    abstract suspend fun countOrphanListed(): Int
+
     @Query("SELECT COUNT(*) FROM item_tag")
     abstract suspend fun countTags(): Int
 
@@ -744,7 +985,11 @@ internal abstract class LibraryDao {
     // commits whole or rolls back whole.
 
     /**
-     * The one writer of the account's library set (spec 26). Every library in [keep] is kept with no hold: a new one
+     * The library rows of the one writer of the account's library set (spec 26; CacheTransactionDao.applySelection is
+     * that writer, which moves the shared items and deletes [SelectionChange.deleted] after this). Only
+     * CacheTransactionDao.applySelection may call it: on its own it deletes nothing, so a library it drops would stay
+     * stored with its rows. It is not `protected` only because that transaction lives in another DAO. Every library in
+     * [keep] is kept with no hold: a new one
      * is inserted pending, with its stamp from [addStamps] if it has one. A kept library given a stamp it did not have
      * (a new add, or the re-tick of a held or earlier library) is set pending and its checkpoint deleted, so the sync
      * walks it again from the start; one not named in [addStamps] keeps the stamp it has. Any other library is kept
@@ -755,51 +1000,47 @@ internal abstract class LibraryDao {
      * The content generation moves once, and only when a library's rows are deleted: an unticked library, a hold that
      * expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or be a held
      * library's, re-ticked). A tick, a hold set or cleared, and an add dropped before it holds a row move nothing: none
-     * of them changes what a day is built from. With [keepAdding], every library
-     * stored with a stamp and no hold also counts as in [keep], read inside this transaction (the first sync does not
-     * know the adds); a held row is kept by its hold alone. A library that is held (here, or from before) loses its
-     * stamp: a held library is never one being added. An account that is not signed in gets no rows back.
+     * of them changes what a day is built from. A held row is kept by its hold alone, never by a stamp it may still
+     * carry. A library that is held (here, or from before) loses its
+     * stamp, its walk's proof and its rewalk mark: a held library is never one being added. A hold for a library
+     * already held keeps the later of the two; a hold placed now sets the library's coverage to the earlier of the one
+     * it has and [nowMs]. A kept library given a new stamp loses its proof and its mark; any other kept library keeps
+     * its proof, mark and coverage. An account that is not signed in gets no rows back, and null.
      *
      * A new stamp may go only to a library that is new, held or already being added, never to a chosen library that
-     * has landed: that throws [IllegalArgumentException] and writes nothing. Before a library's rows are deleted, each
-     * series row of it that a live episode of a library that stays (kept or held) still names moves to that library
-     * (the smallest such ID), so a series listed in two libraries outlives the one that wrote it last; the move alone
-     * bumps nothing. [holdClockGuardMs] is the purge's forward-jump guard: when [nowMs] is more than that after the
-     * account's last successful sync, the clock looks wrong and no hold expires in this call (its rows and its hold are
-     * kept). Null (tests) means no guard.
+     * has landed: that throws [IllegalArgumentException] and writes nothing. The libraries to delete are returned,
+     * not deleted: [deleteLeavers] does that. [holdClockGuardMs] is the purge's forward-jump guard: when [nowMs] is
+     * more than that after the account's last successful sync, the clock looks wrong and no hold expires in this call
+     * (its rows and its hold are kept). Null (tests) means no guard.
      */
     @Transaction
     @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its stamps and holds, and the clock.
-    open suspend fun applySelection(
+    open suspend fun applySelectionRows(
         serverId: String,
         userId: String,
         keep: Set<String>,
         addStamps: Map<String, Long>,
         holds: Map<String, Long>,
         nowMs: Long,
-        keepAdding: Boolean = false,
         holdClockGuardMs: Long? = null,
-    ) {
+    ): SelectionChange? {
         // An account that is not signed in (it signed out while the sync ran) gets no rows back.
-        if (activeCount(serverId, userId) == 0) return
+        if (activeCount(serverId, userId) == 0) return null
         val stored = libraries(serverId, userId)
         val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
         // A clock far ahead of the last success (as the purge's guard reads it) expires no hold (Vimes, spec 26).
         val holdsFrozen = holdClockGuardMs != null && lastSuccessMs != null && nowMs - lastSuccessMs > holdClockGuardMs
-        // A held row is kept by its hold alone, never by a stamp it may still carry.
-        val adding = stored.filter { it.addStamp != null && it.heldUntilMs == null }.map { it.libraryId }
-        val kept = if (keepAdding) keep + adding else keep
         val byId = stored.associateBy { it.libraryId }
         val toUpdate = mutableListOf<LibraryEntity>()
         val toDelete = mutableListOf<String>()
         val rewalk = mutableListOf<String>()
         var bump = false
         for (row in stored) {
-            if (row.libraryId in kept) continue
-            val until = holds[row.libraryId] ?: row.heldUntilMs
+            if (row.libraryId in keep) continue
+            // A hold for a library already held keeps the later of the two (D5).
+            val until = maxOfNullable(holds[row.libraryId], row.heldUntilMs)
             if (until != null && (until > nowMs || holdsFrozen)) {
-                // A held library is never one being added: its stamp goes, so it can never land.
-                val next = row.copy(heldUntilMs = until, addStamp = null)
+                val next = heldRow(row, until, nowMs)
                 if (next != row) toUpdate += next
             } else {
                 toDelete += row.libraryId
@@ -810,7 +1051,7 @@ internal abstract class LibraryDao {
             }
         }
         val toInsert = mutableListOf<LibraryEntity>()
-        for (id in kept) {
+        for (id in keep) {
             val row = byId[id]
             val stamp = addStamps[id]
             if (row == null) {
@@ -822,23 +1063,61 @@ internal abstract class LibraryDao {
                 "A new add stamp goes only to a library that is new, held or being added"
             }
             if (newStamp) rewalk += id
+            // A new stamp is a new walk: the proof of an earlier one and a rewalk mark go. Otherwise both stay, and so
+            // does the coverage (a held row re-ticked keeps the one its hold set).
             val next =
                 row.copy(
                     fetched = row.fetched && !newStamp,
                     heldUntilMs = null,
                     addStamp = stamp ?: row.addStamp,
+                    walkedStamp = if (newStamp) null else row.walkedStamp,
+                    rewalkPending = row.rewalkPending && !newStamp,
                 )
             if (next != row) toUpdate += next
         }
         if (bump) bumpGeneration(serverId, userId)
-        if (toDelete.isNotEmpty()) {
-            rehomeSharedSeries(serverId, userId, toDelete, stored.map { it.libraryId } - toDelete.toSet())
-        }
-        toDelete.chunked(MAX_VARIABLES).forEach { deleteLibrariesIn(serverId, userId, it) }
+        // The rows that stay are written first, so the moves before the deletes see each library as it now is.
         rewalk.chunked(MAX_VARIABLES).forEach { deleteCheckpointsIn(serverId, userId, it) }
         if (toUpdate.isNotEmpty()) updateLibraries(toUpdate)
         toInsert.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
+        val covered = HashMap<String, Long>()
+        for (id in toDelete) byId[id]?.coveredFromMs?.let { covered[id] = it }
+        return SelectionChange(toDelete, stored.map { it.libraryId } - toDelete.toSet(), covered)
     }
+
+    /**
+     * The end of a selection change (spec 26): each series row of [gone] that a live episode of one of [staying] names
+     * moves to that library ([rehomeSharedSeries]), and then [gone] are deleted, with everything under them (the
+     * foreign keys). Call it inside the change's transaction, after the items of [gone] that another library lists
+     * have moved (CacheTransactionDao.applySelection), so the moved episodes keep their series.
+     */
+    suspend fun deleteLeavers(
+        serverId: String,
+        userId: String,
+        gone: List<String>,
+        staying: List<String>,
+    ) {
+        if (gone.isEmpty()) return
+        rehomeSharedSeries(serverId, userId, gone, staying)
+        gone.chunked(MAX_VARIABLES).forEach { deleteLibrariesIn(serverId, userId, it) }
+    }
+
+    /**
+     * [row] held until [until] at [nowMs]. A held library is never one being added: its stamp and proof go, so it can
+     * never land, and so does a rewalk mark. A hold placed now covers the library from now (or earlier): its next
+     * incremental, if it is re-ticked, reads from there. A hold already in place keeps the coverage it set.
+     */
+    private fun heldRow(
+        row: LibraryEntity,
+        until: Long,
+        nowMs: Long,
+    ) = row.copy(
+        heldUntilMs = until,
+        addStamp = null,
+        walkedStamp = null,
+        rewalkPending = false,
+        coveredFromMs = if (row.heldUntilMs == null) minOfNullable(row.coveredFromMs, nowMs) else row.coveredFromMs,
+    )
 
     /**
      * Before [gone] are deleted: each of their series rows that a live episode of one of [staying] names moves to the
@@ -949,22 +1228,81 @@ internal abstract class LibraryDao {
         updateTotal(serverId, userId, total)
     }
 
-    /** [libraryId] has been read to its end. A library being added (it has an add stamp) or held is left pending. */
+    /**
+     * The first sync's walk of [libraryId] ended (FirstSyncEngine's walk end): fetched, and a rewalk mark goes with it,
+     * because that walk read the library from the start with no stamp. A library being added (it has an add stamp) or
+     * held is left pending. It runs whether or not a first sync is running: it is that sync's own write.
+     */
     @Transaction
-    open suspend fun markFetched(
+    open suspend fun markWalked(
         serverId: String,
         userId: String,
         libraryId: String,
     ) {
         requireActive(serverId, userId)
-        setFetched(serverId, userId, libraryId)
+        setWalked(serverId, userId, libraryId)
     }
 
     /**
-     * The add of [libraryId] under [stamp] lands (spec 26): when the library still has that stamp (and no hold), the
-     * stamp is cleared, the library is marked fetched and the content generation moves once, all in this transaction,
-     * as the rows its walk wrote (which moved nothing) become a day's inputs. Otherwise (another stamp, none, a hold,
-     * no such library, or an account that is not signed in) nothing changes and it returns false.
+     * A chosen library the server no longer lists has nothing to fetch (FirstSyncEngine): it is marked fetched, unless
+     * it is being added, held or marked for a rewalk. A marked one stays pending and marked: only a walk's end clears
+     * the mark (Amendment 4).
+     */
+    @Transaction
+    open suspend fun markUnlisted(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ) {
+        requireActive(serverId, userId)
+        setUnlisted(serverId, userId, libraryId)
+    }
+
+    /**
+     * The rewalk of [libraryId] ended (spec 26, the StayCurrent rewalk step): when the library is marked (and has no
+     * stamp and no hold), it is fetched, its mark cleared and its coverage set to the walk's [runMs]. While the account
+     * runs a first sync nothing changes and it says [RewalkFinish.FirstSyncRunning]: that sync takes the library.
+     * Moves no content generation: the walk's pages did.
+     */
+    @Transaction
+    open suspend fun finishRewalk(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        runMs: Long,
+    ): RewalkFinish {
+        requireActive(serverId, userId)
+        return when {
+            state(serverId, userId)?.state == AccountStateEntity.STATE_FIRST_RUNNING -> RewalkFinish.FirstSyncRunning
+            setRewalked(serverId, userId, libraryId, runMs) > 0 -> RewalkFinish.Finished
+            else -> RewalkFinish.NotMarked
+        }
+    }
+
+    /**
+     * The add walk of [libraryId] under [stamp] ended at [runMs] (spec 26, schema 11): the dedicated last transaction
+     * of the add walk records the proof and the coverage, only while the library still has that stamp and no hold.
+     * False (nothing written) means the stamp no longer matches. An empty library is proven the same way. Moves
+     * nothing.
+     */
+    @Transaction
+    open suspend fun markAddWalked(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+        runMs: Long,
+    ): Boolean {
+        requireActive(serverId, userId)
+        return setWalkProof(serverId, userId, libraryId, stamp, runMs) > 0
+    }
+
+    /**
+     * The add of [libraryId] under [stamp] lands (spec 26): when the library still has that stamp, the proof that its
+     * walk under it ended ([markAddWalked]) and no hold, the stamp and the proof are cleared, the library is marked
+     * fetched and the content generation moves once, all in this transaction, as the rows its walk wrote (which moved
+     * nothing) become a day's inputs. Otherwise (another stamp, none, no proof, a hold, no such library, or an account
+     * that is not signed in) nothing changes and it returns false.
      */
     @Transaction
     open suspend fun landAdd(
@@ -977,6 +1315,28 @@ internal abstract class LibraryDao {
         val landed = activeCount(serverId, userId) > 0 && clearStamp(serverId, userId, libraryId, stamp) > 0
         if (landed) bumpGeneration(serverId, userId)
         return landed
+    }
+
+    /**
+     * Reverts the add of [libraryId] under [stamp] whose walk was never proven (spec 26, schema 11): while the library
+     * has that stamp, no proof for it and no hold, the stamp and any proof are cleared, it is pending again and marked
+     * for a rewalk, and its checkpoint is deleted so that walk starts from the beginning. The rows the add wrote are a
+     * chosen library's from now on, so the content generation moves once when it holds any. The row and the checkpoint
+     * change together or not at all. False, with nothing written, otherwise (an account that is not signed in too).
+     */
+    @Transaction
+    open suspend fun revertUnproven(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+    ): Boolean {
+        val reverted = activeCount(serverId, userId) > 0 && revertStamp(serverId, userId, libraryId, stamp) > 0
+        if (reverted) {
+            deleteCheckpointsIn(serverId, userId, listOf(libraryId))
+            if (holdsRows(serverId, userId, libraryId)) bumpGeneration(serverId, userId)
+        }
+        return reverted
     }
 
     /** A sync ended well at [nowMs]: idle, and the time of the success kept with the saved library. */
@@ -993,17 +1353,21 @@ internal abstract class LibraryDao {
     /**
      * An incremental pass ended well at [nowMs]. It saves what [finishSync] saves, unless the account is running a
      * first sync (a library-selection change started one during the pass): then it does nothing, so that sync's state
-     * survives, and returns false.
+     * survives, and returns false. In the same transaction each library of [covered] (the libraries the pass walked,
+     * with the coverage it read for each at its start) has its coverage cleared, only while it is still that value: a
+     * landing or a hold during the pass wrote a newer one, which the next pass then reads from.
      */
     @Transaction
     open suspend fun finishIncremental(
         serverId: String,
         userId: String,
         nowMs: Long,
+        covered: Map<String, Long>,
     ): Boolean {
         requireActive(serverId, userId)
         if (state(serverId, userId)?.state == AccountStateEntity.STATE_FIRST_RUNNING) return false
         saveIdle(serverId, userId, nowMs)
+        for ((libraryId, expectedMs) in covered) clearCoveredFrom(serverId, userId, libraryId, expectedMs)
         return true
     }
 
@@ -1078,6 +1442,31 @@ internal abstract class LibraryDao {
 
     companion object {
         const val GENERATION_SHIFT = 10
+
+        // The larger and the smaller of two nullable values, null being the identity: never a reason to pick null.
+        private fun maxOfNullable(
+            a: Long?,
+            b: Long?,
+        ): Long? =
+            if (a == null) {
+                b
+            } else if (b == null) {
+                a
+            } else {
+                maxOf(a, b)
+            }
+
+        private fun minOfNullable(
+            a: Long?,
+            b: Long?,
+        ): Long? =
+            if (a == null) {
+                b
+            } else if (b == null) {
+                a
+            } else {
+                minOf(a, b)
+            }
 
         /**
          * Where a new `sync_meta` row starts counting, read from [clock] when the row is made: its milliseconds

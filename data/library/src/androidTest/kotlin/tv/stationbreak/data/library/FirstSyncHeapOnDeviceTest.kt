@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibrarySource
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.PagedMediaServer
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -120,7 +121,13 @@ class FirstSyncHeapOnDeviceTest {
             }
             val engine = FirstSyncEngine(repository, server, Clock.System, MediaServer.MAX_PAGE_SIZE)
 
-            val outcome = engine.run(session, account, setOf(movies.id))
+            // Its library set as the selection writes it: the one chosen library.
+            val chosen =
+                FirstSyncLibraries {
+                    repository.applySelection(it, setOf(movies.id), nowMs = Clock.System.now().toEpochMilliseconds())
+                    setOf(movies.id)
+                }
+            val outcome = engine.run(session, account, chosen)
 
             assertEquals(SyncOutcome.Completed, outcome)
             assertEquals(15_000, repository.rowCounts().items)

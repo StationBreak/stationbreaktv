@@ -192,11 +192,16 @@ class EditCutoffPropertyTest {
     /** The name an op writes: only a name-only edit changes it. */
     private fun nameOf(op: Op) = if (op.kind == Op.Kind.NameOnly) RENAMED else FIRST_NAME
 
-    /** What one op does to an item that exists: the stamp rule of the spec (Vimes H1) and the change test (H2, H3). */
+    /**
+     * What one op does to an item that exists: the stamp rule of the spec (Vimes H1) and the change test (H2, H3).
+     * [written] is what a write op sends. The library the write names is not always the row's (spec 26, schema 11):
+     * both libraries are chosen, so the first writer keeps the item, and another library takes it only from a
+     * tombstone.
+     */
     private fun step(
         states: MutableList<State>,
         op: Op,
-        next: Fields?,
+        written: Fields,
     ) {
         val last = states.last()
         val stamp = maxOf(op.atMs, last.seenFromMs + 1)
@@ -208,12 +213,12 @@ class EditCutoffPropertyTest {
                 if (!revives) last.deletedAtMs = op.atMs
             }
 
-            Op.Kind.Revive, Op.Kind.NameOnly, Op.Kind.Rewrite -> {
-                if (revives || name != last.name) states += State(last.fields, stamp, null, name)
+            Op.Kind.Revive -> {
+                if (revives) states += State(last.fields, stamp, null, name)
             }
 
-            Op.Kind.Edit -> {
-                val fields = requireNotNull(next)
+            Op.Kind.NameOnly, Op.Kind.Rewrite, Op.Kind.Edit -> {
+                val fields = written.copy(library = if (revives) written.library else last.fields.library)
                 if (fields != last.fields || name != last.name || revives) states += State(fields, stamp, null, name)
             }
         }
@@ -225,12 +230,21 @@ class EditCutoffPropertyTest {
         ops: List<Op>,
     ): Map<Int, List<State>> {
         val items = mutableMapOf<Int, MutableList<State>>()
+        // What each item's last write sent, as [apply] tracks it.
+        val current = mutableMapOf<Int, Fields>()
         for (op in ops) {
             val states = items[op.item]
+            val fields =
+                when {
+                    op.item !in current -> history.firstFields.getValue(op.item)
+                    op.kind == Op.Kind.Edit -> history.nextFields.getValue(op)
+                    else -> current.getValue(op.item)
+                }
+            current[op.item] = fields
             if (states == null) {
-                items[op.item] = mutableListOf(State(history.firstFields.getValue(op.item), op.atMs, null))
+                items[op.item] = mutableListOf(State(fields, op.atMs, null))
             } else {
-                step(states, op, history.nextFields[op])
+                step(states, op, fields)
             }
         }
         return items

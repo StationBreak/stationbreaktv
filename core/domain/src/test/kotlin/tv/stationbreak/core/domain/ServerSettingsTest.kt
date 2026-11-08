@@ -78,16 +78,16 @@ class ServerSettingsTest {
         runBlocking {
             val settings = InMemoryServerSettings(ServerRecord(https))
             assertNull(settings.loadLibraries())
-            assertTrue(settings.saveLibraries(setOf(movies, shows)))
+            assertTrue(settings.storeChoice(setOf(movies, shows)))
             assertEquals(setOf(movies, shows), settings.loadLibraries())
         }
 
     @Test
     fun aSelectionNeedsARecordAndIsNeverEmpty() =
         runBlocking {
-            assertFalse(InMemoryServerSettings().saveLibraries(setOf(movies)))
+            assertFalse(InMemoryServerSettings().storeChoice(setOf(movies)))
             val settings = InMemoryServerSettings(ServerRecord(https))
-            assertFalse(settings.saveLibraries(emptySet()))
+            assertFalse(settings.storeChoice(emptySet()))
             assertNull(settings.loadLibraries())
         }
 
@@ -114,7 +114,7 @@ class ServerSettingsTest {
         runBlocking {
             val settings = InMemoryServerSettings(ServerRecord(https), setOf(movies))
             settings.failSave = true
-            assertFalse(settings.saveLibraries(setOf(shows)))
+            assertFalse(settings.storeChoice(setOf(shows)))
             assertEquals(setOf(movies), settings.loadLibraries())
         }
 

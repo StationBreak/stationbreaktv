@@ -31,6 +31,9 @@ import tv.stationbreak.app.di.LibraryModule
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
+import tv.stationbreak.core.domain.AccountCache
+import tv.stationbreak.core.domain.AccountCaches
+import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.InMemoryFirstSync
@@ -42,12 +45,17 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.selection.AddLandings
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.LibraryPasses
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -61,6 +69,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.data.library.AddedLibrariesRunner
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
 import tv.stationbreak.feature.guide.ui.GuideTags
@@ -94,7 +103,11 @@ class FirstSyncNavigationTest {
     @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
 
+    // The selection's resume, as the app's start runs it: where this test's app starts, after its seeds (spec 26).
     @get:Rule(order = 1)
+    val selection = SelectionResumeRule(atStart = false)
+
+    @get:Rule(order = 2)
     val compose = createAndroidComposeRule<HiltTestActivity>()
 
     /** Nested, so it applies to this test only. The saved library is scripted; the rest is as in the launch test. */
@@ -114,11 +127,22 @@ class FirstSyncNavigationTest {
         fun serverSettings(): ServerSettings = Syncing.settings
 
         @Provides
+        fun selectionStore(): SelectionStore = Syncing.settings
+
+        @Provides
         @Singleton
         fun sessions(
             store: SecretStore,
             server: MediaServer,
-        ): SessionRepository = SessionRepository(store, server)
+            library: AccountCache,
+        ): SessionRepository = SessionRepository(store, server, library)
+
+        // What sign-in and sign-out tell, built as LibraryModule builds it: the saved library, then the built days.
+        @Provides
+        fun accountCache(
+            repository: RoomLibraryRepository,
+            days: DayStore,
+        ): AccountCache = AccountCaches(repository, days)
 
         // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
         @Provides
@@ -145,12 +169,32 @@ class FirstSyncNavigationTest {
         // The Application's entry point asks for it; the worker is not run in this test.
         @Provides
         @Singleton
+        @Suppress("LongParameterList") // As LibraryModule builds it.
         fun firstSyncRunner(
             settings: ServerSettings,
             sessions: SessionRepository,
             server: MediaServer,
             repository: RoomLibraryRepository,
-        ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System)
+            libraries: FirstSyncLibraries,
+            ready: SelectionReady,
+        ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, libraries, ready, Clock.System)
+
+        // Nothing is added in this test: the selection's restart asks for nothing.
+        @Provides
+        fun libraryPasses(): LibraryPasses = LibraryPasses.None
+
+        // The Application's entry point asks for it; the add worker is not run in this test.
+        @Provides
+        @Singleton
+        @Suppress("LongParameterList") // As LibraryModule builds it.
+        fun addedLibrariesRunner(
+            settings: ServerSettings,
+            sessions: SessionRepository,
+            server: MediaServer,
+            repository: RoomLibraryRepository,
+            landings: AddLandings,
+            ready: SelectionReady,
+        ): AddedLibrariesRunner = AddedLibrariesRunner(settings, sessions, server, repository, landings, ready)
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
@@ -168,7 +212,8 @@ class FirstSyncNavigationTest {
 
     @Before
     fun script() {
-        Syncing.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        // The choice as the selection's setup stores it, for the account the sign-in below makes the active one.
+        Syncing.settings = choiceOf(ServerRecord(https), setOf(movies.id), session.account())
         // A fresh one for each test, so the calls it counts are this test's.
         Syncing.firstSync = InMemoryFirstSync()
         with(Syncing.server) {
@@ -176,6 +221,7 @@ class FirstSyncNavigationTest {
             connectResult = ServerResult.Success(ResolvedServer(https, info))
             librariesResult = ServerResult.Success(listOf(movies))
             signInResult = ServerResult.Failure(MediaServerError.Unknown())
+            withEmptyLibraries()
             connectCalls.clear()
             resumeCalls.clear()
         }
@@ -186,10 +232,16 @@ class FirstSyncNavigationTest {
                 .forEach { Syncing.store.clear(it) }
         }
         hilt.inject()
-        runBlocking { SessionRepository(Syncing.store, Syncing.server).save(session) }
+        signInAsTheAppDoes(Syncing.store, Syncing.server, session)
     }
 
+    // The first-sync asks the app's start made (the resume asks for a setup whose first sync it never saw end), so a
+    // test can tell them from the screen's.
+    private var askedAtStart = 0
+
     private fun launchApp() {
+        selection.resume()
+        askedAtStart = Syncing.firstSync.ensureCalls
         compose.setContent { StationBreakTheme { AppNavHost() } }
         compose.waitForIdle()
     }
@@ -246,7 +298,9 @@ class FirstSyncNavigationTest {
         awaitExists(FirstSyncTags.HEADLINE)
         assertEquals(0, count(LiveTags.NO_CHANNELS))
         compose.onAllNodes(isFocusable()).assertCountEquals(0)
-        assertEquals(1, Syncing.firstSync.ensureCalls)
+        // The chosen library was never read: the start asks for its first sync, and the screen asks once more.
+        assertEquals(1, askedAtStart)
+        assertEquals(1, Syncing.firstSync.ensureCalls - askedAtStart)
     }
 
     @Test
@@ -264,6 +318,8 @@ class FirstSyncNavigationTest {
 
     @Test
     fun aFinishedFirstSyncNeverShowsTheProgressScreen() {
+        // The library cache as a finished first sync leaves it: the chosen library read to its end.
+        runTheFirstSyncAsTheWorkerDoes(Syncing.settings, Syncing.store, Syncing.server)
         Syncing.firstSync.current = finished
         launchApp()
 
@@ -281,7 +337,9 @@ class FirstSyncNavigationTest {
         assertBackLeavesTheApp()
 
         assertEquals(0, Syncing.firstSync.retryCalls)
-        assertEquals(1, Syncing.firstSync.ensureCalls)
+        // The chosen library was never read: the start asked once, and the screen once more.
+        assertEquals("the start asked once", 1, askedAtStart)
+        assertEquals("the screen asked once", 1, Syncing.firstSync.ensureCalls - askedAtStart)
     }
 
     @Test
@@ -296,6 +354,10 @@ class FirstSyncNavigationTest {
 
         awaitExists(FirstSyncTags.HEADLINE)
         assertEquals(setOf(movies.id), Syncing.settings.currentLibraries)
+        // Nothing was chosen at the start. The setup asks for the first sync, replacing any run still reading the old
+        // choice (spec 26, Task 4.4b R1), and its screen asks again, keeping that run.
+        assertEquals(0, askedAtStart)
+        assertEquals(1, Syncing.firstSync.retryCalls)
         assertEquals(1, Syncing.firstSync.ensureCalls)
     }
 

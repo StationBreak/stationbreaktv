@@ -43,7 +43,17 @@ class ProgramInfoReadTest {
         val movie =
             MediaItem(movieId, "Test Movie A", ItemKind.Movie, 90.minutes, SHOWS, dateCreated = EPOCH - 1.minutes)
         val series = SeriesInfo(seriesId, "Test Series B", null, emptyList(), emptyList())
-        repository.writePage(account, SHOWS, listOf(episode, movie), 2, 2, run = 1, series = listOf(series))
+        repository.writePage(
+            account,
+            SHOWS,
+            stamp = null,
+            rewalk = false,
+            listOf(episode, movie),
+            2,
+            2,
+            run = 1,
+            series = listOf(series),
+        )
     }
 
     @Test

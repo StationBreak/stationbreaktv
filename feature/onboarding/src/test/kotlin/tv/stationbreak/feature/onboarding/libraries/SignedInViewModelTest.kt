@@ -17,6 +17,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibrarySetup
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.ServerRecord
@@ -59,7 +60,9 @@ class SignedInViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = SignedInViewModel(sessions, signedIn, handOff, settings)
+    private val setup = InMemoryLibrarySetup(settings)
+
+    private fun viewModel() = SignedInViewModel(sessions, signedIn, handOff, setup)
 
     @Test
     fun showsTheNameTheUserTypedAndTheServer() {
@@ -167,6 +170,7 @@ class SignedInViewModelTest {
             vm.onSwitchUser()
 
             assertNull(settings.currentLibraries)
+            assertEquals("a switch of user clears through the library setup", 1, setup.clears)
             assertEquals(ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)), settings.current)
             job.cancel()
         }

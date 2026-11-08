@@ -34,6 +34,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibrarySetup
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
@@ -164,6 +165,7 @@ class SignInViewModelTest {
             ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example.test", 443)),
             setOf(ItemId("movies")),
         )
+    private val setup = InMemoryLibrarySetup(settings)
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
@@ -184,7 +186,7 @@ class SignInViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = SignInViewModel(server, repository, handOff, signedIn, settings)
+    private fun viewModel() = SignInViewModel(server, repository, handOff, signedIn, setup)
 
     /** A view model hosted in [owner], so `owner.clear()` is the platform clearing it. */
     private fun hosted(owner: ViewModelStore) = owner.host(viewModel(), SignInViewModel::class.java)
@@ -1040,6 +1042,8 @@ class SignInViewModelTest {
 
             assertNull(settings.currentLibraries)
             assertEquals(ServerRecord(https), settings.current)
+            // Spec 26 binding item 5: through the selection's own lock, so the setup that follows meets no change.
+            assertEquals("every sign-in clears through the library setup", 1, setup.clears)
         }
 
     @Test
@@ -1055,6 +1059,7 @@ class SignInViewModelTest {
             gate.complete(ServerResult.Success(session(admin = false)))
 
             assertEquals(setOf(ItemId("movies")), settings.currentLibraries)
+            assertEquals(0, setup.clears)
         }
 
     @Test

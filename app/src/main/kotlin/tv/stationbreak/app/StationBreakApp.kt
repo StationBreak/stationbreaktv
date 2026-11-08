@@ -13,9 +13,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import tv.stationbreak.app.di.AppStart
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
+import tv.stationbreak.core.domain.selection.ResumeGate
+import tv.stationbreak.core.domain.selection.SelectionResume
 import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
+import tv.stationbreak.data.library.AddedLibrariesRunner
+import tv.stationbreak.data.library.AddedLibrariesRunnerProvider
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.FirstSyncRunnerProvider
 import tv.stationbreak.data.library.StayCurrent
@@ -26,15 +31,16 @@ private const val LINEUP_TAG = "Lineup"
 /**
  * The Hilt root. The bindings live in `di/`; the server screen's ViewModel consumes `MediaServer` (F0.5).
  *
- * It also hands the sync workers what they run (spec 06, tasks 3.6 and 4.7). WorkManager builds a worker itself, from
- * its class name, so a worker cannot be injected; it asks the `Application` instead. The graph is built on first use,
- * so this is safe even if WorkManager starts a worker before `onCreate` has finished.
+ * It also hands the sync workers what they run (spec 06, tasks 3.6 and 4.7; the add pass, spec 26). WorkManager
+ * builds a worker itself, from its class name, so a worker cannot be injected; it asks the `Application` instead. The
+ * graph is built on first use, so this is safe even if WorkManager starts a worker before `onCreate` has finished.
  */
 @HiltAndroidApp
 class StationBreakApp :
     Application(),
     FirstSyncRunnerProvider,
-    StayCurrentProvider {
+    StayCurrentProvider,
+    AddedLibrariesRunnerProvider {
     /** What the sync workers reach the graph through. */
     @EntryPoint
     @InstallIn(SingletonComponent::class)
@@ -43,11 +49,24 @@ class StationBreakApp :
 
         fun stayCurrent(): StayCurrent
 
+        fun addedLibrariesRunner(): AddedLibrariesRunner
+
         fun lineupRefresher(): LineupRefresher
 
         fun scheduleWarmer(): ScheduleWarmer
 
         fun deviceCapabilities(): DeviceCapabilitiesCache
+    }
+
+    /** The app's start's own reach into the graph: the selection's resume and the gate it opens, for nothing else. */
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    internal interface AppStartEntryPoint {
+        @AppStart
+        fun selectionResume(): SelectionResume
+
+        @AppStart
+        fun resumeGate(): ResumeGate
     }
 
     // Each time the app comes to the foreground (a launch, or returning from Home) keep the saved library current,
@@ -84,6 +103,12 @@ class StationBreakApp :
         val lineupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1) + failed)
         scope.launch {
             val graph = EntryPointAccessors.fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
+            // The library selection resumes first (spec 26): it repairs what a crash left between a save and the
+            // library cache, and every selection operation and library worker waits for it. Its gate opens however it
+            // went, even when the selection could not be built.
+            // The refresher then starts from the selection as resumed, so its start check plans that one.
+            val start = EntryPointAccessors.fromApplication(this@StationBreakApp, AppStartEntryPoint::class.java)
+            resumeSelection({ start.selectionResume() }, start.resumeGate()) { Log.w(LINEUP_TAG, it) }
             graph.lineupRefresher().start(lineupScope)
         }
         // The codec probe walks the device's decoder list and takes seconds on a slow TV: do it now, off the main
@@ -102,4 +127,7 @@ class StationBreakApp :
 
     // The graph's one, so the open trigger, the on-open work and the periodic job share one runner and its gate.
     override fun stayCurrent(): StayCurrent = graph().stayCurrent()
+
+    // The graph's one, so its landing retries per stamp are counted for the life of the process (spec 26).
+    override fun addedLibrariesRunner(): AddedLibrariesRunner = graph().addedLibrariesRunner()
 }

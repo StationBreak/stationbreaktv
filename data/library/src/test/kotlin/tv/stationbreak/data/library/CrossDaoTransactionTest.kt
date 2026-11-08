@@ -29,13 +29,32 @@ class CrossDaoTransactionTest {
 
     private suspend fun writeFirst() {
         repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-        repository.writePage(ALICE, MOVIES, first, nextStartIndex = 1, totalCount = 2, run = 1)
+        repository.writePage(
+            ALICE,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            first,
+            nextStartIndex = 1,
+            totalCount = 2,
+            run = 1,
+        )
         clock.stepMs(10_000)
     }
 
     private suspend fun writeSecond(): PageWrite {
-        val page = repository.writePage(ALICE, MOVIES, second, nextStartIndex = 2, totalCount = 2, run = 1)
-        return page
+        val page =
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                second,
+                nextStartIndex = 2,
+                totalCount = 2,
+                run = 1,
+            )
+        return page.written().items
     }
 
     @Test
@@ -79,12 +98,32 @@ class CrossDaoTransactionTest {
 
     private suspend fun writeFirstWithSeries() {
         repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-        repository.writePage(ALICE, MOVIES, first, nextStartIndex = 1, totalCount = 2, run = 1, series = seriesFirst)
+        repository.writePage(
+            ALICE,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            first,
+            nextStartIndex = 1,
+            totalCount = 2,
+            run = 1,
+            series = seriesFirst,
+        )
         clock.stepMs(10_000)
     }
 
     private suspend fun writeSecondWithSeries() =
-        repository.writePage(ALICE, MOVIES, second, nextStartIndex = 2, totalCount = 2, run = 1, series = seriesSecond)
+        repository.writePage(
+            ALICE,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            second,
+            nextStartIndex = 2,
+            totalCount = 2,
+            run = 1,
+            series = seriesSecond,
+        )
 
     @Test
     fun aFaultAfterTheSeriesRowsLeavesNoItemSeriesVersionOrCheckpointRow() =

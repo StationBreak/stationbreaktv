@@ -69,7 +69,7 @@ class LineupServiceTrimOrderTest {
             var lockedAtRead: Boolean? = null
             service.savedSeqFrom {
                 lockedAtRead = service.lockOf(ACCOUNT)?.isLocked
-                4L
+                SavedSeqs(4L, resetSeq = 0L)
             }
 
             service.refresh(ACCOUNT, LIBRARIES)
@@ -83,11 +83,56 @@ class LineupServiceTrimOrderTest {
         runBlocking<Unit> {
             val (_, unsaved, seams) = shownAndUnsaved()
             val service = LineupService(store, library, clock, { 0 }, {}, seams)
-            service.savedSeqFrom { 4L }
+            service.savedSeqFrom { SavedSeqs(4L, resetSeq = 0L) }
             service.saving(5L)
 
             service.refresh(ACCOUNT, LIBRARIES)
 
             assertEquals(listOf(unsaved), agree(service).selection, "the change being saved stays")
+        }
+
+    // --- Below the reset seq is not shown (spec 26, Task 4.2 fix round 1) ---------------------------------------
+
+    // The shown repair (seq 4, older) and one below the reset seq 3 (seq 2, newer). Room for one.
+    private fun shownAndBelowReset(): Triple<ChannelRepair, ChannelRepair, LineupSeams> {
+        val shown = repairOf(n = 1L, atMs = nowMs + 60_000L, dayEndMs = nowMs + 4 * 3_600_000L, seq = 4L)
+        val belowEnd = nowMs + 6 * 3_600_000L
+        val below = repairOf(channel = "starter:other", n = 2L, atMs = nowMs + 120_000L, dayEndMs = belowEnd, seq = 2L)
+        val seeded = seed(TodayRepairs(listOf(below, shown)))
+        val one = sizeOf(seeded, TodayRepairs(listOf(shown)))
+        val both = sizeOf(seeded, TodayRepairs(listOf(shown, below)))
+        val config = RepairConfig(fileMargin = LineupLimits.MAX_FILE_BYTES - (one + both) / 2)
+        return Triple(shown, below, LineupSeams(TestCatalog, repairConfig = config))
+    }
+
+    @Test
+    fun aRefreshNearTheCap_dropsARepairBelowTheResetSeq_beforeTheShownOne() =
+        runBlocking<Unit> {
+            val (shown, _, seams) = shownAndBelowReset()
+            val service = LineupService(store, library, clock, { 0 }, {}, seams)
+            service.savedSeqFrom { SavedSeqs(4L, resetSeq = 3L) }
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(listOf(shown), agree(service).selection, "below the reset seq is not shown")
+        }
+
+    @Test
+    fun aRoll_prunesTheRepairsBelowTheResetSeq() =
+        runBlocking<Unit> {
+            val shown = repairOf(n = 1L, atMs = nowMs + 60_000L, dayEndMs = nowMs + 4 * 3_600_000L, seq = 4L)
+            val below = repairOf(channel = "starter:other", n = 2L, dayEndMs = nowMs + 6 * 3_600_000L, seq = 2L)
+            // A day that has ended, so there is something to roll.
+            val endedAt = nowMs - 7_200_000L
+            val ended = repairOf(channel = "starter:gone", n = 0L, atMs = endedAt, dayEndMs = nowMs, seq = 4L)
+            seed(TodayRepairs(listOf(shown, below, ended)))
+            val service = LineupService(store, library, clock, { 0 }, {}, LineupSeams(TestCatalog))
+            service.savedSeqFrom { SavedSeqs(4L, resetSeq = 3L) }
+            val held = checkNotNull(service.loaded(ACCOUNT))
+
+            service.rollSoon(ACCOUNT, held)
+            service.awaitRolls()
+
+            assertEquals(listOf(shown), agree(service).selection, "the ended day and the repair below the reset seq")
         }
 }

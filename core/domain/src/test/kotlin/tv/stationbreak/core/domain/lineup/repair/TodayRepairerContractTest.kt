@@ -311,12 +311,13 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     fun outcomes_noLineup_refused_unsaved_saved() {
         val none = Rig(lineupOf(laughs), comedies, setOf(libA))
         runBlocking { none.service.forget(ACCOUNT) }
-        val noLineup = runBlocking { none.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs) { true } }
+        val noLineup = runBlocking { none.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs, atLeast = 0L) { true } }
         assertEquals(RepairOutcome.NoLineup, noLineup)
 
         val failing = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA, libB))
         failing.store.inner.failWrites = true
-        val refused = runBlocking { failing.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs) { true } }
+        val refused =
+            runBlocking { failing.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs, atLeast = 0L) { true } }
         assertEquals(RepairOutcome.Refused, refused)
 
         val unsaved = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA, libB))
@@ -324,7 +325,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
         assertEquals(TodayRepairs.NONE, unsaved.record())
 
         val ok = Rig(lineupOf(laughs), comedies + comediesB, setOf(libA, libB))
-        val saved = runBlocking { ok.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs) { true } }
+        val saved = runBlocking { ok.repairer.selectionChanged(ACCOUNT, setOf(libA), atMs, atLeast = 0L) { true } }
         assertEquals(1L, assertIs<RepairOutcome.Saved<SelectionRepaired>>(saved).result.seq)
     }
 
@@ -335,7 +336,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
             runBlocking {
                 listOf(
                     async { rig.repairer.repairLost(ACCOUNT, atMs) },
-                    async { rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs) { true } },
+                    async { rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs, atLeast = 0L) { true } },
                     async { rig.repairer.repairLost(ACCOUNT, atMs) },
                 ).awaitAll()
             }
@@ -377,7 +378,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
             // A change holds the turn (its save is running) while the hook fires with libA playable.
             val change =
                 async(Dispatchers.Default) {
-                    rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs) {
+                    rig.repairer.selectionChanged(ACCOUNT, setOf(libA, libB), atMs, atLeast = 0L) {
                         inSave.complete(Unit)
                         release.await()
                         false

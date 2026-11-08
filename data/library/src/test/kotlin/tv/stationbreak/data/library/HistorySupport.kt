@@ -13,12 +13,19 @@ import tv.stationbreak.core.model.SeriesInfo
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 
-/** Writes [items] as a page of [library] with no checkpoint (a changed-since page): the cheapest way to edit rows. */
+/**
+ * Writes [items] as a page of [library] with no checkpoint (a changed-since page): the cheapest way to edit rows. An
+ * unstamped write, as a chosen library's: it throws if the library row refuses it.
+ */
 internal suspend fun RoomLibraryRepository.put(
     account: LibraryAccount,
     library: ItemId,
     vararg items: MediaItem,
-): PageWrite = upsertItems(account, library, items.toList())
+): PageWrite = upsertItems(account, library, stamp = null, rewalk = false, items.toList()).written().items
+
+/** What a guarded write wrote; a refused one fails the test (spec 26, schema 11). */
+internal fun PageResult.written(): PageResult.Written =
+    this as? PageResult.Written ?: throw AssertionError("the library row refused the write: $this")
 
 /**
  * Spec 09 Vimes H1, for every item of [account]: its versions have strictly increasing, positive-length intervals
@@ -75,7 +82,7 @@ internal suspend fun RoomLibraryRepository.putSeries(
     account: LibraryAccount,
     library: ItemId,
     vararg series: SeriesInfo,
-): PageWrite = upsertSeries(account, library, series.toList())
+): PageWrite = upsertSeries(account, library, stamp = null, rewalk = false, series.toList()).written().series
 
 /** [assertIntervalsContiguous] for the series of [account] and their versions (spec 10, Vimes H1). */
 internal suspend fun RoomLibraryRepository.assertSeriesIntervalsContiguous(account: LibraryAccount) {

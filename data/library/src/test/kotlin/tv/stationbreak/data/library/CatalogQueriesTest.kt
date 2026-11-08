@@ -76,7 +76,17 @@ class CatalogQueriesTest {
     ) {
         repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         val items = movies + episodes
-        repository.writePage(ALICE, MOVIES, items, items.size, items.size, run = ++run, series = shows)
+        repository.writePage(
+            ALICE,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            items,
+            items.size,
+            items.size,
+            run = ++run,
+            series = shows,
+        )
     }
 
     private fun names(hits: List<TitleHit>) = hits.map { it.name }

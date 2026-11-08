@@ -340,7 +340,15 @@ class ReconciliationTest {
             server.respond = { call ->
                 if (call.idsOnly && call.startIndex == 100 && !saved) {
                     saved = true
-                    runBlocking { repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("late", 1))) }
+                    runBlocking {
+                        repository.upsertItems(
+                            ALICE,
+                            MOVIES,
+                            stamp = null,
+                            rewalk = false,
+                            listOf(SyncWorld.item("late", 1)),
+                        )
+                    }
                 }
                 null
             }

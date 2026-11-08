@@ -25,7 +25,7 @@ private const val WAIT_SECONDS = 10L
  */
 class FirstSyncRunningSignalTest {
     private val rig = StayCurrentRig()
-    private val runner = FirstSyncRunner(rig.settings, rig.sessions, rig.server, rig.repository, rig.clock)
+    private val runner = firstSyncRunner(rig.settings, rig.sessions, rig.server, rig.repository, rig.clock)
 
     @After
     fun close() = rig.close()

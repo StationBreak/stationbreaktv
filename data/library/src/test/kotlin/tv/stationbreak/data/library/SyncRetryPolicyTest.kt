@@ -157,7 +157,7 @@ class SyncRetryPolicyTest {
 
     private val clock = FakeClock()
 
-    private fun runner(stored: InMemoryServerSettings) = FirstSyncRunner(stored, sessions, server, repository, clock)
+    private fun runner(stored: InMemoryServerSettings) = firstSyncRunner(stored, sessions, server, repository, clock)
 
     private fun settings(chosen: Set<tv.stationbreak.core.model.ItemId>? = setOf(MOVIES)) =
         InMemoryServerSettings(ServerRecord(session.address), chosen)

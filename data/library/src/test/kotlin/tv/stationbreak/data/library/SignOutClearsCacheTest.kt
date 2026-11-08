@@ -44,13 +44,37 @@ class SignOutClearsCacheTest {
 
     private suspend fun fillFor(account: tv.stationbreak.core.domain.LibraryAccount) {
         repository.applySelection(account, setOf(MOVIES), nowMs = 0)
-        repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("g"))), 1, 1, run = 1)
+        repository.writePage(
+            account,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            listOf(item("one").copy(genres = listOf("g"))),
+            1,
+            1,
+            run = 1,
+        )
         // A genre-only edit keeps the old row as a version, so there is history for the sign-out to clear (Vimes H5).
-        repository.writePage(account, MOVIES, listOf(item("one").copy(genres = listOf("h"))), 1, 1, run = 2)
+        repository.writePage(
+            account,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            listOf(item("one").copy(genres = listOf("h"))),
+            1,
+            1,
+            run = 2,
+        )
         // Series and a series version too (spec 10): a rating edit keeps the old row as a version.
         repository.applySelection(account, setOf(MOVIES, SHOWS), nowMs = 0)
-        repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "A"), series("s2")))
-        repository.upsertSeries(account, SHOWS, listOf(series("s1", rating = "B")))
+        repository.upsertSeries(
+            account,
+            SHOWS,
+            stamp = null,
+            rewalk = false,
+            listOf(series("s1", rating = "A"), series("s2")),
+        )
+        repository.upsertSeries(account, SHOWS, stamp = null, rewalk = false, listOf(series("s1", rating = "B")))
         // Collections too (spec 10): a member change keeps the old lifecycle as a version, and a pass leaves its row.
         repository.writeCollection(account, ItemId("box01"), "n", movies("a", "b"))
         repository.writeCollection(account, ItemId("box01"), "n", movies("b"))

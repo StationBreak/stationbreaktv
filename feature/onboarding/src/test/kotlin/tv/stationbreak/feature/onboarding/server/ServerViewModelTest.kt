@@ -32,6 +32,7 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.CleartextAcknowledgement
@@ -814,7 +815,7 @@ class ServerViewModelTest {
     fun continuingToAnotherServerReplacesTheRecordAndItsLibrarySelection() =
         runBlocking {
             settings.save(ServerRecord(https))
-            settings.saveLibraries(setOf(ItemId("movies")))
+            settings.storeChoice(setOf(ItemId("movies")))
             val other = ServerAddress(Scheme.Https, "other.example.test", 443)
             val vm = viewModel()
 

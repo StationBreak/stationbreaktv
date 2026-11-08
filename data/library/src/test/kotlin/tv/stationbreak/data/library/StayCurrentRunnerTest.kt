@@ -235,7 +235,7 @@ class StayCurrentRunnerTest {
     // tombstone is more than 30 days old and the last success is under 27 days old, so the guard lets the purge run.
     private suspend fun anOldTombstoneAndTheRunDay() {
         rig.firstSyncDone()
-        rig.repository.upsertItems(ALICE, MOVIES, listOf(item("extra")))
+        rig.repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(item("extra")))
         rig.repository.tombstone(ALICE, listOf(ItemId("extra")))
         rig.clock.instant += 10.days
         rig.repository.finishSync(ALICE)
@@ -348,7 +348,7 @@ class StayCurrentRunnerTest {
     fun aRunAMonthAfterTheLastSuccessSkipsThePurgeAndTheNextRunPurges() =
         runBlocking {
             rig.firstSyncDone()
-            rig.repository.upsertItems(ALICE, MOVIES, listOf(item("extra")))
+            rig.repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(item("extra")))
             rig.repository.tombstone(ALICE, listOf(ItemId("extra")))
             rig.clock.instant += 31.days
 
@@ -623,7 +623,7 @@ class StayCurrentRunnerTest {
                 listOf(
                     "StayCurrent incremental=true reconcile=true",
                     "StayCurrentDone ms=${100 * server.calls.count { it.idsOnly }} outcome=Completed",
-                    "StayCurrentWrote generation=0 incremental=0/0 reconcile=0/0/0/0/0 collections=0/0/0/0",
+                    "StayCurrentWrote generation=0 incremental=0/0 reconcile=0/0/0/0/0/0 collections=0/0/0/0",
                     "Backfill pending=true",
                 ),
                 lines.take(4),
@@ -650,7 +650,7 @@ class StayCurrentRunnerTest {
             rig.runner.run(both)
 
             assertEquals(
-                "StayCurrentWrote generation=0 incremental=0/0 reconcile=0/0/0/0/0 collections=0/0/0/0",
+                "StayCurrentWrote generation=0 incremental=0/0 reconcile=0/0/0/0/0/0 collections=0/0/0/0",
                 lines.single { it.startsWith("StayCurrentWrote") },
             )
             val reread = lines.indexOfFirst { it.startsWith("BackfillWrote") }

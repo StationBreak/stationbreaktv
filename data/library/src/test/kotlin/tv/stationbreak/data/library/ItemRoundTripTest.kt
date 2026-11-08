@@ -42,7 +42,16 @@ class ItemRoundTripTest {
     fun everyFieldOfAnItemSurvivesAWriteAndARead() =
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(everyField), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(everyField),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
 
             val read = repository.snapshot(ALICE, setOf(MOVIES), EPOCH)
 
@@ -54,7 +63,16 @@ class ItemRoundTripTest {
         runBlocking {
             val bare = MediaItem(ItemId("item-bare"), "Bare", ItemKind.Other, null, null)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(bare), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(bare),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
 
             val stored = repository.stored(ALICE).single()
 
@@ -73,7 +91,16 @@ class ItemRoundTripTest {
                     studios = listOf("Zed", "Alpha", "Mid"),
                 )
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(ordered), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(ordered),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
 
             assertEquals(ordered, repository.stored(ALICE).single().item)
         }
@@ -83,7 +110,16 @@ class ItemRoundTripTest {
         runBlocking {
             val items = ItemKind.entries.map { MediaItem(ItemId("kind-${it.name}"), it.name, it, 1.minutes, null) }
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, items, nextStartIndex = items.size, totalCount = items.size, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                items,
+                nextStartIndex = items.size,
+                totalCount = items.size,
+                run = 1,
+            )
 
             assertEquals(items.map { it.kind }.toSet(), repository.stored(ALICE).map { it.item.kind }.toSet())
         }
@@ -99,7 +135,16 @@ class ItemRoundTripTest {
                     item("edge-$index", created = moment, runtime = runtimes[index].milliseconds)
                 }
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, items, nextStartIndex = items.size, totalCount = items.size, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                items,
+                nextStartIndex = items.size,
+                totalCount = items.size,
+                run = 1,
+            )
 
             val read = repository.stored(ALICE).map { it.item }.sortedBy { it.id.value }
 
@@ -112,7 +157,16 @@ class ItemRoundTripTest {
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val bare = listOf(item("no-premiere"))
-            repository.writePage(ALICE, MOVIES, bare, nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                bare,
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
 
             assertEquals(
                 null,

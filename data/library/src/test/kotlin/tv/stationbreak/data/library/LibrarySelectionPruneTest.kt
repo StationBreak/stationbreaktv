@@ -20,6 +20,8 @@ class LibrarySelectionPruneTest {
         repository.writePage(
             ALICE,
             library,
+            stamp = null,
+            rewalk = false,
             listOf(item("${library.value}-1").copy(genres = listOf("g"))),
             nextStartIndex = 1,
             totalCount = 1,
@@ -34,7 +36,7 @@ class LibrarySelectionPruneTest {
 
             assertEquals(setOf(MOVIES, SHOWS), repository.pendingLibraries(ALICE))
 
-            repository.markFetched(ALICE, MOVIES)
+            repository.markWalked(ALICE, MOVIES)
 
             assertEquals(setOf(SHOWS), repository.pendingLibraries(ALICE))
         }
@@ -60,7 +62,7 @@ class LibrarySelectionPruneTest {
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             fill(MOVIES)
-            repository.markFetched(ALICE, MOVIES)
+            repository.markWalked(ALICE, MOVIES)
 
             repository.applySelection(ALICE, setOf(MOVIES, extra), nowMs = 0)
 
@@ -73,7 +75,7 @@ class LibrarySelectionPruneTest {
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             fill(MOVIES)
-            repository.markFetched(ALICE, MOVIES)
+            repository.markWalked(ALICE, MOVIES)
             repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
 
             repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
@@ -88,7 +90,7 @@ class LibrarySelectionPruneTest {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             repository.applySelection(BOB, setOf(MOVIES), nowMs = 0)
             fill(MOVIES)
-            repository.writePage(BOB, MOVIES, listOf(item("bobs")), 1, 1, run = 1)
+            repository.writePage(BOB, MOVIES, stamp = null, rewalk = false, listOf(item("bobs")), 1, 1, run = 1)
 
             repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
 

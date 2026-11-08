@@ -225,10 +225,13 @@ class RemovedLibraryReconcileTest {
     @Test
     fun anItemAnotherListedLibraryStillHoldsStaysLive() =
         runBlocking {
-            // One ID in both movies (listed) and shows (removed): the row belongs to one library only.
+            // One ID in both movies (listed) and shows (removed): the row belongs to one library only. The first
+            // writer (movies) owns it; shows takes it as a tombstone, so that the removed library is the owner.
             val shared = SyncWorld.item("m", 0, SHOWS)
             showsSource.items += shared
             firstSyncDone()
+            repository.tombstone(ALICE, listOf(shared.id))
+            repository.put(ALICE, SHOWS, shared)
             assertEquals(SHOWS, repository.stored(ALICE).single { it.item.id == shared.id }.library)
             server.libraries = listOf(movies)
 
@@ -334,13 +337,16 @@ class RemovedLibraryReconcileTest {
     fun aRemovedLibraryWhoseRowsAreAllHeldByAListedOneCostsNoRequest() =
         runBlocking {
             val both = setOf(MOVIES, home.id)
-            // The same IDs in both libraries: the row ends up in the one synced last (home), which is then removed.
+            // The same IDs in both libraries: each row stays with its first writer (movies), so home takes each one as
+            // a tombstone and owns them all. Home is then removed, while movies, listed, still lists every one.
             val heldTwice = SyncWorld.source("m", 40, home.id)
             val world = SyncWorld.server(movies to SyncWorld.source("m", 40), home to heldTwice)
             world.libraries = listOf(movies, home)
             repository.useAccount(ALICE)
             assertEquals(SyncOutcome.Completed, SyncWorld.engine(repository, world, clock).run(session, ALICE, both))
-            assertEquals(40, repository.stored(ALICE).count { it.library == home.id })
+            repository.tombstone(ALICE, heldTwice.items.map { it.id })
+            repository.put(ALICE, home.id, *heldTwice.items.toTypedArray())
+            assertEquals(40, repository.stored(ALICE).count { it.library == home.id && it.deletedAt == null })
             clock.instant += 1.hours
             world.libraries = listOf(movies)
 
@@ -350,6 +356,34 @@ class RemovedLibraryReconcileTest {
             assertEquals(ReconcileSummary(), result.summary)
             assertEquals(0, world.existingLibraryIdsCalls.size)
             assertEquals(0, tombstonedIn(home.id))
+        }
+
+    // Review LOW-4: the summary counts what the removed-library write tombstoned, not what the pass read.
+    @Test
+    fun theRemovedLibrarysSummaryCountsWhatWasWritten() =
+        runBlocking {
+            firstSyncDone()
+            server.libraries = listOf(movies)
+            var raced = false
+            val racing =
+                object : MediaServer by server {
+                    override suspend fun existingLibraryIds(
+                        session: Session,
+                        candidates: Set<ItemId>,
+                    ): ServerResult<Set<ItemId>> {
+                        // Another pass tombstones one of the removed library's items after this pass read them.
+                        if (!raced) {
+                            raced = true
+                            repository.tombstone(ALICE, listOf(showsSource.items.first().id))
+                        }
+                        return server.existingLibraryIds(session, candidates)
+                    }
+                }
+
+            assertEquals(SyncOutcome.Completed, reconcile(racing))
+
+            assertEquals(30, tombstonedIn(SHOWS))
+            assertEquals(ReconcileSummary(tombstoned = 29, seriesTombstoned = 5), summary)
         }
 
     @Test

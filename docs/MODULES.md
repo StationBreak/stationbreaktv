@@ -48,7 +48,8 @@ stationbreaktv/
 │   ├── domain/         [JVM]    Ports (MediaServer, LibraryRepository, ChannelRepository, ScheduleSource,
 │   │                            SecretStore, ProEntitlement), use cases, and the built-in
 │   │                            ScheduleSource (engine + scheduler). Its `lineup` package owns the lineup in memory
-│   │                            (spec 12): the stored-form codec, `LineupService`, `LineupRefresher`
+│   │                            (spec 12): the stored-form codec, `LineupService`, `LineupRefresher`. Its `selection`
+│   │                            package is the one writer of the chosen libraries (spec 26)
 │   ├── testing/        [KMP]    Fixture libraries (incl. a synthetic 10k-item library), golden vectors for the
 │   │                            scheduler's lineups. (The vectors for the rules format, the primitives and the lineups are
 │   │                            canonical in `docs/rules-format/vectors/`; see "Golden vectors" below. `core:testing` keeps
@@ -208,7 +209,9 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   asks the `Application` for its runner (`FirstSyncRunnerProvider`, implemented by `StationBreakApp` through a Hilt entry
   point). The `FirstSync` port in `core:domain` is how the progress screen and launch routing reach all of it without seeing
   WorkManager or Room. Every sync write checks inside its own transaction that the account is still the signed-in one
-  (`active_account`, schema 2), and sign-in and sign-out cancel the unique work first.
+  (`active_account`, schema 2), and sign-in and sign-out cancel the unique work first. Since spec 26 its library set is
+  the selection's (`FirstSyncLibraries.firstSyncLibraries`, written under the selection's lock), and an empty set (no
+  choice of this account's) ends the run with nothing written. The runner waits for the selection's resume first.
 - **Item history and the as-of read (specs 09 and 10).** The cache keeps the superseded versions of an item in `item_version`
   (series and collections have matching version tables), so a day can be built from the fields the client held before its
   cut-off. `scheduleItems(account, libraries, cutoff)` and `ruleSnapshot(account, libraries, cutoff)` are that as-of read,
@@ -225,30 +228,59 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   collections that are not deleted, by ID; it is a planning read, never used to build a day. `collectionPassCompleted(account)`
   emits the start time of the latest whole collection pass (null until one completes, and a pass that stops part-way does
   not signal), so the lineup refresher waits for the collections and not for `lastSuccess`.
-- **Cache schema version 10** (`LibraryDatabase.VERSION`). 4 added the item history, 5 added series, 6 added collections;
+- **Cache schema version 11** (`LibraryDatabase.VERSION`). 4 added the item history, 5 added series, 6 added collections;
   7 added `sync_meta` (spec 12), 8 added studios and `backfillPending` (spec 18, migrated), 9 added a name to the
   item, series and collection version tables (spec 23, migrated with a backfill from the current rows), and 10 added
   `providerIds` to `item` and `series` and `heldUntilMs` and `addStamp` to `library` (spec 26, migrated). The migration
   to 10 sets `backfillPending` on every account, so the studios re-read writes the provider ids; a row tombstoned before
-  the upgrade is never read again and keeps `''` (no ids) until it is revived or purged. From version 7 on the cache
-  migrates. A file of version 6 or older, or one newer than the code, is dropped and rebuilt, and that also drops the
-  signed-in account. The schema is exported to `data/library/schemas/`.
-- **One selection writer (spec 26).** `applySelection(account, keep, addStamps, holds, nowMs)` replaced `select`. It
-  keeps `keep`'s libraries with no hold (a new one pending, with its add stamp), keeps any other library whose hold lies
-  after now (setting `holds`), and deletes every other library's rows. A library given a stamp it did not have is set
-  pending and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a stamp. The add
-  lifecycle: a tick stamps the library (pending, and its pages move no generation), `landAdd(account, library, stamp)`
-  lands it once its walk ends (in one transaction, only while it still has that stamp: the stamp is cleared, the library
-  is fetched and the generation moves once), and from then on it is chosen like any other; an untick either holds the
-  library (its rows stay until the hold ends, and a held library loses its stamp, so it never lands) or deletes it. The
-  first sync keeps the libraries being added, but never a held one by its stamp. The content generation moves when a
-  library's rows are deleted (an untick, an expired hold, or an add dropped after its walk wrote rows). A page moves it
-  only for a field the scheduler or the rules read: an item's in a library that is not being added, and a series' in any
-  library (episodes of other libraries read a series row by its id). A provider-id-only change, a tick and an add's item
-  pages never move it. A new stamp for a chosen library that has landed is refused. Before a library's rows go, a series
-  row of it that a live episode of a library that stays still names moves to the smallest such library. When the clock
-  is past the purge's forward-jump guard, no hold expires. A page rewrites an item's genre, tag or studio rows only when
-  that list changed. Provider ids are stored as `key=value;key=value`, keys sorted, and are never logged.
+  the upgrade is never read again and keeps `''` (no ids) until it is revived or purged. 11 (spec 26, migrated) added
+  `walkedStamp`, `rewalkPending` and `coveredFromMs` to `library`, the `item_also_listed` table and an index on
+  `item(serverId, userId, seriesId)`; its migration sets no flag and inserts nothing (the first ID reconcile finds the
+  items two libraries already shared). From version 7 on the cache migrates. A file of version 6 or older, or one newer
+  than the code, is dropped and rebuilt, and that also drops the signed-in account. The schema is exported to
+  `data/library/schemas/`.
+- **The library rows follow the selection (spec 26).** `applySelection(account, keep, addStamps, holds, nowMs)` keeps
+  `keep`'s libraries with no hold (a new one pending, with its add stamp), keeps any other library whose hold lies after
+  now (setting `holds`), and deletes every other library's rows. Only the selection calls it (and `landAdd` and
+  `revertUnproven`); `SelectionWriterScanTest` fails any other caller. A library given a stamp it did not have is set
+  pending and its checkpoint deleted, so it is walked again; a new stamp for a chosen library that has landed is refused.
+  - **Guarded writes.** Every page, catch-up, series and hidden-series write names the library and a stamp (the add's,
+    or none) and is checked inside its transaction: a library that was dropped, held or stamped since the walk began
+    takes nothing (`PageResult.StampMismatch`). A rewalk's write also needs the rewalk mark, and stops while a first
+    sync runs (`PageResult.FirstSyncRunning`).
+  - **The add lifecycle.** A tick stamps the library: it is pending, and its pages move no generation. The add walk's
+    last write records the proof that it ended (`walkedStamp`, with `coveredFromMs`, the walk's start). `landAdd`
+    lands it only while it still has that stamp and that proof: the stamp is cleared, the library is fetched and the
+    generation moves once. A chosen row whose stamp was never proven is set back (`revertUnproven`): no stamp, pending,
+    marked for a rewalk (`rewalkPending`). An untick holds the library while a programme of it is on air (a held
+    library loses its stamp and proof, so it never lands) or deletes it.
+  - **Fetched.** `markWalked` is the first sync's walk end (it clears a rewalk mark), `markUnlisted` marks a chosen
+    library the server no longer lists (never one being added, held or marked), and `finishRewalk` ends a rewalk (it
+    clears the mark and writes the coverage, and does nothing while a first sync runs).
+  - **Shared items.** An item two libraries list has one owner; every other library that lists it has an
+    `item_also_listed` row. A chosen writer takes an item from an owner being added, and any writer takes a tombstone,
+    each as a versioned move. Before a library's rows go, each item it owns that a staying library lists moves there (a
+    chosen one first, then one being added, then a held one), and a series row a live episode of a staying library
+    names moves too.
+  - **Coverage.** A library's `coveredFromMs` is the earliest moment its next incremental pass must read from (an add
+    or a rewalk that landed, a hold placed); the pass that walks it clears it.
+  - **The generation** moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after
+    its walk wrote rows), and for a page only for a field the scheduler or the rules read: an item's in a library that
+    is not being added, and a series' in any library (episodes of other libraries read a series row by its id). A
+    provider-id-only change, a tick and an add's item pages never move it. When the clock is past the purge's
+    forward-jump guard, no hold expires. A page rewrites an item's genre, tag or studio rows only when that list
+    changed. Provider ids are stored as `key=value;key=value`, keys sorted, and are never logged.
+- **The add pass and the rewalk (spec 26).** `LibraryPass` is the one walk of a library (pages from the checkpoint,
+  the catch-up of what changed since the walk began, the series and the hidden series), with three uses: the first
+  sync's (no stamp), the add walk's (the add's stamp) and the rewalk's (no stamp, marked). `AddedLibrariesWorker`
+  (unique work `stationbreak.add-libraries`, network-connected, exponential backoff, no input data) runs
+  `AddedLibrariesRunner`. The runner waits for the selection's resume, takes its work from the selection
+  (`AddLandings.pendingAdds`), walks each add under its stamp and hands it to the selection to land
+  (`AddLandings.passLanded`); it never lands anything itself. A landing that may pass is tried again a few times per
+  stamp with a doubling wait; one that cannot is given up until the next start. The selection's `LibraryPasses.restart`
+  enqueues it with `REPLACE`. It stays out of the sync signal the lineup refresher holds its triggers on. The rewalk
+  is a step of a stay-current run whose passes completed: each chosen, marked library the server lists is walked from
+  its checkpoint, and a failure keeps the mark for the next run without changing how the run ended.
 - **Re-id matching (spec 26).** `successors(account, libraries, gone)` finds where a tombstoned item came back under a new
   id, among the live rows of the playable libraries. The rows are read in one read transaction (narrowed in SQL to the
   gone items' series, titles and identity ids), and `ReIdMatch` runs after it, outside the transaction, over the live
@@ -301,6 +333,23 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   matches a gone block to the item's successor (`LibraryRepository.successors`, the re-id matching above) before it
   fills. `LostRepairHook` is how the lineup refresher runs it: after each sync run's writing ends, and once after the
   start check (the lost-block check is held in memory only, so each process checks once).
+- **`core:domain` `selection` package (spec 26)** is the one writer of the chosen libraries. `LibrarySelection` runs
+  every change of the stored selection: a change after setup, the setup itself, the landing of an add, the following of
+  the server's listings, the first sync's library set and the resume at start. Callers see it only through narrow
+  ports: features through `LibraryChoices` and `LibrarySetup`, the add pass through `AddLandings`, the first sync
+  through `FirstSyncLibraries`, stay current through `ServerListings`, and the app's start through `SelectionResume`.
+  It asks for the add pass through `LibraryPasses`. The app binds it under `@AppStart` only, so nothing else can hold it.
+  - **Order.** Locks are taken in one order: the selection's lock, then the repairer's turn, then the lineup's entry
+    lock, then the settings' locks; Room transactions are leaves. Stores are written in one order: the repair record,
+    then the settings (the truth), then the library cache. A cache write that fails after its save is put right by the
+    next operation, before anything else. Every seq is floored one above the highest add stamp in the cache.
+  - **The start.** `StationBreakApp` runs `SelectionResume.resumeAtStart` before the lineup refresher starts. It
+    raises the seq, branches every stamped chosen row (proven: landed; unproven: set back), writes the cache from the
+    stored selection, and asks for the add pass and the first sync when there is work. Another account's choice found
+    there (a sign-in's clear that failed) is cleared. However it ends, it opens `ResumeGate`, which everything else waits
+    on as `SelectionReady`: every selection operation and the first-sync, stay-current and add workers.
+  - **Setup** stores the new choice under a reset seq, writes the cache from it and asks for the first sync with a
+    replacing request, so a run still reading the old choice gives way.
 - **`core:domain` `lineup.builder` package (spec 22)** is how a viewer makes and edits custom channels. `ChannelDraft` is
   the builder's value: what the viewer chose, plus the settings of a copied built-in channel that the builder has no control
   for, which it keeps exactly as they were until the viewer replaces them. `DraftRules` turns a draft into `ChannelRules`

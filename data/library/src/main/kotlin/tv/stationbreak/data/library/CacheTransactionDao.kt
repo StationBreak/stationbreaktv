@@ -6,11 +6,27 @@ import androidx.room.Transaction
 import tv.stationbreak.core.model.CanonicalId
 import java.util.TreeSet
 
-/** What a page wrote: the [items] and the [series] it held, each counted as [PageWrite]. */
-internal data class PageResult(
-    val items: PageWrite,
-    val series: PageWrite,
-)
+/**
+ * How a guarded page write ended (spec 26, schema 11): [Written], with what it wrote, or refused with nothing written,
+ * because the library row did not take a write under that stamp ([StampMismatch]) or a rewalk's write met a running
+ * first sync ([FirstSyncRunning]).
+ */
+internal sealed interface PageResult {
+    /** The page was written: the [items] and the [series] it held, each counted as [PageWrite]. */
+    data class Written(
+        val items: PageWrite,
+        val series: PageWrite,
+    ) : PageResult
+
+    /**
+     * Nothing was written: the library has no row, is held, or has another stamp than the write's (a stamped write
+     * needs that stamp; an unstamped one needs none).
+     */
+    data object StampMismatch : PageResult
+
+    /** Nothing was written: a rewalk's write found the account running a first sync, which takes the library. */
+    data object FirstSyncRunning : PageResult
+}
 
 /**
  * What [CacheTransactionDao.ruleSnapshot] read in its one transaction: the [items] (the rows of the as-of read), the
@@ -63,12 +79,28 @@ internal abstract class CacheTransactionDao(
      * item, only in a library that is not being added ([itemsMoveTheDay]), so the walk of an add moves nothing; for a
      * series, in any library, as episodes of other libraries read a series row by its id. A provider-id-only change
      * never moves it.
+     *
+     * The write is guarded by [libraryId]'s row, read inside this transaction (spec 26, schema 11): it is accepted only
+     * when the row exists, has no hold, and has the add stamp [stamp] (a stamped write, the add's walk) or none (an
+     * unstamped one). Otherwise nothing is written and it returns [PageResult.StampMismatch]: so a write can never land
+     * in a library that was dropped, held or re-stamped since its walk began, nor reach a foreign-key throw for a row
+     * that is gone. A [rewalk] write also refuses, with [PageResult.FirstSyncRunning], while the account runs a first
+     * sync, and with [PageResult.StampMismatch] when the row has no rewalk mark. No refusal moves the generation.
+     *
+     * Who owns an item two libraries list ([routePage], spec 26, schema 11): the first writer. A chosen writer takes an
+     * item from an owner being added, and any writer takes a tombstone; each is a versioned move. Otherwise the owner
+     * stays and the writer gets an `item_also_listed` row, while the fields are still the writer's, versioned under
+     * the owner. The rows change in this transaction, after the guard; a change to them alone moves nothing. An add's
+     * series write (a [stamp]) moves the generation only when an episode outside the adds names the series (D8).
      */
     @Transaction
-    @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seams.
+    @Suppress("LongParameterList") // One cohesive call: the library and its guard, the page, the time and the seams.
     open suspend fun writePage(
         server: String,
         user: String,
+        libraryId: String,
+        stamp: Long?,
+        rewalk: Boolean,
         checkpoint: CheckpointEntity?,
         items: Map<String, ItemRows>,
         seriesRows: Map<String, SeriesEntity>,
@@ -77,16 +109,23 @@ internal abstract class CacheTransactionDao(
         betweenItemsAndCheckpoint: (() -> Unit)?,
     ): PageResult {
         library.requireActive(server, user)
+        refusal(server, user, libraryId, stamp, rewalk)?.let { return it }
         val existing =
             items.keys
                 .chunked(LibraryDao.MAX_VARIABLES)
                 .flatMap { library.itemsByIds(server, user, it) }
                 .associateBy { it.itemId }
+        // Read once, inside this transaction: the owners' classes and the adds (spec 26, schema 11).
+        val libs = library.libraries(server, user)
+        val stamped = libs.filter { it.addStamp != null }.mapTo(HashSet()) { it.libraryId }
+        val addingOwners = addingLibraries(libs)
+        val routed = routePage(server, user, libraryId, stamp, items, existing, addingOwners)
         // The old genres, tags and studios are read here, inside the transaction and before they are deleted below.
         val old = library.sideNames(server, user, existing.keys)
-        val plan = history.planPage(items, existing, old, nowMs)
+        val plan = history.planPage(routed.items, existing, old, nowMs)
         library.insertItems(plan.toInsert)
         library.updateItems(plan.toUpdate)
+        writeListed(server, user, libraryId, routed)
         // Each side table is rewritten only for the items whose list differs from the one held (a new item has none),
         // so a page that changes provider ids alone, as the backfill's does, leaves every side row as it is.
         val genreIds = ArrayList<String>()
@@ -94,7 +133,7 @@ internal abstract class CacheTransactionDao(
         val studioIds = ArrayList<String>()
         for (row in plan.toInsert + plan.toUpdate) {
             val id = row.itemId
-            val incoming = items.getValue(id)
+            val incoming = routed.items.getValue(id)
             if (incoming.genres.map { it.name } != old.genres[id].orEmpty()) genreIds += id
             if (incoming.tags.map { it.name } != old.tags[id].orEmpty()) tagIds += id
             if (incoming.studios.map { it.name } != old.studios[id].orEmpty()) studioIds += id
@@ -107,14 +146,50 @@ internal abstract class CacheTransactionDao(
         library.insertStudios(studioIds.flatMap { items.getValue(it).studios })
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
-        // Read inside this transaction, so a selection change cannot slip between the read and the bump.
-        val adding = library.addingLibraryIds(server, user).toHashSet()
-        val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
+        // The adds were read inside this transaction, so a selection change cannot slip between the read and the bump.
+        val seriesWrite = writeSeries(server, user, seriesRows, nowMs, stamp, addingOwners)
         // Inside this transaction, so a write that rolls back leaves the generation as it was.
-        if (itemsMoveTheDay(plan, items, adding) || seriesWrite.movesTheDay) library.bumpGeneration(server, user)
+        val moves = itemsMoveTheDay(plan, routed.items, stamped) || seriesWrite.movesTheDay
+        if (moves) library.bumpGeneration(server, user)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
-        return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite.write)
+        return PageResult.Written(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite.write)
+    }
+
+    /**
+     * Why the library row refuses a write to [libraryId] under [stamp] (see [writePage]), read inside the write's
+     * transaction, or null when it takes it. Nothing has been written when this is asked.
+     */
+    private suspend fun refusal(
+        server: String,
+        user: String,
+        libraryId: String,
+        stamp: Long?,
+        rewalk: Boolean,
+    ): PageResult? {
+        if (rewalk && library.state(server, user)?.state == AccountStateEntity.STATE_FIRST_RUNNING) {
+            return PageResult.FirstSyncRunning
+        }
+        val row = library.libraryRow(server, user, libraryId)
+        // A stamped write needs that stamp, an unstamped one none; neither goes to a held row, or to one that is gone.
+        // A rewalk's write also needs the rewalk mark: a rewalk that outlived a whole first sync (whose walk end
+        // cleared the mark) must not move that walk's checkpoint back.
+        val takes = row != null && row.heldUntilMs == null && row.addStamp == stamp
+        val accepted = takes && (!rewalk || row.rewalkPending)
+        return if (accepted) null else PageResult.StampMismatch
+    }
+
+    // The page's also-listed changes: the writer's row goes for what it now owns, and the new rows go in.
+    private suspend fun writeListed(
+        server: String,
+        user: String,
+        libraryId: String,
+        routed: Routed,
+    ) {
+        for (chunk in routed.nowOwned.chunked(LibraryDao.MAX_VARIABLES)) {
+            library.deleteAlsoListedIn(server, user, libraryId, chunk)
+        }
+        library.insertAlsoListed(routed.listed)
     }
 
     /**
@@ -140,11 +215,14 @@ internal abstract class CacheTransactionDao(
         val movesTheDay: Boolean,
     )
 
+    @Suppress("LongParameterList") // The account, the rows, the time, and the stamp with the adds for D8.
     private suspend fun writeSeries(
         server: String,
         user: String,
         rows: Map<String, SeriesEntity>,
         nowMs: Long,
+        stamp: Long?,
+        adding: Set<String>,
     ): SeriesWrite {
         val existing =
             rows.keys
@@ -157,9 +235,79 @@ internal abstract class CacheTransactionDao(
         series.insertVersions(plan.versions)
         // A new or versioned series moves the day, whatever library holds its row: an episode of any library reads it
         // by its id, so an add is not exempt here (whole-part review, data MED-1). A library-only or provider-id-only
-        // change takes no version and moves nothing.
-        val moves = plan.toInsert.isNotEmpty() || plan.versions.isNotEmpty()
+        // change takes no version and moves nothing. An add's write (D8) moves it only when an episode outside the
+        // adds names the series: no day reads a series that only an add's episodes name.
+        val changed = plan.toInsert.map { it.seriesId } + plan.versions.map { it.seriesId }
+        val moves =
+            when {
+                changed.isEmpty() -> false
+                stamp == null -> true
+                else -> namedOutside(server, user, changed, adding)
+            }
         return SeriesWrite(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), moves)
+    }
+
+    // D8: whether an episode of a library outside [adding] (held ones included) names one of [seriesIds], under any
+    // of the spellings it may be stored as (idSpellings), bound in chunks that keep the statement under the limit.
+    private suspend fun namedOutside(
+        server: String,
+        user: String,
+        seriesIds: List<String>,
+        adding: Set<String>,
+    ): Boolean {
+        val spellings = seriesIds.flatMap { idSpellings(it) }.distinct()
+        val outside = adding.toList()
+        val size = (LibraryDao.MAX_VARIABLES - outside.size).coerceAtLeast(MAX_SPELLINGS)
+        for (chunk in spellings.chunked(size)) if (library.seriesNamedOutside(server, user, chunk, outside)) return true
+        return false
+    }
+
+    /**
+     * The one writer of the account's library set (spec 26): [LibraryDao.applySelectionRows] keeps, holds, stamps and
+     * inserts the library rows (see there for every rule, the content generation's included). Then, before the
+     * libraries that go are deleted, each item one of them owns that a staying library lists moves to that library
+     * (spec 26, schema 11), live or tombstoned: a chosen one first, then one being added, then a held one, then the
+     * smallest id. Each move is versioned, deletes the target's also-listed row and lowers the target's coverage to
+     * the deleted library's. Only then are the shared series re-homed, so a moved episode keeps its series, and the
+     * libraries deleted, with what is left under them. One transaction.
+     */
+    @Transaction
+    @Suppress("LongParameterList") // The selection, its stamps and holds, the clock and its guard.
+    open suspend fun applySelection(
+        serverId: String,
+        userId: String,
+        keep: Set<String>,
+        addStamps: Map<String, Long>,
+        holds: Map<String, Long>,
+        nowMs: Long,
+        holdClockGuardMs: Long? = null,
+    ) {
+        val change =
+            library.applySelectionRows(serverId, userId, keep, addStamps, holds, nowMs, holdClockGuardMs) ?: return
+        if (change.deleted.isEmpty()) return
+        moveBeforeDelete(serverId, userId, change, nowMs)
+        library.deleteLeavers(serverId, userId, change.deleted, change.staying)
+    }
+
+    // The delete-time moves (spec 26, schema 11): each item a deleted library owns goes to its best staying lister.
+    private suspend fun moveBeforeDelete(
+        serverId: String,
+        userId: String,
+        change: SelectionChange,
+        nowMs: Long,
+    ) {
+        val deleted = change.deleted.toHashSet()
+        val listers = ArrayList<AlsoLister>()
+        for (chunk in change.deleted.chunked(LibraryDao.MAX_VARIABLES)) {
+            for (row in library.listersOfOwned(serverId, userId, chunk)) if (row.libraryId !in deleted) listers += row
+        }
+        val moved = moveItems(library, history, serverId, userId, bestTargets(listers), nowMs, ownedBy = null)
+        // Each target is covered from the earliest of its own coverage and that of every library it took items from.
+        val lowered = HashSet<Pair<String, String>>()
+        for ((from, to) in moved) {
+            val fromMs = change.coveredFrom[from] ?: continue
+            if (lowered.add(from to to)) library.lowerCoveredFrom(serverId, userId, to, fromMs)
+        }
     }
 
     /**
@@ -280,18 +428,24 @@ internal abstract class CacheTransactionDao(
         nowMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        if (reviveItemsIn(serverId, userId, ids, nowMs) > 0) library.bumpGeneration(serverId, userId)
+        if (reviveItemsIn(serverId, userId, ids, nowMs, ownedBy = null) > 0) library.bumpGeneration(serverId, userId)
     }
 
+    // The tombstones among [ids] revived at [nowMs]; with [ownedBy], only those that library owns (a reconcile revives
+    // its own tombstones: one another library took over meanwhile is that library's, and stays as it is).
     private suspend fun reviveItemsIn(
         serverId: String,
         userId: String,
         ids: List<String>,
         nowMs: Long,
+        ownedBy: String?,
     ): Int {
         var revived = 0
         for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) {
-            val rows = library.itemsByIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
+            val rows =
+                library.itemsByIds(serverId, userId, chunk).filter {
+                    it.deletedAtMs != null && (ownedBy == null || it.libraryId == ownedBy)
+                }
             if (rows.isEmpty()) continue
             val rowIds = rows.map { it.itemId }
             val names = library.sideNames(serverId, userId, rowIds)
@@ -304,34 +458,86 @@ internal abstract class CacheTransactionDao(
     }
 
     /**
-     * One reconcile's decisions for a library, written together (spec 10, Vimes M3): the items and the series that
-     * are gone are tombstoned at [nowMs], and those that came back are revived, each with its version, in one
-     * transaction after the account check. Tombstones go first, with the end of their IDs' member rows in every
-     * collection (ADR-0015), then the revives. [betweenTombstonesAndRevives] runs between them (a test seam; null in
-     * the app).
+     * One reconcile's [decisions] for [libraryId], written together after the account check (spec 10, Vimes M3; spec
+     * 26, schema 11), only when the library's row takes them: it exists, has no hold and no stamp, and is not marked
+     * for a rewalk (a marked library is never reconciled). Otherwise nothing is written and it is
+     * [ReconcileApplied.Refused]. In order:
+     * 1. the removal half: the library's rows for the items it lists no more go;
+     * 2. each item it owns that its listing dropped moves to the best library that lists it (versioned, that row goes,
+     *    and its collection rows stay), or, with none, is tombstoned at [nowMs], only while the library still owns it;
+     *    the series that are gone are tombstoned, and the member rows of the items left as its tombstones, and of those
+     *    series, end (ADR-0015);
+     * 3. [betweenTombstonesAndRevives] (a test seam; null in the app), then its own tombstones that came back (only
+     *    while it still owns them) and the series are revived, each with its version;
+     * 4. a listed tombstone another library owns is revived into this one (versioned), and its row here goes;
+     * 5. the add half: a row for each listed item another library owns, the owner checked in the write.
+     * The content generation moves once when an item or series row, or a member row, changed; a change to the
+     * also-listed rows alone moves nothing.
      */
     @Transaction
-    @Suppress("LongParameterList") // One cohesive call: the four decisions, the time and the test seam.
+    @Suppress("LongParameterList") // One cohesive call: the library, its decisions, the time and the test seam.
     open suspend fun reconcileWrite(
         serverId: String,
         userId: String,
-        itemsGone: List<String>,
-        itemsReturning: List<String>,
-        seriesGone: List<String>,
-        seriesReturning: List<String>,
+        libraryId: String,
+        decisions: ReconcileDecisions,
         nowMs: Long,
         betweenTombstonesAndRevives: (() -> Unit)?,
-    ) {
+    ): ReconcileApplied {
         library.requireActive(serverId, userId)
-        var changed = tombstoneItemsIn(serverId, userId, itemsGone, nowMs)
-        changed += tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
+        if (!reconcilable(library.libraryRow(serverId, userId, libraryId))) return ReconcileApplied.Refused
+        for (chunk in decisions.alsoDrop.chunked(LibraryDao.MAX_VARIABLES)) {
+            library.deleteAlsoListedIn(serverId, userId, libraryId, chunk)
+        }
+        val dropped = dropOwned(library, history, serverId, userId, libraryId, decisions.itemsGone, nowMs)
+        val seriesGone = decisions.seriesGone
+        var changed = dropped.tombstoned + dropped.moved + tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
         // Before the seam, so a fault there rolls back the tombstones and the cascade together.
-        changed += supersedeMembersIn(serverId, userId, itemsGone + seriesGone, nowMs)
+        changed += supersedeMembersIn(serverId, userId, dropped.ended + seriesGone, nowMs)
         betweenTombstonesAndRevives?.invoke()
-        changed += reviveItemsIn(serverId, userId, itemsReturning, nowMs)
-        changed += reviveSeriesIn(serverId, userId, seriesReturning, nowMs)
+        val revived = reviveItemsIn(serverId, userId, decisions.itemsReturning, nowMs, ownedBy = libraryId)
+        changed += revived + reviveSeriesIn(serverId, userId, decisions.seriesReturning, nowMs)
+        val takenOver = takeOverIn(library, history, serverId, userId, libraryId, decisions.foreignListed, nowMs)
+        for (chunk in decisions.alsoAdd.chunked(LibraryDao.MAX_VARIABLES)) {
+            library.addAlsoListed(serverId, userId, libraryId, chunk)
+        }
         // Only rows that changed count: a decision already in place (another pass got there first) moves nothing.
+        if (changed + takenOver > 0) library.bumpGeneration(serverId, userId)
+        return ReconcileApplied.Written(dropped.tombstoned, dropped.moved, revived, takenOver)
+    }
+
+    /**
+     * The rows of chosen libraries the server no longer has (#495), written in one transaction after the account
+     * check: the items each library of [items] still owns are tombstoned at [nowMs], and the [series], each with the
+     * end of its member rows (ADR-0015). Every library must take the write as a reconcile does (chosen, unmarked);
+     * otherwise nothing is written and it is [ReconcileApplied.Refused]. The generation moves once, on a change.
+     */
+    @Transaction
+    open suspend fun removedWrite(
+        serverId: String,
+        userId: String,
+        items: Map<String, List<String>>,
+        series: List<String>,
+        nowMs: Long,
+    ): ReconcileApplied {
+        library.requireActive(serverId, userId)
+        for (libraryId in items.keys) {
+            if (!reconcilable(library.libraryRow(serverId, userId, libraryId))) return ReconcileApplied.Refused
+        }
+        var changed = 0
+        var tombstoned = 0
+        val ended = ArrayList<String>()
+        for ((libraryId, ids) in items) {
+            for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES - 2)) {
+                val rows = library.itemsByIds(serverId, userId, chunk)
+                for (row in rows) if (row.libraryId == libraryId) ended += row.itemId
+                tombstoned += library.tombstoneOwned(serverId, userId, libraryId, chunk, nowMs)
+            }
+        }
+        changed += tombstoned + tombstoneSeriesIn(serverId, userId, series, nowMs)
+        changed += supersedeMembersIn(serverId, userId, ended + series, nowMs)
         if (changed > 0) library.bumpGeneration(serverId, userId)
+        return ReconcileApplied.Written(tombstoned, 0, 0, 0)
     }
 
     /**

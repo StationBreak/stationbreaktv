@@ -180,6 +180,7 @@ class StayCurrent internal constructor(
                     firstSync.sessions,
                     firstSync.server,
                     firstSync.repository,
+                    firstSync.ready,
                     firstSync.clock,
                     report = report,
                 )

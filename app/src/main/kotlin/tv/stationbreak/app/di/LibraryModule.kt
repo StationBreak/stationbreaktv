@@ -16,11 +16,17 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.AddLandings
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.LibraryPasses
+import tv.stationbreak.core.domain.selection.SelectionReady
+import tv.stationbreak.data.library.AddedLibrariesRunner
 import tv.stationbreak.data.library.CollectionRelist
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.HistoryRetention
 import tv.stationbreak.data.library.RoomLibraryRepository
 import tv.stationbreak.data.library.WorkManagerFirstSync
+import tv.stationbreak.data.library.WorkManagerLibraryPasses
 import javax.inject.Singleton
 import kotlin.time.Clock
 
@@ -70,14 +76,54 @@ internal object LibraryModule {
     /**
      * What the first-sync worker runs. WorkManager builds the worker itself, so the worker asks the `Application` for
      * this (see [FirstSyncEntryPoint]). It reads the session from the secret store when it runs: nothing, and no token,
-     * is passed through WorkManager.
+     * is passed through WorkManager. It waits for the selection's resume, and its library set is the selection's,
+     * written under the selection's lock (spec 26).
      */
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // The stores it reads and the selection's two ports.
     fun firstSyncRunner(
         settings: ServerSettings,
         sessions: SessionRepository,
         server: MediaServer,
         repository: RoomLibraryRepository,
-    ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System) { Log.i("Sync", it) }
+        libraries: FirstSyncLibraries,
+        ready: SelectionReady,
+    ): FirstSyncRunner {
+        val report: (String) -> Unit = { Log.i(SYNC_TAG, it) }
+        return FirstSyncRunner(settings, sessions, server, repository, libraries, ready, Clock.System, report)
+    }
+
+    /**
+     * The add pass on WorkManager (spec 26, Part 4): what the selection asks for when the libraries being added change.
+     * It only enqueues, replacing the add work queued or running. Building it starts nothing.
+     */
+    @Provides
+    @Singleton
+    fun libraryPasses(
+        @ApplicationContext context: Context,
+    ): LibraryPasses = WorkManagerLibraryPasses.create(context)
+
+    /**
+     * What the add worker runs (spec 26, Part 4). WorkManager builds the worker, which asks the `Application` for this,
+     * as for the first sync. It waits for the selection's resume, and hands each proved add to the selection to land
+     * ([AddLandings]). Its lines are names and counts only.
+     */
+    @Provides
+    @Singleton
+    @Suppress("LongParameterList") // The stores it reads and the selection's two ports.
+    fun addedLibrariesRunner(
+        settings: ServerSettings,
+        sessions: SessionRepository,
+        server: MediaServer,
+        repository: RoomLibraryRepository,
+        landings: AddLandings,
+        ready: SelectionReady,
+    ): AddedLibrariesRunner {
+        val report: (String) -> Unit = { Log.i(SYNC_TAG, it) }
+        val clock = Clock.System
+        return AddedLibrariesRunner(settings, sessions, server, repository, landings, ready, clock, report = report)
+    }
+
+    private const val SYNC_TAG = "Sync"
 }

@@ -16,18 +16,22 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import tv.stationbreak.app.BuildConfig
 import tv.stationbreak.app.appBuildOf
 import tv.stationbreak.app.daySnapshotLine
 import tv.stationbreak.app.lineupTimingProbeFor
 import tv.stationbreak.app.standardOffsetMinutes
 import tv.stationbreak.core.domain.DayStore
+import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
@@ -39,7 +43,6 @@ import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
-import tv.stationbreak.core.domain.lineup.SavedSelection
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SharedSnapshots
@@ -57,6 +60,18 @@ import tv.stationbreak.core.domain.lineup.eitherWriting
 import tv.stationbreak.core.domain.lineup.repair.LostRepairHook
 import tv.stationbreak.core.domain.lineup.repair.Successors
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
+import tv.stationbreak.core.domain.lineup.savedSelectionOf
+import tv.stationbreak.core.domain.selection.AddLandings
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.LibraryChoices
+import tv.stationbreak.core.domain.selection.LibraryPasses
+import tv.stationbreak.core.domain.selection.LibrarySelection
+import tv.stationbreak.core.domain.selection.LibrarySetup
+import tv.stationbreak.core.domain.selection.ResumeGate
+import tv.stationbreak.core.domain.selection.SelectionConfig
+import tv.stationbreak.core.domain.selection.SelectionReady
+import tv.stationbreak.core.domain.selection.SelectionResume
+import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.FirstSyncRunner
@@ -135,6 +150,10 @@ internal object LineupModule {
             },
             derived = days,
             unknownSeries = { Log.i(TAG, "UnknownSeriesEpisodes=$it") },
+            // What a save trimmed from the repair record to fit: counts only.
+            trimmed = { fixes, covering, selection ->
+                Log.i(TAG, "RepairsTrimmed fixes=$fixes coveringFixes=$covering selection=$selection")
+            },
         )
     }
 
@@ -145,13 +164,16 @@ internal object LineupModule {
     @Provides
     fun householdSetting(service: LineupService): HouseholdSetting = service
 
-    /** How features change the lineup (spec 21): through the service's lock, with the libraries the viewer chose. */
+    /**
+     * How features change the lineup (spec 21): through the service's lock, with the playable libraries the viewer
+     * chose (spec 26: none while the selection is gone, never one being added).
+     */
     @Provides
     @Singleton
     fun channelEditor(
         service: LineupService,
         settings: ServerSettings,
-    ): ChannelEditor = ChannelManager(service) { settings.loadLibraries() }
+    ): ChannelEditor = ChannelManager(service) { settings.loadPlayableLibraries() }
 
     /** The draw of a new channel's or a reshuffle's seed: 64 bits from the platform's secure random source. */
     @Provides
@@ -183,6 +205,8 @@ internal object LineupModule {
         settings: ServerSettings,
     ): CatalogPicker {
         val libraries: suspend (LibraryAccount) -> List<Library>? = { serverLibraries(sessions, server, it) }
+        // The chosen libraries, not the playable ones: the picker takes null as "no filter", so a gone selection
+        // (nothing playable) would list every library on the server.
         return LibraryCatalogPicker(library, libraries) { settings.loadLibraries() }
     }
 
@@ -217,7 +241,7 @@ internal object LineupModule {
         library: LibraryRepository,
         shared: SharedSnapshots,
         settings: ServerSettings,
-    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared) { settings.loadLibraries() }
+    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared) { settings.loadPlayableLibraries() }
 
     @Provides
     @Singleton
@@ -255,9 +279,10 @@ internal object LineupModule {
                 ),
             persisted = persisted,
             shared = shared,
-            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows. The chosen
-            // libraries stand for the playable ones until Part 4 tells those apart (and gives null when it is gone).
-        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L, playable = it) } }
+            // One lock-free read of the stored selection (spec 26): the chosen libraries, their seq and reset seq, and
+            // the playable ones. The source hands the seqs on to the service's prune and trim.
+            saved = savedSelectionOf(settings),
+        )
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
@@ -287,7 +312,8 @@ internal object LineupModule {
 
     /**
      * The repair engine (spec 26): one per process, as its calls take turns on one lock. Its successors are the
-     * library's own conservative matches of an item that came back under a new id.
+     * library's own conservative matches of an item that came back under a new id; its stored seq is the one the
+     * settings keep after a sign-out, for a setup.
      */
     @Provides
     @Singleton
@@ -295,17 +321,133 @@ internal object LineupModule {
         service: LineupService,
         source: BuiltInScheduleSource,
         library: LibraryRepository,
-    ): TodayRepairer = TodayRepairer(service, source, library, Successors { a, l, g -> library.successors(a, l, g) })
+        settings: ServerSettings,
+    ): TodayRepairer =
+        TodayRepairer(service, source, library, Successors { a, l, g -> library.successors(a, l, g) }) {
+            settings.loadSelectionSeq()
+        }
+
+    /**
+     * The one writer of the library selection (spec 26, Part 4): onboarding's setup, the Settings changes, the landing
+     * of an added library and the resume at start all go through it. Its events are names only, and the resume's time
+     * a number. Its restart asks for the add pass ([LibraryPasses], in LibraryModule). It is bound under [AppStart]
+     * only, as its resume opens the gate: everything else gets one of its narrow ports.
+     */
+    @Provides
+    @Singleton
+    @AppStart
+    @Suppress("LongParameterList") // What the selection writes and asks, one for one.
+    fun librarySelection(
+        store: SelectionStore,
+        library: LibraryRepository,
+        server: MediaServer,
+        sessions: SessionRepository,
+        repairer: TodayRepairer,
+        service: LineupService,
+        source: BuiltInScheduleSource,
+        passes: LibraryPasses,
+        firstSync: FirstSync,
+        stayCurrent: StayCurrentRequests,
+        @AppStart gate: ResumeGate,
+    ): LibrarySelection =
+        LibrarySelection(
+            store,
+            library,
+            server,
+            { sessions.current.value },
+            repairer,
+            service,
+            source,
+            passes,
+            firstSync,
+            stayCurrent,
+            gate,
+            SelectionConfig(),
+            Clock.System,
+            // How long the resume at start took: a number only. Logging is best effort.
+            { ms -> runCatching { Log.i(TAG, "SelectionResumed ms=$ms") } },
+        ) { Log.i(TAG, it.name) }
+
+    @Provides
+    fun libraryChoices(
+        @AppStart selection: LibrarySelection,
+    ): LibraryChoices = selection
+
+    @Provides
+    fun librarySetup(
+        @AppStart selection: LibrarySelection,
+    ): LibrarySetup = selection
+
+    /** The add pass's side of the selection (Task 4.4b). */
+    @Provides
+    fun addLandings(
+        @AppStart selection: LibrarySelection,
+    ): AddLandings = selection
+
+    /** The first sync's library set, written under the selection's lock (Task 4.4b). */
+    @Provides
+    fun firstSyncLibraries(
+        @AppStart selection: LibrarySelection,
+    ): FirstSyncLibraries = selection
+
+    /** Stay current's listings, followed by the selection (Task 4.5). */
+    @Provides
+    fun serverListings(
+        @AppStart selection: LibrarySelection,
+    ): ServerListings = selection
+
+    /** The resume at start, which the app's start alone runs: qualified, so nothing else can inject it. */
+    @Provides
+    @AppStart
+    fun selectionResume(
+        @AppStart selection: LibrarySelection,
+    ): SelectionResume = selection
+
+    /**
+     * The seam every selection operation and library worker waits on. It is its own object, opened by the selection's
+     * resume and by the app's start whatever happened, so a selection that could not even be built never leaves
+     * onboarding or the guide waiting.
+     */
+    @Provides
+    @Singleton
+    @AppStart
+    fun resumeGate(): ResumeGate = ResumeGate()
+
+    /** What features and workers wait on: the gate as a [SelectionReady] only, which cannot open it. */
+    @Provides
+    fun selectionReady(
+        @AppStart gate: ResumeGate,
+    ): SelectionReady = SelectionReady { gate.await() }
+
+    /**
+     * A stay-current run soon, for a library whose unproven add was set back to be read again (spec 26): the open
+     * trigger's own entry, so its rules (not while a sync runs, not before the first sync ended) hold. The provider is
+     * lazy: stay current's runner will follow the selection's listings (Task 4.5).
+     *
+     * `onOpen` drops a request that comes while a run is going (it queues nothing then). That loses nothing: the
+     * set-back library carries a durable rewalk mark in the cache, and the next run that gets past the first-sync gate
+     * (the next open, or the periodic run) reads it.
+     */
+    @Provides
+    @Singleton
+    @Suppress("InjectDispatcher") // A root scope for the request, which only enqueues; nothing to inject one into.
+    fun stayCurrentRequests(stayCurrent: Provider<StayCurrent>): StayCurrentRequests {
+        val failed = CoroutineExceptionHandler { _, _ -> Log.w(TAG, "StayCurrentRequestFailed") }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failed)
+        return StayCurrentRequests { scope.launch { stayCurrent.get().onOpen() } }
+    }
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // The lineup, the library, the sync signal, the repairer and the selection's seq.
     fun lineupRefresher(
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
         sync: SyncActivity,
         repairer: TodayRepairer,
+        @AppStart selection: LibrarySelection,
     ): LineupRefresher {
         val report: (LineupEvent) -> Unit = { Log.i(TAG, it.name) }
         // After a run that wrote the library, and once after the start check, the blocks whose item left it are
@@ -313,8 +455,18 @@ internal object LineupModule {
         // schedule source's saved selection.
         val now = { Clock.System.now().toEpochMilliseconds() }
         val afterSync = LostRepairHook(repairer::repairLost, now, report)
-        val chosen: suspend () -> Set<ItemId>? = { settings.loadLibraries() }
-        return LineupRefresher(service, library, chosen, sync, afterSync = afterSync::invoke, report = report)
+        // The playable libraries: none while the selection is gone, never one being added.
+        val playable: suspend () -> Set<ItemId>? = { settings.loadPlayableLibraries() }
+        // The selection's seq, published once each change is saved: a change of it is a trigger (spec 26).
+        return LineupRefresher(
+            service,
+            library,
+            playable,
+            sync,
+            selection.selectionChanges,
+            afterSync = afterSync::invoke,
+            report = report,
+        )
     }
 }
 

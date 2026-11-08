@@ -17,6 +17,7 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
@@ -57,6 +58,21 @@ class LaunchRouterTest {
         fake.resumeResult = ServerResult.Success(session)
 
         val route = route(InMemoryServerSettings(ServerRecord(https), setOf(ItemId("movies"))))
+
+        assertEquals(LaunchRoute.SetupComplete, route)
+    }
+
+    // Spec 26 Part 4, §3: the route reads the chosen libraries, not the playable ones. A gone selection keeps them, so
+    // the TV opens on its guide (which says why nothing is on), never on the first-run picker.
+    @Test
+    fun aRestoredSessionWithAGoneSelectionGoesToSetupComplete() {
+        storeSession()
+        fake.resumeResult = ServerResult.Success(session)
+        val settings = InMemoryServerSettings(ServerRecord(https))
+        val gone = StoredSelection(setOf(ItemId("library-a")), seq = 1L, gone = true)
+        assertTrue(runBlocking { settings.saveSelection(gone) })
+
+        val route = route(settings)
 
         assertEquals(LaunchRoute.SetupComplete, route)
     }

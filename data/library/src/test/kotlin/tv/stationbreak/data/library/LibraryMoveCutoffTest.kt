@@ -13,6 +13,10 @@ import kotlin.time.Instant
  * Spec 09 task 2.9 (Vimes H4): version selection runs over every item of the account, never by library, and the
  * libraries filter applies to the **selected** version. An item moved from library A to B after the cut-off is returned
  * for A and not for B for day n, in both reconcile orders.
+ *
+ * Since spec 26 (schema 11) an item listed by two chosen libraries stays with its first writer, so each move here is
+ * one the ownership rules make: a chosen library taking the item from one being added, or a library taking a
+ * tombstone.
  */
 class LibraryMoveCutoffTest {
     private val clock = FakeClock()
@@ -33,11 +37,19 @@ class LibraryMoveCutoffTest {
 
     private suspend fun both() = repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
 
+    // MOVIES is being added and SHOWS is chosen: a page of SHOWS takes MOVIES's item, a versioned move.
+    private suspend fun moviesAdding() {
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), mapOf(MOVIES to ADD_STAMP), nowMs = 0)
+    }
+
+    private suspend fun putAdding(vararg items: tv.stationbreak.core.model.MediaItem) =
+        repository.upsertItems(ALICE, MOVIES, ADD_STAMP, rewalk = false, items.toList()).written()
+
     @Test
     fun anItemMovedAfterTheCutoffIsInTheOldLibraryAndNotTheNewOneForDayN() =
         runBlocking {
-            both()
-            repository.put(ALICE, MOVIES, sitem(1))
+            moviesAdding()
+            putAdding(sitem(1))
             clock.stepMs(hour)
             val movedAt = clock.nowMs
             repository.put(ALICE, SHOWS, sitem(1, library = SHOWS))
@@ -78,8 +90,8 @@ class LibraryMoveCutoffTest {
     @Test
     fun theOtherOrderWhereBsPageComesFirstMovesItWithNoTombstone() =
         runBlocking {
-            both()
-            repository.put(ALICE, MOVIES, sitem(1))
+            moviesAdding()
+            putAdding(sitem(1))
             clock.stepMs(hour)
             repository.put(ALICE, SHOWS, sitem(1, library = SHOWS))
             val movedAt = clock.nowMs
@@ -94,8 +106,8 @@ class LibraryMoveCutoffTest {
     @Test
     fun anItemInAnUntickedLibraryIsNotReturnedButAMovedOneIsFoundThroughItsHeldVersion() =
         runBlocking {
-            both()
-            repository.put(ALICE, MOVIES, sitem(1), sitem(2))
+            moviesAdding()
+            putAdding(sitem(1), sitem(2))
             clock.stepMs(hour)
             repository.put(ALICE, SHOWS, sitem(1, library = SHOWS))
             val cutoff = clock.nowMs - 1
@@ -126,6 +138,9 @@ class LibraryMoveCutoffTest {
             var inMovies = true
             repeat(6) {
                 clock.stepMs(hour)
+                // The owner's listing drops it, and the other library's page takes the tombstone.
+                repository.tombstone(ALICE, listOf(a))
+                clock.stepMs(1)
                 inMovies = !inMovies
                 val library = if (inMovies) MOVIES else SHOWS
                 repository.put(ALICE, library, sitem(1, library = library))
@@ -141,4 +156,8 @@ class LibraryMoveCutoffTest {
             repository.assertIntervalsContiguous(ALICE)
             assertEquals(t0, moves.first().first)
         }
+
+    private companion object {
+        const val ADD_STAMP = 1L
+    }
 }

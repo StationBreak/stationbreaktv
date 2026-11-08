@@ -257,14 +257,61 @@ class PurgeSafetyPropertyTest {
         val n = step.n ?: (1 + gen.nextInt(ITEMS))
         val id = ItemId(hexId(n))
         when (step.kind ?: gen.nextInt(OP_KINDS)) {
-            EDIT -> repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(n), genres = listOf("f${step.atMs}"))))
-            TOMBSTONE -> repository.tombstoneSeries(ALICE, listOf(id))
-            REVIVE -> repository.reviveSeries(ALICE, listOf(id))
-            0, 1 -> repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(n), "R${gen.nextInt(GENRES)}")))
-            2 -> repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(n), genres = listOf(oneOf(gen)))))
-            3 -> repository.upsertSeries(ALICE, MOVIES, listOf(series(hexId(n), tags = listOf(oneOf(gen)))))
-            4 -> repository.tombstoneSeries(ALICE, listOf(id))
-            else -> repository.reviveSeries(ALICE, listOf(id))
+            EDIT -> {
+                repository.upsertSeries(
+                    ALICE,
+                    SHOWS,
+                    stamp = null,
+                    rewalk = false,
+                    listOf(series(hexId(n), genres = listOf("f${step.atMs}"))),
+                )
+            }
+
+            TOMBSTONE -> {
+                repository.tombstoneSeries(ALICE, listOf(id))
+            }
+
+            REVIVE -> {
+                repository.reviveSeries(ALICE, listOf(id))
+            }
+
+            0, 1 -> {
+                repository.upsertSeries(
+                    ALICE,
+                    SHOWS,
+                    stamp = null,
+                    rewalk = false,
+                    listOf(series(hexId(n), "R${gen.nextInt(GENRES)}")),
+                )
+            }
+
+            2 -> {
+                repository.upsertSeries(
+                    ALICE,
+                    SHOWS,
+                    stamp = null,
+                    rewalk = false,
+                    listOf(series(hexId(n), genres = listOf(oneOf(gen)))),
+                )
+            }
+
+            3 -> {
+                repository.upsertSeries(
+                    ALICE,
+                    MOVIES,
+                    stamp = null,
+                    rewalk = false,
+                    listOf(series(hexId(n), tags = listOf(oneOf(gen)))),
+                )
+            }
+
+            4 -> {
+                repository.tombstoneSeries(ALICE, listOf(id))
+            }
+
+            else -> {
+                repository.reviveSeries(ALICE, listOf(id))
+            }
         }
     }
 
