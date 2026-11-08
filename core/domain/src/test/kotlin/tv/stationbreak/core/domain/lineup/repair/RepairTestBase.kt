@@ -23,6 +23,7 @@ import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.RecordingStore
 import tv.stationbreak.core.domain.lineup.RefreshMeta
 import tv.stationbreak.core.domain.lineup.Saved
+import tv.stationbreak.core.domain.lineup.SavedSelection
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.TestCatalog
 import tv.stationbreak.core.domain.lineup.channel
@@ -111,6 +112,7 @@ internal open class RepairTestBase {
         private val restart: Rig? = null,
         disk: MemoryDayStore? = null,
         sharedLibrary: CountingLibrary? = null,
+        provider: (suspend () -> SavedSelection?)? = null,
     ) {
         val library: CountingLibrary = restart?.library ?: sharedLibrary ?: CountingLibrary()
 
@@ -163,7 +165,13 @@ internal open class RepairTestBase {
                 persisted = disk?.let { PersistedDays(it, "1:100", {}) },
             ) {
                 providerReads.incrementAndGet()
-                if (unknown) null else selectionOf(chosen, applied, playable, resetSeq)
+                // A test's own provider (the app's, over settings) stands in for the rig's fields.
+                val given = provider
+                when {
+                    given != null -> given()
+                    unknown -> null
+                    else -> selectionOf(chosen, applied, playable, resetSeq)
+                }
             }
         val repairer = TodayRepairer(service, source, library, successors) { storedSeq() }
 

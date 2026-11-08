@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import java.util.Objects
 
@@ -44,3 +46,22 @@ class SavedSelection(
         return "SavedSelection($read, resetSeq=$resetSeq)"
     }
 }
+
+/**
+ * The schedule source's saved selection over [settings] (spec 26 Part 4, §3): one lock-free read of the stored
+ * selection ([ServerSettings.loadSelection], served from memory, so the tune path never waits on a writer) gives the
+ * chosen libraries, their seq and the reset seq. The playable libraries are the chosen ones, or null when the selection
+ * is gone; the libraries being added are never in either. Null when nothing is chosen.
+ */
+fun savedSelectionOf(settings: ServerSettings): suspend () -> SavedSelection? {
+    val read: suspend () -> SavedSelection? = { settings.loadSelection()?.let(::savedSelectionOf) }
+    return read
+}
+
+private fun savedSelectionOf(stored: StoredSelection): SavedSelection =
+    SavedSelection(
+        stored.chosen,
+        seq = stored.seq,
+        playable = if (stored.gone) null else stored.chosen,
+        resetSeq = stored.resetSeq,
+    )

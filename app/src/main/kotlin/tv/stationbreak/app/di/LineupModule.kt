@@ -39,7 +39,6 @@ import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
-import tv.stationbreak.core.domain.lineup.SavedSelection
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SharedSnapshots
@@ -57,6 +56,8 @@ import tv.stationbreak.core.domain.lineup.eitherWriting
 import tv.stationbreak.core.domain.lineup.repair.LostRepairHook
 import tv.stationbreak.core.domain.lineup.repair.Successors
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
+import tv.stationbreak.core.domain.lineup.savedSelectionOf
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.FirstSyncRunner
@@ -135,6 +136,10 @@ internal object LineupModule {
             },
             derived = days,
             unknownSeries = { Log.i(TAG, "UnknownSeriesEpisodes=$it") },
+            // What a save trimmed from the repair record to fit: counts only.
+            trimmed = { fixes, covering, selection ->
+                Log.i(TAG, "RepairsTrimmed fixes=$fixes coveringFixes=$covering selection=$selection")
+            },
         )
     }
 
@@ -145,13 +150,16 @@ internal object LineupModule {
     @Provides
     fun householdSetting(service: LineupService): HouseholdSetting = service
 
-    /** How features change the lineup (spec 21): through the service's lock, with the libraries the viewer chose. */
+    /**
+     * How features change the lineup (spec 21): through the service's lock, with the playable libraries the viewer
+     * chose (spec 26: none while the selection is gone, never one being added).
+     */
     @Provides
     @Singleton
     fun channelEditor(
         service: LineupService,
         settings: ServerSettings,
-    ): ChannelEditor = ChannelManager(service) { settings.loadLibraries() }
+    ): ChannelEditor = ChannelManager(service) { settings.loadPlayableLibraries() }
 
     /** The draw of a new channel's or a reshuffle's seed: 64 bits from the platform's secure random source. */
     @Provides
@@ -183,7 +191,7 @@ internal object LineupModule {
         settings: ServerSettings,
     ): CatalogPicker {
         val libraries: suspend (LibraryAccount) -> List<Library>? = { serverLibraries(sessions, server, it) }
-        return LibraryCatalogPicker(library, libraries) { settings.loadLibraries() }
+        return LibraryCatalogPicker(library, libraries) { settings.loadPlayableLibraries() }
     }
 
     /** How features build channels (spec 22): through the service's lock, with the sources' words from the pickers. */
@@ -217,7 +225,7 @@ internal object LineupModule {
         library: LibraryRepository,
         shared: SharedSnapshots,
         settings: ServerSettings,
-    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared) { settings.loadLibraries() }
+    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared) { settings.loadPlayableLibraries() }
 
     @Provides
     @Singleton
@@ -255,10 +263,10 @@ internal object LineupModule {
                 ),
             persisted = persisted,
             shared = shared,
-            // Seq 0 until Part 4 stores the seq with the selection (spec 26): no selection repair shows. The chosen
-            // libraries stand for the playable ones until Part 4 tells those apart (and gives null when it is gone).
-            // No reset seq until Part 4 reads it with the selection.
-        ) { settings.loadLibraries()?.let { SavedSelection(it, seq = 0L, playable = it, resetSeq = 0L) } }
+            // One lock-free read of the stored selection (spec 26): the chosen libraries, their seq and reset seq, and
+            // the playable ones. The source hands the seqs on to the service's prune and trim.
+            saved = savedSelectionOf(settings),
+        )
 
     @Provides
     fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
@@ -303,6 +311,14 @@ internal object LineupModule {
             settings.loadSelectionSeq()
         }
 
+    /**
+     * Until the selection's resume at start is built (spec 26, Task 4.3b) there is nothing to wait for: the seam is
+     * already complete.
+     */
+    @Provides
+    @Singleton
+    fun selectionReady(): SelectionReady = SelectionReady.Complete
+
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides
     @Singleton
@@ -319,8 +335,10 @@ internal object LineupModule {
         // schedule source's saved selection.
         val now = { Clock.System.now().toEpochMilliseconds() }
         val afterSync = LostRepairHook(repairer::repairLost, now, report)
-        val chosen: suspend () -> Set<ItemId>? = { settings.loadLibraries() }
-        return LineupRefresher(service, library, chosen, sync, afterSync = afterSync::invoke, report = report)
+        // The playable libraries: none while the selection is gone, never one being added.
+        val playable: suspend () -> Set<ItemId>? = { settings.loadPlayableLibraries() }
+        // The selection's changes are a trigger once LibrarySelection announces them (spec 26, Task 4.3b).
+        return LineupRefresher(service, library, playable, sync, afterSync = afterSync::invoke, report = report)
     }
 }
 

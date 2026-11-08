@@ -161,7 +161,7 @@ class StayCurrentRunner(
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun start(plan: SyncPlan): SyncOutcome {
         val record = settings.load() ?: return report.skipped(plan, Skip.NoServer)
-        val libraries = settings.loadLibraries()
+        val libraries = settings.loadPlayableLibraries()
         val chosen = libraries?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
         val accounts = repository.dao.activeAccounts()
         val active = accounts.singleOrNull() ?: return report.skipped(plan, Skip.NoAccount, "accounts=${accounts.size}")
