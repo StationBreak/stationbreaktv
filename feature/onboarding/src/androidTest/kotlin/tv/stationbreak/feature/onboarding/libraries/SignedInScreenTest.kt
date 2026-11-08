@@ -15,6 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibrarySetup
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.SessionRepository
@@ -54,7 +55,7 @@ class SignedInScreenTest {
     private fun launch(username: String? = "sam") {
         signedIn.put(SignInResult(session, persisted = true, username = username))
         val sessions = SessionRepository(InMemorySecretStore(), server)
-        val viewModel = SignedInViewModel(sessions, signedIn, handOff, InMemoryServerSettings())
+        val viewModel = SignedInViewModel(sessions, signedIn, handOff, InMemoryLibrarySetup(InMemoryServerSettings()))
         compose.setContent {
             StationBreakTheme {
                 SignedInRoot(
@@ -117,7 +118,7 @@ class SignedInScreenTest {
     @Test
     fun noSignInHeldHandsBackToLaunchRouting() {
         val sessions = SessionRepository(InMemorySecretStore(), server)
-        val viewModel = SignedInViewModel(sessions, signedIn, handOff, InMemoryServerSettings())
+        val viewModel = SignedInViewModel(sessions, signedIn, handOff, InMemoryLibrarySetup(InMemoryServerSettings()))
         compose.setContent {
             StationBreakTheme {
                 SignedInRoot(viewModel, onContinue = {}, onSwitchUser = {}, onMissingSession = { missing++ })

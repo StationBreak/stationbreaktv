@@ -21,6 +21,8 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.logName
+import tv.stationbreak.core.domain.selection.LibrarySetup
+import tv.stationbreak.core.domain.selection.SetupResult
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
@@ -74,7 +76,7 @@ internal data class LibrariesUiState(
 
 /**
  * The library picker (S0.5.4): lists the server's libraries, ticks every one except home videos (decision 7), and on
- * Done stores the choice through [ServerSettings], beside the server record. The session it asks with comes from the
+ * Done stores the choice through [LibrarySetup], beside the server record. The session it asks with comes from the
  * in-memory [SignedInHandOff]; with none (the process was restarted under the screen) the screen goes back to launch
  * routing, which restores it. Nothing here is logged.
  */
@@ -85,6 +87,7 @@ internal class LibrariesViewModel
         private val mediaServer: MediaServer,
         private val sessions: SessionRepository,
         private val settings: ServerSettings,
+        private val setup: LibrarySetup,
         private val signedIn: SignedInHandOff,
     ) : ViewModel() {
         private val session: Session? = signedIn.peek()?.session
@@ -174,14 +177,15 @@ internal class LibrariesViewModel
         }
 
         /**
-         * Stores the choice. When there is no server record to attach it to (Continue could not write it), the record
-         * is stored first, from the address the session was issued for; a record that is there, with its pin, is never
-         * replaced.
+         * Stores the choice, as a setup ([LibrarySetup.choose]: the repair record is emptied first, so no repair of an
+         * earlier choice shows over this one). When there is no server record to attach it to (Continue could not
+         * write it), the record is stored first, from the address the session was issued for; a record that is there,
+         * with its pin, is never replaced.
          */
         private suspend fun store(ids: Set<ItemId>): Boolean {
             val held = session
-            val storable = held != null && settings.load() == null && settings.save(ServerRecord(held.address))
-            return settings.saveLibraries(ids) || (storable && settings.saveLibraries(ids))
+            if (held != null && settings.load() == null) settings.save(ServerRecord(held.address))
+            return setup.choose(ids) == SetupResult.Saved
         }
 
         /**

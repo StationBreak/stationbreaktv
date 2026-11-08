@@ -13,8 +13,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.ResolvedServer
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.LibrarySetup
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
 import tv.stationbreak.feature.onboarding.server.ServerHandOff
 import tv.stationbreak.feature.onboarding.signin.SignInResult
@@ -46,7 +46,7 @@ internal class SignedInViewModel
         private val sessions: SessionRepository,
         private val signedIn: SignedInHandOff,
         private val handOff: ServerHandOff,
-        private val settings: ServerSettings,
+        private val setup: LibrarySetup,
     ) : ViewModel() {
         private val held: SignInResult? = signedIn.peek()
 
@@ -87,7 +87,8 @@ internal class SignedInViewModel
                 signedIn.clear()
                 sessions.signOut(session)
                 // The next user chooses their libraries afresh, so a restart can't find setup done for the last one.
-                settings.clearLibraries()
+                // Through the setup, under the selection's lock, so no change of the old choice lands after it.
+                setup.clear()
                 handOff.put(ConnectedServer(ResolvedServer(session.address, session.server), session.acknowledgement))
                 results.send(Unit)
             }

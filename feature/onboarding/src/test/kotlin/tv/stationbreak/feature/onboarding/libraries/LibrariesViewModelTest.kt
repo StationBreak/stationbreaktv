@@ -22,6 +22,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibrarySetup
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServerError
@@ -50,6 +51,7 @@ class LibrariesViewModelTest {
     private val sessions = SessionRepository(store, server)
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val settings = InMemoryServerSettings(ServerRecord(https))
+    private val setup = InMemoryLibrarySetup(settings)
     private val handOff = SignedInHandOff()
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
@@ -71,7 +73,7 @@ class LibrariesViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = LibrariesViewModel(server, sessions, settings, handOff)
+    private fun viewModel() = LibrariesViewModel(server, sessions, settings, setup, handOff)
 
     private fun CoroutineScope.collect(
         vm: LibrariesViewModel,
@@ -185,6 +187,8 @@ class LibrariesViewModelTest {
             vm.onDone()
 
             assertEquals(setOf(movies.id, shows.id, musicVideos.id), settings.currentLibraries)
+            // Spec 26 binding item 5: Done is a setup, which empties the repair record before it saves.
+            assertEquals(listOf(setOf(movies.id, shows.id, musicVideos.id)), setup.chosen)
             assertEquals(listOf(LibrariesEvent.Finished), events)
             assertNull(handOff.peek())
             assertEquals(ServerRecord(https), settings.current)
@@ -335,7 +339,7 @@ class LibrariesViewModelTest {
         val gate = CompletableDeferred<ServerResult<List<Library>>>()
         val slow = SlowLibraries(server, gate)
 
-        val vm = LibrariesViewModel(slow, sessions, settings, handOff)
+        val vm = LibrariesViewModel(slow, sessions, settings, InMemoryLibrarySetup(settings), handOff)
         assertEquals(LibrariesPhase.Loading, vm.state.value.phase)
         gate.complete(ServerResult.Success(listOf(movies)))
 
@@ -346,7 +350,7 @@ class LibrariesViewModelTest {
     fun doneStoresTheServerRecordWhenContinueCouldNotAndThenTheChoice() =
         runTest {
             val bare = InMemoryServerSettings()
-            val vm = LibrariesViewModel(server, sessions, bare, handOff)
+            val vm = LibrariesViewModel(server, sessions, bare, InMemoryLibrarySetup(bare), handOff)
             val events = mutableListOf<LibrariesEvent>()
             val job = backgroundScope.collect(vm, events)
 
@@ -363,7 +367,7 @@ class LibrariesViewModelTest {
         runTest {
             val bare = InMemoryServerSettings()
             bare.failSave = true
-            val vm = LibrariesViewModel(server, sessions, bare, handOff)
+            val vm = LibrariesViewModel(server, sessions, bare, InMemoryLibrarySetup(bare), handOff)
             val events = mutableListOf<LibrariesEvent>()
             val job = backgroundScope.collect(vm, events)
 
@@ -386,7 +390,7 @@ class LibrariesViewModelTest {
                 tv.stationbreak.core.model
                     .SpkiPin(ByteArray(tv.stationbreak.core.model.SpkiPin.SIZE) { 6 })
             val pinned = InMemoryServerSettings(ServerRecord(https, pin))
-            val vm = LibrariesViewModel(server, sessions, pinned, handOff)
+            val vm = LibrariesViewModel(server, sessions, pinned, InMemoryLibrarySetup(pinned), handOff)
 
             vm.onDone()
 
