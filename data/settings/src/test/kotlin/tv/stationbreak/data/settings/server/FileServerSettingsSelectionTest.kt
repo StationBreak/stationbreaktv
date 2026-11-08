@@ -455,4 +455,25 @@ class FileServerSettingsSelectionTest {
             assertTrue(again.clearLibraries())
             assertTrue(file.text!!.lines().none { it.startsWith("selectionOwner") })
         }
+
+    // Fix round 4, item 2: a same-seq save never hands the stored choice to another account; it may name an owner
+    // where an older build's record named none (the resume's adoption).
+    @Test
+    fun aSameSeqSave_neverChangesTheOwner_butAdoptsAnOlderRecord() =
+        runBlocking {
+            val first = LibraryAccount(ServerId("server-a"), UserId("user-a"))
+            val second = LibraryAccount(ServerId("server-a"), UserId("user-b"))
+            assertTrue(settings.save(ServerRecord(address)))
+            assertTrue(settings.seed(full))
+            assertNull(settings.loadSelection()?.owner)
+
+            assertTrue("an older record adopted", settings.saveSelection(full.copy(owner = first)))
+            assertEquals(first, rebuilt().loadSelection()?.owner)
+            val writes = file.writes
+            assertFalse(settings.saveSelection(full.copy(listings = 6, owner = second)))
+            assertFalse(settings.saveSelection(full.copy(listings = 6)))
+            assertEquals(writes, file.writes)
+            assertEquals(full.copy(owner = first), rebuilt().loadSelection())
+            assertTrue(settings.saveSelection(full.copy(listings = 6, owner = first)))
+        }
 }

@@ -5,6 +5,8 @@ import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -47,6 +49,21 @@ class StoredSelectionTest {
         assertFalse(stored.copy(resetSeq = 5).mayReplace(stored, 5, 0))
         // With nothing chosen, any selection is a change.
         assertFalse(stored.mayReplace(null, 5, 0))
+    }
+
+    // Fix round 4, item 2: an equal seq never moves the choice to another owner; it may name one where none was stored
+    // (the resume's adoption of an older build's record).
+    @Test
+    fun anEqualSeq_neverChangesTheOwner_butMayNameOneWhereNoneWas() {
+        val first = LibraryAccount(ServerId("server-a"), UserId("user-a"))
+        val second = LibraryAccount(ServerId("server-a"), UserId("user-b"))
+        val owned = stored.copy(owner = first)
+        assertTrue(owned.copy(listings = 2).mayReplace(owned, 5, 0))
+        assertFalse(owned.copy(owner = second).mayReplace(owned, 5, 0))
+        assertFalse(owned.copy(owner = null).mayReplace(owned, 5, 0))
+        assertTrue(owned.mayReplace(stored, 5, 0), "an older record adopted")
+        // A new seq is a change, and may name any owner.
+        assertTrue(owned.copy(seq = 6, owner = second).mayReplace(owned, 5, 0))
     }
 
     @Test

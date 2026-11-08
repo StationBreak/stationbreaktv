@@ -152,7 +152,8 @@ data class StoredSelection(
      * Whether this selection may replace what is stored: [stored] (null when nothing is chosen), whose seq is
      * [storedSeq] and whose reset seq is [storedResetSeq] (both kept when the selection is dropped). It must be well
      * formed, its seq at or above the stored one, and its reset seq never below the stored one. An equal seq is only
-     * for bookkeeping, [missing] and [listings]: anything else is a change and takes a new seq.
+     * for bookkeeping, [missing] and [listings]: anything else is a change and takes a new seq. An equal seq keeps
+     * the [owner], but may name one where the stored selection names none (the adoption of an older build's record).
      */
     fun mayReplace(
         stored: StoredSelection?,
@@ -175,7 +176,8 @@ data class StoredSelection(
                         chosen == stored.chosen &&
                         adding == stored.adding &&
                         gone == stored.gone &&
-                        resetSeq == stored.resetSeq
+                        resetSeq == stored.resetSeq &&
+                        (owner == stored.owner || stored.owner == null)
                 }
             }
 }

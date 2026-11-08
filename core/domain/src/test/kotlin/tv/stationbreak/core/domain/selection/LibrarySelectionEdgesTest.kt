@@ -215,7 +215,9 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
     // opened by the start) puts the cache in line on its first operation.
     @Test
     fun aSelectionThatNeverResumed_catchesUpOnItsFirstOperation() {
-        val tv = Tv(chosen = setOf(libA), stored = StoredSelection(setOf(libA, libB), seq = 1L))
+        // A record this build wrote, so it names its owner (an older one is adopted only by a resume: round 4).
+        val stored = StoredSelection(setOf(libA, libB), seq = 1L, owner = ACCOUNT)
+        val tv = Tv(chosen = setOf(libA), stored = stored)
         tv.stampInRoom(libB, 1L, setOf(libA))
         tv.gate.open()
 
@@ -363,5 +365,52 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
         tv.resume()
 
         assertNull(assertNotNull(tv.stored()).owner)
+    }
+
+    // Fix round 4, item 1: an older build's record left while no one was signed in is nobody's yet. The next account
+    // to sign in is not its owner: when that sign-in's clear fails, nothing of it reaches the new account's cache, and
+    // nothing names the new account its owner.
+    @Test
+    fun anOlderRecordLeftSignedOut_neverReachesTheNextAccountsCache_whenItsClearFails() {
+        val tv = Tv()
+        runBlocking { tv.fake.forget(ACCOUNT) }
+        tv.resume()
+        assertNull(assertNotNull(tv.stored()).owner, "left alone at the resume")
+        runBlocking { tv.fake.useAccount(other) }
+        tv.settings.inner.failSave = true
+        assertFalse(runBlocking { tv.selection.clear() })
+        tv.settings.inner.failSave = false
+        val calls = tv.library.applyCalls
+        val before = assertNotNull(tv.stored())
+
+        assertEquals(ChangeResult.Failed, tv.change(setOf(libA)))
+        runBlocking { tv.selection.reconcile() }
+        runBlocking { tv.selection.followServer(other, listed(setOf(libA, libB))) }
+        assertEquals(emptySet<ItemId>(), runBlocking { tv.selection.firstSyncLibraries(other) })
+
+        assertEquals(calls, tv.library.applyCalls, "nothing written to the new account's cache")
+        assertTrue(runBlocking { tv.fake.storedLibraries(other) }.isEmpty())
+        assertEquals(before, tv.stored(), "not followed, and still no owner")
+        assertNull(assertNotNull(tv.stored()).owner)
+        assertTrue(SelectionEvent.ForeignChoice in tv.events)
+    }
+
+    // Fix round 4, item 1: the account that adopted an older record at resume keeps its choice for the life of the
+    // process, even when the write that names it the owner failed.
+    @Test
+    fun anAdoptionWhoseWriteFailed_stillLetsTheAdoptingAccountUseItsChoice() {
+        val tv = Tv()
+        tv.settings.failSaves = 1
+        tv.resume()
+        assertNull(assertNotNull(tv.stored()).owner, "the adoption's write failed")
+
+        assertEquals(setOf(libA, libB), runBlocking { tv.selection.firstSyncLibraries(ACCOUNT) })
+        tv.listing(setOf(libA, libB, libC))
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB, libC)))
+
+        val stored = assertNotNull(tv.stored())
+        assertEquals(mapOf(libC to stored.seq), stored.adding)
+        assertEquals(ACCOUNT, stored.owner, "the next save names it")
+        assertFalse(SelectionEvent.ForeignChoice in tv.events)
     }
 }

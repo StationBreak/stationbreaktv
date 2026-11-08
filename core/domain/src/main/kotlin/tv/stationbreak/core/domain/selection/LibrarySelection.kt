@@ -132,6 +132,10 @@ class LibrarySelection(
     // The libraries the last counted listing gave: a library may be added only if it was listed.
     @Volatile private var lastListed: Set<ItemId>? = null
 
+    // The account that adopted an older build's record (one naming no owner) at the resume: that record is its own
+    // for the life of the process, even when the write naming it the owner failed. Set only by the resume.
+    @Volatile private var adopted: LibraryAccount? = null
+
     override val selection: StateFlow<ChoiceView?> = view.asStateFlow()
 
     /**
@@ -165,13 +169,14 @@ class LibrarySelection(
 
     private suspend fun activeAccount(): LibraryAccount? = library.activeAccount().first()
 
-    // Whether [stored] is [account]'s choice: a stored owner says so. A record that names none is an older build's,
-    // and those builds cleared the choice at every sign-in and switch of user, so it is the signed-in account's: the
-    // resume writes that down.
+    // Whether [stored] is [account]'s choice: a stored owner says so. A record that names none is an older build's:
+    // it is the account's only when the resume adopted it for that account (those builds cleared the choice at every
+    // sign-in and switch of user, so it was the signed-in one's). Otherwise it is nobody's, and foreign to every
+    // account: a sign-in clears it first, and a setup clears it when that clear failed.
     private fun owns(
         account: LibraryAccount,
         stored: StoredSelection,
-    ): Boolean = stored.owner == null || stored.owner == account
+    ): Boolean = if (stored.owner != null) stored.owner == account else adopted == account
 
     // The active account, or null reported: a change or a setup with none stores nothing.
     private suspend fun activeAccountOrReport(): LibraryAccount? =
@@ -427,11 +432,20 @@ class LibrarySelection(
                     val stored = store.loadSelection()
                     publish(stored)
                     val account = activeAccount()
-                    // Another account's choice (a clear that failed before a restart) is left to the next setup.
-                    if (stored != null && account != null && owns(account, stored)) {
-                        // An older record names no owner: the active account adopts it, the same seq now with it.
-                        if (stored.owner == null) write(stored, account)
-                        raise(account, store.loadSelection() ?: stored)
+                    // An older record names no owner: the active account adopts it (for this process even if the
+                    // write fails), and the same seq is saved with it. With no account active it is left alone.
+                    val current =
+                        if (stored != null && stored.owner == null && account != null) {
+                            adopted = account
+                            write(stored, account)
+                            store.loadSelection()
+                        } else {
+                            stored
+                        }
+                    // Another account's choice (a clear that failed before a restart) is left to the next setup. A
+                    // reload that read nothing skips the raise and the reconcile: the next operation catches up.
+                    if (current != null && account != null && owns(account, current)) {
+                        raise(account, current)
                         reconcileRoom(account)
                     }
                 }
