@@ -148,6 +148,11 @@ object ArchitectureRules {
     private val FEATURE =
         ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:ui", ":core:playback", ":core:model"))
 
+    // Feature modules with a narrower allowlist than [FEATURE]'s. feature:settings (spec 26) consumes core:domain's
+    // ports and core:ui only: it plays nothing, so no core:playback.
+    private val NARROWER_FEATURES =
+        mapOf(":feature:settings" to ModuleSpec(Platform.ANDROID, setOf(":core:domain", ":core:ui", ":core:model")))
+
     private const val CORE_PREFIX = ":core:"
     private val ROOM_OR_WORK_GROUPS = listOf("androidx.room", "androidx.room3", "androidx.work")
 
@@ -188,7 +193,9 @@ object ArchitectureRules {
     }
 
     private fun specOf(path: String): ModuleSpec? =
-        if (path.startsWith(FEATURE_PREFIX) && path.count { it == ':' } == 2) FEATURE else MODULES[path]
+        if (isFeature(path)) NARROWER_FEATURES[path] ?: FEATURE else MODULES[path]
+
+    private fun isFeature(path: String): Boolean = path.startsWith(FEATURE_PREFIX) && path.count { it == ':' } == 2
 
     private fun check(
         module: String,
@@ -259,7 +266,7 @@ object ArchitectureRules {
                 Rule.NO_ANDROID_IN_PURE_MODULES
             }
 
-            spec === FEATURE && (target.startsWith(DATA_PREFIX) || target.startsWith(FEATURE_PREFIX)) -> {
+            isFeature(module) && (target.startsWith(DATA_PREFIX) || target.startsWith(FEATURE_PREFIX)) -> {
                 Rule.FEATURE_ISOLATION
             }
 
