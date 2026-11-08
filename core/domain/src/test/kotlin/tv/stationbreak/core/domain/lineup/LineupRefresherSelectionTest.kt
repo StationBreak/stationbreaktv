@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
@@ -52,10 +53,6 @@ class LineupRefresherSelectionTest {
     private val sync = SyncActivity { writing.flow() }
 
     @Volatile private var libraries: Set<ItemId>? = LIBRARIES
-
-    // How many times the refresher read the libraries: once in every refresh it considers. A state, so a test can await
-    // a count instead of polling for it.
-    private val libraryReads = MutableStateFlow(0)
 
     // How many lost-block checks have run, as a state to await.
     private val checkCount = MutableStateFlow(0)
@@ -102,10 +99,7 @@ class LineupRefresherSelectionTest {
             // The first change's check (the second check) waits here when a test holds it.
             if (checks.size == 2) held?.await()
         }
-        val read = {
-            libraryReads.update { it + 1 }
-            libraries
-        }
+        val read = { libraries }
         return LineupRefresher(service, lib, read, sync, seq, BACKOFF_MS, afterSync) { events += it }
     }
 
@@ -179,11 +173,14 @@ class LineupRefresherSelectionTest {
     fun aChangeWhileASyncWrites_refreshesAtOnce_andLeavesTheCheckToTheRunsEnd() =
         runBlocking<Unit> {
             val before = startedCurrent()
+            val reads = writing.reads.value
             writing.value = true
 
             libraries = LIBRARIES + OTHER
             seq.value = 1L
             until("the refresh is not held") { refreshes == before + 1 }
+            // The change has asked whether a run writes, after its refresh: ending the run sooner races that read.
+            writing.awaitReads(reads + 1)
             writing.value = false
             until("the check at the run's end") { checks.size == 2 }
 
@@ -198,15 +195,16 @@ class LineupRefresherSelectionTest {
         runBlocking<Unit> {
             val beginsARun = RunBeginsInRefresh(library, writing)
             startedCurrent(beginsARun)
+            val writingReads = writing.reads.value
 
             beginsARun.armed = true
             libraries = LIBRARIES + OTHER
             seq.value = 1L
             withTimeout(WAIT_MS) { beginsARun.began.await() }
-            val reads = libraryReads.value
-            // A second change while the run writes: once its refresh is considered, the first change was handled.
+            // A second change while the run writes. Each change asks whether a run writes after its refresh: once both
+            // have asked, both were handled, and ending the run cannot race either read.
             seq.value = 2L
-            withTimeout(WAIT_MS) { libraryReads.first { it > reads } }
+            writing.awaitReads(writingReads + 2)
             assertEquals(listOf(Check(0L)), checks.toList(), "no check while the run that began in the refresh writes")
 
             writing.value = false
@@ -219,12 +217,14 @@ class LineupRefresherSelectionTest {
         runBlocking<Unit> {
             writing.value = true
             LineupService(store, library, clock, { 0 }, {}, TestCatalog).refresh(ACCOUNT, LIBRARIES)
-            val reads = libraryReads.value
             refresher(library).start(scope)
             writing.awaitRunEndsListening()
 
             seq.value = 1L
-            until("the change was handled") { libraryReads.value > reads }
+            // The start check and the change each ask whether a run writes, in either order, the change after its
+            // refresh. Once both have asked, ending the run cannot race either read. (A libraries read is no barrier:
+            // the start check makes one too, and the change makes its own before its refresh, not after.)
+            writing.awaitReads(2)
             assertEquals(emptyList(), checks.toList(), "neither check runs while the run writes")
 
             writing.value = false
@@ -347,6 +347,9 @@ private class WritingSignal {
     private val calls = AtomicInteger()
     private val listening = CompletableDeferred<Unit>()
 
+    /** How many one-value reads (every call after the first) have taken a value, as a state to await. */
+    val reads = MutableStateFlow(0)
+
     init {
         check(values.tryEmit(false))
     }
@@ -357,8 +360,16 @@ private class WritingSignal {
      */
     fun flow(): Flow<Boolean> {
         val runEnds = calls.getAndIncrement() == 0
-        return if (runEnds) values.onSubscription { listening.complete(Unit) } else values
+        return if (runEnds) {
+            values.onSubscription { listening.complete(Unit) }
+        } else {
+            // Counted once the value is taken, so a change made after the count is reached cannot reach this read.
+            values.onEach { reads.update { count -> count + 1 } }
+        }
     }
+
+    /** Waits until [count] one-value reads have taken a value. The timeout only stops a hung test. */
+    suspend fun awaitReads(count: Int) = withTimeout(LISTEN_WAIT_MS) { reads.first { it >= count } }
 
     /** Waits until the refresher's run-end listener has subscribed. The timeout only stops a hung test. */
     suspend fun awaitRunEndsListening() = withTimeout(LISTEN_WAIT_MS) { listening.await() }
