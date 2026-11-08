@@ -17,4 +17,8 @@ data class SavedSelection(
     val libraries: Set<ItemId>,
     val seq: Long,
     val playable: Set<ItemId>?,
-)
+) {
+    init {
+        require(playable == null || libraries.containsAll(playable)) { "A playable library is always a chosen one" }
+    }
+}

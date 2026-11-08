@@ -124,7 +124,8 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
     fun repairLost_noDayOnTheAir_writesNothing() {
         val rig = Rig(lineupOf(laughs), comedies, emptySet())
 
-        assertEquals(0, rig.lost(setOf(libA)))
+        // Nothing chosen, so nothing playable either (a playable library is always a chosen one).
+        assertEquals(0, rig.lost(emptySet()))
 
         assertNull(rig.record().lostCheck)
     }

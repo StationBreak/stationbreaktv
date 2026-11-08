@@ -244,7 +244,8 @@ class TodayRepairer internal constructor(
                 }
                 val generation = library.contentGeneration(account)
                 if (held.repairs.lostCheck?.covers(generation, atMs) == true) return@withLock RepairOutcome.Saved(0)
-                val today = source.currentDays(account, Instant.fromEpochMilliseconds(atMs))
+                // The days of the same read: the provider is read once in this turn.
+                val today = source.currentDays(account, saved, Instant.fromEpochMilliseconds(atMs))
                 if (today.isEmpty()) return@withLock RepairOutcome.Saved(0)
                 val fixes = LostRepair(days, library, successors, account, held, saved.playable, atMs).fixes(today)
                 val check = LostCheck(generation, today.minOf { it.epochEndMs })

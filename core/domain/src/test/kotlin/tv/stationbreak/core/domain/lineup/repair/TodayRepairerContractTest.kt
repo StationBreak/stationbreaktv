@@ -371,14 +371,14 @@ internal class TodayRepairerContractTest : RepairTestBase() {
             inSave.await()
             val repair = async(Dispatchers.Default) { hook(ACCOUNT) }
             delay(WAIT_FOR_THE_QUEUE_MS)
-            // The playable set moves on before the repair gets its turn.
-            rig.playable = setOf(libB)
+            // The playable set moves on before the repair gets its turn (libA's walk is no longer current, say).
+            rig.playable = emptySet()
             release.complete(Unit)
             change.await()
             repair.await()
         }
 
-        assertEquals(listOf(setOf(libB)), asked, "the value read under the lock, not the one when the hook fired")
+        assertEquals(listOf(emptySet<ItemId>()), asked, "the value read under the lock, not the one when the hook fired")
     }
 
     @Test
