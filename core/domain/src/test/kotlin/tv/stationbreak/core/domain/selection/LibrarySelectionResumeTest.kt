@@ -137,7 +137,8 @@ internal class LibrarySelectionResumeTest : SelectionTestBase() {
         tv.resume()
 
         val stored = assertNotNull(tv.stored())
-        assertTrue(stored.seq >= 8L)
+        // One above max(stored, top) = 7 is skipped: a newer build's hidden repair there stays below the reset seq.
+        assertEquals(9L, stored.seq)
         assertEquals(stored.seq, stored.resetSeq)
     }
 

@@ -22,6 +22,7 @@ import tv.stationbreak.core.domain.lineup.savedSelectionOf
 import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.LibrarySelection
 import tv.stationbreak.core.domain.selection.SetupResult
+import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.data.library.SyncWorld.movies
 import tv.stationbreak.data.library.SyncWorld.session
 import tv.stationbreak.data.library.SyncWorld.shows
@@ -58,6 +59,7 @@ class SameAccountSetupTest {
             val repairer = TodayRepairer(service, source, repository) { settings.loadSelectionSeq() }
             LibrarySelection(
                 settings,
+                settings,
                 repository,
                 server,
                 { session },
@@ -85,7 +87,7 @@ class SameAccountSetupTest {
     fun sameAccountSetup_withLastSuccess_startsFirstSync_walksNewLibraries() =
         runBlocking {
             // The account's first sync finished over the movies alone.
-            assertTrue(settings.saveLibraries(setOf(MOVIES)))
+            assertTrue(settings.storeChoice(setOf(MOVIES)))
             SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
             assertNotNull("finished", repository.lastSuccess(ALICE))
             selection.resumeAtStart()

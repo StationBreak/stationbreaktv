@@ -130,7 +130,7 @@ class FileServerSettingsTest {
         runBlocking {
             settings.save(ServerRecord(address, pin))
             val before = file.writes
-            assertTrue(settings.saveLibraries(setOf(movies, shows)))
+            assertTrue(settings.storeChoice(setOf(movies, shows)))
             assertEquals(before + 1, file.writes)
             val rebuilt = FileServerSettings(file, inPlace)
             assertEquals(setOf(movies, shows), rebuilt.loadLibraries())
@@ -140,10 +140,10 @@ class FileServerSettingsTest {
     @Test
     fun aSelectionNeedsARecordAndIsNeverEmpty() =
         runBlocking {
-            assertFalse(settings.saveLibraries(setOf(movies)))
+            assertFalse(settings.storeChoice(setOf(movies)))
             assertNull(file.text)
             settings.save(ServerRecord(address))
-            assertFalse(settings.saveLibraries(emptySet()))
+            assertFalse(settings.storeChoice(emptySet()))
             assertNull(settings.loadLibraries())
         }
 
@@ -151,7 +151,7 @@ class FileServerSettingsTest {
     fun clearingThePinAndSavingTheSameAddressKeepTheSelection() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveLibraries(setOf(movies))
+            settings.storeChoice(setOf(movies))
             assertTrue(settings.clearPin())
             assertEquals(setOf(movies), settings.loadLibraries())
             assertTrue(settings.save(ServerRecord(address, pin)))
@@ -162,7 +162,7 @@ class FileServerSettingsTest {
     fun savingAnotherAddressDropsTheSelectionInTheSameWrite() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveLibraries(setOf(movies))
+            settings.storeChoice(setOf(movies))
             val before = file.writes
             val other = ServerAddress(Scheme.Https, "other.example.test", 443)
             assertTrue(settings.save(ServerRecord(other)))
@@ -175,9 +175,9 @@ class FileServerSettingsTest {
     fun aFailedSelectionWriteKeepsTheOldRecordAndSelection() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveLibraries(setOf(movies))
+            settings.storeChoice(setOf(movies))
             file.failWrites = true
-            assertFalse(settings.saveLibraries(setOf(shows)))
+            assertFalse(settings.storeChoice(setOf(shows)))
             assertEquals(setOf(movies), settings.loadLibraries())
             assertEquals(ServerRecord(address, pin), settings.load())
         }
@@ -187,7 +187,7 @@ class FileServerSettingsTest {
         runBlocking {
             file.text = ServerRecordCodec.encode(ServerRecord(address, pin))
             assertNull(settings.loadLibraries())
-            assertTrue(settings.saveLibraries(setOf(movies)))
+            assertTrue(settings.storeChoice(setOf(movies)))
             assertEquals(ServerRecord(address, pin), settings.load())
         }
 
@@ -199,7 +199,7 @@ class FileServerSettingsTest {
             assertNull(settings.loadLibraries())
             assertEquals(ServerRecord(address, pin), settings.load())
             // The picker asks again, and the new choice is stored beside the record that survived.
-            assertTrue(settings.saveLibraries(setOf(movies)))
+            assertTrue(settings.storeChoice(setOf(movies)))
             assertEquals(setOf(movies), settings.loadLibraries())
             assertEquals(ServerRecord(address, pin), settings.load())
         }
@@ -213,7 +213,7 @@ class FileServerSettingsTest {
     fun clearingTheSelectionIsOneWriteThatKeepsTheRecordAndPin() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveLibraries(setOf(movies))
+            settings.storeChoice(setOf(movies))
             val before = file.writes
 
             assertTrue(settings.clearLibraries())
@@ -237,7 +237,7 @@ class FileServerSettingsTest {
     fun aFailedClearReportsFalseAndKeepsTheSelection() =
         runBlocking {
             settings.save(ServerRecord(address))
-            settings.saveLibraries(setOf(movies))
+            settings.storeChoice(setOf(movies))
             file.failWrites = true
             assertFalse(settings.clearLibraries())
             assertEquals(setOf(movies), settings.loadLibraries())

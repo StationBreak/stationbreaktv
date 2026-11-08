@@ -6,12 +6,13 @@ import tv.stationbreak.core.domain.selection.SetupResult
 import tv.stationbreak.core.model.ItemId
 
 /**
- * A [LibrarySetup] for tests (ADR-0004) over [settings]: [choose] is a setup's save ([ServerSettings.saveLibraries])
- * and [clear] is [ServerSettings.clearLibraries], with no repair record or library cache behind them (the real one is
- * `LibrarySelection`). It records every call, so a screen's test can prove its path went through the setup.
+ * A [LibrarySetup] for tests (ADR-0004) over a [SelectionStore]: [choose] is a setup's save ([storeChoice]), refused
+ * while a choice is stored, as the real one refuses it, and [clear] is [SelectionWriter.clearLibraries]. No repair
+ * record or library cache is behind them (the real one is `LibrarySelection`). It records every call, so a screen's
+ * test can prove its path went through the setup.
  */
 class InMemoryLibrarySetup(
-    private val settings: ServerSettings,
+    private val store: SelectionStore,
 ) : LibrarySetup {
     /** Every choice passed to [choose], in order, whether or not it was stored. */
     val chosen = mutableListOf<Set<ItemId>>()
@@ -22,11 +23,12 @@ class InMemoryLibrarySetup(
 
     override suspend fun choose(ids: Set<ItemId>): SetupResult {
         chosen += ids
-        return if (settings.saveLibraries(ids)) SetupResult.Saved else SetupResult.Failed
+        if (store.loadSelection() != null) return SetupResult.Failed
+        return if (store.storeChoice(ids)) SetupResult.Saved else SetupResult.Failed
     }
 
     override suspend fun clear(): Boolean {
         clears++
-        return settings.clearLibraries()
+        return store.clearLibraries()
     }
 }

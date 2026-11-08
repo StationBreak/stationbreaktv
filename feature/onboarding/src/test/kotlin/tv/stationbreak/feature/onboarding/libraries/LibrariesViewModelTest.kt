@@ -163,7 +163,7 @@ class LibrariesViewModelTest {
         )
         assertFalse(vm.state.value.canFinish)
         vm.onDone()
-        assertTrue(settings.savedLibraries.isEmpty())
+        assertTrue(settings.savedSelections.isEmpty())
         assertEquals(LibrariesPhase.Choosing, vm.state.value.phase)
     }
 
@@ -202,7 +202,7 @@ class LibrariesViewModelTest {
         vm.onDone()
         vm.onDone()
 
-        assertEquals(1, settings.savedLibraries.size)
+        assertEquals(1, settings.savedSelections.size)
     }
 
     // Back (#234 L3)

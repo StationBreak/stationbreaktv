@@ -69,7 +69,7 @@ class FileServerSettingsMemoTest {
             settings.clearLibraries()
             assertNull(settings.loadSelection())
             assertEquals(2L, settings.loadSelectionSeq())
-            assertTrue(settings.saveLibraries(setOf(beta)))
+            assertTrue(settings.storeChoice(setOf(beta)))
             assertEquals(setOf(beta), settings.loadPlayableLibraries())
             // Only the writers' own read-modify-write reads touched the file.
             assertEquals(reads + 2, file.reads)

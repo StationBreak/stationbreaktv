@@ -30,6 +30,9 @@ data class ServerRecord(
  * The library selection (S0.5.4) lives beside the record and is written with it, so the two can never disagree about
  * which server the choice was made on: [save] keeps the selection when the address is the same one and drops it when
  * the address is another server's (keeping the seq and the counters, see [loadSelectionSeq]), and [clearPin] keeps it.
+ *
+ * Everyone reads the selection here; only the selection writes it, through [SelectionWriter] (spec 26, Part 4: one
+ * writer, so its lock orders every selection write with the repair record and the library cache).
  */
 interface ServerSettings {
     /** The stored record, or null when none was saved (or it couldn't be read). */
@@ -45,21 +48,6 @@ interface ServerSettings {
     suspend fun loadLibraries(): Set<ItemId>?
 
     /**
-     * Stores [ids] as the chosen libraries, in one atomic write with the record: a setup. It takes the stored seq + 1,
-     * makes that the reset seq, and clears the libraries being added, gone and the misses. Returns true when it was
-     * stored. Returns false, storing nothing, when there is no record to attach it to, when [ids] is empty (a selection
-     * is never empty), or when the write failed.
-     */
-    suspend fun saveLibraries(ids: Set<ItemId>): Boolean
-
-    /**
-     * Drops the library selection and keeps the record and its pin, in one atomic write. True when it was dropped or
-     * there was nothing to drop. A new sign-in or a switch of user starts the choice again (S0.5.4). The seq, the reset
-     * seq and the listing count are kept, so a seq is never reused.
-     */
-    suspend fun clearLibraries(): Boolean
-
-    /**
      * The whole stored selection (spec 26): the chosen libraries with their seq, the libraries being added, whether the
      * selection is gone, the libraries a listing missed, and the counters. Null when nothing is chosen, when there is
      * no record, or when the file can't be read. Served from memory after the first read: a selection read never waits
@@ -68,18 +56,11 @@ interface ServerSettings {
     suspend fun loadSelection(): StoredSelection?
 
     /**
-     * The stored seq, which outlives the selection: [clearLibraries] and [save] for another address keep it. 0 when no
-     * seq was ever stored. Null when there is no record or the file can't be read. A new selection saved after a
-     * clear must carry a seq above this one.
+     * The stored seq, which outlives the selection: [SelectionWriter.clearLibraries] and [save] for another address
+     * keep it. 0 when no seq was ever stored. Null when there is no record or the file can't be read. A new selection
+     * saved after a clear must carry a seq above this one.
      */
     suspend fun loadSelectionSeq(): Long?
-
-    /**
-     * Replaces the stored selection with [selection] in one atomic write with the record. Returns false, storing
-     * nothing, when there is no record, when the write failed, or when [selection] breaks a rule of
-     * [StoredSelection.mayReplace] (an empty or overlapping choice, a stamp above its seq, a seq below the stored one).
-     */
-    suspend fun saveSelection(selection: StoredSelection): Boolean
 
     /**
      * The playable libraries: the chosen ones, or null when the selection is gone or none is stored. Never the
@@ -90,6 +71,31 @@ interface ServerSettings {
      */
     suspend fun loadPlayableLibraries(): Set<ItemId>?
 }
+
+/**
+ * The writes of the library selection (spec 26, Part 4), apart from [ServerSettings] so that only the selection's one
+ * writer (`LibrarySelection`) is given them. The stores implement both ([SelectionStore]).
+ */
+interface SelectionWriter {
+    /**
+     * Drops the library selection and keeps the record and its pin, in one atomic write. True when it was dropped or
+     * there was nothing to drop. A new sign-in or a switch of user starts the choice again (S0.5.4). The seq, the reset
+     * seq and the listing count are kept, so a seq is never reused.
+     */
+    suspend fun clearLibraries(): Boolean
+
+    /**
+     * Replaces the stored selection with [selection] in one atomic write with the record. Returns false, storing
+     * nothing, when there is no record, when the write failed, or when [selection] breaks a rule of
+     * [StoredSelection.mayReplace] (an empty or overlapping choice, a stamp above its seq, a seq below the stored one).
+     */
+    suspend fun saveSelection(selection: StoredSelection): Boolean
+}
+
+/** A store of the server settings that also takes the selection's writes: what the app binds both ports to. */
+interface SelectionStore :
+    ServerSettings,
+    SelectionWriter
 
 /**
  * The first time a listing missed a chosen or adding library: when ([sinceMs]), and in which counted listing

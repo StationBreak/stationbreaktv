@@ -129,7 +129,7 @@ internal class LibrarySelectionStampsTest : SelectionTestBase() {
         val stored = assertNotNull(tv.stored())
 
         val landed = runBlocking { tv.selection.passLanded(ACCOUNT, libC, stored.adding.getValue(libC)) }
-        assertEquals(LandResult.Retry, landed)
+        assertEquals(LandResult.Unproven, landed, "not a passing fault: the add pass reads it again")
 
         assertEquals(stored, tv.stored(), "not chosen: its read has not ended")
     }

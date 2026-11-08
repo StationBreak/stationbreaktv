@@ -11,7 +11,7 @@ import tv.stationbreak.core.model.ItemId
 class InMemoryServerSettings(
     initial: ServerRecord? = null,
     initialLibraries: Set<ItemId>? = null,
-) : ServerSettings {
+) : SelectionStore {
     private var record: ServerRecord? = initial
     private var selection: StoredSelection? = initialLibraries?.let(::StoredSelection)
 
@@ -32,9 +32,6 @@ class InMemoryServerSettings(
     /** How many times [clearPin] actually dropped a pin. */
     var pinsCleared = 0
         private set
-
-    /** Every library selection saved, in order. */
-    val savedLibraries = mutableListOf<Set<ItemId>>()
 
     val current: ServerRecord? get() = record
 
@@ -88,15 +85,6 @@ class InMemoryServerSettings(
     }
 
     override suspend fun loadPlayableLibraries(): Set<ItemId>? = selection?.takeUnless { it.gone }?.chosen
-
-    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean {
-        if (failSave || record == null || ids.isEmpty()) return false
-        // A setup: the next seq, which is also the reset seq; nothing carries over but the listing count.
-        val next = seq + 1
-        keep(StoredSelection(ids, seq = next, listings = listings, resetSeq = next))
-        savedLibraries += ids
-        return true
-    }
 
     private fun keep(stored: StoredSelection) {
         selection = stored

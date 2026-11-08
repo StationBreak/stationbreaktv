@@ -11,10 +11,11 @@ import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ResolvedServer
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -44,12 +45,12 @@ class WaitingServer(
 /** Settings that can run a hook just before the library choice is stored, to cancel or fail the run there. */
 class HookedSettings(
     private val inner: InMemoryServerSettings,
-) : ServerSettings by inner {
+) : SelectionStore by inner {
     var beforeSaveLibraries: () -> Unit = {}
 
-    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean {
+    override suspend fun saveSelection(selection: StoredSelection): Boolean {
         beforeSaveLibraries()
-        return inner.saveLibraries(ids)
+        return inner.saveSelection(selection)
     }
 }
 

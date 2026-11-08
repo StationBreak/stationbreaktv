@@ -20,9 +20,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.Missing
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.StoredSelection
+import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
@@ -133,7 +134,7 @@ class PinSyncingServerSettingsTest {
     private class SlowSave(
         private val inner: InMemoryServerSettings,
         val gate: CompletableDeferred<Unit>,
-    ) : ServerSettings by inner {
+    ) : SelectionStore by inner {
         override suspend fun save(record: ServerRecord): Boolean {
             val written = inner.save(record)
             gate.await()
@@ -191,7 +192,7 @@ class PinSyncingServerSettingsTest {
         runBlocking {
             settings.save(ServerRecord(address, pin))
             val built = clients.current()
-            assertTrue(settings.saveLibraries(setOf(ItemId("movies"))))
+            assertTrue(settings.storeChoice(setOf(ItemId("movies"))))
             assertEquals(setOf(ItemId("movies")), settings.loadLibraries())
             assertEquals(setOf(ItemId("movies")), stored.currentLibraries)
             assertSame(built, clients.current())
@@ -201,7 +202,7 @@ class PinSyncingServerSettingsTest {
     fun clearingTheSelectionPassesThroughAndLeavesTheClientAlone() =
         runBlocking {
             settings.save(ServerRecord(address, pin))
-            settings.saveLibraries(setOf(ItemId("movies")))
+            settings.storeChoice(setOf(ItemId("movies")))
             val built = clients.current()
 
             assertTrue(settings.clearLibraries())
@@ -240,7 +241,7 @@ class PinSyncingServerSettingsTest {
         private val inner: InMemoryServerSettings,
         val entered: CompletableDeferred<Unit>,
         val gate: CompletableDeferred<Unit>,
-    ) : ServerSettings by inner {
+    ) : SelectionStore by inner {
         override suspend fun save(record: ServerRecord): Boolean {
             entered.complete(Unit)
             gate.await()

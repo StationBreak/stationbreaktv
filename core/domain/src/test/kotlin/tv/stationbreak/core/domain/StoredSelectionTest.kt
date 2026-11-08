@@ -68,7 +68,7 @@ class StoredSelectionTest {
             assertFalse(settings.saveSelection(stored.copy(seq = 4, adding = emptyMap(), missing = emptyMap())))
 
             // Setup: the next seq, which becomes the reset seq; adding, gone and the misses go; the count stays.
-            assertTrue(settings.saveLibraries(setOf(gamma)))
+            assertTrue(settings.storeChoice(setOf(gamma)))
             assertEquals(StoredSelection(setOf(gamma), seq = 6, listings = 3, resetSeq = 6), settings.loadSelection())
             assertEquals(setOf(gamma), settings.loadPlayableLibraries())
 
@@ -78,7 +78,7 @@ class StoredSelectionTest {
             assertEquals(6L, settings.loadSelectionSeq())
             assertTrue(settings.save(ServerRecord(ServerAddress(Scheme.Https, "other.example.test", 443))))
             assertEquals(6L, settings.loadSelectionSeq())
-            assertTrue(settings.saveLibraries(setOf(alpha)))
+            assertTrue(settings.storeChoice(setOf(alpha)))
             assertEquals(7L, settings.loadSelection()?.seq)
         }
 

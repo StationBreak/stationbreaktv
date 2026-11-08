@@ -3,8 +3,8 @@ package tv.stationbreak.app.net
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
@@ -21,9 +21,9 @@ import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
  */
 @Suppress("TooManyFunctions") // The port's functions, one each, over the one lock.
 internal class PinSyncingServerSettings(
-    private val stored: ServerSettings,
+    private val stored: SelectionStore,
     private val clients: PinnedHttpClients,
-) : ServerSettings {
+) : SelectionStore {
     private val lock = Mutex()
 
     override suspend fun load(): ServerRecord? = lock.withLock { stored.load().also(::apply) }
@@ -43,8 +43,6 @@ internal class PinSyncingServerSettings(
         }
 
     override suspend fun loadLibraries(): Set<ItemId>? = stored.loadLibraries()
-
-    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean = lock.withLock { stored.saveLibraries(ids) }
 
     override suspend fun clearLibraries(): Boolean = lock.withLock { stored.clearLibraries() }
 

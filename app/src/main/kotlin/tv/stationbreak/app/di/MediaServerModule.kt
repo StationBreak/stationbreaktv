@@ -16,6 +16,8 @@ import tv.stationbreak.core.domain.AccountCache
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SecretStore
+import tv.stationbreak.core.domain.SelectionStore
+import tv.stationbreak.core.domain.SelectionWriter
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StoredDeviceIdProvider
@@ -42,6 +44,14 @@ internal interface MediaServerModule {
     @Binds
     fun mediaServer(adapter: JellyfinMediaServer): MediaServer
 
+    /** What everyone reads the settings through: no selection write (spec 26, Part 4: one writer). */
+    @Binds
+    fun serverSettings(store: SelectionStore): ServerSettings
+
+    /** The selection's writes, for its one writer (`LibrarySelection`) alone. */
+    @Binds
+    fun selectionWriter(store: SelectionStore): SelectionWriter
+
     companion object {
         /**
          * The one pinned client (S0.5.2, Angua (Security)): system trust through the Network Security Config's trust
@@ -66,10 +76,10 @@ internal interface MediaServerModule {
          */
         @Provides
         @Singleton
-        fun serverSettings(
+        fun selectionStore(
             @ApplicationContext context: Context,
             clients: PinnedHttpClients,
-        ): ServerSettings = PinSyncingServerSettings(FileServerSettings(context), clients)
+        ): SelectionStore = PinSyncingServerSettings(FileServerSettings(context), clients)
 
         @Provides
         fun clock(): Clock = Clock.System

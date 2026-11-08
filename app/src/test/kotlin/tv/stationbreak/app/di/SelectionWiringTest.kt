@@ -27,6 +27,8 @@ import kotlin.time.Clock
  * on is its resume at start, no longer an already-complete placeholder.
  */
 class SelectionWiringTest {
+    private val gate = LineupModule.resumeGate()
+
     private fun selection(): LibrarySelection {
         val library = InMemoryLibraryRepository()
         val settings = InMemoryServerSettings()
@@ -36,6 +38,7 @@ class SelectionWiringTest {
         val repairer = TodayRepairer(service, source, library) { settings.loadSelectionSeq() }
         return LineupModule.librarySelection(
             settings,
+            settings,
             library,
             server,
             SessionRepository(InMemorySecretStore(), server),
@@ -44,6 +47,7 @@ class SelectionWiringTest {
             source,
             InMemoryFirstSync(),
             StayCurrentRequests {},
+            gate,
         )
     }
 
@@ -53,13 +57,17 @@ class SelectionWiringTest {
 
         assertSame(selection, LineupModule.libraryChoices(selection))
         assertSame(selection, LineupModule.librarySetup(selection))
+        assertSame(selection, LineupModule.addLandings(selection))
+        assertSame(selection, LineupModule.firstSyncLibraries(selection))
+        assertSame(selection, LineupModule.serverListings(selection))
+        assertSame(selection, LineupModule.selectionResume(selection))
     }
 
     @Test
     fun theSeamTheWorkersWaitOn_completesOnlyWithTheResume() =
         runBlocking {
             val selection = selection()
-            val ready = LineupModule.selectionReady(selection)
+            val ready = LineupModule.selectionReady(gate)
             val waiting = async { ready.await() }
             repeat(5) { yield() }
             assertFalse("not before the resume", waiting.isCompleted)

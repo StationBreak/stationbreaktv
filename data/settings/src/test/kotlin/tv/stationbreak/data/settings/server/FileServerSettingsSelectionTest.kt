@@ -115,7 +115,7 @@ class FileServerSettingsSelectionTest {
         runBlocking {
             settings.save(ServerRecord(address))
             settings.saveSelection(full)
-            assertTrue(settings.saveLibraries(setOf(beta)))
+            assertTrue(settings.storeChoice(setOf(beta)))
             assertEquals(
                 StoredSelection(chosen = setOf(beta), seq = 10, listings = 5, resetSeq = 10),
                 settings.loadSelection(),
@@ -126,7 +126,7 @@ class FileServerSettingsSelectionTest {
     fun setupSave_withNoSeqYet_startsAtOne() =
         runBlocking {
             settings.save(ServerRecord(address))
-            assertTrue(settings.saveLibraries(setOf(alpha)))
+            assertTrue(settings.storeChoice(setOf(alpha)))
             assertEquals(StoredSelection(setOf(alpha), seq = 1, resetSeq = 1), settings.loadSelection())
         }
 
@@ -151,7 +151,7 @@ class FileServerSettingsSelectionTest {
             assertEquals(10L, settings.loadSelectionSeq())
             assertEquals(StoredSettings(ServerRecord(other), seq = 10, listings = 5, resetSeq = 10), stored())
             // A setup on the new server goes on from the kept seq.
-            assertTrue(settings.saveLibraries(setOf(beta)))
+            assertTrue(settings.storeChoice(setOf(beta)))
             assertEquals(11L, settings.loadSelection()?.seq)
         }
 
@@ -390,7 +390,7 @@ class FileServerSettingsSelectionTest {
             settings.saveSelection(full)
             file.failWrites = true
             assertFalse(settings.saveSelection(full.copy(seq = 10)))
-            assertFalse(settings.saveLibraries(setOf(alpha)))
+            assertFalse(settings.storeChoice(setOf(alpha)))
             assertEquals(full, settings.loadSelection())
             assertEquals(full, rebuilt().loadSelection())
         }

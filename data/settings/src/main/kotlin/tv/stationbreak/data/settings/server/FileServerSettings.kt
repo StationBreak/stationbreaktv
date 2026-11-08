@@ -7,15 +7,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import java.io.File
 import java.io.IOException
 
 /**
- * The [ServerSettings] on one small file in `noBackupFilesDir`: the address and its pin as a single record, with the
+ * The [SelectionStore] on one small file in `noBackupFilesDir`: the address and its pin as a single record, with the
  * library selection beside them, replaced atomically as a whole (spec 05, Units 3 and 4). It is out of backup on
  * purpose, so a restore onto another device asks about the certificate again instead of carrying a trust decision
  * over. No secret is kept here (the session is in the Keystore store). Faults come back as `false` or `null`, never as
@@ -30,7 +30,7 @@ import java.io.IOException
 class FileServerSettings internal constructor(
     private val file: RecordFile,
     private val io: CoroutineDispatcher = Dispatchers.IO,
-) : ServerSettings {
+) : SelectionStore {
     constructor(context: Context) : this(DiskRecordFile(File(context.noBackupFilesDir, DIR_NAME).resolve(FILE_NAME)))
 
     // One writer at a time, and a read never sees half of a read-modify-write.
@@ -75,18 +75,6 @@ class FileServerSettings internal constructor(
         }
 
     override suspend fun loadLibraries(): Set<ItemId>? = snapshot()?.libraries
-
-    override suspend fun saveLibraries(ids: Set<ItemId>): Boolean =
-        locked {
-            val held = read()
-            if (held == null || ids.isEmpty()) {
-                false
-            } else {
-                // A setup: the next seq, which is also the reset seq; nothing carries over but the listing count.
-                val seq = held.seq + 1
-                write(held.withoutSelection().copy(libraries = ids, seq = seq, resetSeq = seq))
-            }
-        }
 
     override suspend fun clearLibraries(): Boolean =
         locked {

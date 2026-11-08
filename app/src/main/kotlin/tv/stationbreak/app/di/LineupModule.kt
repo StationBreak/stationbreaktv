@@ -28,6 +28,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.SelectionWriter
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StayCurrentRequests
@@ -60,12 +61,17 @@ import tv.stationbreak.core.domain.lineup.repair.LostRepairHook
 import tv.stationbreak.core.domain.lineup.repair.Successors
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
 import tv.stationbreak.core.domain.lineup.savedSelectionOf
+import tv.stationbreak.core.domain.selection.AddLandings
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
 import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.LibrarySelection
 import tv.stationbreak.core.domain.selection.LibrarySetup
+import tv.stationbreak.core.domain.selection.ResumeGate
 import tv.stationbreak.core.domain.selection.SelectionConfig
 import tv.stationbreak.core.domain.selection.SelectionReady
+import tv.stationbreak.core.domain.selection.SelectionResume
+import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.FirstSyncRunner
@@ -331,6 +337,7 @@ internal object LineupModule {
     @Suppress("LongParameterList") // What the selection writes and asks, one for one.
     fun librarySelection(
         settings: ServerSettings,
+        writer: SelectionWriter,
         library: LibraryRepository,
         server: MediaServer,
         sessions: SessionRepository,
@@ -339,9 +346,11 @@ internal object LineupModule {
         source: BuiltInScheduleSource,
         firstSync: FirstSync,
         stayCurrent: StayCurrentRequests,
+        gate: ResumeGate,
     ): LibrarySelection =
         LibrarySelection(
             settings,
+            writer,
             library,
             server,
             { sessions.current.value },
@@ -353,6 +362,7 @@ internal object LineupModule {
             stayCurrent,
             SelectionConfig(),
             Clock.System,
+            gate,
         ) { Log.i(TAG, it.name) }
 
     @Provides
@@ -361,14 +371,42 @@ internal object LineupModule {
     @Provides
     fun librarySetup(selection: LibrarySelection): LibrarySetup = selection
 
-    /** Complete once the selection's resume at start has run (the app's start runs it before anything else). */
+    /** The add pass's side of the selection (Task 4.4b). */
     @Provides
-    fun selectionReady(selection: LibrarySelection): SelectionReady = selection
+    fun addLandings(selection: LibrarySelection): AddLandings = selection
+
+    /** The first sync's library set, written under the selection's lock (Task 4.4b). */
+    @Provides
+    fun firstSyncLibraries(selection: LibrarySelection): FirstSyncLibraries = selection
+
+    /** Stay current's listings, followed by the selection (Task 4.5). */
+    @Provides
+    fun serverListings(selection: LibrarySelection): ServerListings = selection
+
+    /** The resume at start, which the app's start alone runs. */
+    @Provides
+    fun selectionResume(selection: LibrarySelection): SelectionResume = selection
+
+    /**
+     * The seam every selection operation and library worker waits on. It is its own object, opened by the selection's
+     * resume and by the app's start whatever happened, so a selection that could not even be built never leaves
+     * onboarding or the guide waiting.
+     */
+    @Provides
+    @Singleton
+    fun resumeGate(): ResumeGate = ResumeGate()
+
+    @Provides
+    fun selectionReady(gate: ResumeGate): SelectionReady = gate
 
     /**
      * A stay-current run soon, for a library whose unproven add was set back to be read again (spec 26): the open
      * trigger's own entry, so its rules (not while a sync runs, not before the first sync ended) hold. The provider is
      * lazy: stay current's runner will follow the selection's listings (Task 4.5).
+     *
+     * `onOpen` drops a request that comes while a run is going (it queues nothing then). That loses nothing: the
+     * set-back library carries a durable rewalk mark in the cache, and the next run that gets past the first-sync gate
+     * (the next open, or the periodic run) reads it.
      */
     @Provides
     @Singleton

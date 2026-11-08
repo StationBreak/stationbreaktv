@@ -7,9 +7,9 @@ import tv.stationbreak.core.domain.InMemoryFirstSync
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.StoredLibrary
 import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.domain.lineup.ACCOUNT
@@ -57,6 +57,12 @@ internal class WatchedLibrary(
 
     @Volatile var failApplies = 0
 
+    /** Every [applySelection] asked for, whether it wrote or failed. */
+    @Volatile var applyCalls = 0
+
+    /** Runs inside each [revertUnproven], before it writes: the add pass racing the selection. */
+    @Volatile var beforeRevert: suspend (ItemId, Long) -> Unit = { _, _ -> }
+
     /** Runs inside each landing, before it writes. */
     @Volatile var onLand: () -> Unit = {}
 
@@ -70,6 +76,7 @@ internal class WatchedLibrary(
         holds: Map<ItemId, Long>,
         nowMs: Long,
     ) {
+        applyCalls++
         if (failApplies > 0) {
             failApplies--
             error("the cache write failed")
@@ -95,27 +102,38 @@ internal class WatchedLibrary(
         account: LibraryAccount,
         library: ItemId,
         stamp: Long,
-    ): Boolean = inner.revertUnproven(account, library, stamp).also { if (it) reverted += library to stamp }
+    ): Boolean {
+        beforeRevert(library, stamp)
+        return inner.revertUnproven(account, library, stamp).also { if (it) reverted += library to stamp }
+    }
 }
 
 /**
- * The settings as the selection reaches them: [beforeSave] runs inside each [saveSelection], before the write, and
- * [failSaves] makes the next saves return false without writing.
+ * The settings as the selection reaches them: [beforeSave] runs inside each [saveSelection], before the write,
+ * [failSaves] makes the next saves return false without writing, and [falseAfterWriting] makes the next saves write
+ * and still return false (a write that landed, reported as failed).
  */
 internal class WatchedSettings(
     val inner: InMemoryServerSettings,
-) : ServerSettings by inner {
+) : SelectionStore by inner {
     @Volatile var beforeSave: suspend (StoredSelection) -> Unit = {}
 
     @Volatile var failSaves = 0
 
+    @Volatile var falseAfterWriting = 0
+
     override suspend fun saveSelection(selection: StoredSelection): Boolean {
         beforeSave(selection)
-        if (failSaves > 0) {
-            failSaves--
-            return false
-        }
-        return inner.saveSelection(selection)
+        val written =
+            if (failSaves > 0) {
+                failSaves--
+                false
+            } else {
+                inner.saveSelection(selection)
+            }
+        val reported = !(written && falseAfterWriting > 0)
+        if (!reported) falseAfterWriting--
+        return written && reported
     }
 }
 
@@ -154,6 +172,9 @@ internal open class SelectionTestBase : RepairTestBase() {
         val server = FakeMediaServer()
         val firstSync = InMemoryFirstSync()
         var restarts = 0
+
+        /** When set, the add pass's restart throws. */
+        @Volatile var failRestart = false
         var stayCurrentRequests = 0
         var signedIn: Session? = session
         val events: MutableList<SelectionEvent> = Collections.synchronizedList(mutableListOf())
@@ -164,13 +185,17 @@ internal open class SelectionTestBase : RepairTestBase() {
         val selection =
             LibrarySelection(
                 settings,
+                settings,
                 library,
                 server,
                 { signedIn },
                 rig.repairer,
                 rig.service,
                 rig.source,
-                { restarts++ },
+                {
+                    check(!failRestart) { "the restart could not be asked for" }
+                    restarts++
+                },
                 firstSync,
                 { stayCurrentRequests++ },
                 config,
@@ -198,13 +223,17 @@ internal open class SelectionTestBase : RepairTestBase() {
         fun restartedSelection(): LibrarySelection =
             LibrarySelection(
                 settings,
+                settings,
                 library,
                 server,
                 { signedIn },
                 rig.repairer,
                 rig.service,
                 rig.source,
-                { restarts++ },
+                {
+                    check(!failRestart) { "the restart could not be asked for" }
+                    restarts++
+                },
                 firstSync,
                 { stayCurrentRequests++ },
                 config,

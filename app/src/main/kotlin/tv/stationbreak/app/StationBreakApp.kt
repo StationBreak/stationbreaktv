@@ -15,7 +15,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
-import tv.stationbreak.core.domain.selection.LibrarySelection
+import tv.stationbreak.core.domain.selection.ResumeGate
+import tv.stationbreak.core.domain.selection.SelectionResume
 import tv.stationbreak.core.playback.probe.DeviceCapabilitiesCache
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.FirstSyncRunnerProvider
@@ -46,7 +47,9 @@ class StationBreakApp :
 
         fun lineupRefresher(): LineupRefresher
 
-        fun librarySelection(): LibrarySelection
+        fun selectionResume(): SelectionResume
+
+        fun resumeGate(): ResumeGate
 
         fun scheduleWarmer(): ScheduleWarmer
 
@@ -88,9 +91,10 @@ class StationBreakApp :
         scope.launch {
             val graph = EntryPointAccessors.fromApplication(this@StationBreakApp, FirstSyncEntryPoint::class.java)
             // The library selection resumes first (spec 26): it repairs what a crash left between a save and the
-            // library cache, and every selection operation and library worker waits for it. It ends however it went.
+            // library cache, and every selection operation and library worker waits for it. Its gate opens however it
+            // went, even when the selection could not be built.
             // The refresher then starts from the selection as resumed, so its start check plans that one.
-            graph.librarySelection().resumeAtStart()
+            resumeSelection({ graph.selectionResume() }, graph.resumeGate()) { Log.w(LINEUP_TAG, it) }
             graph.lineupRefresher().start(lineupScope)
         }
         // The codec probe walks the device's decoder list and takes seconds on a slow TV: do it now, off the main
