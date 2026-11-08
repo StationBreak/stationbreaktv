@@ -70,6 +70,16 @@ fun interface ServerListings {
     )
 }
 
+/**
+ * Stay current's side of the holds (spec 26, Part 4 D12): after each completed pass, the libraries whose hold has ended
+ * leave the cache. The selection writes the cache from the stored selection with no new hold, under its lock, so the
+ * same move code runs as for an untick; nothing else may expire a hold.
+ */
+fun interface HoldExpiry {
+    /** Expires [account]'s holds that have ended; nothing for an account that is not the signed-in one. */
+    suspend fun expireHolds(account: LibraryAccount)
+}
+
 /** The app start's side of the selection: the one resume, run before anything else reads or writes it. */
 fun interface SelectionResume {
     /** Resumes the stored selection; it completes the selection's [SelectionReady] however it ends. */

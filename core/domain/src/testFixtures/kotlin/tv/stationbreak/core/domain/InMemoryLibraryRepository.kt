@@ -551,7 +551,8 @@ class InMemoryLibraryRepository : LibraryRepository {
                 val hasRows =
                     rows.any { it.account == account && it.library == library } ||
                         held.any { it.account == account && it.library == library }
-                if (mark?.addStamp == null || hasRows) dropped = true
+                // As Room: only a library that holds rows moves the generation when it goes.
+                if (hasRows) dropped = true
                 marks.remove(library)
             }
         }

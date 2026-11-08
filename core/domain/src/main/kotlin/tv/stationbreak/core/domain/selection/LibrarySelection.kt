@@ -71,7 +71,8 @@ internal object InSelection : CoroutineContext.Element, CoroutineContext.Key<InS
 
 /**
  * The one writer of the library selection (spec 26, Part 4 §2): a change after setup, the setup itself, the landing of
- * an add, the following of the server's listing, the first sync's library set and the resume at start. Each writes
+ * an add, the following of the server's listing, the expiry of holds, the first sync's library set and the resume at
+ * start. Each writes
  * its stores in one order, the repair record first, then the settings (the truth), then the library cache, and runs
  * to its end once it has started (a caller that goes away does not stop it).
  *
@@ -90,7 +91,8 @@ internal object InSelection : CoroutineContext.Element, CoroutineContext.Key<InS
  *   `heldPins`), never for less than the hold its row already has.
  *
  * Its callers see it through narrow ports: features through [LibraryChoices] and [LibrarySetup], the add pass through
- * [AddLandings], the first sync through [FirstSyncLibraries], stay current through [ServerListings], and the app start
+ * [AddLandings], the first sync through [FirstSyncLibraries], stay current through [ServerListings] and [HoldExpiry],
+ * and the app start
  * through [SelectionResume]. Its writes reach the settings through [SelectionWriter] ([store]) alone. [resumed] is the
  * gate the app binds as [SelectionReady]: the resume opens it, and the selection waits on it; the selection is not a
  * [SelectionReady] itself, so nothing that waits can open it.
@@ -123,6 +125,7 @@ class LibrarySelection(
     AddLandings,
     FirstSyncLibraries,
     ServerListings,
+    HoldExpiry,
     SelectionResume {
     private val mutex = Mutex()
     private val ownership = SelectionOwnership(library)
@@ -397,6 +400,26 @@ class LibrarySelection(
                 store.loadSelection()?.takeIf { ownership.owns(account, it) }?.let {
                     follower.follow(account, it, ids)
                 }
+            }
+        }
+    }
+
+    // --- Hold expiry ------------------------------------------------------------------------------------------------
+
+    /**
+     * Expires [account]'s holds that have ended (D12; stay current asks after each completed pass): the cache is
+     * written from the stored selection with no new hold, so a held library whose hold lies behind now leaves through
+     * the same move code as an untick, and one still ahead stays. Nothing is written when no row is held, when
+     * [account] is not the signed-in one, or when the stored choice is not its own. A failed write is reported and
+     * leaves the cache behind for the next operation.
+     */
+    override suspend fun expireHolds(account: LibraryAccount) {
+        locked {
+            if (activeAccount() != account) return@locked
+            val stored = store.loadSelection()?.takeIf { ownership.owns(account, it) } ?: return@locked
+            cache.room {
+                val rows = library.storedLibraries(account)
+                if (rows.any { it.heldUntilMs != null }) cache.applyRoom(account, stored, rows, pins = false)
             }
         }
     }

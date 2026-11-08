@@ -87,16 +87,18 @@ internal class SelectionCache(
     // The cache write of a selection: the chosen and the adding libraries kept, every add with its stamp, and the
     // holds of the pins on air. The cache refuses a new stamp on a row with neither a hold nor a stamp (one set back
     // to be read again, or one whose untick never reached the cache), so such a row is held first, in a write of its
-    // own, and then stamped: no add is ever dropped or left unstamped for that (D1).
+    // own, and then stamped: no add is ever dropped or left unstamped for that (D1). [pins] false is the expiry of
+    // holds (D12): no new hold is asked for, and a held row keeps the one it has until that ends.
     suspend fun applyRoom(
         account: LibraryAccount,
         saved: StoredSelection,
         rows: List<StoredLibrary>,
+        pins: Boolean = true,
     ) {
         val now = clock.now().toEpochMilliseconds()
         val keep = saved.chosen + saved.adding.keys
         // A hold matters only for a library that leaves: with none leaving, the repairer's turn is not taken.
-        val holds = if (rows.any { it.id !in keep }) holdsFor(account, rows, now) else emptyMap()
+        val holds = if (pins && rows.any { it.id !in keep }) holdsFor(account, rows, now) else emptyMap()
         val byId = rows.associateBy { it.id }
         val refused = saved.adding.keys.filterTo(HashSet()) { byId[it]?.refusesAStamp() == true }
         if (refused.isNotEmpty()) {
