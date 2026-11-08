@@ -5,6 +5,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.InMemoryLibrarySetup
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
@@ -63,7 +64,8 @@ open class SetupFixture {
     protected val hooked = HookedSettings(settings)
     protected val waiting = WaitingServer(fake)
     protected val lines = mutableListOf<String>()
-    protected val setup = BenchSetup(waiting, sessions, hooked, store, lines::add)
+    protected val librarySetup = InMemoryLibrarySetup(hooked)
+    protected val setup = BenchSetup(waiting, sessions, hooked, librarySetup, store, lines::add)
 
     protected val libraries =
         listOf(

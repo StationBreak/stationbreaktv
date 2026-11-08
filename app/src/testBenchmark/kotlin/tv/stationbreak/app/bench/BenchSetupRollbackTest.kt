@@ -33,7 +33,7 @@ class BenchSetupRollbackTest : SetupFixture() {
         runTest {
             approvedSignIn()
             waiting.waits = true
-            val limited = BenchSetup(waiting, sessions, hooked, store, lines::add, waitLimit = 5.seconds)
+            val limited = BenchSetup(waiting, sessions, hooked, librarySetup, store, lines::add, waitLimit = 5.seconds)
 
             limited.setup("https://media.example.invalid")
 

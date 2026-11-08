@@ -16,19 +16,21 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import tv.stationbreak.app.BuildConfig
 import tv.stationbreak.app.appBuildOf
 import tv.stationbreak.app.daySnapshotLine
 import tv.stationbreak.app.lineupTimingProbeFor
 import tv.stationbreak.app.standardOffsetMinutes
 import tv.stationbreak.core.domain.DayStore
+import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
@@ -58,6 +60,11 @@ import tv.stationbreak.core.domain.lineup.repair.LostRepairHook
 import tv.stationbreak.core.domain.lineup.repair.Successors
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
 import tv.stationbreak.core.domain.lineup.savedSelectionOf
+import tv.stationbreak.core.domain.selection.LibraryChoices
+import tv.stationbreak.core.domain.selection.LibraryPasses
+import tv.stationbreak.core.domain.selection.LibrarySelection
+import tv.stationbreak.core.domain.selection.LibrarySetup
+import tv.stationbreak.core.domain.selection.SelectionConfig
 import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -315,22 +322,74 @@ internal object LineupModule {
         }
 
     /**
-     * Until the selection's resume at start is built (spec 26, Task 4.3b) there is nothing to wait for: the seam is
-     * already complete.
+     * The one writer of the library selection (spec 26, Part 4): onboarding's setup, the Settings changes, the landing
+     * of an added library and the resume at start all go through it. Its events are names only. Until the add pass is
+     * built (Task 4.4b) nothing reads an added library, so its restart asks for nothing.
      */
     @Provides
     @Singleton
-    fun selectionReady(): SelectionReady = SelectionReady.Complete
+    @Suppress("LongParameterList") // What the selection writes and asks, one for one.
+    fun librarySelection(
+        settings: ServerSettings,
+        library: LibraryRepository,
+        server: MediaServer,
+        sessions: SessionRepository,
+        repairer: TodayRepairer,
+        service: LineupService,
+        source: BuiltInScheduleSource,
+        firstSync: FirstSync,
+        stayCurrent: StayCurrentRequests,
+    ): LibrarySelection =
+        LibrarySelection(
+            settings,
+            library,
+            server,
+            { sessions.current.value },
+            repairer,
+            service,
+            source,
+            LibraryPasses.None,
+            firstSync,
+            stayCurrent,
+            SelectionConfig(),
+            Clock.System,
+        ) { Log.i(TAG, it.name) }
+
+    @Provides
+    fun libraryChoices(selection: LibrarySelection): LibraryChoices = selection
+
+    @Provides
+    fun librarySetup(selection: LibrarySelection): LibrarySetup = selection
+
+    /** Complete once the selection's resume at start has run (the app's start runs it before anything else). */
+    @Provides
+    fun selectionReady(selection: LibrarySelection): SelectionReady = selection
+
+    /**
+     * A stay-current run soon, for a library whose unproven add was set back to be read again (spec 26): the open
+     * trigger's own entry, so its rules (not while a sync runs, not before the first sync ended) hold. The provider is
+     * lazy: stay current's runner will follow the selection's listings (Task 4.5).
+     */
+    @Provides
+    @Singleton
+    @Suppress("InjectDispatcher") // A root scope for the request, which only enqueues; nothing to inject one into.
+    fun stayCurrentRequests(stayCurrent: Provider<StayCurrent>): StayCurrentRequests {
+        val failed = CoroutineExceptionHandler { _, _ -> Log.w(TAG, "StayCurrentRequestFailed") }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failed)
+        return StayCurrentRequests { scope.launch { stayCurrent.get().onOpen() } }
+    }
 
     /** Follows the account the saved library holds and the libraries the user ticked, as the sync does. */
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // The lineup, the library, the sync signal, the repairer and the selection's seq.
     fun lineupRefresher(
         service: LineupService,
         library: LibraryRepository,
         settings: ServerSettings,
         sync: SyncActivity,
         repairer: TodayRepairer,
+        selection: LibrarySelection,
     ): LineupRefresher {
         val report: (LineupEvent) -> Unit = { Log.i(TAG, it.name) }
         // After a run that wrote the library, and once after the start check, the blocks whose item left it are
@@ -340,14 +399,13 @@ internal object LineupModule {
         val afterSync = LostRepairHook(repairer::repairLost, now, report)
         // The playable libraries: none while the selection is gone, never one being added.
         val playable: suspend () -> Set<ItemId>? = { settings.loadPlayableLibraries() }
-        // The selection's seq, whose changes are a trigger: a constant until LibrarySelection holds it (spec 26, 4.3b).
-        val selectionSeq = MutableStateFlow(0L)
+        // The selection's seq, published once each change is saved: a change of it is a trigger (spec 26).
         return LineupRefresher(
             service,
             library,
             playable,
             sync,
-            selectionSeq,
+            selection.selectionChanges,
             afterSync = afterSync::invoke,
             report = report,
         )

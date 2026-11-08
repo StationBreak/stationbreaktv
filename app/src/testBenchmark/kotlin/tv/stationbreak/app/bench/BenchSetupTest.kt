@@ -31,6 +31,9 @@ class BenchSetupTest : SetupFixture() {
             assertEquals(ServerRecord(address), settings.current)
             // Home videos are left out, as the picker's defaults leave them.
             assertEquals(setOf(ItemId("films")), settings.currentLibraries)
+            // Spec 26: as the screens do, the choice is cleared and stored through the library setup.
+            assertEquals(1, librarySetup.clears)
+            assertEquals(listOf(setOf(ItemId("films"))), librarySetup.chosen)
         }
 
     @Test
