@@ -72,9 +72,10 @@ import kotlin.time.Instant
  * Once each check after a run's writing ends, whatever it did (a refresh, a recorded pass or nothing), [afterSync] runs
  * (spec 26: the repair of today's blocks whose item left the library). It also runs once after the start check, for
  * each account followed, whether that check refreshed or found the lineup current (the lost-block check is held in
- * memory only, so a new process checks once; ADR-0025 §4); when a sync run is writing at that start, the check waits
- * for the run's end, which runs it anyway. A start check asked again when a trigger source is listened to again does
- * not run it again. It runs when no libraries are chosen too, and only while the account is still the
+ * memory only, so a new process checks once; ADR-0025 §4); when a sync run is writing at that start, the check is owed
+ * and made by the first later trigger that finds no run writing (that run's end, or the start check a trigger source
+ * listened to again asks), so it is made once, never twice and never not at all. A start check asked again does not
+ * run it again. It runs when no libraries are chosen too, and only while the account is still the
  * active one. One that throws is reported ([LineupEvent.AfterSyncFailed]) and
  * changes nothing else.
  *
@@ -144,7 +145,9 @@ class LineupRefresher(
                 .drop(1)
                 .filterNotNull()
                 .map { Trigger.Success }
-        // A run that ends: the first value is where things stand, so only a change to "not running" is news.
+        // A run that ends: the first value is where things stand, so only a change to "not running" is news. A known
+        // weakness, older than spec 26 and left as it is: the signal is a state, so a run that starts and ends between
+        // two values the collector sees (or while it is not listening, as during a backoff) is never seen to end.
         val runEnds =
             sync
                 .writing()
@@ -155,8 +158,11 @@ class LineupRefresher(
         // A household change reached its boundary (said by the background roll): the lineup is behind then.
         val replans = service.replanRequests.filter { it == account }.map { Trigger.Replan }
         val backoff = Backoff(initialBackoffMs)
-        // A resubscription asks the start check again; the check after it runs only the first time for this account.
+        // A resubscription asks the start check again; the check after it is owed once for this account. When the first
+        // start meets a sync writing, it stays owed: the next trigger that finds no sync writing (a run's end, or the
+        // Start a resubscription sends after a run ended unseen) makes it, and clears it.
         var startChecked = false
+        var startHookOwed = false
         merge(start, passes, successes, runEnds, replans)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
             // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
@@ -175,10 +181,13 @@ class LineupRefresher(
             // never cancels the check in hand: that check runs on in the collector, and its triggers after it.
             .buffer()
             .collect { trigger ->
-                val first = (trigger == Trigger.Start || trigger == Trigger.StartCurrent) && !startChecked
-                if (first) startChecked = true
-                // A start while a sync writes leaves the check to that run's end (runEnds), which always makes it.
-                act(account, trigger, afterStart = first && !sync.writing().first())
+                if ((trigger == Trigger.Start || trigger == Trigger.StartCurrent) && !startChecked) {
+                    startChecked = true
+                    startHookOwed = true
+                }
+                val owedNow = startHookOwed && !sync.writing().first()
+                if (owedNow) startHookOwed = false
+                act(account, trigger, afterStart = owedNow)
             }
     }
 

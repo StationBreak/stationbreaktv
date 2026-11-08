@@ -105,8 +105,8 @@ check runs: it carries the seq of that day's selection repair (0 for a day as bu
 and goes when that repair goes. The check itself is remembered in memory (the
 library's content generation, and the end of the earliest channel day it saw), never in the file: it holds until the
 generation moves or one of those days ends, and a restart costs one more check in the background. That restart check
-runs once per process, after the lineup refresher's start check, or, when that start finds a sync run writing, after
-that run ends.
+runs once per process, after the lineup refresher's start check, or, when that start finds a sync run writing, at the
+first trigger after that run ends.
 
 ### 5. Repairs are per TV
 

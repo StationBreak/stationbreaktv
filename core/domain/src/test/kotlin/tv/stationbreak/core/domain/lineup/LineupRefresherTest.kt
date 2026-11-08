@@ -640,6 +640,28 @@ class LineupRefresherTest {
             assertEquals(listOf(ACCOUNT), seen, "exactly once")
         }
 
+    // Round 3 (data): a start that meets a run writing, then a trigger source that fails, then the run's end during the
+    // backoff (so runEnds, listening again, starts from "not writing" and never sees it): the owed check is still
+    // made, by the Start the resubscription sends, and only once.
+    @Test
+    fun startCheck_whileASyncWrites_thenASourceFails_andTheRunEndsInTheBackoff_runsAfterSyncOnce() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+            writing.value = true
+            val passes = ThrowingOnceLaterPasses(library)
+
+            refresher(passes, backoffMs = BACKOFF_IN_TEST_MS, afterSync = { seen += it }).start(scope)
+            until("the source failed") { LineupEvent.RefreshFailed in events }
+            assertEquals(emptyList(), seen, "not while the run writes")
+            writing.value = false
+            until("the check after the start that was asked again") { seen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(ACCOUNT), seen, "exactly once")
+            assertEquals(2, passes.collected.get(), "it was listened to again, after the run ended")
+        }
+
     @Test
     fun startCheck_runsAfterSyncOnce_evenWhenATriggerSourceIsListenedToAgain() =
         runBlocking<Unit> {
@@ -1060,6 +1082,28 @@ private class AlwaysThrowingPasses(
             error("the trigger flow failed")
         }
 }
+
+/**
+ * A library whose first collection-pass flow throws a little after it is collected (so the start check is handled
+ * first); later collections are the real one.
+ */
+private class ThrowingOnceLaterPasses(
+    private val inner: CountingLibrary,
+) : LibraryRepository by inner {
+    val collected = AtomicInteger()
+
+    override fun collectionPassCompleted(account: LibraryAccount): Flow<Instant?> =
+        flow {
+            if (collected.getAndIncrement() == 0) {
+                delay(SLOW_MS)
+                error("the trigger flow failed")
+            }
+            inner.collectionPassCompleted(account).collect { emit(it) }
+        }
+}
+
+// Long enough for a test to end the run while the refresher waits to listen again.
+private const val BACKOFF_IN_TEST_MS = 400L
 
 /** A library whose first collection-pass flow throws when collected; later collections are the real one. */
 private class ThrowingOncePasses(
