@@ -243,6 +243,25 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
         assertTrue(SelectionEvent.SetupFollowUpFailed in tv.events)
     }
 
+    // Binding item 4 (Task 4.5): the setup's save committed, but the read for its cache write gave nothing. The cache is
+    // left behind, so the next operation puts it in line first.
+    @Test
+    fun aSetupWhoseReadAfterTheSaveGivesNothing_leavesTheCacheBehind() {
+        val tv = Tv().ready(setOf(libA, libB, libC))
+        assertTrue(runBlocking { tv.selection.clear() })
+        // The read right after the setup's save is the one that gives nothing.
+        tv.settings.beforeSave = { tv.settings.unreadableLoad = tv.settings.loads.get() + 1 }
+
+        assertEquals(SetupResult.Saved, runBlocking { tv.selection.choose(setOf(libA, libC)) })
+
+        tv.settings.beforeSave = {}
+        assertNull(tv.row(libC), "the setup's cache write was skipped")
+        assertTrue(SelectionEvent.RoomBehind in tv.events)
+        // The next operation (a listing that counts) catches the cache up before anything else.
+        tv.listing(setOf(libA, libC))
+        assertNotNull(tv.row(libC), "the catch-up wrote the setup's choice to the cache")
+    }
+
     // A4: a clear comes after the next account is active; the old account's selection must not reach its cache.
     @Test
     fun aClear_afterTheNextAccountIsActive_writesNothingToItsCache() {

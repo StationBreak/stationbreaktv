@@ -252,8 +252,13 @@ class LibrarySelection(
                 cache.branches(account, ids, library.storedLibraries(account))
                 // The cache follows the new choice now, not only when the first sync reads its set: a stay-current
                 // pass before that run meets every chosen library's row, and none of a library the setup dropped.
-                store.loadSelection()?.takeIf { ownership.owns(account, it) }?.let {
-                    cache.applyRoom(account, it, library.storedLibraries(account))
+                val saved = store.loadSelection()?.takeIf { ownership.owns(account, it) }
+                if (saved != null) {
+                    cache.applyRoom(account, saved, library.storedLibraries(account))
+                } else {
+                    // The save committed, but the read for its cache write gave nothing: the next operation catches up.
+                    cache.markBehind()
+                    report(SelectionEvent.RoomBehind)
                 }
             }
             // The first sync reads the new libraries, replacing any run still going: one running now read the choice
