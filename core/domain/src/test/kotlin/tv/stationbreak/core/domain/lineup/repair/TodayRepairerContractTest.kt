@@ -345,6 +345,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
     }
 
     @Test
+    @Suppress("InjectDispatcher") // A test: the change and the repair each need a thread of their own.
     fun repairLost_readsThePlayableLibrariesUnderItsTurn_notWhenItWasAsked() {
         val asked = Collections.synchronizedList(mutableListOf<Set<ItemId>>())
         val successors =
