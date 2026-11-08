@@ -21,6 +21,7 @@ class SelectionWriterScanTest {
     // The selection's collaborators: built inside it, internal to core:domain, and run only under its lock.
     private val allocation = "$selectionDir/SelectionAllocation.kt"
     private val room = "$selectionDir/SelectionRoom.kt"
+    private val reconcile = "$selectionDir/SelectionReconcile.kt"
     private val file = "data/settings/src/main/kotlin/tv/stationbreak/data/settings/server/FileServerSettings.kt"
     private val pinSyncing = "app/src/main/kotlin/tv/stationbreak/app/net/PinSyncingServerSettings.kt"
     private val mediaServerModule = "app/src/main/kotlin/tv/stationbreak/app/di/MediaServerModule.kt"
@@ -60,7 +61,8 @@ class SelectionWriterScanTest {
 
     @Test
     fun theWritePorts_areNamedOnlyByTheirWriterTheStoresAndTheirBindings() {
-        val allowed = setOf(ports, selection, allocation, file, pinSyncing, mediaServerModule, lineupModule)
+        val allowed =
+            setOf(ports, selection, allocation, reconcile, file, pinSyncing, mediaServerModule, lineupModule)
 
         val users = usersOf(Regex("""\bSelection(Writer|Store)\b"""))
 
@@ -69,7 +71,7 @@ class SelectionWriterScanTest {
 
     @Test
     fun theWrites_areCalledOnlyByTheSelectionAndTheStores() {
-        val allowed = setOf(selection, allocation, file, pinSyncing)
+        val allowed = setOf(selection, allocation, reconcile, file, pinSyncing)
 
         val users = usersOf(Regex("""\.(saveSelection|clearLibraries)\("""))
 
