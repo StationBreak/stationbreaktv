@@ -351,16 +351,18 @@ internal class StayCurrentEngine(
             return null
         }
 
-        // The chosen libraries this pass walks: a library marked for a rewalk is left to the rewalk (spec 26, §4 step
-        // 4), read from the stored rows at the start of the pass.
-        private suspend fun unmarked(chosen: Set<ItemId>): Set<ItemId> {
-            val marked =
+        // The chosen libraries this pass walks, read from the stored rows at the start of the pass. A library marked
+        // for a rewalk is left to the rewalk (spec 26, §4 step 4). One that still has an add stamp or a hold is left
+        // out too (Task 4.5, binding item 1): the selection saved it as chosen a moment before landing it, its add
+        // walk read it, and a stamp-null write would be refused and end the whole pass Cancelled.
+        private suspend fun walkable(chosen: Set<ItemId>): Set<ItemId> {
+            val leftOut =
                 repository
                     .storedLibraries(account)
-                    .filter { it.rewalkPending }
+                    .filter { it.rewalkPending || it.addStamp != null || it.heldUntilMs != null }
                     .map { it.id }
                     .toSet()
-            return chosen - marked
+            return chosen - leftOut
         }
 
         // The item and series IDs the listed libraries' complete lists held in this pass.
@@ -375,7 +377,7 @@ internal class StayCurrentEngine(
             last: Instant,
             started: Instant,
         ): StayResult<PassSummary> {
-            val walking = unmarked(chosen)
+            val walking = walkable(chosen)
             // Each library's own coverage (a hold placed, an add or a rewalk that landed), read before the server.
             val coverage = repository.coveredFrom(account)
             val libraries =
@@ -412,7 +414,7 @@ internal class StayCurrentEngine(
         }
 
         suspend fun backfill(chosen: Set<ItemId>): StayResult<PassSummary> {
-            val walking = unmarked(chosen)
+            val walking = walkable(chosen)
             val libraries =
                 when (val listed = server.libraries(session)) {
                     is ServerResult.Success -> listed.value.filter { it.id in walking }
@@ -440,8 +442,9 @@ internal class StayCurrentEngine(
         private fun counted() = passed.copy(skipped = skipped)
 
         suspend fun reconcile(everyChosen: Set<ItemId>): StayResult<ReconcileSummary> {
-            // A marked library is neither reconciled nor taken for removed: the rewalk reads it from the start.
-            val chosen = unmarked(everyChosen)
+            // A marked library is neither reconciled nor taken for removed: the rewalk reads it from the start. Nor is
+            // one still stamped or held: its rows are the add's or the hold's, not this pass's.
+            val chosen = walkable(everyChosen)
             val libraries =
                 when (val listed = server.libraries(session)) {
                     is ServerResult.Success -> listed.value.filter { it.id in chosen }
