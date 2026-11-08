@@ -231,22 +231,22 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   the upgrade is never read again and keeps `''` (no ids) until it is revived or purged. From version 7 on the cache
   migrates. A file of version 6 or older, or one newer than the code, is dropped and rebuilt, and that also drops the
   signed-in account. The schema is exported to `data/library/schemas/`.
-- **One selection writer (spec 26).** `applySelection(account, keep, addStamps, holds, nowMs)` replaced `select`. It keeps
-  `keep`'s libraries with no hold (a new one pending, with its add stamp), keeps any other library whose hold lies after
-  now (setting `holds`), and deletes every other library's rows. A library given a stamp it did not have is set pending
-  and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a stamp. The add lifecycle:
-  a tick stamps the library (pending, and its pages move no generation), `landAdd(account, library, stamp)` lands it once
-  its walk ends (in one transaction, only while it still has that stamp: the stamp is cleared, the library is fetched and
-  the generation moves once), and from then on it is chosen like any other; an untick either holds the library (its rows
-  stay until the hold ends, and a held library loses its stamp, so it never lands) or deletes it. The first sync keeps
-  the libraries being added, but never a held one by its stamp. The content generation moves when a library's rows are
-  deleted (an untick, an expired hold, or an add dropped after its walk wrote rows). A page moves it only for a field the
-  scheduler or the rules read: an item's in a library that is not being added, and a series' in any library (episodes
-  of other libraries read a series row by its id). A provider-id-only change, a tick and an add's item pages never move
-  it. A new stamp for a chosen library that has landed is refused. Before a library's rows go, a series row of it that a live episode of a library that stays still names
-  moves to the smallest such library. When the clock is past the purge's forward-jump guard, no hold expires. A page
-  rewrites an item's genre, tag or studio rows only when that list changed. Provider ids are stored as
-  `key=value;key=value`, keys sorted, and are never logged.
+- **One selection writer (spec 26).** `applySelection(account, keep, addStamps, holds, nowMs)` replaced `select`. It
+  keeps `keep`'s libraries with no hold (a new one pending, with its add stamp), keeps any other library whose hold lies
+  after now (setting `holds`), and deletes every other library's rows. A library given a stamp it did not have is set
+  pending and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a stamp. The add
+  lifecycle: a tick stamps the library (pending, and its pages move no generation), `landAdd(account, library, stamp)`
+  lands it once its walk ends (in one transaction, only while it still has that stamp: the stamp is cleared, the library
+  is fetched and the generation moves once), and from then on it is chosen like any other; an untick either holds the
+  library (its rows stay until the hold ends, and a held library loses its stamp, so it never lands) or deletes it. The
+  first sync keeps the libraries being added, but never a held one by its stamp. The content generation moves when a
+  library's rows are deleted (an untick, an expired hold, or an add dropped after its walk wrote rows). A page moves it
+  only for a field the scheduler or the rules read: an item's in a library that is not being added, and a series' in any
+  library (episodes of other libraries read a series row by its id). A provider-id-only change, a tick and an add's item
+  pages never move it. A new stamp for a chosen library that has landed is refused. Before a library's rows go, a series
+  row of it that a live episode of a library that stays still names moves to the smallest such library. When the clock
+  is past the purge's forward-jump guard, no hold expires. A page rewrites an item's genre, tag or studio rows only when
+  that list changed. Provider ids are stored as `key=value;key=value`, keys sorted, and are never logged.
 - **Re-id matching (spec 26).** `successors(account, libraries, gone)` finds where a tombstoned item came back under a new
   id, among the live rows of the playable libraries. The rows are read in one read transaction (narrowed in SQL to the
   gone items' series, titles and identity ids), and `ReIdMatch` runs after it, outside the transaction, over the live
