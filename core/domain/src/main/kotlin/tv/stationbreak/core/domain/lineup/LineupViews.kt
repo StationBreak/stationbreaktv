@@ -40,15 +40,21 @@ internal fun LineupChannel.summary(
     optIn = isOptIn(catalog),
     playKey = playKey,
     shelfReason = shownShelfReason(nowMs),
-    markKey = source.markKey(),
+    recipeKey = source.recipeKey(),
 )
 
-// The recipe key a bundled logo is found by; a custom or unusable channel has none. No else, so a new source decides.
-private fun ChannelSource.markKey(): String? =
+// The catalog recipe key of a starter or leftovers channel; a custom or unusable one has none. No else, so a new source
+// decides.
+private fun ChannelSource.recipeKey(): String? =
     when (this) {
         is ChannelSource.Starter -> recipeKey
+
         is ChannelSource.Leftovers -> recipeKey
+
         is ChannelSource.Custom -> null
+
+        // An unreadable channel is not shown as a healthy built-in, so it has no key even when its id belongs to a
+        // catalog channel (its name still comes from the catalog).
         is ChannelSource.Unusable -> null
     }
 
