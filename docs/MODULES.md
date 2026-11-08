@@ -234,14 +234,26 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
 - **One selection writer (spec 26).** `applySelection(account, keep, addStamps, holds, nowMs)` replaced `select`. It keeps
   `keep`'s libraries with no hold (a new one pending, with its add stamp), keeps any other library whose hold lies after
   now (setting `holds`), and deletes every other library's rows. A library given a stamp it did not have is set pending
-  and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a stamp. The content
-  generation moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after its walk wrote
-  rows), and a page moves it only for a field the scheduler or the rules read in a library that is not being added: a
-  provider-id-only change, a tick and the walk of an add never move it. A new stamp for a chosen library that has landed
-  is refused. Before a library's rows go, a series row of it that a live episode of a library that stays still names
+  and its checkpoint deleted, so it is walked again. `markFetched` never lands a library with a stamp. The add lifecycle:
+  a tick stamps the library (pending, and its pages move no generation), `landAdd(account, library, stamp)` lands it once
+  its walk ends (in one transaction, only while it still has that stamp: the stamp is cleared, the library is fetched and
+  the generation moves once), and from then on it is chosen like any other; an untick either holds the library (its rows
+  stay until the hold ends, and a held library loses its stamp, so it never lands) or deletes it. The first sync keeps
+  the libraries being added, but never a held one by its stamp. The content generation moves when a library's rows are
+  deleted (an untick, an expired hold, or an add dropped after its walk wrote rows). A page moves it only for a field the
+  scheduler or the rules read: an item's in a library that is not being added, and a series' in any library (episodes
+  of other libraries read a series row by its id). A provider-id-only change, a tick and an add's item pages never move
+  it. A new stamp for a chosen library that has landed is refused. Before a library's rows go, a series row of it that a live episode of a library that stays still names
   moves to the smallest such library. When the clock is past the purge's forward-jump guard, no hold expires. A page
   rewrites an item's genre, tag or studio rows only when that list changed. Provider ids are stored as
   `key=value;key=value`, keys sorted, and are never logged.
+- **Re-id matching (spec 26).** `successors(account, libraries, gone)` finds where a tombstoned item came back under a new
+  id, among the live rows of the playable libraries. The rows are read in one read transaction (narrowed in SQL to the
+  gone items' series, titles and identity ids), and `ReIdMatch` runs after it, outside the transaction, over the live
+  rows indexed once. It is conservative: a shared identity id (`imdb`, `tmdb` or `tvdb` only) with no identity key that
+  disagrees; else an episode of the same series, season and episode; else a film of the same title and year. A
+  disagreeing identity id rules a candidate out of the name fallbacks. A match needs a runtime within 2 minutes or 2%,
+  exactly one candidate, and no other gone item claiming or seeing it.
 - **Unit tests run Room on the JVM** over `androidx.sqlite:sqlite-bundled-jvm`, a test-only dependency that carries a native
   SQLite for the build machine. It is never in an APK. The instrumented test on the API 25 emulator runs the same schema on the
   platform SQLite.
@@ -279,6 +291,14 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   `ScheduleSource.airings` by building each switched-on channel's day with one `ruleSnapshot` per distinct cut-off and no
   `scheduleItems` call (#275), and keeps the built days (in memory, and on disk across processes) under what they depend
   on rather than the lineup revision, so a renumber or a swap that changes no channel's pool builds nothing.
+- **`core:domain` `lineup.repair` package (spec 26, [ADR-0025](adr/0025-repairing-today.md))** repairs the rest of
+  today. `TodayRepairer` is its one engine, a single instance per process whose calls take turns on one lock:
+  `selectionChanged` (a change of the selection), `repairLost` (blocks whose item left the library) and `dropSelection`
+  (a change a crash left recorded but not saved). It writes the per-TV repair record the day build follows; the tune path
+  only reads that record. `repairLost` reads the saved selection, its seq and its playable libraries in its own turn, and
+  matches a gone block to the item's successor (`LibraryRepository.successors`, the re-id matching above) before it
+  fills. `LostRepairHook` is how the lineup refresher runs it: after each sync run's writing ends, and once after the
+  start check (the lost-block check is held in memory only, so each process checks once).
 - **`core:domain` `lineup.builder` package (spec 22)** is how a viewer makes and edits custom channels. `ChannelDraft` is
   the builder's value: what the viewer chose, plus the settings of a copied built-in channel that the builder has no control
   for, which it keeps exactly as they were until the viewer replaces them. `DraftRules` turns a draft into `ChannelRules`
