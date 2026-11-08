@@ -9,6 +9,7 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.hasFinished
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
@@ -55,7 +56,8 @@ internal sealed interface LaunchRoute {
  *   these; the screen turns it into the trust question.
  *
  * A stored `http` address that needs a cleartext confirmation (ADR-0014) goes to the server screen, because the
- * confirmation was never stored with it and is not assumed.
+ * confirmation was never stored with it and is not assumed. A restored session's route waits for the selection's
+ * resume at start ([SelectionReady], spec 26) before it reads the stored choice.
  */
 internal class LaunchRouter
     @Inject
@@ -64,6 +66,7 @@ internal class LaunchRouter
         private val sessions: SessionRepository,
         private val mediaServer: MediaServer,
         private val firstSync: FirstSync = FirstSync.Finished,
+        private val ready: SelectionReady = SelectionReady.Complete,
     ) {
         suspend fun route(): LaunchRoute {
             val record = settings.load() ?: return LaunchRoute.NoServer
@@ -77,12 +80,15 @@ internal class LaunchRouter
         }
 
         // The chosen libraries, not the playable ones (spec 26): a gone selection keeps its choice and opens the guide.
-        private suspend fun restoredRoute(session: Session): LaunchRoute =
-            when {
+        // They are read only once the selection's resume has run, which may clear another account's choice.
+        private suspend fun restoredRoute(session: Session): LaunchRoute {
+            ready.await()
+            return when {
                 settings.loadLibraries().isNullOrEmpty() -> LaunchRoute.Libraries(session)
                 firstSync.hasFinished() -> LaunchRoute.SetupComplete
                 else -> LaunchRoute.FirstSync
             }
+        }
 
         private suspend fun signIn(
             address: ServerAddress,
