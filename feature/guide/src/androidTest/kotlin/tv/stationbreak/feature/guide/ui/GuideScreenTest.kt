@@ -94,6 +94,7 @@ import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.GuideViewModel
 import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
 import tv.stationbreak.feature.guide.ui.mark.MarkCache
+import tv.stationbreak.feature.guide.ui.mark.MarkKind
 import tv.stationbreak.feature.guide.ui.mark.MarkKindKey
 import tv.stationbreak.feature.guide.ui.mark.MarkLoader
 import java.util.concurrent.ConcurrentHashMap
@@ -764,25 +765,30 @@ class GuideScreenTest {
     private class GatedLoader(
         private val known: Set<String>,
         private val release: CountDownLatch,
+        val asked: MutableList<String>,
     ) : MarkLoader {
         override fun keys(): Set<String> = known
 
         override fun load(key: String): ImageBitmap? {
+            asked += key
             release.await(LOAD_TIMEOUT_S, TimeUnit.SECONDS)
             return TestBitmap
         }
     }
 
+    // The keys the loader was asked to load, in order.
+    private val asked = CopyOnWriteArrayList<String>()
+
     private fun markCache(
         release: CountDownLatch,
         vararg known: String,
-    ) = MarkCache(GatedLoader(known.toSet(), release), CoroutineScope(SupervisorJob()), loadWork)
+    ) = MarkCache(GatedLoader(known.toSet(), release, asked), CoroutineScope(SupervisorJob()), loadWork)
 
     private fun mark(channel: ChannelId) = compose.onNodeWithTag(GuideTags.channelMark(channel))
 
     private fun markShows(
         channel: ChannelId,
-        kind: String,
+        kind: MarkKind,
     ) = mark(channel).fetchSemanticsNode().config.getOrNull(MarkKindKey) == kind
 
     @Test
@@ -793,12 +799,12 @@ class GuideScreenTest {
         show(CH5)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
-        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "initials"))
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, MarkKind.Initials))
 
         release.countDown()
 
-        compose.waitUntil(TIMEOUT_MS) { markShows(CH5, "logo") }
-        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "logo"))
+        compose.waitUntil(TIMEOUT_MS) { markShows(CH5, MarkKind.Logo) }
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, MarkKind.Logo))
     }
 
     @Test
@@ -810,9 +816,8 @@ class GuideScreenTest {
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         release.countDown()
         compose.waitForIdle()
-        Thread.sleep(SETTLE_MS)
-        compose.waitForIdle()
-        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "initials"))
+        assertEquals("no logo is asked for a custom channel", emptyList<String>(), asked.toList())
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, MarkKind.Initials))
     }
 
     @Test
@@ -824,9 +829,8 @@ class GuideScreenTest {
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         release.countDown()
         compose.waitForIdle()
-        Thread.sleep(SETTLE_MS)
-        compose.waitForIdle()
-        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "initials"))
+        assertEquals("a key with no file is never loaded", emptyList<String>(), asked.toList())
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, MarkKind.Initials))
     }
 
     @Test

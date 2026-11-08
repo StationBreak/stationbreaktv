@@ -10,8 +10,6 @@ import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
-import tv.stationbreak.feature.guide.ui.mark.MarkChannel
-import tv.stationbreak.feature.guide.ui.mark.assignInitials
 import kotlin.time.Duration.Companion.minutes
 
 // The model classes are @Immutable, a Compose runtime annotation and the one Compose import here: ProgramInfo comes

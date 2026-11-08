@@ -34,6 +34,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
@@ -50,9 +51,10 @@ import tv.stationbreak.feature.guide.GuideRow
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.SLOT_MS
 import tv.stationbreak.feature.guide.indexOf
+import tv.stationbreak.feature.guide.markBandOf
 import tv.stationbreak.feature.guide.ui.mark.ChannelMark
 import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
-import tv.stationbreak.feature.guide.ui.mark.markBandOf
+import tv.stationbreak.feature.guide.ui.mark.LocalMarkTextMeasurer
 import java.time.Instant
 import java.time.ZoneId
 
@@ -118,6 +120,7 @@ internal fun GuideGrid(
         marks?.request((from until to).mapNotNull { model.rows[it].markKey })
     }
     val ellipsis = rememberEllipsisMarks()
+    val markText = rememberTextMeasurer()
     val colors = LocalGuideColors.current
     Box(
         modifier
@@ -126,7 +129,7 @@ internal fun GuideGrid(
             .focusedRowTint(model, firstVisibleRow, focusOf, colors)
             .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
     ) {
-        CompositionLocalProvider(LocalEllipsisMarks provides ellipsis) {
+        CompositionLocalProvider(LocalEllipsisMarks provides ellipsis, LocalMarkTextMeasurer provides markText) {
             Column {
                 ClockStrip(nowOf, viewportOf, geometry)
                 for (index in firstVisibleRow until last) {

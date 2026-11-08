@@ -90,9 +90,10 @@ private const val CORNER_SLACK = 0.5f
  * Where the guide's parts go on a screen, from the shared safe area and the [hole] live TV laid its picture in (screen
  * dp): the panel takes the band from the safe area's left edge to the hole, as tall as the hole reaches down, and the
  * clock strip and the grid start below it. Live owns where the picture is; the guide only lays out around it. Times
- * become widths at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: 8 dp a minute on a 960 dp-wide screen. The hole must
- * be in the safe area's top-right corner, where `ScreenLayout.pictureRect` puts it (anything else is refused), and the
- * guide is laid out left to right whatever the layout direction, as that corner and its hole are.
+ * become widths at [viewportWidth] per [GUIDE_VIEWPORT_SPAN]: about 7.7 dp a minute (696 dp over 90 minutes) on a 960
+ * dp-wide screen. The hole must be in the safe area's top-right corner, where `ScreenLayout.pictureRect` puts it
+ * (anything else is refused), and the guide is laid out left to right whatever the layout direction, as that corner
+ * and its hole are.
  */
 @Immutable
 internal class GuideGeometry(

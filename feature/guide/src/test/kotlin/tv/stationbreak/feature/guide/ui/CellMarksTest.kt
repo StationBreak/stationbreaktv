@@ -21,7 +21,8 @@ class CellMarksTest {
     private val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
     private val minute = 60_000L
 
-    // The width of [minutes] on the reference screen.
+    // The width of [minutes] on the reference screen: the 864 dp safe width less the 168 dp column is 696 dp for
+    // 90 minutes.
     private fun wide(minutes: Int): Dp = (696f * minutes / 90).dp
 
     private val origin = 1_700_000_000_000L - 1_700_000_000_000L % (30 * minute)
@@ -116,8 +117,10 @@ class CellMarksTest {
 
     @Test
     fun aCellWithRoomForItsTitleHasNoEllipsis() {
-        // 11 minutes is 85 dp; 80 dp is the least that has a title (10 minutes, 77 dp, is short of it).
-        assertNull(place(60, 71).ellipsisIn(at(60)))
+        // 10 minutes is 77.3 dp, over the 77 dp least that has a title; 9 minutes (69.6 dp) is compact.
+        assertNull(place(60, 70).ellipsisIn(at(60)))
+        assertFalse(place(60, 70).compactIn(at(60)))
+        assertTrue(place(60, 69).compactIn(at(60)))
         assertNull(place(60, 120).ellipsisIn(at(60)))
     }
 

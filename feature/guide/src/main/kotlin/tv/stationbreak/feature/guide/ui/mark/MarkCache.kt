@@ -74,7 +74,10 @@ internal class MarkCache(
     }
 }
 
-/** The one cache for the process, so logos survive the guide opening and closing. */
+/**
+ * The one cache for the process, so logos survive the guide opening and closing. It is never trimmed on low memory: it
+ * holds at most 97 bitmaps of 16 KB each. The dispatcher is the cache's `io` argument alone (the scope adds none).
+ */
 internal object MarkCaches {
     @Volatile private var instance: MarkCache? = null
 
@@ -83,7 +86,7 @@ internal object MarkCaches {
         instance ?: synchronized(this) {
             instance ?: MarkCache(
                 AssetMarkLoader(context.applicationContext.assets),
-                CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                CoroutineScope(SupervisorJob()),
                 Dispatchers.IO,
             ).also { instance = it }
         }

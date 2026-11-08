@@ -91,6 +91,7 @@ import tv.stationbreak.feature.guide.GuideViewModel
 import tv.stationbreak.feature.guide.ui.mark.AssetMarkLoader
 import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
 import tv.stationbreak.feature.guide.ui.mark.MarkCache
+import tv.stationbreak.feature.guide.ui.mark.MarkKind
 import tv.stationbreak.feature.guide.ui.mark.MarkKindKey
 import java.io.File
 import java.util.concurrent.Executors
@@ -185,12 +186,13 @@ class GuideScreenshotTest {
 
     /** Waits for the three logos to be drawn, and checks the custom channel still shows its initials. */
     private fun awaitMarks() {
-        compose.waitUntil(TIMEOUT_MS) { listOf(MARK_FARM, MARK_ROBOTS, MARK_LONG).all { markKind(it) == "logo" } }
-        assertEquals("initials", markKind(MARK_CUSTOM))
+        val starters = listOf(MARK_FARM, MARK_ROBOTS, MARK_LONG)
+        compose.waitUntil(TIMEOUT_MS) { starters.all { markKind(it) == MarkKind.Logo } }
+        assertEquals(MarkKind.Initials, markKind(MARK_CUSTOM))
         compose.waitForIdle()
     }
 
-    private fun markKind(channel: ChannelId): String? =
+    private fun markKind(channel: ChannelId): MarkKind? =
         compose
             .onAllNodesWithTag(GuideTags.channelMark(channel))
             .fetchSemanticsNodes()

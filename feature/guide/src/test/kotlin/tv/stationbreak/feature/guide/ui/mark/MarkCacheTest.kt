@@ -212,10 +212,9 @@ class MarkCacheTest {
         }
 
     @Test
-    fun aLoadThatFinishesAfterTheCallerStoppedCaringIsHarmless() {
+    fun aSlowLoadStillArrivesAfterRequestReturned() {
         val executor = Executors.newSingleThreadExecutor()
         val cacheScope = CoroutineScope(SupervisorJob())
-        val callerJob = Job()
         try {
             val started = CountDownLatch(1)
             val release = CountDownLatch(1)
@@ -226,10 +225,10 @@ class MarkCacheTest {
                 FakeBitmap()
             }
             val cache = MarkCache(loader, cacheScope, executor.asCoroutineDispatcher())
-            // The caller asks, then goes away (its own scope is cancelled) while the decode is still running.
-            CoroutineScope(callerJob).also { cache.request(listOf("a")) }
+            // request returns at once; the decode is still running when it does, and it arrives when it finishes.
+            cache.request(listOf("a"))
             assertTrue(started.await(5, TimeUnit.SECONDS))
-            callerJob.cancel()
+            assertNull(cache.peek("a"))
             release.countDown()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
             while (cache.peek("a") == null && System.nanoTime() < deadline) Thread.sleep(5)

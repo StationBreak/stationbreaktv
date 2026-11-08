@@ -12,6 +12,9 @@ internal sealed interface MarkVisual {
     data object Initials : MarkVisual
 }
 
+/** What a mark draws, as a test reads it through `MarkKindKey`. */
+internal enum class MarkKind { Logo, Initials }
+
 /** The logo only when [markKey] has a decoded bitmap in [cache]; otherwise the initials tile. Never blocks. */
 internal fun markVisual(
     markKey: String?,
