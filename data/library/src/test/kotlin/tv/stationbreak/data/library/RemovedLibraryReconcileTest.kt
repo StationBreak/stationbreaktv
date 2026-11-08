@@ -225,10 +225,13 @@ class RemovedLibraryReconcileTest {
     @Test
     fun anItemAnotherListedLibraryStillHoldsStaysLive() =
         runBlocking {
-            // One ID in both movies (listed) and shows (removed): the row belongs to one library only.
+            // One ID in both movies (listed) and shows (removed): the row belongs to one library only. The first
+            // writer (movies) owns it; shows takes it as a tombstone, so that the removed library is the owner.
             val shared = SyncWorld.item("m", 0, SHOWS)
             showsSource.items += shared
             firstSyncDone()
+            repository.tombstone(ALICE, listOf(shared.id))
+            repository.put(ALICE, SHOWS, shared)
             assertEquals(SHOWS, repository.stored(ALICE).single { it.item.id == shared.id }.library)
             server.libraries = listOf(movies)
 
@@ -334,13 +337,15 @@ class RemovedLibraryReconcileTest {
     fun aRemovedLibraryWhoseRowsAreAllHeldByAListedOneCostsNoRequest() =
         runBlocking {
             val both = setOf(MOVIES, home.id)
-            // The same IDs in both libraries: the row ends up in the one synced last (home), which is then removed.
+            // The same IDs in both libraries: each row stays with its first writer (movies), and home, which is
+            // then removed, lists them without owning any (spec 26, schema 11).
             val heldTwice = SyncWorld.source("m", 40, home.id)
             val world = SyncWorld.server(movies to SyncWorld.source("m", 40), home to heldTwice)
             world.libraries = listOf(movies, home)
             repository.useAccount(ALICE)
             assertEquals(SyncOutcome.Completed, SyncWorld.engine(repository, world, clock).run(session, ALICE, both))
-            assertEquals(40, repository.stored(ALICE).count { it.library == home.id })
+            assertEquals(40, repository.stored(ALICE).count { it.library == MOVIES })
+            assertEquals(40, repository.alsoListed(ALICE).count { it.second == home.id })
             clock.instant += 1.hours
             world.libraries = listOf(movies)
 

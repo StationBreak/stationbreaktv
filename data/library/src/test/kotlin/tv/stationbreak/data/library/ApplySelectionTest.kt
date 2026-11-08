@@ -304,8 +304,10 @@ class ApplySelectionTest {
             assertEquals(before + 1, generation())
         }
 
+    // Spec 26, schema 11: an add that lists a chosen library's item no longer takes it (the first-owner rule), so the
+    // day keeps it and nothing moves; the add gets an also-listed row.
     @Test
-    fun aRowThatMovesFromAChosenLibraryIntoOneBeingAddedMovesTheGeneration() =
+    fun aRowAChosenLibraryHoldsStaysThereWhenAnAddListsIt() =
         runBlocking {
             apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 1L))
             repository.put(ALICE, MOVIES, sitem(1))
@@ -320,7 +322,10 @@ class ApplySelectionTest {
                     listOf(sitem(1, library = extra)),
                 ).written()
 
-            assertEquals("the chosen library lost the item", before + 1, generation())
+            val owner = repository.currentRows(ALICE).single().libraryId
+            assertEquals("the chosen library keeps the item", MOVIES.value, owner)
+            assertEquals(listOf(ItemId(hexId(1)) to extra), repository.alsoListed(ALICE))
+            assertEquals("nothing a day reads changed", before, generation())
         }
 
     // Whole-part fix (data MED-1): a series row feeds the episodes of other libraries by its id, so a series write

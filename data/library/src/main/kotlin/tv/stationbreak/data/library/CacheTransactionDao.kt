@@ -86,6 +86,12 @@ internal abstract class CacheTransactionDao(
      * in a library that was dropped, held or re-stamped since its walk began, nor reach a foreign-key throw for a row
      * that is gone. A [rewalk] write also refuses, with [PageResult.FirstSyncRunning], while the account runs a first
      * sync. Neither refusal moves the generation.
+     *
+     * Who owns an item two libraries list ([route], spec 26, schema 11): the first writer. A chosen writer takes an
+     * item from an owner being added, and any writer takes a tombstone; each is a versioned move. Otherwise the owner
+     * stays and the writer gets an `item_also_listed` row, while the fields are still the writer's, versioned under
+     * the owner. The rows change in this transaction, after the guard; a change to them alone moves nothing. An add's
+     * series write (a [stamp]) moves the generation only when an episode outside the adds names the series (D8).
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the library and its guard, the page, the time and the seams.
@@ -109,11 +115,17 @@ internal abstract class CacheTransactionDao(
                 .chunked(LibraryDao.MAX_VARIABLES)
                 .flatMap { library.itemsByIds(server, user, it) }
                 .associateBy { it.itemId }
+        // Read once, inside this transaction: the owners' classes and the adds (spec 26, schema 11).
+        val libs = library.libraries(server, user)
+        val stamped = libs.filter { it.addStamp != null }.mapTo(HashSet()) { it.libraryId }
+        val addingOwners = addingLibraries(libs)
+        val routed = route(server, user, libraryId, stamp, items, existing, addingOwners)
         // The old genres, tags and studios are read here, inside the transaction and before they are deleted below.
         val old = library.sideNames(server, user, existing.keys)
-        val plan = history.planPage(items, existing, old, nowMs)
+        val plan = history.planPage(routed.items, existing, old, nowMs)
         library.insertItems(plan.toInsert)
         library.updateItems(plan.toUpdate)
+        writeListed(server, user, libraryId, routed)
         // Each side table is rewritten only for the items whose list differs from the one held (a new item has none),
         // so a page that changes provider ids alone, as the backfill's does, leaves every side row as it is.
         val genreIds = ArrayList<String>()
@@ -121,7 +133,7 @@ internal abstract class CacheTransactionDao(
         val studioIds = ArrayList<String>()
         for (row in plan.toInsert + plan.toUpdate) {
             val id = row.itemId
-            val incoming = items.getValue(id)
+            val incoming = routed.items.getValue(id)
             if (incoming.genres.map { it.name } != old.genres[id].orEmpty()) genreIds += id
             if (incoming.tags.map { it.name } != old.tags[id].orEmpty()) tagIds += id
             if (incoming.studios.map { it.name } != old.studios[id].orEmpty()) studioIds += id
@@ -134,11 +146,11 @@ internal abstract class CacheTransactionDao(
         library.insertStudios(studioIds.flatMap { items.getValue(it).studios })
         betweenItemsAndHistory?.invoke()
         history.insertVersions(plan.versions)
-        // Read inside this transaction, so a selection change cannot slip between the read and the bump.
-        val adding = library.addingLibraryIds(server, user).toHashSet()
-        val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
+        // The adds were read inside this transaction, so a selection change cannot slip between the read and the bump.
+        val seriesWrite = writeSeries(server, user, seriesRows, nowMs, stamp, addingOwners)
         // Inside this transaction, so a write that rolls back leaves the generation as it was.
-        if (itemsMoveTheDay(plan, items, adding) || seriesWrite.movesTheDay) library.bumpGeneration(server, user)
+        val moves = itemsMoveTheDay(plan, routed.items, stamped) || seriesWrite.movesTheDay
+        if (moves) library.bumpGeneration(server, user)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
         return PageResult.Written(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite.write)
@@ -164,6 +176,78 @@ internal abstract class CacheTransactionDao(
         return if (accepted) null else PageResult.StampMismatch
     }
 
+    // The page's also-listed changes: the writer's row goes for what it now owns, and the new rows go in.
+    private suspend fun writeListed(
+        server: String,
+        user: String,
+        libraryId: String,
+        routed: Routed,
+    ) {
+        for (chunk in routed.nowOwned.chunked(LibraryDao.MAX_VARIABLES)) {
+            library.deleteAlsoListedIn(server, user, libraryId, chunk)
+        }
+        library.insertAlsoListed(routed.listed)
+    }
+
+    /**
+     * The rows of a page as the ownership rules write them (spec 26, schema 11): [items] with each one's owner, the
+     * [listed] rows to insert (`INSERT OR IGNORE`) and the items [nowOwned] by the writer, whose row for it goes.
+     */
+    private class Routed(
+        val items: Map<String, ItemRows>,
+        val listed: List<ItemAlsoListedEntity>,
+        val nowOwned: List<String>,
+    )
+
+    /**
+     * Who owns each item of a page that [libraryId] writes under [stamp] (spec 26, schema 11), given the rows held
+     * ([existing]) and the libraries being added and not held ([addingOwners]). A new item, or one the writer owns, is
+     * the writer's. A tombstone goes to whoever writes it (a revival, versioned by the plan), and never gives its old
+     * owner a row: that owner's listing dropped it. A chosen writer (no stamp) takes an item from an owner that is
+     * being added, which keeps a row. Otherwise the owner stays, the row is written under it, and the writer gets a
+     * row. The fields are always the writer's: the server's item is the same whichever library lists it.
+     */
+    @Suppress("LongParameterList") // The account, the writer and its stamp, the page, and what the transaction read.
+    private fun route(
+        server: String,
+        user: String,
+        libraryId: String,
+        stamp: Long?,
+        items: Map<String, ItemRows>,
+        existing: Map<String, ItemEntity>,
+        addingOwners: Set<String>,
+    ): Routed {
+        val routed = LinkedHashMap<String, ItemRows>(items.size)
+        val listed = ArrayList<ItemAlsoListedEntity>()
+        val nowOwned = ArrayList<String>()
+        for ((id, rows) in items) {
+            val held = existing[id]
+            val owner = held?.libraryId
+            when {
+                held == null || owner == null || owner == libraryId -> {
+                    routed[id] = rows
+                }
+
+                held.deletedAtMs != null -> {
+                    routed[id] = rows
+                    nowOwned += id
+                }
+
+                owner in addingOwners && stamp == null -> {
+                    routed[id] = rows
+                    nowOwned += id
+                    listed += ItemAlsoListedEntity(server, user, id, owner)
+                }
+
+                else -> {
+                    routed[id] = ItemRows(rows.item.copy(libraryId = owner), rows.genres, rows.tags, rows.studios)
+                    listed += ItemAlsoListedEntity(server, user, id, libraryId)
+                }
+            }
+        }
+        return Routed(routed, listed, nowOwned)
+    }
+
     /**
      * True when the page changed a field the scheduler or the rules read (a new row, or one that took a version: an
      * edit to a versioned field or a revival) in a library that is not being added, before or after the write (spec
@@ -187,11 +271,14 @@ internal abstract class CacheTransactionDao(
         val movesTheDay: Boolean,
     )
 
+    @Suppress("LongParameterList") // The account, the rows, the time, and the stamp with the adds for D8.
     private suspend fun writeSeries(
         server: String,
         user: String,
         rows: Map<String, SeriesEntity>,
         nowMs: Long,
+        stamp: Long?,
+        adding: Set<String>,
     ): SeriesWrite {
         val existing =
             rows.keys
@@ -204,9 +291,31 @@ internal abstract class CacheTransactionDao(
         series.insertVersions(plan.versions)
         // A new or versioned series moves the day, whatever library holds its row: an episode of any library reads it
         // by its id, so an add is not exempt here (whole-part review, data MED-1). A library-only or provider-id-only
-        // change takes no version and moves nothing.
-        val moves = plan.toInsert.isNotEmpty() || plan.versions.isNotEmpty()
+        // change takes no version and moves nothing. An add's write (D8) moves it only when an episode outside the
+        // adds names the series: no day reads a series that only an add's episodes name.
+        val changed = plan.toInsert.map { it.seriesId } + plan.versions.map { it.seriesId }
+        val moves =
+            when {
+                changed.isEmpty() -> false
+                stamp == null -> true
+                else -> namedOutside(server, user, changed, adding)
+            }
         return SeriesWrite(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), moves)
+    }
+
+    // D8: whether an episode of a library outside [adding] (held ones included) names one of [seriesIds], under any
+    // of the spellings it may be stored as (idSpellings), bound in chunks that keep the statement under the limit.
+    private suspend fun namedOutside(
+        server: String,
+        user: String,
+        seriesIds: List<String>,
+        adding: Set<String>,
+    ): Boolean {
+        val spellings = seriesIds.flatMap { idSpellings(it) }.distinct()
+        val outside = adding.toList()
+        val size = (LibraryDao.MAX_VARIABLES - outside.size).coerceAtLeast(MAX_SPELLINGS)
+        for (chunk in spellings.chunked(size)) if (library.seriesNamedOutside(server, user, chunk, outside)) return true
+        return false
     }
 
     /**
@@ -643,6 +752,10 @@ internal abstract class CacheTransactionDao(
         sinceMs: Long,
         trace: ((String) -> Unit)? = null,
     ): ReIdRows = reIdRows(library, series, server, user, libraries, gone, sinceMs, trace)
+
+    // The libraries being added and not held, of [libs]: an owner a chosen writer takes from, and D8's adds.
+    private fun addingLibraries(libs: List<LibraryEntity>): Set<String> =
+        libs.filter { it.addStamp != null && it.heldUntilMs == null }.mapTo(HashSet()) { it.libraryId }
 
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */

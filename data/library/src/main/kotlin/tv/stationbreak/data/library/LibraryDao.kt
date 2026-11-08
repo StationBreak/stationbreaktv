@@ -2,6 +2,7 @@
 package tv.stationbreak.data.library
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -180,13 +181,6 @@ internal abstract class LibraryDao {
         userId: String,
         libraryId: String,
     ): LibraryEntity?
-
-    // The libraries being added (spec 26): what is written to them moves no content generation.
-    @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND addStamp IS NOT NULL")
-    abstract suspend fun addingLibraryIds(
-        serverId: String,
-        userId: String,
-    ): List<String>
 
     @Update
     protected abstract suspend fun updateLibraries(rows: List<LibraryEntity>)
@@ -564,6 +558,48 @@ internal abstract class LibraryDao {
         userId: String,
         cutoffMs: Long,
     ): Int
+
+    // The also-listed rows (spec 26, schema 11): the libraries that list an item they do not own.
+
+    // Every also-listed row of the account, for the tests and diagnostics.
+    @Query("SELECT * FROM item_also_listed WHERE serverId = :serverId AND userId = :userId ORDER BY itemId, libraryId")
+    abstract suspend fun allAlsoListed(
+        serverId: String,
+        userId: String,
+    ): List<ItemAlsoListedEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertAlsoListed(rows: List<ItemAlsoListedEntity>)
+
+    // The rows (by primary key) go: an item moved into the library that listed it.
+    @Delete
+    abstract suspend fun deleteAlsoListed(rows: List<ItemAlsoListedEntity>)
+
+    // [libraryId] no longer lists [ids] (at most MAX_VARIABLES of them), or now owns them.
+    @Query(
+        "DELETE FROM item_also_listed WHERE serverId = :serverId AND userId = :userId AND libraryId = :libraryId " +
+            "AND itemId IN (:ids)",
+    )
+    abstract suspend fun deleteAlsoListedIn(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    )
+
+    // D8: whether an episode of a library that is not being added ([adding]) names one of the series [spellings]
+    // (every stored spelling of each, at most MAX_VARIABLES binds in all). Tombstoned episodes count: it errs on the
+    // side of a bump. Through the (serverId, userId, seriesId) index.
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND seriesId IN (:spellings) AND libraryId NOT IN (:adding))",
+    )
+    abstract suspend fun seriesNamedOutside(
+        serverId: String,
+        userId: String,
+        spellings: List<String>,
+        adding: List<String>,
+    ): Boolean
 
     // Genres, tags and studios.
 

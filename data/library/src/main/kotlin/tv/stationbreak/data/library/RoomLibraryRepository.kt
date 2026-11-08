@@ -929,6 +929,12 @@ class RoomLibraryRepository internal constructor(
             collectionSyncs = collectionDao.countSyncRows(),
         )
 
+    /** Every also-listed row of [account] as (item, library), in order: for the tests and diagnostics. */
+    internal suspend fun alsoListed(account: LibraryAccount): List<Pair<ItemId, ItemId>> {
+        val (server, user) = account.keys()
+        return dao.allAlsoListed(server, user).map { ItemId(it.itemId) to ItemId(it.libraryId) }
+    }
+
     /** The account's item rows as they are on disk (the current versions), by item ID. */
     internal suspend fun currentRows(account: LibraryAccount): List<ItemEntity> {
         val (server, user) = account.keys()
