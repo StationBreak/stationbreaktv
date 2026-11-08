@@ -65,6 +65,7 @@ import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
 import tv.stationbreak.core.domain.lineup.savedSelectionOf
 import tv.stationbreak.core.domain.selection.AddLandings
 import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.LibrarySelection
@@ -415,6 +416,12 @@ internal object LineupModule {
         @AppStart selection: LibrarySelection,
     ): ServerListings = selection
 
+    /** Stay current's expiry of ended holds after each completed pass, run by the selection (Task 4.5, D12). */
+    @Provides
+    fun holdExpiry(
+        @AppStart selection: LibrarySelection,
+    ): HoldExpiry = selection
+
     /** The resume at start, which the app's start alone runs: qualified, so nothing else can inject it. */
     @Provides
     @AppStart
@@ -441,7 +448,8 @@ internal object LineupModule {
     /**
      * A stay-current run soon, for a library whose unproven add was set back to be read again (spec 26): the open
      * trigger's own entry, so its rules (not while a sync runs, not before the first sync ended) hold. The provider is
-     * lazy: stay current's runner will follow the selection's listings (Task 4.5).
+     * lazy: stay current's runner follows the selection's listings and expires its holds (Task 4.5), so the two need
+     * each other.
      *
      * `onOpen` drops a request that comes while a run is going (it queues nothing then). That loses nothing: the
      * set-back library carries a durable rewalk mark in the cache, and the next run that gets past the first-sync gate

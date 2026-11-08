@@ -54,19 +54,21 @@ internal class Rewalk(
     private val report: (String) -> Unit,
 ) {
     /**
-     * Runs the step for [account]'s [chosen] libraries and says what it did, in a numbers-only line when there was
-     * anything to rewalk. Whatever else fails is one failure, and never fails the run; cancellation and a sign-out pass
-     * through, as for the passes.
+     * Runs the step for [account]'s [chosen] libraries on the run's listing [listed] (the one the selection followed;
+     * the step asks for none of its own) and says what it did, in a numbers-only line when there was anything to
+     * rewalk. Whatever else fails is one failure, and never fails the run; cancellation and a sign-out pass through, as
+     * for the passes.
      */
     @Suppress("TooGenericExceptionCaught")
     suspend fun step(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
+        listed: ServerResult<List<Library>>,
     ): RewalkSummary {
         val summary =
             try {
-                run(session, account, chosen)
+                run(session, account, chosen, listed)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (signedOut: AccountNotActiveException) {
@@ -89,12 +91,13 @@ internal class Rewalk(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
+        listing: ServerResult<List<Library>>,
     ): RewalkSummary {
         val marked = repository.storedLibraries(account).filter { it.isCandidate(chosen) }
         if (marked.isEmpty()) return RewalkSummary()
         val listed =
-            when (val result = server.libraries(session)) {
-                is ServerResult.Success -> result.value.associateBy { it.id }
+            when (listing) {
+                is ServerResult.Success -> listing.value.associateBy { it.id }
                 is ServerResult.Failure -> return RewalkSummary(marked.size, failed = marked.size)
             }
         var summary = RewalkSummary(marked.size)

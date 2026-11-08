@@ -279,9 +279,17 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   (`AddLandings.pendingAdds`), walks each add under its stamp and hands it to the selection to land
   (`AddLandings.passLanded`); it never lands anything itself. A landing that may pass is tried again a few times per
   stamp with a doubling wait; one that cannot is given up until the next start. The selection's `LibraryPasses.restart`
-  enqueues it with `REPLACE`. It stays out of the sync signal the lineup refresher holds its triggers on. The rewalk
-  is a step of a stay-current run whose passes completed: each chosen, marked library the server lists is walked from
-  its checkpoint, and a failure keeps the mark for the next run without changing how the run ended.
+  enqueues it with `REPLACE`. It stays out of the sync signal the lineup refresher holds its triggers on.
+- **After stay current's passes (spec 26).** A run whose passes completed asks the selection to expire the holds that
+  have ended (`HoldExpiry`, the cache write of the stored selection with no new hold), then lists the server's
+  libraries once and hands that listing to the selection (`ServerListings`, the two-read rule), then runs the rewalk on
+  that same listing: each chosen, marked library it lists is walked from its checkpoint, and a failure keeps the mark
+  for the next run. The rewalk reads what plays again first and is skipped when the listing left the selection gone.
+  While the selection is gone, a run makes no pass and no rewalk, and still lists and follows, so a chosen library
+  that comes back ends the gone state. None of these steps changes how the run ended. The passes leave out a chosen
+  library that is marked, still stamped (saved as chosen a moment before it lands) or held.
+- **Hidden views.** The library listing asks `UserViews` with `includeHidden=true`: a library the user hid from the
+  server's home screen is still listed, so it stays choosable and never reads as going missing.
 - **Re-id matching (spec 26).** `successors(account, libraries, gone)` finds where a tombstoned item came back under a new
   id, among the live rows of the playable libraries. The rows are read in one read transaction (narrowed in SQL to the
   gone items' series, titles and identity ids), and `ReIdMatch` runs after it, outside the transaction, over the live
@@ -338,7 +346,8 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   every change of the stored selection: a change after setup, the setup itself, the landing of an add, the following of
   the server's listings, the first sync's library set and the resume at start. Callers see it only through narrow
   ports: features through `LibraryChoices` and `LibrarySetup`, the add pass through `AddLandings`, the first sync
-  through `FirstSyncLibraries`, stay current through `ServerListings`, and the app's start through `SelectionResume`.
+  through `FirstSyncLibraries`, stay current through `ServerListings` and `HoldExpiry`, and the app's start through
+  `SelectionResume`.
   It asks for the add pass through `LibraryPasses`. The app binds it under `@AppStart` only, so nothing else can hold it.
   Its work is split across internal collaborators in the same package (`SelectionOwnership`, `SelectionAllocation`,
   `SelectionCache`, `SelectionReconciler`, `SelectionFollower`), built by it and run only under its lock.

@@ -9,11 +9,15 @@ import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.RestoreOutcome
+import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.SelectionReady
+import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
@@ -52,6 +56,12 @@ data class SyncPlan(
  * The purge is housekeeping: a purge that fails, or is skipped for a clock that looks wrong, is kept in [lastPurge] and
  * never fails the run.
  *
+ * After passes that completed it asks the library selection, through its narrow ports, to expire the holds that have
+ * ended ([HoldExpiry]) and to follow this run's one listing of the server's libraries ([ServerListings]); then the
+ * rewalk walks on that same listing, unless the selection is gone (spec 26, Part 4 §4, D11 and D12). While the
+ * selection is gone the run makes no pass and no rewalk, and still lists and follows. None of these steps ever changes
+ * how the run ended.
+ *
  * Last of all, in a run with the incremental pass that completed, it runs the studios re-read while one is pending
  * (spec 18, ruling R9; see [StayCurrentEngine.backfill]). A reconcile that failed does not stop it (a library that is
  * now legitimately empty fails every reconcile), but one that was cancelled does. It goes after everything else, so a
@@ -74,6 +84,8 @@ class StayCurrentRunner(
     private val server: MediaServer,
     private val repository: RoomLibraryRepository,
     private val ready: SelectionReady,
+    private val listings: ServerListings,
+    private val holds: HoldExpiry,
     private val clock: Clock = Clock.System,
     private val timeSource: TimeSource = TimeSource.Monotonic,
     private val report: (String) -> Unit = {},
@@ -122,7 +134,8 @@ class StayCurrentRunner(
     /**
      * True while a run is writing: from the moment its passes begin (settings read, session verified, the account still
      * the one signed in) to the moment the run ends, whatever ended it. A run that stops before its passes (no server,
-     * no libraries, the first sync still open, signed out, the server unreachable) never sets it. That is how it
+     * no libraries, the first sync still open, signed out, the server unreachable, the selection gone: the selection's
+     * own writes then are published through its seq) never sets it. That is how it
      * differs from [isRunning], which covers the whole run: the lineup refresher holds the triggers a run's writes
      * cause while this is true and checks once when it turns false, so a run that wrote nothing must not look like one
      * that did (#434).
@@ -167,8 +180,9 @@ class StayCurrentRunner(
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun start(plan: SyncPlan): SyncOutcome {
         val record = settings.load() ?: return report.skipped(plan, Skip.NoServer)
-        val libraries = settings.loadPlayableLibraries()
-        val chosen = libraries?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
+        // The choice, then what of it plays: none while the selection is gone (D11), when only the listing runs.
+        settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
+        val chosen = settings.loadPlayableLibraries()?.takeIf { it.isNotEmpty() }
         val accounts = repository.dao.activeAccounts()
         val active = accounts.singleOrNull() ?: return report.skipped(plan, Skip.NoAccount, "accounts=${accounts.size}")
         val account = LibraryAccount(ServerId(active.serverId), UserId(active.userId))
@@ -177,7 +191,11 @@ class StayCurrentRunner(
         if (firstSyncOpen) return report.skipped(plan, Skip.FirstSyncOpen)
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
-                safely(account) { passes(restored.session, account, chosen, plan) }
+                if (chosen == null) {
+                    gone(restored.session, account, plan)
+                } else {
+                    safely(account) { passes(restored.session, account, chosen, plan) }
+                }
             }
 
             RestoreOutcome.SignedOut -> {
@@ -224,13 +242,76 @@ class StayCurrentRunner(
         val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         report.say(wrote(generationBefore, repository.generationOrNull(account), ran))
-        // The rewalk runs only after passes that completed (spec 26, Part 4 §4); it never changes how the run ended.
-        if (outcome == SyncOutcome.Completed) {
-            lastRewalk = Rewalk(repository, server, clock, report).step(session, account, chosen)
-        }
+        // Only after passes that completed (spec 26, Part 4 §4): the holds, the listing, the rewalk. None of them ever
+        // changes how the run ended.
+        if (outcome == SyncOutcome.Completed) afterPasses(session, account)
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
         if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome
+    }
+
+    // While the selection is gone (D11): no pass and no rewalk, as nothing chosen plays, but the server is still
+    // listed and the listing followed, so a chosen library that is listed again ends the gone state.
+    private suspend fun gone(
+        session: Session,
+        account: LibraryAccount,
+        plan: SyncPlan,
+    ): SyncOutcome {
+        if (session.server.id != account.server || session.userId != account.user) {
+            return report.skipped(plan, Skip.AccountChanged)
+        }
+        follow(session, account)
+        return report.skipped(plan, Skip.Gone)
+    }
+
+    // After passes that completed (spec 26, Part 4 §4, D12): the holds that ended expire, then this run's one listing of
+    // the server's libraries is followed, then the rewalk walks on that same listing. The selection may end gone on
+    // that listing, so the rewalk reads what plays again first, and is skipped while it is gone.
+    private suspend fun afterPasses(
+        session: Session,
+        account: LibraryAccount,
+    ) {
+        housekeeping("HoldExpiry") { holds.expireHolds(account) }
+        val listed = follow(session, account)
+        val playing = settings.loadPlayableLibraries()?.takeIf { it.isNotEmpty() }
+        when {
+            playing == null -> report.say("RewalkSkipped reason=Gone")
+            listed == null -> report.say("RewalkSkipped reason=NoListing")
+            else -> lastRewalk = Rewalk(repository, server, clock, report).step(session, account, playing, listed)
+        }
+    }
+
+    // The run's one listing of the server's libraries, handed to the selection to follow; null only when reading it
+    // threw (a listing that failed is handed over as it is, and the selection drops it).
+    private suspend fun follow(
+        session: Session,
+        account: LibraryAccount,
+    ): ServerResult<List<Library>>? {
+        var listed: ServerResult<List<Library>>? = null
+        housekeeping("Listing") {
+            val read = server.libraries(session)
+            listed = read
+            listings.followServer(account, read)
+        }
+        return listed
+    }
+
+    // One step the selection runs for stay current: whatever it throws is said, by [step]'s name only, and never
+    // changes how the run ended. Cancellation and a sign-out pass through, the same as for the passes.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun housekeeping(
+        step: String,
+        block: suspend () -> Unit,
+    ) {
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (signedOut: AccountNotActiveException) {
+            throw signedOut
+        } catch (_: Exception) {
+            report.say("${step}Failed")
+        }
     }
 
     @Suppress("ReturnCount") // Each early return is a pass that did not complete.
@@ -446,6 +527,7 @@ private enum class Skip {
     SessionRejected,
     Unavailable,
     AccountChanged,
+    Gone,
 }
 
 // Why a run did nothing: the plan, a reason name and at most a count or an enum name, never an ID, an address or a
