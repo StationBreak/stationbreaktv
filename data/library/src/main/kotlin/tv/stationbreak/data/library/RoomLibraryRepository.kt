@@ -366,6 +366,15 @@ class RoomLibraryRepository internal constructor(
         )
     }
 
+    override suspend fun landAdd(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean {
+        val (server, user) = account.keys()
+        return dao.landAdd(server, user, library.value, stamp)
+    }
+
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> {
         val (server, user) = account.keys()
         return dao.pendingLibraries(server, user).map(::ItemId).toSet()

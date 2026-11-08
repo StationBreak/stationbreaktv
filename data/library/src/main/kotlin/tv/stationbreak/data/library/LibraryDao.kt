@@ -222,6 +222,30 @@ internal abstract class LibraryDao {
         libraryId: String,
     )
 
+    // An add lands (spec 26): its stamp is cleared and it is fetched, only while it still has [stamp]. The row count.
+    @Query(
+        "UPDATE library SET addStamp = NULL, fetched = 1 WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId AND addStamp = :stamp AND heldUntilMs IS NULL",
+    )
+    protected abstract suspend fun clearStamp(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+    ): Int
+
+    /** A test seam: [stamp] written on [libraryId] as it is, for a row an older build left both held and stamped. */
+    @Query(
+        "UPDATE library SET addStamp = :stamp WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId",
+    )
+    internal abstract suspend fun forceStampForTest(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+    )
+
     @Query("SELECT libraryId FROM library WHERE serverId = :serverId AND userId = :userId AND fetched = 0")
     abstract suspend fun pendingLibraries(
         serverId: String,
@@ -743,8 +767,9 @@ internal abstract class LibraryDao {
      * expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or be a held
      * library's, re-ticked). A tick, a hold set or cleared, and an add dropped before it holds a row move nothing: none
      * of them changes what a day is built from. With [keepAdding], every library
-     * stored with a stamp also counts as in [keep], read inside this transaction (the first sync does not know the
-     * adds). An account that is not signed in gets no rows back.
+     * stored with a stamp and no hold also counts as in [keep], read inside this transaction (the first sync does not
+     * know the adds); a held row is kept by its hold alone. A library that is held (here, or from before) loses its
+     * stamp: a held library is never one being added. An account that is not signed in gets no rows back.
      *
      * A new stamp may go only to a library that is new, held or already being added, never to a chosen library that
      * has landed: that throws [IllegalArgumentException] and writes nothing. Before a library's rows are deleted, each
@@ -772,7 +797,9 @@ internal abstract class LibraryDao {
         val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
         // A clock far ahead of the last success (as the purge's guard reads it) expires no hold (Vimes, spec 26).
         val holdsFrozen = holdClockGuardMs != null && lastSuccessMs != null && nowMs - lastSuccessMs > holdClockGuardMs
-        val kept = if (keepAdding) keep + stored.filter { it.addStamp != null }.map { it.libraryId } else keep
+        // A held row is kept by its hold alone, never by a stamp it may still carry.
+        val adding = stored.filter { it.addStamp != null && it.heldUntilMs == null }.map { it.libraryId }
+        val kept = if (keepAdding) keep + adding else keep
         val byId = stored.associateBy { it.libraryId }
         val toUpdate = mutableListOf<LibraryEntity>()
         val toDelete = mutableListOf<String>()
@@ -782,7 +809,9 @@ internal abstract class LibraryDao {
             if (row.libraryId in kept) continue
             val until = holds[row.libraryId] ?: row.heldUntilMs
             if (until != null && (until > nowMs || holdsFrozen)) {
-                if (until != row.heldUntilMs) toUpdate += row.copy(heldUntilMs = until)
+                // A held library is never one being added: its stamp goes, so it can never land.
+                val next = row.copy(heldUntilMs = until, addStamp = null)
+                if (next != row) toUpdate += next
             } else {
                 toDelete += row.libraryId
                 // An add's rows can be ones a day was built from: an item or series that moved in from a chosen
@@ -940,6 +969,25 @@ internal abstract class LibraryDao {
     ) {
         requireActive(serverId, userId)
         setFetched(serverId, userId, libraryId)
+    }
+
+    /**
+     * The add of [libraryId] under [stamp] lands (spec 26): when the library still has that stamp (and no hold), the
+     * stamp is cleared, the library is marked fetched and the content generation moves once, all in this transaction,
+     * as the rows its walk wrote (which moved nothing) become a day's inputs. Otherwise (another stamp, none, a hold,
+     * no such library, or an account that is not signed in) nothing changes and it returns false.
+     */
+    @Transaction
+    open suspend fun landAdd(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        stamp: Long,
+    ): Boolean {
+        // An account that is not signed in lands nothing; nor does a stamp that is no longer the library's.
+        val landed = activeCount(serverId, userId) > 0 && clearStamp(serverId, userId, libraryId, stamp) > 0
+        if (landed) bumpGeneration(serverId, userId)
+        return landed
     }
 
     /** A sync ended well at [nowMs]: idle, and the time of the success kept with the saved library. */

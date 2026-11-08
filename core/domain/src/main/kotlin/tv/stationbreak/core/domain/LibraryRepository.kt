@@ -369,15 +369,24 @@ interface LibraryRepository : AccountCache {
      * ones and the ones being added; an added one is pending, with its stamp), keeps any other library whose hold lies
      * after [nowMs] (and sets [holds]), and deletes every other library's rows.
      *
+     * **The add lifecycle.** Ticking a library gives it a stamp here (in [keep] and [addStamps]): it is pending and
+     * being added, and the pages its walk writes move no [contentGeneration], so no day reads it yet. When its walk
+     * has ended, [landAdd] with the same stamp lands it: the stamp is cleared, the library is fetched and the
+     * generation moves once, and from then on it is a chosen library like any other (its writes move the generation).
+     * Unticking a library, added or chosen, either holds it (left out of [keep], with a hold in [holds]: its rows stay
+     * until the hold ends, and a held library loses its stamp, so it is never being added and never lands) or deletes
+     * it (left out of [keep] and [holds]).
+     *
      * - A library in [keep] has no hold. One not saved before is marked pending, to be fetched, with its stamp from
      *   [addStamps] if it has one.
      * - A library given a stamp it did not have (a new add, or the re-tick of a held or earlier library) is marked
      *   pending and its checkpoint deleted, in the same transaction, so it is read again from the start. A library in
      *   [keep] that [addStamps] does not name keeps the stamp it has. Only a library with no stamp is ever marked
-     *   fetched by the sync: the add lands it. A new stamp for a chosen library that has landed (not new, not held,
-     *   not being added) throws [IllegalArgumentException] and changes nothing.
+     *   fetched by the sync: [landAdd] lands an add. A new stamp for a chosen library that has landed (not new, not
+     *   held, not being added) throws [IllegalArgumentException] and changes nothing.
      * - [holds] gives, for a library leaving [keep], the moment until which its rows are kept (a repair of the days
-     *   that used it reads them); a library left out of [keep] and [holds] keeps the hold it has. A hold at or before
+     *   that used it reads them); a library left out of [keep] and [holds] keeps the hold it has. A held library has no
+     *   stamp (a stamp it had is cleared), and is kept by its hold alone. A hold at or before
      *   [nowMs] has expired, and the library's rows go. A stamp outside [keep], and a hold inside it or for a library
      *   not saved, are ignored. When the device clock is far past the last successful sync (the history purge's
      *   forward-jump guard), no hold expires in that call.
@@ -397,16 +406,36 @@ interface LibraryRepository : AccountCache {
         nowMs: Long,
     )
 
+    /**
+     * Lands the add of [library] that [applySelection] stamped with [stamp] (spec 26), once its walk has ended: in one
+     * transaction, when the library still has that stamp, the stamp is cleared, the library is marked fetched and
+     * [contentGeneration] moves once (the rows its walk wrote moved nothing, and now become a day's inputs). It returns
+     * true then. With any other stamp, none (already landed, held, or never added), or no such library, nothing changes
+     * and it returns false, so a landing that lost a race with a newer tick or an untick does no harm.
+     */
+    suspend fun landAdd(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean
+
     /** The chosen libraries that have not been fully fetched yet. */
     suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId>
 
     /**
      * Where each of the [gone] items (deleted, so kept as tombstones for 30 days) came back under a new id (spec 26),
-     * found only among the live rows of [libraries], the TV's playable libraries. Matching is conservative: a shared
-     * provider id, an episode of the same series with the same season and episode number, or a film of the same title
-     * and year, each with a runtime within 2 minutes or 2%, and only when exactly one live item fits and no other gone
-     * item claims it. A gone id with no row, or one still live, is absent from the result. The caller still checks a
-     * match against the channel's rules and holds.
+     * found only among the live rows of [libraries], the TV's playable libraries. Matching is conservative, and the
+     * first rule that finds any candidate decides:
+     * 1. A shared identity id: the provider ids `imdb`, `tmdb` and `tvdb` only (never another key, such as a
+     *    collection's), with no identity key on both sides that disagrees.
+     * 2. An episode of the same series with the same season and episode number (a series that came back under a new id
+     *    is found the same way, by a shared identity id, else by its name when exactly one live series has it).
+     * 3. A film of the same title and year.
+     *
+     * A disagreeing identity id rules a candidate out of rules 2 and 3 (the name fallbacks), and when it rules out one
+     * of several candidates, none is taken. Each match also needs a runtime within 2 minutes or 2%, and only when
+     * exactly one live item fits and no other gone item claims it or saw it. A gone id with no row, or one still live,
+     * is absent from the result. The caller still checks a match against the channel's rules and holds.
      */
     suspend fun successors(
         account: LibraryAccount,
@@ -425,19 +454,3 @@ data class TitleHit(
     val kind: TitleKind,
     val year: Int?,
 )
-
-/**
- * Brings the saved library in line with the libraries the user ticked, as `ServerSettings` stores them, through
- * [LibraryRepository.applySelection] at [nowMs] with no stamps and no new holds (a library still held stays until its
- * hold ends). Returns the chosen set, or null when none is stored (a new sign-in clears the choice), in which case the
- * saved library is left alone.
- */
-suspend fun LibraryRepository.followSelection(
-    account: LibraryAccount,
-    settings: ServerSettings,
-    nowMs: Long,
-): Set<ItemId>? {
-    val chosen = settings.loadLibraries() ?: return null
-    applySelection(account, chosen, nowMs = nowMs)
-    return chosen
-}

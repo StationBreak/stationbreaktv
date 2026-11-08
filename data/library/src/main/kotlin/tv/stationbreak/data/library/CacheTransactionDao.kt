@@ -59,9 +59,10 @@ internal abstract class CacheTransactionDao(
      * [seriesRows] are the page's series (a series page holds no items, and an item page no series). They are written
      * through [SeriesDao] after the item versions and before the second seam, in the same transaction.
      *
-     * The content generation moves only for a change to a field the scheduler or the rules read, in a library that is
-     * not being added (spec 26; see [itemsMoveTheDay]): a provider-id-only change never moves it, and neither does
-     * the walk of a library being added.
+     * The content generation moves only for a change to a field the scheduler or the rules read (spec 26): for an
+     * item, only in a library that is not being added ([itemsMoveTheDay]), so the walk of an add moves nothing; for a
+     * series, in any library, as episodes of other libraries read a series row by its id. A provider-id-only change
+     * never moves it.
      */
     @Transaction
     @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seams.
@@ -108,7 +109,7 @@ internal abstract class CacheTransactionDao(
         history.insertVersions(plan.versions)
         // Read inside this transaction, so a selection change cannot slip between the read and the bump.
         val adding = library.addingLibraryIds(server, user).toHashSet()
-        val seriesWrite = writeSeries(server, user, seriesRows, nowMs, adding)
+        val seriesWrite = writeSeries(server, user, seriesRows, nowMs)
         // Inside this transaction, so a write that rolls back leaves the generation as it was.
         if (itemsMoveTheDay(plan, items, adding) || seriesWrite.movesTheDay) library.bumpGeneration(server, user)
         betweenItemsAndCheckpoint?.invoke()
@@ -144,7 +145,6 @@ internal abstract class CacheTransactionDao(
         user: String,
         rows: Map<String, SeriesEntity>,
         nowMs: Long,
-        adding: Set<String>,
     ): SeriesWrite {
         val existing =
             rows.keys
@@ -155,12 +155,10 @@ internal abstract class CacheTransactionDao(
         series.insert(plan.toInsert)
         series.update(plan.toUpdate)
         series.insertVersions(plan.versions)
-        // As for items: a new or versioned series outside the adds; a library-only or provider-id-only change is not.
-        var moves = false
-        for (row in plan.toInsert) if (row.libraryId !in adding) moves = true
-        for (version in plan.versions) {
-            if (version.libraryId !in adding || rows.getValue(version.seriesId).libraryId !in adding) moves = true
-        }
+        // A new or versioned series moves the day, whatever library holds its row: an episode of any library reads it
+        // by its id, so an add is not exempt here (whole-part review, data MED-1). A library-only or provider-id-only
+        // change takes no version and moves nothing.
+        val moves = plan.toInsert.isNotEmpty() || plan.versions.isNotEmpty()
         return SeriesWrite(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), moves)
     }
 

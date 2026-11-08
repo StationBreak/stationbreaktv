@@ -154,6 +154,35 @@ class InMemoryLibraryRepositoryTest {
         }
 
     @Test
+    fun anAddLandsOnlyWithItsStamp_andMovesTheGenerationOnce() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.useAccount(alice)
+            repository.applySelection(alice, setOf(movies, shows), addStamps = mapOf(shows to 7L), nowMs = 0)
+            val before = repository.contentGeneration(alice)
+
+            assertFalse(repository.landAdd(alice, shows, 6L), "another stamp")
+            assertEquals(before, repository.contentGeneration(alice))
+            assertTrue(repository.landAdd(alice, shows, 7L))
+            assertEquals(before + 1, repository.contentGeneration(alice))
+            assertFalse(shows in repository.pendingLibraries(alice), "fetched")
+            assertFalse(repository.landAdd(alice, shows, 7L), "landed already")
+            assertEquals(before + 1, repository.contentGeneration(alice))
+        }
+
+    @Test
+    fun aHeldAddLosesItsStamp_soItNeverLands() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            repository.useAccount(alice)
+            repository.applySelection(alice, setOf(movies, shows), addStamps = mapOf(shows to 7L), nowMs = 0)
+
+            repository.applySelection(alice, setOf(movies), holds = mapOf(shows to 1_000L), nowMs = 0)
+
+            assertFalse(repository.landAdd(alice, shows, 7L))
+        }
+
+    @Test
     fun theStatusStartsNeverSyncedAndShowsWhatItWasTold() =
         runBlocking {
             val repository = InMemoryLibraryRepository()

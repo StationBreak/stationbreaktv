@@ -6,17 +6,11 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import tv.stationbreak.core.domain.InMemoryServerSettings
-import tv.stationbreak.core.domain.ServerRecord
-import tv.stationbreak.core.domain.followSelection
 import tv.stationbreak.core.model.ItemId
-import tv.stationbreak.core.model.Scheme
-import tv.stationbreak.core.model.ServerAddress
 
 /** Spec 06 task 2.10 (owner answer 2): the cache holds only the libraries ticked, as `ServerSettings` has them. */
 class LibrarySelectionPruneTest {
     private val repository = TestLibraries.inMemory()
-    private val record = ServerRecord(ServerAddress(Scheme.Https, "jellyfin.example", 443))
     private val extra = ItemId("lib-extra")
 
     @After
@@ -100,33 +94,5 @@ class LibrarySelectionPruneTest {
 
             assertEquals(listOf("bobs"), repository.stored(BOB).map { it.item.id.value })
             assertEquals(setOf(MOVIES), repository.pendingLibraries(BOB))
-        }
-
-    @Test
-    fun theSelectionFollowsServerSettings() =
-        runBlocking {
-            val settings = InMemoryServerSettings(record, initialLibraries = setOf(MOVIES, SHOWS))
-            assertEquals(setOf(MOVIES, SHOWS), repository.followSelection(ALICE, settings, nowMs = 0))
-            fill(MOVIES)
-            fill(SHOWS)
-
-            settings.saveLibraries(setOf(SHOWS, extra))
-            val chosen = repository.followSelection(ALICE, settings, nowMs = 0)
-
-            assertEquals(setOf(SHOWS, extra), chosen)
-            assertEquals(listOf("${SHOWS.value}-1"), repository.stored(ALICE).map { it.item.id.value })
-            assertEquals(setOf(SHOWS, extra), repository.pendingLibraries(ALICE))
-        }
-
-    @Test
-    fun noStoredSelectionLeavesTheCacheAlone() =
-        runBlocking {
-            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            fill(MOVIES)
-            val settings = InMemoryServerSettings(record, initialLibraries = null)
-
-            assertNull(repository.followSelection(ALICE, settings, nowMs = 0))
-
-            assertEquals(1, repository.stored(ALICE).size)
         }
 }

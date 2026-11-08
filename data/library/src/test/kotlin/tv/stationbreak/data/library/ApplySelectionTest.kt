@@ -268,6 +268,109 @@ class ApplySelectionTest {
             assertEquals("the chosen library lost the item", before + 1, generation())
         }
 
+    // Whole-part fix (data MED-1): a series row feeds the episodes of other libraries by its id, so a series write
+    // moves the generation whatever library holds the row, an add included.
+    @Test
+    fun aSharedSeriesOwnedByALibraryBeingAddedMovesTheGenerationWhenItsRatingChanges() =
+        runBlocking {
+            val show = 910
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 1L))
+            repository.put(ALICE, MOVIES, episodeOf(1, show, library = MOVIES))
+            repository.putSeries(ALICE, extra, series(hexId(show), "TV-PG"))
+            assertEquals(extra.value, repository.currentSeries(ALICE).single().libraryId)
+            val before = generation()
+
+            repository.putSeries(ALICE, extra, series(hexId(show), "TV-MA"))
+
+            assertEquals("the chosen library's episodes read the new rating", before + 1, generation())
+        }
+
+    // --- Landing an add (whole-part fix, arch MED-3 / data MED-2) ---------------------------------------------------
+
+    @Test
+    fun landAdd_withItsStamp_clearsIt_marksItFetched_andMovesTheGenerationOnce() =
+        runBlocking {
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
+            // A chosen library's row first, so the generation has left its first value (a bump is then +1).
+            fill(MOVIES, 1)
+            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+            repository.markFetched(ALICE, extra)
+            assertTrue("markFetched never lands an add", extra in repository.pendingLibraries(ALICE))
+            val before = generation()
+
+            assertTrue(repository.landAdd(ALICE, extra, 7L))
+
+            val landed = checkNotNull(row(extra))
+            assertNull(landed.addStamp)
+            assertTrue(landed.fetched)
+            assertFalse(extra in repository.pendingLibraries(ALICE))
+            assertEquals("once", before + 1, generation())
+            assertFalse("a second landing finds no stamp", repository.landAdd(ALICE, extra, 7L))
+            assertEquals(before + 1, generation())
+        }
+
+    @Test
+    fun landAdd_withAnotherStamp_changesNothing() =
+        runBlocking {
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
+            // A chosen library's row first, so the generation has left its first value (a bump is then +1).
+            fill(MOVIES, 1)
+            val before = generation()
+            val stored = row(extra)
+
+            assertFalse(repository.landAdd(ALICE, extra, 6L))
+            assertFalse("a library with no row", repository.landAdd(ALICE, gone, 7L))
+
+            assertEquals(stored, row(extra))
+            assertEquals(before, generation())
+        }
+
+    @Test
+    fun afterLanding_pageWritesToTheLibraryMoveTheGenerationAgain() =
+        runBlocking {
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
+            // A chosen library's row first, so the generation has left its first value (a bump is then +1).
+            fill(MOVIES, 1)
+            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+            val beforeLanding = generation()
+            repository.landAdd(ALICE, extra, 7L)
+            val landed = generation()
+            assertEquals(beforeLanding + 1, landed)
+
+            repository.put(ALICE, extra, sitem(4, library = extra))
+
+            assertEquals("a landed library is a chosen one", landed + 1, generation())
+        }
+
+    @Test
+    fun holdingALibraryBeingAddedClearsItsStamp() =
+        runBlocking {
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
+            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+
+            apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 60_000))
+
+            val held = checkNotNull(row(extra))
+            assertEquals(clock.nowMs + 60_000, held.heldUntilMs)
+            assertNull("a held library is never adding", held.addStamp)
+            assertFalse("so it can never land", repository.landAdd(ALICE, extra, 7L))
+        }
+
+    @Test
+    fun theFirstSyncNeverKeepsAHeldRowByItsStamp() =
+        runBlocking {
+            apply(setOf(MOVIES, extra), addStamps = mapOf(extra to 7L))
+            repository.writePage(ALICE, extra, listOf(sitem(3, library = extra)), 1, 1, run = clock.nowMs)
+            apply(setOf(MOVIES), holds = mapOf(extra to clock.nowMs + 1_000))
+            // A row left with both (as an older build of this branch could write) is kept only by its hold.
+            repository.dao.forceStampForTest("server-1", "alice", extra.value, 7L)
+            clock.stepMs(1_000)
+
+            repository.applySelectionKeepingAdds(ALICE, setOf(MOVIES), clock.nowMs)
+
+            assertNull("the hold ended, so it went: its stamp kept nothing", row(extra))
+        }
+
     // A held library's rows are a day's; re-ticked (so it is an add) and dropped again, they go with a bump.
     @Test
     fun aHeldLibraryReTickedAndDroppedBeforeItLandsStillMovesTheGeneration() =

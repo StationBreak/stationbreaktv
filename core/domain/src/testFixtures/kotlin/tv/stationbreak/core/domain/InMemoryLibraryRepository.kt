@@ -541,7 +541,8 @@ class InMemoryLibraryRepository : LibraryRepository {
             val mark = marks[library]
             val until = holds[library] ?: mark?.heldUntilMs
             if (until != null && until > nowMs) {
-                marks[library] = (mark ?: LibraryMark()).copy(heldUntilMs = until)
+                // A held library is never one being added: its stamp goes.
+                marks[library] = LibraryMark(heldUntilMs = until, addStamp = null)
                 staying += library
             } else {
                 val hasRows =
@@ -563,6 +564,21 @@ class InMemoryLibraryRepository : LibraryRepository {
             marks[library] = LibraryMark(heldUntilMs = null, addStamp = stamp ?: mark.addStamp)
         }
         if (dropped) noteContentChange(account)
+    }
+
+    // As the port says: only the stamp the add has (and no hold) lands it, and then the generation moves once.
+    override suspend fun landAdd(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean {
+        val marks = libraryMarks[account] ?: return false
+        val mark = marks[library]
+        if (mark?.addStamp != stamp || mark.heldUntilMs != null) return false
+        marks[library] = mark.copy(addStamp = null)
+        pending[account]?.remove(library)
+        noteContentChange(account)
+        return true
     }
 
     override suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId> = pending[account].orEmpty().toSet()
