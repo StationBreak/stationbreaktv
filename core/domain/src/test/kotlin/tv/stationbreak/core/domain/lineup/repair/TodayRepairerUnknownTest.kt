@@ -33,7 +33,10 @@ internal class TodayRepairerUnknownTest : RepairTestBase() {
         val reads = rig.library.currentIdsCalls
         rig.unknown = true
 
-        assertEquals(RepairOutcome.Saved(0), runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) })
+        assertEquals(
+            RepairOutcome.SelectionUnknown,
+            runBlocking { rig.repairer.repairLost(ACCOUNT, setOf(libA), atMs) },
+        )
 
         assertEquals(before, rig.record(), "nothing dropped, nothing checked")
         assertEquals(saves, rig.store.calls.count { it == "save" }, "nothing written")

@@ -68,6 +68,11 @@ import kotlin.time.Instant
  * ([RefreshMeta.replanFromMs]), so a starter whose switch-on waited for the boundary is planned in with no library
  * change. The background roll that tidies a past boundary signals the refresher ([LineupService.replanRequests]).
  *
+ * Once each check after a run's writing ends, whatever it did (a refresh, a recorded pass or nothing), [afterSync] runs
+ * (spec 26: the repair of today's blocks whose item left the library). It runs when no libraries are chosen too, and
+ * only while the account is still the active one. One that throws is reported ([LineupEvent.AfterSyncFailed]) and
+ * changes nothing else.
+ *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws never stops later
  * ones or reaches the app scope. A trigger source that itself fails is reported the same way and listened to again
  * after a wait that starts at one second and doubles up to five minutes. Nothing runs while nobody is signed in or no
@@ -77,12 +82,14 @@ import kotlin.time.Instant
  * libraries each time it is asked, so a changed choice is seen by the next trigger. Nothing in the settings announces
  * a changed choice, so it is not a trigger of its own: it waits for the next sync, pass or start.
  */
+@Suppress("LongParameterList") // The ports it listens to and acts through, each with its own meaning.
 class LineupRefresher(
     private val service: LineupService,
     private val library: LibraryRepository,
     private val libraries: suspend () -> Set<ItemId>?,
     private val sync: SyncActivity,
     private val initialBackoffMs: Long = INITIAL_BACKOFF_MS,
+    private val afterSync: suspend (LibraryAccount) -> Unit = {},
     private val report: (LineupEvent) -> Unit,
 ) {
     private var started: Job? = null
@@ -195,16 +202,24 @@ class LineupRefresher(
         return !source.edited && source.rules.timing.alignToGrid == null
     }
 
-    @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun act(
         account: LibraryAccount,
         trigger: Trigger,
     ) {
+        // A run's own success or pass is held until it stops writing: its end is a trigger of its own, which
+        // checks everything these would. A start is not: what it finds behind was there before this run.
+        val ownWrite = trigger == Trigger.Success || trigger == Trigger.Pass
+        if (ownWrite && sync.writing().first()) return
+        refreshFor(account, trigger)
+        if (trigger == Trigger.SyncEnded) runAfterSync(account)
+    }
+
+    @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
+    private suspend fun refreshFor(
+        account: LibraryAccount,
+        trigger: Trigger,
+    ) {
         try {
-            // A run's own success or pass is held until it stops writing: its end is a trigger of its own, which
-            // checks everything these would. A start is not: what it finds behind was there before this run.
-            val ownWrite = trigger == Trigger.Success || trigger == Trigger.Pass
-            if (ownWrite && sync.writing().first()) return
             val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return
             // The choice is the active account's. The account flow may not have delivered a change yet (nothing is
             // cancelled then), so ask the port again, directly, just before refreshing: if the account is no longer
@@ -225,6 +240,19 @@ class LineupRefresher(
             throw cancelled
         } catch (_: Exception) {
             report(LineupEvent.RefreshFailed)
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // Whatever the hook throws is reported, never allowed to stop the refresher.
+    private suspend fun runAfterSync(account: LibraryAccount) {
+        try {
+            currentCoroutineContext().ensureActive()
+            if (library.activeAccount().first() != account) return
+            afterSync(account)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            report(LineupEvent.AfterSyncFailed)
         }
     }
 

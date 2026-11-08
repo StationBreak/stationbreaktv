@@ -85,7 +85,8 @@ class LineupRefresherTest {
     private fun refresher(
         lib: LibraryRepository = library,
         backoffMs: Long = LineupRefresher.INITIAL_BACKOFF_MS,
-    ) = LineupRefresher(service, lib, { libraries }, sync, backoffMs) { events += it }
+        afterSync: suspend (LibraryAccount) -> Unit = {},
+    ) = LineupRefresher(service, lib, { libraries }, sync, backoffMs, afterSync) { events += it }
 
     private val refreshes get() = library.snapshotCutoffs.size
 
@@ -568,6 +569,76 @@ class LineupRefresherTest {
         return before
     }
 
+    // --- The check after a run's writing ends (spec 26, #633) ---------------------------------------------------
+
+    @Test
+    fun endOfWriting_runsAfterSyncOnce() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+            refresher(afterSync = { seen += it }).start(scope)
+            settle()
+            assertEquals(emptyList(), seen, "a start runs no check after a sync")
+
+            writing.value = true
+            library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T11:01:00Z"))
+            library.delegate.noteContentChange(ACCOUNT)
+            settle()
+            assertEquals(emptyList(), seen, "the run's own writes are held, and so is the check")
+            writing.value = false
+            until("the check after the run") { seen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(ACCOUNT), seen, "once, after the refresh the run's writes asked for")
+            assertTrue(refreshes >= 1)
+        }
+
+    @Test
+    fun afterSyncThrows_isReported_refresherContinues() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val calls = AtomicInteger()
+            refresher(afterSync = {
+                calls.incrementAndGet()
+                error("the repair broke")
+            }).start(scope)
+            settle()
+
+            writing.value = true
+            settle()
+            writing.value = false
+            until("the first check") { calls.get() == 1 }
+            until("reported") { LineupEvent.AfterSyncFailed in events }
+
+            val before = refreshes
+            writing.value = true
+            settle()
+            library.delegate.noteContentChange(ACCOUNT)
+            writing.value = false
+            until("the refresher still refreshes, and checks again") { calls.get() == 2 && refreshes == before + 1 }
+        }
+
+    @Test
+    fun afterSyncCancelled_isNotReported() =
+        runBlocking<Unit> {
+            lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
+            val entered = CompletableDeferred<Unit>()
+            refresher(afterSync = {
+                entered.complete(Unit)
+                awaitCancellation()
+            }).start(scope)
+            settle()
+            writing.value = true
+            settle()
+            writing.value = false
+            withTimeout(WAIT_MS) { entered.await() }
+            job.cancel()
+            settle()
+
+            assertTrue(LineupEvent.AfterSyncFailed !in events)
+        }
+
     @Test
     fun aSyncRunThatChangedNothingRefreshesNothingAndRecordsItsPass() =
         runBlocking<Unit> {
@@ -716,7 +787,8 @@ class LineupRefresherTest {
             }
             // No libraries are chosen, so nothing is ever planned and the lineup stays stale: every resubscription
             // emits Start again; the collection-pass source always throws.
-            val refresher = LineupRefresher(service, AlwaysThrowingPasses(library), { libraries }, sync, 1_000L, report)
+            val passes = AlwaysThrowingPasses(library)
+            val refresher = LineupRefresher(service, passes, { libraries }, sync, 1_000L, report = report)
 
             refresher.start(backgroundScope)
             testScheduler.advanceTimeBy(15_010L)

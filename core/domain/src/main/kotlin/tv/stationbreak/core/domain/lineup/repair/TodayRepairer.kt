@@ -215,7 +215,8 @@ class TodayRepairer internal constructor(
      * days of the source's chosen libraries, each with the repair it shows), and records the pieces as fixes of that
      * repair (seq 0 on a day as built) with where the check ran (`LostCheck`: the library's content generation, and the
      * end of the earliest of those days). With no saved selection read (the provider gives null) it does nothing at
-     * all (`Saved(0)`): no drop, no check. First, in the same turn, it drops every selection repair above the saved seq
+     * all ([RepairOutcome.SelectionUnknown]): no drop, no check. First, in the same turn, it drops every selection
+     * repair above the saved seq
      * with its fixes, and the lost-block check with them: no change is being saved outside a turn, so those are left by
      * a crash or by an undo that failed ([RepairOutcome.UndoFailed]). Then it does nothing more (`Saved(0)`) when the
      * record's check already covers that generation at [atMs], or when no day is on the air. [playable] are the chosen
@@ -232,7 +233,7 @@ class TodayRepairer internal constructor(
             turns.withLock {
                 var held = service.loaded(account) ?: return@withLock RepairOutcome.NoLineup
                 // No saved selection read: nothing is dropped and nothing checked (the days it shows are unknown).
-                val applied = source.savedSelection()?.seq ?: return@withLock RepairOutcome.Saved(0)
+                val applied = source.savedSelection()?.seq ?: return@withLock RepairOutcome.SelectionUnknown
                 if (held.repairs.selection.any { it.seq > applied }) {
                     // What shows stays as it is; the check is made again all the same, over the days as they show.
                     val dropped = record(account, held, 0) { it.applied(applied).copy(lostCheck = null) }

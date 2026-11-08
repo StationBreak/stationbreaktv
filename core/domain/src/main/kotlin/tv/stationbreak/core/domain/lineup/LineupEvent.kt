@@ -71,4 +71,13 @@ enum class LineupEvent {
      * It is held back (its seq is above the saved one), so nothing on air changes; the next lost-block check drops it.
      */
     RepairUndoFailed,
+
+    /** The check after a sync (the lost-block repair, spec 26) threw. The refresher carries on; the next retries. */
+    AfterSyncFailed,
+
+    /**
+     * The lost-block repair (spec 26) was not saved (refused, undone, or the lineup moved twice): nothing on air
+     * changed, and the next check after a sync tries again.
+     */
+    LostRepairNotSaved,
 }
