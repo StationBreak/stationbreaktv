@@ -187,7 +187,16 @@ class CacheRebuildTest {
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a")),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
         }
@@ -232,7 +241,16 @@ class CacheRebuildTest {
             val context = TestContext(folder.root)
             val current = TestLibraries.onDisk(folder.root, name = "downgrade.db")
             current.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            current.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            current.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a")),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             assertEquals(1, current.stored(ALICE).size)
             current.close()
 
@@ -270,7 +288,16 @@ class CacheRebuildTest {
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a")),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
         }
@@ -288,7 +315,16 @@ class CacheRebuildTest {
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a")),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
         }
@@ -306,7 +342,16 @@ class CacheRebuildTest {
             assertEquals(RowCounts.NONE, repository.rowCounts())
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a")),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             assertEquals(1, repository.stored(ALICE).size)
             repository.close()
         }
@@ -359,7 +404,16 @@ class CacheRebuildTest {
         runBlocking {
             val first = TestLibraries.onDisk(folder.root, name = "keep.db")
             first.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            first.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            first.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a")),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             first.close()
 
             val second = TestLibraries.onDisk(folder.root, name = "keep.db")

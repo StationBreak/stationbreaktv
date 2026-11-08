@@ -39,7 +39,16 @@ class HardeningTest {
             val many = (0 until 1500).map { ItemId("lib-${it.toString().padStart(4, '0')}") }.toSet()
             repository.applySelection(ALICE, many, nowMs = 0)
             val first = many.first()
-            repository.writePage(ALICE, first, listOf(item("a"), item("b", runtime = null)), 2, 2, run = 1)
+            repository.writePage(
+                ALICE,
+                first,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a"), item("b", runtime = null)),
+                2,
+                2,
+                run = 1,
+            )
 
             assertEquals(listOf("a"), repository.snapshot(ALICE, many, EPOCH).map { it.id.value })
             assertEquals(1, repository.excludedCount(ALICE, many))

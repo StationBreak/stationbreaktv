@@ -28,7 +28,16 @@ class OfflineReadTest {
         runBlocking {
             val written = TestLibraries.onDisk(folder.root, clock = clock)
             written.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            written.writePage(ALICE, MOVIES, listOf(item("a"), item("b")), nextStartIndex = 2, totalCount = 2, run = 1)
+            written.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a"), item("b")),
+                nextStartIndex = 2,
+                totalCount = 2,
+                run = 1,
+            )
             written.finishSync(ALICE)
             val success = clock.instant
             written.close()
@@ -47,7 +56,16 @@ class OfflineReadTest {
         runBlocking {
             val repository = TestLibraries.onDisk(folder.root, clock = clock)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(item("a")), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a")),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             repository.finishSync(ALICE)
             val success = clock.instant
             clock.instant += 7.hours

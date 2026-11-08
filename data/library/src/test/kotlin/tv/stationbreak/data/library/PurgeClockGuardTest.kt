@@ -31,7 +31,16 @@ class PurgeClockGuardTest {
     private suspend fun syncedAtEpoch() {
         repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
         clock.atMs(epochMs - 10.days.inWholeMilliseconds)
-        repository.writePage(ALICE, MOVIES, listOf(sitem(1), sitem(2)), nextStartIndex = 2, totalCount = 2, run = 1)
+        repository.writePage(
+            ALICE,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            listOf(sitem(1), sitem(2)),
+            nextStartIndex = 2,
+            totalCount = 2,
+            run = 1,
+        )
         clock.atMs(epochMs - 5.days.inWholeMilliseconds)
         repository.tombstone(ALICE, listOf(tombstone))
         clock.atMs(epochMs)
@@ -124,7 +133,16 @@ class PurgeClockGuardTest {
     fun withNoReferenceThereIsNothingToCompareWithAndThePurgeRuns() =
         runBlocking {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.writePage(ALICE, MOVIES, listOf(sitem(1)), nextStartIndex = 1, totalCount = 1, run = 1)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(sitem(1)),
+                nextStartIndex = 1,
+                totalCount = 1,
+                run = 1,
+            )
             repository.tombstone(ALICE, listOf(tombstone))
             clock.stepMs(retentionMs + 1)
 
@@ -155,9 +173,9 @@ class PurgeClockGuardTest {
             syncedAtEpoch()
             repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             clock.atMs(epochMs - 400.days.inWholeMilliseconds)
-            repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "A"), series("s2")))
+            repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, listOf(series("s1", "A"), series("s2")))
             clock.stepMs(1_000)
-            repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "B")))
+            repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, listOf(series("s1", "B")))
             repository.tombstoneSeries(ALICE, listOf(ItemId("s2")))
             val before = repository.currentSeries(ALICE) to repository.seriesVersions(ALICE)
 

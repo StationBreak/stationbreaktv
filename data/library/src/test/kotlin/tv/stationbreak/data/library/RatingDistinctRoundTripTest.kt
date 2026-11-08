@@ -26,7 +26,13 @@ class RatingDistinctRoundTripTest {
         runBlocking {
             repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
 
-            repository.upsertSeries(ALICE, SHOWS, ratings.mapIndexed { i, rating -> series("s$i", rating = rating) })
+            repository.upsertSeries(
+                ALICE,
+                SHOWS,
+                stamp = null,
+                rewalk = false,
+                ratings.mapIndexed { i, rating -> series("s$i", rating = rating) },
+            )
 
             assertEquals(ratings, repository.currentSeries(ALICE).sortedBy { it.seriesId }.map { it.officialRating })
         }
@@ -43,7 +49,7 @@ class RatingDistinctRoundTripTest {
                     sitem(i + 1, library = SHOWS).copy(kind = ItemKind.Episode, officialRating = rating)
                 }
 
-            repository.upsertItems(ALICE, SHOWS, episodes)
+            repository.upsertItems(ALICE, SHOWS, stamp = null, rewalk = false, episodes)
 
             assertEquals(ratings, repository.currentRows(ALICE).sortedBy { it.itemId }.map { it.officialRating })
             assertEquals(ratings, repository.stored(ALICE).sortedBy { it.item.id.value }.map { it.item.officialRating })
@@ -57,8 +63,20 @@ class RatingDistinctRoundTripTest {
             tracked.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
             val id = ItemId(hexId(1))
             for (rating in listOf<String?>(null, "", " ")) {
-                tracked.upsertSeries(ALICE, SHOWS, listOf(series(id.value, rating = rating)))
-                tracked.upsertItems(ALICE, SHOWS, listOf(sitem(1, library = SHOWS).copy(officialRating = rating)))
+                tracked.upsertSeries(
+                    ALICE,
+                    SHOWS,
+                    stamp = null,
+                    rewalk = false,
+                    listOf(series(id.value, rating = rating)),
+                )
+                tracked.upsertItems(
+                    ALICE,
+                    SHOWS,
+                    stamp = null,
+                    rewalk = false,
+                    listOf(sitem(1, library = SHOWS).copy(officialRating = rating)),
+                )
                 clock.stepMs(1_000)
             }
 

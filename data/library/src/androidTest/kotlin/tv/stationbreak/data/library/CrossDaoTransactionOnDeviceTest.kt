@@ -64,14 +64,25 @@ class CrossDaoTransactionOnDeviceTest {
     fun aFaultAfterTheItemRowsLeavesNoItemVersionOrCheckpointRow() =
         runBlocking {
             repository.applySelection(account, setOf(library), nowMs = 0)
-            repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1)
+            repository.writePage(account, library, stamp = null, rewalk = false, listOf(item("a", 90)), 1, 2, run = 1)
             val before = repository.rowCounts()
             val rowsBefore = repository.currentRows(account)
             repository.faultBetweenItemsAndHistory = { error("the process died here") }
 
             // The second page edits "a" (which makes a version) and adds "b".
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.writePage(account, library, secondPage(), 2, 2, run = 1) }
+                runBlocking {
+                    repository.writePage(
+                        account,
+                        library,
+                        stamp = null,
+                        rewalk = false,
+                        secondPage(),
+                        2,
+                        2,
+                        run = 1,
+                    )
+                }
             }
 
             assertEquals(before, repository.rowCounts())
@@ -84,14 +95,34 @@ class CrossDaoTransactionOnDeviceTest {
     fun theSamePageWritesWholeOnceTheFaultIsGone() =
         runBlocking {
             repository.applySelection(account, setOf(library), nowMs = 0)
-            repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1)
+            repository.writePage(account, library, stamp = null, rewalk = false, listOf(item("a", 90)), 1, 2, run = 1)
             repository.faultBetweenItemsAndHistory = { error("the process died here") }
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.writePage(account, library, secondPage(), 2, 2, run = 1) }
+                runBlocking {
+                    repository.writePage(
+                        account,
+                        library,
+                        stamp = null,
+                        rewalk = false,
+                        secondPage(),
+                        2,
+                        2,
+                        run = 1,
+                    )
+                }
             }
             repository.faultBetweenItemsAndHistory = null
 
-            repository.writePage(account, library, listOf(item("a", 100), item("b", 90)), 2, 2, run = 1)
+            repository.writePage(
+                account,
+                library,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a", 100), item("b", 90)),
+                2,
+                2,
+                run = 1,
+            )
 
             assertEquals(2, repository.currentRows(account).size)
             assertEquals(1, repository.versions(account).size)
@@ -111,7 +142,17 @@ class CrossDaoTransactionOnDeviceTest {
         runBlocking {
             repository.applySelection(account, setOf(library), nowMs = 0)
             val firstSeries = listOf(series("s1", "A"))
-            repository.writePage(account, library, listOf(item("a", 90)), 1, 2, run = 1, series = firstSeries)
+            repository.writePage(
+                account,
+                library,
+                stamp = null,
+                rewalk = false,
+                listOf(item("a", 90)),
+                1,
+                2,
+                run = 1,
+                series = firstSeries,
+            )
             val before = repository.rowCounts()
             val seriesBefore = repository.currentSeries(account)
             repository.faultBetweenItemsAndCheckpoint = { error("the process died here") }
@@ -121,7 +162,17 @@ class CrossDaoTransactionOnDeviceTest {
                 runBlocking {
                     val items = listOf(item("a", 100), item("b", 90))
                     val edited = listOf(series("s1", "B"), series("s2"))
-                    repository.writePage(account, library, items, 2, 2, run = 1, series = edited)
+                    repository.writePage(
+                        account,
+                        library,
+                        stamp = null,
+                        rewalk = false,
+                        items,
+                        2,
+                        2,
+                        run = 1,
+                        series = edited,
+                    )
                 }
             }
 

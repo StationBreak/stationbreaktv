@@ -161,6 +161,8 @@ class InMemoryLibraryRepositoryTest {
             repository.applySelection(alice, setOf(movies, shows), addStamps = mapOf(shows to 7L), nowMs = 0)
             val before = repository.contentGeneration(alice)
 
+            assertFalse(repository.landAdd(alice, shows, 7L), "no proof that the walk ended")
+            assertTrue(repository.proveWalk(alice, shows, 7L))
             assertFalse(repository.landAdd(alice, shows, 6L), "another stamp")
             assertEquals(before, repository.contentGeneration(alice))
             assertTrue(repository.landAdd(alice, shows, 7L))
@@ -175,6 +177,7 @@ class InMemoryLibraryRepositoryTest {
         runBlocking {
             val repository = InMemoryLibraryRepository()
             repository.applySelection(alice, setOf(movies, shows), addStamps = mapOf(shows to 7L), nowMs = 0)
+            repository.proveWalk(alice, shows, 7L)
             val before = repository.contentGeneration(alice)
 
             assertFalse(repository.landAdd(alice, shows, 7L), "as Room: only the signed-in account lands")
@@ -188,10 +191,12 @@ class InMemoryLibraryRepositoryTest {
             val repository = InMemoryLibraryRepository()
             repository.useAccount(alice)
             repository.applySelection(alice, setOf(movies, shows), addStamps = mapOf(shows to 7L), nowMs = 0)
+            repository.proveWalk(alice, shows, 7L)
 
             repository.applySelection(alice, setOf(movies), holds = mapOf(shows to 1_000L), nowMs = 0)
 
             assertFalse(repository.landAdd(alice, shows, 7L))
+            assertFalse(repository.proveWalk(alice, shows, 7L), "and a held library takes no proof")
         }
 
     @Test

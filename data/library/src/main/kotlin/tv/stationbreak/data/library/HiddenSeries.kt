@@ -26,7 +26,9 @@ internal const val HIDDEN_LOOKUPS_PER_PASS = 200
  * session-level error (an expired session, a server that cannot be reached) that stopped the reads: it is the only
  * thing that fails a pass. [suspect] is set when some came back absent and none was
  * found at all: more likely a server fault than a library of deleted shows, so none is called absent. A timeout fails
- * a pass only as the second read in a row.
+ * a pass only as the second read in a row. [refused] is set when the library row refused the write of what was found
+ * (spec 26, schema 11: [PageResult.StampMismatch] or [PageResult.FirstSyncRunning]): nothing was stored, and the
+ * caller stops that library's walk as it does for a refused page.
  */
 @Suppress("LongParameterList") // One field per count of the log line.
 internal class HiddenSeriesRead(
@@ -37,6 +39,7 @@ internal class HiddenSeriesRead(
     val failure: MediaServerError?,
     val capped: Boolean,
     val suspect: Boolean = false,
+    val refused: PageResult? = null,
 ) {
     /** The series a reconcile must not tombstone for not being listed: found, or not known to be gone. */
     fun keep(candidates: Set<ItemId>): Set<ItemId> = candidates - absent
@@ -98,7 +101,8 @@ private fun MediaServerError.isSessionLevel(): Boolean = toSyncFailure() != Sync
  * ([memory]). With [confirmAbsent] (a reconcile) a series that is not there is asked about a second time before it is
  * called absent, and if every one asked about is absent none is. Without it, ones the server already said were absent
  * are not asked again. A failure about one series makes it unknown and the reads go on; a session-level failure stops
- * them and is returned in [HiddenSeriesRead.failure]. What was found is stored all the same.
+ * them and is returned in [HiddenSeriesRead.failure]. What was found is stored all the same, under the walk's [stamp]
+ * and [rewalk] (the guard of [RoomLibraryRepository.upsertSeries]); a refused write is [HiddenSeriesRead.refused].
  */
 @Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
 internal suspend fun MediaServer.readHiddenSeries(
@@ -109,6 +113,8 @@ internal suspend fun MediaServer.readHiddenSeries(
     candidates: Set<ItemId>,
     memory: HiddenSeriesMemory,
     confirmAbsent: Boolean,
+    stamp: Long?,
+    rewalk: Boolean,
 ): HiddenSeriesRead {
     if (confirmAbsent) memory.remember(account, library.id, emptySet())
     val pool = if (confirmAbsent) candidates else candidates - memory.absent(account, library.id)
@@ -160,14 +166,15 @@ internal suspend fun MediaServer.readHiddenSeries(
     }
     val first = round(wanted)
     val missing = if (confirmAbsent && first.isNotEmpty()) round(first) else first
-    if (found.isNotEmpty()) repository.upsertSeries(account, library.id, found)
+    val written = if (found.isNotEmpty()) repository.upsertSeries(account, library.id, stamp, rewalk, found) else null
+    val refused = written?.takeIf { it !is PageResult.Written }
     // Only a pair of reads that both found nothing makes a series absent; one that was not read twice is unknown.
     val settled = if (failure == null) missing else emptySet()
     val suspect = confirmAbsent && settled.isNotEmpty() && resolved.isEmpty()
     val absent = if (suspect) emptySet() else settled
     val remembered = if (confirmAbsent) absent else absent + memory.absent(account, library.id)
     memory.remember(account, library.id, remembered)
-    return HiddenSeriesRead(wanted.size, resolved, absent, unknown, failure, capped, suspect)
+    return HiddenSeriesRead(wanted.size, resolved, absent, unknown, failure, capped, suspect, refused)
 }
 
 /**

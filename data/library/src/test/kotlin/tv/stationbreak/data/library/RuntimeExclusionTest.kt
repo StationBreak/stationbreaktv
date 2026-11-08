@@ -22,6 +22,8 @@ class RuntimeExclusionTest {
         repository.writePage(
             ALICE,
             MOVIES,
+            stamp = null,
+            rewalk = false,
             listOf(
                 item("ok"),
                 item("no-runtime", runtime = null),
@@ -33,7 +35,16 @@ class RuntimeExclusionTest {
             totalCount = 5,
             run = 1,
         )
-        repository.writePage(ALICE, SHOWS, listOf(item("other-library", runtime = null)), 1, 1, run = 1)
+        repository.writePage(
+            ALICE,
+            SHOWS,
+            stamp = null,
+            rewalk = false,
+            listOf(item("other-library", runtime = null)),
+            1,
+            1,
+            run = 1,
+        )
     }
 
     @Test
@@ -73,7 +84,16 @@ class RuntimeExclusionTest {
         runBlocking {
             saveMixed()
 
-            repository.writePage(ALICE, MOVIES, listOf(item("zero", runtime = 40.minutes)), 5, 5, run = 2)
+            repository.writePage(
+                ALICE,
+                MOVIES,
+                stamp = null,
+                rewalk = false,
+                listOf(item("zero", runtime = 40.minutes)),
+                5,
+                5,
+                run = 2,
+            )
 
             assertEquals(2, repository.excludedCount(ALICE, setOf(MOVIES)))
             val ids = repository.snapshot(ALICE, setOf(MOVIES), EPOCH).map { it.id.value }

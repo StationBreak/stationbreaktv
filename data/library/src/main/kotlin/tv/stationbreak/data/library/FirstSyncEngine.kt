@@ -87,6 +87,10 @@ internal class FirstSyncEngine(
     ) {
         private var skipped = 0
 
+        // Set when the library row refused a write of the library being walked (spec 26, schema 11): its walk stops
+        // without marking it fetched, and the sync goes on with the next library. Task 4.4b gives it its own outcome.
+        private var refused = false
+
         // The earliest walk start across the libraries: what the next incremental pass counts from (a long walk, or a
         // resume, must not push it past changes made while an early library was being read).
         private var earliestWalk = started
@@ -124,9 +128,10 @@ internal class FirstSyncEngine(
                 if (library.id !in pending) continue
                 sync(library, totals.getValue(library.id))?.let { return it }
             }
-            // A library the user ticked that the server no longer lists has nothing to fetch. One being added stays
-            // pending (markFetched leaves it): only the add itself lands it (spec 26).
-            (pending - libraries.map { it.id }.toSet()).forEach { repository.markFetched(account, it) }
+            // A library the user ticked that the server no longer lists has nothing to fetch. One being added, held or
+            // marked for a rewalk stays pending (markUnlisted leaves it): only the add itself lands an add (spec 26),
+            // and only a walk's end clears a mark.
+            (pending - libraries.map { it.id }.toSet()).forEach { repository.markUnlisted(account, it) }
             // Recorded as when the walk began, never when it ended: changes made during it are fetched next time.
             repository.finishSync(account, earliestWalk)
             collections()
@@ -151,10 +156,18 @@ internal class FirstSyncEngine(
                 }
         }
 
+        // A write the library row refused (spec 26): a library that was dropped, held or stamped since this run chose
+        // it. Nothing was written; the walk of that library stops and leaves it pending.
+        private fun accepted(result: PageResult): Boolean {
+            if (result !is PageResult.Written) refused = true
+            return !refused
+        }
+
         private suspend fun sync(
             library: Library,
             total: Int,
         ): SyncOutcome? {
+            refused = false
             val checkpoint = repository.checkpoint(account, library.id)
             // The walk's start is the first run's, however many times the sync was started again (a resume keeps it).
             val run = checkpoint?.run ?: started.toEpochMilliseconds()
@@ -162,24 +175,35 @@ internal class FirstSyncEngine(
             val limit = PageLimit(pageSize)
             val walked =
                 read(library, checkpoint?.nextStartIndex ?: 0, null, limit) { items, next, firstTotal ->
-                    repository.writePage(account, library.id, items, next, firstTotal ?: total, run)
+                    val written =
+                        repository.writePage(
+                            account,
+                            library.id,
+                            stamp = null,
+                            rewalk = false,
+                            items,
+                            next,
+                            firstTotal ?: total,
+                            run,
+                        )
+                    accepted(written)
                 }
-            if (walked != null) return walked
+            if (walked != null || refused) return walked
             val since = Instant.fromEpochMilliseconds(run) - margin
             val caught =
                 read(library, 0, since, limit) { items, _, _ ->
-                    repository.upsertItems(account, library.id, items)
+                    accepted(repository.upsertItems(account, library.id, stamp = null, rewalk = false, items))
                 }
-            if (caught != null) return caught
+            if (caught != null || refused) return caught
             // The series follow the library's items, through the same page loop and from the same cursor: the walk's
             // start less the margin. They are written by upsert, so a resume simply reads them again from the start.
             val seriesWalked = readSeries(library, null, limit)
-            if (seriesWalked != null) return seriesWalked
+            if (seriesWalked != null || refused) return seriesWalked
             val seriesCaught = readSeries(library, since, limit)
-            if (seriesCaught != null) return seriesCaught
+            if (seriesCaught != null || refused) return seriesCaught
             val hiddenFailed = readHiddenSeries(library)
-            if (hiddenFailed != null) return hiddenFailed
-            repository.markFetched(account, library.id)
+            if (hiddenFailed != null || refused) return hiddenFailed
+            repository.markWalked(account, library.id)
             return null
         }
 
@@ -189,21 +213,33 @@ internal class FirstSyncEngine(
         private suspend fun readHiddenSeries(library: Library): SyncOutcome? {
             val missing = repository.unstoredReferencedSeries(account, library)
             val read =
-                server.readHiddenSeries(session, repository, account, library, missing, HiddenSeriesMemory(), false)
+                server.readHiddenSeries(
+                    session,
+                    repository,
+                    account,
+                    library,
+                    missing,
+                    HiddenSeriesMemory(),
+                    confirmAbsent = false,
+                    stamp = null,
+                    rewalk = false,
+                )
             if (read.asked > 0) report(read.line())
+            read.refused?.let { accepted(it) }
             return read.failure?.let { fail(it) }
         }
 
         /**
          * Reads [library] from [startAt] to the page that comes back empty, giving each page to [onPage] with the
-         * position after it and, for the first page, the library's total. Null when it reached the end.
+         * position after it and, for the first page, the library's total. Null when it reached the end, or when
+         * [onPage] said a page was refused (false).
          */
         private suspend fun read(
             library: Library,
             startAt: Int,
             changedSince: Instant?,
             limit: PageLimit,
-            onPage: suspend (items: List<MediaItem>, next: Int, firstTotal: Int?) -> Unit,
+            onPage: suspend (items: List<MediaItem>, next: Int, firstTotal: Int?) -> Boolean,
         ): SyncOutcome? {
             var next = startAt
             while (true) {
@@ -215,13 +251,14 @@ internal class FirstSyncEngine(
                     Fetched.Malformed -> {
                         if (++skipped > maxSkippedItems) return fail(MediaServerError.NotJellyfin())
                         next += 1
-                        onPage(emptyList(), next, null)
+                        if (!onPage(emptyList(), next, null)) return null
                     }
 
                     is Fetched.Page -> {
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
-                        onPage(fetched.items, next, if (fetched.startIndex == 0) fetched.totalCount else null)
+                        val total = if (fetched.startIndex == 0) fetched.totalCount else null
+                        if (!onPage(fetched.items, next, total)) return null
                     }
                 }
             }
@@ -248,7 +285,9 @@ internal class FirstSyncEngine(
                     is Fetched.Page -> {
                         if (fetched.items.isEmpty()) return null
                         next += fetched.items.size
-                        repository.upsertSeries(account, library.id, fetched.items)
+                        val written =
+                            repository.upsertSeries(account, library.id, stamp = null, rewalk = false, fetched.items)
+                        if (!accepted(written)) return null
                     }
                 }
             }

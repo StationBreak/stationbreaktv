@@ -57,11 +57,19 @@ class RuleSnapshotHeapTest {
                     library.page(start, PAGE).map {
                         it.copy(officialRating = "R$round", studios = studioOf(it.id.value))
                     }
-                repository.upsertItems(ALICE, RULE_LIBRARY, page)
+                repository.upsertItems(ALICE, RULE_LIBRARY, stamp = null, rewalk = false, page)
                 start += PAGE
             }
             val series = inputs.series(round).map { it.copy(studios = studioOf(it.id.value)) }
-            series.chunked(SERIES_PAGE).forEach { repository.upsertSeries(ALICE, RULE_LIBRARY, it) }
+            series.chunked(SERIES_PAGE).forEach {
+                repository.upsertSeries(
+                    ALICE,
+                    RULE_LIBRARY,
+                    stamp = null,
+                    rewalk = false,
+                    it,
+                )
+            }
             for (j in 0 until COLLECTIONS) {
                 repository.writeCollection(ALICE, inputs.collectionId(j), "Collection $j", inputs.members(j, round))
             }

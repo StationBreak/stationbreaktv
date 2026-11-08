@@ -99,7 +99,7 @@ class ScheduleItemsHeapOnDeviceTest {
         while (start < ITEMS) {
             val page =
                 library.page(start, PAGE).map { it.copy(officialRating = "R$round", studios = studioOf(it.id.value)) }
-            repository.upsertItems(account, movies, page)
+            repository.upsertItems(account, movies, stamp = null, rewalk = false, page)
             start += PAGE
         }
         Log.i(TAG, "write round $round done")

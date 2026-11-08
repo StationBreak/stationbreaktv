@@ -6,11 +6,27 @@ import androidx.room.Transaction
 import tv.stationbreak.core.model.CanonicalId
 import java.util.TreeSet
 
-/** What a page wrote: the [items] and the [series] it held, each counted as [PageWrite]. */
-internal data class PageResult(
-    val items: PageWrite,
-    val series: PageWrite,
-)
+/**
+ * How a guarded page write ended (spec 26, schema 11): [Written], with what it wrote, or refused with nothing written,
+ * because the library row did not take a write under that stamp ([StampMismatch]) or a rewalk's write met a running
+ * first sync ([FirstSyncRunning]).
+ */
+internal sealed interface PageResult {
+    /** The page was written: the [items] and the [series] it held, each counted as [PageWrite]. */
+    data class Written(
+        val items: PageWrite,
+        val series: PageWrite,
+    ) : PageResult
+
+    /**
+     * Nothing was written: the library has no row, is held, or has another stamp than the write's (a stamped write
+     * needs that stamp; an unstamped one needs none).
+     */
+    data object StampMismatch : PageResult
+
+    /** Nothing was written: a rewalk's write found the account running a first sync, which takes the library. */
+    data object FirstSyncRunning : PageResult
+}
 
 /**
  * What [CacheTransactionDao.ruleSnapshot] read in its one transaction: the [items] (the rows of the as-of read), the
@@ -63,12 +79,22 @@ internal abstract class CacheTransactionDao(
      * item, only in a library that is not being added ([itemsMoveTheDay]), so the walk of an add moves nothing; for a
      * series, in any library, as episodes of other libraries read a series row by its id. A provider-id-only change
      * never moves it.
+     *
+     * The write is guarded by [libraryId]'s row, read inside this transaction (spec 26, schema 11): it is accepted only
+     * when the row exists, has no hold, and has the add stamp [stamp] (a stamped write, the add's walk) or none (an
+     * unstamped one). Otherwise nothing is written and it returns [PageResult.StampMismatch]: so a write can never land
+     * in a library that was dropped, held or re-stamped since its walk began, nor reach a foreign-key throw for a row
+     * that is gone. A [rewalk] write also refuses, with [PageResult.FirstSyncRunning], while the account runs a first
+     * sync. Neither refusal moves the generation.
      */
     @Transaction
-    @Suppress("LongParameterList") // One cohesive call: the page, its checkpoint, the time and the test seams.
+    @Suppress("LongParameterList") // One cohesive call: the library and its guard, the page, the time and the seams.
     open suspend fun writePage(
         server: String,
         user: String,
+        libraryId: String,
+        stamp: Long?,
+        rewalk: Boolean,
         checkpoint: CheckpointEntity?,
         items: Map<String, ItemRows>,
         seriesRows: Map<String, SeriesEntity>,
@@ -77,6 +103,7 @@ internal abstract class CacheTransactionDao(
         betweenItemsAndCheckpoint: (() -> Unit)?,
     ): PageResult {
         library.requireActive(server, user)
+        refusal(server, user, libraryId, stamp, rewalk)?.let { return it }
         val existing =
             items.keys
                 .chunked(LibraryDao.MAX_VARIABLES)
@@ -114,7 +141,27 @@ internal abstract class CacheTransactionDao(
         if (itemsMoveTheDay(plan, items, adding) || seriesWrite.movesTheDay) library.bumpGeneration(server, user)
         betweenItemsAndCheckpoint?.invoke()
         checkpoint?.let { library.saveCheckpoint(it) }
-        return PageResult(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite.write)
+        return PageResult.Written(PageWrite(plan.toInsert.size, plan.toUpdate.size, plan.unchanged), seriesWrite.write)
+    }
+
+    /**
+     * Why the library row refuses a write to [libraryId] under [stamp] (see [writePage]), read inside the write's
+     * transaction, or null when it takes it. Nothing has been written when this is asked.
+     */
+    private suspend fun refusal(
+        server: String,
+        user: String,
+        libraryId: String,
+        stamp: Long?,
+        rewalk: Boolean,
+    ): PageResult? {
+        if (rewalk && library.state(server, user)?.state == AccountStateEntity.STATE_FIRST_RUNNING) {
+            return PageResult.FirstSyncRunning
+        }
+        val row = library.libraryRow(server, user, libraryId)
+        // A stamped write needs that stamp, an unstamped one none; neither goes to a held row, or to one that is gone.
+        val accepted = row != null && row.heldUntilMs == null && row.addStamp == stamp
+        return if (accepted) null else PageResult.StampMismatch
     }
 
     /**

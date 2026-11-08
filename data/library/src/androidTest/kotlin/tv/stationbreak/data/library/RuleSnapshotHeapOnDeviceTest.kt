@@ -108,11 +108,19 @@ class RuleSnapshotHeapOnDeviceTest {
         while (start < ITEMS) {
             val page =
                 library.page(start, PAGE).map { it.copy(officialRating = "R$round", studios = studioOf(it.id.value)) }
-            repository.upsertItems(account, movies, page)
+            repository.upsertItems(account, movies, stamp = null, rewalk = false, page)
             start += PAGE
         }
         val series = inputs.series(round).map { it.copy(studios = studioOf(it.id.value)) }
-        for (chunk in series.chunked(SERIES_PAGE)) repository.upsertSeries(account, movies, chunk)
+        for (chunk in series.chunked(SERIES_PAGE)) {
+            repository.upsertSeries(
+                account,
+                movies,
+                stamp = null,
+                rewalk = false,
+                chunk,
+            )
+        }
         for (j in 0 until COLLECTIONS) {
             repository.writeCollection(account, inputs.collectionId(j), "Collection $j", inputs.members(j, round))
         }

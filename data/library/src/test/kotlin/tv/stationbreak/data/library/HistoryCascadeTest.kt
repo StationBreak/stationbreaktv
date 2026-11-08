@@ -87,11 +87,23 @@ class HistoryCascadeTest {
 
     private suspend fun twoLibrariesWithSeriesHistory() {
         repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
-        repository.upsertSeries(ALICE, MOVIES, listOf(series("m1", "A")))
-        repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "A"), series("s2", "A")))
+        repository.upsertSeries(ALICE, MOVIES, stamp = null, rewalk = false, listOf(series("m1", "A")))
+        repository.upsertSeries(
+            ALICE,
+            SHOWS,
+            stamp = null,
+            rewalk = false,
+            listOf(series("s1", "A"), series("s2", "A")),
+        )
         clock.stepMs(1_000)
-        repository.upsertSeries(ALICE, MOVIES, listOf(series("m1", "B")))
-        repository.upsertSeries(ALICE, SHOWS, listOf(series("s1", "B"), series("s2", "B")))
+        repository.upsertSeries(ALICE, MOVIES, stamp = null, rewalk = false, listOf(series("m1", "B")))
+        repository.upsertSeries(
+            ALICE,
+            SHOWS,
+            stamp = null,
+            rewalk = false,
+            listOf(series("s1", "B"), series("s2", "B")),
+        )
     }
 
     @Test
@@ -111,8 +123,8 @@ class HistoryCascadeTest {
         runBlocking {
             twoLibrariesWithSeriesHistory()
             repository.applySelection(BOB, setOf(SHOWS), nowMs = 0)
-            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "A")))
-            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "B")))
+            repository.upsertSeries(BOB, SHOWS, stamp = null, rewalk = false, listOf(series("b1", "A")))
+            repository.upsertSeries(BOB, SHOWS, stamp = null, rewalk = false, listOf(series("b1", "B")))
 
             repository.useAccount(BOB)
 
@@ -126,8 +138,8 @@ class HistoryCascadeTest {
         runBlocking {
             twoLibrariesWithSeriesHistory()
             repository.applySelection(BOB, setOf(SHOWS), nowMs = 0)
-            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "A")))
-            repository.upsertSeries(BOB, SHOWS, listOf(series("b1", "B")))
+            repository.upsertSeries(BOB, SHOWS, stamp = null, rewalk = false, listOf(series("b1", "A")))
+            repository.upsertSeries(BOB, SHOWS, stamp = null, rewalk = false, listOf(series("b1", "B")))
 
             repository.forget(ALICE)
 

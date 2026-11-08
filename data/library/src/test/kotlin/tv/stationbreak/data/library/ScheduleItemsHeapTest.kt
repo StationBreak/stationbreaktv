@@ -45,7 +45,7 @@ class ScheduleItemsHeapTest {
                     library.page(start, PAGE).map {
                         it.copy(officialRating = "R$round", studios = studioOf(it.id.value))
                     }
-                repository.upsertItems(ALICE, MOVIES, page)
+                repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, page)
                 start += PAGE
             }
         }

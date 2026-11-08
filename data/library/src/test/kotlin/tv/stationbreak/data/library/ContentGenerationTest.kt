@@ -115,11 +115,11 @@ class ContentGenerationTest {
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val items = (0 until 3).map { SyncWorld.item("m", it) }
-            repository.upsertItems(ALICE, MOVIES, items)
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, items)
             val written = changes()
             assertNotEquals(0L, written)
 
-            repository.upsertItems(ALICE, MOVIES, items)
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, items)
 
             assertEquals(written, changes())
         }
@@ -157,11 +157,20 @@ class ContentGenerationTest {
         runBlocking {
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", 0)))
             val before = changes()
             repository.faultBetweenItemsAndCheckpoint = { error("the write died") }
 
-            val failed = runCatching { repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 1))) }
+            val failed =
+                runCatching {
+                    repository.upsertItems(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        listOf(SyncWorld.item("m", 1)),
+                    )
+                }
 
             assertTrue(failed.isFailure)
             assertEquals("the bump went back with the write", before, changes())
@@ -175,7 +184,7 @@ class ContentGenerationTest {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             assertEquals(0L, repository.contentGeneration(BOB))
 
-            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", 0)))
 
             assertNotEquals(0L, changes())
             assertEquals("another account's generation is its own", 0L, repository.contentGeneration(BOB))
@@ -188,7 +197,7 @@ class ContentGenerationTest {
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val seen = mutableListOf(changes())
             for (n in 0 until 3) {
-                repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", n)))
+                repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", n)))
                 seen += changes()
             }
             assertEquals(seen.sorted(), seen)
@@ -200,7 +209,7 @@ class ContentGenerationTest {
         runBlocking {
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", 0)))
             val old = changes()
             val reached = mutableSetOf(old)
 
@@ -210,7 +219,7 @@ class ContentGenerationTest {
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             for (n in 1..50) {
-                repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", n)))
+                repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", n)))
                 reached += changes()
             }
 
@@ -224,7 +233,7 @@ class ContentGenerationTest {
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
             val series = listOf(series("s1"))
-            repository.upsertSeries(ALICE, MOVIES, series)
+            repository.upsertSeries(ALICE, MOVIES, stamp = null, rewalk = false, series)
             var seen = changes()
 
             repository.tombstoneSeries(ALICE, listOf(ItemId("s1")))
@@ -240,7 +249,7 @@ class ContentGenerationTest {
         runBlocking {
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", 0)))
             assertNotEquals(0L, changes())
 
             repository.useAccount(BOB)

@@ -74,7 +74,7 @@ class ForgottenAccountTest {
             }
             assertThrows(AccountNotActiveException::class.java) { runBlocking { repository.setTotal(ALICE, 5) } }
             assertThrows(AccountNotActiveException::class.java) {
-                runBlocking { repository.markFetched(ALICE, MOVIES) }
+                runBlocking { repository.markWalked(ALICE, MOVIES) }
             }
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
@@ -86,7 +86,18 @@ class ForgottenAccountTest {
             repository.useAccount(BOB)
 
             assertThrows(Exception::class.java) {
-                runBlocking { repository.writePage(ALICE, MOVIES, listOf(item("late")), 1, 1, run = 1) }
+                runBlocking {
+                    repository.writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        listOf(item("late")),
+                        1,
+                        1,
+                        run = 1,
+                    )
+                }
             }
             assertEquals(RowCounts.NONE, repository.rowCounts())
         }
@@ -100,7 +111,18 @@ class ForgottenAccountTest {
             repository.dao.deleteActive(ALICE.server.value, ALICE.user.value)
 
             assertThrows(AccountNotActiveException::class.java) {
-                runBlocking { repository.writePage(ALICE, MOVIES, listOf(item("late")), 1, 1, run = 1) }
+                runBlocking {
+                    repository.writePage(
+                        ALICE,
+                        MOVIES,
+                        stamp = null,
+                        rewalk = false,
+                        listOf(item("late")),
+                        1,
+                        1,
+                        run = 1,
+                    )
+                }
             }
             assertEquals(0, repository.rowCounts().items)
             assertEquals(0, repository.rowCounts().checkpoints)
@@ -110,7 +132,7 @@ class ForgottenAccountTest {
     fun tombstonesAndRevivalsAlsoNeedTheAccountToBeActive() =
         runBlocking {
             signedInAndSelected()
-            repository.writePage(ALICE, MOVIES, listOf(item("a")), 1, 1, run = 1)
+            repository.writePage(ALICE, MOVIES, stamp = null, rewalk = false, listOf(item("a")), 1, 1, run = 1)
             repository.dao.deleteActive(ALICE.server.value, ALICE.user.value)
 
             assertThrows(AccountNotActiveException::class.java) {

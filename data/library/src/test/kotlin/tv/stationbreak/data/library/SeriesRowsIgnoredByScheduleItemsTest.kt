@@ -33,13 +33,19 @@ class SeriesRowsIgnoredByScheduleItemsTest {
         runBlocking {
             repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
             val episodes = (1..5).map { sitem(it, library = SHOWS).copy(kind = ItemKind.Episode) }
-            repository.upsertItems(ALICE, SHOWS, episodes + sitem(6, runtime = null, library = SHOWS))
+            repository.upsertItems(
+                ALICE,
+                SHOWS,
+                stamp = null,
+                rewalk = false,
+                episodes + sitem(6, runtime = null, library = SHOWS),
+            )
             val without = readEverything()
 
             val many = (1..8).map { series(hexId(100 + it), "TV-14", listOf("x"), listOf("y")) }
-            repository.upsertSeries(ALICE, SHOWS, many)
+            repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, many)
             clock.stepMs(10_000)
-            repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(101), "TV-MA")))
+            repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, listOf(series(hexId(101), "TV-MA")))
             repository.tombstoneSeries(ALICE, listOf(ItemId(hexId(102))))
 
             assertEquals(without.first.items, readEverything().first.items)

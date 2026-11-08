@@ -408,10 +408,12 @@ interface LibraryRepository : AccountCache {
 
     /**
      * Lands the add of [library] that [applySelection] stamped with [stamp] (spec 26), once its walk has ended: in one
-     * transaction, when the library still has that stamp, the stamp is cleared, the library is marked fetched and
-     * [contentGeneration] moves once (the rows its walk wrote moved nothing, and now become a day's inputs). It returns
-     * true then. With any other stamp, none (already landed, held, or never added), or no such library, nothing changes
-     * and it returns false, so a landing that lost a race with a newer tick or an untick does no harm.
+     * transaction, when the library still has that stamp and the proof that its walk under that stamp ended (schema
+     * 11: the add walk's last transaction records it), the stamp and the proof are cleared, the library is marked
+     * fetched and [contentGeneration] moves once (the rows its walk wrote moved nothing, and now become a day's
+     * inputs). It returns true then. With any other stamp, none (already landed, held, or never added), no proof, or
+     * no such library, nothing changes and it returns false, so a landing that lost a race with a newer tick or an
+     * untick does no harm, and an add whose walk did not end never lands.
      */
     suspend fun landAdd(
         account: LibraryAccount,
@@ -421,6 +423,27 @@ interface LibraryRepository : AccountCache {
 
     /** The chosen libraries that have not been fully fetched yet. */
     suspend fun pendingLibraries(account: LibraryAccount): Set<ItemId>
+
+    /**
+     * Every library row [account] keeps (spec 26, schema 11), in ID order: chosen, being added and held, with all of
+     * its lifecycle. Another account's rows are never in it. A read of the current state, for the selection's own
+     * decisions (which adds are proven, which libraries a pass leaves out); never for building a day.
+     */
+    suspend fun storedLibraries(account: LibraryAccount): List<StoredLibrary>
+
+    /**
+     * Reverts the add of [library] under [stamp] whose walk was never proven to end (spec 26, schema 11): in one
+     * transaction, only while the library still has that stamp, has no proof for it and no hold, the stamp is cleared,
+     * the library is pending again (not fetched) and marked to be read again from the start with no stamp, and its
+     * checkpoint goes. The rows its walk wrote become a chosen library's, so [contentGeneration] moves once when it
+     * holds any. It returns true then. A proven add (it lands instead), another stamp, none, a hold, no such library,
+     * or an account that is not the signed-in one change nothing and give false.
+     */
+    suspend fun revertUnproven(
+        account: LibraryAccount,
+        library: ItemId,
+        stamp: Long,
+    ): Boolean
 
     /**
      * Where each of the [gone] items (deleted, so kept as tombstones for 30 days) came back under a new id (spec 26),
@@ -443,6 +466,22 @@ interface LibraryRepository : AccountCache {
         gone: Set<CanonicalId>,
     ): Map<CanonicalId, CanonicalId>
 }
+
+/**
+ * One library row the cache keeps (spec 26, schema 11), as [LibraryRepository.storedLibraries] reads it. [fetched] is
+ * false until the sync has read all of it. [addStamp] is set while it is being added, and [walkedStamp] equals it once
+ * that add's walk has ended (the proof [LibraryRepository.landAdd] needs). [heldUntilMs] is set while it is held:
+ * unticked, its rows kept until then. [rewalkPending] marks a chosen library whose unproven add was reverted
+ * ([LibraryRepository.revertUnproven]): it is read again from the start, and the mark goes when that walk ends.
+ */
+data class StoredLibrary(
+    val id: ItemId,
+    val fetched: Boolean,
+    val addStamp: Long?,
+    val walkedStamp: Long?,
+    val heldUntilMs: Long?,
+    val rewalkPending: Boolean,
+)
 
 /** Whether a [TitleHit] is a show or a film. */
 enum class TitleKind { Show, Film }

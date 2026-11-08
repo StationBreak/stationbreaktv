@@ -76,7 +76,7 @@ class RuleSnapshotKeyContractTest {
             states += state()
             states += state()
 
-            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", 0)))
             states += state()
 
             rig.clock.stepMs(HALF_HOUR_MS)
@@ -140,8 +140,8 @@ class RuleSnapshotKeyContractTest {
         runBlocking {
             val shows = ItemId(hexId(0xB002))
             repository.applySelection(ALICE, setOf(MOVIES, shows), nowMs = 0)
-            repository.upsertItems(ALICE, MOVIES, listOf(SyncWorld.item("m", 0)))
-            repository.upsertItems(ALICE, shows, listOf(SyncWorld.item("s", 1)))
+            repository.upsertItems(ALICE, MOVIES, stamp = null, rewalk = false, listOf(SyncWorld.item("m", 0)))
+            repository.upsertItems(ALICE, shows, stamp = null, rewalk = false, listOf(SyncWorld.item("s", 1)))
             val cutoff = Instant.fromEpochMilliseconds(rig.clock.nowMs + FAR_MS)
 
             val movies = repository.ruleSnapshot(ALICE, setOf(MOVIES), cutoff)

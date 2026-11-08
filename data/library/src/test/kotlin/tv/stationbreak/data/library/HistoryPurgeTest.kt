@@ -30,7 +30,16 @@ class HistoryPurgeTest {
     private suspend fun fourItems(account: tv.stationbreak.core.domain.LibraryAccount = ALICE) {
         repository.applySelection(account, setOf(MOVIES), nowMs = 0)
         val items = (1..4).map { sitem(it).copy(genres = listOf("g$it"), tags = listOf("t$it")) }
-        repository.writePage(account, MOVIES, items, nextStartIndex = items.size, totalCount = items.size, run = 1)
+        repository.writePage(
+            account,
+            MOVIES,
+            stamp = null,
+            rewalk = false,
+            items,
+            nextStartIndex = items.size,
+            totalCount = items.size,
+            run = 1,
+        )
     }
 
     private suspend fun rowIds(account: tv.stationbreak.core.domain.LibraryAccount = ALICE) =
@@ -252,7 +261,16 @@ class HistoryPurgeTest {
             val short = TestLibraries.inMemory(clock, retention = HistoryRetention(days = 5))
             try {
                 short.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
-                short.writePage(ALICE, MOVIES, listOf(sitem(1)), nextStartIndex = 1, totalCount = 1, run = 1)
+                short.writePage(
+                    ALICE,
+                    MOVIES,
+                    stamp = null,
+                    rewalk = false,
+                    listOf(sitem(1)),
+                    nextStartIndex = 1,
+                    totalCount = 1,
+                    run = 1,
+                )
                 short.tombstone(ALICE, listOf(id(1)))
                 clock.stepMs(5.days.inWholeMilliseconds + 1)
 
@@ -269,15 +287,15 @@ class HistoryPurgeTest {
     private suspend fun fourSeries(account: tv.stationbreak.core.domain.LibraryAccount = ALICE) {
         repository.applySelection(account, setOf(SHOWS), nowMs = 0)
         val rows = (1..4).map { series(hexId(it), "TV-14", listOf("g$it"), listOf("t$it")) }
-        repository.upsertSeries(account, SHOWS, rows)
+        repository.upsertSeries(account, SHOWS, stamp = null, rewalk = false, rows)
     }
 
     // Series 1: first seen at the start, edited 1 s later. The first version is superseded at start + 1000.
     private suspend fun oneEditedSeries() {
         repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
-        repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-14")))
+        repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, listOf(series(hexId(1), "TV-14")))
         clock.stepMs(1_000)
-        repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-MA")))
+        repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, listOf(series(hexId(1), "TV-MA")))
     }
 
     @Test
@@ -328,9 +346,10 @@ class HistoryPurgeTest {
             repository.tombstone(ALICE, listOf(id(1)))
             repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = 0)
             val three = listOf(series(hexId(1), "TV-14"), series(hexId(2)), series(hexId(3), "G"))
-            repository.upsertSeries(ALICE, SHOWS, three)
+            repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, three)
             clock.stepMs(1_000)
-            repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-MA"))) // one version, superseded at +1000
+            // One version, superseded at +1000.
+            repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, listOf(series(hexId(1), "TV-MA")))
             repository.tombstoneSeries(ALICE, listOf(sid(1))) // its old version goes with the tombstone
             clock.stepMs(thirtyDays + 2_000)
 
@@ -347,7 +366,8 @@ class HistoryPurgeTest {
         runBlocking {
             fourSeries()
             clock.stepMs(1.days.inWholeMilliseconds)
-            repository.upsertSeries(ALICE, SHOWS, listOf(series(hexId(1), "TV-MA"))) // version 1 superseded now
+            // Version 1 superseded now.
+            repository.upsertSeries(ALICE, SHOWS, stamp = null, rewalk = false, listOf(series(hexId(1), "TV-MA")))
             val seenFrom = clock.nowMs
             clock.atMs(seenFrom - 40.days.inWholeMilliseconds) // the clock is set back
             repository.tombstoneSeries(ALICE, listOf(sid(1)))
@@ -366,7 +386,7 @@ class HistoryPurgeTest {
             fourSeries(BOB)
             repository.tombstoneSeries(ALICE, listOf(sid(1)))
             repository.tombstoneSeries(BOB, listOf(sid(1)))
-            repository.upsertSeries(BOB, SHOWS, listOf(series(hexId(2), "R")))
+            repository.upsertSeries(BOB, SHOWS, stamp = null, rewalk = false, listOf(series(hexId(2), "R")))
             val bobBefore = repository.currentSeries(BOB) to repository.seriesVersions(BOB)
             clock.stepMs(thirtyDays + 1)
 
