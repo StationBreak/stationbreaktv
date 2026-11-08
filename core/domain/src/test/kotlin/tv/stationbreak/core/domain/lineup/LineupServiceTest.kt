@@ -552,13 +552,11 @@ class LineupServiceTest {
                     kid = true,
                     optIn = false,
                     playKey = toons.playKey,
-                    recipeKey = "toons",
                 )
             assertEquals(expected, toons)
             val odds = summaries.first { it.id == LineupIds.leftovers("odds-and-ends") }
             assertEquals(ChannelKind.Leftovers, odds.kind)
             assertEquals("Odds", odds.name)
-            assertEquals("odds-and-ends", odds.recipeKey)
             val afterHours = summaries.first { it.id == LineupIds.starter("after-hours") }
             assertEquals(ChannelStatus.Shelf, afterHours.state)
         }

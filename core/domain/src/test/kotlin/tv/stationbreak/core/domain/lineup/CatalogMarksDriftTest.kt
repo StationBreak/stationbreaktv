@@ -5,30 +5,48 @@ import tv.stationbreak.core.engine.lineup.StarterCatalog
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
- * Every key the live catalog can give a channel has a bundled logo, or is named here as one that has none on purpose.
- * Lives in `core:domain` because the catalog is reachable from here and not from `feature:guide`; the guide's assets
- * are found from the repository root.
+ * The guide's bundled logos and the live catalog's keys agree both ways: every key has a logo (or is named here as one
+ * with none on purpose), and every logo is for a key. Lives in `core:domain` because the catalog is reachable from here
+ * and not from `feature:guide`; the build passes the logo folder in, and declares it as an input of the test task.
  */
 class CatalogMarksDriftTest {
-    // Gradle runs a module's unit tests with the module directory as the working directory.
-    private val root = File(".").canonicalFile.parentFile.parentFile
-    private val assets = File(root, "feature/guide/src/main/assets/channelmarks")
+    private val assets = File(checkNotNull(System.getProperty("stationbreak.channelmarks")) { "no logo folder" })
+
+    // The logo's file number against its key, for the files named like a logo.
+    private val bundled: Map<String, Int> =
+        assets
+            .list()
+            .orEmpty()
+            .mapNotNull { NAME.matchEntire(it) }
+            .associate { it.groupValues[2] to it.groupValues[1].toInt() }
+
+    // Each key against the catalog number of its channel.
+    private val catalogNumbers: Map<String, Int> =
+        StarterCatalog.recipes.associate { it.key to it.number } +
+            StarterCatalog.leftovers.associate { it.key to it.number }
 
     @Test
     fun everyCatalogKeyHasABundledLogoOrIsOnTheNoLogoList() {
-        val files = assets.list()?.toSet().orEmpty()
-        assertEquals(true, files.isNotEmpty(), "no logos found in $assets")
-        val bundled = files.mapNotNull { NAME.matchEntire(it)?.groupValues?.get(1) }.toSet()
-        val keys = StarterCatalog.recipes.map { it.key } + StarterCatalog.leftovers.map { it.key }
-        val missing = keys.filter { it !in bundled && it !in NO_LOGO_KEYS }
+        assertTrue(bundled.isNotEmpty(), "no logos found in $assets")
+        val missing = catalogNumbers.keys.filter { it !in bundled && it !in NO_LOGO_KEYS }
         assertEquals(emptyList(), missing, "catalog keys with no bundled logo and not on NO_LOGO_KEYS")
+        // The pack is keyed by both: the number in a file name is its channel's catalog number.
+        val renumbered = bundled.filter { (key, number) -> catalogNumbers[key] != number }.keys.sorted()
+        assertEquals(emptyList(), renumbered, "logo files whose number is not their channel's catalog number")
+    }
+
+    @Test
+    fun everyBundledLogoIsForACatalogKey() {
+        val orphans = bundled.keys.filter { it !in catalogNumbers }.sorted()
+        assertEquals(emptyList(), orphans, "bundled logos whose key is not a catalog recipe or leftovers key")
     }
 
     private companion object {
         /** Keys that have no logo on purpose. Empty today. */
         val NO_LOGO_KEYS: Set<String> = emptySet()
-        val NAME = Regex("sl_\\d{3}_([a-z0-9-]+)_32dp\\.png")
+        val NAME = Regex("sl_(\\d{3})_([a-z0-9-]+)_32dp\\.png")
     }
 }

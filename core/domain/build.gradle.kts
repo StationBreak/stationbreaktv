@@ -28,3 +28,11 @@ dependencies {
     // Test only: virtual time for the refresher's backoff.
     testImplementation(libs.kotlinx.coroutines.test)
 }
+
+// CatalogMarksDriftTest reads the guide's bundled logos: Gradle must see them as inputs, or a changed logo folder leaves
+// the cached test result in place.
+val channelMarks = rootProject.layout.projectDirectory.dir("feature/guide/src/main/assets/channelmarks")
+tasks.withType<Test>().configureEach {
+    inputs.dir(channelMarks).withPropertyName("channelMarks").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("stationbreak.channelmarks", channelMarks.asFile.absolutePath)
+}

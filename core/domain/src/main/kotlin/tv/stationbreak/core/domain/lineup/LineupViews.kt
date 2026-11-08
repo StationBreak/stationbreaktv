@@ -40,7 +40,6 @@ internal fun LineupChannel.summary(
     optIn = isOptIn(catalog),
     playKey = playKey,
     shelfReason = shownShelfReason(nowMs),
-    recipeKey = source.recipeKey(),
 )
 
 // The catalog recipe key of a starter or leftovers channel; a custom or unusable one has none. No else, so a new source
