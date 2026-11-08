@@ -183,7 +183,8 @@ class FirstSyncNavigationTest {
 
     @Before
     fun script() {
-        Syncing.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        // The choice as the selection's setup stores it, for the account the sign-in below makes the active one.
+        Syncing.settings = choiceOf(ServerRecord(https), setOf(movies.id), session.account())
         // A fresh one for each test, so the calls it counts are this test's.
         Syncing.firstSync = InMemoryFirstSync()
         with(Syncing.server) {
@@ -191,6 +192,7 @@ class FirstSyncNavigationTest {
             connectResult = ServerResult.Success(ResolvedServer(https, info))
             librariesResult = ServerResult.Success(listOf(movies))
             signInResult = ServerResult.Failure(MediaServerError.Unknown())
+            withEmptyLibraries()
             connectCalls.clear()
             resumeCalls.clear()
         }
@@ -201,11 +203,16 @@ class FirstSyncNavigationTest {
                 .forEach { Syncing.store.clear(it) }
         }
         hilt.inject()
-        runBlocking { SessionRepository(Syncing.store, Syncing.server).save(session) }
+        signInAsTheAppDoes(Syncing.store, Syncing.server, session)
     }
+
+    // The first-sync asks the app's start made (the resume asks for a setup whose first sync it never saw end), so a
+    // test can tell them from the screen's.
+    private var askedAtStart = 0
 
     private fun launchApp() {
         resumeSelectionAsTheAppStartDoes()
+        askedAtStart = Syncing.firstSync.ensureCalls
         compose.setContent { StationBreakTheme { AppNavHost() } }
         compose.waitForIdle()
     }
@@ -262,7 +269,9 @@ class FirstSyncNavigationTest {
         awaitExists(FirstSyncTags.HEADLINE)
         assertEquals(0, count(LiveTags.NO_CHANNELS))
         compose.onAllNodes(isFocusable()).assertCountEquals(0)
-        assertEquals(1, Syncing.firstSync.ensureCalls)
+        // The chosen library was never read: the start asks for its first sync, and the screen asks once more.
+        assertEquals(1, askedAtStart)
+        assertEquals(1, Syncing.firstSync.ensureCalls - askedAtStart)
     }
 
     @Test
@@ -280,6 +289,8 @@ class FirstSyncNavigationTest {
 
     @Test
     fun aFinishedFirstSyncNeverShowsTheProgressScreen() {
+        // The library cache as a finished first sync leaves it: the chosen library read to its end.
+        runTheFirstSyncAsTheWorkerDoes(Syncing.settings, Syncing.store, Syncing.server)
         Syncing.firstSync.current = finished
         launchApp()
 
@@ -297,7 +308,7 @@ class FirstSyncNavigationTest {
         assertBackLeavesTheApp()
 
         assertEquals(0, Syncing.firstSync.retryCalls)
-        assertEquals(1, Syncing.firstSync.ensureCalls)
+        assertEquals("the screen asked once", 1, Syncing.firstSync.ensureCalls - askedAtStart)
     }
 
     @Test
@@ -312,7 +323,9 @@ class FirstSyncNavigationTest {
 
         awaitExists(FirstSyncTags.HEADLINE)
         assertEquals(setOf(movies.id), Syncing.settings.currentLibraries)
-        assertEquals(1, Syncing.firstSync.ensureCalls)
+        // Nothing was chosen at the start; the setup asks for the first sync (spec 26), and its screen asks again.
+        assertEquals(0, askedAtStart)
+        assertEquals(2, Syncing.firstSync.ensureCalls)
     }
 
     @Test

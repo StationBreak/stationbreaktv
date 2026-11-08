@@ -129,7 +129,7 @@ class FileServerSettingsDiskTest {
     fun theWholeStoredSelectionSurvivesARebuiltStore() =
         runBlocking {
             store().save(ServerRecord(address, pin))
-            assertTrue(store().saveSelection(selection))
+            assertTrue(store().seed(selection))
             assertEquals(selection, store().loadSelection())
             assertNull(store().loadPlayableLibraries())
             assertEquals(ServerRecord(address, pin), store().load())
@@ -140,7 +140,7 @@ class FileServerSettingsDiskTest {
     fun aClearKeepsTheSeqOnDisk() =
         runBlocking {
             store().save(ServerRecord(address))
-            store().saveSelection(selection)
+            assertTrue(store().seed(selection))
             assertTrue(store().clearLibraries())
             assertNull(store().loadSelection())
             assertEquals(6L, store().loadSelectionSeq())

@@ -67,6 +67,7 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.channels.ui.ChannelsTags
 import tv.stationbreak.feature.guide.ui.GuideTags
 import tv.stationbreak.feature.live.ui.LiveTags
+import tv.stationbreak.feature.onboarding.firstsync.FirstSyncTags
 import tv.stationbreak.feature.onboarding.launch.LaunchTags
 import tv.stationbreak.feature.onboarding.libraries.LibrariesTags
 import tv.stationbreak.feature.onboarding.libraries.SignedInTags
@@ -165,6 +166,7 @@ class LaunchNavigationTest {
             librariesResult = ServerResult.Success(listOf(movies))
             signInResult = ServerResult.Failure(MediaServerError.Unknown())
             revokeResult = ServerResult.Success(Unit)
+            withEmptyLibraries()
             connectCalls.clear()
             resumeCalls.clear()
             revokeCalls.clear()
@@ -181,7 +183,16 @@ class LaunchNavigationTest {
         hilt.inject()
     }
 
-    private fun storeSession() = runBlocking { SessionRepository(Launched.store, Launched.server).save(session) }
+    // A session an earlier run stored, as its sign-in did: the account is the active one in the library cache.
+    private fun storeSession() = signInAsTheAppDoes(Launched.store, Launched.server, session)
+
+    // A TV set up in an earlier run: signed in, the choice its setup stored, and the first sync the worker ran to its
+    // end. Called before the test scripts the server's answers for the run under test.
+    private fun setUpEarlier() {
+        storeSession()
+        Launched.settings = choiceOf(ServerRecord(https), setOf(movies.id), session.account())
+        runTheFirstSyncAsTheWorkerDoes(Launched.settings, Launched.store, Launched.server)
+    }
 
     private fun launchApp() {
         resumeSelectionAsTheAppStartDoes()
@@ -285,8 +296,7 @@ class LaunchNavigationTest {
 
     @Test
     fun aRestoredSessionWithAChoiceOpensTheLiveScreenAndBackLeavesThroughTheGuide() {
-        storeSession()
-        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        setUpEarlier()
         launchApp()
 
         awaitExists(LiveTags.NO_CHANNELS)
@@ -296,8 +306,7 @@ class LaunchNavigationTest {
 
     @Test
     fun channelManagementOpensFromTheGuideAndBackWalksOutOfIt() {
-        storeSession()
-        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        setUpEarlier()
         launchApp()
         awaitExists(LiveTags.NO_CHANNELS)
 
@@ -325,8 +334,7 @@ class LaunchNavigationTest {
     // opening is the Channels screen's instrumented tests'): the press on New waits, and says so.
     @Test
     fun newChannelFromTheGuideWaitsForTheLineupAndBackWalksOut() {
-        storeSession()
-        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
+        setUpEarlier()
         launchApp()
         awaitExists(LiveTags.NO_CHANNELS)
         compose.awaitWindowFocus()
@@ -399,9 +407,8 @@ class LaunchNavigationTest {
 
     @Test
     fun anUnavailableServerShowsTheErrorWithRetryAndRetryCarriesOnWhenItIsBack() {
-        storeSession()
+        setUpEarlier()
         Launched.server.fake.resumeResult = ServerResult.Failure(MediaServerError.Timeout())
-        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
         launchApp()
 
         awaitFocused(LaunchTags.RETRY)
@@ -452,10 +459,9 @@ class LaunchNavigationTest {
 
     @Test
     fun whileTheRestoreRunsOnlyProgressShowsAndOnboardingNeverFlashes() {
-        storeSession()
+        setUpEarlier()
         val gate = CompletableDeferred<Unit>()
         Launched.server.resumeGate = gate
-        Launched.settings = InMemoryServerSettings(ServerRecord(https), setOf(movies.id))
         launchApp()
 
         awaitExists(LaunchTags.PROGRESS)
@@ -478,6 +484,9 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN, LibrariesTags.row("movies"))
         press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
 
+        // Done opens the first sync's screen, and the live screen follows when the sync ends (run as the worker would).
+        awaitExists(FirstSyncTags.HEADLINE)
+        runTheFirstSyncAsTheWorkerDoes(Launched.settings, Launched.store, Launched.server)
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(setOf(movies.id), Launched.settings.currentLibraries)
         assertBackOpensTheGuideThenLeavesTheApp()
@@ -544,7 +553,7 @@ class LaunchNavigationTest {
         storeSession()
         Launched.server.fake.resumeResult = ServerResult.Failure(MediaServerError.Timeout())
         val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { 2 })
-        Launched.settings = InMemoryServerSettings(ServerRecord(https, pin), setOf(movies.id))
+        Launched.settings = choiceOf(ServerRecord(https, pin), setOf(movies.id), session.account())
         launchApp()
         awaitFocused(LaunchTags.RETRY)
 
