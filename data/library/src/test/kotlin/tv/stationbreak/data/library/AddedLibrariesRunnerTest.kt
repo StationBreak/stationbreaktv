@@ -245,6 +245,36 @@ class AddedLibrariesRunnerTest {
             assertTrue(repository.stored(ALICE).none { it.library == SHOWS })
         }
 
+    // Fix round 1 (#654): an add whose walks never prove ends the pass still stored; the selection is told.
+    @Test
+    fun anAddThatNeverProves_isToldToTheSelection() =
+        runBlocking {
+            signedInWithMovies()
+            addingShows()
+            val landings = ScriptedLandings { LandResult.Unproven }
+
+            assertEquals(SyncOutcome.Completed, runner(landings).outcome())
+
+            assertTrue("AddLandingUnproven" in lines)
+            assertEquals("shown stalled, not adding", listOf(SHOWS to 2L), landings.givenUp)
+        }
+
+    // Fix round 1 (#654): a refused write still refused after its one reconcile ends the pass with the add stored.
+    @Test
+    fun aRefusedWriteAfterItsReconcile_isToldToTheSelection() =
+        runBlocking {
+            signedInWithMovies()
+            addingShows()
+            val until = clock.nowMs + 60_000
+            repository.applySelection(ALICE, setOf(MOVIES), holds = mapOf(SHOWS to until), nowMs = clock.nowMs)
+            val landings = ScriptedLandings { LandResult.Landed }
+
+            assertEquals(SyncOutcome.Completed, runner(landings).outcome())
+
+            assertEquals(1, landings.reconciles)
+            assertEquals("shown stalled, not adding", listOf(SHOWS to 2L), landings.givenUp)
+        }
+
     // A3: the work list is the selection's own, owner-checked: another account's choice gives no work at all.
     @Test
     fun anotherAccountsChoice_givesNoWork() =

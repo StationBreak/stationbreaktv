@@ -54,7 +54,9 @@ data class AddPassConfig(
  * - [LandResult.Retry] is tried again after a wait that doubles each time, at most [AddPassConfig.landRetries] times
  *   per stamp in the life of the process; then the stamp is given up (`AddLandingStuck`) until the next start, whose
  *   resume asks for the pass again. [LandResult.Failed] is given up at once (`AddLandingFailed`). Either way the
- *   selection is told ([AddLandings.addGivenUp]), so the add is shown as stalled rather than as being added.
+ *   selection is told ([AddLandings.addGivenUp]), so the add is shown as stalled rather than as being added. It is
+ *   told too when an add's walks never prove it (`AddLandingUnproven`), or the cache still refuses it after its one
+ *   reconcile: the run ends with the add still stored.
  *   [LandResult.Unproven] walks the add again (from its checkpoint): that is no retry.
  * - It stays out of the sync signal the lineup refresher holds its triggers on (D9): an add moves no day until it
  *   lands, and the landing is the selection's, which publishes it.
@@ -203,7 +205,7 @@ class AddedLibrariesRunner(
                 walkAgain =
                     when (val landing = land(key)) {
                         Landing.WalkAgain -> {
-                            if (++unproven > config.unprovenWalks) return given("AddLandingUnproven")
+                            if (++unproven > config.unprovenWalks) return given("AddLandingUnproven", key, hold = false)
                             true
                         }
 
@@ -221,14 +223,16 @@ class AddedLibrariesRunner(
         // Whether this row takes the add's writes: its stamp, and no hold.
         private fun StoredLibrary.takes(key: AddKey): Boolean = addStamp == key.stamp && heldUntilMs == null
 
-        // Reports [line] and moves on. With [key], that stamp is given up for the life of the process, and the
-        // selection is told, so it shows the add as stalled.
+        // Reports [line] and moves on. With [key], the selection is told the add ends here still stored, so it shows
+        // it as stalled rather than as being added; with [hold], that stamp is also given up for the life of the
+        // process (an unproven add is not: a later run of the pass walks it again).
         private suspend fun given(
             line: String,
             key: AddKey? = null,
+            hold: Boolean = true,
         ): Step {
             if (key != null) {
-                givenUp += key
+                if (hold) givenUp += key
                 landings.addGivenUp(account, key.id, key.stamp)
             }
             report(line)
@@ -302,6 +306,8 @@ class AddedLibrariesRunner(
                 landings.reconcile()
                 return Step.Again
             }
+            // Still named after its one reconcile: the add ends this run still stored, so the selection is told.
+            if (named) landings.addGivenUp(account, key.id, key.stamp)
             return Step.Next
         }
 
