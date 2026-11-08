@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -32,6 +34,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
@@ -44,9 +47,14 @@ import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
 import tv.stationbreak.feature.guide.GuideModel
+import tv.stationbreak.feature.guide.GuideRow
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.SLOT_MS
 import tv.stationbreak.feature.guide.indexOf
+import tv.stationbreak.feature.guide.markBandOf
+import tv.stationbreak.feature.guide.ui.mark.ChannelMark
+import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
+import tv.stationbreak.feature.guide.ui.mark.LocalMarkTextMeasurer
 import java.time.Instant
 import java.time.ZoneId
 
@@ -82,6 +90,7 @@ private const val PLATE_NEAR_SHADOW_ALPHA = 0.28f
 private const val PLATE_FAR_SHADOW_ALPHA = 0.14f
 private val PlateBarInset = 6.dp
 private val LabelGap = 6.dp
+private const val MARK_LOOKAHEAD = 2
 
 /**
  * The clock strip over [GUIDE_VISIBLE_ROWS] rows from [firstVisibleRow] (the vertical window the model chooses),
@@ -102,7 +111,16 @@ internal fun GuideGrid(
     modifier: Modifier = Modifier,
 ) {
     val last = minOf(firstVisibleRow + GUIDE_VISIBLE_ROWS, model.rows.size)
+    // Ask for the logos of the rows in view and two more each side; request only schedules work on the cache's own
+    // dispatcher, so nothing is read or decoded here.
+    val marks = LocalMarkCache.current
+    LaunchedEffect(model, firstVisibleRow, marks) {
+        val from = maxOf(0, firstVisibleRow - MARK_LOOKAHEAD)
+        val to = minOf(model.rows.size, last + MARK_LOOKAHEAD)
+        marks?.request((from until to).mapNotNull { model.rows[it].markKey })
+    }
     val ellipsis = rememberEllipsisMarks()
+    val markText = rememberTextMeasurer()
     val colors = LocalGuideColors.current
     Box(
         modifier
@@ -111,14 +129,14 @@ internal fun GuideGrid(
             .focusedRowTint(model, firstVisibleRow, focusOf, colors)
             .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
     ) {
-        CompositionLocalProvider(LocalEllipsisMarks provides ellipsis) {
+        CompositionLocalProvider(LocalEllipsisMarks provides ellipsis, LocalMarkTextMeasurer provides markText) {
             Column {
                 ClockStrip(nowOf, viewportOf, geometry)
                 for (index in firstVisibleRow until last) {
                     val row = model.rows[index]
                     key(row.channel) {
                         Row(Modifier.height(RowHeight)) {
-                            ChannelCell(row.number, row.name, playing = row.channel == current)
+                            ChannelCell(row, playing = row.channel == current)
                             GuideRowCells(
                                 row.channel,
                                 row.cells,
@@ -177,14 +195,13 @@ private fun GuideRowCells(
 
 /**
  * The channel column: a raised plate inside it (inset [PlateInset] each side, so the column's width is unchanged), with
- * the number, then the name, each cut with an ellipsis when it does not fit. A bar at the plate's left edge marks the
- * channel playing. The plate is a lit top edge, a vertical gradient and two flat offset shadows (no blur). The row wash
- * and the orange tick are drawn on the grid, so a focus move does not recompose this cell.
+ * the mark, the number, then the name, each cut with an ellipsis when it does not fit. A bar at the plate's left edge
+ * marks the channel playing. The plate is a lit top edge, a vertical gradient and two flat offset shadows (no blur).
+ * The row wash and the orange tick are drawn on the grid, so a focus move does not recompose this cell.
  */
 @Composable
 private fun ChannelCell(
-    number: Int,
-    name: String,
+    row: GuideRow,
     playing: Boolean,
 ) {
     val colors = LocalGuideColors.current
@@ -196,8 +213,15 @@ private fun ChannelCell(
             .padding(start = PlateInset + 8.dp, end = PlateInset + 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        ChannelMark(
+            row.markKey,
+            row.initials,
+            markBandOf(row.number),
+            Modifier.testTag(GuideTags.channelMark(row.channel)),
+        )
+        Spacer(Modifier.width(LabelGap))
         Text(
-            text = number.toString(),
+            text = row.number.toString(),
             modifier = Modifier.width(NumberWidth),
             style = guideFigures(17.sp, FontWeight.SemiBold),
             color = colors.plateNumber,
@@ -205,8 +229,9 @@ private fun ChannelCell(
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
+        Spacer(Modifier.width(LabelGap))
         Text(
-            text = name,
+            text = row.name,
             style = guideText(18.sp, FontWeight.Medium),
             color = colors.plateName,
             maxLines = 1,

@@ -27,6 +27,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.DpRect
@@ -39,6 +40,8 @@ import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.GuideViewModel
+import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
+import tv.stationbreak.feature.guide.ui.mark.MarkCaches
 
 /**
  * The program guide (spec 17), drawn by live TV over its picture while the guide is open: live owns whether it shows,
@@ -66,7 +69,10 @@ fun GuideDestination(
     val viewModel: GuideViewModel = hiltViewModel()
     val themes = rememberGuideThemeStore()
     val theme by themes.theme.collectAsStateWithLifecycle()
-    CompositionLocalProvider(LocalGuideColors provides theme.colors) {
+    CompositionLocalProvider(
+        LocalGuideColors provides theme.colors,
+        LocalMarkCache provides MarkCaches.get(LocalContext.current),
+    ) {
         GuideRoot(
             viewModel,
             opening,

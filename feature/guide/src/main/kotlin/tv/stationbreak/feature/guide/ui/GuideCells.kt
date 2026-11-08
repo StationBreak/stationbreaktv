@@ -58,7 +58,10 @@ import java.time.ZoneId
 
 private val CellInset = 1.dp
 private val MinCellWidth = 20.dp
-private val CompactBelow = 80.dp
+
+// A 10-minute cell (kids' shorts) keeps its title: 696 dp over 90 minutes is 7.73 dp a minute, so it is 77.3 dp wide;
+// a 9-minute cell (69.6 dp) is still compact, as before in minutes.
+private val CompactBelow = 77.dp
 
 /**
  * The least of a cell in view that has room for a "…". Budget: the glyph is about 16 dp wide at 16 sp, up to about

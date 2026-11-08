@@ -50,3 +50,14 @@ the four static Manrope weights from github.com/googlefonts/manrope at a pinned 
   vendored assets. So a new bundled asset has its licence checked by hand at review (security review), and is recorded
   the same way: a provenance file next to it, and its licence text shipped in the APK.
 - **Later.** If an in-app open-source licences screen is added, these assets appear on it.
+
+## Update 2026-11-07: the channel logo pack is project art
+
+The app bundles 97 fictional station logos (`feature/guide/src/main/assets/channelmarks/`) made for this project by its
+AI-assisted design partner under the owner's direction. They are not third-party art.
+
+- **Decision (decided by the owner, 2026-11-07): the channel logo pack is the project's own art, under the project
+  licence** (GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore). The 2026-10-23 rule for third-party assets does
+  not apply to it.
+- **Where things are.** Provenance (source commit, files taken, how to refresh) is in `feature/guide/CHANNELMARKS.md`;
+  the file hashes are in `feature/guide/channelmarks.sha256`.

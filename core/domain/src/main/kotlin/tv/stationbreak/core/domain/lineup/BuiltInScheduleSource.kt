@@ -1333,6 +1333,7 @@ private fun ChannelDay.airing(atMs: Long) =
         epochStart = Instant.fromEpochMilliseconds(epochStartMs),
         hidden = hiddenAt(atMs),
         ceilingRank = ceilingRank,
+        recipeKey = channel.source.recipeKey(),
     )
 
 private fun ScheduleBlock.toAiring(info: Map<CanonicalId, ProgramInfo>): AiringBlock =

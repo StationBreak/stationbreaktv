@@ -42,6 +42,21 @@ internal fun LineupChannel.summary(
     shelfReason = shownShelfReason(nowMs),
 )
 
+// The catalog recipe key of a starter or leftovers channel; a custom or unusable one has none. No else, so a new source
+// decides.
+internal fun ChannelSource.recipeKey(): String? =
+    when (this) {
+        is ChannelSource.Starter -> recipeKey
+
+        is ChannelSource.Leftovers -> recipeKey
+
+        is ChannelSource.Custom -> null
+
+        // An unreadable channel is not shown as a healthy built-in, so it has no key even when its id belongs to a
+        // catalog channel (its name still comes from the catalog).
+        is ChannelSource.Unusable -> null
+    }
+
 // A shelved channel's reason, or the one the planner stored when it set a leave that is yet to come: a channel on the
 // air today that goes at the next day start. A channel that starts at the next day start has none.
 private fun LineupChannel.shownShelfReason(nowMs: Long): ShelfReason? {
