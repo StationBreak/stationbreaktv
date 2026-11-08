@@ -265,10 +265,11 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   - **Coverage.** A library's `coveredFromMs` is the earliest moment its next incremental pass must read from (an add
     or a rewalk that landed, a hold placed); the pass that walks it clears it.
   - **The generation** moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after
-    its walk wrote rows), and for a page only for a field the scheduler or the rules read: an item's in a library that
+    its walk wrote rows; a library that holds no row goes without a bump), and for a page only for a field the scheduler or the rules read: an item's in a library that
     is not being added, and a series' in any library (episodes of other libraries read a series row by its id). A
-    provider-id-only change, a tick and an add's item pages never move it. When the clock is past the purge's
-    forward-jump guard, no hold expires. A page rewrites an item's genre, tag or studio rows only when that list
+    provider-id-only change, a tick and an add's item pages never move it. When the clock is further past the
+    last successful sync than a hold lasts (the pause hold, 60 minutes by default), no hold expires, so a forward jump
+    cannot end one early. A page rewrites an item's genre, tag or studio rows only when that list
     changed. Provider ids are stored as `key=value;key=value`, keys sorted, and are never logged.
 - **The add pass and the rewalk (spec 26).** `LibraryPass` is the one walk of a library (pages from the checkpoint,
   the catch-up of what changed since the walk began, the series and the hidden series), with three uses: the first

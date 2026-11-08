@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.lineup.ProgramInfo
+import tv.stationbreak.core.domain.lineup.repair.DEFAULT_PAUSE_HOLD
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionNames
@@ -32,6 +33,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -86,6 +88,7 @@ class RoomLibraryRepository internal constructor(
     private val sync: SyncControl = SyncControl.None,
     private val retention: HistoryRetention = HistoryRetention(),
     internal val collectionRelist: CollectionRelist = CollectionRelist(),
+    private val holdClockGuard: Duration = DEFAULT_PAUSE_HOLD,
 ) : LibraryRepository {
     internal val dao =
         db.dao().also { dao ->
@@ -342,8 +345,9 @@ class RoomLibraryRepository internal constructor(
             addStamps.mapKeys { it.key.value },
             holds.mapKeys { it.key.value },
             nowMs,
-            // The purge's forward-jump guard (clockLooksWrong): past it, no hold expires.
-            retention.millis - HistoryRetention.SAFE_LOOKBACK_MS,
+            // The hold-expiry clock guard, sized to a hold: past it, no hold expires (a forward jump would end one
+            // early by at most its pause, never inside the pinned programme).
+            holdClockGuard.inWholeMilliseconds,
         )
     }
 

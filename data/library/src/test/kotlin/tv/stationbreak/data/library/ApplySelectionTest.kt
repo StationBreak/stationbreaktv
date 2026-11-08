@@ -13,12 +13,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.ListLibrarySource
+import tv.stationbreak.core.domain.lineup.repair.DEFAULT_PAUSE_HOLD
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.data.library.SyncWorld.movies
 import tv.stationbreak.data.library.SyncWorld.session
 import tv.stationbreak.data.library.SyncWorld.shows
+import kotlin.time.Duration.Companion.hours
 
 /**
  * Spec 26, Part 3: `applySelection` is the one writer of the cached library set. A library in `keep` has no hold; any
@@ -554,7 +556,8 @@ class ApplySelectionTest {
             assertEquals(before + 1, generation())
         }
 
-    // Fix round 2 (Vimes). The purge's forward-jump guard: a clock far past the last success expires no hold.
+    // Fix round 2 (Vimes), resized in Task 4.5 (binding item 5): the hold-expiry clock guard is the pause hold, not
+    // the purge's 27 days. A clock further past the last success than that expires no hold; at the guard, it does.
     @Test
     fun aClockFarAheadOfTheLastSuccessExpiresNoHoldAndANormalLaterCallDoes() =
         runBlocking {
@@ -564,7 +567,7 @@ class ApplySelectionTest {
             val until = clock.nowMs + 60_000
             apply(setOf(MOVIES), holds = mapOf(SHOWS to until))
             val before = generation()
-            val guard = HistoryRetention().millis - HistoryRetention.SAFE_LOOKBACK_MS
+            val guard = DEFAULT_PAUSE_HOLD.inWholeMilliseconds
             val lastSuccess = clock.nowMs
 
             clock.atMs(lastSuccess + guard + 1)
@@ -577,6 +580,73 @@ class ApplySelectionTest {
             apply(setOf(MOVIES))
             assertNull("at the guard the clock is trusted, and the hold has ended", row(SHOWS))
             assertEquals(before + 1, generation())
+        }
+
+    // Binding item 5 (Task 4.5): a forward jump of a few hours, far short of the purge's 27 days but longer than a
+    // hold, does not end a hold early.
+    @Test
+    fun aForwardJumpLongerThanAHold_butShortOfThePurgeGuard_expiresNoHold() =
+        runBlocking {
+            apply(setOf(MOVIES, SHOWS))
+            fill(SHOWS, 2)
+            repository.finishSync(ALICE)
+            val until = clock.nowMs + DEFAULT_PAUSE_HOLD.inWholeMilliseconds
+            apply(setOf(MOVIES), holds = mapOf(SHOWS to until))
+            val before = generation()
+
+            clock.stepMs(3.hours.inWholeMilliseconds)
+            apply(setOf(MOVIES))
+
+            assertEquals("the hold is kept", until, row(SHOWS)?.heldUntilMs)
+            assertEquals("and its rows", 1, storedIn(SHOWS).size)
+            assertEquals(before, generation())
+        }
+
+    // Binding item 6 (Task 4.5): unticking a library still pending with no rows (set up, never walked) changes no
+    // day, so it moves no generation.
+    @Test
+    fun unticking_aPendingLibraryWithNoRows_movesNoGeneration() =
+        runBlocking {
+            apply(setOf(MOVIES, SHOWS))
+            fill(MOVIES, 1)
+            val before = generation()
+
+            apply(setOf(MOVIES))
+
+            assertNull(row(SHOWS))
+            assertEquals(before, generation())
+        }
+
+    // Binding item 6 (Task 4.5): an add that was held (so it lost its stamp) and expires with no rows moves no
+    // generation; one with rows still does.
+    @Test
+    fun aHeldAddExpiringWithNoRows_movesNoGeneration_oneWithRowsDoes() =
+        runBlocking {
+            apply(setOf(MOVIES))
+            fill(MOVIES, 1)
+            apply(setOf(MOVIES, SHOWS, extra), addStamps = mapOf(SHOWS to 3L, extra to 3L))
+            repository.writePage(
+                ALICE,
+                extra,
+                stamp = 3L,
+                rewalk = false,
+                listOf(sitem(4, library = extra)),
+                1,
+                1,
+                run = clock.nowMs,
+            )
+            apply(setOf(MOVIES), holds = mapOf(SHOWS to clock.nowMs + 1_000, extra to clock.nowMs + 2_000))
+            val before = generation()
+
+            clock.stepMs(1_000)
+            apply(setOf(MOVIES))
+            assertNull(row(SHOWS))
+            assertEquals("a held add with no rows", before, generation())
+
+            clock.stepMs(1_000)
+            apply(setOf(MOVIES))
+            assertNull(row(extra))
+            assertEquals("a held add with rows", before + 1, generation())
         }
 
     // Fix round 2 (Vimes). A series listed in two libraries has one row, in the library that wrote it last; dropping

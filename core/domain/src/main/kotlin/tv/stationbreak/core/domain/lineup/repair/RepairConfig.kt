@@ -9,6 +9,12 @@ private const val DEFAULT_MARGIN_KIB = 64
 private const val KIB = 1024
 
 /**
+ * The default [RepairConfig.pauseHold]: how long a library stays held after its last pinned programme ends. Public so
+ * the library cache can size its hold-expiry clock guard to it (spec 26, Task 4.5).
+ */
+val DEFAULT_PAUSE_HOLD: Duration = DEFAULT_PAUSE_HOLD_MINUTES.minutes
+
+/**
  * The tunables of the repair engine (spec 26), as named defaults and safe starting values. One instance serves the
  * service's saves of the record and the repairer (`LineupSeams.repairConfig`, read by `TodayRepairer.config`). They
  * are per TV, as the record is: [maxFixes] and [fileMargin] decide what a full record drops, and so can change what a
@@ -21,7 +27,7 @@ private const val KIB = 1024
  *   to refuse a save of the record.
  */
 internal data class RepairConfig(
-    val pauseHold: Duration = DEFAULT_PAUSE_HOLD_MINUTES.minutes,
+    val pauseHold: Duration = DEFAULT_PAUSE_HOLD,
     val maxFixes: Int = 256,
     val fileMargin: Int = DEFAULT_MARGIN_KIB * KIB,
 )
