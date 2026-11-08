@@ -33,6 +33,7 @@ import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -121,6 +122,14 @@ internal class WatchedSettings(
     @Volatile var failSaves = 0
 
     @Volatile var falseAfterWriting = 0
+
+    /** How many times the selection was read. */
+    val loads = AtomicInteger()
+
+    override suspend fun loadSelection(): StoredSelection? {
+        loads.incrementAndGet()
+        return inner.loadSelection()
+    }
 
     override suspend fun saveSelection(
         selection: StoredSelection,

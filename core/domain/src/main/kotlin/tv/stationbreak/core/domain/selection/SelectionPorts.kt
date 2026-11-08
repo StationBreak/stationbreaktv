@@ -18,12 +18,18 @@ enum class LandResult {
     Unproven,
 
     /**
-     * Not landed now, nothing written: the save did not commit (`Unsaved`, `UndoFailed`, `Refused` by the record), the
-     * lineup or the record moved twice running (`Stale`), the saved selection could not be read (`SelectionUnknown`),
-     * or the seq had already been saved (`AlreadySaved`). Not every one of those is a passing fault: the add pass caps
-     * its retries (Task 4.4b).
+     * Not landed now, nothing written, for a passing fault: the save did not commit (`Unsaved`, `UndoFailed`, a plain
+     * save that did not commit, a record that could not be read), or the lineup or the record moved twice running
+     * (`Stale`). The add pass tries again, a few times per stamp, waiting longer each time (Task 4.4b).
      */
     Retry,
+
+    /**
+     * Not landed, nothing written, and trying again in this process would not change that: the record refused the
+     * write (`Refused`), the saved selection could not be read (`SelectionUnknown`), or the seq had already been saved
+     * (`AlreadySaved`). The add pass stops trying this stamp; the next start's resume asks again.
+     */
+    Failed,
 }
 
 /**

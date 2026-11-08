@@ -62,6 +62,9 @@ enum class SelectionEvent {
 
     /** The seq could not be raised above the cache's stamps at start; the next operation's floor covers it. */
     RaiseSkipped,
+
+    /** The add pass could not be asked for after a committed write (the write stands; the next start asks again). */
+    RestartFailed,
 }
 
 /**
@@ -148,15 +151,18 @@ class LibrarySelection(
 
     // Refused from inside a repairer turn or this lock; waits for the resume; then under the lock, to its end, with
     // the cache put in line first when an earlier write left it behind.
+    // [fromAddPass]: the add pass is the caller, inside its own worker, so the catch-up does not ask for the add pass
+    // (that would replace the very worker that called): the worker reads the adds again itself.
     private suspend fun <T> locked(
         catchUpFirst: Boolean = true,
+        fromAddPass: Boolean = false,
         block: suspend () -> T,
     ): T {
         refuseReentry()
         resumed.await()
         return mutex.withLock {
             withContext(NonCancellable + InSelection) {
-                if (catchUpFirst && roomBehind) catchUp()
+                if (catchUpFirst && roomBehind) catchUp(restartPasses = !fromAddPass)
                 block()
             }
         }
@@ -228,7 +234,7 @@ class LibrarySelection(
         val saved =
             when (val outcome = allocate(account, stored, repaired, next)) {
                 Allocated.Stale -> return null
-                Allocated.Failed -> return ChangeResult.Failed
+                is Allocated.Failed -> return ChangeResult.Failed
                 is Allocated.Saved -> next(outcome.seq)
             }
         afterSave(account, stored, saved)
@@ -264,10 +270,10 @@ class LibrarySelection(
                 }
             if (outcome !is RepairOutcome.Saved) return@locked SetupResult.Failed
             // Any add under way was of the old choice. The save has committed: what follows cannot fail the setup.
-            followUp { passes.restart() }
+            followUp(SelectionEvent.SetupFollowUpFailed) { passes.restart() }
             room { branches(account, ids, library.storedLibraries(account)) }
             // The same account, its first sync long finished: nothing else would read the new libraries.
-            followUp { firstSync.ensureRunning() }
+            followUp(SelectionEvent.SetupFollowUpFailed) { firstSync.ensureRunning() }
             publish(store.loadSelection())
             SetupResult.Saved
         }
@@ -280,7 +286,7 @@ class LibrarySelection(
             val cleared = store.clearLibraries()
             // The caller goes on (a sign-in, a switch of user); the picker's Done clears again before its setup.
             if (!cleared) report(SelectionEvent.ClearFailed)
-            passes.restart()
+            restartPasses()
             publish(store.loadSelection())
             cleared
         }
@@ -298,7 +304,7 @@ class LibrarySelection(
         id: ItemId,
         stamp: Long,
     ): LandResult =
-        locked {
+        locked(fromAddPass = true) {
             if (activeAccount() != account) return@locked LandResult.NotCurrent
             landOnce(account, id, stamp) ?: landOnce(account, id, stamp) ?: LandResult.Retry
         }
@@ -323,7 +329,7 @@ class LibrarySelection(
         val saved =
             when (val outcome = allocate(account, stored, after, next)) {
                 Allocated.Stale -> return null
-                Allocated.Failed -> return LandResult.Retry
+                is Allocated.Failed -> return if (outcome.terminal) LandResult.Failed else LandResult.Retry
                 is Allocated.Saved -> next(outcome.seq)
             }
         room {
@@ -351,9 +357,12 @@ class LibrarySelection(
             stored.chosen
         }
 
-    /** Puts the library cache in line with the stored selection (the add pass calls it after a refused write). */
+    /**
+     * Puts the library cache in line with the stored selection (the add pass calls it after a refused write). It does
+     * not ask for the add pass: the caller is that pass, which reads the adds again itself.
+     */
     override suspend fun reconcile() {
-        locked(catchUpFirst = false) { catchUp() }
+        locked(catchUpFirst = false, fromAddPass = true) { catchUp(restartPasses = false) }
     }
 
     // --- The server's listing ---------------------------------------------------------------------------------------
@@ -496,9 +505,9 @@ class LibrarySelection(
 
     // Puts the cache in line, outside the resume: a failure is reported and leaves it behind for the next operation.
     @Suppress("TooGenericExceptionCaught") // Whatever the cache throws, the operation goes on from the settings.
-    private suspend fun catchUp() {
+    private suspend fun catchUp(restartPasses: Boolean) {
         try {
-            activeAccount()?.let { reconcileRoom(it) }
+            activeAccount()?.let { reconcileRoom(it, restartPasses) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -509,20 +518,29 @@ class LibrarySelection(
     // Resume step 3: the chosen libraries branched, the cache written from the stored selection, and the passes and
     // the first sync asked for when there is work. An add whose row the cache would refuse a stamp (one read with no
     // stamp, whose untick never reached the cache, or one set back) is not dropped from the adds: the cache write
-    // holds it first and then stamps it, so the viewer's tick stands and nothing loops.
-    private suspend fun reconcileRoom(account: LibraryAccount) {
+    // holds it first and then stamps it, so the viewer's tick stands and nothing loops. [restartPasses] is false when
+    // the add pass itself is the caller.
+    private suspend fun reconcileRoom(
+        account: LibraryAccount,
+        restartPasses: Boolean = true,
+    ) {
         val stored = store.loadSelection()
         if (stored == null) {
             // Nothing chosen: nothing to put in line.
             roomBehind = false
             return
         }
-        // Another account's choice never reaches this account's cache; it stays behind until a setup replaces it.
-        if (!owns(account, stored)) return
+        // Another account's choice never reaches this account's cache; it stays behind until a setup replaces it. There
+        // is nothing of it to put in line, so it is not looked at again on every call (the Insignia is slow).
+        if (!owns(account, stored)) {
+            roomBehind = false
+            return
+        }
         val changed = branches(account, stored.chosen, library.storedLibraries(account))
         applyRoom(account, stored, library.storedLibraries(account))
         roomBehind = false
-        if (stored.adding.isNotEmpty()) passes.restart()
+        // The cache is written: a restart that throws now must not skip the first sync's request below (D6).
+        if (stored.adding.isNotEmpty() && restartPasses) restartPasses()
         // A setup the process did not see to its end: the first sync was never asked for.
         if (library.storedLibraries(account).any { it.id in stored.chosen && it.isFreshPending() }) {
             firstSync.ensureRunning()
@@ -588,7 +606,7 @@ class LibrarySelection(
         saved: StoredSelection,
     ) {
         room { applyRoom(account, saved, library.storedLibraries(account)) }
-        if (saved.adding.keys != stored.adding.keys) passes.restart()
+        if (saved.adding.keys != stored.adding.keys) restartPasses()
         publish(saved)
     }
 
@@ -637,7 +655,11 @@ class LibrarySelection(
 
         data object Stale : Allocated
 
-        data object Failed : Allocated
+        // [terminal]: trying again in this process would not change it (the record refused, the saved selection could
+        // not be read, the seq was already saved).
+        data class Failed(
+            val terminal: Boolean,
+        ) : Allocated
     }
 
     // A save that moves the seq, through the repairer: with today's repair for the change to [after] when given, else
@@ -672,12 +694,14 @@ class LibrarySelection(
 
             RepairOutcome.NoLineup -> null
 
-            RepairOutcome.Refused,
             RepairOutcome.Unsaved,
             RepairOutcome.UndoFailed,
+            -> Allocated.Failed(terminal = false)
+
+            RepairOutcome.Refused,
             RepairOutcome.SelectionUnknown,
             RepairOutcome.AlreadySaved,
-            -> Allocated.Failed
+            -> Allocated.Failed(terminal = true)
         }
 
     // A save with no lineup to repair: only when the disk holds no record this build could show (none yet, one set
@@ -688,12 +712,13 @@ class LibrarySelection(
         atLeast: Long,
         next: (Long) -> StoredSelection,
     ): Allocated {
+        // The record could not be read, or exists and is not loaded as writable yet: both may pass.
         val floor = service.floorRecord(account) as? RecordReset.Floor
-        if (floor == null || floor.record) return Allocated.Failed
+        if (floor == null || floor.record) return Allocated.Failed(terminal = false)
         // Over a newer app's file, one seq is skipped, as in the resume's raise (D17).
         val seq = maxOf(stored.seq + 1, atLeast, floor.seq + 1) + if (floor.newer) 1 else 0
         val selection = next(seq).let { if (floor.newer) it.copy(resetSeq = seq) else it }
-        return if (commit(seq, selection, account)) Allocated.Saved(seq) else Allocated.Failed
+        return if (commit(seq, selection, account)) Allocated.Saved(seq) else Allocated.Failed(terminal = false)
     }
 
     // One above the highest add stamp in the cache: no seq may equal a stamp left there.
@@ -737,17 +762,24 @@ class LibrarySelection(
         }
     }
 
-    // A step after a committed setup save (D6): a failure is reported and does not undo or fail the setup.
-    @Suppress("TooGenericExceptionCaught") // Whatever the step throws, the setup is saved.
-    private inline fun followUp(block: () -> Unit) {
+    // A step after a committed write (D6): a failure is reported as [event] and does not undo or fail the write, nor
+    // skip what follows it.
+    @Suppress("TooGenericExceptionCaught") // Whatever the step throws, the write is saved.
+    private inline fun followUp(
+        event: SelectionEvent,
+        block: () -> Unit,
+    ) {
         try {
             block()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            report(SelectionEvent.SetupFollowUpFailed)
+            report(event)
         }
     }
+
+    // Asks for the add pass after a committed write; a request that throws is reported (the next start asks again).
+    private fun restartPasses() = followUp(SelectionEvent.RestartFailed) { passes.restart() }
 
     // Publishes the selection to features, and its seq to the refresher (never back).
     private fun publish(stored: StoredSelection?) {
