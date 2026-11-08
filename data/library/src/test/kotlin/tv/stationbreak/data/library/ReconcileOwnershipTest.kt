@@ -240,6 +240,63 @@ class ReconcileOwnershipTest {
             assertNull("not tombstoned into a held library", repository.rowOf(ALICE, 1)!!.deletedAtMs)
         }
 
+    // Review LOW-3: between L's read and L's write, M takes L's tombstone and tombstones it again. L's revive must not
+    // bring it back under M (M's listing dropped it): L takes it over, as a listed tombstone another library owns.
+    @Test
+    fun reconcile_revive_onlyOfTheListersOwnTombstone() =
+        runBlocking {
+            repository.applySelection(ALICE, chosen, nowMs = clock.nowMs)
+            repository.put(ALICE, SHOWS, sitem(1, library = SHOWS), sitem(3, library = SHOWS))
+            repository.tombstone(ALICE, listOf(id(1)))
+            lists(showsSource, SHOWS, 1, 3)
+            var raced = false
+            server.respond = { call ->
+                val itemIds = call.idsOnly && !call.series && call.library.id == SHOWS
+                if (!raced && itemIds) {
+                    raced = true
+                    runBlocking {
+                        repository.put(ALICE, MOVIES, sitem(1))
+                        repository.tombstone(ALICE, listOf(id(1)))
+                    }
+                }
+                null
+            }
+
+            val outcome = StayCurrentWorld.engine(repository, server, clock).reconcile(session, ALICE, setOf(SHOWS))
+
+            assertEquals(SyncOutcome.Completed, outcome.outcome)
+            val row = repository.rowOf(ALICE, 1)!!
+            assertEquals("never revived under the other owner", SHOWS.value, row.libraryId)
+            assertNull(row.deletedAtMs)
+            assertTrue(repository.movedVersioned(ALICE, 1, MOVIES))
+        }
+
+    // Review LOW-4: the summary counts what the write did, not what the pass read.
+    @Test
+    fun reconcileSummary_countsWhatWasWritten() =
+        runBlocking {
+            repository.applySelection(ALICE, chosen, nowMs = clock.nowMs)
+            repository.put(ALICE, MOVIES, sitem(1), sitem(2), sitem(4))
+            repository.put(ALICE, SHOWS, sitem(4, library = SHOWS))
+            lists(moviesSource, MOVIES, 2)
+            lists(showsSource, SHOWS, 4)
+            var raced = false
+            server.respond = { call ->
+                val itemIds = call.idsOnly && !call.series && call.library.id == MOVIES
+                if (!raced && itemIds) {
+                    raced = true
+                    // Another pass tombstones item 1 first: this write finds it already gone.
+                    runBlocking { repository.tombstone(ALICE, listOf(id(1))) }
+                }
+                null
+            }
+
+            val result = StayCurrentWorld.engine(repository, server, clock).reconcile(session, ALICE, setOf(MOVIES))
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(ReconcileSummary(tombstoned = 0, moved = 1), result.summary)
+        }
+
     // #495's write is guarded the same way, and tombstones only what each removed library still owns.
     @Test
     fun removedWrite_heldLibraryRefused_andOnlyOwnedRowsTombstoned() =

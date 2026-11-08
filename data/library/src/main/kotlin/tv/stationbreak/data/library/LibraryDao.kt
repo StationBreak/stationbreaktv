@@ -986,7 +986,9 @@ internal abstract class LibraryDao {
 
     /**
      * The library rows of the one writer of the account's library set (spec 26; CacheTransactionDao.applySelection is
-     * that writer, which moves the shared items and deletes [SelectionChange.deleted] after this). Every library in
+     * that writer, which moves the shared items and deletes [SelectionChange.deleted] after this). Only
+     * CacheTransactionDao.applySelection may call it: on its own it deletes nothing, so a library it drops would stay
+     * stored with its rows. It is not `protected` only because that transaction lives in another DAO. Every library in
      * [keep] is kept with no hold: a new one
      * is inserted pending, with its stamp from [addStamps] if it has one. A kept library given a stamp it did not have
      * (a new add, or the re-tick of a held or earlier library) is set pending and its checkpoint deleted, so the sync

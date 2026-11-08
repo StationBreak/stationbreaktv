@@ -3,6 +3,8 @@ package tv.stationbreak.data.library
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.ListLibrarySource
@@ -407,7 +409,11 @@ class SharedRowsPropertyTest {
             for ((library, ns) in listed) {
                 if (libs[library]?.cls != Cls.Chosen) continue
                 val live = ns.filter { items[it]?.deleted == false }
-                for (n in live) assertTrue("a listed live item lost its row", rows[hexId(n)]?.deletedAtMs == null)
+                for (n in live) {
+                    val row = rows[hexId(n)]
+                    assertNotNull("a live item a chosen library lists lost its row", row)
+                    assertNull("a live item a chosen library lists was tombstoned", row!!.deletedAtMs)
+                }
             }
             checkOwnerChanges(actual.mapValues { it.value.first })
         }

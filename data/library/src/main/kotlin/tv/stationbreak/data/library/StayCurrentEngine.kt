@@ -500,14 +500,14 @@ internal class StayCurrentEngine(
                     is Existing.Sound -> read.ids
                 }
             val gone = missing.filterKeys { it !in again }
-            val items = gone.values.flatMap { it.first }
             val series = gone.values.flatMap { it.second }
             val write = repository.applyRemoved(account, gone.mapValues { it.value.first }, series)
-            if (write == ReconcileApplied.Refused) {
+            if (write !is ReconcileApplied.Written) {
                 refused = true
                 return SyncOutcome.Cancelled
             }
-            reconciled += ReconcileSummary(tombstoned = items.size, seriesTombstoned = series.size)
+            // What the write tombstoned: an item another pass got to first is not counted.
+            reconciled += ReconcileSummary(tombstoned = write.tombstoned, seriesTombstoned = series.size)
             return null
         }
 
@@ -629,7 +629,7 @@ internal class StayCurrentEngine(
             }
             reconciled +=
                 ReconcileSummary(
-                    tombstoned = itemsGone.size - written.moved,
+                    tombstoned = written.tombstoned,
                     revived = items.returning.size + written.takenOver,
                     seriesTombstoned = seriesGone.size,
                     seriesRevived = seriesReturning.size,

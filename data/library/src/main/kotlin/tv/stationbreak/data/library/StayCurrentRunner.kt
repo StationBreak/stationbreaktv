@@ -380,7 +380,8 @@ private class Ran(
 // What a run's passes wrote, numbers only (#480): how many times the content generation moved while they ran (the
 // studios re-read after them logs its own BackfillWrote line), and the counts
 // behind it, so a device log shows which write moved it. The counts are inserted/updated for the incremental pass,
-// tombstoned/revived/fetched/seriesTombstoned/seriesRevived for the reconcile, and inserted/changed/revived/tombstoned
+// tombstoned/revived/fetched/seriesTombstoned/seriesRevived/moved for the reconcile (moved: items that went to a
+// library that still lists them; counts only, never ids), and inserted/changed/revived/tombstoned
 // for the collection pass; a pass that did not run is `none`. A generation that could not be read is `unknown`, and
 // one whose row was made again meanwhile (a sign-out) is `reset`.
 private fun wrote(
@@ -392,7 +393,7 @@ private fun wrote(
     val passed = ran.passed?.let { "${it.inserted}/${it.updated}" } ?: NONE
     val reconciled =
         ran.reconciled?.let {
-            "${it.tombstoned}/${it.revived}/${it.fetched}/${it.seriesTombstoned}/${it.seriesRevived}"
+            "${it.tombstoned}/${it.revived}/${it.fetched}/${it.seriesTombstoned}/${it.seriesRevived}/${it.moved}"
         } ?: NONE
     val collections = ran.collections?.let { "${it.inserted}/${it.changed}/${it.revived}/${it.tombstoned}" } ?: NONE
     return "StayCurrentWrote generation=$moved incremental=$passed reconcile=$reconciled collections=$collections"

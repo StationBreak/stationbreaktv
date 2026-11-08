@@ -149,7 +149,7 @@ class QuietOpenGenerationTest {
         assertEquals("the collection pass completed", SyncOutcome.Completed, runner.lastCollectionPass?.outcome)
         val incremental = if (plan.incremental) "0/0" else "none"
         assertEquals(
-            "StayCurrentWrote generation=0 incremental=$incremental reconcile=0/0/0/0/0 collections=0/0/0/0",
+            "StayCurrentWrote generation=0 incremental=$incremental reconcile=0/0/0/0/0/0 collections=0/0/0/0",
             lines.single { it.startsWith("StayCurrentWrote") },
         )
     }
@@ -176,7 +176,7 @@ class QuietOpenGenerationTest {
             runner.run(open)
 
             assertEquals(
-                "StayCurrentWrote generation=1 incremental=none reconcile=1/0/0/0/0 collections=0/0/0/0",
+                "StayCurrentWrote generation=1 incremental=none reconcile=1/0/0/0/0/0 collections=0/0/0/0",
                 lines.single { it.startsWith("StayCurrentWrote") },
             )
         }

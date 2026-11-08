@@ -427,18 +427,24 @@ internal abstract class CacheTransactionDao(
         nowMs: Long,
     ) {
         library.requireActive(serverId, userId)
-        if (reviveItemsIn(serverId, userId, ids, nowMs) > 0) library.bumpGeneration(serverId, userId)
+        if (reviveItemsIn(serverId, userId, ids, nowMs, ownedBy = null) > 0) library.bumpGeneration(serverId, userId)
     }
 
+    // The tombstones among [ids] revived at [nowMs]; with [ownedBy], only those that library owns (a reconcile revives
+    // its own tombstones: one another library took over meanwhile is that library's, and stays as it is).
     private suspend fun reviveItemsIn(
         serverId: String,
         userId: String,
         ids: List<String>,
         nowMs: Long,
+        ownedBy: String?,
     ): Int {
         var revived = 0
         for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES)) {
-            val rows = library.itemsByIds(serverId, userId, chunk).filter { it.deletedAtMs != null }
+            val rows =
+                library.itemsByIds(serverId, userId, chunk).filter {
+                    it.deletedAtMs != null && (ownedBy == null || it.libraryId == ownedBy)
+                }
             if (rows.isEmpty()) continue
             val rowIds = rows.map { it.itemId }
             val names = library.sideNames(serverId, userId, rowIds)
@@ -460,8 +466,8 @@ internal abstract class CacheTransactionDao(
      *    and its collection rows stay), or, with none, is tombstoned at [nowMs], only while the library still owns it;
      *    the series that are gone are tombstoned, and the member rows of the items left as its tombstones, and of those
      *    series, end (ADR-0015);
-     * 3. [betweenTombstonesAndRevives] (a test seam; null in the app), then its own tombstones that came back and the
-     *    series are revived, each with its version;
+     * 3. [betweenTombstonesAndRevives] (a test seam; null in the app), then its own tombstones that came back (only
+     *    while it still owns them) and the series are revived, each with its version;
      * 4. a listed tombstone another library owns is revived into this one (versioned), and its row here goes;
      * 5. the add half: a row for each listed item another library owns, the owner checked in the write.
      * The content generation moves once when an item or series row, or a member row, changed; a change to the
@@ -488,7 +494,7 @@ internal abstract class CacheTransactionDao(
         // Before the seam, so a fault there rolls back the tombstones and the cascade together.
         changed += supersedeMembersIn(serverId, userId, dropped.ended + seriesGone, nowMs)
         betweenTombstonesAndRevives?.invoke()
-        val revived = reviveItemsIn(serverId, userId, decisions.itemsReturning, nowMs)
+        val revived = reviveItemsIn(serverId, userId, decisions.itemsReturning, nowMs, ownedBy = libraryId)
         changed += revived + reviveSeriesIn(serverId, userId, decisions.seriesReturning, nowMs)
         val takenOver = takeOverIn(library, history, serverId, userId, libraryId, decisions.foreignListed, nowMs)
         for (chunk in decisions.alsoAdd.chunked(LibraryDao.MAX_VARIABLES)) {
