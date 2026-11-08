@@ -41,6 +41,7 @@ class CacheRebuildTest {
                 "collection_member",
                 "collection_sync",
                 "sync_meta",
+                "item_also_listed",
                 "item_studio",
                 "item_genre",
                 "item_tag",
@@ -54,8 +55,8 @@ class CacheRebuildTest {
     }
 
     @Test
-    fun theSchemaIsVersion10WithStudiosNamesProviderIdsHoldsAndTheBackfillFlag() {
-        assertEquals(10, LibraryDatabase.VERSION)
+    fun theSchemaIsVersion11WithStudiosNamesProviderIdsHoldsTheBackfillFlagAndTheRowLifecycle() {
+        assertEquals(11, LibraryDatabase.VERSION)
         val columns = SchemaFile.columnNames()
         assertTrue("premiereDate" in columns)
         assertTrue("runtimeMs" in columns)
@@ -77,6 +78,14 @@ class CacheRebuildTest {
         val library = tableBlock(text, "library")
         assertTrue(library.contains("`heldUntilMs` INTEGER,"))
         assertTrue(library.contains("`addStamp` INTEGER,"))
+        // Spec 26, schema 11: the walk's proof and the coverage are nullable, the rewalk mark defaults to 0.
+        assertTrue(library.contains("`walkedStamp` INTEGER,"))
+        assertTrue(library.contains("`rewalkPending` INTEGER NOT NULL DEFAULT 0"))
+        assertTrue(library.contains("`coveredFromMs` INTEGER,"))
+        val also = tableBlock(text, "item_also_listed")
+        assertTrue(also.contains("PRIMARY KEY(`serverId`, `userId`, `itemId`, `libraryId`)"))
+        assertTrue(also.contains("index_item_also_listed_serverId_userId_libraryId"))
+        assertTrue(tableBlock(text, "item").contains("index_item_serverId_userId_seriesId"))
         val meta = tableBlock(text, "sync_meta")
         assertTrue(meta.contains("`backfillPending` INTEGER NOT NULL DEFAULT 0"))
         val studio = tableBlock(text, "item_studio")

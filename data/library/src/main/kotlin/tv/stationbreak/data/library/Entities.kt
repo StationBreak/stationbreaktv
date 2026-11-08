@@ -20,7 +20,14 @@ import tv.stationbreak.core.model.CollectionMemberKind
  * library is held: unticked, but its rows kept until that moment (a repair of the days that used it reads them), and
  * null for a library in the chosen set. [addStamp] is set while the library is being added: ticked, but its rows not
  * yet in use, so nothing written to it moves the content generation; null for every other library. Only
- * `LibraryDao.applySelection` writes these two.
+ * `LibraryDao.applySelection` writes these two (and a landing or a revert clears the stamp).
+ *
+ * Schema 11 (spec 26, Part 4) adds the row's lifecycle. [walkedStamp] is the proof that the add walk under that stamp
+ * ended: set by `LibraryDao.markAddWalked`, and null whenever [addStamp] is null or changes (a new stamp, a hold, a
+ * landing and a revert all clear it). [rewalkPending] marks a chosen library whose unproven add was reverted
+ * (`LibraryDao.revertUnproven`): it is read again from the start with no stamp, and the mark goes when that walk ends.
+ * [coveredFromMs] is the earliest moment this library's next incremental pass must read from (a hold placed, an add
+ * walk's or a rewalk's run), and is cleared by the incremental pass that covered it.
  */
 @Entity(tableName = "library", primaryKeys = ["serverId", "userId", "libraryId"])
 internal data class LibraryEntity(
@@ -30,6 +37,42 @@ internal data class LibraryEntity(
     val fetched: Boolean,
     val heldUntilMs: Long? = null,
     val addStamp: Long? = null,
+    // No defaultValue on the two nullable columns: ADD COLUMN with no DEFAULT gives a null dflt_value, as Room expects.
+    val walkedStamp: Long? = null,
+    @ColumnInfo(defaultValue = "0") val rewalkPending: Boolean = false,
+    val coveredFromMs: Long? = null,
+)
+
+/**
+ * One more library that lists an item (spec 26, schema 11): an item row has one owner (`item.libraryId`), and every
+ * other library of the account that lists it has a row here. Created in schema 11 and written from Part 4's ownership
+ * task on. The primary key's prefix covers the item foreign key, as `item_version`'s and `item_genre`'s do; the
+ * library foreign key has its own index. Both cascade, so deleting the item or the library takes the row.
+ */
+@Entity(
+    tableName = "item_also_listed",
+    primaryKeys = ["serverId", "userId", "itemId", "libraryId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = ItemEntity::class,
+            parentColumns = ["serverId", "userId", "itemId"],
+            childColumns = ["serverId", "userId", "itemId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = LibraryEntity::class,
+            parentColumns = ["serverId", "userId", "libraryId"],
+            childColumns = ["serverId", "userId", "libraryId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["serverId", "userId", "libraryId"])],
+)
+internal data class ItemAlsoListedEntity(
+    val serverId: String,
+    val userId: String,
+    val itemId: String,
+    val libraryId: String,
 )
 
 /**
@@ -56,6 +99,8 @@ internal data class LibraryEntity(
             Index(value = ["serverId", "userId", "libraryId"]),
             // The per-account tombstone purge (spec 09, Unit 3).
             Index(value = ["serverId", "userId", "deletedAtMs"]),
+            // The episodes that name a series (spec 26, schema 11), for the add's narrower series bump.
+            Index(value = ["serverId", "userId", "seriesId"]),
         ],
 )
 internal data class ItemEntity(

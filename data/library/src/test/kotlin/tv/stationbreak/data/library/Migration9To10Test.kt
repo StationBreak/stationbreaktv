@@ -175,7 +175,7 @@ class Migration9To10Test {
         }
 
     @Test
-    fun theSchemaMatchesTheExportedTen() =
+    fun theSchemaMatchesTheExportedCurrentSchema() =
         runBlocking {
             val file = File(folder.root, "schema.db")
             SchemaFile.create(file, 9) { it.fill() }
@@ -198,7 +198,8 @@ class Migration9To10Test {
                         st.step()
                         st.getLong(0)
                     }
-                assertEquals(10L, version)
+                // The file goes on through every later migration, to the version the code declares.
+                assertEquals(LibraryDatabase.VERSION.toLong(), version)
             } finally {
                 connection.close()
             }
