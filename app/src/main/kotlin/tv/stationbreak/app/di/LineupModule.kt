@@ -191,7 +191,9 @@ internal object LineupModule {
         settings: ServerSettings,
     ): CatalogPicker {
         val libraries: suspend (LibraryAccount) -> List<Library>? = { serverLibraries(sessions, server, it) }
-        return LibraryCatalogPicker(library, libraries) { settings.loadPlayableLibraries() }
+        // The chosen libraries, not the playable ones: the picker takes null as "no filter", so a gone selection (nothing
+        // playable) would list every library on the server.
+        return LibraryCatalogPicker(library, libraries) { settings.loadLibraries() }
     }
 
     /** How features build channels (spec 22): through the service's lock, with the sources' words from the pickers. */
