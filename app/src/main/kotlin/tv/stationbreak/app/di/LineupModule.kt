@@ -28,7 +28,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.MediaServer
-import tv.stationbreak.core.domain.SelectionWriter
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StayCurrentRequests
@@ -336,8 +336,7 @@ internal object LineupModule {
     @Singleton
     @Suppress("LongParameterList") // What the selection writes and asks, one for one.
     fun librarySelection(
-        settings: ServerSettings,
-        writer: SelectionWriter,
+        store: SelectionStore,
         library: LibraryRepository,
         server: MediaServer,
         sessions: SessionRepository,
@@ -346,11 +345,10 @@ internal object LineupModule {
         source: BuiltInScheduleSource,
         firstSync: FirstSync,
         stayCurrent: StayCurrentRequests,
-        gate: ResumeGate,
+        @AppStart gate: ResumeGate,
     ): LibrarySelection =
         LibrarySelection(
-            settings,
-            writer,
+            store,
             library,
             server,
             { sessions.current.value },
@@ -360,9 +358,9 @@ internal object LineupModule {
             LibraryPasses.None,
             firstSync,
             stayCurrent,
+            gate,
             SelectionConfig(),
             Clock.System,
-            gate,
         ) { Log.i(TAG, it.name) }
 
     @Provides
@@ -383,8 +381,9 @@ internal object LineupModule {
     @Provides
     fun serverListings(selection: LibrarySelection): ServerListings = selection
 
-    /** The resume at start, which the app's start alone runs. */
+    /** The resume at start, which the app's start alone runs: qualified, so nothing else can inject it. */
     @Provides
+    @AppStart
     fun selectionResume(selection: LibrarySelection): SelectionResume = selection
 
     /**
@@ -394,10 +393,14 @@ internal object LineupModule {
      */
     @Provides
     @Singleton
+    @AppStart
     fun resumeGate(): ResumeGate = ResumeGate()
 
+    /** What features and workers wait on: the gate as a [SelectionReady] only, which cannot open it. */
     @Provides
-    fun selectionReady(gate: ResumeGate): SelectionReady = gate
+    fun selectionReady(
+        @AppStart gate: ResumeGate,
+    ): SelectionReady = gate
 
     /**
      * A stay-current run soon, for a library whose unproven add was set back to be read again (spec 26): the open

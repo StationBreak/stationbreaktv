@@ -198,7 +198,23 @@ class BenchSetup(
             }
         val ticked = LibraryDefaults.ticked(libraries)
         if (ticked.isEmpty()) return SetupReason.NO_LIBRARIES
-        return if (librarySetup.choose(ticked) == SetupResult.Saved) null else SetupReason.LIBRARIES_NOT_SAVED
+        // As the picker's Done does: a choice still stored (the clear above failed) is cleared once more.
+        val saved =
+            when (librarySetup.choose(ticked)) {
+                SetupResult.Saved -> {
+                    true
+                }
+
+                SetupResult.ChoiceStillStored -> {
+                    librarySetup.clear()
+                    librarySetup.choose(ticked) == SetupResult.Saved
+                }
+
+                SetupResult.Failed -> {
+                    false
+                }
+            }
+        return if (saved) null else SetupReason.LIBRARIES_NOT_SAVED
     }
 
     private companion object {

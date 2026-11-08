@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import tv.stationbreak.app.di.AppStart
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.selection.ResumeGate
@@ -47,13 +48,20 @@ class StationBreakApp :
 
         fun lineupRefresher(): LineupRefresher
 
-        fun selectionResume(): SelectionResume
-
-        fun resumeGate(): ResumeGate
-
         fun scheduleWarmer(): ScheduleWarmer
 
         fun deviceCapabilities(): DeviceCapabilitiesCache
+    }
+
+    /** The app's start's own reach into the graph: the selection's resume and the gate it opens, for nothing else. */
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    internal interface AppStartEntryPoint {
+        @AppStart
+        fun selectionResume(): SelectionResume
+
+        @AppStart
+        fun resumeGate(): ResumeGate
     }
 
     // Each time the app comes to the foreground (a launch, or returning from Home) keep the saved library current,
@@ -94,7 +102,8 @@ class StationBreakApp :
             // library cache, and every selection operation and library worker waits for it. Its gate opens however it
             // went, even when the selection could not be built.
             // The refresher then starts from the selection as resumed, so its start check plans that one.
-            resumeSelection({ graph.selectionResume() }, graph.resumeGate()) { Log.w(LINEUP_TAG, it) }
+            val start = EntryPointAccessors.fromApplication(this@StationBreakApp, AppStartEntryPoint::class.java)
+            resumeSelection({ start.selectionResume() }, start.resumeGate()) { Log.w(LINEUP_TAG, it) }
             graph.lineupRefresher().start(lineupScope)
         }
         // The codec probe walks the device's decoder list and takes seconds on a slow TV: do it now, off the main

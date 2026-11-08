@@ -17,7 +17,12 @@ enum class LandResult {
     /** The cache holds no proof that the add's read under this stamp ended: the add pass reads it again. */
     Unproven,
 
-    /** It could not be saved now (a passing fault): the add pass tries the landing again. */
+    /**
+     * Not landed now, nothing written: the save did not commit (`Unsaved`, `UndoFailed`, `Refused` by the record), the
+     * lineup or the record moved twice running (`Stale`), the saved selection could not be read (`SelectionUnknown`),
+     * or the seq had already been saved (`AlreadySaved`). Not every one of those is a passing fault: the add pass caps
+     * its retries (Task 4.4b).
+     */
     Retry,
 }
 
@@ -26,10 +31,10 @@ enum class LandResult {
  * the library cache to be put in line with the stored selection after a write the cache refused.
  */
 interface AddLandings {
-    /** Lands the add of [library] under [stamp] for [account]: saved as chosen, then landed in the cache. */
+    /** Lands the add of [id] under [stamp] for [account]: saved as chosen, then landed in the cache. */
     suspend fun passLanded(
         account: LibraryAccount,
-        library: ItemId,
+        id: ItemId,
         stamp: Long,
     ): LandResult
 

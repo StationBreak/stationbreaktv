@@ -29,7 +29,7 @@ internal class LibrarySelectionResumeTest : SelectionTestBase() {
             tv.selection.resumeAtStart()
 
             assertTrue(SelectionEvent.SelectionResumeFailed in tv.events || SelectionEvent.RoomBehind in tv.events)
-            withTimeout(5_000) { tv.selection.await() }
+            withTimeout(5_000) { tv.gate.await() }
             assertEquals(ChangeResult.Saved, withTimeout(5_000) { waiting.await() })
         }
 
@@ -73,8 +73,9 @@ internal class LibrarySelectionResumeTest : SelectionTestBase() {
     }
 
     @Test
-    fun anAddAlreadyReadWithNoStamp_isDroppedFromTheAdds_withANewSeq_andTheCacheLetsItGo() {
-        // Only a downgrade or a bug leaves this: an id being added whose row is fetched, with no stamp and no hold.
+    fun anAddAlreadyReadWithNoStamp_staysAnAdd_heldThenStamped() {
+        // An id being added whose row is fetched, with no stamp and no hold (an untick whose cache write never ran,
+        // then a re-tick, or a downgrade): the tick stands, and the cache write holds the row before it stamps it.
         val tv =
             Tv(
                 lineup = lineupOf(laughs),
@@ -85,10 +86,10 @@ internal class LibrarySelectionResumeTest : SelectionTestBase() {
         tv.resume()
 
         val stored = assertNotNull(tv.stored())
-        assertEquals(emptyMap(), stored.adding)
-        assertTrue(stored.seq > 2L)
-        assertNull(tv.row(libB), "outside the kept set, nothing on air: deleted, so a later tick meets a new row")
-        assertTrue(SelectionEvent.AddDropped in tv.events)
+        assertEquals(mapOf(libB to 2L), stored.adding)
+        assertEquals(2L, tv.row(libB)?.addStamp)
+        assertNull(tv.row(libB)?.heldUntilMs)
+        assertTrue(SelectionEvent.HeldBeforeStamp in tv.events)
     }
 
     @Test

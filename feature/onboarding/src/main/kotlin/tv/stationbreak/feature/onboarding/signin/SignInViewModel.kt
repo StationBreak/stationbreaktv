@@ -328,7 +328,8 @@ internal class SignInViewModel
                     if (saved == PersistOutcome.NotSaved) sessions.clear()
                     // A new sign-in starts the library choice again: another user's choice is not this one's, and a
                     // restart must ask for it instead of finding it done. Through the setup, under the selection's
-                    // lock, so no change of the old choice lands after it.
+                    // lock, so no change of the old choice lands after it. One that fails is reported by the selection,
+                    // and the sign-in goes on: the picker's Done clears again.
                     setup.clear()
                     saved
                 } ?: return

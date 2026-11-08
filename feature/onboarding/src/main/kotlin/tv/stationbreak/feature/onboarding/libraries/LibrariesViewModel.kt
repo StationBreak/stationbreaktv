@@ -76,7 +76,8 @@ internal data class LibrariesUiState(
 
 /**
  * The library picker (S0.5.4): lists the server's libraries, ticks every one except home videos (decision 7), and on
- * Done stores the choice through [LibrarySetup], beside the server record. The session it asks with comes from the
+ * Done stores the choice through [LibrarySetup], beside the server record. A choice still stored (a sign-in's clear
+ * that failed) is cleared once more first. The session it asks with comes from the
  * in-memory [SignedInHandOff]; with none (the process was restarted under the screen) the screen goes back to launch
  * routing, which restores it. Nothing here is logged.
  */
@@ -185,7 +186,21 @@ internal class LibrariesViewModel
         private suspend fun store(ids: Set<ItemId>): Boolean {
             val held = session
             if (held != null && settings.load() == null) settings.save(ServerRecord(held.address))
-            return setup.choose(ids) == SetupResult.Saved
+            return when (setup.choose(ids)) {
+                SetupResult.Saved -> {
+                    true
+                }
+
+                // The sign-in's clear did not reach the store: clear again, and ask once more.
+                SetupResult.ChoiceStillStored -> {
+                    setup.clear()
+                    setup.choose(ids) == SetupResult.Saved
+                }
+
+                SetupResult.Failed -> {
+                    false
+                }
+            }
         }
 
         /**

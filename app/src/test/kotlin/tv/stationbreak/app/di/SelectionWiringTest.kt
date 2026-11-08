@@ -38,7 +38,6 @@ class SelectionWiringTest {
         val repairer = TodayRepairer(service, source, library) { settings.loadSelectionSeq() }
         return LineupModule.librarySelection(
             settings,
-            settings,
             library,
             server,
             SessionRepository(InMemorySecretStore(), server),

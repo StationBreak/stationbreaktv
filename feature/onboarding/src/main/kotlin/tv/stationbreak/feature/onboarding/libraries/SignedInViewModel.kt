@@ -87,7 +87,8 @@ internal class SignedInViewModel
                 signedIn.clear()
                 sessions.signOut(session)
                 // The next user chooses their libraries afresh, so a restart can't find setup done for the last one.
-                // Through the setup, under the selection's lock, so no change of the old choice lands after it.
+                // Through the setup, under the selection's lock, so no change of the old choice lands after it. One
+                // that fails is reported by the selection, and the switch goes on: the picker's Done clears again.
                 setup.clear()
                 handOff.put(ConnectedServer(ResolvedServer(session.address, session.server), session.acknowledgement))
                 results.send(Unit)

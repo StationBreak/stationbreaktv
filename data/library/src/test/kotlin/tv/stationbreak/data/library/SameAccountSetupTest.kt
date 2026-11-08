@@ -21,6 +21,7 @@ import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
 import tv.stationbreak.core.domain.lineup.savedSelectionOf
 import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.LibrarySelection
+import tv.stationbreak.core.domain.selection.ResumeGate
 import tv.stationbreak.core.domain.selection.SetupResult
 import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.data.library.SyncWorld.movies
@@ -59,7 +60,6 @@ class SameAccountSetupTest {
             val repairer = TodayRepairer(service, source, repository) { settings.loadSelectionSeq() }
             LibrarySelection(
                 settings,
-                settings,
                 repository,
                 server,
                 { session },
@@ -69,6 +69,7 @@ class SameAccountSetupTest {
                 LibraryPasses.None,
                 firstSync,
                 StayCurrentRequests {},
+                ResumeGate(),
                 clock = clock,
             )
         }

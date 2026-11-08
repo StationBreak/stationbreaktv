@@ -158,15 +158,69 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
         assertEquals(3L, stored.resetSeq)
     }
 
-    // D5: a setup only ever follows a clear.
+    // D5: a setup only ever follows a clear; one over a stored choice says so, so its caller can clear again.
     @Test
-    fun aSetupOverAStoredChoice_isRefused() {
+    fun aSetupOverAStoredChoice_isRefused_asAChoiceStillStored() {
         val tv = Tv().ready(setOf(libA, libB))
         val stored = tv.stored()
 
-        assertEquals(SetupResult.Failed, runBlocking { tv.selection.choose(setOf(libA)) })
+        assertEquals(SetupResult.ChoiceStillStored, runBlocking { tv.selection.choose(setOf(libA)) })
 
         assertEquals(stored, tv.stored())
+    }
+
+    // Fix round 2, item 2: a failed clear is reported, and the next clear and setup go through.
+    @Test
+    fun aFailedClear_isReported_andTheNextClearThenSetupGoThrough() {
+        val tv = Tv().ready(setOf(libA, libB))
+        tv.settings.inner.failSave = true
+
+        assertFalse(runBlocking { tv.selection.clear() })
+        assertTrue(SelectionEvent.ClearFailed in tv.events)
+        assertEquals(SetupResult.ChoiceStillStored, runBlocking { tv.selection.choose(setOf(libA)) })
+
+        tv.settings.inner.failSave = false
+        assertTrue(runBlocking { tv.selection.clear() })
+        assertEquals(SetupResult.Saved, runBlocking { tv.selection.choose(setOf(libA)) })
+    }
+
+    // Fix round 2, item 1: the open half of D1, with a FETCHED row. A read chosen library is unticked (its cache
+    // write fails), ticked again (the catch-up and the hold write fail too), and the next operation must hold it,
+    // then stamp it, and keep the tick: the add stays in A.
+    @Test
+    fun aFetchedRow_unticked_thenTickedAgain_throughFailedCacheWrites_staysAnAdd_heldThenStamped() {
+        val tv = Tv().ready(setOf(libA, libB))
+        assertTrue(assertNotNull(tv.row(libB)).fetched)
+        tv.library.failApplies = 1
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA)))
+        tv.library.failApplies = 2
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB)))
+        val stamp = assertNotNull(tv.stored()).adding.getValue(libB)
+        val row = assertNotNull(tv.row(libB))
+        assertTrue(row.fetched && row.addStamp == null && row.heldUntilMs == null, "still the read chosen row")
+        val before = tv.library.applied.size
+
+        runBlocking { tv.selection.reconcile() }
+
+        assertEquals(mapOf(libB to stamp), assertNotNull(tv.stored()).adding, "the re-tick stands")
+        val writes = tv.library.applied.drop(before)
+        assertEquals(2, writes.size, "a hold, then the stamp")
+        assertFalse(libB in writes[0].keep)
+        assertEquals(stamp, writes[1].addStamps[libB])
+        assertEquals(stamp, tv.row(libB)?.addStamp)
+    }
+
+    // Fix round 2, item 5 (arch L3): a selection that never resumed (built after the start's resume failed, its gate
+    // opened by the start) puts the cache in line on its first operation.
+    @Test
+    fun aSelectionThatNeverResumed_catchesUpOnItsFirstOperation() {
+        val tv = Tv(chosen = setOf(libA), stored = StoredSelection(setOf(libA, libB), seq = 1L))
+        tv.stampInRoom(libB, 1L, setOf(libA))
+        tv.gate.open()
+
+        tv.listing(setOf(libA, libB))
+
+        assertEquals(listOf(libB to 1L), tv.library.reverted, "the unproven chosen row was branched")
     }
 
     // D6: once the setup's save has committed, a step after it that fails does not fail the setup.

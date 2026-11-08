@@ -16,9 +16,9 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.Missing
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.SelectionWriter
 import tv.stationbreak.core.domain.ServerResult
-import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.StoredLibrary
 import tv.stationbreak.core.domain.StoredSelection
@@ -45,8 +45,11 @@ enum class SelectionEvent {
     /** An add whose read was never proven to end was set back to be read again. */
     UnprovenReverted,
 
-    /** A library being added that was already read with no stamp was taken out of the adds. */
-    AddDropped,
+    /** No account is active in the library cache, so nothing was stored (a sign-in activates it, as a restore does). */
+    NoActiveAccount,
+
+    /** The choice could not be dropped (a sign-in or a switch of user goes on; the picker's Done clears again). */
+    ClearFailed,
 
     /** A row the cache would refuse a new stamp was held first, then stamped. */
     HeldBeforeStamp,
@@ -88,13 +91,13 @@ internal object InSelection : CoroutineContext.Element, CoroutineContext.Key<InS
  *
  * Its callers see it through narrow ports: features through [LibraryChoices] and [LibrarySetup], the add pass through
  * [AddLandings], the first sync through [FirstSyncLibraries], stay current through [ServerListings], and the app start
- * through [SelectionResume]. Its writes reach the settings through [SelectionWriter] alone. [resumed] is the gate the
- * app binds as [SelectionReady].
+ * through [SelectionResume]. Its writes reach the settings through [SelectionWriter] ([store]) alone. [resumed] is the
+ * gate the app binds as [SelectionReady]: the resume opens it, and the selection waits on it; the selection is not a
+ * [SelectionReady] itself, so nothing that waits can open it.
  */
 @Suppress("LongParameterList", "TooManyFunctions") // The stores and ports it writes, one for one; one per step.
 class LibrarySelection(
-    private val settings: ServerSettings,
-    private val writer: SelectionWriter,
+    private val store: SelectionStore,
     private val library: LibraryRepository,
     private val server: MediaServer,
     private val session: () -> Session?,
@@ -104,23 +107,24 @@ class LibrarySelection(
     private val passes: LibraryPasses,
     private val firstSync: FirstSync,
     private val stayCurrent: StayCurrentRequests,
+    private val resumed: ResumeGate,
     private val config: SelectionConfig = SelectionConfig(),
     private val clock: Clock = Clock.System,
-    private val resumed: ResumeGate = ResumeGate(),
     private val report: (SelectionEvent) -> Unit = {},
 ) : LibraryChoices,
     LibrarySetup,
     AddLandings,
     FirstSyncLibraries,
     ServerListings,
-    SelectionResume,
-    SelectionReady {
+    SelectionResume {
     private val mutex = Mutex()
     private val view = MutableStateFlow<ChoiceView?>(null)
     private val seqs = MutableStateFlow(0L)
 
-    // Set when a cache write failed after its save committed: the next operation reconciles the cache first.
-    @Volatile private var roomBehind = false
+    // Set until a resume or a catch-up has put the cache in line, and again when a cache write failed after its save
+    // committed: the next operation reconciles the cache first. It starts set, so an instance that never resumed (one
+    // built after the start's resume failed) catches up on its first operation.
+    @Volatile private var roomBehind = true
 
     // The libraries the last counted listing gave: a library may be added only if it was listed.
     @Volatile private var lastListed: Set<ItemId>? = null
@@ -132,9 +136,6 @@ class LibrarySelection(
      * once that save (and its cache write) is done. The lineup refresher follows it.
      */
     val selectionChanges: StateFlow<Long> = seqs.asStateFlow()
-
-    /** Returns once [resumeAtStart] has run, whether it changed anything or failed. */
-    override suspend fun await() = resumed.await()
 
     // --- Entry ------------------------------------------------------------------------------------------------------
 
@@ -161,6 +162,10 @@ class LibrarySelection(
 
     private suspend fun activeAccount(): LibraryAccount? = library.activeAccount().first()
 
+    // The active account, or null reported: a change or a setup with none stores nothing.
+    private suspend fun activeAccountOrReport(): LibraryAccount? =
+        activeAccount().also { if (it == null) report(SelectionEvent.NoActiveAccount) }
+
     private fun nowMs(): Long = clock.now().toEpochMilliseconds()
 
     // --- LibraryChoices ---------------------------------------------------------------------------------------------
@@ -178,7 +183,7 @@ class LibrarySelection(
 
     override suspend fun change(ticked: Set<ItemId>): ChangeResult =
         locked {
-            val account = activeAccount() ?: return@locked ChangeResult.Failed
+            val account = activeAccountOrReport() ?: return@locked ChangeResult.Failed
             // Stale (the lineup or its repairs moved while the repair ran): once more, from a fresh read.
             changeOnce(account, ticked) ?: changeOnce(account, ticked) ?: ChangeResult.Failed
         }
@@ -189,7 +194,7 @@ class LibrarySelection(
         account: LibraryAccount,
         ticked: Set<ItemId>,
     ): ChangeResult? {
-        val stored = settings.loadSelection() ?: return ChangeResult.Failed
+        val stored = store.loadSelection() ?: return ChangeResult.Failed
         val chosen = stored.chosen intersect ticked
         if (chosen.isEmpty()) return ChangeResult.LastLibrary
         val kept = stored.adding.filterKeys { it in ticked }
@@ -216,9 +221,11 @@ class LibrarySelection(
 
     override suspend fun choose(ids: Set<ItemId>): SetupResult =
         locked {
-            // A setup follows a clear (every sign-in path clears first): it never writes over a stored choice.
-            if (ids.isEmpty() || settings.loadSelection() != null) return@locked SetupResult.Failed
-            val account = activeAccount() ?: return@locked SetupResult.Failed
+            if (ids.isEmpty()) return@locked SetupResult.Failed
+            // A setup follows a clear (every sign-in path clears first): it never writes over a stored choice. One
+            // still stored is a clear that failed; the caller clears again and asks once more.
+            if (store.loadSelection() != null) return@locked SetupResult.ChoiceStillStored
+            val account = activeAccountOrReport() ?: return@locked SetupResult.Failed
             // A listing of the last account's server says nothing about this choice.
             lastListed = null
             val atLeast = floorOf(library.storedLibraries(account))
@@ -231,7 +238,7 @@ class LibrarySelection(
             room { branches(account, ids, library.storedLibraries(account)) }
             // The same account, its first sync long finished: nothing else would read the new libraries.
             followUp { firstSync.ensureRunning() }
-            publish(settings.loadSelection())
+            publish(store.loadSelection())
             SetupResult.Saved
         }
 
@@ -240,9 +247,11 @@ class LibrarySelection(
     override suspend fun clear(): Boolean =
         locked(catchUpFirst = false) {
             lastListed = null
-            val cleared = writer.clearLibraries()
+            val cleared = store.clearLibraries()
+            // The caller goes on (a sign-in, a switch of user); the picker's Done clears again before its setup.
+            if (!cleared) report(SelectionEvent.ClearFailed)
             passes.restart()
-            publish(settings.loadSelection())
+            publish(store.loadSelection())
             cleared
         }
 
@@ -256,12 +265,12 @@ class LibrarySelection(
      */
     override suspend fun passLanded(
         account: LibraryAccount,
-        library: ItemId,
+        id: ItemId,
         stamp: Long,
     ): LandResult =
         locked {
             if (activeAccount() != account) return@locked LandResult.NotCurrent
-            landOnce(account, library, stamp) ?: landOnce(account, library, stamp) ?: LandResult.Retry
+            landOnce(account, id, stamp) ?: landOnce(account, id, stamp) ?: LandResult.Retry
         }
 
     @Suppress("ReturnCount") // Each early return is a reason nothing is landed.
@@ -270,7 +279,7 @@ class LibrarySelection(
         id: ItemId,
         stamp: Long,
     ): LandResult? {
-        val stored = settings.loadSelection() ?: return LandResult.NotCurrent
+        val stored = store.loadSelection() ?: return LandResult.NotCurrent
         if (stored.adding[id] != stamp) return LandResult.NotCurrent
         val row = library.storedLibraries(account).firstOrNull { it.id == id }
         // The walk's proof is the cache's: without it the read did not end, and the library is not chosen yet.
@@ -306,7 +315,7 @@ class LibrarySelection(
      */
     override suspend fun firstSyncLibraries(account: LibraryAccount): Set<ItemId> =
         locked {
-            val stored = settings.loadSelection() ?: return@locked emptySet()
+            val stored = store.loadSelection() ?: return@locked emptySet()
             branches(account, stored.chosen, library.storedLibraries(account))
             applyRoom(account, stored, library.storedLibraries(account))
             stored.chosen
@@ -338,7 +347,7 @@ class LibrarySelection(
             if (activeAccount() == account) {
                 val ids = libraries.mapTo(HashSet()) { it.id }
                 lastListed = ids
-                settings.loadSelection()?.let { follow(account, it, ids) }
+                store.loadSelection()?.let { follow(account, it, ids) }
             }
         }
     }
@@ -377,10 +386,10 @@ class LibrarySelection(
     // --- Resume -----------------------------------------------------------------------------------------------------
 
     /**
-     * Run once at start, before any other operation (each waits for it): warms the stored selection, raises its seq
-     * above the cache's stamps, and puts the cache in line with it, which repairs whatever a crash left between a
-     * save and its cache write. It always completes [await], and a failure is reported; the next operation then puts
-     * the cache in line first.
+     * Run once at start, before any other operation (each waits for the gate it opens): warms the stored selection,
+     * raises its seq above the cache's stamps, and puts the cache in line with it, which repairs whatever a crash left
+     * between a save and its cache write. It always opens [resumed], however it ends; a failure is reported, and the
+     * next operation then puts the cache in line first. A call from inside the selection is thrown as it is.
      */
     @Suppress("TooGenericExceptionCaught") // Whatever fails, the resume completes and the next operation catches up.
     override suspend fun resumeAtStart() {
@@ -389,7 +398,7 @@ class LibrarySelection(
         try {
             mutex.withLock {
                 withContext(NonCancellable + InSelection) {
-                    val stored = settings.loadSelection()
+                    val stored = store.loadSelection()
                     publish(stored)
                     val account = activeAccount()
                     if (stored != null && account != null) {
@@ -438,7 +447,7 @@ class LibrarySelection(
                     }
                 }
             }
-        if (raised) publish(settings.loadSelection()) else report(SelectionEvent.RaiseSkipped)
+        if (raised) publish(store.loadSelection()) else report(SelectionEvent.RaiseSkipped)
     }
 
     // Puts the cache in line, outside the resume: a failure is reported and leaves it behind for the next operation.
@@ -453,24 +462,18 @@ class LibrarySelection(
         }
     }
 
-    // Resume step 3: the chosen libraries branched, the adds already read with no stamp dropped (with a new seq), the
-    // cache written from the stored selection, and the passes and the first sync asked for when there is work.
+    // Resume step 3: the chosen libraries branched, the cache written from the stored selection, and the passes and
+    // the first sync asked for when there is work. An add whose row the cache would refuse a stamp (one read with no
+    // stamp, whose untick never reached the cache, or one set back) is not dropped from the adds: the cache write
+    // holds it first and then stamps it, so the viewer's tick stands and nothing loops.
     private suspend fun reconcileRoom(account: LibraryAccount) {
-        val first = settings.loadSelection() ?: return
-        var changed = branches(account, first.chosen, library.storedLibraries(account))
-        val rows = library.storedLibraries(account).associateBy { it.id }
-        val dropped =
-            first.adding.keys.filterTo(HashSet()) { id ->
-                val row = rows[id]
-                row != null && row.fetched && row.addStamp == null && row.heldUntilMs == null
-            }
-        if (dropped.isNotEmpty()) {
-            // Only a downgrade or a bug leaves one: dropping it ends a restart loop. Not committed: left out below.
-            report(SelectionEvent.AddDropped)
-            val next = { seq: Long -> first.copy(seq = seq, adding = first.adding - dropped).withMissingKept() }
-            if (allocate(account, first, null, next) is Allocated.Saved) changed = true
+        val stored = store.loadSelection()
+        if (stored == null) {
+            // Nothing chosen: nothing to put in line.
+            roomBehind = false
+            return
         }
-        val stored = settings.loadSelection() ?: return
+        val changed = branches(account, stored.chosen, library.storedLibraries(account))
         applyRoom(account, stored, library.storedLibraries(account))
         roomBehind = false
         if (stored.adding.isNotEmpty()) passes.restart()
@@ -559,7 +562,8 @@ class LibrarySelection(
         val refused = saved.adding.keys.filterTo(HashSet()) { byId[it]?.refusesAStamp() == true }
         if (refused.isNotEmpty()) {
             report(SelectionEvent.HeldBeforeStamp)
-            val until = now + repairer.pauseHold.inWholeMilliseconds
+            // At least a millisecond ahead: a hold at or before now would delete the row instead (NIT, a zero pause).
+            val until = now + maxOf(repairer.pauseHold.inWholeMilliseconds, 1L)
             val first = holds + refused.associateWith { maxOf(holds[it] ?: until, until) }
             library.applySelection(account, keep - refused, saved.adding - refused, first, now)
         }
@@ -655,7 +659,7 @@ class LibrarySelection(
     @Suppress("TooGenericExceptionCaught") // Whatever a write throws, it is not known to be stored.
     private suspend fun write(selection: StoredSelection): Boolean =
         try {
-            writer.saveSelection(selection)
+            store.saveSelection(selection)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -666,7 +670,7 @@ class LibrarySelection(
     private suspend fun commit(
         seq: Long,
         selection: StoredSelection,
-    ): Boolean = write(selection) || settings.loadSelection()?.seq == seq
+    ): Boolean = write(selection) || store.loadSelection()?.seq == seq
 
     // A cache write after a committed save: a failure is reported, and the next operation catches up (D13).
     @Suppress("TooGenericExceptionCaught") // Whatever the cache throws, the save stands.

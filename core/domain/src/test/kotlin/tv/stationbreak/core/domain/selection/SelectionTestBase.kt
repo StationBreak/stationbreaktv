@@ -178,13 +178,15 @@ internal open class SelectionTestBase : RepairTestBase() {
         var stayCurrentRequests = 0
         var signedIn: Session? = session
         val events: MutableList<SelectionEvent> = Collections.synchronizedList(mutableListOf())
+
+        /** The gate this TV's selection opens at its resume, as the app binds it for `SelectionReady`. */
+        val gate = ResumeGate()
         private val clock =
             object : Clock {
                 override fun now(): Instant = Instant.fromEpochMilliseconds(nowMs)
             }
         val selection =
             LibrarySelection(
-                settings,
                 settings,
                 library,
                 server,
@@ -198,6 +200,7 @@ internal open class SelectionTestBase : RepairTestBase() {
                 },
                 firstSync,
                 { stayCurrentRequests++ },
+                gate,
                 config,
                 clock,
             ) { events += it }
@@ -223,7 +226,6 @@ internal open class SelectionTestBase : RepairTestBase() {
         fun restartedSelection(): LibrarySelection =
             LibrarySelection(
                 settings,
-                settings,
                 library,
                 server,
                 { signedIn },
@@ -236,6 +238,7 @@ internal open class SelectionTestBase : RepairTestBase() {
                 },
                 firstSync,
                 { stayCurrentRequests++ },
+                ResumeGate(),
                 config,
                 clock,
             ) { events += it }

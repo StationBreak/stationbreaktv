@@ -314,6 +314,39 @@ class LibrariesViewModelTest {
             job.cancel()
         }
 
+    // Spec 26 fix round 2: the sign-in's clear failed, so a choice is still stored. Done clears it again and stores.
+    @Test
+    fun aClearThatFailedAtSignIn_isRetriedByDone_andTheChoiceIsStored() =
+        runTest {
+            val stale = InMemoryServerSettings(ServerRecord(https), setOf(ItemId("old")))
+            val retried = InMemoryLibrarySetup(stale)
+            retried.failClears = 1
+            retried.clear()
+            val vm = LibrariesViewModel(server, sessions, stale, retried, handOff)
+            val events = mutableListOf<LibrariesEvent>()
+            val job = backgroundScope.collect(vm, events)
+
+            vm.onDone()
+
+            assertEquals(setOf(movies.id, shows.id, musicVideos.id), stale.currentLibraries)
+            assertEquals(2, retried.clears)
+            assertEquals(listOf(LibrariesEvent.Finished), events)
+            job.cancel()
+        }
+
+    @Test
+    fun aClearThatFailsAgainAtDone_showsTheSaveFailedState() {
+        val stale = InMemoryServerSettings(ServerRecord(https), setOf(ItemId("old")))
+        val retried = InMemoryLibrarySetup(stale)
+        retried.failClears = 1
+        val vm = LibrariesViewModel(server, sessions, stale, retried, handOff)
+
+        vm.onDone()
+
+        assertEquals(LibrariesPhase.SaveFailed, vm.state.value.phase)
+        assertEquals(setOf(ItemId("old")), stale.currentLibraries)
+    }
+
     @Test
     fun changingATickAfterAFailedSaveGoesBackToChoosing() {
         settings.failSave = true
