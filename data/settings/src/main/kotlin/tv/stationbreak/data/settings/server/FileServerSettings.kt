@@ -40,7 +40,8 @@ class FileServerSettings internal constructor(
      * What the file holds, decoded, once it has been read (spec 26 Part 4, §3): null until then. The first read fills
      * it under [lock]; every writer sets it inside the same block as its write, right after the write. A read after
      * that never takes the lock or touches the disk, because selection reads are on the tune path. A read fault is
-     * not remembered, so the next read tries again. There is one store per file in the app (a singleton), so nothing
+     * not remembered: before the first good read the next read tries again, and after a failed write whose re-read
+     * also fails the last good value is kept. There is one store per file in the app (a singleton), so nothing
      * else writes the file behind it.
      */
     @Volatile private var memo: Snapshot? = null
@@ -190,9 +191,10 @@ class FileServerSettings internal constructor(
             memo = Snapshot(stored)
         } else {
             // A failed write may still have landed, or not: the memory follows the disk, read again at once. The old
-            // memo stays up during the re-read, so lock-free readers never queue behind it; it is replaced once, by
-            // what the disk holds, or emptied only when the re-read failed too (the next read then tries the file).
-            memo = readSnapshot()
+            // memo stays up during the re-read, so lock-free readers never queue behind it; it is replaced by what the
+            // disk holds. When the re-read fails too, the last good value stays (the tune path keeps reading memory,
+            // never the failing disk); the next successful write, or a writer's own successful read, replaces it.
+            memo = readSnapshot() ?: memo
         }
         return written
     }

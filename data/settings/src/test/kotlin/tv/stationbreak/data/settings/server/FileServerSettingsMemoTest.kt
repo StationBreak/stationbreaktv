@@ -89,8 +89,10 @@ class FileServerSettingsMemoTest {
             assertEquals(reads, file.reads)
         }
 
+    // Ruling for Task 4.3a fix round 1: a failed re-read keeps the last good selection, so the tune path stays
+    // lock-free and off the disk; the next successful write (or a writer's own successful read) replaces it.
     @Test
-    fun aFailedWrite_whoseReReadFails_leavesNoMemory_soTheNextReadTriesTheFile() =
+    fun aFailedWrite_whoseReReadFails_keepsTheLastGoodSelection_offTheDisk() =
         runBlocking {
             val settings = seeded()
             settings.loadSelection()
@@ -99,10 +101,15 @@ class FileServerSettingsMemoTest {
             assertFalse(settings.saveSelection(second))
             file.failReadsAfterAWrite = false
             file.failWrites = false
-            file.failReads = false
             val reads = file.reads
+            // The disk still fails, yet the read is answered at once from the last good value.
             assertEquals(first, settings.loadSelection())
-            assertEquals(reads + 1, file.reads)
+            assertEquals(setOf(alpha), settings.loadPlayableLibraries())
+            assertEquals(reads, file.reads)
+
+            file.failReads = false
+            assertTrue(settings.saveSelection(second))
+            assertEquals(second, settings.loadSelection())
         }
 
     @Test
