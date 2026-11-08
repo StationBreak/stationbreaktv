@@ -190,8 +190,9 @@ class LineupServiceResetRecordTest {
             store.calls.clear()
             val service = newService()
 
-            assertEquals(RecordReset.Floor(0L, record = false), service.resetRecord(ACCOUNT))
-            assertEquals(RecordReset.Floor(0L, record = false), service.floorRecord(ACCOUNT))
+            // Told apart from no file: a resume raise over it also writes the reset seq (D17).
+            assertEquals(RecordReset.Floor(0L, record = false, newer = true), service.resetRecord(ACCOUNT))
+            assertEquals(RecordReset.Floor(0L, record = false, newer = true), service.floorRecord(ACCOUNT))
 
             assertEquals(listOf("load", "load"), store.calls, "never saved, never set aside")
             assertContentEquals(newer, store.inner.peek(ACCOUNT))
@@ -226,8 +227,12 @@ class LineupServiceResetRecordTest {
             val newer = """{"version":5}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
 
-            assertEquals(RecordReset.Floor(0L, record = false), service.floorRecord(ACCOUNT))
-            assertEquals(RecordReset.Floor(7L, record = false), service.resetRecord(ACCOUNT), "the held record's seqs")
+            assertEquals(RecordReset.Floor(0L, record = false, newer = true), service.floorRecord(ACCOUNT))
+            assertEquals(
+                RecordReset.Floor(7L, record = false, newer = true),
+                service.resetRecord(ACCOUNT),
+                "the held record's seqs",
+            )
 
             assertContentEquals(newer, store.inner.peek(ACCOUNT), "the newer file is never written over")
             assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value, "what was held in memory shows no more")

@@ -965,7 +965,8 @@ class LineupService internal constructor(
      * The floor a resume raises the selection seq to (spec 26, Part 4 §2): read like [resetRecord], and under the same
      * lock it writes nothing but the set-aside of an unreadable file or another account's. A readable lineup of this
      * account gives `Floor(latestSeq, record = true)`; no file, a set-aside one and a newer app's give
-     * `Floor(0, record = false)`; a read or a set-aside that fails gives [RecordReset.Failed].
+     * `Floor(0, record = false)` (a newer app's with `newer = true`); a read or a set-aside that fails gives
+     * [RecordReset.Failed].
      */
     internal suspend fun floorRecord(account: LibraryAccount): RecordReset = onDisk(account, empty = false)
 
@@ -1010,7 +1011,10 @@ class LineupService internal constructor(
             decoded is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
                 leftAlone(entry)
-                floorWithoutFile(entry, empty)
+                when (val floor = floorWithoutFile(entry, empty)) {
+                    is RecordReset.Floor -> floor.copy(newer = true)
+                    RecordReset.Failed -> floor
+                }
             }
 
             // Unreadable, or another account's lineup: out of the way, as a refresh would.
@@ -1374,10 +1378,12 @@ internal sealed interface RecordReset {
      * [seq] is the highest selection seq the record held (`TodayRepairs.latestSeq`), 0 when there was none to read.
      * [record] is true when the file held a readable lineup of this account (so a record this build reads), false when
      * there was no file, it was another account's or unreadable (and was set aside), or a newer app's (left alone).
+     * [newer] is true only for that last one: a resume that raises the seq over it saves the reset seq too (D17).
      */
     data class Floor(
         val seq: Long,
         val record: Boolean,
+        val newer: Boolean = false,
     ) : RecordReset
 
     /** The file could not be read, could not be set aside, or the emptied record could not be saved. */
