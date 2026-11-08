@@ -7,6 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -17,6 +18,7 @@ import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
+import tv.stationbreak.core.model.SpkiPin
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -29,6 +31,7 @@ class FileServerSettingsMemoTest {
     private val inPlace = Executor(Runnable::run).asCoroutineDispatcher()
     private val file = MemoryRecordFile()
     private val address = ServerAddress(Scheme.Https, "nas.example.test", 8920)
+    private val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { 5 })
     private val alpha = ItemId("alpha")
     private val beta = ItemId("beta")
     private val first = StoredSelection(setOf(alpha), seq = 1)
@@ -103,6 +106,36 @@ class FileServerSettingsMemoTest {
         }
 
     @Test
+    fun clearPin_setsTheMemory() =
+        runBlocking {
+            file.text = ServerRecordCodec.encode(StoredSettings(ServerRecord(address, pin), setOf(alpha), seq = 1))
+            val settings = FileServerSettings(file, inPlace)
+            assertEquals(ServerRecord(address, pin), settings.load())
+            assertTrue(settings.clearPin())
+            val reads = file.reads
+            assertEquals(ServerRecord(address), settings.load())
+            assertEquals(first, settings.loadSelection())
+            assertEquals(reads, file.reads)
+        }
+
+    @Test
+    fun aFailedWrite_keepsTheOldMemoryWhileItReReads() =
+        runBlocking {
+            val settings = seeded()
+            settings.loadSelection()
+            file.failWrites = true
+            // The re-read runs under the writer's lock. A lock-free reader probing then must still find a memo; an
+            // emptied one would send it to the lock, where it would wait (here: time out).
+            val seen = mutableListOf<StoredSelection?>()
+            file.onRead = { seen += runBlocking { withTimeoutOrNull(PROBE_MS) { settings.loadSelection() } } }
+            assertFalse(settings.saveSelection(second))
+            file.onRead = null
+            // Two reads under the lock: the writer's own, then the re-read after the failed write.
+            assertEquals(listOf(first, first), seen)
+            assertEquals(first, settings.loadSelection())
+        }
+
+    @Test
     fun aReadFault_isNotRemembered() =
         runBlocking {
             val settings = seeded()
@@ -155,5 +188,6 @@ class FileServerSettingsMemoTest {
     private companion object {
         const val WAIT_SECONDS = 5L
         const val WAIT_MS = 2_000L
+        const val PROBE_MS = 500L
     }
 }

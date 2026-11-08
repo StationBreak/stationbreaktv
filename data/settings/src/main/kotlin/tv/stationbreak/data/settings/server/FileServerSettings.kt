@@ -55,9 +55,15 @@ class FileServerSettings internal constructor(
     override suspend fun save(record: ServerRecord): Boolean =
         locked {
             // A choice of libraries belongs to the server it was made on: another address starts without one, but the
-            // seq and the counters go on, so a seq is never reused. A file that can't be read has nothing worth
-            // keeping.
-            val held = read()
+            // seq and the counters go on, so a seq is never reused. Only a file that is absent or is not a record has
+            // nothing worth keeping; a read fault (a failed backup restore too) may hide a seq, so it fails the save.
+            val text =
+                try {
+                    file.read()
+                } catch (_: IOException) {
+                    return@locked false
+                }
+            val held = text?.let(ServerRecordCodec::decodeStored)
             val kept =
                 when {
                     held == null -> StoredSettings(record)
@@ -159,9 +165,12 @@ class FileServerSettings internal constructor(
     }
 
     // Reads the file and remembers what it decoded to. A read fault is answered with null and not remembered.
-    private fun read(): StoredSettings? =
+    private fun read(): StoredSettings? = readSnapshot()?.also { memo = it }?.stored
+
+    // The decoded file, or null for a read fault. Touches no memo.
+    private fun readSnapshot(): Snapshot? =
         try {
-            file.read()?.let(ServerRecordCodec::decodeStored).also { memo = Snapshot(it) }
+            Snapshot(file.read()?.let(ServerRecordCodec::decodeStored))
         } catch (_: IOException) {
             null
         }
@@ -180,10 +189,10 @@ class FileServerSettings internal constructor(
         if (written) {
             memo = Snapshot(stored)
         } else {
-            // A failed write may still have landed, or not: the memory follows the disk, read again at once. If that
-            // read fails too, nothing is remembered and the next read tries the file.
-            memo = null
-            read()
+            // A failed write may still have landed, or not: the memory follows the disk, read again at once. The old
+            // memo stays up during the re-read, so lock-free readers never queue behind it; it is replaced once, by
+            // what the disk holds, or emptied only when the re-read failed too (the next read then tries the file).
+            memo = readSnapshot()
         }
         return written
     }

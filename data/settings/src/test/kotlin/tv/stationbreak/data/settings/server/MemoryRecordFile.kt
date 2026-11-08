@@ -31,7 +31,11 @@ internal class MemoryRecordFile : RecordFile {
         val release = CountDownLatch(1)
     }
 
+    /** Runs inside every read, before it answers: a probe of what others see meanwhile. */
+    @Volatile var onRead: (() -> Unit)? = null
+
     override fun read(): String? {
+        onRead?.invoke()
         reads++
         if (failReads) throw IOException("unreadable")
         return text

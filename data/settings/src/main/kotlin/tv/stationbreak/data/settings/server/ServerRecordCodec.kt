@@ -35,7 +35,9 @@ internal data class StoredSettings(
  *
  * Spec 26 Part 4 keeps `version=1` and only adds keys, each left out when it is empty or zero:
  * `seq=`, `adding=id:stamp,...`, `gone=1`, `missing=id:sinceMs:sincePass,...`, `listings=` and `selectionResetSeq=`.
- * A value this reader can't parse drops only its own key, never the record or `libraries`.
+ * A value this reader can't parse drops only its own key, never the record or `libraries`. One exception: a missing or
+ * malformed `seq` is floored at the highest stamp in `adding` and `selectionResetSeq` (the reset seq alone when there
+ * are no libraries), because a seq must never go back below one already used.
  *
  * Downgrade: an older app ignores these keys, and its next write of the file drops them. After a downgrade and an
  * upgrade the seq starts again at 0, nothing is being added, nothing is gone or missing, and no reset seq is known.
@@ -103,27 +105,35 @@ internal object ServerRecordCodec {
         val record = (if (values["version"] == VERSION) recordOf(values) else null) ?: return null
         // A selection that can't be read is as good as none: the picker asks again. The record is still good.
         val libraries = values["libraries"]?.let(::librariesOf)
+        // A malformed reset seq reads as 0: a later build then hides no pre-setup repairs by it. Accepted, because
+        // setup empties a readable lineup record anyway (spec 26 Part 4, D17), so it only matters for a record this
+        // build could not read, after a corrupted settings file.
+        val resetSeq = values["selectionResetSeq"]?.let(::countOf) ?: 0
         val counters =
             StoredSettings(
                 record = record,
-                seq = values["seq"]?.let(::countOf) ?: 0,
                 listings = values["listings"]?.let(::countOf) ?: 0,
-                resetSeq = values["selectionResetSeq"]?.let(::countOf) ?: 0,
+                resetSeq = resetSeq,
             )
         // Adding, gone and the misses belong to a selection: without its libraries they are not one.
-        return if (libraries == null) {
-            counters
-        } else {
-            counters.copy(
-                libraries = libraries,
-                adding = values["adding"]?.let { entriesOf(it, parts = 2) { (stamp) -> stamp } }.orEmpty(),
-                gone = values["gone"] == GONE,
-                missing =
-                    values["missing"]
-                        ?.let { entriesOf(it, parts = 3) { (ms, pass) -> Missing(ms, pass) } }
-                        .orEmpty(),
-            )
-        }
+        val read =
+            if (libraries == null) {
+                counters
+            } else {
+                counters.copy(
+                    libraries = libraries,
+                    adding = values["adding"]?.let { entriesOf(it, parts = 2) { (stamp) -> stamp } }.orEmpty(),
+                    gone = values["gone"] == GONE,
+                    missing =
+                        values["missing"]
+                            ?.let { entriesOf(it, parts = 3) { (ms, pass) -> Missing(ms, pass) } }
+                            .orEmpty(),
+                )
+            }
+        // A seq that is missing or can't be read is floored at the highest seq the file still proves was used (the
+        // stamps and the reset seq), never 0, so a seq is not taken twice.
+        val seq = values["seq"]?.let(::countOf) ?: maxOf(resetSeq, read.adding.values.maxOrNull() ?: 0)
+        return read.copy(seq = seq)
     }
 
     private fun librariesOf(text: String): Set<ItemId>? =

@@ -284,15 +284,81 @@ class FileServerSettingsSelectionTest {
                 assertEquals(key, setOf(alpha, beta), read?.libraries)
                 val expected =
                     when (key) {
-                        "seq" -> stored().copy(seq = 0)
+                        // A lost seq is floored at the highest stamp or reset seq it kept, never 0.
+                        "seq" -> stored().copy(seq = 9)
+
                         "adding" -> stored().copy(adding = emptyMap())
+
                         "gone" -> stored().copy(gone = false)
+
                         "missing" -> stored().copy(missing = emptyMap())
+
                         "listings" -> stored().copy(listings = 0)
+
                         else -> stored().copy(resetSeq = 0)
                     }
                 assertEquals(key, expected, read)
             }
+        }
+
+    @Test
+    fun aMissingOrMalformedSeq_isFlooredAtTheStampsAndResetSeq() {
+        val record = ServerRecordCodec.encode(ServerRecord(address))
+
+        fun seqOf(lines: String) = ServerRecordCodec.decodeStored("$record\n$lines")?.seq
+        assertEquals(7L, seqOf("libraries=alpha\nadding=beta:4,gamma:7\nselectionResetSeq=6"))
+        assertEquals(6L, seqOf("libraries=alpha\nadding=beta:4\nseq=x\nselectionResetSeq=6"))
+        // No libraries: the stamps are not read, so the reset seq alone is the floor.
+        val cleared = ServerRecordCodec.decodeStored("$record\nadding=beta:8\nseq=-1\nselectionResetSeq=3")
+        assertEquals(3L, cleared?.seq)
+        assertEquals(0L, ServerRecordCodec.decodeStored("$record\nlibraries=alpha")?.seq)
+        // A seq that reads is taken as it is.
+        assertEquals(12L, ServerRecordCodec.decodeStored("$record\nlibraries=alpha\nseq=12\nadding=beta:7")?.seq)
+    }
+
+    @Test
+    fun save_readFault_keepsSeq_andFails() =
+        runBlocking {
+            settings.save(ServerRecord(address))
+            settings.saveSelection(full)
+            val before = file.text
+            file.failReads = true
+            // A read fault is not "no file": saving would wipe the seq, so nothing is written.
+            assertFalse(settings.save(ServerRecord(other)))
+            file.failReads = false
+            assertEquals(before, file.text)
+            assertEquals(9L, rebuilt().loadSelectionSeq())
+            assertEquals(full, rebuilt().loadSelection())
+        }
+
+    @Test
+    fun save_undecodableFile_isReplaced() =
+        runBlocking {
+            file.text = "not a record"
+            assertTrue(settings.save(ServerRecord(address)))
+            assertEquals(ServerRecord(address), rebuilt().load())
+        }
+
+    @Test
+    fun roundTrip_idsAtTheCharsetAndLengthLimit() =
+        runBlocking {
+            // ItemId allows letters, digits, '-' and '_' with no length cap; use every class and a long id.
+            val letters = ('A'..'Z').joinToString("") + ('a'..'z').joinToString("")
+            val long = ItemId("-_" + letters + "0123456789".repeat(20))
+            val dash = ItemId("-")
+            val under = ItemId("_")
+            val selection =
+                StoredSelection(
+                    chosen = setOf(long, dash),
+                    seq = Long.MAX_VALUE,
+                    adding = mapOf(under to Long.MAX_VALUE),
+                    missing = mapOf(long to Missing(Long.MAX_VALUE, Long.MAX_VALUE), under to Missing(0, 0)),
+                    listings = Long.MAX_VALUE,
+                    resetSeq = Long.MAX_VALUE,
+                )
+            settings.save(ServerRecord(address))
+            assertTrue(settings.saveSelection(selection))
+            assertEquals(selection, rebuilt().loadSelection())
         }
 
     @Test
