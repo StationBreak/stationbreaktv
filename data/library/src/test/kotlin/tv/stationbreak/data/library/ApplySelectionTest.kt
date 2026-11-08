@@ -466,7 +466,7 @@ class ApplySelectionTest {
             assertEquals(7L, row(extra)?.addStamp)
             clock.stepMs(1_000)
 
-            repository.applySelectionKeepingAdds(ALICE, setOf(MOVIES), clock.nowMs)
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = clock.nowMs)
 
             assertNull("the hold ended, so it went: its stamp kept nothing", row(extra))
         }
@@ -696,13 +696,13 @@ class ApplySelectionTest {
             // extra is being added and listed; gone is being added and not listed (the "pending but not listed" step).
             apply(setOf(MOVIES, extra, gone), addStamps = mapOf(extra to 1L, gone to 2L))
 
-            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES, extra, gone))
+            // The adds are never among the chosen (the selection keeps them apart); the library set keeps them.
+            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
 
             assertEquals(SyncOutcome.Completed, outcome)
             assertEquals(setOf(extra, gone), repository.pendingLibraries(ALICE))
-            // Schema 11: the add's row refuses the first sync's unstamped pages, so its walk stops with nothing written
-            // and the sync goes on (until task 4.4b walks adds with their stamp).
-            assertTrue("an add takes no unstamped page", storedIn(extra).isEmpty())
+            // The first sync walks the chosen libraries only: an add is the add pass's, read under its stamp.
+            assertTrue("the first sync writes nothing to an add", storedIn(extra).isEmpty())
             assertTrue(row(MOVIES)!!.fetched)
         }
 

@@ -102,7 +102,7 @@ class SyncSecretScanTest {
         runBlocking {
             sessions.save(session)
             fake.resumeResult = ServerResult.Success(session)
-            val runner = FirstSyncRunner(settings, sessions, server, repository, clock)
+            val runner = firstSyncRunner(settings, sessions, server, repository, clock)
 
             runner.run(attempt = 0)
 
@@ -117,7 +117,7 @@ class SyncSecretScanTest {
         runBlocking {
             sessions.save(session)
             fake.resumeResult = ServerResult.Success(session)
-            val runner = FirstSyncRunner(settings, sessions, server, repository, clock)
+            val runner = firstSyncRunner(settings, sessions, server, repository, clock)
 
             val output = captured { runBlocking { runner.run(attempt = 0) } }
 
@@ -130,7 +130,7 @@ class SyncSecretScanTest {
             sessions.save(session)
             fake.resumeResult = ServerResult.Success(session)
             server.respond = { if (it.startIndex == 100 && !it.idsOnly) MediaServerError.Timeout() else null }
-            val runner = FirstSyncRunner(settings, sessions, server, repository, clock)
+            val runner = firstSyncRunner(settings, sessions, server, repository, clock)
 
             val output = captured { runBlocking { runner.run(attempt = 0) } }
 

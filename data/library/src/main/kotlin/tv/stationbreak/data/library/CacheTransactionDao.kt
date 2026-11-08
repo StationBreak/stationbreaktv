@@ -277,12 +277,10 @@ internal abstract class CacheTransactionDao(
         addStamps: Map<String, Long>,
         holds: Map<String, Long>,
         nowMs: Long,
-        keepAdding: Boolean = false,
         holdClockGuardMs: Long? = null,
     ) {
         val change =
-            library.applySelectionRows(serverId, userId, keep, addStamps, holds, nowMs, keepAdding, holdClockGuardMs)
-                ?: return
+            library.applySelectionRows(serverId, userId, keep, addStamps, holds, nowMs, holdClockGuardMs) ?: return
         if (change.deleted.isEmpty()) return
         moveBeforeDelete(serverId, userId, change, nowMs)
         library.deleteLeavers(serverId, userId, change.deleted, change.staying)

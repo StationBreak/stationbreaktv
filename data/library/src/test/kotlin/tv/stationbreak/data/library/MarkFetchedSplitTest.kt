@@ -128,22 +128,6 @@ class MarkFetchedSplitTest {
             assertEquals("none of them moves the generation", generation, repository.contentGeneration(ALICE))
         }
 
-    // Amendment 4: the first sync's unlisted step leaves a marked library pending and marked.
-    @Test
-    fun firstSync_unlistedMarkedLibrary_keepsMarkAndPending() =
-        runBlocking {
-            repository.useAccount(ALICE)
-            marked()
-            val server = PagedMediaServer(listOf(movies), mapOf(MOVIES to SyncWorld.source("m", 3)))
-
-            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES, SHOWS))
-
-            assertEquals(SyncOutcome.Completed, outcome)
-            assertTrue(row(MOVIES).fetched)
-            assertFalse("the server does not list it: still pending", row(SHOWS).fetched)
-            assertTrue("and still marked", row(SHOWS).rewalkPending)
-        }
-
     // The first sync's walk of a marked library is a walk from the start with no stamp: its end clears the mark.
     @Test
     fun firstSync_walksAMarkedLibrary_andClearsTheMark() =

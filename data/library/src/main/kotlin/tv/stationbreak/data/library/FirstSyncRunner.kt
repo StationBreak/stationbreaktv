@@ -11,6 +11,8 @@ import tv.stationbreak.core.domain.RestoreOutcome
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
@@ -21,12 +23,14 @@ import kotlin.time.Clock
  * WorkManager, so no token is in the work's input data. It only verifies the session: it never activates an account
  * or writes the session, so a sign-out that lands while the server is answering is not undone.
  */
-@Suppress("ReturnCount") // Each early return is a reason there is nothing to sync yet.
+@Suppress("ReturnCount", "LongParameterList") // Each early return is a reason there is nothing to sync yet; its stores.
 class FirstSyncRunner(
     internal val settings: ServerSettings,
     internal val sessions: SessionRepository,
     internal val server: MediaServer,
     internal val repository: RoomLibraryRepository,
+    private val libraries: FirstSyncLibraries,
+    internal val ready: SelectionReady,
     internal val clock: Clock = Clock.System,
     private val report: (String) -> Unit = {},
 ) {
@@ -47,9 +51,11 @@ class FirstSyncRunner(
     suspend fun run(attempt: Int): SyncVerdict = SyncRetryPolicy.verdict(outcome(), attempt)
 
     internal suspend fun outcome(): SyncOutcome {
+        // The selection's resume at start comes first (spec 26): it may still be putting the library cache in line.
+        ready.await()
         // Nothing stored, or nothing ticked yet: onboarding is not finished, so there is nothing to sync.
         val record = settings.load() ?: return SyncOutcome.Cancelled
-        val chosen = settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return SyncOutcome.Cancelled
+        if (settings.loadLibraries().isNullOrEmpty()) return SyncOutcome.Cancelled
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
                 val session = restored.session
@@ -60,7 +66,7 @@ class FirstSyncRunner(
                     SyncOutcome.Cancelled
                 } else {
                     val engine = FirstSyncEngine(repository, server, clock, report = report)
-                    writing { engine.run(session, account, chosen) }
+                    writing { engine.run(session, account, libraries) }
                 }
             }
 

@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.PagedMediaServer
@@ -16,7 +17,8 @@ import kotlin.time.Duration.Companion.hours
  * Spec 26, Part 4 (schema 11, §4 step 4, LOW-15): a chosen library marked for a rewalk is left to the rewalk by the
  * stay-current passes. The incremental, the backfill and the reconcile read the marks from the stored rows at their
  * start and leave the marked library out: no page of it is asked for, and the reconcile neither tombstones its rows
- * nor takes it for a library the server removed. The backfill keeps its flag set while a chosen library is left out.
+ * nor takes it for a library the server removed. The backfill counts the marked library as covered (its rewalk reads
+ * it whole), and keeps its flag set while an unmarked chosen library is not listed.
  * Invented libraries and names only.
  */
 class MarkedLibraryPassesTest {
@@ -68,8 +70,9 @@ class MarkedLibraryPassesTest {
             assertEquals(setOf(MOVIES), askedFor())
         }
 
+    // Binding item 4 (Task 4.4b): the marked library is covered, as its rewalk reads it from the start with studios.
     @Test
-    fun backfill_leavesOutAMarkedLibrary_andKeepsTheFlag() =
+    fun backfill_leavesOutAMarkedLibrary_andCountsItCovered() =
         runBlocking {
             markedShows()
             repository.dao.setBackfillPending("server-1", "alice", true)
@@ -78,7 +81,21 @@ class MarkedLibraryPassesTest {
 
             assertEquals(SyncOutcome.Completed, result.outcome)
             assertEquals(setOf(MOVIES), askedFor())
-            assertTrue("a chosen library was left out, so the re-read is still owed", repository.backfillPending(ALICE))
+            assertFalse("the rewalk covers the marked library: none owed", repository.backfillPending(ALICE))
+        }
+
+    // A chosen library the server does not list is not covered: the re-read stays owed.
+    @Test
+    fun backfill_anUnlistedUnmarkedLibrary_keepsTheFlag() =
+        runBlocking {
+            markedShows()
+            repository.dao.setBackfillPending("server-1", "alice", true)
+            server.libraries = listOf(shows)
+
+            val result = engine().backfill(session, ALICE, setOf(MOVIES, SHOWS))
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertTrue(repository.backfillPending(ALICE))
         }
 
     @Test

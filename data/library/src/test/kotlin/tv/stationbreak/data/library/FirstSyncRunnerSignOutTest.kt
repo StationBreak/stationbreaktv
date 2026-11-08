@@ -54,7 +54,7 @@ class FirstSyncRunnerSignOutTest {
             sessions.save(session)
             fake.resumeResult = ServerResult.Success(session)
             val settings = InMemoryServerSettings(ServerRecord(session.address), setOf(MOVIES))
-            val runner = FirstSyncRunner(settings, sessions, server, repository, FakeClock())
+            val runner = firstSyncRunner(settings, sessions, server, repository, FakeClock())
 
             val running = async(start = CoroutineStart.UNDISPATCHED) { runner.outcome() }
             sessions.signOut(session)
@@ -78,7 +78,7 @@ class FirstSyncRunnerSignOutTest {
             fake.resumeResult = ServerResult.Success(upgraded)
             val settings = InMemoryServerSettings(ServerRecord(session.address), setOf(movies.id))
             val server = SyncWorld.server(movies to SyncWorld.source("m", 3))
-            val runner = FirstSyncRunner(settings, sessions, PagedWith(server, fake), repository, FakeClock())
+            val runner = firstSyncRunner(settings, sessions, PagedWith(server, fake), repository, FakeClock())
 
             runner.outcome()
 

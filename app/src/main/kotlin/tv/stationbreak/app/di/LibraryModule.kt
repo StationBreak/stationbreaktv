@@ -16,6 +16,8 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.data.library.CollectionRelist
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.HistoryRetention
@@ -70,14 +72,18 @@ internal object LibraryModule {
     /**
      * What the first-sync worker runs. WorkManager builds the worker itself, so the worker asks the `Application` for
      * this (see [FirstSyncEntryPoint]). It reads the session from the secret store when it runs: nothing, and no token,
-     * is passed through WorkManager.
+     * is passed through WorkManager. It waits for the selection's resume, and its library set is the selection's,
+     * written under the selection's lock (spec 26).
      */
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // The stores it reads and the selection's two ports.
     fun firstSyncRunner(
         settings: ServerSettings,
         sessions: SessionRepository,
         server: MediaServer,
         repository: RoomLibraryRepository,
-    ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System) { Log.i("Sync", it) }
+        libraries: FirstSyncLibraries,
+        ready: SelectionReady,
+    ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, libraries, ready, Clock.System) { Log.i("Sync", it) }
 }

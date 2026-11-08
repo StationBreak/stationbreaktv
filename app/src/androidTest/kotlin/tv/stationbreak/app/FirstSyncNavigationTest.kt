@@ -52,6 +52,8 @@ import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -160,12 +162,15 @@ class FirstSyncNavigationTest {
         // The Application's entry point asks for it; the worker is not run in this test.
         @Provides
         @Singleton
+        @Suppress("LongParameterList") // As LibraryModule builds it.
         fun firstSyncRunner(
             settings: ServerSettings,
             sessions: SessionRepository,
             server: MediaServer,
             repository: RoomLibraryRepository,
-        ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, Clock.System)
+            libraries: FirstSyncLibraries,
+            ready: SelectionReady,
+        ): FirstSyncRunner = FirstSyncRunner(settings, sessions, server, repository, libraries, ready, Clock.System)
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))

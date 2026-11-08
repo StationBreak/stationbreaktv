@@ -331,26 +331,6 @@ class RoomLibraryRepository internal constructor(
         addStamps: Map<ItemId, Long>,
         holds: Map<ItemId, Long>,
         nowMs: Long,
-    ) = applySelection(account, keep, addStamps, holds, nowMs, keepAdding = false)
-
-    /**
-     * [applySelection] for the first sync, which knows the chosen libraries and not the adds: every library stored with
-     * an add stamp is kept too, read in the same transaction, so a first sync never drops an add that is under way.
-     */
-    internal suspend fun applySelectionKeepingAdds(
-        account: LibraryAccount,
-        chosen: Set<ItemId>,
-        nowMs: Long,
-    ) = applySelection(account, chosen, emptyMap(), emptyMap(), nowMs, keepAdding = true)
-
-    @Suppress("LongParameterList") // The port's call and the first sync's flag.
-    private suspend fun applySelection(
-        account: LibraryAccount,
-        keep: Set<ItemId>,
-        addStamps: Map<ItemId, Long>,
-        holds: Map<ItemId, Long>,
-        nowMs: Long,
-        keepAdding: Boolean,
     ) {
         val (server, user) = account.keys()
         // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade),
@@ -362,7 +342,6 @@ class RoomLibraryRepository internal constructor(
             addStamps.mapKeys { it.key.value },
             holds.mapKeys { it.key.value },
             nowMs,
-            keepAdding,
             // The purge's forward-jump guard (clockLooksWrong): past it, no hold expires.
             retention.millis - HistoryRetention.SAFE_LOOKBACK_MS,
         )

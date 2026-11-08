@@ -1000,9 +1000,8 @@ internal abstract class LibraryDao {
      * The content generation moves once, and only when a library's rows are deleted: an unticked library, a hold that
      * expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or be a held
      * library's, re-ticked). A tick, a hold set or cleared, and an add dropped before it holds a row move nothing: none
-     * of them changes what a day is built from. With [keepAdding], every library
-     * stored with a stamp and no hold also counts as in [keep], read inside this transaction (the first sync does not
-     * know the adds); a held row is kept by its hold alone. A library that is held (here, or from before) loses its
+     * of them changes what a day is built from. A held row is kept by its hold alone, never by a stamp it may still
+     * carry. A library that is held (here, or from before) loses its
      * stamp, its walk's proof and its rewalk mark: a held library is never one being added. A hold for a library
      * already held keeps the later of the two; a hold placed now sets the library's coverage to the earlier of the one
      * it has and [nowMs]. A kept library given a new stamp loses its proof and its mark; any other kept library keeps
@@ -1023,7 +1022,6 @@ internal abstract class LibraryDao {
         addStamps: Map<String, Long>,
         holds: Map<String, Long>,
         nowMs: Long,
-        keepAdding: Boolean = false,
         holdClockGuardMs: Long? = null,
     ): SelectionChange? {
         // An account that is not signed in (it signed out while the sync ran) gets no rows back.
@@ -1032,16 +1030,13 @@ internal abstract class LibraryDao {
         val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
         // A clock far ahead of the last success (as the purge's guard reads it) expires no hold (Vimes, spec 26).
         val holdsFrozen = holdClockGuardMs != null && lastSuccessMs != null && nowMs - lastSuccessMs > holdClockGuardMs
-        // A held row is kept by its hold alone, never by a stamp it may still carry.
-        val adding = stored.filter { it.addStamp != null && it.heldUntilMs == null }.map { it.libraryId }
-        val kept = if (keepAdding) keep + adding else keep
         val byId = stored.associateBy { it.libraryId }
         val toUpdate = mutableListOf<LibraryEntity>()
         val toDelete = mutableListOf<String>()
         val rewalk = mutableListOf<String>()
         var bump = false
         for (row in stored) {
-            if (row.libraryId in kept) continue
+            if (row.libraryId in keep) continue
             // A hold for a library already held keeps the later of the two (D5).
             val until = maxOfNullable(holds[row.libraryId], row.heldUntilMs)
             if (until != null && (until > nowMs || holdsFrozen)) {
@@ -1056,7 +1051,7 @@ internal abstract class LibraryDao {
             }
         }
         val toInsert = mutableListOf<LibraryEntity>()
-        for (id in kept) {
+        for (id in keep) {
             val row = byId[id]
             val stamp = addStamps[id]
             if (row == null) {

@@ -19,6 +19,8 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StoredSelection
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.LibraryItemsPage
@@ -27,6 +29,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.RoomLibraryRepository
 import tv.stationbreak.data.library.SyncVerdict
+import kotlin.time.Clock
 
 /**
  * The seeds of the navigation tests, written as the app writes them (spec 26): a sign-in that activates its account in
@@ -87,14 +90,24 @@ internal fun FakeMediaServer.withEmptyLibraries() {
 
 /**
  * Runs the first sync of the stored choice as the app's worker does. The test application supplies no
- * `FirstSyncRunnerProvider`, so WorkManager's worker stops at once in these tests; this is the run it would make.
+ * `FirstSyncRunnerProvider`, so WorkManager's worker stops at once in these tests; this is the run it would make. It
+ * seeds an earlier run of the app, before this run's start resumes the selection: so it does not wait for that resume,
+ * and its library set is the stored choice, written to the cache as the selection's `firstSyncLibraries` writes it.
  */
 internal fun runTheFirstSyncAsTheWorkerDoes(
     settings: ServerSettings,
     store: SecretStore,
     server: MediaServer,
 ) {
-    val runner = FirstSyncRunner(settings, SessionRepository(store, server), server, seeds().roomLibraryRepository())
+    val repository = seeds().roomLibraryRepository()
+    val libraries =
+        FirstSyncLibraries { account ->
+            val chosen = settings.loadLibraries().orEmpty()
+            repository.applySelection(account, chosen, nowMs = Clock.System.now().toEpochMilliseconds())
+            chosen
+        }
+    val sessions = SessionRepository(store, server)
+    val runner = FirstSyncRunner(settings, sessions, server, repository, libraries, SelectionReady.Complete)
     val verdict = runBlocking { runner.run(attempt = 0) }
     check(verdict == SyncVerdict.Success) { "the first sync ended $verdict" }
 }

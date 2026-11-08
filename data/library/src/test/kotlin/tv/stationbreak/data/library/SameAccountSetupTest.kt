@@ -77,11 +77,9 @@ class SameAccountSetupTest {
     @After
     fun close() = repository.close()
 
-    // What the first sync's worker does once asked: reads the stored choice and syncs it.
+    // What the first sync's worker does once asked: syncs the selection's library set.
     private suspend fun runAskedFirstSync() {
-        repeat(firstSync.asked) {
-            SyncWorld.engine(repository, server, clock).run(session, ALICE, checkNotNull(settings.loadLibraries()))
-        }
+        repeat(firstSync.asked) { SyncWorld.engine(repository, server, clock).run(session, ALICE, selection) }
     }
 
     @Test

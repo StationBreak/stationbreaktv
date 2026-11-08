@@ -12,7 +12,7 @@ import kotlin.time.Instant
 
 /** How one walk of a library ended (see [LibraryPass]). Nothing here carries a cause, an address or a token. */
 internal sealed interface PassEnd {
-    /** The walk reached its end. [run] is when it began (its checkpoint's, for a walk resumed): the caller's end mark. */
+    /** The walk reached its end. [run] is when it began (its checkpoint's, for a walk resumed): for the end mark. */
     data class Walked(
         val run: Long,
     ) : PassEnd
@@ -182,5 +182,8 @@ internal class LibraryPass(
     }
 
     // A write the library row refused, as the walk's end; null for one it took.
-    private fun refusal(result: PageResult): PassEnd? = if (result is PageResult.Written) null else PassEnd.Refused(result)
+    private fun refusal(result: PageResult): PassEnd? {
+        if (result is PageResult.Written) return null
+        return PassEnd.Refused(result)
+    }
 }

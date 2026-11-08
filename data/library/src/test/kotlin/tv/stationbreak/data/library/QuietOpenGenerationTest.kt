@@ -157,7 +157,7 @@ class QuietOpenGenerationTest {
     private suspend fun settled() {
         sessions.save(SyncWorld.session)
         fake.resumeResult = ServerResult.Success(SyncWorld.session)
-        val verdict = FirstSyncRunner(settings, sessions, server, repository, clock).run(attempt = 0)
+        val verdict = firstSyncRunner(settings, sessions, server, repository, clock).run(attempt = 0)
         check(verdict == SyncVerdict.Success) { "the first sync should finish: $verdict" }
         clock.instant += 1.hours
         runner.run(both)

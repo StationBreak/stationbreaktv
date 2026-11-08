@@ -22,7 +22,8 @@ import kotlin.time.Duration.Companion.hours
  * Spec 26, Part 4 (schema 11, MED-8): what a pass does when a library row refuses one of its writes (the library
  * was held, dropped or stamped while the pass ran). A stay-current pass stops as Cancelled with nothing recorded: no
  * failure, no new last success, the backfill flag kept. The first sync stops that library's walk without marking it
- * fetched and goes on with the next one (task 4.4b gives that its own outcome). Invented libraries and names only.
+ * fetched and goes on with the next one; one no longer chosen is then left as it is (FirstSyncEngineTest has the
+ * outcome of one still chosen). Invented libraries and names only.
  */
 class RefusedWriteOutcomeTest {
     private val clock = FakeClock()
@@ -128,10 +129,21 @@ class RefusedWriteOutcomeTest {
         runBlocking {
             repository.useAccount(ALICE)
             repository.applySelection(ALICE, setOf(MOVIES, SHOWS), nowMs = clock.nowMs)
-            // MOVIES is walked first, then SHOWS; SHOWS is held before its first page is written.
-            holdShowsOnItsFirstPage()
+            // MOVIES is walked first, then SHOWS; SHOWS is unticked and held before its first page is written, so the
+            // library set read again after the refusal no longer names it.
+            var chosen = setOf(MOVIES, SHOWS)
+            server.respond = { call ->
+                val itemPage = !call.idsOnly && !call.series
+                if (heldAt == null && call.library.id == SHOWS && itemPage) {
+                    heldAt = call
+                    holdShows()
+                    chosen = setOf(MOVIES)
+                }
+                null
+            }
 
-            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES, SHOWS))
+            val choice = StoredChoice(repository, clock) { chosen }
+            val outcome = SyncWorld.engine(repository, server, clock).run(session, ALICE, choice)
 
             assertEquals(SyncOutcome.Completed, outcome)
             val rows = repository.dao.libraries("server-1", "alice").associateBy { it.libraryId }
