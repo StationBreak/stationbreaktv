@@ -42,7 +42,7 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
-import tv.stationbreak.core.domain.SelectionWriter
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
@@ -115,14 +115,15 @@ class FirstSyncNavigationTest {
         fun serverSettings(): ServerSettings = Syncing.settings
 
         @Provides
-        fun selectionWriter(): SelectionWriter = Syncing.settings
+        fun selectionStore(): SelectionStore = Syncing.settings
 
         @Provides
         @Singleton
         fun sessions(
             store: SecretStore,
             server: MediaServer,
-        ): SessionRepository = SessionRepository(store, server)
+            library: LibraryRepository,
+        ): SessionRepository = SessionRepository(store, server, library)
 
         // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
         @Provides

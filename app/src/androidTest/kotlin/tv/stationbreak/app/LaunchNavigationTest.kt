@@ -35,6 +35,7 @@ import org.junit.runner.RunWith
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
+import tv.stationbreak.core.domain.AccountCache
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
@@ -42,7 +43,7 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
-import tv.stationbreak.core.domain.SelectionWriter
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
@@ -128,14 +129,15 @@ class LaunchNavigationTest {
         fun serverSettings(): ServerSettings = Launched.settings
 
         @Provides
-        fun selectionWriter(): SelectionWriter = Launched.settings
+        fun selectionStore(): SelectionStore = Launched.settings
 
         @Provides
         @Singleton
         fun sessions(
             store: SecretStore,
             server: MediaServer,
-        ): SessionRepository = SessionRepository(store, server)
+            library: AccountCache,
+        ): SessionRepository = SessionRepository(store, server, library)
 
         // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
         @Provides

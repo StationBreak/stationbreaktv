@@ -36,13 +36,14 @@ import tv.stationbreak.app.nav.AppNavGraph
 import tv.stationbreak.app.nav.LibrariesRoute
 import tv.stationbreak.app.nav.ServerRoute
 import tv.stationbreak.app.nav.SignInRoute
+import tv.stationbreak.core.domain.AccountCache
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ResolvedServer
 import tv.stationbreak.core.domain.SecretStore
-import tv.stationbreak.core.domain.SelectionWriter
+import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
@@ -109,14 +110,15 @@ class SignInNavigationTest {
         fun serverSettings(): ServerSettings = Scripted.settings
 
         @Provides
-        fun selectionWriter(): SelectionWriter = Scripted.settings
+        fun selectionStore(): SelectionStore = Scripted.settings
 
         @Provides
         @Singleton
         fun sessions(
             store: SecretStore,
             server: MediaServer,
-        ): SessionRepository = SessionRepository(store, server)
+            library: AccountCache,
+        ): SessionRepository = SessionRepository(store, server, library)
 
         // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
         @Provides
@@ -309,6 +311,7 @@ class SignInNavigationTest {
         navController: NavHostController,
         startDestination: Any,
     ) {
+        resumeSelectionAsTheAppStartDoes()
         compose.setContent {
             StationBreakTheme {
                 AppNavGraph(startDestination = startDestination, navController = navController)

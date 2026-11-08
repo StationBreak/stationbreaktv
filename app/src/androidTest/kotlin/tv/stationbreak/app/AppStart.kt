@@ -16,7 +16,7 @@ internal fun resumeSelectionAsTheAppStartDoes() {
     val graph =
         EntryPointAccessors.fromApplication(
             ApplicationProvider.getApplicationContext<Application>(),
-            StationBreakApp.FirstSyncEntryPoint::class.java,
+            StationBreakApp.AppStartEntryPoint::class.java,
         )
     runBlocking { resumeSelection({ graph.selectionResume() }, graph.resumeGate()) {} }
 }
