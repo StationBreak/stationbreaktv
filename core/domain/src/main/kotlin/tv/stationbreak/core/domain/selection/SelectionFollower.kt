@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.selection
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.Missing
 import tv.stationbreak.core.domain.StoredSelection
+import tv.stationbreak.core.domain.selection.SelectionAllocation.Allocated
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Clock
 
@@ -14,12 +15,12 @@ import kotlin.time.Clock
  * Part of [LibrarySelection], which builds it: it takes no lock of its own and runs only inside the selection's lock
  * (`locked {}`), after the selection has checked the listing counts and the choice is the account's own.
  */
-internal class SelectionListing(
+internal class SelectionFollower(
     private val config: SelectionConfig,
     private val clock: Clock,
     private val ownership: SelectionOwnership,
     private val allocation: SelectionAllocation,
-    private val reconcile: SelectionReconcile,
+    private val reconciler: SelectionReconciler,
 ) {
     // The libraries the last counted listing gave: a library may be added only if it was listed.
     @Volatile private var lastListed: Set<ItemId>? = null
@@ -69,7 +70,7 @@ internal class SelectionListing(
             counted.copy(chosen = chosen, seq = seq, adding = adding, gone = gone).withMissingKept()
         }
         val outcome = allocation.allocate(account, stored, chosen.takeIf { it != stored.chosen }, next)
-        if (outcome is Allocated.Saved) reconcile.afterSave(account, stored, next(outcome.seq))
+        if (outcome is Allocated.Saved) reconciler.afterSave(account, stored, next(outcome.seq))
     }
 }
 

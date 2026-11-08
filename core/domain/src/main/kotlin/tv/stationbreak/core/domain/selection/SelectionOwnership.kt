@@ -25,12 +25,18 @@ internal class SelectionOwnership(
     // The account that adopted an older build's record (one naming no owner) at the resume: that record is its own
     // for the life of the process, even when the write naming it the owner failed. Set only by the resume.
     @Volatile var adopted: LibraryAccount? = null
+        private set
 
     /** The published choice: only the active account's own. */
     val selection: StateFlow<ChoiceView?> = view.asStateFlow()
 
     /** The published seq of the stored selection: it never moves back. */
     val selectionChanges: StateFlow<Long> = seqs.asStateFlow()
+
+    // The resume's adoption of an older build's record for [account].
+    fun adopt(account: LibraryAccount) {
+        adopted = account
+    }
 
     suspend fun activeAccount(): LibraryAccount? = library.activeAccount().first()
 

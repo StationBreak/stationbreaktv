@@ -19,7 +19,7 @@ import kotlin.time.Clock
  * Part of [LibrarySelection], which builds it: it takes no lock of its own and runs only inside the selection's lock
  * (`locked {}` or the resume), after the save it follows.
  */
-internal class SelectionRoom(
+internal class SelectionCache(
     private val library: LibraryRepository,
     private val repairer: TodayRepairer,
     private val stayCurrent: StayCurrentRequests,
@@ -30,6 +30,17 @@ internal class SelectionRoom(
     // committed: the next operation reconciles the cache first. It starts set, so an instance that never resumed (one
     // built after the start's resume failed) catches up on its first operation.
     @Volatile var roomBehind = true
+        private set
+
+    // The cache was left behind (a cache write after a committed save failed, or the resume failed).
+    fun markBehind() {
+        roomBehind = true
+    }
+
+    // The cache is in line with the stored selection (or there is nothing of this account's to put in line).
+    fun markInLine() {
+        roomBehind = false
+    }
 
     // The two branches of a stamped chosen row: a proven one lands, an unproven one is set back, and stay current is
     // asked to read it again. True when either changed the cache.
@@ -119,7 +130,7 @@ internal class SelectionRoom(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            roomBehind = true
+            markBehind()
             report(SelectionEvent.RoomBehind)
         }
     }

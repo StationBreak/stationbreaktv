@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
 import tv.stationbreak.core.domain.lineup.repair.refuseInTurn
+import tv.stationbreak.core.domain.selection.SelectionAllocation.Allocated
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
@@ -96,9 +97,9 @@ internal object InSelection : CoroutineContext.Element, CoroutineContext.Key<InS
  *
  * Its work is split across internal collaborators it builds, each run only under its lock and taking none of its
  * own: [SelectionOwnership] (whose a choice is, and what is published), [SelectionAllocation] (the seq and the
- * settings writes), [SelectionRoom] (the cache's library rows), [SelectionReconcile] (the resume, the catch-up and the
- * steps after a save) and [SelectionListing] (the server's listing). It keeps the lock, the re-entry marker and the
- * ports.
+ * settings writes), [SelectionCache] (the cache's library rows), [SelectionReconciler] (the resume, the catch-up and
+ * the steps after a save) and [SelectionFollower] (the server's listing). It keeps the lock, the re-entry marker and
+ * the ports.
  */
 @Suppress("LongParameterList", "TooManyFunctions") // The stores and ports it writes, one for one; one per step.
 class LibrarySelection(
@@ -126,10 +127,10 @@ class LibrarySelection(
     private val mutex = Mutex()
     private val ownership = SelectionOwnership(library)
     private val allocation = SelectionAllocation(store, library, repairer, service, clock)
-    private val cache = SelectionRoom(library, repairer, stayCurrent, clock, report)
+    private val cache = SelectionCache(library, repairer, stayCurrent, clock, report)
     private val reconciler =
-        SelectionReconcile(store, library, passes, firstSync, ownership, allocation, cache, report)
-    private val serverListing = SelectionListing(config, clock, ownership, allocation, reconciler)
+        SelectionReconciler(store, library, passes, firstSync, ownership, allocation, cache, report)
+    private val follower = SelectionFollower(config, clock, ownership, allocation, reconciler)
 
     override val selection: StateFlow<ChoiceView?> = ownership.selection
 
@@ -204,7 +205,7 @@ class LibrarySelection(
         if (chosen.isEmpty()) return ChangeResult.LastLibrary
         val kept = stored.adding.filterKeys { it in ticked }
         val added = ticked - stored.chosen - stored.adding.keys
-        if (added.isNotEmpty() && !serverListing.lists(added)) return ChangeResult.NotListed
+        if (added.isNotEmpty() && !follower.lists(added)) return ChangeResult.NotListed
         if (chosen == stored.chosen && kept == stored.adding && added.isEmpty()) return ChangeResult.Saved
         val next = { seq: Long ->
             stored.copy(chosen = chosen, seq = seq, adding = kept + added.associateWith { seq }).withMissingKept()
@@ -241,7 +242,7 @@ class LibrarySelection(
                 }
             }
             // A listing of the last account's server says nothing about this choice.
-            serverListing.forget()
+            follower.forget()
             if (!allocation.reset(account, ids)) return@locked SetupResult.Failed
             // An add under way was of the old choice. The save has committed: what follows cannot fail the setup.
             if (held?.adding.orEmpty().isNotEmpty()) {
@@ -267,7 +268,7 @@ class LibrarySelection(
     // be written to its cache.
     override suspend fun clear(): Boolean =
         locked(catchUpFirst = false) {
-            serverListing.forget()
+            follower.forget()
             val adding = store.loadSelection()?.adding.orEmpty()
             val cleared = store.clearLibraries()
             // The caller goes on (a sign-in, a switch of user); the picker's Done clears again before its setup.
@@ -386,10 +387,10 @@ class LibrarySelection(
         locked {
             if (activeAccount() == account) {
                 val ids = libraries.mapTo(HashSet()) { it.id }
-                serverListing.listed(ids)
+                follower.listed(ids)
                 // Another account's choice is not followed for this one.
                 store.loadSelection()?.takeIf { ownership.owns(account, it) }?.let {
-                    serverListing.follow(account, it, ids)
+                    follower.follow(account, it, ids)
                 }
             }
         }
@@ -415,7 +416,7 @@ class LibrarySelection(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            cache.roomBehind = true
+            cache.markBehind()
             report(SelectionEvent.SelectionResumeFailed)
         } finally {
             resumed.open()

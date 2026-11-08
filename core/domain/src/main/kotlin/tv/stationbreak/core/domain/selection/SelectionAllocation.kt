@@ -14,21 +14,6 @@ import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Clock
 
-// How a seq-moving save went.
-internal sealed interface Allocated {
-    data class Saved(
-        val seq: Long,
-    ) : Allocated
-
-    data object Stale : Allocated
-
-    // [terminal]: trying again in this process would not change it (the saved selection could not be read, the
-    // seq was already saved). A refused record may pass (a save that failed), so it is not terminal.
-    data class Failed(
-        val terminal: Boolean,
-    ) : Allocated
-}
-
 /**
  * The seq of the library selection and its writes to the settings (spec 26, Part 4 §2): every seq is allocated here,
  * through the repairer (a change, a save with no repair, the setup's reset) or as a plain save when no lineup exists,
@@ -44,6 +29,21 @@ internal class SelectionAllocation(
     private val service: LineupService,
     private val clock: Clock,
 ) {
+    // How a seq-moving save went.
+    sealed interface Allocated {
+        data class Saved(
+            val seq: Long,
+        ) : Allocated
+
+        data object Stale : Allocated
+
+        // [terminal]: trying again in this process would not change it (the saved selection could not be read, the
+        // seq was already saved). A refused record may pass (a save that failed), so it is not terminal.
+        data class Failed(
+            val terminal: Boolean,
+        ) : Allocated
+    }
+
     // A save that moves the seq, through the repairer: with today's repair for the change to [after] when given, else
     // with none. Before any lineup exists there is nothing to repair, and it is a plain save.
     suspend fun allocate(
@@ -78,13 +78,15 @@ internal class SelectionAllocation(
         return outcome is RepairOutcome.Saved
     }
 
-    // The resume's raise of [stored] above [top], the highest stamp in the cache. True when it saved.
+    // The resume's raise of [stored] above the highest stamp in the cache: null when its seq is above them all
+    // already (nothing to raise), else true when it saved.
     suspend fun raise(
         account: LibraryAccount,
         stored: StoredSelection,
-        top: Long,
-    ): Boolean =
-        when (val floor = service.floorRecord(account)) {
+    ): Boolean? {
+        val top = maxStamp(library.storedLibraries(account))
+        if (top < stored.seq) return null
+        return when (val floor = service.floorRecord(account)) {
             RecordReset.Failed -> {
                 false
             }
@@ -106,6 +108,7 @@ internal class SelectionAllocation(
                 }
             }
         }
+    }
 
     // A repairer outcome as an allocation, with [seqOf] its saved seq; null for no lineup.
     private inline fun <T> allocated(
@@ -151,7 +154,7 @@ internal class SelectionAllocation(
     // One above the highest add stamp in the cache: no seq may equal a stamp left there.
     private fun floorOf(rows: List<StoredLibrary>): Long = maxStamp(rows) + 1
 
-    fun maxStamp(rows: List<StoredLibrary>): Long = rows.maxOfOrNull { it.addStamp ?: 0L } ?: 0L
+    private fun maxStamp(rows: List<StoredLibrary>): Long = rows.maxOfOrNull { it.addStamp ?: 0L } ?: 0L
 
     // One write of the selection, as [owner]'s (every save says whose it is; [setup] only from the setup). The
     // settings never throw by contract; a write that did is read back by the caller.

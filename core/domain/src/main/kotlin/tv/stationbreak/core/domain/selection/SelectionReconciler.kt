@@ -19,14 +19,14 @@ import tv.stationbreak.core.domain.StoredSelection
  * (`locked {}` or the resume).
  */
 @Suppress("LongParameterList") // The stores and the collaborators it puts in line, one for one.
-internal class SelectionReconcile(
+internal class SelectionReconciler(
     private val store: SelectionStore,
     private val library: LibraryRepository,
     private val passes: LibraryPasses,
     private val firstSync: FirstSync,
     private val ownership: SelectionOwnership,
     private val allocation: SelectionAllocation,
-    private val cache: SelectionRoom,
+    private val cache: SelectionCache,
     private val report: (SelectionEvent) -> Unit,
 ) {
     // The resume's work under the lock (see [LibrarySelection.resumeAtStart]). What it throws is the caller's to
@@ -38,7 +38,7 @@ internal class SelectionReconcile(
         // and the same seq is saved with it. With no account active it is left alone.
         val current =
             if (stored != null && stored.owner == null && account != null) {
-                ownership.adopted = account
+                ownership.adopt(account)
                 allocation.write(stored, account)
                 store.loadSelection()
             } else {
@@ -66,9 +66,7 @@ internal class SelectionReconcile(
         account: LibraryAccount,
         stored: StoredSelection,
     ) {
-        val top = allocation.maxStamp(library.storedLibraries(account))
-        if (top < stored.seq) return
-        val raised = allocation.raise(account, stored, top)
+        val raised = allocation.raise(account, stored) ?: return
         if (raised) ownership.publish(store.loadSelection()) else report(SelectionEvent.RaiseSkipped)
     }
 
@@ -96,18 +94,18 @@ internal class SelectionReconcile(
         val stored = store.loadSelection()
         if (stored == null) {
             // Nothing chosen: nothing to put in line.
-            cache.roomBehind = false
+            cache.markInLine()
             return
         }
         // Another account's choice never reaches this account's cache; it stays behind until a setup replaces it. There
         // is nothing of it to put in line, so it is not looked at again on every call (a slow TV).
         if (!ownership.owns(account, stored)) {
-            cache.roomBehind = false
+            cache.markInLine()
             return
         }
         val changed = cache.branches(account, stored.chosen, library.storedLibraries(account))
         cache.applyRoom(account, stored, library.storedLibraries(account))
-        cache.roomBehind = false
+        cache.markInLine()
         // The cache is written: a restart that throws now must not skip the first sync's request below (D6).
         if (stored.adding.isNotEmpty() && restartPasses) restartPasses()
         // A setup the process did not see to its end: the first sync was never asked for.
@@ -138,9 +136,9 @@ internal class SelectionReconcile(
     // A step after a committed write (D6): a failure is reported as [event] and does not undo or fail the write, nor
     // skip what follows it.
     @Suppress("TooGenericExceptionCaught") // Whatever the step throws, the write is saved.
-    fun followUp(
+    suspend fun followUp(
         event: SelectionEvent,
-        block: () -> Unit,
+        block: suspend () -> Unit,
     ) {
         try {
             block()
@@ -152,5 +150,5 @@ internal class SelectionReconcile(
     }
 
     // Asks for the add pass after a committed write; a request that throws is reported (the next start asks again).
-    fun restartPasses() = followUp(SelectionEvent.RestartFailed) { passes.restart() }
+    suspend fun restartPasses() = followUp(SelectionEvent.RestartFailed) { passes.restart() }
 }
