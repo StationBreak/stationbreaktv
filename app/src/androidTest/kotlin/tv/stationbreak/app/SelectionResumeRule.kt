@@ -46,12 +46,16 @@ class SelectionResumeRule(
             override fun evaluate() {
                 resumed = false
                 if (atStart) resume()
-                // A test that fails reports its own failure (it is thrown from here as it is).
-                base.evaluate()
-                // A test that defers the resume and never makes it would wait on the gate silently: it fails here.
-                if (!resumed) {
-                    throw AssertionError("${description.displayName} never called SelectionResumeRule.resume()")
+                // A test that defers the resume and never makes it would wait on the gate silently: it fails here. A
+                // test that failed on its own reports its own failure, with this one attached to it.
+                val never = { AssertionError("${description.displayName} never called SelectionResumeRule.resume()") }
+                try {
+                    base.evaluate()
+                } catch (failure: Throwable) {
+                    if (!resumed) failure.addSuppressed(never())
+                    throw failure
                 }
+                if (!resumed) throw never()
             }
         }
 }

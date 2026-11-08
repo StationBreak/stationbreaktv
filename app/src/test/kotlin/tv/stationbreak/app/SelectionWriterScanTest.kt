@@ -8,7 +8,8 @@ import java.io.File
 /**
  * Spec 26, Part 4: the library selection has one writer. In production code (comments aside), only it, the ports'
  * own file, the stores that implement the writes and the DI modules that bind them may name `SelectionWriter` or
- * `SelectionStore`, and only the stores and the selection call the writes. The selection itself is named only by the
+ * `SelectionStore`, and only the stores and the selection call the writes; the cache's library-row writes are called
+ * only by the selection and carried out by the repository and its DAOs. The selection itself is named only by the
  * module that binds it (anything holding it could open the resume gate). Each DI module takes one store. A new user
  * fails this test.
  */
@@ -19,6 +20,10 @@ class SelectionWriterScanTest {
     private val pinSyncing = "app/src/main/kotlin/tv/stationbreak/app/net/PinSyncingServerSettings.kt"
     private val mediaServerModule = "app/src/main/kotlin/tv/stationbreak/app/di/MediaServerModule.kt"
     private val lineupModule = "app/src/main/kotlin/tv/stationbreak/app/di/LineupModule.kt"
+    private val library = "data/library/src/main/kotlin/tv/stationbreak/data/library"
+    private val roomRepository = "$library/RoomLibraryRepository.kt"
+    private val cacheDao = "$library/CacheTransactionDao.kt"
+    private val libraryDao = "$library/LibraryDao.kt"
 
     // main, commonMain, jvmMain and the app's flavour and build-type sets; never a test set or the test fixtures.
     private val productionSourceSet = Regex("/src/(?![A-Za-z]*[Tt]est)[A-Za-z]+/")
@@ -64,6 +69,17 @@ class SelectionWriterScanTest {
         val users = usersOf(Regex("""\.(saveSelection|clearLibraries)\("""))
 
         assertEquals("a selection write called outside the allowed files", emptySet<String>(), users - allowed)
+    }
+
+    // The cache's library rows follow the selection alone: only it calls the row writes, and only the repository and
+    // its DAOs carry them out. A pass that wrote them itself (hold expiry, say) would be a second writer.
+    @Test
+    fun theCacheRowWrites_areCalledOnlyByTheSelectionTheRepositoryAndItsDaos() {
+        val allowed = setOf(selection, roomRepository, cacheDao, libraryDao)
+
+        val users = usersOf(Regex("""\.(applySelection|landAdd|revertUnproven)\("""))
+
+        assertEquals("a library-row write called outside the allowed files", emptySet<String>(), users - allowed)
     }
 
     @Test

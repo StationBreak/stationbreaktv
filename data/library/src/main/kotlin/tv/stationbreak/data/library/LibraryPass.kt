@@ -208,10 +208,19 @@ internal class LibraryPass private constructor(
             margin: Duration,
             skips: SkipBudget,
             report: (String) -> Unit,
-        ): LibraryPass {
-            val stamp: Long? = null
-            return LibraryPass(repository, server, session, account, stamp, false, pageSize, margin, skips, report)
-        }
+        ): LibraryPass =
+            LibraryPass(
+                repository = repository,
+                server = server,
+                session = session,
+                account = account,
+                stamp = null,
+                rewalk = false,
+                pageSize = pageSize,
+                margin = margin,
+                skips = skips,
+                report = report,
+            )
 
         /** The add walk of a library being added under [stamp]. */
         fun add(

@@ -93,15 +93,15 @@ class AddedLibrariesRunner(
         val record = settings.load() ?: return SyncOutcome.Cancelled
         // The adds are the selection's own, for the active account and only of its own choice: none, nothing to do.
         val signedIn = repository.dao.activeAccounts().singleOrNull() ?: return SyncOutcome.Cancelled
-        val active = LibraryAccount(ServerId(signedIn.serverId), UserId(signedIn.userId))
-        if (landings.pendingAdds(active).isEmpty()) return SyncOutcome.Completed
+        val signedInAccount = LibraryAccount(ServerId(signedIn.serverId), UserId(signedIn.userId))
+        if (landings.pendingAdds(signedInAccount).isEmpty()) return SyncOutcome.Completed
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
                 val session = restored.session
                 val account = LibraryAccount(session.server.id, session.userId)
                 // Signed out (or another account in) while the server was answering: nothing to add.
-                val active = ActiveAccountEntity(account.server.value, account.user.value)
-                if (repository.dao.activeAccounts() != listOf(active)) {
+                val stillActive = ActiveAccountEntity(account.server.value, account.user.value)
+                if (repository.dao.activeAccounts() != listOf(stillActive)) {
                     SyncOutcome.Cancelled
                 } else {
                     try {

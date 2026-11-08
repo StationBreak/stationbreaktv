@@ -104,10 +104,17 @@ internal class FirstSyncEngine(
         private var earliestWalk = started
 
         // One library's walk with no stamp (spec 26, Part 4 §4: LibraryPass(null)).
-        private fun pass(): LibraryPass {
-            val budget = skips
-            return LibraryPass.firstSync(repository, server, session, account, pageSize, margin, budget, report)
-        }
+        private fun pass(): LibraryPass =
+            LibraryPass.firstSync(
+                repository = repository,
+                server = server,
+                session = session,
+                account = account,
+                pageSize = pageSize,
+                margin = margin,
+                skips = skips,
+                report = report,
+            )
 
         suspend fun sync(set: FirstSyncLibraries): SyncOutcome {
             val listed =
