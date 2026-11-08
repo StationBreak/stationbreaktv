@@ -651,6 +651,57 @@ internal abstract class LibraryDao {
         fromMs: Long,
     )
 
+    // The items [libraryId] lists without owning them, in order: the reconcile's "also" set.
+    @Query(
+        "SELECT itemId FROM item_also_listed WHERE serverId = :serverId AND userId = :userId " +
+            "AND libraryId = :libraryId ORDER BY itemId",
+    )
+    abstract suspend fun alsoListedIds(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+    ): List<String>
+
+    // The reconcile's add half: [libraryId] lists [ids] (at most MAX_VARIABLES - 2 of them). A row goes in only for an
+    // item another library owns, checked here, in the write, so no row ever names its owner.
+    @Query(
+        "INSERT OR IGNORE INTO item_also_listed (serverId, userId, itemId, libraryId) " +
+            "SELECT serverId, userId, itemId, :libraryId FROM item WHERE serverId = :serverId AND userId = :userId " +
+            "AND itemId IN (:ids) AND libraryId <> :libraryId",
+    )
+    abstract suspend fun addAlsoListed(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    )
+
+    // The tombstones among [ids] (at most MAX_VARIABLES - 2 of them) that a library other than [libraryId] owns.
+    @Query(
+        "SELECT * FROM item WHERE serverId = :serverId AND userId = :userId AND itemId IN (:ids) " +
+            "AND deletedAtMs IS NOT NULL AND libraryId <> :libraryId",
+    )
+    abstract suspend fun foreignTombstones(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+    ): List<ItemEntity>
+
+    // Tombstones the live items among [ids] (at most MAX_VARIABLES - 2 of them) that [libraryId] still owns: an item
+    // that moved meanwhile is left alone (LOW-16). The rows it tombstoned.
+    @Query(
+        "UPDATE item SET deletedAtMs = :atMs WHERE serverId = :serverId AND userId = :userId " +
+            "AND itemId IN (:ids) AND libraryId = :libraryId AND deletedAtMs IS NULL",
+    )
+    abstract suspend fun tombstoneOwned(
+        serverId: String,
+        userId: String,
+        libraryId: String,
+        ids: List<String>,
+        atMs: Long,
+    ): Int
+
     // Genres, tags and studios.
 
     @Insert

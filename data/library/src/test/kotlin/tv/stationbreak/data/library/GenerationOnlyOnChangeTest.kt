@@ -84,10 +84,10 @@ class GenerationOnlyOnChangeTest {
     fun theReconcilesWriteMovesItForEachKindOfDecision() =
         runBlocking {
             world()
-            check("an item gone") { repository.applyReconcile(ALICE, listOf(film), none, none, none) }
-            check("an item back") { repository.applyReconcile(ALICE, none, listOf(film), none, none) }
-            check("a series gone") { repository.applyReconcile(ALICE, none, none, listOf(show), none) }
-            check("a series back") { repository.applyReconcile(ALICE, none, none, none, listOf(show)) }
+            check("an item gone") { repository.applyReconcile(ALICE, MOVIES, listOf(film), none, none, none) }
+            check("an item back") { repository.applyReconcile(ALICE, MOVIES, none, listOf(film), none, none) }
+            check("a series gone") { repository.applyReconcile(ALICE, MOVIES, none, none, listOf(show), none) }
+            check("a series back") { repository.applyReconcile(ALICE, MOVIES, none, none, none, listOf(show)) }
         }
 
     @Test
@@ -106,7 +106,7 @@ class GenerationOnlyOnChangeTest {
             still("an item never held") { repository.tombstone(ALICE, listOf(ItemId(hexId(9)))) }
             still("a series that is live") { repository.reviveSeries(ALICE, listOf(show)) }
             still("a reconcile whose decisions are all in place already") {
-                repository.applyReconcile(ALICE, listOf(other), listOf(film), none, listOf(show))
+                repository.applyReconcile(ALICE, MOVIES, listOf(other), listOf(film), none, listOf(show))
             }
             repository.tombstoneSeries(ALICE, listOf(show))
             still("a series already deleted") { repository.tombstoneSeries(ALICE, listOf(show)) }
@@ -125,7 +125,7 @@ class GenerationOnlyOnChangeTest {
             clock.stepMs(1_000)
 
             check("the member row it ends is a change") {
-                repository.applyReconcile(ALICE, listOf(film), none, none, none)
+                repository.applyReconcile(ALICE, MOVIES, listOf(film), none, none, none)
             }
         }
 

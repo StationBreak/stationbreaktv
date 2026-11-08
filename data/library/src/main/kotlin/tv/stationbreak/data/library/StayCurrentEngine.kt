@@ -35,8 +35,9 @@ internal data class PassSummary(
 }
 
 /**
- * What a reconciliation did: items tombstoned, tombstones cleared, and items the cache lacked that were fetched; and,
- * for the series pass, series tombstoned and revived.
+ * What a reconciliation did: items tombstoned, tombstones cleared (another library's taken over included), and items
+ * the cache lacked that were fetched; for the series pass, series tombstoned and revived; and items [moved] to a
+ * library that still lists them instead of being tombstoned (spec 26, schema 11).
  */
 internal data class ReconcileSummary(
     val tombstoned: Int = 0,
@@ -44,6 +45,7 @@ internal data class ReconcileSummary(
     val fetched: Int = 0,
     val seriesTombstoned: Int = 0,
     val seriesRevived: Int = 0,
+    val moved: Int = 0,
 ) {
     operator fun plus(other: ReconcileSummary) =
         ReconcileSummary(
@@ -52,6 +54,7 @@ internal data class ReconcileSummary(
             fetched + other.fetched,
             seriesTombstoned + other.seriesTombstoned,
             seriesRevived + other.seriesRevived,
+            moved + other.moved,
         )
 }
 
@@ -496,10 +499,14 @@ internal class StayCurrentEngine(
                     is Existing.Failed -> return read.outcome
                     is Existing.Sound -> read.ids
                 }
-            val gone = missing.filterKeys { it !in again }.values
-            val items = gone.flatMap { it.first }
-            val series = gone.flatMap { it.second }
-            repository.applyReconcile(account, items, emptySet(), series, emptySet())
+            val gone = missing.filterKeys { it !in again }
+            val items = gone.values.flatMap { it.first }
+            val series = gone.values.flatMap { it.second }
+            val write = repository.applyRemoved(account, gone.mapValues { it.value.first }, series)
+            if (write == ReconcileApplied.Refused) {
+                refused = true
+                return SyncOutcome.Cancelled
+            }
             reconciled += ReconcileSummary(tombstoned = items.size, seriesTombstoned = series.size)
             return null
         }
@@ -519,17 +526,23 @@ internal class StayCurrentEngine(
                 }
             }
 
+        // One library's items, then its series, each guarded; the early returns are the guards' stops.
+        @Suppress("CyclomaticComplexMethod")
         private suspend fun reconcile(
             library: Library,
             reconciling: List<Library>,
         ): SyncOutcome? {
             // The cache first, then the server: whatever another pass saves while the list is read is not "gone".
+            // [also] are the items the library lists and another owns (spec 26, schema 11): they are held like its own
+            // for the guards, so a row goes only when both reads lack the item.
             val live = repository.liveItemIds(account, library.id).toSet()
             val tombstoned = repository.tombstonedItemIds(account, library.id).toSet()
+            val also = repository.alsoListedIds(account, library.id).toSet()
             val known = repository.allItemIds(account).toSet()
             val itemIds: IdLister = { start, count -> server.libraryItemIds(session, library, start, count) }
+            val held = live + also
             val items =
-                when (val decided = decide(live, tombstoned, itemIds)) {
+                when (val decided = decide(held, tombstoned, itemIds, suspectLive = held)) {
                     is Decision.Stop -> return decided.outcome
                     is Decision.Ready -> decided
                 }
@@ -564,14 +577,8 @@ internal class StayCurrentEngine(
             val seriesGone = goneSeries(ready, hidden, emptyList)
             val seriesReturning = ready?.returning.orEmpty()
             // One transaction for both (the item reconcile and the series reconcile).
-            repository.applyReconcile(account, items.gone, items.returning, seriesGone, seriesReturning)
-            reconciled +=
-                ReconcileSummary(
-                    tombstoned = items.gone.size,
-                    revived = items.returning.size,
-                    seriesTombstoned = seriesGone.size,
-                    seriesRevived = seriesReturning.size,
-                )
+            val owned = OwnedSets(live, also, known)
+            if (!writeDecisions(library, items, owned, seriesGone, seriesReturning)) return SyncOutcome.Cancelled
             // The item fetch runs whatever became of the series read (Granny M1), then the series' own recovery.
             val itemsFailed = fetchMissing(library, items.list, items.list.ids - known)
             if (itemsFailed != null) return itemsFailed
@@ -581,6 +588,54 @@ internal class StayCurrentEngine(
             if (emptyList && (seriesLive - referenced).isNotEmpty()) return suspect()
             val seriesKnown = repository.allSeriesIds(account).toSet()
             return fetchMissingSeries(library, (series as Decision.Ready).list.ids - seriesKnown)
+        }
+
+        // What the reconcile read of the cache before the server: the library's [live] items, the ones it lists that
+        // another owns ([also]), and every item the account holds ([known]).
+        private inner class OwnedSets(
+            val live: Set<ItemId>,
+            val also: Set<ItemId>,
+            val known: Set<ItemId>,
+        )
+
+        // Writes one library's decisions with its also-listed rows (spec 26, schema 11): the items it owns that are
+        // gone, the rows of the others it lists no more, and a row for each listed item another library holds (a
+        // tombstone of which it takes over). False, with nothing written, when the library row refused it: the
+        // library changed under the pass, which writes nothing more.
+        private suspend fun writeDecisions(
+            library: Library,
+            items: Decision.Ready,
+            owned: OwnedSets,
+            seriesGone: Set<ItemId>,
+            seriesReturning: Set<ItemId>,
+        ): Boolean {
+            val itemsGone = items.gone intersect owned.live
+            val alsoAdd = (items.list.ids intersect owned.known) - owned.live - owned.also
+            val write =
+                repository.applyReconcile(
+                    account,
+                    library.id,
+                    itemsGone,
+                    items.returning,
+                    seriesGone,
+                    seriesReturning,
+                    alsoAdd = alsoAdd,
+                    alsoDrop = items.gone intersect owned.also,
+                )
+            val written = write as? ReconcileApplied.Written
+            if (written == null) {
+                refused = true
+                return false
+            }
+            reconciled +=
+                ReconcileSummary(
+                    tombstoned = itemsGone.size - written.moved,
+                    revived = items.returning.size + written.takenOver,
+                    seriesTombstoned = seriesGone.size,
+                    seriesRevived = seriesReturning.size,
+                    moved = written.moved,
+                )
+            return true
         }
 
         private suspend fun confirmHidden(

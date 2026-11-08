@@ -92,7 +92,7 @@ class CollectionTombstoneCascadeTest {
             world()
             val stamp = clock.nowMs
 
-            repository.applyReconcile(ALICE, listOf(film), emptyList(), listOf(show), emptyList())
+            repository.applyReconcile(ALICE, MOVIES, listOf(film), emptyList(), listOf(show), emptyList())
 
             assertEquals(listOf(other.value), current(boxA))
             assertEquals(listOf("x"), current(boxB))
@@ -232,7 +232,7 @@ class CollectionTombstoneCascadeTest {
             repository.faultBetweenReconcileTombstonesAndRevives = { error("the process died here") }
 
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.applyReconcile(ALICE, listOf(film), emptyList(), listOf(show), emptyList()) }
+                runBlocking { repository.applyReconcile(ALICE, MOVIES, listOf(film), seriesGone = listOf(show)) }
             }
 
             assertEquals(items, repository.currentRows(ALICE))
@@ -247,11 +247,11 @@ class CollectionTombstoneCascadeTest {
             world()
             repository.faultBetweenReconcileTombstonesAndRevives = { error("the process died here") }
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { repository.applyReconcile(ALICE, listOf(film), emptyList(), emptyList(), emptyList()) }
+                runBlocking { repository.applyReconcile(ALICE, MOVIES, listOf(film)) }
             }
             repository.faultBetweenReconcileTombstonesAndRevives = null
 
-            repository.applyReconcile(ALICE, listOf(film), emptyList(), emptyList(), emptyList())
+            repository.applyReconcile(ALICE, MOVIES, listOf(film), emptyList(), emptyList(), emptyList())
 
             assertEquals(clock.nowMs, repository.currentRows(ALICE).first { it.itemId == film.value }.deletedAtMs)
             assertEquals(listOf(other.value, show.value), current(boxA))
@@ -301,7 +301,7 @@ class CollectionTombstoneCascadeTest {
             rawWorld()
 
             val rawSeries = ItemId(rawFilm.replace('A', 'B'))
-            repository.applyReconcile(ALICE, listOf(ItemId(rawFilm)), emptyList(), listOf(rawSeries), emptyList())
+            repository.applyReconcile(ALICE, MOVIES, listOf(ItemId(rawFilm)), seriesGone = listOf(rawSeries))
 
             assertEquals(emptyList<String>(), current(boxA))
         }

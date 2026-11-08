@@ -11,6 +11,45 @@ package tv.stationbreak.data.library
 // reconcile's owner-drop move, each versioned. A library marked for a rewalk is chosen for all of these.
 
 /**
+ * One library's reconcile decisions (spec 26, schema 11): the items it owns that its listing dropped ([itemsGone]),
+ * its tombstones it lists again ([itemsReturning]), the same for its series, the items another library owns that it
+ * lists ([alsoAdd], the add half) and the rows of items it lists no more ([alsoDrop], the removal half). [foreignListed]
+ * are the listed items another library holds, a tombstone of which it takes over.
+ */
+@Suppress("LongParameterList") // One list per kind of decision.
+internal class ReconcileDecisions(
+    val itemsGone: List<String> = emptyList(),
+    val itemsReturning: List<String> = emptyList(),
+    val seriesGone: List<String> = emptyList(),
+    val seriesReturning: List<String> = emptyList(),
+    val alsoAdd: List<String> = emptyList(),
+    val alsoDrop: List<String> = emptyList(),
+    val foreignListed: List<String> = emptyList(),
+) {
+    val isEmpty: Boolean
+        get() =
+            itemsGone.isEmpty() && itemsReturning.isEmpty() && seriesGone.isEmpty() && seriesReturning.isEmpty() &&
+                alsoAdd.isEmpty() && alsoDrop.isEmpty() && foreignListed.isEmpty()
+}
+
+/** How a reconcile write ended (spec 26, schema 11). */
+internal sealed interface ReconcileApplied {
+    /**
+     * Written: [tombstoned] items tombstoned, [moved] to a library that lists them, [revived] (its own tombstones)
+     * and [takenOver] (another library's tombstones it lists), counted as the rows that changed.
+     */
+    data class Written(
+        val tombstoned: Int,
+        val moved: Int,
+        val revived: Int,
+        val takenOver: Int,
+    ) : ReconcileApplied
+
+    /** Nothing was written: the library has no row, is held, is being added or is marked for a rewalk. */
+    data object Refused : ReconcileApplied
+}
+
+/**
  * One also-listed row with its library's class (spec 26, schema 11): chosen (no stamp, no hold), being added
  * ([addStamp], no hold) or held ([heldUntilMs]).
  */
@@ -135,4 +174,77 @@ internal suspend fun moveItems(
         for (row in rows) moved += row.libraryId to targets.getValue(row.itemId)
     }
     return moved
+}
+
+// A library row takes a reconcile (or a removed-library write) when it is chosen: it exists, has no hold and no
+// stamp, and is not marked for a rewalk.
+internal fun reconcilable(row: LibraryEntity?): Boolean =
+    row != null && row.heldUntilMs == null && row.addStamp == null && !row.rewalkPending
+
+/**
+ * What the owner drop did: [moved] items to a library that lists them, [tombstoned] the rest, and [ended] the
+ * items whose member rows end (the dropped items the library still owns as tombstones).
+ */
+internal class OwnerDrop(
+    val moved: Int,
+    val tombstoned: Int,
+    val ended: List<String>,
+)
+
+// The owner drop of [libraryId]'s reconcile (spec 26, MED-2, LOW-16): each of [gone] it still owns, live, moves to
+// its best lister, or is tombstoned; only those it still owns end their member rows, and a moved one keeps them.
+@Suppress("LongParameterList") // The two DAOs, the account, the library, what is gone and the time.
+internal suspend fun dropOwned(
+    library: LibraryDao,
+    history: ItemHistoryDao,
+    serverId: String,
+    userId: String,
+    libraryId: String,
+    gone: List<String>,
+    nowMs: Long,
+): OwnerDrop {
+    val owned = ArrayList<ItemEntity>()
+    for (chunk in gone.chunked(LibraryDao.MAX_VARIABLES)) {
+        for (row in library.itemsByIds(serverId, userId, chunk)) if (row.libraryId == libraryId) owned += row
+    }
+    val live = owned.filter { it.deletedAtMs == null }.map { it.itemId }
+    val listers = ArrayList<AlsoLister>()
+    for (chunk in live.chunked(LibraryDao.MAX_VARIABLES)) {
+        for (row in library.listersOf(serverId, userId, chunk)) if (row.libraryId != libraryId) listers += row
+    }
+    val targets = bestTargets(listers)
+    val moved = moveItems(library, history, serverId, userId, targets, nowMs, ownedBy = libraryId).size
+    val toTombstone = live.filter { it !in targets }
+    var tombstoned = 0
+    for (chunk in toTombstone.chunked(LibraryDao.MAX_VARIABLES - 2)) {
+        tombstoned += library.tombstoneOwned(serverId, userId, libraryId, chunk, nowMs)
+    }
+    val ended = owned.map { it.itemId }.filter { it !in targets }
+    return OwnerDrop(moved, tombstoned, ended)
+}
+
+// The revival takeover (spec 26, MED-3): each of [listed] that another library owns as a tombstone is revived into
+// [libraryId], versioned, and [libraryId]'s row for it goes. How many.
+@Suppress("LongParameterList") // The two DAOs, the account, the library, what it lists and the time.
+internal suspend fun takeOverIn(
+    library: LibraryDao,
+    history: ItemHistoryDao,
+    serverId: String,
+    userId: String,
+    libraryId: String,
+    listed: List<String>,
+    nowMs: Long,
+): Int {
+    var taken = 0
+    for (chunk in listed.chunked(LibraryDao.MAX_VARIABLES - 2)) {
+        val rows = library.foreignTombstones(serverId, userId, libraryId, chunk)
+        if (rows.isEmpty()) continue
+        val names = library.sideNames(serverId, userId, rows.map { it.itemId })
+        val plan = history.planRevival(rows, names, nowMs)
+        history.insertVersions(plan.versions)
+        library.updateItems(plan.revived.map { it.copy(libraryId = libraryId) })
+        library.deleteAlsoListedIn(serverId, userId, libraryId, rows.map { it.itemId })
+        taken += rows.size
+    }
+    return taken
 }

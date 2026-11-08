@@ -451,34 +451,86 @@ internal abstract class CacheTransactionDao(
     }
 
     /**
-     * One reconcile's decisions for a library, written together (spec 10, Vimes M3): the items and the series that
-     * are gone are tombstoned at [nowMs], and those that came back are revived, each with its version, in one
-     * transaction after the account check. Tombstones go first, with the end of their IDs' member rows in every
-     * collection (ADR-0015), then the revives. [betweenTombstonesAndRevives] runs between them (a test seam; null in
-     * the app).
+     * One reconcile's [decisions] for [libraryId], written together after the account check (spec 10, Vimes M3; spec
+     * 26, schema 11), only when the library's row takes them: it exists, has no hold and no stamp, and is not marked
+     * for a rewalk (a marked library is never reconciled). Otherwise nothing is written and it is
+     * [ReconcileApplied.Refused]. In order:
+     * 1. the removal half: the library's rows for the items it lists no more go;
+     * 2. each item it owns that its listing dropped moves to the best library that lists it (versioned, that row goes,
+     *    and its collection rows stay), or, with none, is tombstoned at [nowMs], only while the library still owns it;
+     *    the series that are gone are tombstoned, and the member rows of the items left as its tombstones, and of those
+     *    series, end (ADR-0015);
+     * 3. [betweenTombstonesAndRevives] (a test seam; null in the app), then its own tombstones that came back and the
+     *    series are revived, each with its version;
+     * 4. a listed tombstone another library owns is revived into this one (versioned), and its row here goes;
+     * 5. the add half: a row for each listed item another library owns, the owner checked in the write.
+     * The content generation moves once when an item or series row, or a member row, changed; a change to the
+     * also-listed rows alone moves nothing.
      */
     @Transaction
-    @Suppress("LongParameterList") // One cohesive call: the four decisions, the time and the test seam.
+    @Suppress("LongParameterList") // One cohesive call: the library, its decisions, the time and the test seam.
     open suspend fun reconcileWrite(
         serverId: String,
         userId: String,
-        itemsGone: List<String>,
-        itemsReturning: List<String>,
-        seriesGone: List<String>,
-        seriesReturning: List<String>,
+        libraryId: String,
+        decisions: ReconcileDecisions,
         nowMs: Long,
         betweenTombstonesAndRevives: (() -> Unit)?,
-    ) {
+    ): ReconcileApplied {
         library.requireActive(serverId, userId)
-        var changed = tombstoneItemsIn(serverId, userId, itemsGone, nowMs)
-        changed += tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
+        if (!reconcilable(library.libraryRow(serverId, userId, libraryId))) return ReconcileApplied.Refused
+        for (chunk in decisions.alsoDrop.chunked(LibraryDao.MAX_VARIABLES)) {
+            library.deleteAlsoListedIn(serverId, userId, libraryId, chunk)
+        }
+        val dropped = dropOwned(library, history, serverId, userId, libraryId, decisions.itemsGone, nowMs)
+        val seriesGone = decisions.seriesGone
+        var changed = dropped.tombstoned + dropped.moved + tombstoneSeriesIn(serverId, userId, seriesGone, nowMs)
         // Before the seam, so a fault there rolls back the tombstones and the cascade together.
-        changed += supersedeMembersIn(serverId, userId, itemsGone + seriesGone, nowMs)
+        changed += supersedeMembersIn(serverId, userId, dropped.ended + seriesGone, nowMs)
         betweenTombstonesAndRevives?.invoke()
-        changed += reviveItemsIn(serverId, userId, itemsReturning, nowMs)
-        changed += reviveSeriesIn(serverId, userId, seriesReturning, nowMs)
+        val revived = reviveItemsIn(serverId, userId, decisions.itemsReturning, nowMs)
+        changed += revived + reviveSeriesIn(serverId, userId, decisions.seriesReturning, nowMs)
+        val takenOver = takeOverIn(library, history, serverId, userId, libraryId, decisions.foreignListed, nowMs)
+        for (chunk in decisions.alsoAdd.chunked(LibraryDao.MAX_VARIABLES)) {
+            library.addAlsoListed(serverId, userId, libraryId, chunk)
+        }
         // Only rows that changed count: a decision already in place (another pass got there first) moves nothing.
+        if (changed + takenOver > 0) library.bumpGeneration(serverId, userId)
+        return ReconcileApplied.Written(dropped.tombstoned, dropped.moved, revived, takenOver)
+    }
+
+    /**
+     * The rows of chosen libraries the server no longer has (#495), written in one transaction after the account
+     * check: the items each library of [items] still owns are tombstoned at [nowMs], and the [series], each with the
+     * end of its member rows (ADR-0015). Every library must take the write as a reconcile does (chosen, unmarked);
+     * otherwise nothing is written and it is [ReconcileApplied.Refused]. The generation moves once, on a change.
+     */
+    @Transaction
+    open suspend fun removedWrite(
+        serverId: String,
+        userId: String,
+        items: Map<String, List<String>>,
+        series: List<String>,
+        nowMs: Long,
+    ): ReconcileApplied {
+        library.requireActive(serverId, userId)
+        for (libraryId in items.keys) {
+            if (!reconcilable(library.libraryRow(serverId, userId, libraryId))) return ReconcileApplied.Refused
+        }
+        var changed = 0
+        var tombstoned = 0
+        val ended = ArrayList<String>()
+        for ((libraryId, ids) in items) {
+            for (chunk in ids.chunked(LibraryDao.MAX_VARIABLES - 2)) {
+                val rows = library.itemsByIds(serverId, userId, chunk)
+                for (row in rows) if (row.libraryId == libraryId) ended += row.itemId
+                tombstoned += library.tombstoneOwned(serverId, userId, libraryId, chunk, nowMs)
+            }
+        }
+        changed += tombstoned + tombstoneSeriesIn(serverId, userId, series, nowMs)
+        changed += supersedeMembersIn(serverId, userId, ended + series, nowMs)
         if (changed > 0) library.bumpGeneration(serverId, userId)
+        return ReconcileApplied.Written(tombstoned, 0, 0, 0)
     }
 
     /**

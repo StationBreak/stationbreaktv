@@ -557,28 +557,59 @@ class RoomLibraryRepository internal constructor(
     }
 
     /**
-     * Writes one library's reconcile decisions in one transaction: the items and series that are gone are tombstoned,
-     * and those that returned are revived, each with its version. Nothing is written when there is nothing to write.
+     * Writes [library]'s reconcile decisions in one transaction (see [CacheTransactionDao.reconcileWrite]): the items
+     * and series that are gone are tombstoned, or moved to a library that lists them, those that returned are revived,
+     * and [library]'s also-listed rows follow its listing ([alsoAdd], [alsoDrop]; a listed tombstone another library
+     * owns is taken over). Nothing is written when there is nothing to write. [ReconcileApplied.Refused] when
+     * [library]'s row does not take a reconcile.
      */
+    @Suppress("LongParameterList") // The library and each kind of decision, all optional but the library.
     internal suspend fun applyReconcile(
         account: LibraryAccount,
-        itemsGone: Collection<ItemId>,
-        itemsReturning: Collection<ItemId>,
-        seriesGone: Collection<ItemId>,
-        seriesReturning: Collection<ItemId>,
-    ) {
-        if (listOf(itemsGone, itemsReturning, seriesGone, seriesReturning).all { it.isEmpty() }) return
+        library: ItemId,
+        itemsGone: Collection<ItemId> = emptyList(),
+        itemsReturning: Collection<ItemId> = emptyList(),
+        seriesGone: Collection<ItemId> = emptyList(),
+        seriesReturning: Collection<ItemId> = emptyList(),
+        alsoAdd: Collection<ItemId> = emptyList(),
+        alsoDrop: Collection<ItemId> = emptyList(),
+    ): ReconcileApplied {
+        val decisions =
+            ReconcileDecisions(
+                itemsGone.map { it.value },
+                itemsReturning.map { it.value },
+                seriesGone.map { it.value },
+                seriesReturning.map { it.value },
+                alsoAdd.map { it.value },
+                alsoDrop.map { it.value },
+                foreignListed = alsoAdd.map { it.value },
+            )
+        if (decisions.isEmpty) return ReconcileApplied.Written(0, 0, 0, 0)
         val (server, user) = account.keys()
-        transactions.reconcileWrite(
+        val now = clock.now().toEpochMilliseconds()
+        return transactions.reconcileWrite(
             server,
             user,
-            itemsGone.map { it.value },
-            itemsReturning.map { it.value },
-            seriesGone.map { it.value },
-            seriesReturning.map { it.value },
-            clock.now().toEpochMilliseconds(),
+            library.value,
+            decisions,
+            now,
             faultBetweenReconcileTombstonesAndRevives,
         )
+    }
+
+    /**
+     * Tombstones the rows of chosen libraries the server no longer has (#495), in one transaction: [items] are the
+     * items each removed library owns, [series] their series (see [CacheTransactionDao.removedWrite]).
+     */
+    internal suspend fun applyRemoved(
+        account: LibraryAccount,
+        items: Map<ItemId, Collection<ItemId>>,
+        series: Collection<ItemId>,
+    ): ReconcileApplied {
+        val (server, user) = account.keys()
+        val byLibrary = items.entries.associate { (library, ids) -> library.value to ids.map { it.value } }
+        val now = clock.now().toEpochMilliseconds()
+        return transactions.removedWrite(server, user, byLibrary, series.map { it.value }, now)
     }
 
     /** The IDs of [library]'s live series, in order: what the series reconcile compares the server's list with. */
@@ -830,6 +861,15 @@ class RoomLibraryRepository internal constructor(
     ): List<ItemId> {
         val (server, user) = account.keys()
         return dao.liveItemIds(server, user, library.value).map(::ItemId)
+    }
+
+    /** The IDs of the items [library] lists without owning them (spec 26, schema 11), in order. */
+    internal suspend fun alsoListedIds(
+        account: LibraryAccount,
+        library: ItemId,
+    ): List<ItemId> {
+        val (server, user) = account.keys()
+        return dao.alsoListedIds(server, user, library.value).map(::ItemId)
     }
 
     /** The IDs of [library]'s tombstoned items: deleted on the server, not yet purged. */
