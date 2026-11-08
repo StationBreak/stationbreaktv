@@ -29,7 +29,8 @@ import javax.inject.Inject
  * clean visit, which asks the server for its libraries once.
  *
  * The ticks are always the stored choice ([LibraryChoices.selection]), never a guess: a change that did not go through
- * leaves them as they are. A Select sends one change, applied at once; a Select while it is out sends nothing.
+ * leaves them as they are. A Select sends one change, applied at once; a Select while one is out (from this visit or
+ * an earlier one) sends nothing.
  *
  * When the server cannot be asked, the stored choice shows read-only, with the names an earlier listing gave (a
  * library no listing named shows without one). Nobody signed in shows no rows.
@@ -58,8 +59,6 @@ internal class LibrariesSettingsViewModel
             val view: ChoiceView? = null,
             val focus: Int = 0,
             val notice: Notice? = null,
-            /** A change is out, so a Select sends nothing. */
-            val changing: Boolean = false,
             /** The adds already shown as given up in this visit, so each is said once. */
             val stalledSeen: Set<ItemId> = emptySet(),
         ) {
@@ -79,6 +78,10 @@ internal class LibrariesSettingsViewModel
         private val lock = Any()
         private var model = Model()
         private var session: Job? = null
+
+        // A change is out, from this visit or an earlier one: a Select sends nothing until it ends, so a new visit
+        // never builds its ticks without it. Under [lock], for the ViewModel's life, not the visit's.
+        private var changing = false
 
         // Names from every listing this ViewModel read, for the rows a later listing leaves out or cannot give.
         private val names = HashMap<ItemId, String>()
@@ -158,11 +161,8 @@ internal class LibrariesSettingsViewModel
 
         /** Focus to the row above or below, stopping at the first and the last. */
         fun move(up: Boolean) {
-            synchronized(lock) {
-                val last = (rowsOf(model).size - 1).coerceAtLeast(0)
-                val to = (if (up) model.focus - 1 else model.focus + 1).coerceIn(0, last)
-                apply { it.copy(focus = to) }
-            }
+            // [apply] keeps it on a row.
+            synchronized(lock) { apply { it.copy(focus = if (up) it.focus - 1 else it.focus + 1) } }
         }
 
         /** Ticks or unticks the focused row: one change, while the server's libraries are listed and none is out. */
@@ -170,18 +170,20 @@ internal class LibrariesSettingsViewModel
             val generation: Int
             val ticked: Set<ItemId>
             synchronized(lock) {
-                val open = model.phase == LibrariesPhase.Listed && !model.changing
+                val open = model.phase == LibrariesPhase.Listed && !changing
                 val row = rowsOf(model).getOrNull(model.focus)?.takeIf { open }
                 val view = model.view
                 if (row == null || view == null) return
                 val stored = view.chosen + view.adding
                 ticked = if (row.ticked) stored - row.id else stored + row.id
                 generation = model.generation
-                apply { it.copy(changing = true, notice = null) }
+                changing = true
+                apply { it.copy(notice = null) }
             }
             scope.launch {
                 val result = send(ticked)
-                change(generation) { it.copy(changing = false, notice = result.notice()) }
+                synchronized(lock) { changing = false }
+                change(generation) { it.copy(notice = result.notice()) }
             }
         }
 
@@ -207,15 +209,18 @@ internal class LibrariesSettingsViewModel
         }
 
         // Under [lock].
+        // The focus is kept on a row: when rows go (a left-out library unticked or confirmed missing), it is stored
+        // clamped, so the next Select and Up act from the row drawn.
         private fun apply(step: (Model) -> Model) {
-            model = step(model)
+            val next = step(model)
+            val last = (rowsOf(next).size - 1).coerceAtLeast(0)
+            model = next.copy(focus = next.focus.coerceIn(0, last))
             if (visible) shown.value = derive(model)
         }
 
         private fun derive(m: Model): LibrariesSettingsState {
             val rows = rowsOf(m)
-            val focus = m.focus.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-            return LibrariesSettingsState(m.phase, rows, focus, m.notice)
+            return LibrariesSettingsState(m.phase, rows, m.focus, m.notice)
         }
 
         private fun rowsOf(m: Model): List<LibraryRow> {

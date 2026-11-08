@@ -273,4 +273,54 @@ class LibrariesSettingsViewModelTest {
             assertNull(vm.now.notice)
             assertEquals(0, vm.now.focus)
         }
+
+    // Fix round 1: the focus follows the rows. The last row going (a left-out library unticked) leaves it on the new
+    // last row, so the next Select acts there.
+    @Test
+    fun theLastRowGoing_movesTheFocusToTheNewLastRow() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id, DELTA)), listOf(ALPHA, BRAVO))
+            val vm = open(choices)
+            vm.focusOn(DELTA)
+            assertEquals(2, vm.now.focus)
+
+            vm.select()
+            runCurrent()
+            assertEquals(listOf(ALPHA.id, BRAVO.id), vm.now.rows.map { it.id })
+            assertEquals(1, vm.now.focus)
+
+            vm.select()
+            runCurrent()
+            assertEquals(listOf(setOf(ALPHA.id), setOf(ALPHA.id, BRAVO.id)), choices.changes)
+        }
+
+    // Fix round 1: a change still out from an earlier visit holds the next visit's Select, so it is never dropped.
+    @Test
+    fun aChangeFromAnEarlierVisit_holdsSelect_untilItEnds() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val vm = open(choices)
+            vm.focusOn(BRAVO.id)
+            vm.select()
+            runCurrent()
+
+            vm.close()
+            vm.open()
+            runCurrent()
+            vm.focusOn(CHARLIE.id)
+            vm.select()
+            runCurrent()
+            assertEquals("ignored while the earlier change is out", 1, choices.changes.size)
+
+            choices.gate = null
+            gate.complete(Unit)
+            runCurrent()
+            vm.select()
+            runCurrent()
+
+            assertEquals(listOf(setOf(ALPHA.id, BRAVO.id), setOf(ALPHA.id, BRAVO.id, CHARLIE.id)), choices.changes)
+            assertEquals(listOf(true, true, true), vm.now.rows.map { it.ticked })
+        }
 }
