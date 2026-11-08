@@ -31,6 +31,9 @@ import tv.stationbreak.app.di.LibraryModule
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
+import tv.stationbreak.core.domain.AccountCache
+import tv.stationbreak.core.domain.AccountCaches
+import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.InMemoryFirstSync
@@ -122,8 +125,15 @@ class FirstSyncNavigationTest {
         fun sessions(
             store: SecretStore,
             server: MediaServer,
-            library: LibraryRepository,
+            library: AccountCache,
         ): SessionRepository = SessionRepository(store, server, library)
+
+        // What sign-in and sign-out tell, built as LibraryModule builds it: the saved library, then the built days.
+        @Provides
+        fun accountCache(
+            repository: RoomLibraryRepository,
+            days: DayStore,
+        ): AccountCache = AccountCaches(repository, days)
 
         // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
         @Provides

@@ -48,6 +48,9 @@ enum class SelectionEvent {
     /** No account is active in the library cache, so nothing was stored (a sign-in activates it, as a restore does). */
     NoActiveAccount,
 
+    /** A stored choice is another account's (a sign-in's clear failed): it is not changed, followed or reconciled. */
+    ForeignChoice,
+
     /** The choice could not be dropped (a sign-in or a switch of user goes on; the picker's Done clears again). */
     ClearFailed,
 
@@ -162,6 +165,14 @@ class LibrarySelection(
 
     private suspend fun activeAccount(): LibraryAccount? = library.activeAccount().first()
 
+    // Whether [stored] is [account]'s choice: a stored owner says so. A record that names none is an older build's,
+    // and those builds cleared the choice at every sign-in and switch of user, so it is the signed-in account's: the
+    // resume writes that down.
+    private fun owns(
+        account: LibraryAccount,
+        stored: StoredSelection,
+    ): Boolean = stored.owner == null || stored.owner == account
+
     // The active account, or null reported: a change or a setup with none stores nothing.
     private suspend fun activeAccountOrReport(): LibraryAccount? =
         activeAccount().also { if (it == null) report(SelectionEvent.NoActiveAccount) }
@@ -195,6 +206,8 @@ class LibrarySelection(
         ticked: Set<ItemId>,
     ): ChangeResult? {
         val stored = store.loadSelection() ?: return ChangeResult.Failed
+        // Another account's choice (a sign-in whose clear failed) is not this account's to change.
+        if (!owns(account, stored)) return ChangeResult.Failed.also { report(SelectionEvent.ForeignChoice) }
         val chosen = stored.chosen intersect ticked
         if (chosen.isEmpty()) return ChangeResult.LastLibrary
         val kept = stored.adding.filterKeys { it in ticked }
@@ -219,19 +232,31 @@ class LibrarySelection(
 
     // --- LibrarySetup -----------------------------------------------------------------------------------------------
 
+    // No catch-up first: a choice still stored may be the last account's, and must not reach this one's cache.
+    @Suppress("ReturnCount") // Each early return is a reason nothing is stored.
     override suspend fun choose(ids: Set<ItemId>): SetupResult =
-        locked {
+        locked(catchUpFirst = false) {
             if (ids.isEmpty()) return@locked SetupResult.Failed
-            // A setup follows a clear (every sign-in path clears first): it never writes over a stored choice. One
-            // still stored is a clear that failed; the caller clears again and asks once more.
-            if (store.loadSelection() != null) return@locked SetupResult.ChoiceStillStored
             val account = activeAccountOrReport() ?: return@locked SetupResult.Failed
+            val held = store.loadSelection()
+            if (held != null) {
+                // A setup follows a clear (every sign-in path clears first): it never writes over this account's
+                // choice; one still stored is a clear that failed, and the caller clears again and asks once more.
+                if (owns(account, held)) return@locked SetupResult.ChoiceStillStored
+                // Another account's choice (its clear failed before this sign-in): not this one's, so it goes here.
+                if (!store.clearLibraries()) {
+                    report(SelectionEvent.ClearFailed)
+                    return@locked SetupResult.Failed
+                }
+            }
             // A listing of the last account's server says nothing about this choice.
             lastListed = null
             val atLeast = floorOf(library.storedLibraries(account))
             // The record is emptied first; the save is the setup's, with nothing being added, gone or missed.
             val outcome =
-                repairer.resetSelection(account, atLeast) { seq -> write(StoredSelection(ids, seq, resetSeq = seq)) }
+                repairer.resetSelection(account, atLeast) { seq ->
+                    write(StoredSelection(ids, seq, resetSeq = seq), account, setup = true)
+                }
             if (outcome !is RepairOutcome.Saved) return@locked SetupResult.Failed
             // Any add under way was of the old choice. The save has committed: what follows cannot fail the setup.
             followUp { passes.restart() }
@@ -280,7 +305,7 @@ class LibrarySelection(
         stamp: Long,
     ): LandResult? {
         val stored = store.loadSelection() ?: return LandResult.NotCurrent
-        if (stored.adding[id] != stamp) return LandResult.NotCurrent
+        if (stored.adding[id] != stamp || !owns(account, stored)) return LandResult.NotCurrent
         val row = library.storedLibraries(account).firstOrNull { it.id == id }
         // The walk's proof is the cache's: without it the read did not end, and the library is not chosen yet.
         if (row?.addStamp != stamp || row.walkedStamp != stamp) return LandResult.Unproven
@@ -315,7 +340,7 @@ class LibrarySelection(
      */
     override suspend fun firstSyncLibraries(account: LibraryAccount): Set<ItemId> =
         locked {
-            val stored = store.loadSelection() ?: return@locked emptySet()
+            val stored = store.loadSelection()?.takeIf { owns(account, it) } ?: return@locked emptySet()
             branches(account, stored.chosen, library.storedLibraries(account))
             applyRoom(account, stored, library.storedLibraries(account))
             stored.chosen
@@ -347,7 +372,8 @@ class LibrarySelection(
             if (activeAccount() == account) {
                 val ids = libraries.mapTo(HashSet()) { it.id }
                 lastListed = ids
-                store.loadSelection()?.let { follow(account, it, ids) }
+                // Another account's choice is not followed for this one.
+                store.loadSelection()?.takeIf { owns(account, it) }?.let { follow(account, it, ids) }
             }
         }
     }
@@ -373,7 +399,7 @@ class LibrarySelection(
         val counted = stored.copy(missing = missing, listings = listings)
         if (chosen == stored.chosen && adding == stored.adding && gone == stored.gone) {
             // Bookkeeping only: the same seq, as nothing that plays changes.
-            if (write(counted)) publish(counted)
+            if (write(counted, account)) publish(counted)
             return
         }
         val next = { seq: Long ->
@@ -401,8 +427,11 @@ class LibrarySelection(
                     val stored = store.loadSelection()
                     publish(stored)
                     val account = activeAccount()
-                    if (stored != null && account != null) {
-                        raise(account, stored)
+                    // Another account's choice (a clear that failed before a restart) is left to the next setup.
+                    if (stored != null && account != null && owns(account, stored)) {
+                        // An older record names no owner: the active account adopts it, the same seq now with it.
+                        if (stored.owner == null) write(stored, account)
+                        raise(account, store.loadSelection() ?: stored)
                         reconcileRoom(account)
                     }
                 }
@@ -436,14 +465,15 @@ class LibrarySelection(
                         // Through the repairer, and only over a lineup it may write.
                         service.loaded(account)?.writable == true &&
                             repairer.saveWithoutRepair(account, maxOf(top, floor.seq) + 1) { seq ->
-                                write(stored.copy(seq = seq))
+                                write(stored.copy(seq = seq), account)
                             } is RepairOutcome.Saved
                     } else {
                         // No record this build could show: a plain save, which over a newer app's file also hides
                         // that file's repairs from any build that reads the reset seq (D17). There it skips a seq,
                         // so a newer build's hidden repair at the next one stays below the reset seq.
                         val seq = maxOf(stored.seq, top) + 1 + if (floor.newer) 1 else 0
-                        commit(seq, stored.copy(seq = seq, resetSeq = if (floor.newer) seq else stored.resetSeq))
+                        val raisedTo = stored.copy(seq = seq, resetSeq = if (floor.newer) seq else stored.resetSeq)
+                        commit(seq, raisedTo, account)
                     }
                 }
             }
@@ -473,6 +503,8 @@ class LibrarySelection(
             roomBehind = false
             return
         }
+        // Another account's choice never reaches this account's cache; it stays behind until a setup replaces it.
+        if (!owns(account, stored)) return
         val changed = branches(account, stored.chosen, library.storedLibraries(account))
         applyRoom(account, stored, library.storedLibraries(account))
         roomBehind = false
@@ -603,7 +635,7 @@ class LibrarySelection(
         next: (Long) -> StoredSelection,
     ): Allocated {
         val atLeast = floorOf(library.storedLibraries(account))
-        val save: suspend (Long) -> Boolean = { seq -> write(next(seq)) }
+        val save: suspend (Long) -> Boolean = { seq -> write(next(seq), account) }
         val allocated =
             if (after != null) {
                 allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, save)) { it.seq }
@@ -647,7 +679,7 @@ class LibrarySelection(
         // Over a newer app's file, one seq is skipped, as in the resume's raise (D17).
         val seq = maxOf(stored.seq + 1, atLeast, floor.seq + 1) + if (floor.newer) 1 else 0
         val selection = next(seq).let { if (floor.newer) it.copy(resetSeq = seq) else it }
-        return if (commit(seq, selection)) Allocated.Saved(seq) else Allocated.Failed
+        return if (commit(seq, selection, account)) Allocated.Saved(seq) else Allocated.Failed
     }
 
     // One above the highest add stamp in the cache: no seq may equal a stamp left there.
@@ -655,11 +687,16 @@ class LibrarySelection(
 
     private fun maxStamp(rows: List<StoredLibrary>): Long = rows.maxOfOrNull { it.addStamp ?: 0L } ?: 0L
 
-    // One write of the selection. The settings never throw by contract; a write that did is read back by the caller.
+    // One write of the selection, as [owner]'s (every save says whose it is; [setup] only from the setup). The
+    // settings never throw by contract; a write that did is read back by the caller.
     @Suppress("TooGenericExceptionCaught") // Whatever a write throws, it is not known to be stored.
-    private suspend fun write(selection: StoredSelection): Boolean =
+    private suspend fun write(
+        selection: StoredSelection,
+        owner: LibraryAccount,
+        setup: Boolean = false,
+    ): Boolean =
         try {
-            store.saveSelection(selection)
+            store.saveSelection(selection.copy(owner = owner), setup)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -670,7 +707,8 @@ class LibrarySelection(
     private suspend fun commit(
         seq: Long,
         selection: StoredSelection,
-    ): Boolean = write(selection) || store.loadSelection()?.seq == seq
+        owner: LibraryAccount,
+    ): Boolean = write(selection, owner) || store.loadSelection()?.seq == seq
 
     // A cache write after a committed save: a failure is reported, and the next operation catches up (D13).
     @Suppress("TooGenericExceptionCaught") // Whatever the cache throws, the save stands.

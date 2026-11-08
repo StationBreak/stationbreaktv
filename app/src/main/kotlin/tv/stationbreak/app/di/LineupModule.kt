@@ -330,10 +330,12 @@ internal object LineupModule {
     /**
      * The one writer of the library selection (spec 26, Part 4): onboarding's setup, the Settings changes, the landing
      * of an added library and the resume at start all go through it. Its events are names only. Until the add pass is
-     * built (Task 4.4b) nothing reads an added library, so its restart asks for nothing.
+     * built (Task 4.4b) nothing reads an added library, so its restart asks for nothing. It is bound under
+     * [AppStart] only, as its resume opens the gate: everything else gets one of its narrow ports.
      */
     @Provides
     @Singleton
+    @AppStart
     @Suppress("LongParameterList") // What the selection writes and asks, one for one.
     fun librarySelection(
         store: SelectionStore,
@@ -364,27 +366,39 @@ internal object LineupModule {
         ) { Log.i(TAG, it.name) }
 
     @Provides
-    fun libraryChoices(selection: LibrarySelection): LibraryChoices = selection
+    fun libraryChoices(
+        @AppStart selection: LibrarySelection,
+    ): LibraryChoices = selection
 
     @Provides
-    fun librarySetup(selection: LibrarySelection): LibrarySetup = selection
+    fun librarySetup(
+        @AppStart selection: LibrarySelection,
+    ): LibrarySetup = selection
 
     /** The add pass's side of the selection (Task 4.4b). */
     @Provides
-    fun addLandings(selection: LibrarySelection): AddLandings = selection
+    fun addLandings(
+        @AppStart selection: LibrarySelection,
+    ): AddLandings = selection
 
     /** The first sync's library set, written under the selection's lock (Task 4.4b). */
     @Provides
-    fun firstSyncLibraries(selection: LibrarySelection): FirstSyncLibraries = selection
+    fun firstSyncLibraries(
+        @AppStart selection: LibrarySelection,
+    ): FirstSyncLibraries = selection
 
     /** Stay current's listings, followed by the selection (Task 4.5). */
     @Provides
-    fun serverListings(selection: LibrarySelection): ServerListings = selection
+    fun serverListings(
+        @AppStart selection: LibrarySelection,
+    ): ServerListings = selection
 
     /** The resume at start, which the app's start alone runs: qualified, so nothing else can inject it. */
     @Provides
     @AppStart
-    fun selectionResume(selection: LibrarySelection): SelectionResume = selection
+    fun selectionResume(
+        @AppStart selection: LibrarySelection,
+    ): SelectionResume = selection
 
     /**
      * The seam every selection operation and library worker waits on. It is its own object, opened by the selection's
@@ -400,7 +414,7 @@ internal object LineupModule {
     @Provides
     fun selectionReady(
         @AppStart gate: ResumeGate,
-    ): SelectionReady = gate
+    ): SelectionReady = SelectionReady { gate.await() }
 
     /**
      * A stay-current run soon, for a library whose unproven add was set back to be read again (spec 26): the open
@@ -430,7 +444,7 @@ internal object LineupModule {
         settings: ServerSettings,
         sync: SyncActivity,
         repairer: TodayRepairer,
-        selection: LibrarySelection,
+        @AppStart selection: LibrarySelection,
     ): LineupRefresher {
         val report: (LineupEvent) -> Unit = { Log.i(TAG, it.name) }
         // After a run that wrote the library, and once after the start check, the blocks whose item left it are

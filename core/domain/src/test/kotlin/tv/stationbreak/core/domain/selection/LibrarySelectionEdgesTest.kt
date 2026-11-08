@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.selection
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.domain.lineup.ACCOUNT
+import tv.stationbreak.core.model.ItemId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -276,5 +277,91 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
 
         assertTrue(thrown is IllegalStateException)
         assertFalse(SelectionEvent.SelectionResumeFailed in tv.events)
+    }
+
+    // Fix round 3, item 1: a sign-in or a switch of user saves the new session (which activates the new account) and
+    // then clears; when that clear fails, the old account's choice is still stored. Nothing of it may reach the new
+    // account's cache, by any locked operation or the picker's listing; Done then stores the new choice.
+    private fun switchedWithAFailedClear(): Tv {
+        val tv = Tv().ready(setOf(libA, libB, libC))
+        assertEquals(ACCOUNT, assertNotNull(tv.stored()).owner, "the resume wrote whose it is")
+        // A cache write fails, so the selection is behind and its next operation would catch up.
+        tv.library.failApplies = 1
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB, libC)))
+        runBlocking { tv.fake.useAccount(other) }
+        tv.settings.inner.failSave = true
+        assertFalse(runBlocking { tv.selection.clear() })
+        tv.settings.inner.failSave = false
+        return tv
+    }
+
+    @Test
+    fun aFailedClearAfterASwitch_neverReachesTheNewAccountsCache_andDoneThenStores() {
+        val tv = switchedWithAFailedClear()
+        val calls = tv.library.applyCalls
+        val listings = assertNotNull(tv.stored()).listings
+
+        assertEquals(ChangeResult.Failed, tv.change(setOf(libA)))
+        runBlocking { tv.selection.reconcile() }
+        runBlocking { tv.selection.followServer(other, listed(setOf(libA, libB))) }
+        assertEquals(emptySet<ItemId>(), runBlocking { tv.selection.firstSyncLibraries(other) })
+
+        assertEquals(calls, tv.library.applyCalls, "nothing written to the new account's cache")
+        assertTrue(runBlocking { tv.fake.storedLibraries(other) }.isEmpty())
+        assertEquals(listings, assertNotNull(tv.stored()).listings, "the old choice's bookkeeping was not followed")
+        assertTrue(SelectionEvent.ForeignChoice in tv.events)
+
+        assertEquals(SetupResult.Saved, runBlocking { tv.selection.choose(setOf(libD)) })
+        val stored = assertNotNull(tv.stored())
+        assertEquals(setOf(libD), stored.chosen)
+        assertEquals(other, stored.owner)
+    }
+
+    @Test
+    fun aFailedClearAfterASwitch_survivesARestart_withoutReachingTheNewAccountsCache() {
+        val tv = switchedWithAFailedClear()
+        val calls = tv.library.applyCalls
+
+        runBlocking { tv.restartedSelection().resumeAtStart() }
+
+        assertEquals(calls, tv.library.applyCalls)
+        assertTrue(runBlocking { tv.fake.storedLibraries(other) }.isEmpty())
+        assertEquals(ACCOUNT, assertNotNull(tv.stored()).owner, "left for the next setup")
+    }
+
+    // An older build's record names no owner. Those builds cleared the choice at every sign-in and switch of user,
+    // so it is the signed-in account's: the resume adopts it, and writes that down.
+    @Test
+    fun anOlderRecordWithNoOwner_isAdoptedAtResume_byTheActiveAccount() {
+        val tv = Tv()
+        assertNull(assertNotNull(tv.stored()).owner)
+
+        tv.resume()
+
+        val stored = assertNotNull(tv.stored())
+        assertEquals(ACCOUNT, stored.owner)
+        assertEquals(1L, stored.seq, "a bookkeeping write: the seq is as it was")
+    }
+
+    // Even over an empty library cache (a rebuilt one): the upgraded TV's first sync still reads its choice.
+    @Test
+    fun anOlderRecord_overAnEmptyCache_isAdopted_andTheFirstSyncReadsItsChoice() {
+        val tv = Tv(chosen = emptySet(), stored = StoredSelection(setOf(libA, libB), seq = 1L))
+        assertTrue(tv.rows().isEmpty())
+
+        tv.resume()
+
+        assertEquals(ACCOUNT, assertNotNull(tv.stored()).owner)
+        assertEquals(setOf(libA, libB), runBlocking { tv.selection.firstSyncLibraries(ACCOUNT) })
+    }
+
+    @Test
+    fun anOlderRecord_withNoActiveAccount_isLeftAlone() {
+        val tv = Tv()
+        runBlocking { tv.fake.forget(ACCOUNT) }
+
+        tv.resume()
+
+        assertNull(assertNotNull(tv.stored()).owner)
     }
 }
