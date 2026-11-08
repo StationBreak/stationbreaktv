@@ -577,21 +577,62 @@ class LineupRefresherTest {
             lastRunSettled(Instant.parse("2026-10-19T09:00:00Z"))
             val seen = CopyOnWriteArrayList<LibraryAccount>()
             refresher(afterSync = { seen += it }).start(scope)
+            until("the check after the start check") { seen.isNotEmpty() }
             settle()
-            assertEquals(emptyList(), seen, "a start runs no check after a sync")
+            assertEquals(listOf(ACCOUNT), seen, "the start check runs it once")
 
             writing.value = true
             library.delegate.setStatus(ACCOUNT, LibraryStatus(SyncState.Idle, Instant.parse("2026-10-19T11:00:00Z")))
             library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T11:01:00Z"))
             library.delegate.noteContentChange(ACCOUNT)
             settle()
-            assertEquals(emptyList(), seen, "the run's own writes are held, and so is the check")
+            assertEquals(listOf(ACCOUNT), seen, "the run's own writes are held, and so is the check")
             writing.value = false
             until("the check after the run") { seen.isNotEmpty() }
             settle()
 
-            assertEquals(listOf(ACCOUNT), seen, "once, after the refresh the run's writes asked for")
+            assertEquals(listOf(ACCOUNT, ACCOUNT), seen, "once more, after the refresh the run's writes asked for")
             assertTrue(refreshes >= 1)
+        }
+
+    @Test
+    fun startCheck_withTheLineupCurrent_runsAfterSyncOnce_andRefreshesNothing() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = refreshes
+            val seen = CopyOnWriteArrayList<LibraryAccount>()
+
+            refresher(afterSync = { seen += it }).start(scope)
+            until("the check after the start check") { seen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(ACCOUNT), seen)
+            assertEquals(before, refreshes, "nothing was behind")
+        }
+
+    @Test
+    fun startCheck_withTheLineupBehind_refreshesFirst_thenRunsAfterSyncOnce() =
+        runBlocking<Unit> {
+            val refreshesSeen = CopyOnWriteArrayList<Int>()
+
+            refresher(afterSync = { refreshesSeen += refreshes }).start(scope)
+            until("the check after the start check") { refreshesSeen.isNotEmpty() }
+            settle()
+
+            assertEquals(listOf(1), refreshesSeen, "once, after the start refresh")
+        }
+
+    @Test
+    fun startCheck_runsAfterSyncOnce_evenWhenATriggerSourceIsListenedToAgain() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val calls = AtomicInteger()
+            refresher(ThrowingOncePasses(library), backoffMs = 10, afterSync = { calls.incrementAndGet() }).start(scope)
+            until("the failure was reported") { LineupEvent.RefreshFailed in events }
+            library.delegate.completeCollectionPass(ACCOUNT, Instant.parse("2026-10-19T10:00:00Z"))
+            settle()
+
+            assertEquals(1, calls.get(), "the start check that is asked again does not run it again")
         }
 
     @Test
@@ -603,20 +644,21 @@ class LineupRefresherTest {
                 calls.incrementAndGet()
                 error("the repair broke")
             }).start(scope)
+            until("the check after the start check") { calls.get() == 1 }
             settle()
 
             writing.value = true
             settle()
             writing.value = false
-            until("the first check") { calls.get() == 1 }
-            until("reported") { LineupEvent.AfterSyncFailed in events }
+            until("the first check after a run") { calls.get() == 2 }
+            until("reported") { events.count { it == LineupEvent.AfterSyncFailed } == 2 }
 
             val before = refreshes
             writing.value = true
             settle()
             library.delegate.noteContentChange(ACCOUNT)
             writing.value = false
-            until("the refresher still refreshes, and checks again") { calls.get() == 2 && refreshes == before + 1 }
+            until("the refresher still refreshes, and checks again") { calls.get() == 3 && refreshes == before + 1 }
         }
 
     @Test

@@ -7,6 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -69,8 +70,11 @@ import kotlin.time.Instant
  * change. The background roll that tidies a past boundary signals the refresher ([LineupService.replanRequests]).
  *
  * Once each check after a run's writing ends, whatever it did (a refresh, a recorded pass or nothing), [afterSync] runs
- * (spec 26: the repair of today's blocks whose item left the library). It runs when no libraries are chosen too, and
- * only while the account is still the active one. One that throws is reported ([LineupEvent.AfterSyncFailed]) and
+ * (spec 26: the repair of today's blocks whose item left the library). It also runs once after the start check, for
+ * each account followed, whether that check refreshed or found the lineup current (the lost-block check is held in
+ * memory only, so a new process checks once; ADR-0025 §4); a start check asked again when a trigger source is listened
+ * to again does not run it again. It runs when no libraries are chosen too, and only while the account is still the
+ * active one. One that throws is reported ([LineupEvent.AfterSyncFailed]) and
  * changes nothing else.
  *
  * Refreshes run one at a time: one collector handles every trigger in turn. A refresh that throws never stops later
@@ -119,9 +123,10 @@ class LineupRefresher(
     }
 
     private suspend fun follow(account: LibraryAccount) {
+        // The start check always says what it found, so the check after it runs once whatever it was.
         val start =
             flow {
-                if (isStale(account)) emit(Trigger.Start)
+                emit(if (isStale(account)) Trigger.Start else Trigger.StartCurrent)
             }
         val passes =
             library
@@ -149,10 +154,12 @@ class LineupRefresher(
         // A household change reached its boundary (said by the background roll): the lineup is behind then.
         val replans = service.replanRequests.filter { it == account }.map { Trigger.Replan }
         val backoff = Backoff(initialBackoffMs)
+        // A resubscription asks the start check again; the check after it runs only the first time for this account.
+        var startChecked = false
         merge(start, passes, successes, runEnds, replans)
             // A trigger from a real source (a pass or a sync) got through: it is healthy again, so the next failure
             // waits the initial time. Start is not one: every resubscription emits it while the lineup is stale.
-            .onEach { if (it !is Trigger.Start) backoff.reset() }
+            .onEach { if (it != Trigger.Start && it != Trigger.StartCurrent) backoff.reset() }
             .retryWhen { cause, _ ->
                 // A trigger source that fails is reported and listened to again after a wait that doubles to a cap.
                 if (cause is CancellationException) {
@@ -162,7 +169,15 @@ class LineupRefresher(
                     delay(backoff.next())
                     true
                 }
-            }.collect { trigger -> act(account, trigger) }
+            }
+            // The triggers are handed over through a buffer, so a trigger source that fails (and is listened to again)
+            // never cancels the check in hand: that check runs on in the collector, and its triggers after it.
+            .buffer()
+            .collect { trigger ->
+                val first = (trigger == Trigger.Start || trigger == Trigger.StartCurrent) && !startChecked
+                if (first) startChecked = true
+                act(account, trigger, afterStart = first)
+            }
     }
 
     @Suppress("TooGenericExceptionCaught") // An unreadable start state just means: refresh.
@@ -205,13 +220,14 @@ class LineupRefresher(
     private suspend fun act(
         account: LibraryAccount,
         trigger: Trigger,
+        afterStart: Boolean,
     ) {
         // A run's own success or pass is held until it stops writing: its end is a trigger of its own, which
         // checks everything these would. A start is not: what it finds behind was there before this run.
         val ownWrite = trigger == Trigger.Success || trigger == Trigger.Pass
         if (ownWrite && sync.writing().first()) return
-        refreshFor(account, trigger)
-        if (trigger == Trigger.SyncEnded) runAfterSync(account)
+        if (trigger != Trigger.StartCurrent) refreshFor(account, trigger)
+        if (trigger == Trigger.SyncEnded || afterStart) runAfterSync(account)
     }
 
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // Each early return is a reason there is nothing to do.
@@ -265,7 +281,7 @@ class LineupRefresher(
         pass: Instant?,
     ): Boolean =
         when (trigger) {
-            Trigger.Start, Trigger.Success, Trigger.Replan -> {
+            Trigger.Start, Trigger.StartCurrent, Trigger.Success, Trigger.Replan -> {
                 behind(account, held, chosen)
             }
 
@@ -316,7 +332,11 @@ class LineupRefresher(
     }
 
     private sealed interface Trigger {
+        /** The start check found the lineup behind. */
         data object Start : Trigger
+
+        /** The start check found the lineup current: nothing to refresh, but the check after it still runs. */
+        data object StartCurrent : Trigger
 
         data object Success : Trigger
 
