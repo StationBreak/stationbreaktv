@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.data.library
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import tv.stationbreak.core.domain.FirstSync
+import tv.stationbreak.core.domain.InMemoryLineupStore
+import tv.stationbreak.core.domain.InMemoryServerSettings
+import tv.stationbreak.core.domain.LibraryStatus
+import tv.stationbreak.core.domain.ServerRecord
+import tv.stationbreak.core.domain.StayCurrentRequests
+import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
+import tv.stationbreak.core.domain.lineup.LineupService
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
+import tv.stationbreak.core.domain.lineup.savedSelectionOf
+import tv.stationbreak.core.domain.selection.LibraryPasses
+import tv.stationbreak.core.domain.selection.LibrarySelection
+import tv.stationbreak.core.domain.selection.SetupResult
+import tv.stationbreak.data.library.SyncWorld.movies
+import tv.stationbreak.data.library.SyncWorld.session
+import tv.stationbreak.data.library.SyncWorld.shows
+
+/**
+ * Spec 26, Part 4 (Amendment 4, binding item 5): a setup on the same account, whose first sync finished long ago, must
+ * start the first sync itself. The progress screen finishes at once while the account has a last success, so nothing
+ * else would read the libraries the new choice adds. Over the real cache and the real first sync; invented libraries.
+ */
+class SameAccountSetupTest {
+    private val clock = FakeClock()
+    private val repository = TestLibraries.inMemory(clock, signedIn = listOf(ALICE))
+    private val server = SyncWorld.server(movies to SyncWorld.source("m", 3), shows to SyncWorld.source("s", 2, SHOWS))
+    private val settings = InMemoryServerSettings(ServerRecord(session.address))
+
+    // The first sync as the app runs it: asked for, then run by its worker over the chosen libraries.
+    private val firstSync =
+        object : FirstSync {
+            var asked = 0
+
+            override fun status(): Flow<LibraryStatus?> = flowOf(null)
+
+            override fun ensureRunning() {
+                asked++
+            }
+
+            override fun retry() = Unit
+        }
+
+    private val selection: LibrarySelection =
+        run {
+            val service = LineupService(InMemoryLineupStore(), repository, clock, { 0 }, {})
+            val source = BuiltInScheduleSource(service, repository, saved = savedSelectionOf(settings))
+            val repairer = TodayRepairer(service, source, repository) { settings.loadSelectionSeq() }
+            LibrarySelection(
+                settings,
+                repository,
+                server,
+                { session },
+                repairer,
+                service,
+                source,
+                LibraryPasses.None,
+                firstSync,
+                StayCurrentRequests {},
+                clock = clock,
+            )
+        }
+
+    @After
+    fun close() = repository.close()
+
+    // What the first sync's worker does once asked: reads the stored choice and syncs it.
+    private suspend fun runAskedFirstSync() {
+        repeat(firstSync.asked) {
+            SyncWorld.engine(repository, server, clock).run(session, ALICE, checkNotNull(settings.loadLibraries()))
+        }
+    }
+
+    @Test
+    fun sameAccountSetup_withLastSuccess_startsFirstSync_walksNewLibraries() =
+        runBlocking {
+            // The account's first sync finished over the movies alone.
+            assertTrue(settings.saveLibraries(setOf(MOVIES)))
+            SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
+            assertNotNull("finished", repository.lastSuccess(ALICE))
+            selection.resumeAtStart()
+            // The same user signs in again and ticks the shows too.
+            assertTrue(selection.clear())
+
+            assertEquals(SetupResult.Saved, selection.choose(setOf(MOVIES, SHOWS)))
+            runAskedFirstSync()
+
+            assertEquals(1, firstSync.asked)
+            assertTrue("the new library is read", repository.pendingLibraries(ALICE).isEmpty())
+            val shows = repository.dao.libraries("server-1", "alice").single { it.libraryId == SHOWS.value }
+            assertTrue(shows.fetched)
+            assertNotNull("the guide stays reachable", repository.lastSuccess(ALICE))
+        }
+}
