@@ -117,7 +117,9 @@ interface MediaServer {
 
     /**
      * The video-capable libraries the user can see (`GET /UserViews`): movies, TV shows, mixed content, home videos and
-     * music videos. Playlists, collections, music and anything else are left out.
+     * music videos. Playlists, collections, music and anything else are left out. A library the user hid from the
+     * server's home screen is listed too (`includeHidden`, spec 26): hiding it there is a display setting, not a reason
+     * to drop it from the channels, and a listing that left it out would read as the library going missing.
      */
     suspend fun libraries(session: Session): ServerResult<List<Library>>
 

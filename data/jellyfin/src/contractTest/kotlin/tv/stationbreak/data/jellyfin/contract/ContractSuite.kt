@@ -302,8 +302,27 @@ abstract class ContractSuite {
                         .orEmpty()
                 val found = adapter.existingLibraryIds(session, ids(tv)).getOrNull()
 
-                assertTrue(tv !in listed, "the hidden library is still in the listing")
+                assertTrue(tv in listed, "the hidden library is not in the listing")
                 assertEquals(ids(tv), found)
+            }
+        }
+    }
+
+    /**
+     * Spec 26, Task 4.5: a library the viewer hid from the server's home screen (`MyMediaExcludes`) is still in the
+     * listing, with its kind, so hiding it there neither drops it from the picker nor reads as the library going.
+     */
+    @Test
+    @Suppress("FunctionNaming") // The name is the plan's (spec 26): the test names the server line it was written for.
+    fun jellyfin12_listsAViewTheUserHid() {
+        runBlocking {
+            val tv = server.seeded.tvLibrary
+            val hidden = JsonArray(listOf(JsonPrimitive(tv)))
+            withViewerConfiguration({ JsonObject(it + ("MyMediaExcludes" to hidden)) }) { adapter, session ->
+                val listed = adapter.libraries(session).getOrNull().orEmpty()
+
+                assertEquals(LibraryKind.TvShows, listed.firstOrNull { it.id.value == tv }?.kind)
+                assertTrue(listed.any { it.id.value == server.seeded.moviesLibrary }, "the other libraries stay listed")
             }
         }
     }

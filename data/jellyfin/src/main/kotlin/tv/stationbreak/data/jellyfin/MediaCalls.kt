@@ -63,8 +63,9 @@ internal class MediaCalls(
     private val calls: AuthorizedCall,
     private val deviceIds: DeviceIdProvider,
 ) {
+    // `includeHidden`: a library the user hid from the server's home screen is still listed (spec 26, Task 4.5).
     suspend fun libraries(session: Session): ServerResult<List<Library>> =
-        calls.send(session, Endpoint.get("UserViews")).flatMap { text ->
+        calls.send(session, Endpoint.get("UserViews", listOf("includeHidden" to "true"))).flatMap { text ->
             Wire.parse(text, ViewsDto.serializer()).flatMap { views ->
                 convert { views.items.mapNotNull(::library) }
             }

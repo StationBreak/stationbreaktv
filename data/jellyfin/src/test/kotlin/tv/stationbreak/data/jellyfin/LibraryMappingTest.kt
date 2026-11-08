@@ -246,14 +246,19 @@ class LibraryMappingTest {
             testAdapter().libraries(testSession(jellyfin.address))
 
             assertEquals(emptyList(), jellyfin.requests("/Items"))
-            assertEquals(
-                null,
-                jellyfin
-                    .requests("/UserViews")
-                    .single()
-                    .url
-                    .queryParameter("includeHidden"),
-            )
+        }
+    }
+
+    // Spec 26, Task 4.5: a library the user hid from the server's home screen is still one to choose and keep.
+    @Test
+    fun librariesQuery_includesHidden() {
+        runBlocking {
+            jellyfin.on("GET", "/UserViews") { views() }
+
+            testAdapter().libraries(testSession(jellyfin.address))
+
+            val request = jellyfin.requests("/UserViews").single()
+            assertEquals("true", request.url.queryParameter("includeHidden"))
         }
     }
 
