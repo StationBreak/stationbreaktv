@@ -53,4 +53,7 @@ object GuideTags {
         channel: ChannelId,
         startMs: Long,
     ) = "guide:cellSecondLine:${channel.value}:$startMs"
+
+    /** The channel mark in the plate of [channel]. */
+    fun channelMark(channel: ChannelId) = "guide:channelMark:${channel.value}"
 }

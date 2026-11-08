@@ -12,6 +12,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +24,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tv.stationbreak.feature.guide.ui.guideText
 import kotlin.math.roundToInt
+
+/** What the mark draws now, "logo" or "initials", for tests: they cannot see pixels without API 26. Not announced. */
+internal val MarkKindKey = SemanticsPropertyKey<String>("MarkKind")
+private var SemanticsPropertyReceiver.markKind by MarkKindKey
 
 private val MarkSize: Dp = 32.dp
 private val BorderWidth: Dp = 1.5.dp
@@ -50,7 +56,14 @@ internal fun ChannelMark(
         remember(initials, measurer) {
             measurer.measure(initials, guideText(16.sp, FontWeight.Bold), softWrap = false, maxLines = 1)
         }
-    Canvas(modifier.size(MarkSize).clearAndSetSemantics {}) {
+    Canvas(
+        modifier.size(MarkSize).clearAndSetSemantics {
+            // Read by the semantics phase, not by composition: an arrival updates this and recomposes nothing. A custom
+            // key, so no screen reader reads it.
+            arrivals?.value
+            markKind = if (markVisual(markKey, cache) is MarkVisual.Logo) "logo" else "initials"
+        },
+    ) {
         arrivals?.value // Reading the count here makes an arrival redraw this mark.
         when (val visual = markVisual(markKey, cache)) {
             is MarkVisual.Logo -> {

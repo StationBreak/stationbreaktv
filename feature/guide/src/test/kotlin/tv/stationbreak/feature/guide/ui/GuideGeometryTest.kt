@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN
 import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
 
 /** The guide lays its panel and grid out around the hole live TV gives it; it does not work out where that is. */
@@ -20,6 +21,15 @@ class GuideGeometryTest {
         // Safe area from 48 dp; the picture from 566.4 dp, 194.4 dp tall from 27 dp; 16 dp between panel and picture.
         assertEquals(502.4f, geometry.panelWidth.value, EPS)
         assertEquals(194.4f, geometry.topHeight.value, EPS)
+    }
+
+    @Test
+    fun theViewportIsTheSafeWidthMinusTheWiderColumn() {
+        val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
+        // Safe area 48 dp in from each side: 864 dp wide; the channel column takes 168 dp of it.
+        assertEquals(864f - 168f, geometry.viewportWidth.value, EPS)
+        assertEquals(168f, ChannelColumnWidth.value, EPS)
+        assertEquals(GUIDE_VIEWPORT_SPAN.inWholeMilliseconds, geometry.spanMs)
     }
 
     @Test

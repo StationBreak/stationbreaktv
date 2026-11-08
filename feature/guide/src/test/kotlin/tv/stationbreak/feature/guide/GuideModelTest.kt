@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -17,6 +18,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.id
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
+import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
 class GuideModelTest {
@@ -107,5 +109,38 @@ class GuideModelTest {
         assertEquals(id(1), cell.itemId)
         assertNull(cell.title)
         assertNull(cell.info)
+    }
+
+    private fun channelRow(
+        id: String,
+        number: Int,
+        name: String,
+        recipeKey: String? = null,
+    ) = ChannelRow(
+        ChannelAiring(ChannelId(id), number, name, Instant.fromEpochMilliseconds(T0), null, recipeKey = recipeKey),
+        listOf(program(0, 120, 1)),
+        T0 + 48 * 60 * MIN,
+    )
+
+    @Test
+    fun aStarterRowCarriesItsMarkKey() {
+        val window = ScheduleWindow(listOf(channelRow("ch-a", 5, "Little Farm", "little-farm")), true)
+        assertEquals("little-farm", buildGuideModel(window, T0).rows.single().markKey)
+    }
+
+    @Test
+    fun aCustomRowHasNoMarkKey() {
+        val window = ScheduleWindow(listOf(channelRow("ch-a", 620, "Mine")), true)
+        assertNull(buildGuideModel(window, T0).rows.single().markKey)
+    }
+
+    @Test
+    fun initialsAreAssignedAcrossAllRowsOfTheModel() {
+        // Two channels in one band whose names would both start "CM": alone each gets "CM"; together one differs.
+        val rows = listOf(channelRow("ch-a", 620, "Cool Movies"), channelRow("ch-b", 621, "Cozy Mysteries"))
+        val together = buildGuideModel(ScheduleWindow(rows, true), T0).rows.map { it.initials }
+        val alone = rows.map { buildGuideModel(ScheduleWindow(listOf(it), true), T0).rows.single().initials }
+        assertEquals(listOf("CM", "CM"), alone)
+        assertNotEquals(together[0], together[1])
     }
 }

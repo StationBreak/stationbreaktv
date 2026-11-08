@@ -10,6 +10,8 @@ import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.feature.guide.ui.mark.MarkChannel
+import tv.stationbreak.feature.guide.ui.mark.assignInitials
 import kotlin.time.Duration.Companion.minutes
 
 // The model classes are @Immutable, a Compose runtime annotation and the one Compose import here: ProgramInfo comes
@@ -39,13 +41,18 @@ internal data class GuideCell(
     val itemId: CanonicalId?,
 )
 
-/** One channel's row, in channel-number order. */
+/**
+ * One channel's row, in channel-number order. [markKey] is the recipe key of a starter or leftovers channel (its logo's
+ * name), null for any other; [initials] are the channel mark's letters, worked out over the whole model.
+ */
 @Immutable
 internal data class GuideRow(
     val channel: ChannelId,
     val number: Int,
     val name: String,
     val cells: List<GuideCell>,
+    val markKey: String? = null,
+    val initials: String = "",
 )
 
 /**
@@ -68,6 +75,9 @@ internal fun buildGuideModel(
     nowMs: Long,
 ): GuideModel {
     val origin = nowMs - nowMs.mod(SLOT_MS)
+    // Initials are assigned once over every row, so two channels never share a pair they could be told apart by.
+    val initials =
+        assignInitials(window.rows.map { MarkChannel(it.channel.id, it.channel.number, it.channel.name) })
     val rows =
         window.rows.map { row ->
             GuideRow(
@@ -75,6 +85,8 @@ internal fun buildGuideModel(
                 row.channel.number,
                 row.channel.name,
                 mergeContinuations(row.blocks).filter { it.endMs > origin }.map(::cellOf),
+                markKey = row.channel.recipeKey,
+                initials = initials[row.channel.id] ?: "?",
             )
         }
     val end = rows.maxOfOrNull { r -> r.cells.lastOrNull()?.endMs ?: origin } ?: origin

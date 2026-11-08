@@ -151,7 +151,7 @@ class InitialsTest {
         val r = assignInitials(channels)
         assertEquals(names.size, r.size)
         for (c in channels) {
-            val s = r[c.id]!!
+            val s = checkNotNull(r[c.id])
             assertTrue("'${c.name}' gave '$s'", s.isNotEmpty() && s.codePointCount(0, s.length) <= 2)
         }
         // And the same names all in one band as duplicates, so every fallback path runs.

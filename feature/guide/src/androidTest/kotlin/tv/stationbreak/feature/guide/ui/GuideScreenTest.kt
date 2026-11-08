@@ -21,17 +21,23 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -86,9 +92,15 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.GuideViewModel
+import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
+import tv.stationbreak.feature.guide.ui.mark.MarkCache
+import tv.stationbreak.feature.guide.ui.mark.MarkKindKey
+import tv.stationbreak.feature.guide.ui.mark.MarkLoader
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -117,6 +129,7 @@ private object NoLineup : ChannelRepository {
 }
 
 /** The guide on screen (spec 17): focus, the panel, cells of every kind, the info overlay and Back. */
+@Suppress("LargeClass") // One function per behaviour of the screen, over one shared rig of fixtures.
 @RunWith(AndroidJUnit4::class)
 class GuideScreenTest {
     @get:Rule
@@ -134,6 +147,10 @@ class GuideScreenTest {
     // The guide's own thread, as Dispatchers.Default would be in the app.
     private val pool = Executors.newSingleThreadExecutor()
     private val work = pool.asCoroutineDispatcher()
+
+    // Where the test's logos load, apart from the guide's thread: a gated load must not hold the guide up.
+    private val loadPool = Executors.newSingleThreadExecutor()
+    private val loadWork = loadPool.asCoroutineDispatcher()
     private lateinit var vm: GuideViewModel
 
     // The clock stands at 65 minutes into the test day; the grid starts at the 60-minute half hour.
@@ -160,6 +177,9 @@ class GuideScreenTest {
     private val showing = mutableStateOf(true)
     private val openedAt = mutableLongStateOf(1L)
 
+    // The channel logos the guide draws from; null (initials only) unless a test sets one before showing the guide.
+    private var marks: MarkCache? = null
+
     // The device's layout direction; a test sets right-to-left before showing the guide.
     private var direction = LayoutDirection.Ltr
 
@@ -177,6 +197,7 @@ class GuideScreenTest {
                 LocalCellComposed provides { channel, start -> count(channel, start) },
                 LocalBodyComposed provides { composed.merge(BODY, 1, Int::plus) },
                 LocalLayoutDirection provides direction,
+                LocalMarkCache provides marks,
             ) {
                 StationBreakTheme {
                     // As in the app: live TV's root is focusable and the guide takes the focus from it, so a Back the
@@ -214,6 +235,7 @@ class GuideScreenTest {
         InstrumentationRegistry.getInstrumentation().uiAutomation.setOnAccessibilityEventListener(null)
         if (::vm.isInitialized) vm.close()
         pool.shutdownNow()
+        loadPool.shutdownNow()
     }
 
     private fun press(key: Key) {
@@ -738,6 +760,109 @@ class GuideScreenTest {
         assertEquals(mapOf("${CH7.value}@${min(120)}" to 1, "${CH7.value}@${min(150)}" to 1), composed.toMap())
     }
 
+    /** Logos known to [known], each decoded only once [release] is counted down: the test says when one "arrives". */
+    private class GatedLoader(
+        private val known: Set<String>,
+        private val release: CountDownLatch,
+    ) : MarkLoader {
+        override fun keys(): Set<String> = known
+
+        override fun load(key: String): ImageBitmap? {
+            release.await(LOAD_TIMEOUT_S, TimeUnit.SECONDS)
+            return TestBitmap
+        }
+    }
+
+    private fun markCache(
+        release: CountDownLatch,
+        vararg known: String,
+    ) = MarkCache(GatedLoader(known.toSet(), release), CoroutineScope(SupervisorJob()), loadWork)
+
+    private fun mark(channel: ChannelId) = compose.onNodeWithTag(GuideTags.channelMark(channel))
+
+    private fun markShows(
+        channel: ChannelId,
+        kind: String,
+    ) = mark(channel).fetchSemanticsNode().config.getOrNull(MarkKindKey) == kind
+
+    @Test
+    fun aStarterWithALogoDrawsItAfterItArrives() {
+        val release = CountDownLatch(1)
+        marks = markCache(release, "little-farm")
+        fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200) }, recipeKey = "little-farm")
+        show(CH5)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        compose.waitForIdle()
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "initials"))
+
+        release.countDown()
+
+        compose.waitUntil(TIMEOUT_MS) { markShows(CH5, "logo") }
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "logo"))
+    }
+
+    @Test
+    fun aCustomChannelKeepsItsInitials() {
+        val release = CountDownLatch(1)
+        marks = markCache(release, "little-farm")
+        fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200) })
+        show(CH5)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        release.countDown()
+        compose.waitForIdle()
+        Thread.sleep(SETTLE_MS)
+        compose.waitForIdle()
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "initials"))
+    }
+
+    @Test
+    fun aStarterWhoseKeyHasNoFileKeepsItsInitials() {
+        val release = CountDownLatch(1)
+        marks = markCache(release, "little-farm")
+        fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200) }, recipeKey = "no-such-logo")
+        show(CH5)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        release.countDown()
+        compose.waitForIdle()
+        Thread.sleep(SETTLE_MS)
+        compose.waitForIdle()
+        mark(CH5).assert(SemanticsMatcher.expectValue(MarkKindKey, "initials"))
+    }
+
+    @Test
+    fun aThreeDigitNumberAndALongNameDoNotOverlapTheMark() {
+        val wide = ChannelId("ch-123")
+        fake.channel(wide, 123, (0L until 600L step 30).map { program(it, it + 30, 600) })
+        show(wide)
+        compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
+        compose.waitForIdle()
+
+        val mark = mark(wide).getBoundsInRoot()
+        val number = inGrid("123").getBoundsInRoot()
+        val name = inGrid("Test Channel 123").getBoundsInRoot()
+        // The column starts 12 dp left of the mark (4 dp inset, 8 dp padding); the plate is 4 dp in from each side.
+        val plateRight = mark.left - 12.dp + 168.dp - 4.dp
+        assertTrue("the mark ends before the number", mark.right <= number.left)
+        assertTrue("the number ends before the name", number.right <= name.left)
+        assertTrue("the number is inside the plate", number.right <= plateRight)
+        assertTrue("the name is inside the plate", name.right <= plateRight)
+        assertTrue("the number is not cut", !isEllipsized("123"))
+        assertTrue("the name is cut with an ellipsis", isEllipsized("Test Channel 123"))
+    }
+
+    // The grid's own text: the panel says the channel's name too.
+    private fun inGrid(text: String) = compose.onNode(hasText(text) and hasAnyAncestor(hasTestTag(GuideTags.GRID)))
+
+    private fun isEllipsized(text: String): Boolean {
+        val layouts = mutableListOf<TextLayoutResult>()
+        inGrid(text)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        return layouts.single().isLineEllipsized(0)
+    }
+
     @Test
     fun aLongChannelNumberEndsInAnEllipsis() {
         lineup()
@@ -832,6 +957,11 @@ class GuideScreenTest {
     }
 
     private companion object {
+        const val LOAD_TIMEOUT_S = 10L
+
+        // A 64 x 64 stand-in for a decoded logo; the guide only draws it.
+        val TestBitmap: ImageBitmap = ImageBitmap(64, 64)
+
         // A 1080p TV at xhdpi. Cell widths scale with the screen, so a smaller emulator (CI's default profile) would
         // make the focused cell compact; the screen is hosted at this size whatever the device is.
         const val HOST_WIDTH_DP = 960
