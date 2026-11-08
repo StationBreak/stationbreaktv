@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -86,6 +88,10 @@ import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.GuideViewModel
+import tv.stationbreak.feature.guide.ui.mark.AssetMarkLoader
+import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
+import tv.stationbreak.feature.guide.ui.mark.MarkCache
+import tv.stationbreak.feature.guide.ui.mark.MarkKindKey
 import java.io.File
 import java.util.concurrent.Executors
 import kotlin.time.Clock
@@ -128,6 +134,9 @@ class GuideScreenshotTest {
     private val openedAt = mutableLongStateOf(1L)
     private var composed = false
 
+    /** The logos the guide draws from; null (initials only) except in the channel marks frames. */
+    private var marks: MarkCache? = null
+
     @After
     fun tearDown() {
         if (::vm.isInitialized) vm.close()
@@ -139,6 +148,55 @@ class GuideScreenshotTest {
         shootTheme(GuideTheme.Dark, suffix = "")
         shootTheme(GuideTheme.Light, suffix = "-light")
     }
+
+    /** The channel marks: real logos from the app's assets beside an initials tile and a long name, dark then light. */
+    @Suppress("InjectDispatcher") // The real cache loads on Dispatchers.IO, as in the app.
+    @Test
+    fun theChannelMarks() {
+        marks = MarkCache(AssetMarkLoader(targetAssets()), CoroutineScope(SupervisorJob()), Dispatchers.IO)
+        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
+            theme.value = shown
+            showReady(MARK_FARM, ::fillMarksLineup)
+            awaitMarks()
+            shoot("$MARKS_FRAME$suffix.png")
+        }
+    }
+
+    private fun targetAssets() = InstrumentationRegistry.getInstrumentation().targetContext.assets
+
+    /**
+     * Four rows with generic names and real catalog keys: two starters and a third with a three-digit number and a
+     * name too long for its column, and a custom channel that has no key and so keeps its initials.
+     */
+    private fun fillMarksLineup() {
+        val rows =
+            listOf(
+                Triple(MARK_FARM, 4, "Test Channel Farm") to "little-farm",
+                Triple(MARK_ROBOTS, 28, "Test Channel Robots") to "robot-factory",
+                Triple(MARK_LONG, 123, "Marks Test Long Channel Name Here") to "giant-robot-hour",
+                Triple(MARK_CUSTOM, 620, "Test Channel Custom") to null,
+            )
+        for ((row, key) in rows) {
+            val (id, number, name) = row
+            val blocks = (0L until 600L step 60).map { program(it, it + 60, number * 10 + (it / 60).toInt()) }
+            fake.channels[id] = FakeSchedule.Entry(number, name, blocks = blocks, recipeKey = key)
+        }
+    }
+
+    /** Waits for the three logos to be drawn, and checks the custom channel still shows its initials. */
+    private fun awaitMarks() {
+        compose.waitUntil(TIMEOUT_MS) { listOf(MARK_FARM, MARK_ROBOTS, MARK_LONG).all { markKind(it) == "logo" } }
+        assertEquals("initials", markKind(MARK_CUSTOM))
+        compose.waitForIdle()
+    }
+
+    private fun markKind(channel: ChannelId): String? =
+        compose
+            .onAllNodesWithTag(GuideTags.channelMark(channel))
+            .fetchSemanticsNodes()
+            .firstOrNull()
+            ?.config
+            ?.getOrNull(MarkKindKey)
 
     /** Focused cell, focused menu and resting menu, then (dark only) the off-air cell. */
     private fun shootTheme(
@@ -186,8 +244,11 @@ class GuideScreenshotTest {
     }
 
     /** The guide screen test's lineup: channel 9's slate starts two and a half hours in. */
-    private fun showReady(current: ChannelId) {
-        fillLineup()
+    private fun showReady(
+        current: ChannelId,
+        fill: () -> Unit = ::fillLineup,
+    ) {
+        fill()
         if (!composed) {
             signIn()
             val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
@@ -213,7 +274,10 @@ class GuideScreenshotTest {
     private fun GuideHost(current: ChannelId) {
         BackHandler { }
         StationBreakTheme {
-            CompositionLocalProvider(LocalGuideColors provides theme.value.colors) {
+            CompositionLocalProvider(
+                LocalGuideColors provides theme.value.colors,
+                LocalMarkCache provides marks,
+            ) {
                 Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
                     GuideRoot(
                         vm,
@@ -377,6 +441,11 @@ class GuideScreenshotTest {
         const val FOCUSED_MOVIE = "guide-focused-movie"
         const val FOCUSED_MENU = "guide-focused-menu"
         const val OFF_AIR = "guide-off-air.png"
+        const val MARKS_FRAME = "guide-marks"
+        val MARK_FARM = ChannelId("ch-marks-farm")
+        val MARK_ROBOTS = ChannelId("ch-marks-robots")
+        val MARK_LONG = ChannelId("ch-marks-long")
+        val MARK_CUSTOM = ChannelId("ch-marks-custom")
         const val RESTING_MENU = "guide-resting-menu"
         const val HOST_WIDTH_DP = 960
         const val HOST_HEIGHT_DP = 540
