@@ -48,7 +48,8 @@ class ApplySelectionTest {
         library: ItemId,
         stamp: Long,
     ) = database.useWriterConnection {
-        it.execSQL("UPDATE library SET addStamp = $stamp WHERE libraryId = '${library.value}' AND heldUntilMs IS NOT NULL")
+        val held = "libraryId = '${library.value}' AND heldUntilMs IS NOT NULL"
+        it.execSQL("UPDATE library SET addStamp = $stamp WHERE $held")
     }
 
     // One item in [library] and its checkpoint, as a page of the first sync leaves them; then the library is fetched.

@@ -378,7 +378,8 @@ internal class TodayRepairerContractTest : RepairTestBase() {
             repair.await()
         }
 
-        assertEquals(listOf(emptySet<ItemId>()), asked, "the value read under the lock, not the one when the hook fired")
+        val none = emptySet<ItemId>()
+        assertEquals(listOf(none), asked, "the value read under the lock, not the one when the hook fired")
     }
 
     @Test
