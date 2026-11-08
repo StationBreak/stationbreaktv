@@ -23,25 +23,37 @@ internal class SelectionSteps(
     private val server: MediaServer,
     private val listings: ServerListings,
     private val holds: HoldExpiry,
-    private val rewalk: Rewalk,
+    private val rewalkStep: Rewalk,
     private val report: (String) -> Unit,
 ) {
     /**
-     * After passes that completed: the holds that ended expire, then the run's listing is followed, then the rewalk
-     * walks on that listing. The selection may end gone on it, so what plays is read again first, and the rewalk is
-     * skipped while the selection is gone. Gives what the rewalk did, or null when it did not run.
+     * After the passes (the runner decides when): the holds that ended expire, then the run's listing is followed.
+     * Gives the listing, or null only when reading it threw.
      */
-    suspend fun afterPasses(
+    suspend fun expireAndFollow(
         session: Session,
         account: LibraryAccount,
-    ): RewalkSummary? {
+    ): ServerResult<List<Library>>? {
         guarded("HoldExpiry") { holds.expireHolds(account) }
-        val listed = follow(session, account)
-        val playing = settings.loadPlayableLibraries()?.takeIf { it.isNotEmpty() }
+        return follow(session, account)
+    }
+
+    /**
+     * The rewalk on the run's listing [listed], once the whole run completed. The selection may have ended gone on
+     * that listing, so what plays is read again first, and the rewalk is skipped while it is gone. Gives what the
+     * rewalk did, or null when it did not run.
+     */
+    suspend fun rewalk(
+        session: Session,
+        account: LibraryAccount,
+        listed: ServerResult<List<Library>>?,
+    ): RewalkSummary? {
+        val playing = settings.loadPlayableLibraries()
         return when {
             playing == null -> null.also { say("RewalkSkipped reason=Gone") }
+            playing.isEmpty() -> null.also { say("RewalkSkipped reason=NoLibraries") }
             listed == null -> null.also { say("RewalkSkipped reason=NoListing") }
-            else -> rewalk.step(session, account, playing, listed)
+            else -> rewalkStep.step(session, account, playing, listed)
         }
     }
 

@@ -54,11 +54,12 @@ data class SyncPlan(
  * The purge is housekeeping: a purge that fails, or is skipped for a clock that looks wrong, is kept in [lastPurge] and
  * never fails the run.
  *
- * After passes that completed it asks the library selection, through its narrow ports, to expire the holds that have
- * ended ([HoldExpiry]) and to follow this run's one listing of the server's libraries ([ServerListings]); then the
- * rewalk walks on that same listing, unless the selection is gone (spec 26, Part 4 §4, D11 and D12). While the
- * selection is gone the run makes no pass and no rewalk, and still lists and follows. None of these steps ever changes
- * how the run ended.
+ * After passes that completed, or an incremental pass that completed in a run not cancelled, it asks the library
+ * selection, through its narrow ports, to expire the holds that have ended ([HoldExpiry]) and to follow this run's one
+ * listing of the server's libraries ([ServerListings]); then, when the whole run completed, the rewalk walks on that
+ * same listing, unless the selection is gone (spec 26, Part 4 §4, D11 and D12). While the selection is gone the run
+ * makes no pass, no hold expiry and no rewalk, and still lists and follows. None of these steps ever changes how the
+ * run ended.
  *
  * Last of all, in a run with the incremental pass that completed, it runs the studios re-read while one is pending
  * (spec 18, ruling R9; see [StayCurrentEngine.backfill]). A reconcile that failed does not stop it (a library that is
@@ -182,7 +183,8 @@ class StayCurrentRunner(
         val record = settings.load() ?: return report.skipped(plan, Skip.NoServer)
         // The choice, then what of it plays: none while the selection is gone (D11), when only the listing runs.
         settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
-        val chosen = settings.loadPlayableLibraries()?.takeIf { it.isNotEmpty() }
+        val chosen = settings.loadPlayableLibraries()
+        if (chosen?.isEmpty() == true) return report.skipped(plan, Skip.NoLibraries)
         val accounts = repository.dao.activeAccounts()
         val active = accounts.singleOrNull() ?: return report.skipped(plan, Skip.NoAccount, "accounts=${accounts.size}")
         val account = LibraryAccount(ServerId(active.serverId), UserId(active.userId))
@@ -193,7 +195,7 @@ class StayCurrentRunner(
             is RestoreOutcome.Restored -> {
                 if (chosen != null) {
                     safely(account) { passes(restored.session, account, chosen, plan) }
-                } else if (restored.session.server.id != account.server || restored.session.userId != account.user) {
+                } else if (!restored.session.isOf(account)) {
                     report.skipped(plan, Skip.AccountChanged)
                 } else {
                     // While the selection is gone (D11): no pass and no rewalk, as nothing chosen plays, but the
@@ -227,9 +229,7 @@ class StayCurrentRunner(
         plan: SyncPlan,
     ): SyncOutcome {
         // Signed out, or another account in, while the server was answering: nothing to sync.
-        if (session.server.id != account.server || session.userId != account.user) {
-            return report.skipped(plan, Skip.AccountChanged)
-        }
+        if (!session.isOf(account)) return report.skipped(plan, Skip.AccountChanged)
         runningNow.value = true
         val engine =
             StayCurrentEngine(
@@ -247,9 +247,17 @@ class StayCurrentRunner(
         val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         report.say(wrote(generationBefore, repository.generationOrNull(account), ran))
-        // Only after passes that completed (spec 26, Part 4 §4): the holds, the listing, the rewalk. None of them ever
-        // changes how the run ended.
-        if (outcome == SyncOutcome.Completed) steps.afterPasses(session, account)?.let { lastRewalk = it }
+        // After the passes (spec 26, Part 4 §4): the ended holds expire and the run's listing is followed when the
+        // passes completed, or when the incremental pass did and the run was not cancelled (the backfill's gate: the
+        // success it just recorded is what lets the hold-expiry clock guard trust the clock). The rewalk, on that
+        // listing, needs the whole run to have completed. None of them ever changes how the run ended.
+        val listed =
+            if (outcome == SyncOutcome.Completed || (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled)) {
+                steps.expireAndFollow(session, account)
+            } else {
+                null
+            }
+        if (outcome == SyncOutcome.Completed) steps.rewalk(session, account, listed)?.let { lastRewalk = it }
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
         if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome
@@ -444,6 +452,9 @@ private fun generationMoved(
         after < before -> "reset"
         else -> (after - before).toString()
     }
+
+// Whether this session is [account]'s: signed out, or another account in, while the server was answering, it is not.
+private fun Session.isOf(account: LibraryAccount): Boolean = server.id == account.server && userId == account.user
 
 // The outcome as a log field: the class name, and for a failure the SyncFailure name; never a message.
 private fun SyncOutcome.label() =

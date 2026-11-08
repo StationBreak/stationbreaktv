@@ -6,10 +6,13 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.domain.selection.SelectionReady
@@ -18,7 +21,8 @@ import kotlin.time.Duration.Companion.hours
 
 /**
  * Spec 26, Task 4.5 (Part 4 §4 "StayCurrent otherwise", D11, D12), beside [StayCurrentRunnerTest]: after passes that
- * completed, a run asks the selection to expire the holds that ended, then hands it the run's one listing to follow.
+ * completed, or an incremental pass that completed in a run not cancelled, a run asks the selection to expire the holds
+ * that ended, then hands it the run's one listing to follow; the rewalk on that listing needs the whole run completed.
  * While the selection is gone it makes no pass and still lists. None of it changes how the run ended. Invented
  * libraries and names only.
  */
@@ -45,6 +49,51 @@ class StayCurrentAfterPassesTest {
             assertEquals(listOf("expire", "follow"), rig.asked)
             val listed = rig.followed.single() as ServerResult.Success
             assertEquals(listOf(MOVIES), listed.value.map { it.id })
+            assertNotNull("the rewalk ran on it", rig.runner.lastRewalk)
+        }
+
+    // Fix round 1 (arch MED-1): an incremental pass that completed recorded the success the clock guard needs, so a
+    // reconcile that fails after it does not stop the expiry or the listing. The rewalk needs the whole run.
+    @Test
+    fun anIncrementalThatCompleted_thenAFailedReconcile_stillExpiresAndFollows_butDoesNotRewalk() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            server.respond = { call -> if (call.idsOnly) MediaServerError.Timeout() else null }
+
+            val outcome = rig.runner.outcome(both)
+
+            assertTrue(outcome is SyncOutcome.Failed)
+            assertEquals(listOf("expire", "follow"), rig.asked)
+            assertNull("no rewalk", rig.runner.lastRewalk)
+        }
+
+    // A reconcile-only run (the usual open) that completed follows its listing and rewalks on it; the expiry is asked
+    // for too (the cache's clock guard decides whether it may act).
+    @Test
+    fun aReconcileOnlyRunThatCompleted_followsItsListing_andRewalks() =
+        runBlocking {
+            rig.firstSyncDone()
+
+            assertEquals(SyncOutcome.Completed, rig.runner.outcome(SyncPlan(incremental = false, reconcile = true)))
+
+            assertEquals(listOf("expire", "follow"), rig.asked)
+            assertNotNull(rig.runner.lastRewalk)
+        }
+
+    // Fix round 1 (D4): a playable set that is empty but not null is not "gone", and is said apart.
+    @Test
+    fun theRewalk_withAnEmptyPlayableSet_isSkippedForItsOwnReason() =
+        runBlocking {
+            val settings = InMemoryServerSettings(ServerRecord(SyncWorld.session.address), emptySet())
+            val rewalk = Rewalk(rig.repository, server, rig.clock) {}
+            val steps = SelectionSteps(settings, server, NO_LISTINGS, NO_EXPIRY, rewalk) { lines += it }
+
+            val walked = steps.rewalk(SyncWorld.session, ALICE, ServerResult.Success(listOf(SyncWorld.movies)))
+
+            assertNull(walked)
+            assertTrue(lines.any { "RewalkSkipped reason=NoLibraries" in it })
+            assertFalse(lines.any { "reason=Gone" in it })
         }
 
     @Test
