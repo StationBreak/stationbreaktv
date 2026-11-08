@@ -28,7 +28,7 @@ mono strip before accepting a mark.
     }
 
 Fonts in `fonts/` are used only here; the app does not ship them. Licences in `fonts/licenses/`
-(all SIL OFL 1.1 except Chewy, Apache 2.0).
+(all SIL OFL 1.1 except Chewy and Luckiest Guy, Apache 2.0).
 
 `channelmarks.py` / `marks.json` are the superseded monochrome pass; delete when `brands.py`
 covers the lineup.

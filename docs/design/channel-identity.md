@@ -22,15 +22,15 @@ Everything is flat. No gradients, bevels, shadows, outlines, tiles or background
 ## Rules
 
 1. **Original, not adjacent.** The name, the colour pairing and the lockup must not evoke a real channel. Test: cover the words — if the shape and colours alone call a real network to mind, change one of them. No splats, no ball-and-letter marks, no peacock-fan colour arrays, no "Jr." suffixes, no first-letter-only wordmarks that match a real network's silhouette.
-2. **One typeface per channel, from the approved set.** A face may be shared by at most 8 channels across the whole lineup, and never by two channels in the same hundred-band.
-3. **Max two brand colours + white.** Every brand colour must read ≥ 4.5:1 on the guide base `#0E0F11`. Nothing orange-adjacent (hue 15–40°) because the focused cell is orange and the mark would merge with it; nothing darker than ~60% lightness.
+2. **One typeface per channel, from the approved set.** A face may be used by at most 8 channels lineup-wide and at most 3 within a hundred-band, and never by two channels that are adjacent in the lineup (consecutive numbers in the band). When a face repeats within a band, the two marks must differ in both colour family and lockup form.
+3. **Max two brand colours + white.** Every brand colour must read ≥ 4.5:1 on the guide base `#0E0F11`. Nothing orange-adjacent (hue 15–40°) because the focused cell is orange and the mark would merge with it; nothing darker than ~60% lightness. Yellows from 42° up are allowed.
 4. **One device at most**, geometric only (arcs, circles, lines, triangles). Anything that needs more than that is an illustration and is out.
 5. **Same box, same optical size.** Every mark fills a 50×28dp box with a 44×22dp safe area, centred, and is scaled to use the safe area fully. Two-line lockups are therefore smaller per line than one-line ones — intended.
 6. **Legible at 28dp tall.** Check the 1:1 strip on the contact sheet. Long names get shortened to the part that carries the identity (The Midnight Projector → MIDNIGHT / PROJECTOR, Sing-Along Station → singalong / STATION).
 7. **Mono-safe.** Every mark must still read with all fills white. The generator writes this variant automatically (`svg-mono/`); it is used for the light theme and any future "quiet" setting.
 8. **Band flavour, not band uniform.** Bands have a leaning, not a rule: Kids → rounded faces, saturated primaries; General → clean display faces, friendly mids; Drama → serifs and slabs, metals and jewel tones; Genre → condensed and italic, neon; World → warm, expressive; Premium → restrained, one colour.
 
-## Approved typefaces (all bundled in `scripts/channelmarks/fonts/`, OFL or Apache; used by the generator only, never shipped in the app)
+## Approved typefaces (all bundled in `scripts/channelmarks/fonts/`, OFL or Apache, licence text in `fonts/licenses/`; used by the generator only, never shipped in the app)
 
 | Face | Feel | Good for |
 |---|---|---|
@@ -46,8 +46,12 @@ Everything is flat. No gradients, bevels, shadows, outlines, tiles or background
 | Alfa Slab One | heavy slab | Drama, westerns, court |
 | Playfair Display 900 | high-contrast serif | Drama, prestige, classics |
 | Abril Fatface | fat didone | World, food, glamour |
+| Luckiest Guy | chunky comic caps | Kids, adventure, heroes |
+| Titan One | fat, round, toy-like | Kids, vehicles, robots |
+| Sniglet 800 | soft, friendly rounded | Kids, preschool, gentle |
+| Boogaloo | hand-drawn, bouncy | Kids, animals, mystery |
 
-Add a face only if it is OFL/Apache, visibly different from the twelve above, and needed by at least two channels.
+Add a face only if it is OFL/Apache, visibly different from the faces above, and needed by at least two channels.
 
 ## Choosing a brand for a new channel
 
