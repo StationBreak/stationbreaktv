@@ -35,3 +35,17 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// ChannelMarkManifestTest scans this module's bundled channel logos. Declare the manifest and the logos as inputs so a
+// cached test result cannot hide a file that was added or changed.
+tasks.withType<Test>().configureEach {
+    inputs
+        .files(
+            fileTree(projectDir) {
+                include("channelmarks.sha256", "src/*/assets/channelmarks/**")
+                exclude("**/build/**", "**/.*/**")
+            },
+        ).withPathSensitivity(PathSensitivity.RELATIVE)
+        .ignoreEmptyDirectories()
+        .withPropertyName("channelMarkManifestScan")
+}
