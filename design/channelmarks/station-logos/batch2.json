@@ -1,0 +1,597 @@
+[
+[
+"Kids",
+4,
+"little-farm",
+"Little Farm",
+"Red barn under a sun"
+],
+[
+"Kids",
+12,
+"once-upon",
+"Once Upon",
+"Open storybook with a wishing star"
+],
+[
+"Kids",
+20,
+"backyard-fort",
+"Backyard Fort",
+"Treehouse fort with a pennant"
+],
+[
+"Kids",
+24,
+"critter-channel",
+"Critter Channel",
+"Big paw print"
+],
+[
+"Kids",
+28,
+"robot-factory",
+"Robot Factory",
+"Boxy tin robot head with bulb antenna"
+],
+[
+"Kids",
+32,
+"hey-science",
+"Hey, Science!",
+"Atom with orbits"
+],
+[
+"Kids",
+36,
+"rainy-day-matinee",
+"Rainy Day Matinee",
+"Yellow umbrella in the rain"
+],
+[
+"Kids",
+40,
+"little-spirits",
+"Little Spirits",
+"Friendly blushing little ghost"
+],
+[
+"Kids",
+44,
+"lights-out",
+"Lights Out",
+"Crescent moon with sleepy stars"
+],
+[
+"Kids",
+48,
+"pocket-heroes",
+"Pocket Heroes",
+"Little domino mask over a hero star"
+],
+[
+"Kids",
+52,
+"flipbook",
+"Flipbook",
+"Stacked flipbook pages with a bouncing ball"
+],
+[
+"Kids",
+60,
+"giggle-garage",
+"Giggle Garage",
+"Garage door, comic red"
+],
+[
+"Kids",
+64,
+"wheels-and-whistles",
+"Wheels & Whistles",
+"Steam engine puffing clouds"
+],
+[
+"Kids",
+68,
+"small-sleuths",
+"Small Sleuths",
+"Magnifying glass"
+],
+[
+"Kids",
+72,
+"tall-tales-club",
+"Tall Tales Club",
+"Sailing ship"
+],
+[
+"Kids",
+76,
+"spooky-sleepover",
+"Spooky Sleepover",
+"Glowing tent with flashlight beam"
+],
+[
+"Kids",
+80,
+"tiny-chefs",
+"Tiny Chefs",
+"Chef's toque with red band"
+],
+[
+"General",
+106,
+"punchline",
+"Punchline",
+"Exclamation burst"
+],
+[
+"General",
+114,
+"shag-carpet",
+"Shag Carpet",
+"Seventies wavy stripes"
+],
+[
+"General",
+118,
+"neon-decade",
+"Neon Decade",
+"Synth sunset grid with neon triangle"
+],
+[
+"General",
+122,
+"dial-up",
+"Dial-Up",
+"Desk modem handset"
+],
+[
+"General",
+126,
+"flip-phone",
+"Flip Phone",
+"Open flip phone"
+],
+[
+"General",
+130,
+"binge-row",
+"Binge Row",
+"Row of three TVs with play arrow"
+],
+[
+"General",
+134,
+"fresh-cut",
+"Fresh Cut",
+"Fresh sprout"
+],
+[
+"General",
+138,
+"glass-house",
+"Glass House",
+"Glass house with red REC dot"
+],
+[
+"General",
+142,
+"game-night",
+"Game Night",
+"Big die in marquee lights"
+],
+[
+"General",
+146,
+"couch-talk",
+"Couch Talk",
+"Sofa with speech bubble"
+],
+[
+"General",
+150,
+"matinee-tears",
+"Matinee Tears",
+"Single big teardrop"
+],
+[
+"General",
+154,
+"sideline",
+"Sideline",
+"Playing field lines"
+],
+[
+"General",
+158,
+"spoof-central",
+"Spoof Central",
+"Wry comedy mask, raised brow"
+],
+[
+"General",
+162,
+"date-night",
+"Date Night",
+"Heart under a starry sky"
+],
+[
+"General",
+166,
+"open-road",
+"Open Road",
+"Highway to the horizon sun"
+],
+[
+"General",
+170,
+"simmer",
+"Simmer",
+"Steaming pot"
+],
+[
+"General",
+174,
+"fixer-hour",
+"Fixer Hour",
+"Crossed wrench & screwdriver"
+],
+[
+"General",
+182,
+"always-december",
+"Always December",
+"Christmas tree with gold star"
+],
+[
+"General",
+186,
+"curtain-call",
+"Curtain Call",
+"Stage curtains and spotlight star"
+],
+[
+"Drama",
+208,
+"cold-case-cable",
+"Cold Case Cable",
+"Case folder with red tape"
+],
+[
+"Drama",
+216,
+"code-blue",
+"Code Blue",
+"Medical cross with heartbeat"
+],
+[
+"Drama",
+220,
+"silver-screen",
+"Silver Screen",
+"Silver movie screen with film sprockets"
+],
+[
+"Drama",
+224,
+"dead-drop",
+"Dead Drop",
+"Briefcase with countdown dot"
+],
+[
+"Drama",
+228,
+"big-rumble",
+"Big Rumble",
+"Explosion burst"
+],
+[
+"Drama",
+232,
+"kung-fu-theater",
+"Kung Fu Theater",
+"Temple gong with mallet"
+],
+[
+"Drama",
+236,
+"docs-and-dusters",
+"Docs & Dusters",
+"Explorer's pith helmet over archive card"
+],
+[
+"Drama",
+240,
+"front-lines",
+"Front Lines",
+"Field flags on a ridgeline"
+],
+[
+"Drama",
+244,
+"dusty-trails",
+"Dusty Trails",
+"Cactus and mesa at high noon"
+],
+[
+"Drama",
+248,
+"noir-nights",
+"Noir Nights",
+"Fedora in the rain under a streetlamp"
+],
+[
+"Drama",
+252,
+"corsets-and-candlelight",
+"Corsets & Candlelight",
+"Single candle flame"
+],
+[
+"Drama",
+256,
+"case-files",
+"Case Files",
+"Redacted case file"
+],
+[
+"Drama",
+260,
+"life-stories",
+"Life Stories",
+"Gilt portrait frame silhouette"
+],
+[
+"Drama",
+264,
+"disaster-zone",
+"Disaster Zone",
+"Hazard warning triangle"
+],
+[
+"Genre",
+304,
+"starport",
+"Starport",
+"Mid-century rocket"
+],
+[
+"Genre",
+308,
+"dragons-and-doorways",
+"Dragons & Doorways",
+"Arched tavern door under a dragon wing"
+],
+[
+"Genre",
+312,
+"rubber-suit-theatre",
+"Rubber Suit Theatre",
+"Giant monster over miniature city"
+],
+[
+"Genre",
+320,
+"the-cheap-seats",
+"The Cheap Seats",
+"Row of threadbare cinema seats"
+],
+[
+"Genre",
+324,
+"drive-in-double",
+"Drive-In Double",
+"Drive-in screen with car fin"
+],
+[
+"Genre",
+328,
+"cape-and-cowl",
+"Cape & Cowl",
+"Flowing cape with emblem star"
+],
+[
+"Genre",
+332,
+"cult-following",
+"Cult Following",
+"Hypnotic concentric rings"
+],
+[
+"Genre",
+336,
+"shuffle-and-groan",
+"Shuffle & Groan",
+"Shambling green hand-out silhouette"
+],
+[
+"Genre",
+340,
+"jack-o-lantern-lounge",
+"Jack-o'-Lantern Lounge",
+"Grinning jack-o'-lantern"
+],
+[
+"Genre",
+344,
+"campfire-tales",
+"Campfire Tales",
+"Campfire flame on crossed logs"
+],
+[
+"Genre",
+348,
+"paradox",
+"Paradox",
+"Hourglass"
+],
+[
+"Genre",
+352,
+"neon-rain",
+"Neon Rain",
+"Neon sign in a rainy skyline"
+],
+[
+"Genre",
+356,
+"deep-space-drift",
+"Deep Space Drift",
+"Ringed planet"
+],
+[
+"Genre",
+360,
+"creature-feature",
+"Creature Feature",
+"Swamp serpent rising"
+],
+[
+"Genre",
+364,
+"end-times",
+"End Times",
+"Blasted sunset over a lonely diner"
+],
+[
+"Genre",
+368,
+"haunted-house",
+"Haunted House",
+"Haunted house with lit windows"
+],
+[
+"Genre",
+372,
+"twist-ending",
+"Twist Ending",
+"Spiral twist"
+],
+[
+"Genre",
+376,
+"gallows-humor",
+"Gallows Humor",
+"Grinning skull with a wink grin"
+],
+[
+"World",
+408,
+"giant-robot-hour",
+"Giant Robot Hour",
+"Mecha head with horn fins"
+],
+[
+"World",
+412,
+"power-level",
+"Power Level",
+"Lightning bolt"
+],
+[
+"World",
+420,
+"whodunit-isles",
+"Whodunit Isles",
+"Island lighthouse and cottage"
+],
+[
+"World",
+424,
+"continental-drift",
+"Continental Drift",
+"Globe with drifting continents"
+],
+[
+"World",
+428,
+"seoul-sundays",
+"Seoul Sundays",
+"Swirl-heart pair in a ring"
+],
+[
+"World",
+432,
+"masala-hour",
+"Masala Hour",
+"Marigold mandala bloom"
+],
+[
+"World",
+436,
+"telenovela-tonight",
+"Telenovela Tonight",
+"Broken heart cliffhanger"
+],
+[
+"World",
+440,
+"cherry-blossom-hour",
+"Cherry Blossom Hour",
+"Five-petal cherry blossom"
+],
+[
+"Premium",
+508,
+"graveyard-shift",
+"Graveyard Shift",
+"Tombstone under a night moon"
+],
+[
+"Premium",
+512,
+"one-season-only",
+"One Season Only",
+"Tear-off calendar showing 1"
+],
+[
+"Premium",
+516,
+"cartoons-after-dark",
+"Cartoons After Dark",
+"Wide-eyed toon face in the dark"
+],
+[
+"Premium",
+520,
+"family-business",
+"Family Business",
+"Fedora with red band and tie"
+],
+[
+"Premium",
+524,
+"anthology-hour",
+"Anthology Hour",
+"Row of book spines"
+],
+[
+"Premium",
+528,
+"satire-desk",
+"Satire Desk",
+"Anchor desk with smirking screen"
+],
+[
+"Premium",
+532,
+"directors-chair",
+"Director's Chair",
+"Director's chair"
+],
+[
+"Kids",
+99,
+"kids-odds-and-ends",
+"Kids' Odds & Ends",
+"Four bright toy blocks + star"
+],
+[
+"General",
+199,
+"odds-and-ends",
+"Odds & Ends",
+"Mixed shapes grab-bag"
+]
+]
