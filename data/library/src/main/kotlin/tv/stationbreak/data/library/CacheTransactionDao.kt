@@ -582,8 +582,9 @@ internal abstract class CacheTransactionDao(
         }
 
     /**
-     * [reIdSuccessors] in one read transaction (spec 26): the tombstones, the series and the live candidates are read
-     * from one state. [sinceMs] is the oldest tombstone that counts.
+     * [reIdRows] in one read transaction (spec 26): the tombstones, the series and the live candidates are read from
+     * one state. [sinceMs] is the oldest tombstone that counts. It returns the rows only: the caller runs the match
+     * ([ReIdRows.match]) after the transaction, so the match never holds up a sync write or the repairer.
      */
     @Transaction
     @Suppress("LongParameterList") // The account, what to find, the retention cut and the test seam.
@@ -594,7 +595,7 @@ internal abstract class CacheTransactionDao(
         gone: Set<CanonicalId>,
         sinceMs: Long,
         trace: ((String) -> Unit)? = null,
-    ): Map<CanonicalId, CanonicalId> = reIdSuccessors(library, series, server, user, libraries, gone, sinceMs, trace)
+    ): ReIdRows = reIdRows(library, series, server, user, libraries, gone, sinceMs, trace)
 
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */

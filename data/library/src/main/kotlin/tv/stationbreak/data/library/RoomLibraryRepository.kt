@@ -388,7 +388,8 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         val sinceMs = clock.now().toEpochMilliseconds() - retention.millis
         val wanted = libraries.mapTo(HashSet()) { it.value }
-        return transactions.successors(server, user, wanted, gone, sinceMs, traceSuccessors)
+        // The read is one transaction; the match runs after it, holding no connection.
+        return transactions.successors(server, user, wanted, gone, sinceMs, traceSuccessors).match()
     }
 
     override suspend fun useAccount(account: LibraryAccount) {

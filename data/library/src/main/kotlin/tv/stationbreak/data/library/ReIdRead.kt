@@ -43,9 +43,10 @@ private class Terms(
 }
 
 /**
- * Where each of the tombstoned [gone] items came back (spec 26): [ReIdMatch] over the tombstones' signals (deleted at
- * or after [sinceMs]) and the live movies and episodes of [libraries] the gone items could have come back as, with the
- * series of the gone episodes read as well. The live read is narrowed in SQL to the series, the titles and the identity
+ * The rows the match of the tombstoned [gone] items reads (spec 26): the tombstones' signals (deleted at or after
+ * [sinceMs]) and the live movies and episodes of [libraries] the gone items could have come back as, with the series of
+ * the gone episodes read as well. Only reads: the caller runs [ReIdRows.match] after its read transaction ends, so the
+ * match never holds the database. The live read is narrowed in SQL to the series, the titles and the identity
  * ids the gone items have, and the rules check every row it gives. A gone id with no row, or with a live one, is not
  * read as gone and so is absent. Every read is chunked under the bind limit; the provider ids and names stay in memory
  * and are never logged. When the terms would take more than [MAX_TERM_CHUNKS] reads of the libraries, one read of every
@@ -53,7 +54,7 @@ private class Terms(
  * "live:narrowed" or "live:all".
  */
 @Suppress("LongParameterList", "ReturnCount") // The two DAOs and the account's keys; an empty read ends it early.
-internal suspend fun reIdSuccessors(
+internal suspend fun reIdRows(
     items: LibraryDao,
     series: SeriesDao,
     server: String,
@@ -62,10 +63,10 @@ internal suspend fun reIdSuccessors(
     gone: Set<CanonicalId>,
     sinceMs: Long,
     trace: ((String) -> Unit)? = null,
-): Map<CanonicalId, CanonicalId> {
-    if (gone.isEmpty() || libraries.isEmpty()) return emptyMap()
+): ReIdRows {
+    if (gone.isEmpty() || libraries.isEmpty()) return ReIdRows.NONE
     val goneItems = readGone(items, server, user, gone, sinceMs)
-    if (goneItems.isEmpty()) return emptyMap()
+    if (goneItems.isEmpty()) return ReIdRows.NONE
     val goneSeries = ArrayList<SeriesSignals>()
     val wantedSeries = goneItems.mapNotNullTo(LinkedHashSet()) { it.seriesId?.value }
     for (chunk in wantedSeries.chunked(GONE_CHUNK)) {
@@ -89,7 +90,7 @@ internal suspend fun reIdSuccessors(
     }
     for (moved in ReIdMatch.movedSeries(goneSeries, liveSeries)) terms.seriesIds += idSpellings(moved.value)
     val live = readLive(items, server, user, libraries, terms, trace)
-    return ReIdMatch.match(goneItems, live, liveSeries, goneSeries)
+    return ReIdRows(goneItems, live, liveSeries, goneSeries)
 }
 
 // The tombstones among [gone], by canonical id (a row may be stored under any spelling of its id).

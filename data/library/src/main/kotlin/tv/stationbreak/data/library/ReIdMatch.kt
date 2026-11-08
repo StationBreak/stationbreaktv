@@ -31,6 +31,24 @@ internal data class SeriesSignals(
 }
 
 /**
+ * What [ReIdMatch] reads (spec 26): the tombstoned items' signals ([gone]), the live candidates ([live]), and the live
+ * and tombstoned series ([liveSeries], [goneSeries]). [match] runs the match over them, outside any transaction.
+ */
+internal class ReIdRows(
+    val gone: List<Signals>,
+    val live: List<Signals>,
+    val liveSeries: List<SeriesSignals>,
+    val goneSeries: List<SeriesSignals>,
+) {
+    /** Where each gone item came back; empty when nothing was read. */
+    fun match(): Map<CanonicalId, CanonicalId> = ReIdMatch.match(gone, live, liveSeries, goneSeries)
+
+    companion object {
+        val NONE = ReIdRows(emptyList(), emptyList(), emptyList(), emptyList())
+    }
+}
+
+/**
  * The conservative match of an item that left the library and came back under a new id (spec 26). For each gone item
  * the rules run in order, and the first that finds any candidate of the same kind decides: exactly one usable candidate
  * that also passes the runtime check is the match, and more than one (or one that fails the runtime check, or that an
@@ -48,7 +66,9 @@ internal data class SeriesSignals(
  *
  * A gone item with more than one candidate also voids each of them for the others, so the result is one-to-one: a
  * candidate chosen by two gone items, or seen by an ambiguous one, is the match of none. The rules and the holds are
- * the repairer's to check, not this match's. Pure: it reads no store and logs nothing.
+ * the repairer's to check, not this match's. Pure: it reads no store and logs nothing. It indexes the live rows and
+ * series once per call (by kind and identity pair, by series, season and episode, and by folded name and year), so
+ * each gone item looks its candidates up instead of reading every live row.
  */
 @Suppress("TooManyFunctions") // One small function per rule and check.
 internal object ReIdMatch {
@@ -73,6 +93,94 @@ internal object ReIdMatch {
         val usable: List<Signals>,
     )
 
+    private data class EpisodeKey(
+        val seriesId: CanonicalId,
+        val season: Int,
+        val episode: Int,
+    )
+
+    private data class FilmKey(
+        val foldedName: String,
+        val year: Int,
+    )
+
+    private data class IdentityKey(
+        val kind: String,
+        val key: String,
+        val value: String,
+    )
+
+    // The live rows, each list keyed once: an identity pair by kind, an episode by its series and numbers, a film by
+    // its folded name and year.
+    private class LiveItems(
+        live: List<Signals>,
+    ) {
+        val byIdentity = HashMap<IdentityKey, MutableList<Signals>>()
+        val byEpisode = HashMap<EpisodeKey, MutableList<Signals>>()
+        val byFilm = HashMap<FilmKey, MutableList<Signals>>()
+
+        init {
+            for (row in live) {
+                for ((key, value) in row.providerIds) {
+                    if (key in IDENTITY_KEYS) byIdentity.getOrPut(IdentityKey(row.kind, key, value), ::ArrayList) += row
+                }
+                if (row.kind == EPISODE) episodeKey(row)?.let { byEpisode.getOrPut(it, ::ArrayList) += row }
+                val year = row.year
+                if (row.kind == MOVIE && year != null) {
+                    byFilm.getOrPut(FilmKey(row.foldedName, year), ::ArrayList) += row
+                }
+            }
+        }
+
+        // An episode's series and numbers, when all three are known.
+        private fun episodeKey(row: Signals): EpisodeKey? {
+            val seriesId = row.seriesId
+            val season = row.season
+            val episode = row.episode
+            val known = seriesId != null && season != null && episode != null
+            return if (known) EpisodeKey(seriesId, season, episode) else null
+        }
+    }
+
+    // The live series, keyed by identity pair and by folded name; [movedOf] answers each tombstoned series once.
+    private class LiveSeries(
+        liveSeries: List<SeriesSignals>,
+    ) {
+        private val byIdentity = HashMap<Pair<String, String>, MutableList<SeriesSignals>>()
+        private val byName = HashMap<String, MutableList<SeriesSignals>>()
+        private val moved = HashMap<CanonicalId, CanonicalId?>()
+
+        init {
+            for (series in liveSeries) {
+                for ((key, value) in series.providerIds) {
+                    if (key in IDENTITY_KEYS) byIdentity.getOrPut(key to value) { ArrayList() } += series
+                }
+                byName.getOrPut(series.foldedName) { ArrayList() } += series
+            }
+        }
+
+        fun movedOf(gone: SeriesSignals): CanonicalId? = moved.getOrPut(gone.id) { liveSeriesOf(gone) }
+
+        // The one live series the tombstoned [gone] came back as, or null: by a shared identity pair when exactly one
+        // live series has one, and only when none does, by a folded name that exactly one live series has (an identity
+        // id that disagrees rules a series out).
+        @Suppress("ReturnCount") // Each way of finding the series gives up or answers at once.
+        private fun liveSeriesOf(gone: SeriesSignals): CanonicalId? {
+            val sharing = LinkedHashMap<CanonicalId, SeriesSignals>()
+            for ((key, value) in gone.providerIds) {
+                if (key !in IDENTITY_KEYS) continue
+                for (series in byIdentity[key to value].orEmpty()) sharing.putIfAbsent(series.id, series)
+            }
+            val byIds = sharing.values.filter { sharesIdentity(gone.providerIds, it.providerIds) }
+            if (byIds.isNotEmpty()) return byIds.singleOrNull()?.id
+            if (gone.foldedName.isBlank()) return null
+            val named = byName[gone.foldedName].orEmpty()
+            val clean = named.filterNot { conflicts(gone.providerIds, it.providerIds) }
+            // A contradicted series beside others of the name: which is it cannot be told.
+            return if (named.size > 1 && clean.size < named.size) null else clean.singleOrNull()?.id
+        }
+    }
+
     fun match(
         gone: List<Signals>,
         live: List<Signals>,
@@ -80,11 +188,13 @@ internal object ReIdMatch {
         goneSeries: List<SeriesSignals>,
     ): Map<CanonicalId, CanonicalId> {
         if (gone.isEmpty() || live.isEmpty()) return emptyMap()
+        val items = LiveItems(live)
+        val series = LiveSeries(liveSeries)
         val goneSeriesById = goneSeries.associateBy { it.id }
         val choices = LinkedHashMap<CanonicalId, CanonicalId>()
         val voided = HashSet<CanonicalId>()
         for (item in gone) {
-            val choice = choose(item, live, liveSeries, goneSeriesById)
+            val choice = choose(item, items, series, goneSeriesById)
             choice.chosen?.let { choices[item.id] = it }
             voided += choice.voids
         }
@@ -98,17 +208,19 @@ internal object ReIdMatch {
     fun movedSeries(
         goneSeries: List<SeriesSignals>,
         liveSeries: List<SeriesSignals>,
-    ): Set<CanonicalId> = goneSeries.mapNotNullTo(HashSet()) { liveSeriesOf(it, liveSeries) }
+    ): Set<CanonicalId> {
+        val series = LiveSeries(liveSeries)
+        return goneSeries.mapNotNullTo(HashSet()) { series.movedOf(it) }
+    }
 
     @Suppress("ReturnCount") // Each way a gone item ends without a match returns at once.
     private fun choose(
         item: Signals,
-        live: List<Signals>,
-        liveSeries: List<SeriesSignals>,
+        items: LiveItems,
+        series: LiveSeries,
         goneSeries: Map<CanonicalId, SeriesSignals>,
     ): Choice {
-        val sameKind = live.filter { it.kind == item.kind && it.id != item.id }
-        val usable = firstFinding(item, sameKind, liveSeries, goneSeries)?.usable ?: return Choice(null)
+        val usable = firstFinding(item, items, series, goneSeries)?.usable ?: return Choice(null)
         if (usable.size > 1) return Choice(null, usable.map { it.id })
         val only = usable.singleOrNull() ?: return Choice(null)
         return Choice(only.id.takeIf { withinRuntime(item, only) })
@@ -117,67 +229,63 @@ internal object ReIdMatch {
     // The first rule that finds any candidate, or null when no rule does.
     private fun firstFinding(
         item: Signals,
-        candidates: List<Signals>,
-        liveSeries: List<SeriesSignals>,
+        items: LiveItems,
+        series: LiveSeries,
         goneSeries: Map<CanonicalId, SeriesSignals>,
     ): Finding? =
         sequenceOf(
-            { byProviderId(item, candidates) },
-            { if (item.kind == EPISODE) byEpisode(item, candidates, liveSeries, goneSeries) else null },
-            { if (item.kind == MOVIE) byFilm(item, candidates) else null },
+            { byProviderId(item, items) },
+            { if (item.kind == EPISODE) byEpisode(item, items, series, goneSeries) else null },
+            { if (item.kind == MOVIE) byFilm(item, items) else null },
         ).mapNotNull { rule -> rule()?.takeIf { it.seen.isNotEmpty() } }.firstOrNull()
+
+    // The live rows of [lists], each once, never [item] itself.
+    private fun candidates(
+        item: Signals,
+        lists: List<List<Signals>?>,
+    ): List<Signals> {
+        val out = LinkedHashMap<CanonicalId, Signals>()
+        for (list in lists) for (row in list.orEmpty()) if (row.id != item.id) out.putIfAbsent(row.id, row)
+        return ArrayList(out.values)
+    }
 
     private fun byProviderId(
         item: Signals,
-        candidates: List<Signals>,
+        items: LiveItems,
     ): Finding? {
         if (item.providerIds.isEmpty()) return null
-        val found = candidates.filter { sharesIdentity(item.providerIds, it.providerIds) }
+        val lists =
+            item.providerIds.filterKeys { it in IDENTITY_KEYS }.map { (key, value) ->
+                items.byIdentity[IdentityKey(item.kind, key, value)]
+            }
+        val found = candidates(item, lists).filter { sharesIdentity(item.providerIds, it.providerIds) }
         return Finding(found, found)
     }
 
     private fun byEpisode(
         item: Signals,
-        candidates: List<Signals>,
-        liveSeries: List<SeriesSignals>,
+        items: LiveItems,
+        series: LiveSeries,
         goneSeries: Map<CanonicalId, SeriesSignals>,
     ): Finding? {
         val seriesId = item.seriesId
         val season = item.season
         val episode = item.episode
         if (seriesId == null || season == null || episode == null) return null
-        val moved = goneSeries[seriesId]?.let { liveSeriesOf(it, liveSeries) }
-        val found =
-            candidates.filter {
-                it.season == season && it.episode == episode &&
-                    it.seriesId != null && (it.seriesId == seriesId || it.seriesId == moved)
-            }
+        val moved = goneSeries[seriesId]?.let { series.movedOf(it) }
+        val same = items.byEpisode[EpisodeKey(seriesId, season, episode)]
+        val back = moved?.takeIf { it != seriesId }?.let { items.byEpisode[EpisodeKey(it, season, episode)] }
+        val found = candidates(item, listOf(same, back))
         return Finding(found, usable(item.providerIds, found))
-    }
-
-    // The one live series the tombstoned [gone] came back as, or null: by a shared identity pair when exactly one live
-    // series has one, and only when none does, by a folded name that exactly one live series has (an identity id that
-    // disagrees rules a series out).
-    @Suppress("ReturnCount") // Each way of finding the series gives up or answers at once.
-    private fun liveSeriesOf(
-        gone: SeriesSignals,
-        liveSeries: List<SeriesSignals>,
-    ): CanonicalId? {
-        val byIds = liveSeries.filter { sharesIdentity(gone.providerIds, it.providerIds) }
-        if (byIds.isNotEmpty()) return byIds.singleOrNull()?.id
-        if (gone.foldedName.isBlank()) return null
-        val named = liveSeries.filter { it.foldedName == gone.foldedName }
-        val clean = named.filterNot { conflicts(gone.providerIds, it.providerIds) }
-        // A contradicted series beside others of the name: which is it cannot be told.
-        return if (named.size > 1 && clean.size < named.size) null else clean.singleOrNull()?.id
     }
 
     private fun byFilm(
         item: Signals,
-        candidates: List<Signals>,
+        items: LiveItems,
     ): Finding? {
-        if (item.foldedName.isBlank() || item.year == null) return null
-        val found = candidates.filter { it.foldedName == item.foldedName && it.year == item.year }
+        val year = item.year
+        if (item.foldedName.isBlank() || year == null) return null
+        val found = candidates(item, listOf(items.byFilm[FilmKey(item.foldedName, year)]))
         return Finding(found, usable(item.providerIds, found))
     }
 
