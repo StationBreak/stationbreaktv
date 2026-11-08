@@ -236,4 +236,85 @@ class RoomSuccessorsTest {
 
             assertEquals(mapOf(canon(1) to canon(2)), successors(1))
         }
+
+    private val day = 24L * 3_600_000
+
+    @Test
+    fun anIdentityKeyLastInTheText_isFound() =
+        runBlocking {
+            choose(MOVIES.value)
+            repository.put(ALICE, MOVIES, film(1, ids = mapOf("tmdb" to "77"), name = "gone"))
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            repository.put(ALICE, MOVIES, film(2, ids = mapOf("aaa" to "x", "tmdb" to "77"), name = "back"))
+
+            assertEquals(mapOf(canon(1) to canon(2)), successors(1))
+        }
+
+    @Test
+    fun aSeriesTombstonedBeforeTheRetention_doesNotResolveItsEpisodes() =
+        runBlocking {
+            choose(MOVIES.value, SHOWS.value)
+            repository.putSeries(ALICE, SHOWS, show(100, "Invented Show", tvdb = "9"))
+            repository.put(ALICE, SHOWS, episode(1, series = 100))
+            repository.tombstoneSeries(ALICE, listOf(ItemId(hexId(100))))
+            clock.stepMs(29 * day)
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            clock.stepMs(2 * day)
+            repository.putSeries(ALICE, SHOWS, show(200, "Other Name", tvdb = "9"))
+            repository.put(ALICE, SHOWS, episode(2, series = 200))
+
+            assertEquals(emptyMap<CanonicalId, CanonicalId>(), successors(1))
+        }
+
+    private suspend fun filmsGoneAndBack(count: Int) {
+        choose(MOVIES.value)
+        repository.put(ALICE, MOVIES, *(1..count).map { film(it, ids = mapOf("tmdb" to "$it")) }.toTypedArray())
+        repository.tombstone(ALICE, (1..count).map { ItemId(hexId(it)) })
+        val back = (1..count).map { film(10_000 + it, ids = mapOf("tmdb" to "$it")) }
+        repository.put(ALICE, MOVIES, *back.toTypedArray())
+    }
+
+    @Test
+    fun aSmallGoneSet_isReadNarrowed_andNeedsNoSeries() =
+        runBlocking {
+            filmsGoneAndBack(5)
+            val reads = mutableListOf<String>()
+            repository.traceSuccessors = { reads += it }
+
+            val found = successors(1, 2, 3, 4, 5)
+
+            assertEquals(5, found.size)
+            assertEquals(listOf("live:narrowed"), reads.distinct())
+        }
+
+    @Test
+    fun aMassReId_takesOneReadOfTheLibraries_andGivesTheSameResult() =
+        runBlocking {
+            val count = 400
+            filmsGoneAndBack(count)
+            val reads = mutableListOf<String>()
+            repository.traceSuccessors = { reads += it }
+
+            val found = repository.successors(ALICE, setOf(MOVIES), (1..count).mapTo(HashSet()) { canon(it) })
+
+            assertEquals((1..count).associate { canon(it) to canon(10_000 + it) }, found)
+            assertEquals(listOf("live:all"), reads)
+        }
+
+    @Test
+    fun aGoneEpisode_readsTheSeries() =
+        runBlocking {
+            choose(MOVIES.value, SHOWS.value)
+            repository.putSeries(ALICE, SHOWS, series(hexId(100), name = "Invented Show"))
+            repository.put(ALICE, SHOWS, episode(1, series = 100))
+            repository.tombstone(ALICE, listOf(ItemId(hexId(1))))
+            repository.tombstoneSeries(ALICE, listOf(ItemId(hexId(100))))
+            repository.putSeries(ALICE, SHOWS, series(hexId(200), name = "Invented Show"))
+            repository.put(ALICE, SHOWS, episode(2, series = 200))
+            val reads = mutableListOf<String>()
+            repository.traceSuccessors = { reads += it }
+
+            assertEquals(mapOf(canon(1) to canon(2)), successors(1))
+            assertEquals(listOf("series", "live:narrowed"), reads)
+        }
 }

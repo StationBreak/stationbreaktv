@@ -315,4 +315,28 @@ class ReIdMatchTest {
         val live = listOf(episode(2, series = 200))
         assertEquals(none, match(listOf(episode(1, series = 100)), live, liveSeries, goneSeries))
     }
+
+    @Test
+    fun aContradictedFilm_besideAnotherOfTheSameTitleAndYear_noMatch() {
+        val gone = film(1, ids = mapOf("tmdb" to "5"))
+        val live = listOf(film(2, ids = mapOf("tmdb" to "6")), film(3))
+        assertEquals(none, match(listOf(gone), live))
+    }
+
+    @Test
+    fun aContradictedEpisode_besideAnotherOfTheSameSeriesAndNumber_noMatch() {
+        val gone = episode(1, series = 100, ids = mapOf("tvdb" to "1"))
+        val live = listOf(episode(2, series = 100, ids = mapOf("tvdb" to "2")), episode(3, series = 100))
+        assertEquals(none, match(listOf(gone), live))
+    }
+
+    @Test
+    fun aContradictedSeries_besideAnotherOfTheName_isNotResolved() {
+        val gone = episode(1, series = 100)
+        val live = listOf(episode(2, series = 200), episode(3, series = 201))
+        val goneSeries = listOf(show(100, name = "same show", ids = mapOf("tvdb" to "1")))
+        val contradicted = show(200, name = "same show", ids = mapOf("tvdb" to "2"))
+        val liveSeries = listOf(contradicted, show(201, name = "same show"))
+        assertEquals(none, match(listOf(gone), live, liveSeries, goneSeries))
+    }
 }

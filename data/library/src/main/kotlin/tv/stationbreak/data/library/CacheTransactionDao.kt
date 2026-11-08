@@ -588,13 +588,15 @@ internal abstract class CacheTransactionDao(
      * from one state. [sinceMs] is the oldest tombstone that counts.
      */
     @Transaction
+    @Suppress("LongParameterList") // The account, what to find, the retention cut and the test seam.
     open suspend fun successors(
         server: String,
         user: String,
         libraries: Set<String>,
         gone: Set<CanonicalId>,
         sinceMs: Long,
-    ): Map<CanonicalId, CanonicalId> = reIdSuccessors(library, series, server, user, libraries, gone, sinceMs)
+        trace: ((String) -> Unit)? = null,
+    ): Map<CanonicalId, CanonicalId> = reIdSuccessors(library, series, server, user, libraries, gone, sinceMs, trace)
 
     private companion object {
         /** Collections the as-of read takes at a time: each has a member list, so a chunk is small. */

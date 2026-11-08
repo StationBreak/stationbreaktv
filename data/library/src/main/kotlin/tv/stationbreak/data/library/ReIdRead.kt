@@ -7,6 +7,9 @@ import tv.stationbreak.core.model.foldNameAscii
 // Ids per read: each is bound under up to MAX_SPELLINGS spellings, with the account's keys and the time beside them.
 private const val GONE_CHUNK = (LibraryDao.MAX_VARIABLES - 3) / MAX_SPELLINGS
 
+// More term chunks than this and the narrowed reads would each scan the libraries again: one read of all is cheaper.
+private const val MAX_TERM_CHUNKS = 2
+
 // Libraries per live read: the rest of the 400 binds are for the terms.
 private const val LIBRARY_CHUNK = 90
 private const val TERM_CHUNK = LibraryDao.MAX_VARIABLES - LIBRARY_CHUNK - 10
@@ -45,7 +48,9 @@ private class Terms(
  * series of the gone episodes read as well. The live read is narrowed in SQL to the series, the titles and the identity
  * ids the gone items have, and the rules check every row it gives. A gone id with no row, or with a live one, is not
  * read as gone and so is absent. Every read is chunked under the bind limit; the provider ids and names stay in memory
- * and are never logged.
+ * and are never logged. When the terms would take more than [MAX_TERM_CHUNKS] reads of the libraries, one read of every
+ * live movie and episode replaces them. [trace] (a test seam, null in the app) hears each read: "series",
+ * "live:narrowed" or "live:all".
  */
 @Suppress("LongParameterList", "ReturnCount") // The two DAOs and the account's keys; an empty read ends it early.
 internal suspend fun reIdSuccessors(
@@ -56,6 +61,7 @@ internal suspend fun reIdSuccessors(
     libraries: Set<String>,
     gone: Set<CanonicalId>,
     sinceMs: Long,
+    trace: ((String) -> Unit)? = null,
 ): Map<CanonicalId, CanonicalId> {
     if (gone.isEmpty() || libraries.isEmpty()) return emptyMap()
     val goneItems = readGone(items, server, user, gone, sinceMs)
@@ -68,8 +74,12 @@ internal suspend fun reIdSuccessors(
             .mapNotNullTo(goneSeries) { it.toSignals() }
     }
     val liveSeries = ArrayList<SeriesSignals>()
-    for (chunk in libraries.chunked(LIBRARY_CHUNK)) {
-        series.liveSeriesSignalRows(server, user, chunk).mapNotNullTo(liveSeries) { it.toSignals() }
+    // No gone series, no series to find again: the live ones are not read.
+    if (goneSeries.isNotEmpty()) {
+        trace?.invoke("series")
+        for (chunk in libraries.chunked(LIBRARY_CHUNK)) {
+            series.liveSeriesSignalRows(server, user, chunk).mapNotNullTo(liveSeries) { it.toSignals() }
+        }
     }
     val terms = Terms()
     for (item in goneItems) {
@@ -78,7 +88,7 @@ internal suspend fun reIdSuccessors(
         if (item.kind == "Movie" && item.foldedName.isNotBlank()) terms.names += item.foldedName
     }
     for (moved in ReIdMatch.movedSeries(goneSeries, liveSeries)) terms.seriesIds += idSpellings(moved.value)
-    val live = readLive(items, server, user, libraries, terms)
+    val live = readLive(items, server, user, libraries, terms, trace)
     return ReIdMatch.match(goneItems, live, liveSeries, goneSeries)
 }
 
@@ -100,17 +110,28 @@ private suspend fun readGone(
     return found.values.toList()
 }
 
-// The live candidates of [libraries] the [terms] name, in chunks of libraries and of terms.
+// The live candidates of [libraries] the [terms] name, in chunks of libraries and of terms; every live one when the
+// terms are more than MAX_TERM_CHUNKS chunks.
+@Suppress("LongParameterList") // The DAO, the account's keys, what to read and the test seam.
 private suspend fun readLive(
     items: LibraryDao,
     server: String,
     user: String,
     libraries: Set<String>,
     terms: Terms,
+    trace: ((String) -> Unit)?,
 ): List<Signals> {
     val live = HashMap<CanonicalId, Signals>()
+    val termChunks = terms.chunked(TERM_CHUNK)
+    val everything = termChunks.size > MAX_TERM_CHUNKS
     for (libs in libraries.chunked(LIBRARY_CHUNK)) {
-        for (t in terms.chunked(TERM_CHUNK)) {
+        if (everything) {
+            trace?.invoke("live:all")
+            for (row in items.allLiveSignalRows(server, user, libs)) row.toSignals()?.let { live[it.id] = it }
+            continue
+        }
+        for (t in termChunks) {
+            trace?.invoke("live:narrowed")
             val rows =
                 items.liveSignalRows(
                     server,

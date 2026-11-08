@@ -134,6 +134,9 @@ class RoomLibraryRepository internal constructor(
      */
     internal var faultDuringRuleSnapshot: (() -> Unit)? = null
 
+    /** Test seam: hears each read [successors] makes ("series", "live:narrowed", "live:all"). Null in the app. */
+    internal var traceSuccessors: ((String) -> Unit)? = null
+
     // The port.
 
     override fun status(account: LibraryAccount): Flow<LibraryStatus> =
@@ -375,7 +378,8 @@ class RoomLibraryRepository internal constructor(
     ): Map<CanonicalId, CanonicalId> {
         val (server, user) = account.keys()
         val sinceMs = clock.now().toEpochMilliseconds() - retention.millis
-        return transactions.successors(server, user, libraries.mapTo(HashSet()) { it.value }, gone, sinceMs)
+        val wanted = libraries.mapTo(HashSet()) { it.value }
+        return transactions.successors(server, user, wanted, gone, sinceMs, traceSuccessors)
     }
 
     override suspend fun useAccount(account: LibraryAccount) {

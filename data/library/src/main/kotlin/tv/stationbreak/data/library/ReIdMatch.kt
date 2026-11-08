@@ -50,6 +50,7 @@ internal data class SeriesSignals(
  * candidate chosen by two gone items, or seen by an ambiguous one, is the match of none. The rules and the holds are
  * the repairer's to check, not this match's. Pure: it reads no store and logs nothing.
  */
+@Suppress("TooManyFunctions") // One small function per rule and check.
 internal object ReIdMatch {
     private const val MIN_TOLERANCE_MS = 2 * 60_000L
     private const val TOLERANCE_PERCENT = 2L
@@ -151,7 +152,7 @@ internal object ReIdMatch {
                 it.season == season && it.episode == episode &&
                     it.seriesId != null && (it.seriesId == seriesId || it.seriesId == moved)
             }
-        return Finding(found, found.filterNot { conflicts(item.providerIds, it.providerIds) })
+        return Finding(found, usable(item.providerIds, found))
     }
 
     // The one live series the tombstoned [gone] came back as, or null: by a shared identity pair when exactly one live
@@ -165,9 +166,10 @@ internal object ReIdMatch {
         val byIds = liveSeries.filter { sharesIdentity(gone.providerIds, it.providerIds) }
         if (byIds.isNotEmpty()) return byIds.singleOrNull()?.id
         if (gone.foldedName.isBlank()) return null
-        val named =
-            liveSeries.filter { it.foldedName == gone.foldedName && !conflicts(gone.providerIds, it.providerIds) }
-        return named.singleOrNull()?.id
+        val named = liveSeries.filter { it.foldedName == gone.foldedName }
+        val clean = named.filterNot { conflicts(gone.providerIds, it.providerIds) }
+        // A contradicted series beside others of the name: which is it cannot be told.
+        return if (named.size > 1 && clean.size < named.size) null else clean.singleOrNull()?.id
     }
 
     private fun byFilm(
@@ -176,7 +178,17 @@ internal object ReIdMatch {
     ): Finding? {
         if (item.foldedName.isBlank() || item.year == null) return null
         val found = candidates.filter { it.foldedName == item.foldedName && it.year == item.year }
-        return Finding(found, found.filterNot { conflicts(item.providerIds, it.providerIds) })
+        return Finding(found, usable(item.providerIds, found))
+    }
+
+    // The [found] candidates no identity id contradicts. When one was contradicted and others were found, which of them
+    // the gone item is cannot be told: none is usable.
+    private fun usable(
+        ids: Map<String, String>,
+        found: List<Signals>,
+    ): List<Signals> {
+        val clean = found.filterNot { conflicts(ids, it.providerIds) }
+        return if (found.size > 1 && clean.size < found.size) emptyList() else clean
     }
 
     // At least one identity key with the same value on both sides, and no identity key with different values.

@@ -344,6 +344,19 @@ internal abstract class LibraryDao {
         tvdb: List<String>,
     ): List<SignalRow>
 
+    // Every live movie and episode of [libraries] (at most MAX_VARIABLES - 2 of them): the re-id read when the gone
+    // items are too many for a few narrowed reads to be cheaper (spec 26).
+    @Query(
+        "SELECT itemId, kind, seriesId, seasonNumber, episodeNumber, name, productionYear, runtimeMs, providerIds " +
+            "FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL " +
+            "AND kind IN ('Movie', 'Episode') AND libraryId IN (:libraries)",
+    )
+    abstract suspend fun allLiveSignalRows(
+        serverId: String,
+        userId: String,
+        libraries: List<String>,
+    ): List<SignalRow>
+
     // Which of [ids] (at most MAX_VARIABLES of them) are live items of the account: no join, no names (spec 14).
     @Query(
         "SELECT itemId FROM item WHERE serverId = :serverId AND userId = :userId AND deletedAtMs IS NULL " +
