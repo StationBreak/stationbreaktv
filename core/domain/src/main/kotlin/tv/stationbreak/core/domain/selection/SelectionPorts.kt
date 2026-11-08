@@ -75,3 +75,16 @@ fun interface SelectionResume {
     /** Resumes the stored selection; it completes the selection's [SelectionReady] however it ends. */
     suspend fun resumeAtStart()
 }
+
+/**
+ * The background read of the libraries being added (spec 26, Part 4). [restart] only asks for it: it replaces any read
+ * under way with one that reads the libraries being added as they are stored now, and never waits for it.
+ */
+fun interface LibraryPasses {
+    fun restart()
+
+    companion object {
+        /** Nothing reads the added libraries: for a build without the add pass. */
+        val None: LibraryPasses = LibraryPasses {}
+    }
+}

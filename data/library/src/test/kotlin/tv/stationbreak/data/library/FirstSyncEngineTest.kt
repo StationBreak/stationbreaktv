@@ -46,6 +46,7 @@ import tv.stationbreak.data.library.SyncWorld.session
 import tv.stationbreak.data.library.SyncWorld.shows
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.hours
 
 /**
  * The first sync's library set (spec 26, Part 4 §2, Task 4.4b): it comes from the selection's `firstSyncLibraries`,
@@ -134,21 +135,21 @@ class FirstSyncEngineTest {
             assertEquals(5, repository.stored(ALICE).size)
         }
 
-    // Binding item 6 (D7): a setup keeps the old cache rows, an add's stamped row among them; the first sync's library
-    // set is the new choice's, so the old add the new choice does not name goes.
+    // Binding item 6 (D7), with the Part 4A final fix D1: an old add's stamped row the new choice does not name goes
+    // with the setup's own cache write (no longer only with the first sync's library set), and stays gone.
     @Test
-    fun firstSync_afterSetup_clearsAnOldAddTheNewChoiceDoesNotName() =
+    fun setup_clearsAnOldAddTheNewChoiceDoesNotName_andTheFirstSyncKeepsItGone() =
         runBlocking {
             repository.useAccount(ALICE)
             // The old choice: MOVIES chosen, extra being added. The resume puts the cache in line with it, so nothing
-            // is left for a catch-up: what clears the old add below is the first sync's library set itself.
+            // is left for a catch-up: what clears the old add below is the setup's own write.
             val old = StoredSelection(setOf(MOVIES), seq = 1, adding = mapOf(extra to 1L), resetSeq = 1, owner = ALICE)
             assertTrue(settings.saveSelection(old, true))
             selection.resumeAtStart()
             assertEquals(1L, row(extra)?.addStamp)
             assertTrue(selection.clear())
             assertEquals(SetupResult.Saved, selection.choose(setOf(MOVIES)))
-            assertEquals("the setup itself leaves the old row", 1L, row(extra)?.addStamp)
+            assertNull("the setup's own cache write dropped it", row(extra))
 
             assertEquals(SyncOutcome.Completed, engine().run(session, ALICE, selection))
 
@@ -340,6 +341,48 @@ class FirstSyncEngineTest {
                 assertFalse(repository.isFirstSyncRunning(ALICE))
             } finally {
                 release.countDown()
+                scope.cancel()
+            }
+        }
+
+    // C5: the old run gets to its end (finishSync and all) before the setup replaces it: the replacing run starts
+    // at once, with nothing to wait for, and the end state is the same. The recorded success is not the new run's
+    // start: the first sync records the earliest walk start across the chosen libraries (their checkpoints), so a
+    // walk of a kept library ahead of now does not hide what changed since. MOVIES, kept, was walked by the old run,
+    // so the success is the old run's start, and the test asserts that.
+    @Test
+    fun sameAccountSetup_afterTheOldFirstSyncEnded_walksTheNewChoice_andKeepsTheEarliestWalk() =
+        runBlocking {
+            val withExtra =
+                PagedMediaServer(
+                    listOf(movies, shows, extraLibrary),
+                    mapOf(MOVIES to films, SHOWS to episodes, extra to extras),
+                )
+            val stored = InMemoryServerSettings(ServerRecord(session.address))
+            val old = StoredSelection(setOf(MOVIES, SHOWS), seq = 1, resetSeq = 1, owner = ALICE)
+            assertTrue(stored.saveSelection(old, true))
+            val scope = CoroutineScope(SupervisorJob())
+            lateinit var selection: LibrarySelection
+            val engine = SyncWorld.engine(repository, withExtra, clock)
+            val work = UniqueWork(scope) { engine.run(session, ALICE, selection) }
+            selection = selectionOver(repository, stored, withExtra, clock, firstSync = work)
+            try {
+                val oldStart = clock.now()
+                selection.resumeAtStart()
+                withTimeout(WAIT_S * MS) { checkNotNull(work.job).join() }
+                assertEquals("the old run ended", oldStart, repository.lastSuccess(ALICE))
+                clock.instant += 1.hours
+
+                assertTrue(selection.clear())
+                assertEquals(SetupResult.Saved, selection.choose(setOf(MOVIES, extra)))
+                withTimeout(WAIT_S * MS) { checkNotNull(work.job).join() }
+
+                assertTrue("the new library is walked", row(extra)!!.fetched)
+                assertNull("the dropped library's row went", row(SHOWS))
+                assertTrue(repository.stored(ALICE).none { it.library == SHOWS })
+                assertFalse(repository.isFirstSyncRunning(ALICE))
+                assertEquals("the earliest walk of a kept library", oldStart, repository.lastSuccess(ALICE))
+            } finally {
                 scope.cancel()
             }
         }

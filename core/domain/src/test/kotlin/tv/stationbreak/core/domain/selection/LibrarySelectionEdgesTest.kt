@@ -230,7 +230,10 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
     @Test
     fun aSetupWhoseRestartFails_isStillSaved_andStillStartsTheFirstSync() {
         val tv = Tv().ready(setOf(libA, libB))
-        assertTrue(runBlocking { tv.selection.clear() })
+        // Another account's choice with an add under way is still stored (its sign-in's clear failed): the setup
+        // replaces it, and asks for the add pass to stop that add.
+        val foreign = StoredSelection(setOf(libA), seq = 5L, adding = mapOf(libB to 5L), owner = other)
+        assertTrue(runBlocking { tv.settings.inner.saveSelection(foreign) })
         tv.failRestart = true
 
         assertEquals(SetupResult.Saved, runBlocking { tv.selection.choose(setOf(libA, libC)) })
@@ -319,8 +322,9 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
         assertEquals(other, stored.owner)
     }
 
+    // Part 4A final fix F2: the restart makes the clear the sign-in meant, so the launch routes to the picker.
     @Test
-    fun aFailedClearAfterASwitch_survivesARestart_withoutReachingTheNewAccountsCache() {
+    fun aFailedClearAfterASwitch_isClearedAtTheRestart_withoutReachingTheNewAccountsCache() {
         val tv = switchedWithAFailedClear()
         val calls = tv.library.applyCalls
 
@@ -328,7 +332,7 @@ internal class LibrarySelectionEdgesTest : SelectionTestBase() {
 
         assertEquals(calls, tv.library.applyCalls)
         assertTrue(runBlocking { tv.fake.storedLibraries(other) }.isEmpty())
-        assertEquals(ACCOUNT, assertNotNull(tv.stored()).owner, "left for the next setup")
+        assertNull(tv.stored(), "cleared, as the sign-in meant")
     }
 
     // An older build's record names no owner. Those builds cleared the choice at every sign-in and switch of user,

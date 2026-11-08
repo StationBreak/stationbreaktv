@@ -11,9 +11,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.InMemoryLineupStore
+import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.ServerRecord
+import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.LineupService
@@ -22,11 +25,13 @@ import tv.stationbreak.core.domain.lineup.savedSelectionOf
 import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.LibrarySelection
 import tv.stationbreak.core.domain.selection.ResumeGate
+import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.domain.selection.SetupResult
 import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.data.library.SyncWorld.movies
 import tv.stationbreak.data.library.SyncWorld.session
 import tv.stationbreak.data.library.SyncWorld.shows
+import kotlin.time.Duration.Companion.hours
 
 /**
  * Spec 26, Part 4 (Amendment 4, binding item 5): a setup on the same account, whose first sync finished long ago, must
@@ -102,5 +107,30 @@ class SameAccountSetupTest {
             val shows = repository.dao.libraries("server-1", "alice").single { it.libraryId == SHOWS.value }
             assertTrue(shows.fetched)
             assertNotNull("the guide stays reachable", repository.lastSuccess(ALICE))
+        }
+
+    // Part 4A final fix D1: the setup brings the cache in line with the new choice itself. A stay-current pass that
+    // runs before the first sync it asked for (the guide stays reachable) meets the new library's row and completes,
+    // where it used to meet no row and stop.
+    @Test
+    fun sameAccountSetup_thenStayCurrentBeforeTheFirstSync_completes() =
+        runBlocking {
+            val sessions = SessionRepository(InMemorySecretStore(), server, repository)
+            sessions.save(session)
+            server.fake.resumeResult = ServerResult.Success(session)
+            assertTrue(settings.storeChoice(setOf(MOVIES)))
+            SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES))
+            val before = checkNotNull(repository.lastSuccess(ALICE))
+            selection.resumeAtStart()
+            assertTrue(selection.clear())
+            assertEquals(SetupResult.Saved, selection.choose(setOf(MOVIES, SHOWS)))
+            clock.instant += 1.hours
+            val runner = StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, clock)
+
+            assertEquals(SyncOutcome.Completed, runner.outcome(SyncPlan.Both))
+
+            assertTrue("the pass recorded its success", checkNotNull(repository.lastSuccess(ALICE)) > before)
+            val shows = repository.storedLibraries(ALICE).firstOrNull { it.id == SHOWS }
+            assertNotNull("the new library has its row", shows)
         }
 }

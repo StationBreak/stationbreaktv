@@ -123,6 +123,17 @@ internal class WatchedSettings(
 
     @Volatile var falseAfterWriting = 0
 
+    /** The next [failClears] clears return false and drop nothing. */
+    @Volatile var failClears = 0
+
+    override suspend fun clearLibraries(): Boolean {
+        if (failClears > 0) {
+            failClears--
+            return false
+        }
+        return inner.clearLibraries()
+    }
+
     /** How many times the selection was read. */
     val loads = AtomicInteger()
 
@@ -194,6 +205,9 @@ internal open class SelectionTestBase : RepairTestBase() {
         var signedIn: Session? = session
         val events: MutableList<SelectionEvent> = Collections.synchronizedList(mutableListOf())
 
+        /** How long each resume at start took, as the selection reports it. */
+        val resumeTimes: MutableList<Long> = Collections.synchronizedList(mutableListOf())
+
         /** The gate this TV's selection opens at its resume, as the app binds it for `SelectionReady`. */
         val gate = ResumeGate()
         private val clock =
@@ -218,6 +232,7 @@ internal open class SelectionTestBase : RepairTestBase() {
                 gate,
                 config,
                 clock,
+                { resumeTimes += it },
             ) { events += it }
 
         init {

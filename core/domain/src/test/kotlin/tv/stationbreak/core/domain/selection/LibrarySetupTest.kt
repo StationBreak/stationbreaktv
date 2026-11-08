@@ -129,7 +129,7 @@ internal class LibrarySetupTest : SelectionTestBase() {
         // R1 (Task 4.4b fix round 1): a replacing request, so a run still reading the old choice gives way.
         assertEquals(1, tv.firstSync.retryCalls)
         assertEquals(0, tv.firstSync.ensureCalls)
-        assertTrue(tv.restarts >= 1, "any add under way is cancelled")
+        assertEquals(0, tv.restarts, "nothing was being added: no add worker to stop")
     }
 
     @Test

@@ -136,6 +136,13 @@ data class StoredSelection(
     val resetSeq: Long = 0,
     val owner: LibraryAccount? = null,
 ) {
+    /** Counts and flags only: never a library id or an account (a log line may print a selection). */
+    override fun toString(): String {
+        val counts = "chosen=${chosen.size}, seq=$seq, adding=${adding.size}, gone=$gone, missing=${missing.size}"
+        val owned = if (owner == null) "none" else "set"
+        return "StoredSelection($counts, listings=$listings, resetSeq=$resetSeq, owner=$owned)"
+    }
+
     /** The rules a stored selection keeps on its own: what any reader of the store may rely on. */
     val isWellFormed: Boolean
         get() =

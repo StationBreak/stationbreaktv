@@ -41,8 +41,9 @@ class SavedSelection(
 
     override fun hashCode(): Int = Objects.hash(libraries, seq, playable, resetSeq)
 
+    /** Counts only: never a library id (a log line may print a selection). */
     override fun toString(): String {
-        val read = "libraries=$libraries, seq=$seq, playable=$playable"
+        val read = "libraries=${libraries.size}, seq=$seq, playable=${playable?.size ?: "none"}"
         return "SavedSelection($read, resetSeq=$resetSeq)"
     }
 }

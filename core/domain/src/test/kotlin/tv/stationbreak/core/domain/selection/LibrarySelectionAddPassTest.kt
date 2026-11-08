@@ -127,7 +127,7 @@ internal class LibrarySelectionAddPassTest : SelectionTestBase() {
     // Binding item 9: a clear that committed stands when the restart after it throws.
     @Test
     fun aClearWhoseRestartThrows_isStillAClear_andIsReported() {
-        val tv = Tv().ready(setOf(libA, libB))
+        val (tv, _) = adding()
         tv.failRestart = true
 
         assertTrue(runBlocking { tv.selection.clear() })

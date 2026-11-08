@@ -329,9 +329,9 @@ internal object LineupModule {
 
     /**
      * The one writer of the library selection (spec 26, Part 4): onboarding's setup, the Settings changes, the landing
-     * of an added library and the resume at start all go through it. Its events are names only. Its restart asks for
-     * the add pass ([LibraryPasses], in LibraryModule). It is bound under [AppStart] only, as its resume opens the
-     * gate: everything else gets one of its narrow ports.
+     * of an added library and the resume at start all go through it. Its events are names only, and the resume's time
+     * a number. Its restart asks for the add pass ([LibraryPasses], in LibraryModule). It is bound under [AppStart]
+     * only, as its resume opens the gate: everything else gets one of its narrow ports.
      */
     @Provides
     @Singleton
@@ -364,6 +364,8 @@ internal object LineupModule {
             gate,
             SelectionConfig(),
             Clock.System,
+            // How long the resume at start took: a number only. Logging is best effort.
+            { ms -> runCatching { Log.i(TAG, "SelectionResumed ms=$ms") } },
         ) { Log.i(TAG, it.name) }
 
     @Provides
