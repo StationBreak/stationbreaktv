@@ -834,7 +834,7 @@ class GuideScreenTest {
     }
 
     @Test
-    fun aThreeDigitNumberAndALongNameDoNotOverlapTheMark() {
+    fun aThreeDigitNumberSitsBeforeTheMarkInsideTheColumnAndTheNameIsNotDrawn() {
         val wide = ChannelId("ch-123")
         fake.channel(wide, 123, (0L until 600L step 30).map { program(it, it + 30, 600) })
         show(wide)
@@ -843,15 +843,11 @@ class GuideScreenTest {
 
         val mark = mark(wide).getBoundsInRoot()
         val number = inGrid("123").getBoundsInRoot()
-        val name = inGrid("Test Channel 123").getBoundsInRoot()
-        // The column starts 12 dp left of the mark (4 dp inset, 8 dp padding); the plate is 4 dp in from each side.
-        val plateRight = mark.left - 12.dp + 168.dp - 4.dp
-        assertTrue("the mark ends before the number", mark.right <= number.left)
-        assertTrue("the number ends before the name", number.right <= name.left)
-        assertTrue("the number is inside the plate", number.right <= plateRight)
-        assertTrue("the name is inside the plate", name.right <= plateRight)
+        // The column is 84 dp: the number (22 dp), 8 dp, the 50 dp mark box, 4 dp. The mark is centred in its box.
+        assertTrue("the number ends before the mark", number.right <= mark.left)
+        assertTrue("the number is inside the column", number.left >= 0.dp && mark.right <= ChannelColumnWidth)
         assertTrue("the number is not cut", !isEllipsized("123"))
-        assertTrue("the name is cut with an ellipsis", isEllipsized("Test Channel 123"))
+        compose.onAllNodesWithText("Test Channel 123", useUnmergedTree = true).assertCountEquals(1) // the panel only
     }
 
     // The grid's own text: the panel says the channel's name too.
@@ -887,8 +883,7 @@ class GuideScreenTest {
         lineup()
         val ch2 = ChannelId("ch-2")
         fake.channel(ch2, 2, listOf(program(0, 66, 500), program(66, 600, 501)))
-        // Five rows, four visible. The first grid opens with the focused row at the top, clamped to row 1
-        // (openingRowFor), so any channel below row 0 scrolls channel 2 out and its cells never compose: open on it.
+        // Five rows, all in view. Open on channel 2 as before, so its cells are the ones in the focused row.
         show(ch2)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()

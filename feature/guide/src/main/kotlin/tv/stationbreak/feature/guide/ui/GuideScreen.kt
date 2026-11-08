@@ -71,16 +71,16 @@ import java.time.ZoneId
 import kotlin.math.abs
 
 // The guide's layout in dp (the guide UX notes, on a 960 x 540 dp screen with a 5% safe area).
-internal val ChannelColumnWidth = 168.dp
+internal val ChannelColumnWidth = 84.dp
 
 /** The band the visible rows share; each row is an equal part of it, so the grid body keeps its height. */
-internal val RowsBandHeight: Dp = 228.dp
+internal val RowsBandHeight: Dp = 280.dp
 internal val RowHeight: Dp = RowsBandHeight / GUIDE_VISIBLE_ROWS
-internal val ClockHeight = 24.dp
-private val TopGap = 6.dp
+internal val ClockHeight = 20.dp
+private val TopGap = 8.dp
 private val HintGap = 8.dp
 private val HintHeight = 24.dp
-private val PanelGap = 16.dp
+private val PanelGap = 12.dp
 private const val HINT_SPACE = "   "
 
 // How far (dp) the hole may sit from the safe area's top and right edges: rounding, not placement.

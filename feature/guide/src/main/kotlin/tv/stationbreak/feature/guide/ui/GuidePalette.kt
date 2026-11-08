@@ -5,9 +5,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Guide A, dark or light (the Guide A tokens). Dark is the default. The choice is the guide's own and is never taken
- * from the TV's system theme. Opaque sRGB. [focusedRowWash] and [hintDivider] are the only roles that carry an alpha;
- * muted text is a colour, not a faded one.
+ * Guide tokens, dark or light (the broadcast-EPG overhaul, #657). Dark is the default. The choice is the guide's own
+ * and is never taken from the TV's system theme. Neutral surfaces and text are one colour at a fixed alpha, drawn over
+ * [page]; contrast is judged on the composite. Roles the overhaul removes keep their field until the code that reads
+ * them goes: they are [Color.Transparent] meanwhile.
  *
  * The guide draws these itself. The cream-ring treatment in core:ui stays for screens that have not moved yet.
  */
@@ -15,18 +16,7 @@ import androidx.compose.ui.graphics.Color
 internal class GuideColors(
     val page: Color,
     val pageGradientStart: Color,
-    /** The panel the grid sits on, one layer above the page (lighter in Dark, darker in Light). */
-    val gridPanel: Color,
-    /** The alternate row bands, one step above the panel in Dark, below it in Light. */
-    val rowBand: Color,
     val card: Color,
-    /** The channel plate: lit top edge, body, bottom edge, a highlight line and the shadow under it. */
-    val plateTop: Color,
-    val plateBottom: Color,
-    val plateHighlight: Color,
-    val plateShadow: Color,
-    val plateNumber: Color,
-    val plateName: Color,
     val textPrimary: Color,
     val textSecondary: Color,
     val textSupporting: Color,
@@ -37,7 +27,7 @@ internal class GuideColors(
     val nowChipFill: Color,
     val nowChipText: Color,
     val nowLine: Color,
-    /** The now rail between rows. Light is opaque; dark keeps the reference's 80%. */
+    /** The now-line through the grid: 35%, so it may cross cells without hiding them. */
     val nowRailAlpha: Float,
     val progressFill: Color,
     val progressTrack: Color,
@@ -46,88 +36,67 @@ internal class GuideColors(
     val menuTextUnselected: Color,
     val menuPillFocused: Color,
     val menuTextFocused: Color,
-    val focusedRowWash: Color,
     val keyHintPill: Color,
     val hintDivider: Color,
-    val focusShadow: Color,
-    /** One soft shadow under the focused card. Not part of the contrast claim. */
-    val shadowAlpha: Float,
+    /** The 1 dp rules and ticks of the timeline. */
+    val line: Color,
 ) {
     companion object {
         val Dark =
             GuideColors(
-                page = Color(0xFF191A19),
-                pageGradientStart = Color(0xFF212420),
-                gridPanel = Color(0xFF222320),
-                rowBand = Color(0xFF292B27),
-                card = Color(0xFF33352F),
-                plateTop = Color(0xFF4A4236),
-                plateBottom = Color(0xFF3A342B),
-                plateHighlight = Color(0xFF6B5F4C),
-                plateShadow = Color(0xFF000000),
-                plateNumber = Color(0xFFFFD9B8),
-                plateName = Color(0xFFEFE6D6),
-                textPrimary = Color(0xFFF3EEE3),
-                textSecondary = Color(0xFFB3B4AE),
-                textSupporting = Color(0xFFCFCBC2),
-                programmeText = Color(0xFFE0DDD5),
+                page = Color(0xFF0E0F11),
+                pageGradientStart = Color(0xFF0E0F11),
+                card = Color.White.copy(alpha = CARD_ALPHA),
+                textPrimary = Color.White.copy(alpha = PRIMARY_ALPHA),
+                textSecondary = Color.White.copy(alpha = SECONDARY_ALPHA_DARK),
+                textSupporting = Color.White.copy(alpha = TERTIARY_ALPHA_DARK),
+                programmeText = Color.White.copy(alpha = PRIMARY_ALPHA),
                 accent = Color(0xFFE8642C),
                 focusFill = Color(0xFFE8642C),
-                focusText = Color(0xFF1C1B19),
+                focusText = Color(0xFF1A0D06),
                 nowChipFill = Color(0xFFE8642C),
-                nowChipText = Color(0xFF1C1B19),
+                nowChipText = Color(0xFF1A0D06),
                 nowLine = Color(0xFFE8642C),
-                nowRailAlpha = 0.8f,
+                nowRailAlpha = NOW_LINE_ALPHA,
                 progressFill = Color(0xFFE8642C),
-                progressTrack = Color(0xFF3E3C36),
-                menuPillSelected = Color(0xFF30332F),
-                menuTextSelected = Color(0xFFF3EEE3),
-                menuTextUnselected = Color(0xFFB3B4AE),
+                progressTrack = Color.White.copy(alpha = TRACK_ALPHA),
+                menuPillSelected = Color.White.copy(alpha = TRACK_ALPHA),
+                menuTextSelected = Color.White.copy(alpha = PRIMARY_ALPHA),
+                menuTextUnselected = Color.White.copy(alpha = SECONDARY_ALPHA_DARK),
                 menuPillFocused = Color(0xFFE8642C),
-                menuTextFocused = Color(0xFF1C1B19),
-                focusedRowWash = Color(0xFF829087).copy(alpha = ROW_WASH_ALPHA),
-                keyHintPill = Color(0xFF3C3C36),
-                hintDivider = Color(0xFFB6AD9F).copy(alpha = HINT_DIVIDER_ALPHA),
-                focusShadow = Color(0xFF000000),
-                shadowAlpha = 0.12f,
+                menuTextFocused = Color(0xFF1A0D06),
+                keyHintPill = Color.White.copy(alpha = LINE_ALPHA),
+                hintDivider = Color.White.copy(alpha = LINE_ALPHA),
+                line = Color.White.copy(alpha = LINE_ALPHA),
             )
 
+        /** The same structure on a near-white neutral, with ink where Dark has white. */
         val Light =
             GuideColors(
-                page = Color(0xFFF3EEE3),
-                pageGradientStart = Color(0xFFF8F4EC),
-                gridPanel = Color(0xFFE8E1D3),
-                rowBand = Color(0xFFDDD5C5),
-                card = Color(0xFFFFFCF6),
-                plateTop = Color(0xFFD9C8A6),
-                plateBottom = Color(0xFFCBB68F),
-                plateHighlight = Color(0xFFEADDBF),
-                plateShadow = Color(0xFF594431),
-                plateNumber = Color(0xFF3A2312),
-                plateName = Color(0xFF2E2217),
-                textPrimary = Color(0xFF1C1B19),
-                textSecondary = Color(0xFF625D54),
-                textSupporting = Color(0xFF625D54),
-                programmeText = Color(0xFF1C1B19),
+                page = Color(0xFFF6F7F8),
+                pageGradientStart = Color(0xFFF6F7F8),
+                card = INK.copy(alpha = CARD_ALPHA),
+                textPrimary = INK.copy(alpha = PRIMARY_ALPHA),
+                textSecondary = INK.copy(alpha = SECONDARY_ALPHA_LIGHT),
+                textSupporting = INK.copy(alpha = TERTIARY_ALPHA_LIGHT),
+                programmeText = INK.copy(alpha = PRIMARY_ALPHA),
                 accent = Color(0xFFB74719),
                 focusFill = Color(0xFFB74719),
                 focusText = Color(0xFFFFFFFF),
                 nowChipFill = Color(0xFFB74719),
                 nowChipText = Color(0xFFFFFFFF),
                 nowLine = Color(0xFFB74719),
-                nowRailAlpha = 1f,
+                nowRailAlpha = NOW_LINE_ALPHA,
                 progressFill = Color(0xFFB74719),
-                progressTrack = Color(0xFFD6CEC0),
-                menuPillSelected = Color(0xFFE0DACF),
-                menuTextSelected = Color(0xFF1C1B19),
-                menuTextUnselected = Color(0xFF625D54),
+                progressTrack = INK.copy(alpha = TRACK_ALPHA),
+                menuPillSelected = INK.copy(alpha = TRACK_ALPHA),
+                menuTextSelected = INK.copy(alpha = PRIMARY_ALPHA),
+                menuTextUnselected = INK.copy(alpha = SECONDARY_ALPHA_LIGHT),
                 menuPillFocused = Color(0xFFB74719),
                 menuTextFocused = Color(0xFFFFFFFF),
-                focusedRowWash = Color(0xFF756C5E).copy(alpha = ROW_WASH_ALPHA),
-                keyHintPill = Color(0xFFE0DACF),
-                hintDivider = Color(0xFF756C5E).copy(alpha = HINT_DIVIDER_ALPHA),
-                focusShadow = Color(0xFF594431),
-                shadowAlpha = 0.08f,
+                keyHintPill = INK.copy(alpha = LINE_ALPHA),
+                hintDivider = INK.copy(alpha = LINE_ALPHA),
+                line = INK.copy(alpha = LINE_ALPHA),
             )
     }
 }
@@ -135,8 +104,19 @@ internal class GuideColors(
 /** Dark unless a caller provides the saved choice. Never the system theme. */
 internal val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
 
-private const val ROW_WASH_ALPHA = 0.055f
-private const val HINT_DIVIDER_ALPHA = 0.13f
+// Text and surfaces are the one neutral (white in Dark, ink in Light) at fixed alphas, so every role steps from the
+// page without a warm tint. Light's secondary and tertiary are stronger than Dark's: ink at 58% on the card is under
+// 4.5:1.
+private val INK = Color(0xFF111214)
+private const val PRIMARY_ALPHA = 0.90f
+private const val SECONDARY_ALPHA_DARK = 0.58f
+private const val TERTIARY_ALPHA_DARK = 0.38f
+private const val SECONDARY_ALPHA_LIGHT = 0.64f
+private const val TERTIARY_ALPHA_LIGHT = 0.52f
+private const val CARD_ALPHA = 0.06f
+private const val TRACK_ALPHA = 0.08f
+private const val LINE_ALPHA = 0.10f
+private const val NOW_LINE_ALPHA = 0.35f
 
 /** The guide's own appearance. [decode] is dark for anything that is not the light token, including a missing value. */
 internal enum class GuideTheme {

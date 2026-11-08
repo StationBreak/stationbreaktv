@@ -18,17 +18,17 @@ class GuideGeometryTest {
     @Test
     fun thePanelFillsTheBandBesideTheCornerPicture() {
         val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
-        // Safe area from 48 dp; the picture from 566.4 dp, 194.4 dp tall from 27 dp; 16 dp between panel and picture.
-        assertEquals(502.4f, geometry.panelWidth.value, EPS)
-        assertEquals(194.4f, geometry.topHeight.value, EPS)
+        // Safe area from 48 dp; the picture from 652.8 dp, 145.8 dp tall from 27 dp; 12 dp between panel and picture.
+        assertEquals(592.8f, geometry.panelWidth.value, EPS)
+        assertEquals(145.8f, geometry.topHeight.value, EPS)
     }
 
     @Test
     fun theViewportIsTheSafeWidthMinusTheWiderColumn() {
         val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
-        // Safe area 48 dp in from each side: 864 dp wide; the channel column takes 168 dp of it.
-        assertEquals(864f - 168f, geometry.viewportWidth.value, EPS)
-        assertEquals(168f, ChannelColumnWidth.value, EPS)
+        // Safe area 48 dp in from each side: 864 dp wide; the channel column takes 84 dp of it.
+        assertEquals(864f - 84f, geometry.viewportWidth.value, EPS)
+        assertEquals(84f, ChannelColumnWidth.value, EPS)
         assertEquals(GUIDE_VIEWPORT_SPAN.inWholeMilliseconds, geometry.spanMs)
     }
 
@@ -37,7 +37,7 @@ class GuideGeometryTest {
         // Live is the one that says where the picture is: a hole elsewhere moves the panel's edge and the grid's top.
         val hole = DpRect(left = 600.dp, top = 27.dp, right = 912.dp, bottom = 200.dp)
         val geometry = GuideGeometry(screen, hole)
-        assertEquals(600f - 48f - 16f, geometry.panelWidth.value, EPS)
+        assertEquals(600f - 48f - 12f, geometry.panelWidth.value, EPS)
         assertEquals(200f - 27f, geometry.topHeight.value, EPS)
     }
 
@@ -54,16 +54,6 @@ class GuideGeometryTest {
     @Test
     fun rowsShareTheirBandExactly() {
         assertEquals(RowsBandHeight, RowHeight * GUIDE_VISIBLE_ROWS)
-    }
-
-    @Test
-    fun bandsAlternateFromTheFirstVisibleRowNotTheFirstRowOfTheModel() {
-        // The rule is by model index, so a vertical scroll does not make a row blink between band and no band.
-        assertEquals(false, bandOf(0))
-        assertEquals(true, bandOf(1))
-        assertEquals(false, bandOf(2))
-        assertEquals(true, bandOf(3))
-        assertEquals(true, bandOf(11))
     }
 
     private companion object {

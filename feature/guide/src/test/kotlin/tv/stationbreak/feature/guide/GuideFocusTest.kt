@@ -409,13 +409,13 @@ class GuideFocusTest {
     }
 
     @Test
-    fun aWindowOfFourKeepsTheFocusedRowInView() {
+    fun aFullWindowKeepsTheFocusedRowInView() {
         val count = 10
-        for (row in listOf(0, 3, 4, 9)) {
+        for (row in listOf(0, 3, 7, 9)) {
             for (first in 0..count - GUIDE_VISIBLE_ROWS) {
                 val result = firstVisibleRowFor(row, first, GUIDE_VISIBLE_ROWS, count)
-                assertTrue("row $row from $first gave $result", result in 0..count - 4)
-                assertTrue("row $row from $first gave $result", row in result until result + 4)
+                assertTrue("row $row from $first gave $result", result in 0..count - GUIDE_VISIBLE_ROWS)
+                assertTrue("row $row from $first gave $result", row in result until result + GUIDE_VISIBLE_ROWS)
             }
         }
     }
@@ -424,6 +424,6 @@ class GuideFocusTest {
     fun fewerChannelsThanRowsShowAShortWindow() {
         assertEquals(0, firstVisibleRowFor(2, 0, GUIDE_VISIBLE_ROWS, 3))
         assertEquals(0, firstVisibleRowFor(3, 0, GUIDE_VISIBLE_ROWS, 4))
-        assertTrue(firstVisibleRowFor(4, 0, GUIDE_VISIBLE_ROWS, 5) <= 1)
+        assertEquals(0, firstVisibleRowFor(4, 0, GUIDE_VISIBLE_ROWS, 5))
     }
 }

@@ -29,12 +29,13 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
@@ -58,37 +59,15 @@ import tv.stationbreak.feature.guide.ui.mark.LocalMarkTextMeasurer
 import java.time.Instant
 import java.time.ZoneId
 
-private val TickMarkHeight = 8.dp
-private val NowLineWidth = 1.5.dp
-
-/** The corner radius of the panel behind the clock strip and rows. */
-internal val GridPanelRadius = 18.dp
-
-/** How far a row band is drawn in from the panel's left and right edge. */
-internal val GridPanelPadding = 6.dp
-
-private val NowChipHeight = 21.dp
-private val NowChipGap = 4.dp
-
-/** Room to the left of the rail for the timeline NOW chip, so it does not cover a time label. */
-private val NowChipLead = 56.dp
-private val TimelineLabelWidth = 96.dp
-private val PlayingBarWidth = 3.dp
-private val FocusTickWidth = 3.dp
-private val FocusTickHeight = 16.dp
-private val NumberWidth = 36.dp
-
-/** The channel plate, inside the column: inset each side, a gap above and below for its two flat shadows. */
-private val PlateInset = 4.dp
-private val PlateTop = 3.dp
-private val PlateBottomGap = 6.dp
-private val PlateRadius = 8.dp
-private val PlateHighlightWidth = 1.5.dp
-private val PlateNearShadow = 3.dp
-private val PlateFarShadow = 5.dp
-private const val PLATE_NEAR_SHADOW_ALPHA = 0.28f
-private const val PLATE_FAR_SHADOW_ALPHA = 0.14f
-private val PlateBarInset = 6.dp
+private val TickMarkHeight = 6.dp
+private val NowLineWidth = 1.dp
+private val NowTriangle = 6.dp
+private val RuleHeight = 1.dp
+private val NumberWidth = 22.dp
+private val NumberGap = 8.dp
+private val MarkBoxWidth = 50.dp
+private val MarkBoxHeight = 28.dp
+private val ColumnEnd = 4.dp
 private val LabelGap = 6.dp
 private const val MARK_LOOKAHEAD = 2
 
@@ -121,12 +100,9 @@ internal fun GuideGrid(
     }
     val ellipsis = rememberEllipsisMarks()
     val markText = rememberTextMeasurer()
-    val colors = LocalGuideColors.current
     Box(
         modifier
             .testTag(GuideTags.GRID)
-            .gridPanel(firstVisibleRow, last - firstVisibleRow, colors)
-            .focusedRowTint(model, firstVisibleRow, focusOf, colors)
             .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
     ) {
         CompositionLocalProvider(LocalEllipsisMarks provides ellipsis, LocalMarkTextMeasurer provides markText) {
@@ -194,10 +170,9 @@ private fun GuideRowCells(
 }
 
 /**
- * The channel column: a raised plate inside it (inset [PlateInset] each side, so the column's width is unchanged), with
- * the mark, the number, then the name, each cut with an ellipsis when it does not fit. A bar at the plate's left edge
- * marks the channel playing. The plate is a lit top edge, a vertical gradient and two flat offset shadows (no blur).
- * The row wash and the orange tick are drawn on the grid, so a focus move does not recompose this cell.
+ * The channel column: the number, right-aligned, then the mark in a 50 by 28 dp box. The channel's name is not drawn
+ * here: the details panel has it. The channel playing is told by its number in the primary colour, not by an accent.
+ * Nothing is drawn behind it, and it reads no focus, so a focus move does not recompose this cell.
  */
 @Composable
 private fun ChannelCell(
@@ -209,84 +184,35 @@ private fun ChannelCell(
         Modifier
             .width(ChannelColumnWidth)
             .fillMaxHeight()
-            .channelPlate(colors, playing)
-            .padding(start = PlateInset + 8.dp, end = PlateInset + 4.dp),
+            .padding(end = ColumnEnd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChannelMark(
-            row.markKey,
-            row.initials,
-            markBandOf(row.number),
-            Modifier.testTag(GuideTags.channelMark(row.channel)),
-        )
-        Spacer(Modifier.width(LabelGap))
         Text(
             text = row.number.toString(),
             modifier = Modifier.width(NumberWidth),
-            style = guideFigures(17.sp, FontWeight.SemiBold),
-            color = colors.plateNumber,
+            style = guideFigures(11.sp, FontWeight.Medium),
+            color = if (playing) colors.textPrimary else colors.textSecondary,
+            textAlign = TextAlign.End,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
-        Spacer(Modifier.width(LabelGap))
-        Text(
-            text = row.name,
-            style = guideText(18.sp, FontWeight.Medium),
-            color = colors.plateName,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Spacer(Modifier.width(NumberGap))
+        Box(Modifier.size(MarkBoxWidth, MarkBoxHeight), contentAlignment = Alignment.Center) {
+            ChannelMark(
+                row.markKey,
+                row.initials,
+                markBandOf(row.number),
+                Modifier.testTag(GuideTags.channelMark(row.channel)),
+            )
+        }
     }
 }
 
-/** The channel plate (see [ChannelCell]), drawn behind the number and name; brushes are made once per size. */
-private fun Modifier.channelPlate(
-    colors: GuideColors,
-    playing: Boolean,
-): Modifier =
-    drawWithCache {
-        val left = PlateInset.toPx()
-        val top = PlateTop.toPx()
-        val plate = Size(size.width - 2 * left, size.height - top - PlateBottomGap.toPx())
-        val radius = CornerRadius(PlateRadius.toPx())
-        val body =
-            Brush.verticalGradient(
-                listOf(colors.plateTop, colors.plateBottom),
-                startY = top,
-                endY = top + plate.height,
-            )
-        val near = colors.plateShadow.copy(alpha = PLATE_NEAR_SHADOW_ALPHA)
-        val far = colors.plateShadow.copy(alpha = PLATE_FAR_SHADOW_ALPHA)
-        val nearDrop = PlateNearShadow.toPx()
-        val farDrop = PlateFarShadow.toPx()
-        val edge = PlateHighlightWidth.toPx()
-        val bar = PlayingBarWidth.toPx()
-        val barInset = PlateBarInset.toPx()
-        onDrawBehind {
-            drawRoundRect(far, Offset(left, top + farDrop), plate, radius)
-            drawRoundRect(near, Offset(left, top + nearDrop), plate, radius)
-            drawRoundRect(body, Offset(left, top), plate, radius)
-            drawLine(
-                colors.plateHighlight,
-                Offset(left + radius.x, top + edge / 2),
-                Offset(left + plate.width - radius.x, top + edge / 2),
-                edge,
-            )
-            if (playing) {
-                drawRoundRect(
-                    colors.accent,
-                    Offset(left, top + barInset),
-                    Size(bar, plate.height - 2 * barInset),
-                    CornerRadius(bar / 2f),
-                )
-            }
-        }
-    }
-
 /**
- * The clock ("Mon 8:12 PM") over the channel column, and a tick with its time every half hour over the time columns.
- * A tick gets its weekday where the guide crosses into another day than the one before it.
+ * The clock ("MON 8:12 PM") over the channel column, and a tick with its time every half hour over the time columns,
+ * with a 1 dp rule along the strip's foot. A tick gets its weekday where the guide crosses into another day than the
+ * one before it.
  */
 @Composable
 private fun ClockStrip(
@@ -300,18 +226,26 @@ private fun ClockStrip(
     val zone = remember { ZoneId.systemDefault() }
     val is24h = is24Hour()
     val colors = LocalGuideColors.current
-    val time = guideFigures(17.sp, FontWeight.Medium)
-    Row(Modifier.height(ClockHeight).testTag(GuideTags.CLOCK), verticalAlignment = Alignment.CenterVertically) {
+    val clock = guideFigures(11.sp, FontWeight.Medium)
+    val time = guideFigures(11.sp, FontWeight.Normal)
+    Row(
+        Modifier
+            .height(ClockHeight)
+            .testTag(GuideTags.CLOCK)
+            .drawBehind {
+                val rule = RuleHeight.toPx()
+                drawRect(colors.line, Offset(0f, size.height - rule), Size(size.width, rule))
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
-            text = ProgramText.dayTime(nowMs, zone, is24h),
-            modifier = Modifier.width(ChannelColumnWidth).padding(start = 10.dp),
-            style = time,
+            text = ProgramText.dayTime(nowMs, zone, is24h).uppercase(),
+            modifier = Modifier.width(ChannelColumnWidth),
+            style = clock,
             color = colors.textSecondary,
             maxLines = 1,
         )
         Box(Modifier.width(geometry.viewportWidth).fillMaxHeight()) {
-            val nowInView = nowMs in viewportStartMs until viewportStartMs + geometry.spanMs
-            val nowX = geometry.widthOf(nowMs - viewportStartMs)
             var dayBefore = dayOf(nowMs, zone)
             var tick = viewportStartMs
             while (tick < viewportStartMs + geometry.spanMs) {
@@ -324,95 +258,26 @@ private fun ClockStrip(
                     }
                 dayBefore = day
                 val x = geometry.widthOf(tick - viewportStartMs)
-                val labelLeft = x + LabelGap
-                val underChip =
-                    nowInView && labelLeft < nowX && labelLeft + TimelineLabelWidth > nowX - NowChipLead
                 Box(
                     Modifier
                         .offset(x = x)
                         .align(Alignment.BottomStart)
+                        .padding(bottom = RuleHeight)
                         .size(1.dp, TickMarkHeight)
-                        .background(colors.textSecondary),
+                        .background(colors.line),
                 )
-                if (!underChip) {
-                    Text(
-                        text = label,
-                        modifier = Modifier.offset(x = labelLeft).align(Alignment.CenterStart),
-                        style = time,
-                        color = colors.textSecondary,
-                        maxLines = 1,
-                    )
-                }
+                Text(
+                    text = label,
+                    modifier = Modifier.offset(x = x + LabelGap).align(Alignment.CenterStart),
+                    style = time,
+                    color = colors.textSecondary,
+                    maxLines = 1,
+                )
                 tick += SLOT_MS
             }
         }
     }
 }
-
-/**
- * Whether the row at [rowIndex] of the model carries a band. By model index, not by place in the window, so a vertical
- * scroll does not make a row swap between band and no band.
- */
-internal fun bandOf(rowIndex: Int): Boolean = rowIndex % 2 == 1
-
-/**
- * The rounded panel over the whole grid body, and a band under each odd row of the window. Drawn behind everything
- * else, in the draw phase, from two colours and no allocation per frame; the bands are inset by [GridPanelPadding] at
- * both sides. The content itself is not padded: the body's height and the rows' width are fixed by the geometry.
- */
-private fun Modifier.gridPanel(
-    firstVisibleRow: Int,
-    shown: Int,
-    colors: GuideColors,
-): Modifier =
-    drawBehind {
-        drawRoundRect(colors.gridPanel, Offset.Zero, size, CornerRadius(GridPanelRadius.toPx()))
-        val inset = GridPanelPadding.toPx()
-        val radius = CornerRadius((GuideCardRadius + 2.dp).toPx())
-        val row = RowHeight.toPx()
-        for (place in 0 until shown) {
-            if (!bandOf(firstVisibleRow + place)) continue
-            drawRoundRect(
-                colors.rowBand,
-                Offset(inset, ClockHeight.toPx() + row * place),
-                Size(size.width - 2 * inset, row),
-                radius,
-            )
-        }
-    }
-
-/**
- * The focused-row wash, and a short accent tick at its left. [focusOf] is read here, in the draw phase, so a focus
- * move redraws this and recomposes no programme cell. Nothing is drawn while the focus is on the menu (that reader
- * returns null) or on a row that is not in the window.
- */
-private fun Modifier.focusedRowTint(
-    model: GuideModel,
-    firstVisibleRow: Int,
-    focusOf: () -> GuideFocus?,
-    colors: GuideColors,
-): Modifier =
-    drawBehind {
-        val focus = focusOf() ?: return@drawBehind
-        val row = model.indexOf(focus)?.first ?: return@drawBehind
-        val band = focusedRowBand(row, firstVisibleRow, model.rows.size) ?: return@drawBehind
-        val top = ClockHeight.toPx() + RowHeight.toPx() * band
-        val height = RowHeight.toPx()
-        drawRoundRect(
-            colors.focusedRowWash,
-            Offset(0f, top),
-            Size(size.width, height),
-            CornerRadius(GuideCardRadius.toPx()),
-        )
-        val tickW = FocusTickWidth.toPx()
-        val tickH = FocusTickHeight.toPx()
-        drawRoundRect(
-            colors.accent,
-            Offset(2.dp.toPx(), top + (height - tickH) / 2f),
-            Size(tickW, tickH),
-            CornerRadius(tickW / 2f),
-        )
-    }
 
 /**
  * Where [row] sits in the window that starts at [firstVisibleRow], or null when it is outside that window. The last
@@ -434,9 +299,9 @@ private fun dayOf(
 ) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
 
 /**
- * The now rail: a NOW chip in the clock strip and a line through the gaps between cards, not through their titles.
- * The time and the viewport are read in its offset (layout phase) and its drawing, so the minute and a page move it
- * without composing the grid. The chip is composed only while now is inside the visible time range.
+ * The now-line: a 6 dp accent triangle on the clock strip's rule, and a 1 dp line through the whole grid at 35% that
+ * may cross cells (a program's own progress line shows how far along it is). The time and the viewport are read in its
+ * offset (layout phase) and its drawing, so the minute and a page move it without composing the grid.
  */
 @Composable
 private fun NowLine(
@@ -446,49 +311,32 @@ private fun NowLine(
     rows: Int,
 ) {
     fun from(): Long? = nowOf()?.let { it - viewportOf() }?.takeIf { it >= 0 && it < geometry.spanMs }
-    val shown by remember(nowOf, viewportOf, geometry) { derivedStateOf { from() != null } }
     val colors = LocalGuideColors.current
-    // The chip sits to the left of the rail. Time labels start to the right of their tick, so a chip centred on the
-    // rail covers the label when now falls on one.
-    val lead = NowChipLead
     Box(
         Modifier
             .offset {
-                val x = ChannelColumnWidth + geometry.widthOf(from() ?: 0L) - lead
+                val x = ChannelColumnWidth + geometry.widthOf(from() ?: 0L) - NowTriangle / 2
                 IntOffset(x.roundToPx(), 0)
-            }.size(lead + NowChipGap, ClockHeight + RowHeight * rows)
+            }.size(NowTriangle, ClockHeight + RowHeight * rows)
             .testTag(GuideTags.NOW_LINE)
             .drawBehind {
                 if (from() == null) return@drawBehind
-                val at = lead.toPx()
-                val line = NowLineWidth.toPx()
-                val rail = colors.nowLine.copy(alpha = colors.nowRailAlpha)
-                val gutter = (1.dp + GuideCardInset).toPx()
                 val clock = ClockHeight.toPx()
-                val row = RowHeight.toPx()
-                drawRect(rail, Offset(at - line / 2, 0f), Size(line, clock))
-                repeat(rows) { index ->
-                    val top = clock + row * index
-                    drawRect(rail, Offset(at - line / 2, top), Size(line, gutter))
-                    drawRect(rail, Offset(at - line / 2, top + row - gutter), Size(line, gutter))
-                }
+                val triangle = NowTriangle.toPx()
+                val line = NowLineWidth.toPx()
+                drawRect(
+                    colors.nowLine.copy(alpha = colors.nowRailAlpha),
+                    Offset((size.width - line) / 2, clock),
+                    Size(line, size.height - clock),
+                )
+                val marker =
+                    Path().apply {
+                        moveTo(0f, clock - triangle)
+                        lineTo(triangle, clock - triangle)
+                        lineTo(triangle / 2, clock)
+                        close()
+                    }
+                drawPath(marker, colors.nowLine)
             },
-    ) {
-        if (shown) {
-            Text(
-                text = stringResource(R.string.guide_now).uppercase(),
-                modifier =
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(end = NowChipGap)
-                        .height(NowChipHeight)
-                        .clip(RoundedCornerShape(NowChipHeight / 2))
-                        .background(colors.nowChipFill)
-                        .padding(horizontal = 8.dp),
-                style = guideText(16.sp, FontWeight.Bold),
-                color = colors.nowChipText,
-                maxLines = 1,
-            )
-        }
-    }
+    )
 }
