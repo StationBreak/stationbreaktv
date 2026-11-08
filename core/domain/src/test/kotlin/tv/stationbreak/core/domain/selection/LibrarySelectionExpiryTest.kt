@@ -15,9 +15,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Hold expiry through the selection (spec 26, Part 4 D12, Task 4.5): stay current asks for it after each completed
- * pass. It is the cache write of the stored selection with no new holds, so the same move code runs, under the
- * selection's lock and after its resume. Invented libraries only.
+ * Hold expiry through the selection (spec 26, Part 4 D12, Task 4.5): stay current asks for it after a run whose
+ * incremental pass completed. It is the cache write of the stored selection with no new holds, so the same move code
+ * runs, under the selection's lock and after its resume. Invented libraries only.
  */
 internal class LibrarySelectionExpiryTest : SelectionTestBase() {
     private val holdMs = 10_000L
@@ -83,6 +83,34 @@ internal class LibrarySelectionExpiryTest : SelectionTestBase() {
 
         assertEquals(calls, tv.library.applyCalls)
         assertNotNull(tv.row(libB))
+    }
+
+    // Fix round 1, D1: a catch-up that fails leaves the cache behind, and the expiry then writes nothing. Otherwise a
+    // library whose untick never reached the cache (its programme may be pinned on air, and so owed a hold) would be
+    // deleted by a write that asks for no hold.
+    @Test
+    fun expireHolds_afterACatchUpThatFailed_writesNothing() {
+        val tv = Tv(lineup = lineupOf(laughs), chosen = setOf(libA, libB, libC))
+        tv.resume()
+        // libC is held, so the expiry has a held row to look at.
+        val holds = mapOf(libC to tv.nowMs + holdMs)
+        runBlocking { tv.fake.applySelection(ACCOUNT, setOf(libA, libB), holds = holds, nowMs = tv.nowMs) }
+        val stored = assertNotNull(tv.stored())
+        assertTrue(runBlocking { tv.settings.inner.saveSelection(stored.copy(chosen = setOf(libA, libB), seq = 2L)) })
+        // libB is unticked, and that cache write fails: libB stays in the cache with no hold.
+        tv.library.failApplies = 1
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA)))
+        assertNotNull(tv.row(libB))
+        assertNull(tv.row(libB)?.heldUntilMs)
+        tv.nowMs += holdMs
+        // The catch-up the expiry makes first fails too.
+        tv.library.failApplies = 1
+        val calls = tv.library.applyCalls
+
+        runBlocking { tv.selection.expireHolds(ACCOUNT) }
+
+        assertEquals(calls + 1, tv.library.applyCalls, "only the catch-up's write was tried")
+        assertNotNull(tv.row(libB), "the unticked library is not deleted without its hold")
     }
 
     // Through the selection's entry: it waits for the resume at start, as every operation does.

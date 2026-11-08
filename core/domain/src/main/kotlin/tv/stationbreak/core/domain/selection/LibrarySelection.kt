@@ -407,14 +407,17 @@ class LibrarySelection(
     // --- Hold expiry ------------------------------------------------------------------------------------------------
 
     /**
-     * Expires [account]'s holds that have ended (D12; stay current asks after each completed pass): the cache is
-     * written from the stored selection with no new hold, so a held library whose hold lies behind now leaves through
-     * the same move code as an untick, and one still ahead stays. Nothing is written when no row is held, when
-     * [account] is not the signed-in one, or when the stored choice is not its own. A failed write is reported and
-     * leaves the cache behind for the next operation.
+     * Expires [account]'s holds that have ended (D12; stay current asks after a run whose incremental pass completed):
+     * the cache is written from the stored selection with no new hold, so a held library whose hold lies behind now
+     * leaves through the same move code as an untick, and one still ahead stays. Nothing is written when no row is
+     * held, when [account] is not the signed-in one, when the stored choice is not its own, or when the cache is still
+     * behind after the catch-up (a write that asks for no hold must not delete a library whose untick never reached
+     * the cache, D1). A failed write is reported and leaves the cache behind for the next operation.
      */
     override suspend fun expireHolds(account: LibraryAccount) {
         locked {
+            // The catch-up first (in [locked]) failed: the cache may hold an untick owed a hold. The next one retries.
+            if (cache.roomBehind) return@locked
             if (activeAccount() != account) return@locked
             val stored = store.loadSelection()?.takeIf { ownership.owns(account, it) } ?: return@locked
             cache.room {
