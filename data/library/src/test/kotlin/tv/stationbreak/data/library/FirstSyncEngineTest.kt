@@ -220,6 +220,23 @@ class FirstSyncEngineTest {
             assertFalse(row(SHOWS)!!.fetched)
         }
 
+    // A choice cleared while the run reads its set again (a refusal, then a sign-in's clear): the first sync it began
+    // is not left running with nothing to read; it ends as a failure the worker retries, which reads the next choice.
+    @Test
+    fun firstSync_choiceClearedWhileReadingTheSetAgain_isNotLeftRunning() =
+        runBlocking {
+            repository.useAccount(ALICE)
+            var chosen = setOf(MOVIES, SHOWS)
+            val choice = StoredChoice(repository, clock) { chosen }
+            holdShowsOnItsFirstPage { chosen = emptySet() }
+
+            val outcome = engine().run(session, ALICE, choice)
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Server), outcome)
+            assertFalse("no first sync left running", repository.isFirstSyncRunning(ALICE))
+            assertNull(repository.lastSuccess(ALICE))
+        }
+
     // Amendment 4 (D18): the first sync's unlisted step leaves a marked library pending and marked.
     @Test
     fun firstSync_unlistedMarkedLibrary_keepsMarkAndPending() =

@@ -73,10 +73,11 @@ internal class FirstSyncEngine(
      *
      * An empty set (no choice of this account's: none, or another account's left by a clear that failed) ends the run
      * as [SyncOutcome.Cancelled] with nothing written: no first sync begins and no success is recorded, so the setup
-     * that replaces that choice asks for a first sync that reads the new libraries. A chosen library whose write the
-     * cache refused (it was unticked, held or stamped meanwhile) is read again from a fresh library set, at most
-     * [librarySetReads] sets in all; when it is still chosen and refused after that, the run records a server failure
-     * and no success (the worker retries it, then the screen offers Retry).
+     * that replaces that choice asks for a first sync that reads the new libraries. An empty set read again after a
+     * refusal, once the first sync began, ends it as a server failure instead, so it is not left running. A chosen
+     * library whose write the cache refused (it was unticked, held or stamped meanwhile) is read again from a fresh
+     * library set, at most [librarySetReads] sets in all; when it is still chosen and refused after that, the run
+     * records a server failure and no success (the worker retries it, then the screen offers Retry).
      */
     suspend fun run(
         session: Session,
@@ -120,8 +121,9 @@ internal class FirstSyncEngine(
             do {
                 // The one selection writer (spec 26): the chosen and the adds kept, the rest held or gone.
                 val chosen = set.firstSyncLibraries(account)
-                // Nothing chosen is this account's: no first sync begins, and no success is recorded.
-                if (chosen.isEmpty()) return SyncOutcome.Cancelled
+                // Nothing chosen is this account's: no first sync begins, and no success is recorded. Once one began
+                // (the set read again after a refusal), it is not left running: the worker's retry reads the next one.
+                if (chosen.isEmpty()) return if (reads == 0) SyncOutcome.Cancelled else failUnread()
                 if (reads++ == 0) repository.beginFirstSync(account)
                 walking = listed.filter { it.id in chosen }
                 val refused =
@@ -131,7 +133,7 @@ internal class FirstSyncEngine(
                     }
                 if (refused.isEmpty()) break
                 // A chosen library refused a write: read the set again, as long as there are reads left.
-                if (reads == librarySetReads) return failRefused()
+                if (reads == librarySetReads) return failUnread()
             } while (true)
             // A library the user ticked that the server no longer lists has nothing to fetch. One being added, held or
             // marked for a rewalk stays pending (markUnlisted leaves it): only the add itself lands an add (spec 26),
@@ -204,9 +206,10 @@ internal class FirstSyncEngine(
             return SyncOutcome.Failed(failure)
         }
 
-        // A chosen library the cache kept refusing (spec 26, Task 4.4b): not a success. Recorded as a server failure,
-        // so the worker retries it a few times and the screen then offers Retry.
-        private suspend fun failRefused(): SyncOutcome {
+        // A chosen library the cache kept refusing, or a choice gone while the set was read again (spec 26, Task 4.4b):
+        // not a success. Recorded as a server failure, so the worker retries it a few times and the screen then offers
+        // Retry.
+        private suspend fun failUnread(): SyncOutcome {
             repository.failSync(account, SyncFailure.Server)
             return SyncOutcome.Failed(SyncFailure.Server)
         }
