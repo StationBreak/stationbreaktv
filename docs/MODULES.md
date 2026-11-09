@@ -394,8 +394,9 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
     next operation, before anything else. Every seq is floored one above the highest add stamp in the cache.
   - **Listings.** `LibraryChoices.listing` answers as soon as the server does, never waiting on the lock (a change on
     a slow TV holds it for tens of seconds). It is then followed under the lock on the selection's own scope, queued
-    on the fair lock before the listing returns, so an operation asked for after it runs after it. A follow that fails
-    is reported (`ListingFollowFailed`). Each change's time is logged by step: `SelectionChangeTook wait= turnWait=
+    on the fair lock before the listing returns, so an operation asked for after it runs after it. A listing that
+    failed or listed nothing has nothing to follow. `followed` waits for every follow that may still run. A follow that
+    fails is reported (`ListingFollowFailed`). Each change's time is logged by step: `SelectionChangeTook wait= turnWait=
     record= save= cache= total=`, numbers only.
   - **The start.** `StationBreakApp` runs `SelectionResume.resumeAtStart` before the lineup refresher starts. It
     raises the seq, branches every stamped chosen row (proven: landed; unproven: set back), writes the cache from the

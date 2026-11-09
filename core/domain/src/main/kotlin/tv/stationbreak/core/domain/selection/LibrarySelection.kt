@@ -10,6 +10,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -66,7 +67,10 @@ enum class SelectionEvent {
     /** The add pass could not be asked for after a committed write (the write stands; the next start asks again). */
     RestartFailed,
 
-    /** A listing was answered, but following it failed (nothing of it was noted; the next listing counts again). */
+    /**
+     * A listing was answered, but following it failed part way: what it noted before the failure stands (the listed
+     * libraries may have been noted), and the rest was not done. The next listing is followed again.
+     */
     ListingFollowFailed,
 }
 
@@ -203,18 +207,20 @@ class LibrarySelection(
         }
     }
 
-    // The follow of the last listing answered, while it may still run.
-    @Volatile private var following: Job? = null
+    // The follows that may still run, each until it ends. Under [follows]' own lock.
+    private val follows = HashSet<Job>()
 
-    // Follows [listed] on [followScope], under the lock as [followServer] always is. It is started undispatched, so it
-    // queues on the lock before the listing returns: an operation asked for after the listing (the lock is fair) runs
-    // after it, as when the listing was followed in place. One that fails is reported; the listing has answered.
+    // Follows [listed] on [followScope], under the lock as [followServer] always is, when it has work for the lock (a
+    // listing that failed or listed nothing changes nothing). It is started undispatched, so once the resume has run
+    // it queues on the lock before the listing returns: an operation asked for after the listing (the lock is fair)
+    // runs after it, as when the listing was followed in place. One that fails is reported; the listing has answered.
     @Suppress("TooGenericExceptionCaught") // Whatever the follow throws, the listing stands.
     private fun follow(
         account: LibraryAccount,
         listed: ServerResult<List<Library>>,
     ) {
-        following =
+        if ((listed as? ServerResult.Success)?.value.isNullOrEmpty()) return
+        val job =
             followScope.launch(start = CoroutineStart.UNDISPATCHED) {
                 try {
                     followServer(account, listed)
@@ -224,12 +230,14 @@ class LibrarySelection(
                     report(SelectionEvent.ListingFollowFailed)
                 }
             }
+        synchronized(follows) { follows += job }
+        // Registered after it is added: one already ended is taken out at once.
+        job.invokeOnCompletion { synchronized(follows) { follows -= job } }
     }
 
-    // The follows queue on the fair lock in the order the listings were answered, so the last one ending means every
-    // one before it has.
+    // Every follow that may still run, whatever order they reach the lock in.
     override suspend fun followed() {
-        following?.join()
+        synchronized(follows) { follows.toList() }.joinAll()
     }
 
     // Its time, by step, is reported however it ends ([changeTook]).
