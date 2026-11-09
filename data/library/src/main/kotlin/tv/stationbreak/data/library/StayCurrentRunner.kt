@@ -9,6 +9,7 @@ import kotlinx.coroutines.sync.Mutex
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.RestoreOutcome
+import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
@@ -16,6 +17,7 @@ import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
@@ -72,11 +74,12 @@ data class SyncPlan(
  * ends in an Error (an OutOfMemoryError, say) still says so, as outcome=Error with the class name; the Error goes
  * on. Durations come from [timeSource], which is monotonic, not from [clock].
  *
- * Only one run goes at a time in the process (a second one, from another trigger, does nothing), and a run leaves an
- * account whose first sync has not finished to the first sync. A failure is recorded in the saved library for Phase 1's
- * banner to read; none of it retries, because the next open or the next periodic run is the retry.
+ * Only one run goes at a time in the process (a second one, from another trigger, does nothing; one from Sync now waits
+ * for it, see [runWaiting]), and a run leaves an account whose first sync has not finished to the first sync. A
+ * failure is recorded in the saved library for Phase 1's banner to read; none of it retries, because the next open or
+ * the next periodic run is the retry.
  */
-@Suppress("LongParameterList") // The same stores the first-sync runner is given.
+@Suppress("LongParameterList", "TooManyFunctions") // The first-sync runner's stores; one small function per step.
 class StayCurrentRunner(
     private val settings: ServerSettings,
     private val sessions: SessionRepository,
@@ -150,18 +153,37 @@ class StayCurrentRunner(
             is SyncOutcome.Failed -> SyncVerdict.Failure
         }
 
-    internal suspend fun outcome(plan: SyncPlan): SyncOutcome {
-        val blocked =
-            if (plan.isEmpty) {
-                Skip.EmptyPlan
-            } else {
-                // The selection's resume at start comes first (spec 26), before the gate: a run waiting holds none.
-                ready.await()
-                if (!gate.tryLock()) Skip.Busy else null
-            }
-        if (blocked != null) return report.skipped(plan, blocked)
+    internal suspend fun outcome(plan: SyncPlan): SyncOutcome = gated(plan, wait = false, AfterPasses.Follow)
+
+    /**
+     * Runs [plan] once for Sync now (spec 26, Task 5.1): as [run] does, except that a run already under way is waited
+     * for, not skipped, so two never run at once. With [followServer] false the run does not list the server's
+     * libraries after its passes, nor while the selection is gone: its caller has already listed them once, and handed
+     * the selection that listing to follow. The holds still expire, and the rewalk walks on [listed], that same listing
+     * (with none, the rewalk is skipped).
+     */
+    internal suspend fun runWaiting(
+        plan: SyncPlan,
+        followServer: Boolean,
+        listed: ServerResult<List<Library>>? = null,
+    ): SyncOutcome = gated(plan, wait = true, if (followServer) AfterPasses.Follow else AfterPasses.Listed(listed))
+
+    @Suppress("ReturnCount") // Each early return is a run that does nothing.
+    private suspend fun gated(
+        plan: SyncPlan,
+        wait: Boolean,
+        after: AfterPasses,
+    ): SyncOutcome {
+        if (plan.isEmpty) return report.skipped(plan, Skip.EmptyPlan)
+        // The selection's resume at start comes first (spec 26), before the gate: a run waiting holds none.
+        ready.await()
+        if (wait) {
+            gate.lock()
+        } else if (!gate.tryLock()) {
+            return report.skipped(plan, Skip.Busy)
+        }
         try {
-            return guarded(plan)
+            return guarded(plan, after)
         } finally {
             // Here, whatever ended the run, and before the gate opens, so a run that takes it next cannot have its own
             // "true" overwritten.
@@ -171,15 +193,21 @@ class StayCurrentRunner(
     }
 
     // A sign-out that lands while a pass is writing ends the pass with nothing more written.
-    private suspend fun guarded(plan: SyncPlan): SyncOutcome =
+    private suspend fun guarded(
+        plan: SyncPlan,
+        after: AfterPasses,
+    ): SyncOutcome =
         try {
-            start(plan)
+            start(plan, after)
         } catch (_: AccountNotActiveException) {
             SyncOutcome.Cancelled
         }
 
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
-    private suspend fun start(plan: SyncPlan): SyncOutcome {
+    private suspend fun start(
+        plan: SyncPlan,
+        after: AfterPasses,
+    ): SyncOutcome {
         val record = settings.load() ?: return report.skipped(plan, Skip.NoServer)
         // The choice, then what of it plays: none while the selection is gone (D11), when only the listing runs.
         settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
@@ -194,13 +222,14 @@ class StayCurrentRunner(
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
                 if (chosen != null) {
-                    safely(account) { passes(restored.session, account, chosen, plan) }
+                    safely(account) { passes(restored.session, account, chosen, plan, after) }
                 } else if (!restored.session.isOf(account)) {
                     report.skipped(plan, Skip.AccountChanged)
                 } else {
                     // While the selection is gone (D11): no pass and no rewalk, as nothing chosen plays, but the
-                    // server is still listed and followed, so a chosen library listed again ends the gone state.
-                    steps.follow(restored.session, account)
+                    // server is still listed and followed, so a chosen library listed again ends the gone state
+                    // (by this run, or by the caller that listed it already).
+                    if (after == AfterPasses.Follow) steps.follow(restored.session, account)
                     report.skipped(plan, Skip.Gone)
                 }
             }
@@ -227,6 +256,7 @@ class StayCurrentRunner(
         account: LibraryAccount,
         chosen: Set<ItemId>,
         plan: SyncPlan,
+        after: AfterPasses,
     ): SyncOutcome {
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (!session.isOf(account)) return report.skipped(plan, Skip.AccountChanged)
@@ -250,10 +280,14 @@ class StayCurrentRunner(
         // After the passes (spec 26, Part 4 §4): the ended holds expire and the run's listing is followed when the
         // passes completed, or when the incremental pass did and the run was not cancelled (the backfill's gate: the
         // success it just recorded is what lets the hold-expiry clock guard trust the clock). The rewalk, on that
-        // listing, needs the whole run to have completed. None of them ever changes how the run ended.
+        // listing, needs the whole run to have completed. None of them ever changes how the run ended. A run handed
+        // its caller's listing (Sync now) only expires the holds, and rewalks on that listing.
         val listed =
             if (outcome == SyncOutcome.Completed || (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled)) {
-                steps.expireAndFollow(session, account)
+                when (after) {
+                    AfterPasses.Follow -> steps.expireAndFollow(session, account)
+                    is AfterPasses.Listed -> after.listed.also { steps.expire(account) }
+                }
             } else {
                 null
             }
@@ -405,6 +439,16 @@ class StayCurrentRunner(
         if (!repository.failStayCurrent(account, failure)) return SyncOutcome.Cancelled
         return SyncOutcome.Failed(failure)
     }
+}
+
+// What a run does for the server's listing after its passes: list it and hand it to the selection to follow
+// ([Follow]), or use the one its caller already listed and handed over ([Listed], null when there is none).
+private sealed interface AfterPasses {
+    data object Follow : AfterPasses
+
+    data class Listed(
+        val listed: ServerResult<List<Library>>?,
+    ) : AfterPasses
 }
 
 // How the passes of a run ended, whether the incremental pass was in the plan and completed (the re-read's cue), and

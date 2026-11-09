@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.SyncNow
+import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.PlayKey
@@ -74,6 +76,8 @@ internal class GuideViewModel
          * screen says so where the grid goes, and the focus stays on the menu row, where Settings leads to Libraries.
          */
         val selection: StateFlow<ChoiceView?> = MutableStateFlow(null),
+        /** Sync now (spec 26, Part 5), which the Settings panel's row starts and whose state it shows. */
+        private val sync: SyncNow = SyncNow.None,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -83,6 +87,7 @@ internal class GuideViewModel
             lineup: ChannelRepository,
             @GuideMeasured measure: Boolean,
             choices: LibraryChoices,
+            syncNow: SyncNow,
         ) : this(
             schedule,
             details,
@@ -92,6 +97,7 @@ internal class GuideViewModel
             measure,
             { Log.w(LOG_TAG, it) },
             choices.selection,
+            syncNow,
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
@@ -107,6 +113,12 @@ internal class GuideViewModel
 
         /** The info overlay, while one is open. */
         val info: StateFlow<CellDetails?> = shownInfo.asStateFlow()
+
+        /** Where Sync now stands, for the line beside the Settings panel's row (spec 26, Part 5). */
+        val syncNowState: StateFlow<SyncNowState> = sync.state
+
+        /** Select on the Settings panel's Sync now row: starts a sync, or nothing while one runs (then false). */
+        fun syncNow(): Boolean = sync.start()
 
         /** Things for the screen to do once, in order. Events from an ended session are dropped. */
         val events: Flow<GuideEvent> = eventChannel.receiveAsFlow()

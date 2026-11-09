@@ -27,13 +27,20 @@ class GuideSettingsKeysTest {
         // Up at the top row stays there, and picks no theme any more.
         assertEquals(SettingsStep(opened), opened.press(Key.DirectionUp))
 
-        // Down moves to Libraries, and stops at the last row, held or not.
+        // Down moves to Libraries, then to Sync now (spec 26, Part 5), and stops at the last row, held or not.
         val libraries = opened.press(Key.DirectionDown).panel
         assertEquals(SettingsRow.Libraries, libraries?.row)
-        assertEquals(SettingsStep(libraries), libraries!!.press(Key.DirectionDown, repeat = 2))
-        // Left and Right on Libraries are kept, and do nothing.
+        val syncNow = libraries!!.press(Key.DirectionDown, repeat = 2).panel
+        assertEquals(SettingsRow.SyncNow, syncNow?.row)
+        assertEquals(SettingsStep(syncNow), syncNow!!.press(Key.DirectionDown))
+        assertEquals(SettingsStep(syncNow), syncNow.press(Key.DirectionDown, repeat = 3))
+        // Left and Right on Libraries and on Sync now are kept, and do nothing.
         assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionLeft))
         assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionRight))
+        assertEquals(SettingsStep(syncNow), syncNow.press(Key.DirectionLeft))
+        assertEquals(SettingsStep(syncNow), syncNow.press(Key.DirectionRight))
+        // Up from Sync now is Libraries.
+        assertEquals(SettingsStep(libraries), syncNow.press(Key.DirectionUp))
 
         // Up goes back to Appearance; releases change nothing.
         assertEquals(SettingsStep(opened), libraries.press(Key.DirectionUp))
@@ -64,6 +71,14 @@ class GuideSettingsKeysTest {
         assertEquals(onLibraries, back)
         assertEquals(SettingsStep(back), back.press(Key.Back))
         assertEquals(SettingsStep(null), back.release(Key.Back))
+    }
+
+    // Back on Sync now closes the panel at its release, as on the other rows.
+    @Test
+    fun backOnSyncNow_closesThePanel() {
+        val onSyncNow = SettingsPanel(SettingsRow.SyncNow)
+        assertEquals(SettingsStep(onSyncNow), onSyncNow.press(Key.Back))
+        assertEquals(SettingsStep(null), onSyncNow.release(Key.Back))
     }
 
     @Test

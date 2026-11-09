@@ -35,6 +35,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.FakeSyncNow
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
@@ -70,7 +71,8 @@ private object StillLineup : ChannelRepository {
 
 /**
  * The guide with every chosen library gone (spec 26), over the real screen and real key events: the line where the grid
- * goes, the menu row on Settings, the Settings panel's Libraries row, and the Libraries slot over the guide.
+ * goes, the menu row on Settings, the Settings panel's Libraries row, the Libraries slot over the guide, and the Sync
+ * now row below Libraries (Part 5).
  */
 @RunWith(AndroidJUnit4::class)
 class GuideNoLibrariesUiTest {
@@ -82,6 +84,7 @@ class GuideNoLibrariesUiTest {
     private val sessions = SessionRepository(InMemorySecretStore(), server)
     private val pool = Executors.newSingleThreadExecutor()
     private val choices = FakeLibraryChoices(ChoiceView(setOf(ItemId("lib-a")), emptySet(), gone = true))
+    private val syncNow = FakeSyncNow()
     private lateinit var vm: GuideViewModel
 
     // The way out the slot was given, and the keys that got past the guide to its host.
@@ -101,7 +104,7 @@ class GuideNoLibrariesUiTest {
         fake.channel(CH7, 7, (0L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) })
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
         val work = pool.asCoroutineDispatcher()
-        vm = GuideViewModel(fake, cache, clock, work, StillLineup, selection = choices.selection)
+        vm = GuideViewModel(fake, cache, clock, work, StillLineup, selection = choices.selection, sync = syncNow)
         compose.setContent {
             StationBreakTheme {
                 // The host: a key the guide does not keep comes here.
@@ -195,6 +198,23 @@ class GuideNoLibrariesUiTest {
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
         compose.onNodeWithTag(GuideTags.NO_LIBRARIES).assertExists()
+
+        // Down is Sync now, and Down again stays there. Select starts one sync, the panel stays open, and the line
+        // beside the row says it is syncing; a held Select starts no other.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SYNC_STATUS).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(1, syncNow.starts)
+        awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
+
+        // Up is Libraries again.
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        awaitSelected(GuideTags.SETTINGS_LIBRARIES)
     }
 
     private companion object {
