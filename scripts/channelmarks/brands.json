@@ -537,6 +537,55 @@
       {"rel": 0.4, "segs": [{"text": "HUMOR", "font": "oswald-700", "color": "#FFFFFF", "tracking": 0.22}]}
     ], "gap": 0.04
   },
+  "tokyo-after-school": {
+    "note": "Righteous · anime teal, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "TOKYO", "font": "righteous-400", "color": "#6FE3D4"}]},
+      {"rel": 0.4, "segs": [{"text": "AFTER SCHOOL", "font": "righteous-400", "color": "#FFFFFF", "tracking": 0.15}]}
+    ], "gap": 0.05
+  },
+  "giant-robot-hour": {
+    "note": "Bungee · mecha blue, small over big",
+    "lines": [
+      {"rel": 0.4, "segs": [{"text": "GIANT", "font": "bungee-400", "color": "#FFFFFF", "tracking": 0.15}]},
+      {"rel": 1.0, "segs": [{"text": "ROBOT", "font": "bungee-400", "color": "#6FB0FF"}]}
+    ], "gap": 0.04
+  },
+  "power-level": {
+    "note": "Anton · power red, slanted, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "POWER", "font": "anton-400", "color": "#FF5A5A", "skew": -8}]},
+      {"rel": 0.4, "segs": [{"text": "LEVEL", "font": "anton-400", "color": "#FFFFFF", "tracking": 0.22, "skew": -8}]}
+    ], "gap": 0.04
+  },
+  "tea-time": {
+    "note": "Playfair 900 · tea green, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Tea", "font": "playfair-display-900", "color": "#9BE0A8"}]},
+      {"rel": 1.0, "segs": [{"text": "Time", "font": "playfair-display-900", "color": "#FFFFFF"}]}
+    ], "gap": 0.0
+  },
+  "whodunit-isles": {
+    "note": "Zilla Slab 700 · inspector yellow, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "WHODUNIT", "font": "zilla-slab-700", "color": "#FFD166"}]},
+      {"rel": 1.0, "segs": [{"text": "ISLES", "font": "zilla-slab-700", "color": "#FFFFFF"}]}
+    ], "gap": 0.0
+  },
+  "continental-drift": {
+    "note": "Cinzel 700 · subtitle pink, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "DRIFT", "font": "cinzel-700", "color": "#FF8FD0", "tracking": 0.04}]},
+      {"rel": 0.4, "segs": [{"text": "CONTINENTAL", "font": "cinzel-700", "color": "#FFFFFF", "tracking": 0.12}]}
+    ], "gap": 0.05
+  },
+  "seoul-sundays": {
+    "note": "Sniglet · sunday coral, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "seoul", "font": "sniglet-800", "color": "#FF8A7A"}]},
+      {"rel": 0.4, "segs": [{"text": "SUNDAYS", "font": "sniglet-800", "color": "#FFFFFF", "tracking": 0.22}]}
+    ], "gap": 0.05
+  },
   "masala-hour": {
     "note": "Abril Fatface · saffron, magenta dot",
     "device": "dot_after", "device_color": "#E0357A",
@@ -544,6 +593,20 @@
       {"rel": 1.0, "segs": [{"text": "Masala", "font": "abril-fatface-400", "color": "#F4A300"}]},
       {"rel": 0.3, "segs": [{"text": "HOUR", "font": "alfa-slab-one-400", "color": "#FFFFFF", "tracking": 0.34}]}
     ], "gap": 0.04
+  },
+  "telenovela-tonight": {
+    "note": "Pacifico · passion red, script over caps",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Novela", "font": "pacifico-400", "color": "#FF4D6D"}]},
+      {"rel": 0.34, "segs": [{"text": "TONIGHT", "font": "pacifico-400", "color": "#FFFFFF", "tracking": 0.22}]}
+    ], "gap": 0.05
+  },
+  "cherry-blossom-hour": {
+    "note": "Yeseva One · blossom pink, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Cherry", "font": "yeseva-one-400", "color": "#FFA7C4"}]},
+      {"rel": 1.0, "segs": [{"text": "Blossom", "font": "yeseva-one-400", "color": "#FFFFFF"}]}
+    ], "gap": 0.0
   },
   "graveyard-shift": {
     "note": "Barlow Cond · moss, barred",
