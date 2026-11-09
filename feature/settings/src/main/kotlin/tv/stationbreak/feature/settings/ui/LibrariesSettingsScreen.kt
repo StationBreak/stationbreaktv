@@ -50,10 +50,9 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
-import tv.stationbreak.core.ui.StationBreakDarkColors
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.settings.LibrariesPhase
 import tv.stationbreak.feature.settings.LibrariesSettingsState
@@ -64,11 +63,6 @@ import tv.stationbreak.feature.settings.RowStatus
 
 private val PanelGap = 16.dp
 private val TickSize = 24.dp
-
-// The channel screen's colours (its palette test checks the same pairs against WCAG 4.5:1).
-private val Ground = BroadcastColors.Ink
-private val TextColour = BroadcastColors.Cream
-private val Secondary = StationBreakDarkColors.onSurfaceVariant
 
 // The check mark, as fractions of the box inside its padding: down from the left, then up to the top right.
 private val CheckStroke = 2.5.dp
@@ -91,6 +85,8 @@ internal fun LibrariesSettingsScreen(
     pictureHole: DpRect,
     modifier: Modifier = Modifier,
 ) {
+    // The guide's Dark or Light, as it provides it; Dark when there is no guide around.
+    val panel = LocalPanelColors.current
     // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(SettingsTags.LIBRARIES)) {
@@ -101,10 +97,10 @@ internal fun LibrariesSettingsScreen(
                     .offset(safe.left, safe.top)
                     .width(width)
                     .height(safe.bottom - safe.top)
-                    .background(Ground),
+                    .background(panel.ground),
             ) {
                 // Not inside a Surface, so the content colour would be tv-material's black default.
-                CompositionLocalProvider(LocalContentColor provides TextColour) {
+                CompositionLocalProvider(LocalContentColor provides panel.text) {
                     Header(state)
                     LibraryList(state, Modifier.weight(1f))
                 }
@@ -155,7 +151,7 @@ private fun NoteLine(
         text,
         Modifier.testTag(tag).semantics { liveRegion = LiveRegionMode.Polite },
         style = MaterialTheme.typography.bodyMedium.copy(fontSize = SECONDARY_SP.sp),
-        color = Secondary,
+        color = LocalPanelColors.current.secondary,
     )
 }
 
@@ -212,7 +208,7 @@ private fun LibraryLine(
     Row(
         Modifier
             .fillMaxWidth()
-            .drawnFocus(focused)
+            .drawnFocus(focused, LocalPanelColors.current.ring)
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag(SettingsTags.row(row.id))
             // One announcement for the whole row: its name, its line (saving, removing, adding) and its tick.
@@ -233,7 +229,7 @@ private fun LibraryLine(
                     text,
                     Modifier.testTag(tag),
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = SECONDARY_SP.sp),
-                    color = Secondary,
+                    color = LocalPanelColors.current.secondary,
                 )
             }
         }
@@ -244,11 +240,12 @@ private fun LibraryLine(
 @Composable
 private fun Tick(ticked: Boolean) {
     val shape = RoundedCornerShape(3.dp)
+    val panel = LocalPanelColors.current
     Box(
         Modifier
             .size(TickSize)
-            .background(if (ticked) TextColour else Color.Transparent, shape)
-            .border(2.dp, TextColour, shape),
+            .background(if (ticked) panel.text else Color.Transparent, shape)
+            .border(2.dp, panel.text, shape),
     ) {
         if (ticked) {
             Canvas(Modifier.fillMaxSize().padding(4.dp)) {
@@ -256,8 +253,8 @@ private fun Tick(ticked: Boolean) {
                 val start = Offset(0f, size.height * CHECK_START_Y)
                 val corner = Offset(size.width * CHECK_CORNER_X, size.height * CHECK_CORNER_Y)
                 val end = Offset(size.width, size.height * CHECK_END_Y)
-                drawLine(Ground, start, corner, stroke, StrokeCap.Round)
-                drawLine(Ground, corner, end, stroke, StrokeCap.Round)
+                drawLine(panel.ground, start, corner, stroke, StrokeCap.Round)
+                drawLine(panel.ground, corner, end, stroke, StrokeCap.Round)
             }
         }
     }

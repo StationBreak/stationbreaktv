@@ -85,6 +85,38 @@ class GuidePaletteTest {
     }
 
     @Test
+    fun theDarkPanelIsTheGuidesOwnTokens_andIsOneInstance() {
+        val panel = GuideColors.Dark.panel
+        assertEquals(Color(0xFF0E0F11), panel.ground)
+        assertEquals(Color.White.copy(alpha = 0.90f), panel.text)
+        assertEquals(Color.White.copy(alpha = 0.58f), panel.secondary)
+        assertEquals(Color(0xFFE8642C), panel.ring)
+        // One instance per theme, so the static local it feeds does not recompose its subtree on every read.
+        assertTrue(GuideColors.Dark.panel === GuideColors.Dark.panel)
+        assertTrue(GuideColors.Light.panel === GuideColors.Light.panel)
+    }
+
+    @Test
+    fun thePanelsFollowTheGuidesTheme() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            val panel = c.panel
+            assertEquals(c.page, panel.ground)
+            assertEquals(c.textPrimary, panel.text)
+            assertEquals(c.textSecondary, panel.secondary)
+            assertEquals(c.focusFill, panel.ring)
+            assertContrast(4.5, panel.text, panel.ground, "$name panel text", c.page)
+            assertContrast(4.5, panel.secondary, panel.ground, "$name panel secondary text", c.page)
+            assertContrast(3.0, panel.ring, panel.ground, "$name panel focus ring", c.page)
+        }
+        assertTrue(
+            GuideColors.Light.panel.ground
+                .luminance() >
+                GuideColors.Dark.panel.ground
+                    .luminance(),
+        )
+    }
+
+    @Test
     fun tertiaryIsForStrokesNotText() {
         for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
             val card = c.card.compositeOver(c.page)

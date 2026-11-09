@@ -66,6 +66,13 @@ internal class LibrariesSettingsViewModel
             val signedOut: Boolean = false,
             val view: ChoiceView? = null,
             val focus: Int = 0,
+            /**
+             * The row focused when the last visit closed, until this visit has its final rows (or the viewer moves);
+             * null once placed.
+             */
+            val restoreFocus: ItemId? = null,
+            /** This visit's own listing has answered, so its rows are final. */
+            val answered: Boolean = false,
             val notice: Notice? = null,
             /** The adds already shown as given up in this visit, so each is said once. */
             val stalledSeen: Set<ItemId> = emptySet(),
@@ -101,6 +108,9 @@ internal class LibrariesSettingsViewModel
         // Names from every listing this ViewModel read, for the rows a later listing leaves out or cannot give.
         private val names = HashMap<ItemId, String>()
 
+        // The row focused when the screen last closed, for the ViewModel's life. Under [lock].
+        private var closedOn: ItemId? = null
+
         /** Between [open] and [close]: nothing is published outside it. */
         private var visible = false
         private val shown = MutableStateFlow(LibrariesSettingsState.Empty)
@@ -119,12 +129,12 @@ internal class LibrariesSettingsViewModel
                 val known = lastListed
                 model =
                     if (known != null) {
-                        Model(generation = generation, phase = LibrariesPhase.Listed, listed = known)
+                        Model(generation, LibrariesPhase.Listed, known, restoreFocus = closedOn)
                     } else {
-                        Model(generation = generation)
+                        Model(generation, restoreFocus = closedOn)
                     }
                 visible = true
-                shown.value = derive(model)
+                apply { it }
             }
             session = scope.launch { run(generation) }
         }
@@ -132,6 +142,8 @@ internal class LibrariesSettingsViewModel
         /** The screen has gone: nothing is read or watched until the next [open], and nothing of this visit shows. */
         fun close() {
             synchronized(lock) {
+                // The row the viewer was on, for the next visit; kept when this visit never showed rows.
+                closedOn = rowsOf(model).getOrNull(model.focus)?.id ?: model.restoreFocus ?: closedOn
                 session?.cancel()
                 session = null
                 visible = false
@@ -165,29 +177,31 @@ internal class LibrariesSettingsViewModel
                 is LibraryListing.Listed -> {
                     listing.libraries.forEach { names[it.id] = it.name }
                     lastListed = listing.libraries
-                    m.copy(phase = LibrariesPhase.Listed, listed = listing.libraries)
+                    m.copy(phase = LibrariesPhase.Listed, listed = listing.libraries, answered = true)
                 }
 
                 is LibraryListing.Unavailable -> {
                     lastListed = null
-                    m.copy(phase = LibrariesPhase.Unavailable(listing.error))
+                    m.copy(phase = LibrariesPhase.Unavailable(listing.error), answered = true)
                 }
 
                 is LibraryListing.NotSignedIn -> {
                     lastListed = null
-                    m.copy(phase = LibrariesPhase.Unavailable(null), signedOut = true)
+                    m.copy(phase = LibrariesPhase.Unavailable(null), signedOut = true, answered = true)
                 }
 
                 null -> {
                     lastListed = null
-                    m.copy(phase = LibrariesPhase.Unavailable(null))
+                    m.copy(phase = LibrariesPhase.Unavailable(null), answered = true)
                 }
             }
 
         /** Focus to the row above or below, stopping at the first and the last. */
         fun move(up: Boolean) {
-            // [apply] keeps it on a row.
-            synchronized(lock) { apply { it.copy(focus = if (up) it.focus - 1 else it.focus + 1) } }
+            // [apply] keeps it on a row. A move is the viewer's own choice, so the old row is no longer restored.
+            synchronized(lock) {
+                apply { it.copy(focus = if (up) it.focus - 1 else it.focus + 1, restoreFocus = null) }
+            }
         }
 
         /**
@@ -286,10 +300,20 @@ internal class LibrariesSettingsViewModel
         // The focus is kept on a row: when rows go (a left-out library unticked or confirmed missing), it is stored
         // clamped, so the next Select and Up act from the row drawn.
         private fun apply(step: (Model) -> Model) {
-            val next = step(model)
+            val next = placed(step(model))
             val last = (rowsOf(next).size - 1).coerceAtLeast(0)
             model = next.copy(focus = next.focus.coerceIn(0, last))
             if (visible) shown.value = derive(model)
+        }
+
+        // A visit starts on the row the last one closed on, when it is still shown, else on the first. The row is
+        // placed as soon as the rows show (the last listing's, while this visit's own is out) and again when the
+        // visit's own listing answers, which may have left it out. Not while the rows are still loading.
+        private fun placed(m: Model): Model {
+            val id = m.restoreFocus
+            if (id == null || m.phase == LibrariesPhase.Loading) return m
+            val at = rowsOf(m).indexOfFirst { it.id == id }
+            return m.copy(focus = at.coerceAtLeast(0), restoreFocus = id.takeIf { at >= 0 && !m.answered })
         }
 
         private fun derive(m: Model): LibrariesSettingsState {

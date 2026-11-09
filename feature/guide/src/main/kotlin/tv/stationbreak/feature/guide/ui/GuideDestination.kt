@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.rememberScreenFitStore
 import tv.stationbreak.feature.guide.GuideDirection
@@ -81,6 +82,7 @@ fun GuideDestination(
     val fits = rememberScreenFitStore()
     CompositionLocalProvider(
         LocalGuideColors provides theme.colors,
+        LocalPanelColors provides theme.colors.panel,
         LocalMarkCache provides MarkCaches.get(LocalContext.current),
     ) {
         GuideRoot(
