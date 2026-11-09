@@ -43,8 +43,20 @@ object ChannelsTags {
     const val ACTION_EDIT = "channels:action:edit"
     const val ACTION_CHANGE_NUMBER = "channels:action:changeNumber"
     const val ACTION_DEFAULT_NUMBER = "channels:action:defaultNumber"
+    const val ACTION_ABOUT = "channels:action:about"
     const val ACTION_CANCEL = "channels:action:cancel"
     const val ACTION_CONFIRM = "channels:action:confirm"
+
+    /** The properties sheet, and its parts. */
+    const val ABOUT = "channels:about"
+    const val ABOUT_NAME = "channels:about:name"
+    const val ABOUT_TAGS = "channels:about:tags"
+    const val ABOUT_PERSONALITY = "channels:about:personality"
+    const val ABOUT_LOADING = "channels:about:loading"
+    const val ABOUT_PLAYS = "channels:about:plays"
+    const val ABOUT_RUNS = "channels:about:runs"
+    const val ABOUT_STATUS = "channels:about:status"
+    const val ABOUT_CODE = "channels:about:code"
 
     /** The heading of the On group, of More channels, and of Off. */
     const val HEADING_ON = "channels:heading:on"

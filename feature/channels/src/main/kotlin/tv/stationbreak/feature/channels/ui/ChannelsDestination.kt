@@ -33,6 +33,7 @@ import tv.stationbreak.feature.channels.builder.BuilderEvent
 import tv.stationbreak.feature.channels.builder.BuilderMode
 import tv.stationbreak.feature.channels.builder.BuilderViewModel
 import tv.stationbreak.feature.channels.builder.ui.BuilderRoot
+import tv.stationbreak.feature.channels.dialogOpen
 
 /**
  * Channel management (spec 21), drawn by its host (the guide) over live TV's picture while the screen is open: the
@@ -198,7 +199,7 @@ internal class ChannelsActions(
         val ui = vm.ui.value
         // The builder has the keys while it shows.
         if (ui.builder != null) return
-        val inPanel = ui.panel != null || ui.confirmingReset
+        val inPanel = ui.dialogOpen
         when {
             pad == Pad.Back -> back(ui)
             inPanel -> panel(pad)
@@ -221,7 +222,7 @@ internal class ChannelsActions(
     }
 
     private fun back(ui: ChannelsUi) {
-        if (ui.panel != null || ui.confirmingReset || ui.message != null) {
+        if (ui.dialogOpen || ui.message != null) {
             vm.dismiss()
         } else {
             finish(vm.closing())

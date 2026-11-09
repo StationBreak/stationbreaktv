@@ -17,6 +17,8 @@ import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelProperties
+import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
@@ -73,6 +75,22 @@ internal class FakeChannels(
     override fun activeChannels(): Flow<List<ChannelSummary>> = list
 }
 
+/** The properties reader: the summary of the channel as the fake lineup holds it, and nothing else. */
+internal class FakeProperties(
+    private val repo: FakeChannels,
+) : ChannelPropertiesReader {
+    val reads = mutableListOf<Pair<ChannelId, Instant>>()
+
+    override suspend fun read(
+        id: ChannelId,
+        at: Instant,
+    ): ChannelProperties? {
+        reads += id to at
+        val summary = repo.list.value.firstOrNull { it.id == id } ?: return null
+        return ChannelProperties(summary, null, null, emptyList(), null, null, null)
+    }
+}
+
 internal class FakeHousehold : HouseholdSetting {
     val flag = MutableStateFlow(true)
 
@@ -112,6 +130,7 @@ internal class ChannelsRig(
     val editor = FakeChannelEditor()
     val gated = GatedEditor(editor)
     val schedule = FakeSchedule()
+    val properties = FakeProperties(repo)
     val clock: Clock =
         object : Clock {
             override fun now(): Instant = Instant.fromEpochMilliseconds(T0)
@@ -123,6 +142,7 @@ internal class ChannelsRig(
             household,
             gated,
             schedule,
+            properties,
             clock,
             StandardTestDispatcher(scope.testScheduler),
         )

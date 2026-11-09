@@ -184,7 +184,7 @@ private fun RowLine(
     }
 }
 
-private fun shelfReasonText(reason: ShelfReason): Int =
+internal fun shelfReasonText(reason: ShelfReason): Int =
     when (reason) {
         ShelfReason.Empty -> R.string.channels_shelf_empty
         ShelfReason.TooThin -> R.string.channels_shelf_thin
@@ -206,7 +206,7 @@ private fun labelsOf(row: ChannelRow): String =
         .joinToString(", ")
         .let { if (it.isEmpty()) it else "($it)" }
 
-private fun reasonText(reason: HiddenReason): Int =
+internal fun reasonText(reason: HiddenReason): Int =
     when (reason) {
         HiddenReason.CollectionsNotSynced -> R.string.channels_reason_collections
         HiddenReason.HouseholdCollectionsOff -> R.string.channels_reason_household_off

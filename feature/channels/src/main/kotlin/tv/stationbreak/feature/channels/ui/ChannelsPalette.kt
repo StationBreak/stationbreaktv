@@ -37,6 +37,13 @@ internal object ChannelsPalette {
     /** Headings, the read-only note, message lines and reasons. */
     val secondary = StationBreakDarkColors.onSurfaceVariant
 
+    /** The properties sheet's ground (the design's #141518) and the 1 dp line on its left edge. */
+    val sheet = Color(0xFF141518)
+    val sheetLine = Color(0xFF3A3B40)
+
+    /** The kids tag on the sheet, the design's #FFD166. */
+    val kidsTag = Color(0xFFFFD166)
+
     /** A dimmed row's name: [text] at [DIMMED_ALPHA] as it lands on [ground]. */
     val dimmed = text.copy(alpha = DIMMED_ALPHA).compositeOver(ground)
 
@@ -46,5 +53,8 @@ internal object ChannelsPalette {
             Triple("text on Ink", text, ground),
             Triple("secondary on Ink", secondary, ground),
             Triple("dimmed row on Ink", dimmed, ground),
+            Triple("text on the sheet", text, sheet),
+            Triple("secondary on the sheet", secondary, sheet),
+            Triple("kids tag on the sheet", kidsTag, sheet),
         )
 }

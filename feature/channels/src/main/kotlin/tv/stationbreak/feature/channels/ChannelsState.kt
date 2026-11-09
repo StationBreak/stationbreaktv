@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.channels
 
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ShelfReason
@@ -83,6 +84,9 @@ internal sealed interface ChannelsFocus {
     data object Reset : ChannelsFocus
 }
 
+/** A panel, the reset question or the properties sheet is open over the list: the keys are theirs. */
+internal val ChannelsUi.dialogOpen: Boolean get() = panel != null || confirmingReset || about != null
+
 /** What the channel screen draws. */
 internal data class ChannelsUi(
     /** On, then Shelf, then Off; in number order inside each, numberless last. */
@@ -107,6 +111,10 @@ internal data class ChannelsUi(
     val gettingReady: Boolean = false,
     /** The lineup's "Use my collections" flag: on until the lineup says otherwise. */
     val useMyCollections: Boolean = true,
+    /** The channel whose properties sheet is open over the list; a panel can open over the sheet. */
+    val about: ChannelId? = null,
+    /** What [about] reads; null while it is being read, which the sheet shows as loading. */
+    val properties: ChannelProperties? = null,
 ) {
     companion object {
         val Empty =

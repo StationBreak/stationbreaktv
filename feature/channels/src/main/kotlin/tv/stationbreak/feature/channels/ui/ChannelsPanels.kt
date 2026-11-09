@@ -102,7 +102,7 @@ private fun ChoiceRow(
 }
 
 @Composable
-private fun labelOf(
+internal fun labelOf(
     choice: Choice,
     panel: ChannelsPanel?,
 ): String =
@@ -136,6 +136,10 @@ private fun labelOf(
                 R.string.channels_action_default_number
             }
 
+            Choice.About -> {
+                R.string.channels_action_about
+            }
+
             Choice.Cancel -> {
                 R.string.channels_action_cancel
             }
@@ -150,7 +154,7 @@ private fun labelOf(
         },
     )
 
-private fun tagOf(choice: Choice): String =
+internal fun tagOf(choice: Choice): String =
     when (choice) {
         Choice.Watch -> ChannelsTags.ACTION_WATCH
         Choice.SwitchOn -> ChannelsTags.ACTION_SWITCH_ON
@@ -159,6 +163,7 @@ private fun tagOf(choice: Choice): String =
         Choice.Edit -> ChannelsTags.ACTION_EDIT
         Choice.ChangeNumber -> ChannelsTags.ACTION_CHANGE_NUMBER
         Choice.DefaultNumber -> ChannelsTags.ACTION_DEFAULT_NUMBER
+        Choice.About -> ChannelsTags.ACTION_ABOUT
         Choice.Confirm -> ChannelsTags.ACTION_CONFIRM
         Choice.Cancel -> ChannelsTags.ACTION_CANCEL
     }
