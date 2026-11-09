@@ -320,7 +320,7 @@ internal open class SelectionTestBase : RepairTestBase() {
 
         fun listing(ids: Set<ItemId>): LibraryListing {
             server.librariesResult = listed(ids)
-            return runBlocking { selection.listing() }
+            return runBlocking { selection.listing().also { selection.followed() } }
         }
 
         /** Resumes, then lists [ids] once, so a tick of one of them is allowed. */

@@ -66,8 +66,17 @@ interface LibraryChoices {
     /** The stored selection, or null when none is stored. */
     val selection: StateFlow<ChoiceView?>
 
-    /** Asks the server for its libraries once, and follows what it lists (one listing for the two-read rule). */
+    /**
+     * Asks the server for its libraries once, and answers as soon as it has, never waiting on a change. What it lists
+     * is followed afterwards, off the caller's path (one listing for the two-read rule).
+     */
     suspend fun listing(): LibraryListing
+
+    /**
+     * Returns once every listing asked for so far has been followed: for a caller that acts on what a listing changed
+     * (Sync now). Nothing to wait for by default.
+     */
+    suspend fun followed() = Unit
 
     /**
      * Makes [ticked] the chosen libraries: a library unticked leaves at once (held while a programme of it is on air),

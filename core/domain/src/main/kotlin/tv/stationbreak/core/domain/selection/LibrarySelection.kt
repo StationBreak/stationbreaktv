@@ -2,9 +2,15 @@
 package tv.stationbreak.core.domain.selection
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -59,6 +65,9 @@ enum class SelectionEvent {
 
     /** The add pass could not be asked for after a committed write (the write stands; the next start asks again). */
     RestartFailed,
+
+    /** A listing was answered, but following it failed (nothing of it was noted; the next listing counts again). */
+    ListingFollowFailed,
 }
 
 /**
@@ -121,6 +130,8 @@ class LibrarySelection(
     private val resumeTook: (Long) -> Unit = {},
     private val changeTook: (ChangeTiming) -> Unit = {},
     private val ticks: TimeSource = TimeSource.Monotonic,
+    // Where a listing is followed, off the caller's path.
+    private val followScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val report: (SelectionEvent) -> Unit = {},
 ) : LibraryChoices,
     LibrarySetup,
@@ -179,15 +190,46 @@ class LibrarySelection(
 
     // --- LibraryChoices ---------------------------------------------------------------------------------------------
 
+    // Answers as soon as the server does, with the stored choice read without the lock: a change may hold the lock
+    // for long on a slow TV, and the screen must not wait for it. The listing is followed afterwards ([follow]).
     override suspend fun listing(): LibraryListing {
         refuseReentry()
         val held = session() ?: return LibraryListing.NotSignedIn(selection.value)
         val listed = server.libraries(held)
-        followServer(LibraryAccount(held.server.id, held.userId), listed)
+        follow(LibraryAccount(held.server.id, held.userId), listed)
         return when (listed) {
             is ServerResult.Success -> LibraryListing.Listed(listed.value, selection.value)
             is ServerResult.Failure -> LibraryListing.Unavailable(listed.error, selection.value)
         }
+    }
+
+    // The follow of the last listing answered, while it may still run.
+    @Volatile private var following: Job? = null
+
+    // Follows [listed] on [followScope], under the lock as [followServer] always is. It is started undispatched, so it
+    // queues on the lock before the listing returns: an operation asked for after the listing (the lock is fair) runs
+    // after it, as when the listing was followed in place. One that fails is reported; the listing has answered.
+    @Suppress("TooGenericExceptionCaught") // Whatever the follow throws, the listing stands.
+    private fun follow(
+        account: LibraryAccount,
+        listed: ServerResult<List<Library>>,
+    ) {
+        following =
+            followScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                try {
+                    followServer(account, listed)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    report(SelectionEvent.ListingFollowFailed)
+                }
+            }
+    }
+
+    // The follows queue on the fair lock in the order the listings were answered, so the last one ending means every
+    // one before it has.
+    override suspend fun followed() {
+        following?.join()
     }
 
     // Its time, by step, is reported however it ends ([changeTook]).
