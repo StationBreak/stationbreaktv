@@ -8,11 +8,20 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelStatus
+import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.PlayKey
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.selection.ChoiceView
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.feature.guide.ui.GuideMessage
 import tv.stationbreak.feature.guide.ui.guideMessageOf
+import kotlin.time.Instant
 
 /** Every library this TV chose is gone (spec 26): the guide says so, and its menu row is where the viewer goes. */
 class GuideNoLibrariesTest : GuideRig() {
@@ -20,6 +29,22 @@ class GuideNoLibrariesTest : GuideRig() {
     private val kept = gone.copy(gone = false)
 
     private fun GuideViewModel.menu(): GuideMenuEntry? = snapshot.value.menu
+
+    private fun summary(
+        id: ChannelId,
+        number: Int,
+    ) = ChannelSummary(
+        id,
+        number,
+        "Test Channel $number",
+        ChannelStatus.On,
+        ChannelKind.Starter,
+        Instant.fromEpochMilliseconds(T0),
+        number,
+        kid = false,
+        optIn = false,
+        playKey = PlayKey("test"),
+    )
 
     @Test
     fun goneSelection_guideShowsMessage_menuReachable() =
@@ -69,6 +94,26 @@ class GuideNoLibrariesTest : GuideRig() {
             vm.move(GuideDirection.Down, false, 0)
             assertNull(vm.menu())
             assertTrue(vm.snapshot.value.state is GuideState.Ready)
+        }
+
+    // A lineup change reloads the grid in a fresh session: the selection is still followed after it.
+    @Test
+    fun selectionGoneAfterALineupReload_focusGoesToTheMenu() =
+        guideTest { vm ->
+            choices.selection.value = kept
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7))
+            vm.open(CH7)
+            runCurrent()
+            val calls = schedule.calls
+
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            runCurrent()
+            assertTrue("the lineup change did not reload the grid", schedule.calls > calls)
+            assertNull(vm.menu())
+
+            choices.selection.value = gone
+            runCurrent()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
         }
 
     @Test

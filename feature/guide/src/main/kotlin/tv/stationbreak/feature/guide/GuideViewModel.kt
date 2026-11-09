@@ -161,11 +161,16 @@ internal class GuideViewModel
                 endSession()
                 currentChannel = current
                 this.playing = playing?.takeIf { it.channel == current }
-                val fresh = newSession()
-                startLoad(fresh)
-                startWatch(fresh)
-                fresh.launch { followSelection(fresh) }
+                startWork(newSession())
             }
+        }
+
+        // What a session runs, at an open and again at each reload (which starts a fresh session): the first read,
+        // build and fill-in, the lineup watch, and the library selection. Under [lock].
+        private fun startWork(s: CoroutineScope) {
+            startLoad(s)
+            startWatch(s)
+            s.launch { followSelection(s) }
         }
 
         // No libraries: the grid is not shown, so the focus goes to the menu row, on Settings. It stays on the menu
@@ -585,8 +590,7 @@ internal class GuideViewModel
             if (shownSnapshot.value.menu != menu) {
                 shownSnapshot.value = shownSnapshot.value.copy(menu = menu)
             }
-            startLoad(fresh)
-            startWatch(fresh)
+            startWork(fresh)
         }
 
         override fun onCleared() {
