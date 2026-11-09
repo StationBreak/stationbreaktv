@@ -26,15 +26,15 @@ class GuidePaletteTest {
         assertEquals(dark.textPrimary, dark.programmeText)
 
         val light = GuideColors.Light
-        assertEquals(Color(0xFFDCDEE1), light.page)
+        assertEquals(Color(0xFFD2D5DA), light.page)
         assertEquals(light.page, light.pageGradientStart)
         assertEquals(Color(0xFF111214).copy(alpha = 0.12f), light.card)
         assertEquals(Color(0xFF111214).copy(alpha = 0.16f), light.line)
         assertEquals(Color(0xFF111214).copy(alpha = 0.14f), light.progressTrack)
         assertEquals(Color(0xFF111214).copy(alpha = 0.92f), light.textPrimary)
         assertEquals(Color(0xFF111214).copy(alpha = 0.66f), light.textSecondary)
-        assertEquals(Color(0xFF111214).copy(alpha = 0.50f), light.textSupporting)
-        assertEquals(Color(0xFFB74719), light.focusFill)
+        assertEquals(Color(0xFF111214).copy(alpha = 0.52f), light.textSupporting)
+        assertEquals(Color(0xFFAD4216), light.focusFill)
         assertEquals(Color(0xFFFFFFFF), light.focusText)
         assertEquals(light.textPrimary, light.programmeText)
     }
@@ -43,11 +43,15 @@ class GuidePaletteTest {
     fun noWarmTintsRemain() {
         // Every neutral role is grey: equal red, green and blue to within the 1-2 steps the near-black page keeps.
         for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
-            for (neutral in listOf(c.page, c.card, c.textPrimary, c.textSecondary, c.textSupporting, c.progressTrack)) {
+            for (neutral in listOf(c.card, c.textPrimary, c.textSecondary, c.textSupporting, c.progressTrack)) {
                 val channels = listOf(neutral.red, neutral.green, neutral.blue)
                 val spread = channels.max() - channels.min()
                 assertTrue("neutral $neutral is tinted", spread <= NEUTRAL_SPREAD)
             }
+            // The page may lean cool (Light's blue-grey reads calmer on a TV than a pure grey) but never warm.
+            val spread = listOf(c.page.red, c.page.green, c.page.blue).let { it.max() - it.min() }
+            assertTrue("page ${c.page} is tinted", spread <= PAGE_SPREAD)
+            assertTrue("page ${c.page} is warm", c.page.blue >= c.page.red)
         }
     }
 
@@ -211,4 +215,5 @@ class GuidePaletteTest {
 }
 
 private const val NEUTRAL_SPREAD = 0.02f
+private const val PAGE_SPREAD = 0.035f
 private const val MAX_PAGE_LIGHTNESS = 0.90f

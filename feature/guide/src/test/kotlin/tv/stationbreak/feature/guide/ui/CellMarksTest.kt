@@ -47,8 +47,9 @@ class CellMarksTest {
         val focused = cell.marks(at(0), focused = true)
         val ring = checkNotNull(focused.ring)
         assertDp(0.dp, ring.start)
-        // The ring's right side is drawn at the viewport's edge, inside the time columns (and so the safe area).
-        assertDp(wide(30) - 0.5.dp, ring.endInclusive)
+        // The fill runs on past the viewport's edge to the screen's, as the cell's surface does; its text and chevron
+        // stay inside the safe area.
+        assertDp(wide(30) + geometry.bleed - 0.5.dp, ring.endInclusive)
         // The ring owns that edge: no "›" inside it.
         assertFalse(focused.later)
 

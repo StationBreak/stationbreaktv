@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TransportView
@@ -92,7 +93,7 @@ internal fun TransportStrip(
     val shown = minutes
     if (!view.paused && shown == null && !view.seeking) return
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
         Row(
             Modifier
                 .align(Alignment.TopStart)

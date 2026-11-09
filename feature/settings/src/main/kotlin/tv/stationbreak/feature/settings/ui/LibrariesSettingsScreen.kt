@@ -51,6 +51,7 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakDarkColors
 import tv.stationbreak.core.ui.drawnFocus
@@ -92,7 +93,7 @@ internal fun LibrariesSettingsScreen(
     // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(SettingsTags.LIBRARIES)) {
-            val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+            val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             val width = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)
             Column(
                 Modifier

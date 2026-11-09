@@ -27,6 +27,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.channels.ChannelsMessage
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -48,7 +49,7 @@ internal fun ChannelsScreen(
     // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(ChannelsTags.SCREEN)) {
-            val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+            val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             val listWidth = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)
             // Over the guide, a channel's properties sheet shows alone: the guide is the list behind it (#631).
             if (!sheetOnly) {

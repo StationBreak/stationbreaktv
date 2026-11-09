@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -106,8 +108,10 @@ internal fun GuideGrid(
     }
     val ellipsis = rememberEllipsisMarks()
     val markText = rememberTextMeasurer()
+    val card = LocalGuideColors.current.card
     Box(
         modifier
+            .extendRight(geometry.bleed)
             .testTag(GuideTags.GRID)
             .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
     ) {
@@ -117,7 +121,7 @@ internal fun GuideGrid(
                 for (index in firstVisibleRow until last) {
                     val row = model.rows[index]
                     key(row.channel) {
-                        Row(Modifier.height(RowHeight)) {
+                        Row(Modifier.height(RowHeight).rowBacking(card, geometry.bleed)) {
                             ChannelCell(row, playing = row.channel == current, channelFocusOf)
                             GuideRowCells(
                                 row.channel,
@@ -164,7 +168,8 @@ private fun GuideRowCells(
                 }
             }
         },
-        modifier = Modifier.width(geometry.viewportWidth).fillMaxHeight().clipToBounds(),
+        // The surfaces run on past the viewport to the screen's edge; the cells' text stops at the viewport's.
+        modifier = Modifier.width(geometry.viewportWidth + geometry.bleed).fillMaxHeight().clipToBounds(),
     ) { measurables, constraints ->
         val free = Constraints(maxHeight = constraints.maxHeight)
         val placeables = measurables.map { it.measure(free) }
@@ -211,6 +216,35 @@ private fun ChannelCell(
     }
 }
 
+/**
+ * Measures the content [extra] wider than the space it is given and places it at the left edge, taking only the space
+ * it was given: the grid's surfaces can run on past the safe area while everything is laid out inside it.
+ */
+private fun Modifier.extendRight(extra: Dp): Modifier =
+    layout { measurable, constraints ->
+        val width = constraints.maxWidth + extra.roundToPx()
+        val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+        layout(constraints.maxWidth, placeable.height) { placeable.place(0, 0) }
+    }
+
+/**
+ * The surface behind the channel column of a row: [color] from the screen's left edge ([bleed] left of the safe area)
+ * to a 1 dp gap short of the first cell, 1 dp from the rows above and below, as the cells are from each other.
+ */
+private fun Modifier.rowBacking(
+    color: Color,
+    bleed: Dp,
+): Modifier =
+    drawBehind {
+        val inset = CellInset.toPx()
+        val left = -bleed.toPx()
+        drawRect(
+            color,
+            Offset(left, inset),
+            Size(ChannelColumnWidth.toPx() - inset - left, size.height - 2 * inset),
+        )
+    }
+
 /** A [OutlineWidth] outline of [color] inside the bounds, drawn only while [focused] says so (read when drawing). */
 private fun Modifier.channelOutline(
     color: Color,
@@ -255,7 +289,9 @@ private fun ClockStrip(
             .testTag(GuideTags.CLOCK)
             .drawBehind {
                 val rule = RuleHeight.toPx()
-                drawRect(colors.line, Offset(0f, size.height - rule), Size(size.width, rule))
+                // The rule runs on to both edges of the screen, past the safe area the labels keep to.
+                val bleed = geometry.bleed.toPx()
+                drawRect(colors.line, Offset(-bleed, size.height - rule), Size(size.width + 2 * bleed, rule))
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {

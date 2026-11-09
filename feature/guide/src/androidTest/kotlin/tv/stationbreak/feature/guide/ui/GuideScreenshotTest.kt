@@ -4,6 +4,7 @@ package tv.stationbreak.feature.guide.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
@@ -84,6 +85,8 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
+import tv.stationbreak.core.ui.LocalScreenFit
+import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.GuideState
@@ -132,6 +135,7 @@ class GuideScreenshotTest {
 
     /** One content for both themes: the rule's activity accepts setContent once. */
     private val theme = mutableStateOf(GuideTheme.Dark)
+    private val fit = mutableStateOf(ScreenFit.Safe)
     private val openedAt = mutableLongStateOf(1L)
     private var composed = false
 
@@ -148,6 +152,46 @@ class GuideScreenshotTest {
     fun theFocusStates() {
         shootTheme(GuideTheme.Dark, suffix = "")
         shootTheme(GuideTheme.Light, suffix = "-light")
+    }
+
+    /**
+     * Both screen fits (Safe 5%, Edge 1.5%), dark then light, on the focused episode: the surfaces run to the screen's
+     * edges in both, the text keeps to the fit's safe area, and the corner picture's hole follows it.
+     */
+    @Test
+    fun theScreenFits() {
+        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
+            theme.value = shown
+            for (chosen in ScreenFit.entries) {
+                fit.value = chosen
+                showReady(CH7)
+                cell(CH7, 60).assertIsSelected()
+                assertTextInsideSafeArea(chosen)
+                assertSurfacesReachTheScreenEdge()
+                shoot("$FIT_FRAME-${chosen.name.lowercase()}$suffix.png")
+            }
+        }
+    }
+
+    // The panel's title starts at the fit's safe left edge, not at the screen's.
+    private fun assertTextInsideSafeArea(chosen: ScreenFit) {
+        val screen = compose.onNodeWithTag(GuideTags.SCREEN).fetchSemanticsNode().boundsInRoot
+        val title =
+            compose.onNodeWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val safeLeftPx = screen.width * chosen.overscan
+        assertEquals("the panel title keeps to the safe area", safeLeftPx, title.left - screen.left, TITLE_SLACK_PX)
+    }
+
+    // A resting cell of the last row draws to the screen's right edge, where the page is bare below the grid.
+    private fun assertSurfacesReachTheScreenEdge() {
+        val screen = compose.onNodeWithTag(GuideTags.SCREEN).fetchSemanticsNode().boundsInRoot
+        val row = compose.onNodeWithTag(GuideTags.cell(CH9, T0)).fetchSemanticsNode().boundsInRoot
+        val bitmap = checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        val x = bitmap.width - EDGE_PROBE_PX
+        val onCell = bitmap.getPixel(x, (row.center.y / screen.height * bitmap.height).toInt())
+        val belowGrid = bitmap.getPixel(x, ((row.bottom + BELOW_GRID_PX) / screen.height * bitmap.height).toInt())
+        val diff = listOf(Color.red(onCell) - Color.red(belowGrid), Color.green(onCell) - Color.green(belowGrid))
+        assertTrue("no surface at the screen's right edge: $diff", diff.any { kotlin.math.abs(it) >= SURFACE_DIFF })
     }
 
     /** The channel marks: real logos from the app's assets beside an initials tile and a long name, dark then light. */
@@ -287,6 +331,7 @@ class GuideScreenshotTest {
         BackHandler { }
         StationBreakTheme {
             CompositionLocalProvider(
+                LocalScreenFit provides fit.value,
                 LocalGuideColors provides theme.value.colors,
                 LocalMarkCache provides marks,
             ) {
@@ -294,7 +339,7 @@ class GuideScreenshotTest {
                     GuideRoot(
                         vm,
                         GuideOpening(current, null, openedAt.longValue),
-                        pictureHole = HOLE,
+                        pictureHole = holeFor(fit.value),
                         onTune = {},
                         channels = { _, _, _, _ -> },
                     )
@@ -302,6 +347,9 @@ class GuideScreenshotTest {
             }
         }
     }
+
+    private fun holeFor(chosen: ScreenFit) =
+        ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp), chosen))
 
     private fun fillLineup() {
         // Four rows. Channel 3: a long movie title at 30 minutes (cut at the cell's end), mixed lengths around it.
@@ -465,6 +513,10 @@ class GuideScreenshotTest {
         const val PRESS_MS = 50L
         const val PNG_QUALITY = 100
         const val FRAME_WAIT_MS = 500L
-        val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)))
+        const val FIT_FRAME = "guide-fit"
+        const val TITLE_SLACK_PX = 2f
+        const val EDGE_PROBE_PX = 3
+        const val BELOW_GRID_PX = 12f
+        const val SURFACE_DIFF = 6
     }
 }
