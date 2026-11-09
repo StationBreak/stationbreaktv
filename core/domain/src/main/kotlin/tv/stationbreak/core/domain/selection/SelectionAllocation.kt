@@ -46,7 +46,7 @@ internal class SelectionAllocation(
 
     // A save that moves the seq, through the repairer: with today's repair for the change to [after] when given, else
     // with none. Before any lineup exists there is nothing to repair, and it is a plain save. A change's [steps] time
-    // each save.
+    // the wait for the repairer's turn and each save.
     suspend fun allocate(
         account: LibraryAccount,
         stored: StoredSelection,
@@ -56,11 +56,12 @@ internal class SelectionAllocation(
     ): Allocated {
         val atLeast = floorOf(library.storedLibraries(account))
         val save: suspend (Long) -> Boolean = { seq -> timed(steps) { write(next(seq), account) } }
+        val held = { steps?.turnHeld() ?: Unit }
         val allocated =
             if (after != null) {
-                allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, save)) { it.seq }
+                allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, held, save)) { it.seq }
             } else {
-                allocated(repairer.saveWithoutRepair(account, atLeast, save)) { it }
+                allocated(repairer.saveWithoutRepair(account, atLeast, held, save)) { it }
             }
         // Null: no lineup, so nothing to repair.
         return allocated ?: plain(account, stored, atLeast, next, steps)

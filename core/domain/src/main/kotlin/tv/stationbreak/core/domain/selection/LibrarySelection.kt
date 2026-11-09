@@ -120,6 +120,7 @@ class LibrarySelection(
     clock: Clock = Clock.System,
     private val resumeTook: (Long) -> Unit = {},
     private val changeTook: (ChangeTiming) -> Unit = {},
+    private val ticks: TimeSource = TimeSource.Monotonic,
     private val report: (SelectionEvent) -> Unit = {},
 ) : LibraryChoices,
     LibrarySetup,
@@ -191,7 +192,7 @@ class LibrarySelection(
 
     // Its time, by step, is reported however it ends ([changeTook]).
     override suspend fun change(ticked: Set<ItemId>): ChangeResult {
-        val steps = ChangeSteps()
+        val steps = ChangeSteps(ticks)
         try {
             return locked {
                 steps.locked()
@@ -468,7 +469,7 @@ class LibrarySelection(
     override suspend fun resumeAtStart() {
         // A call from inside the selection is a bug, not a failed resume: it is thrown as it is.
         refuseReentry()
-        val began = TimeSource.Monotonic.markNow()
+        val began = ticks.markNow()
         try {
             mutex.withLock {
                 withContext(NonCancellable + InSelection) { reconciler.resume() }
