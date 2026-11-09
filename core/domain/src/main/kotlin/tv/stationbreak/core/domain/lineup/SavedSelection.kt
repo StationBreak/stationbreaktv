@@ -59,5 +59,6 @@ fun savedSelectionOf(settings: ServerSettings): suspend () -> SavedSelection? {
     return read
 }
 
-private fun StoredSelection.toSaved(): SavedSelection =
+/** [this] as the saved selection the schedule source's provider gives for it. */
+internal fun StoredSelection.toSaved(): SavedSelection =
     SavedSelection(chosen, seq = seq, playable = if (gone) null else chosen, resetSeq = resetSeq)

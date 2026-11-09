@@ -124,7 +124,7 @@ class BuiltInScheduleSource(
     private val built: (DayBuild) -> Unit = {},
     laidOut: (dayIndex: Long, layoutMs: Long) -> Unit = { _, _ -> },
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val probes: BuildProbes = BuildProbes(),
+    internal val probes: BuildProbes = BuildProbes(),
     private val persisted: PersistedDays? = null,
     private val saveDispatcher: CoroutineDispatcher = BackgroundSaves.dispatcher,
     shared: SharedSnapshots? = null,
@@ -740,6 +740,18 @@ class BuiltInScheduleSource(
         selection: SavedSelection,
         at: Instant,
     ): List<ChannelDay> = if (selection.libraries.isEmpty()) emptyList() else channelDays(account, selection, at)
+
+    /**
+     * [currentDays] at [at] over [selection], on this source's [dispatcher] (main-safe), for their build only: the
+     * repairer warms today's days before a selection change asks for its turn (spec 26).
+     */
+    internal suspend fun warmDays(
+        account: LibraryAccount,
+        selection: SavedSelection,
+        at: Instant,
+    ) {
+        withContext(dispatcher) { currentDays(account, selection, at) }
+    }
 
     /**
      * The saved selection now (none chosen: no libraries, and the seq as saved, 0 when unknown) and [currentDays] over

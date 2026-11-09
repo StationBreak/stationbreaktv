@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.repair
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -10,12 +11,14 @@ import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.BackgroundSaves
+import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.RecordReset
 import tv.stationbreak.core.domain.lineup.Revisioned
+import tv.stationbreak.core.domain.lineup.SavedSelection
 import tv.stationbreak.core.model.ItemId
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration
@@ -103,6 +106,7 @@ internal suspend fun refuseInTurn() {
  * second change never starts before the first is saved. Each write also prunes the repairs a saved later seq has
  * superseded.
  */
+@Suppress("TooManyFunctions") // One per call of the repairer, its turn and record, and the warm-up before a change.
 class TodayRepairer internal constructor(
     private val service: LineupService,
     private val source: BuiltInScheduleSource,
@@ -163,49 +167,103 @@ class TodayRepairer internal constructor(
      * the change has no pin: its rest is laid out from the half hour, or the whole day stays hidden with the new
      * selection's reason. It runs while the removed libraries' rows still exist. The result of [RepairOutcome.Saved]
      * is the seq and the pins whose programme is of a library the change removes. [entered] is called first in the
-     * turn, once it is held (a change times its wait for the turn).
+     * turn, once it is held (a change times its wait for the turn). [clock], when given, times the repair's steps up
+     * to the save, with the turn thread's CPU time and the collections over them ([RepairPhases]); it changes nothing.
+     *
+     * A caller that has the saved selection at hand calls [warmDays] with it first, so the turn finds today's days
+     * built.
      */
-    @Suppress("LongParameterList") // The change, its moment and floor, the save, and the turn's timing hook.
+    @Suppress("LongParameterList") // The change, its moment and floor, the save, and the turn's timing hooks.
     suspend fun selectionChanged(
         account: LibraryAccount,
         after: Set<ItemId>,
         atMs: Long,
         atLeast: Long,
         entered: () -> Unit = {},
+        clock: RepairClock? = null,
         save: suspend (seq: Long) -> Boolean,
     ): RepairOutcome<SelectionRepaired> =
         turn {
             entered()
-            run {
-                val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup
-                // With no saved selection read, the seq shown is unknown: recording would drop what it cannot place.
-                source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
-                val (current, today) = source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
-                val seq = maxOf(held.repairs.nextSeq(current.seq), atLeast)
-                val change = SelectionChange(current.libraries, after, seq, atMs)
-                val shared: SharedRead = { libraries, cuts -> source.sharedSnapshotsOf(account, libraries, cuts) }
-                val planned = SelectionRepair(days, library, account, held, change, shared).plan(today)
-                val repaired = SelectionRepaired(seq, planned.pins)
-                val recorded = record(account, held, repaired) { planned.into(it, current.seq, current.resetSeq) }
-                if (recorded !is RepairOutcome.Saved) return@run recorded
-                val written = service.loaded(account)?.repairs
-                var saved = false
-                var settled = Settled.Undone
-                try {
-                    // A trim while the save runs counts this seq as shown (`LineupService.saving`).
-                    service.saving(seq)
-                    saved = save(seq)
-                } finally {
-                    service.saving(null)
-                    if (!saved) settled = withContext(NonCancellable) { settle(account, held.repairs, written, seq) }
+            // Everything in the turn but the save is the repair's: what no step times is its other time.
+            clock.time(RepairPhase.Other) { changeInTurn(account, after, atMs, atLeast, clock, save) }
+        }
+
+    // [selectionChanged] in its turn.
+    @Suppress("LongParameterList") // The change, its moment and floor, the clock and the save.
+    private suspend fun changeInTurn(
+        account: LibraryAccount,
+        after: Set<ItemId>,
+        atMs: Long,
+        atLeast: Long,
+        clock: RepairClock?,
+        save: suspend (seq: Long) -> Boolean,
+    ): RepairOutcome<SelectionRepaired> =
+        run {
+            val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup
+            // With no saved selection read, the seq shown is unknown: recording would drop what it cannot place.
+            source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
+            val recorded =
+                probed(clock, source.probes) {
+                    val (current, today) =
+                        clock.time(RepairPhase.Days) {
+                            source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
+                        }
+                    val seq = maxOf(held.repairs.nextSeq(current.seq), atLeast)
+                    val change = SelectionChange(current.libraries, after, seq, atMs)
+                    val shared: SharedRead = { libraries, cuts ->
+                        source.sharedSnapshotsOf(account, libraries, cuts)
+                    }
+                    val planned = SelectionRepair(days, library, account, held, change, shared, clock).plan(today)
+                    val repaired = SelectionRepaired(seq, planned.pins)
+                    clock.time(RepairPhase.Write) {
+                        record(account, held, repaired) { planned.into(it, current.seq, current.resetSeq) }
+                    }
                 }
-                when {
-                    saved || settled == Settled.Committed -> recorded
-                    settled == Settled.UndoFailed -> RepairOutcome.UndoFailed
-                    else -> RepairOutcome.Unsaved
-                }
+            if (recorded !is RepairOutcome.Saved) return@run recorded
+            val seq = recorded.result.seq
+            val written = service.loaded(account)?.repairs
+            var saved = false
+            var settled = Settled.Undone
+            try {
+                // A trim while the save runs counts this seq as shown (`LineupService.saving`).
+                service.saving(seq)
+                saved = clock.time(RepairPhase.Save) { save(seq) }
+            } finally {
+                service.saving(null)
+                if (!saved) settled = withContext(NonCancellable) { settle(account, held.repairs, written, seq) }
+            }
+            when {
+                saved || settled == Settled.Committed -> recorded
+                settled == Settled.UndoFailed -> RepairOutcome.UndoFailed
+                else -> RepairOutcome.Unsaved
             }
         }
+
+    /**
+     * Builds today's days at [atMs] under [saved] (the saved selection, as the schedule source's provider gives it)
+     * if they are not built yet, outside the repairer's turn and without taking it, so a [selectionChanged] that
+     * follows finds them built: after an earlier selection save (an add's, say) they are not, and their build would
+     * hold the turn. Only a warm-up: it changes nothing, reads no saved selection, and a build that fails is left to
+     * the turn's own read, which meets it as it would have. With no libraries chosen there are no days to build.
+     */
+    @Suppress("TooGenericExceptionCaught") // Whatever the build throws: the turn's own read meets it again.
+    suspend fun warmDays(
+        account: LibraryAccount,
+        saved: SavedSelection,
+        atMs: Long,
+    ) {
+        refuseInTurn()
+        try {
+            // The source's own warm-up: it waits on the source's pool, not on the repairer's low-priority thread, where
+            // the wait would queue behind the day saves first.
+            source.warmDays(account, saved, Instant.fromEpochMilliseconds(atMs))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The turn reads the days again.
+        }
+    }
 
     // How a change whose save did not return true ended.
     private enum class Settled { Committed, Undone, UndoFailed }
@@ -451,6 +509,36 @@ class TodayRepairer internal constructor(
         }
     }
 }
+
+private const val NANOS_PER_MS = 1_000_000L
+
+// [block], with this thread's CPU time and the process's collections over it (read from [probes]) added to [clock]
+// when there is one.
+private inline fun <T> probed(
+    clock: RepairClock?,
+    probes: BuildProbes,
+    block: () -> T,
+): T {
+    if (clock == null) return block()
+    val cpu = probes.threadCpuNanos()
+    val count = probes.gcCount()
+    val blocked = probes.gcBlockMs()
+    try {
+        return block()
+    } finally {
+        clock.addProbes(
+            cpu = delta(cpu, probes.threadCpuNanos()).let { if (it < 0) -1 else it / NANOS_PER_MS },
+            count = delta(count, probes.gcCount()),
+            blocked = delta(blocked, probes.gcBlockMs()),
+        )
+    }
+}
+
+// A reading's change, or -1 when either end is unknown.
+private fun delta(
+    before: Long,
+    after: Long,
+): Long = if (before < 0 || after < before) -1 else after - before
 
 // Whether this is still the lineup [held] was read from: the same revision and the same selection repairs.
 private fun Revisioned.isStill(held: Revisioned): Boolean {

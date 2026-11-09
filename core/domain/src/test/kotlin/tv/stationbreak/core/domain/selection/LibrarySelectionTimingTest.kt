@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.selection
 
+import tv.stationbreak.core.domain.lineup.ACCOUNT
+import tv.stationbreak.core.domain.lineup.repair.RepairPhases
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -39,6 +43,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
 
         assertEquals(ChangeResult.Saved, tv.change(setOf(libA)))
 
+        val timing = tv.changeTimes.single()
         assertEquals(
             ChangeTiming(
                 waitMs = 0,
@@ -48,8 +53,67 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
                 cacheMs = CACHE_MS,
                 totalMs = TURN_MS + RECORD_MS + SAVE_MS + CACHE_MS,
             ),
-            tv.changeTimes.single(),
+            timing.copy(repair = RepairPhases.NONE),
         )
+        // The repair's own steps are reported too, on the same clock: the slow snapshot read is the current days'
+        // (a build, before the turn or in it) or the new selection's, and no other step took any time.
+        val phases = timing.repair
+        assertNotEquals(RepairPhases.NONE, phases)
+        assertEquals(RECORD_MS, listOf(phases.warmMs, phases.daysMs, phases.snapsMs).filter { it > 0 }.sum())
+        val others = listOf(phases.admittedMs, phases.keptMs, phases.layoutMs, phases.pinMs, phases.writeMs)
+        assertTrue(others.all { it <= 0 }, "no other step took any time: $others")
+    }
+
+    @Test
+    fun theRepairsSteps_addUpToItsRecordTime_eachCountedOnce() {
+        val tv = Tv().ready(setOf(libA, libB))
+        // Time passes in many steps, some inside others: each snapshot read (in the days' build, the new selection's
+        // reads and the removed library's), each current-row read (inside the kept windows and the tail pools) and
+        // the save, which is not the repair's.
+        tv.rig.library.afterSnapshot = { tv.ticks += SNAPSHOT_MS.milliseconds }
+        tv.rig.library.beforeCurrentIds = { tv.ticks += LIVE_MS.milliseconds }
+        tv.settings.beforeSave = { tv.ticks += SAVE_MS.milliseconds }
+
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA)))
+
+        val timing = tv.changeTimes.single()
+        val p = timing.repair
+        val steps =
+            listOf(
+                p.warmMs,
+                p.daysMs,
+                p.snapsMs,
+                p.admittedMs,
+                p.beforeMs,
+                p.keptMs,
+                p.poolsMs,
+                p.liveMs,
+                p.layoutMs,
+                p.pinMs,
+                p.writeMs,
+                p.otherMs,
+            )
+        assertTrue(p.liveMs > 0 && p.snapsMs > 0, "time passed inside the steps: $p")
+        assertEquals(timing.recordMs, steps.filter { it > 0 }.sum(), "every millisecond counted once: $p")
+    }
+
+    @Test
+    fun anUntickRightAfterAnAdd_buildsTodaysDaysBeforeTheTurn_notInIt() {
+        val tv = Tv(chosen = setOf(libA, libC)).ready(setOf(libA, libB, libC))
+        tv.rig.days()
+        // The add's save moves the saved selection, and today's days under it are not built yet (the add's own steps
+        // may build them; here they are let go, as after a lineup refresh or with the add pass still to run).
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB, libC)))
+        tv.rig.source.forget(ACCOUNT)
+        tv.rig.source.evictSnapshotsNaming(ACCOUNT, libA)
+        // Every snapshot read is slow, so a day build shows in the step that ran it.
+        tv.rig.library.afterSnapshot = { tv.ticks += SNAPSHOT_MS.milliseconds }
+
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB)))
+
+        val phases = tv.changeTimes.last().repair
+        assertEquals(0, phases.daysMs, "the turn built no day")
+        assertTrue(phases.warmMs >= SNAPSHOT_MS, "the days were built before the turn: $phases")
     }
 
     @Test
@@ -63,10 +127,45 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
 
     @Test
     fun theLine_isNumbersOnly() {
+        val phases =
+            RepairPhases(
+                warmMs = 5,
+                daysMs = 6,
+                snapsMs = 7,
+                admittedMs = 8,
+                beforeMs = 9,
+                keptMs = 10,
+                poolsMs = 11,
+                liveMs = 12,
+                layoutMs = 13,
+                pinMs = 14,
+                writeMs = 15,
+                otherMs = 19,
+                cpuMs = 16,
+                gcCount = 17,
+                gcMs = 18,
+            )
         val line =
-            ChangeTiming(waitMs = 1, turnWaitMs = 2, recordMs = 3, saveMs = 4, cacheMs = 5, totalMs = 15).line()
+            ChangeTiming(waitMs = 1, turnWaitMs = 2, recordMs = 3, saveMs = 4, cacheMs = 5, totalMs = 15, phases)
+                .line()
 
-        assertEquals("SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15", line)
+        assertEquals(
+            "SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15 warm=5 days=6 snaps=7 " +
+                "admitted=8 before=9 kept=10 pools=11 live=12 layout=13 pin=14 write=15 other=19 cpu=16 gc=17 gcMs=18",
+            line,
+        )
+    }
+
+    @Test
+    fun aChangeWithNoRepair_saysSo_withMinusOnes() {
+        val line = ChangeTiming(0, 0, 0, 0, 0, 0).line()
+
+        assertEquals(
+            "SelectionChangeTook wait=0 turnWait=0 record=0 save=0 cache=0 total=0 warm=-1 days=-1 snaps=-1 " +
+                "admitted=-1 before=-1 kept=-1 pools=-1 live=-1 layout=-1 pin=-1 write=-1 other=-1 cpu=-1 gc=-1 " +
+                "gcMs=-1",
+            line,
+        )
     }
 
     private companion object {
@@ -74,5 +173,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
         const val RECORD_MS = 400L
         const val SAVE_MS = 150L
         const val CACHE_MS = 250L
+        const val SNAPSHOT_MS = 100L
+        const val LIVE_MS = 7L
     }
 }
