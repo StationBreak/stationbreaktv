@@ -57,9 +57,11 @@ import tv.stationbreak.feature.guide.ui.mark.MarkCaches
  * the info overlay when one is open and is otherwise left to the activity, which leaves live TV. Select on the Channels
  * button above the grid shows [channels] over the guide (channel management, which `app` hands in); the guide's own
  * keys and Back stand down while it shows. Left from a row's first cell moves the focus to its channel; Select there
- * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way.
+ * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way. Select on
+ * Libraries in the Settings panel shows [libraries] the same way; Back from it returns to the panel, and Back from the
+ * panel closes it.
  */
-@Suppress("LongParameterList") // The guide's own four, its two slots, and the modifier.
+@Suppress("LongParameterList") // The guide's own four, its three slots, and the modifier.
 @Composable
 fun GuideDestination(
     opening: GuideOpening,
@@ -67,6 +69,7 @@ fun GuideDestination(
     onTune: (ChannelId) -> Unit,
     channels: ChannelsSlot,
     properties: PropertiesSlot,
+    libraries: LibrariesSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
@@ -87,6 +90,7 @@ fun GuideDestination(
             theme,
             themes::choose,
             properties,
+            libraries,
         )
     }
 }
@@ -120,6 +124,13 @@ typealias PropertiesSlot =
     ) -> Unit
 
 /**
+ * Settings, Libraries (spec 26) as the guide draws it, over itself: the picture's hole and a way to finish. [onDone] is
+ * called once per showing, when the viewer is done (Back); the guide stops drawing the slot then and shows its Settings
+ * panel again, on Libraries. A slot for the same reason as [ChannelsSlot].
+ */
+typealias LibrariesSlot = @Composable (pictureHole: DpRect, onDone: () -> Unit) -> Unit
+
+/**
  * [GuideDestination] without Hilt, so a test can bring its own ViewModel.
  *
  * [openedAtNanos] has no default on purpose: it keys the session, and a default expression such as
@@ -139,6 +150,7 @@ internal fun GuideRoot(
     theme: GuideTheme = GuideTheme.Dark,
     onTheme: (GuideTheme) -> Unit = {},
     properties: PropertiesSlot = NoProperties,
+    libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -188,11 +200,15 @@ internal fun GuideRoot(
     // The channel whose properties sheet shows over the guide (#631), and the showing's own value for the slot.
     var propertiesOf by remember(viewModel, openedAtNanos) { mutableStateOf<ChannelId?>(null) }
     var propertiesSince by remember(viewModel, openedAtNanos) { mutableLongStateOf(NOT_MANAGING) }
-    // Either screen over the guide has the keys; only channel management hides the guide, the sheet is over it.
-    val covered = managing || propertiesOf != null
+    // The Settings panel while it is open (null when closed), with the Libraries screen shown over the guide from it.
+    var settings by remember(viewModel, openedAtNanos) { mutableStateOf<SettingsPanel?>(null) }
+    val librariesShown = settings?.librariesShown == true
+    // Any screen over the guide has the keys, and the guide stays composed under it. Channel management and Settings,
+    // Libraries hide the guide; the properties sheet is drawn over it.
+    val covered = managing || propertiesOf != null || librariesShown
+    val hidden = managing || librariesShown
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val leave by rememberUpdatedState { backs?.onBackPressed() }
-    var settingsOpen by remember(viewModel, openedAtNanos) { mutableStateOf(false) }
     var themeChoice by remember { mutableStateOf(theme) }
     LaunchedEffect(theme) { themeChoice = theme }
     val chooseTheme = rememberUpdatedState(onTheme)
@@ -206,11 +222,11 @@ internal fun GuideRoot(
                     viewModel.channelsOpened()
                     managingSince = System.nanoTime().coerceAtLeast(1L)
                 },
-                openSettings = { settingsOpen = true },
+                openSettings = { settings = SettingsPanel() },
                 openProperties = {
-                    // Only one screen is over the guide at a time: an open while one shows is ignored. Both are read
+                    // Only one screen is over the guide at a time: an open while one shows is ignored. All are read
                     // as they stand now, not as this composition saw them, so a second OK in a frame is ignored too.
-                    if (managingSince == NOT_MANAGING && propertiesOf == null) {
+                    if (managingSince == NOT_MANAGING && propertiesOf == null && settings?.librariesShown != true) {
                         viewModel.channelsOpened()
                         propertiesSince = System.nanoTime().coerceAtLeast(1L)
                         propertiesOf = it
@@ -220,12 +236,13 @@ internal fun GuideRoot(
         }
     }
     val info by viewModel.info.collectAsStateWithLifecycle()
+    val selection by viewModel.selection.collectAsStateWithLifecycle()
     // Back over the info overlay closes it; with none open, Back walks the focus outwards (to what is playing, then to
     // the menu row), and from the menu row it is the activity's and leaves live TV. While channel management shows, it
     // is the screen's.
     BackHandler(enabled = info != null && !covered) { viewModel.closeInfo() }
     val keys = remember { FocusRequester() }
-    // The guide takes the key focus when it shows, and takes it back when channel management has gone.
+    // The guide takes the key focus when it shows, and takes it back when the screen that covered it has gone.
     LaunchedEffect(keys, covered) { if (!covered) keys.requestFocus() }
     val back: (() -> Unit)? =
         remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.back()) d.onBackPressed() } } }
@@ -237,28 +254,26 @@ internal fun GuideRoot(
             info = info,
             current = current,
             pictureHole = pictureHole,
-            themeOpen = settingsOpen,
+            settings = settings,
             themeChoice = themeChoice,
+            noLibraries = selection?.gone == true,
             modifier =
                 Modifier
                     // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
-                    .graphicsLayer { alpha = if (managing) 0f else 1f }
+                    .graphicsLayer { alpha = if (hidden) 0f else 1f }
                     .then(if (covered) Modifier.clearAndSetSemantics {} else Modifier)
                     .focusRequester(keys)
                     .onKeyEvent {
                         guideRootKey(
                             it,
                             managing = covered,
-                            settingsOpen = settingsOpen,
-                            settings = { event ->
-                                settingsKey(
-                                    event,
-                                    onChoice = { next ->
-                                        themeChoice = next
-                                        chooseTheme.value(next)
-                                    },
-                                    onClose = { settingsOpen = false },
-                                )
+                            settings = settings,
+                            onSettings = { step ->
+                                step.theme?.let { next ->
+                                    themeChoice = next
+                                    chooseTheme.value(next)
+                                }
+                                settings = step.panel
                             },
                             grid = { event -> guideKey(event, move, viewModel::select, back) },
                         )
@@ -280,10 +295,21 @@ internal fun GuideRoot(
                 viewModel.overlayDone(tuneTo, viewModel::propertiesClosed, tune)
             }
         }
+        if (librariesShown) {
+            libraries(pictureHole) {
+                // As for channel management: the key focus comes back first, then the slot goes, and the panel is
+                // left open on Libraries.
+                runCatching { keys.requestFocus() }
+                settings = settings?.librariesDone()
+            }
+        }
     }
 }
 
 private const val NOT_MANAGING = 0L
+
+/** A slot that draws nothing, for a test that never opens Settings, Libraries. */
+private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, _ -> }
 
 /** What a one-off guide event asks the screen to do. Exit takes the way Back takes from the menu row. */
 @Suppress("LongParameterList") // One callback for each thing an event asks.
@@ -304,39 +330,28 @@ private fun handleGuideEvent(
     }
 }
 
-/** Keys for the guide: the slot has them while it shows, Settings has them while its choice is open. */
+/** Keys for the guide: the slot has them while it shows, the Settings panel has them while it is open. */
 private fun guideRootKey(
     event: KeyEvent,
     managing: Boolean,
-    settingsOpen: Boolean,
-    settings: (KeyEvent) -> Boolean,
+    settings: SettingsPanel?,
+    onSettings: (SettingsStep) -> Unit,
     grid: (KeyEvent) -> Boolean,
 ): Boolean =
     when {
-        managing -> true
-        settingsOpen -> settings(event)
-        else -> grid(event)
-    }
+        managing -> {
+            true
+        }
 
-/** Keys while Dark and Light are open: they move the choice, and Back or Select closes it. The grid does not move. */
-private fun settingsKey(
-    event: KeyEvent,
-    onChoice: (GuideTheme) -> Unit,
-    onClose: () -> Unit,
-): Boolean {
-    val direction = directionOf(event.key)
-    val handled = event.key == Key.Back || direction != null || event.key in SELECT_KEYS
-    if (!handled) return false
-    val down = event.type == KeyEventType.KeyDown
-    when {
-        event.key == Key.Back -> if (event.type == KeyEventType.KeyUp) onClose()
-        !down -> Unit
-        direction == GuideDirection.Left || direction == GuideDirection.Up -> onChoice(GuideTheme.Dark)
-        direction == GuideDirection.Right || direction == GuideDirection.Down -> onChoice(GuideTheme.Light)
-        event.key in SELECT_KEYS && event.nativeKeyEvent.repeatCount == 0 -> onClose()
+        settings != null -> {
+            settingsStep(settings, event.key, event.type, event.nativeKeyEvent.repeatCount)
+                ?.also(onSettings) != null
+        }
+
+        else -> {
+            grid(event)
+        }
     }
-    return true
-}
 
 /**
  * The guide's keys, all consumed so the focus never leaves the grid: the D-pad moves the focus (auto-repeat included,
@@ -378,9 +393,9 @@ internal fun guideKey(
     return handled
 }
 
-private val SELECT_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
+internal val SELECT_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
 
-private fun directionOf(key: Key): GuideDirection? =
+internal fun directionOf(key: Key): GuideDirection? =
     when (key) {
         Key.DirectionUp -> GuideDirection.Up
         Key.DirectionDown -> GuideDirection.Down

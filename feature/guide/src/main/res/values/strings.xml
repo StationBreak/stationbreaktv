@@ -9,6 +9,8 @@
     <!-- While the schedule is being built, and when there is nothing to show. -->
     <string name="guide_loading">Loading the guide…</string>
     <string name="guide_empty">Nothing on the guide yet</string>
+    <!-- placeholder: design partner. Every library this TV chose is gone from the server (spec 26). -->
+    <string name="guide_no_libraries">None of this TV\'s libraries are available. Choose them in Settings, Libraries.</string>
 
     <!-- The hint row: a key name, then what it does. OK tunes what is on now and opens the info of a later program. -->
     <string name="guide_key_ok">OK</string>
@@ -35,6 +37,8 @@
     <string name="guide_settings_appearance">Appearance</string>
     <string name="guide_theme_dark">Dark</string>
     <string name="guide_theme_light">Light</string>
+    <!-- placeholder: design partner. The Settings panel's row that opens Settings, Libraries (spec 26). -->
+    <string name="guide_settings_libraries">Libraries</string>
     <string name="guide_exit_button">Exit</string>
 
     <!-- The chip in front of the slot of a program on now. -->

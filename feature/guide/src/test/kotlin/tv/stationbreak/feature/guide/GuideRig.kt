@@ -31,6 +31,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
+import tv.stationbreak.core.domain.selection.FakeLibraryChoices
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.SecretAccess
@@ -107,6 +108,9 @@ open class GuideRig {
     internal val sessions = SessionRepository(InMemorySecretStore(), server)
     internal val lineupList = FakeChannels()
 
+    /** The stored library selection the guide reads (spec 26); none stored by default. */
+    internal val choices = FakeLibraryChoices(null)
+
     // Channel 7 airs half-hour programs, channel 5 hour-long ones, channel 9 a long program, a slate, then more.
     internal fun lineup(
         untilMin: Long = 600,
@@ -166,7 +170,7 @@ open class GuideRig {
         sessions.save(Session(UserId("u1"), AccessToken("fake-token-0123"), info, address, null, true))
         val dispatcher = StandardTestDispatcher(testScheduler)
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob() + dispatcher))
-        return GuideViewModel(schedule, cache, clock(startMin), dispatcher, lineupList)
+        return GuideViewModel(schedule, cache, clock(startMin), dispatcher, lineupList, selection = choices.selection)
     }
 
     /** Runs [body] with a guide whose clock reads [startMin] minutes into the test day, and stops it after. */

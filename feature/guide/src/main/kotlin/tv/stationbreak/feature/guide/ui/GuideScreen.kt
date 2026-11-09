@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -147,9 +148,10 @@ internal fun GuideScreen(
     info: CellDetails?,
     current: ChannelId?,
     pictureHole: DpRect,
-    themeOpen: Boolean = false,
+    settings: SettingsPanel? = null,
     themeChoice: GuideTheme = GuideTheme.Dark,
     modifier: Modifier = Modifier,
+    noLibraries: Boolean = false,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
@@ -196,13 +198,19 @@ internal fun GuideScreen(
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 when {
                     info != null -> Spacer(panelSize)
-                    themeOpen -> GuideThemePanel(themeChoice, panelSize)
+                    settings != null -> GuideSettingsPanel(themeChoice, settings.row, panelSize)
                     onChannel -> ChannelPanel(snapshotOf, panelSize)
                     else -> DetailsPanel(panel, nowOf, panelSize)
                 }
                 GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))
-                GuideBody(stateOf, current, geometry, GridReaders(focusOf, viewportOf, nowOf, channelFocusOf))
+                GuideBody(
+                    stateOf,
+                    current,
+                    geometry,
+                    GridReaders(focusOf, viewportOf, nowOf, channelFocusOf),
+                    noLibraries,
+                )
                 Spacer(Modifier.height(HintGap))
                 HintRow(snapshotOf, current)
             }
@@ -274,25 +282,24 @@ private fun GuideBody(
     current: ChannelId?,
     geometry: GuideGeometry,
     readers: GridReaders,
+    noLibraries: Boolean,
 ) {
     val frame by remember(stateOf) { derivedStateOf(SameGridFrame, stateOf) }
     LocalBodyComposed.current?.invoke()
     val height = ClockHeight + RowHeight * GUIDE_VISIBLE_ROWS
-    when (val state = frame) {
+    val state = frame
+    val message = guideMessageOf(state, noLibraries)
+    when {
+        message != null -> {
+            Message(message.text, message.tag, height)
+        }
+
         // An open on its way: nothing yet, so a quick open never flashes a loading line (a slow one says Loading).
-        GuideState.Closed -> {
+        state !is GuideState.Ready -> {
             Spacer(Modifier.height(height))
         }
 
-        GuideState.Loading -> {
-            Message(R.string.guide_loading, GuideTags.LOADING, height)
-        }
-
-        GuideState.Empty -> {
-            Message(R.string.guide_empty, GuideTags.EMPTY, height)
-        }
-
-        is GuideState.Ready -> {
+        else -> {
             GuideGrid(
                 state.model,
                 state.firstVisibleRow,
@@ -307,6 +314,34 @@ private fun GuideBody(
         }
     }
 }
+
+/** A line that stands where the grid goes: its copy and its test tag. */
+internal enum class GuideMessage(
+    @StringRes val text: Int,
+    val tag: String,
+) {
+    Loading(R.string.guide_loading, GuideTags.LOADING),
+    Empty(R.string.guide_empty, GuideTags.EMPTY),
+
+    /** None of this TV's libraries is available (spec 26). */
+    NoLibraries(R.string.guide_no_libraries, GuideTags.NO_LIBRARIES),
+}
+
+/**
+ * The line that stands where the grid goes, or null when the grid (or nothing yet) is drawn: no libraries (spec 26)
+ * whatever the schedule still holds, once the guide is open; else Loading or Empty as they are.
+ */
+internal fun guideMessageOf(
+    state: GuideState,
+    noLibraries: Boolean,
+): GuideMessage? =
+    when {
+        state == GuideState.Closed -> null
+        noLibraries -> GuideMessage.NoLibraries
+        state == GuideState.Loading -> GuideMessage.Loading
+        state == GuideState.Empty -> GuideMessage.Empty
+        else -> null
+    }
 
 /** A still line where the grid goes: no spinner, an animation costs frames on the older TV. */
 @Composable
