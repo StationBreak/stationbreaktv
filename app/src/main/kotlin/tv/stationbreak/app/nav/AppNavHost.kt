@@ -11,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.channels.ui.ChannelPropertiesDestination
 import tv.stationbreak.feature.channels.ui.ChannelsDestination
 import tv.stationbreak.feature.guide.ui.GuideDestination
 import tv.stationbreak.feature.live.ui.LiveDestination
@@ -109,8 +110,8 @@ internal fun AppNavGraph(
 }
 
 /**
- * The guide, with channel management as its slot too (spec 21), filled here for the same reason: a feature never
- * depends on another.
+ * The guide, with channel management (spec 21) and a channel's properties sheet (#631) as its slots, filled here
+ * because a feature never depends on another.
  */
 @Composable
 private fun GuideWithChannels(
@@ -123,6 +124,9 @@ private fun GuideWithChannels(
         pictureHole,
         onTune,
         channels = { channel, opened, hole, onDone -> ChannelsDestination(channel, opened, hole, onDone) },
+        properties = { channel, current, opened, hole, onDone ->
+            ChannelPropertiesDestination(channel, current, opened, hole, onDone)
+        },
     )
 }
 

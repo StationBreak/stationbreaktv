@@ -204,11 +204,26 @@ internal class GuideViewModel
             synchronized(lock) {
                 val current = shownSnapshot.value
                 if (shownInfo.value != null) return
-                if (current.menu != null) {
-                    moveOnMenu(current, current.menu, direction)
-                } else {
-                    moveOnGrid(current, direction, repeat, atMs)
+                when {
+                    current.menu != null -> moveOnMenu(current, current.menu, direction)
+                    current.onChannel -> moveOnChannel(current, direction, repeat, atMs)
+                    else -> moveOnGrid(current, direction, repeat, atMs)
                 }
+            }
+        }
+
+        // On the channel column Up and Down move between the channels, staying on the column (the grid's own wrap and
+        // held-key wait); Right goes back to the row's cell; Left has nowhere to go.
+        private fun moveOnChannel(
+            current: GuideSnapshot,
+            direction: GuideDirection,
+            repeat: Boolean,
+            atMs: Long,
+        ) {
+            when (direction) {
+                GuideDirection.Right -> shownSnapshot.value = current.copy(onChannel = false)
+                GuideDirection.Left -> Unit
+                GuideDirection.Up, GuideDirection.Down -> moveOnGrid(current, direction, repeat, atMs)
             }
         }
 
@@ -261,7 +276,11 @@ internal class GuideViewModel
         ) {
             val ready = current.state as? GuideState.Ready
             val from = current.focus
-            if (from != null && ready != null) {
+            if (from == null || ready == null) return
+            if (direction == GuideDirection.Left && ready.model.isEarliestCell(from)) {
+                // Where Left used to do nothing: onto the channel column, which names this row.
+                shownSnapshot.value = current.copy(onChannel = true)
+            } else {
                 val to = ready.model.move(from, direction, ready.nowMs)
                 val wraps = ready.model.wrapped(from, to, direction)
                 if (wrapHold.allows(wraps, repeat, atMs)) step(ready, from, to, direction)
@@ -309,14 +328,24 @@ internal class GuideViewModel
                 val located = current.focus?.let { ready?.model?.indexOf(it) }
                 if (ready == null || located == null || shownInfo.value != null) return
                 val row = ready.model.rows[located.first]
-                val cell = row.cells[located.second]
-                // The moment the grid shows, as the hint does: what OK does must be what the hint said.
-                val now = ready.nowMs
-                when {
-                    cell.startMs <= now && now < cell.endMs -> eventChannel.trySend(GuideEvent.Tune(row.channel))
-                    cell.kind != CellKind.Program -> Unit
-                    else -> openInfo(row, cell)
+                if (current.onChannel) {
+                    eventChannel.trySend(GuideEvent.OpenChannelProperties(row.channel))
+                } else {
+                    selectCell(row, row.cells[located.second], ready.nowMs)
                 }
+            }
+        }
+
+        // The moment the grid shows, as the hint does: what OK does must be what the hint said. Under the lock.
+        private fun selectCell(
+            row: GuideRow,
+            cell: GuideCell,
+            now: Long,
+        ) {
+            when {
+                cell.startMs <= now && now < cell.endMs -> eventChannel.trySend(GuideEvent.Tune(row.channel))
+                cell.kind != CellKind.Program -> Unit
+                else -> openInfo(row, cell)
             }
         }
 
@@ -338,6 +367,12 @@ internal class GuideViewModel
                 when {
                     shownInfo.value != null || current.menu != null || !showsMenu -> {
                         false
+                    }
+
+                    // From the channel column back to the row's cell, as Right does.
+                    current.onChannel -> {
+                        shownSnapshot.value = current.copy(onChannel = false)
+                        true
                     }
 
                     ready != null && target != null && focus != null && !focus.sameCellAs(target) -> {
@@ -439,6 +474,21 @@ internal class GuideViewModel
             }
         }
 
+        /**
+         * A channel's properties sheet closed without tuning: the guide shows again as it was, on the channel column.
+         * Like [channelsClosed], a lineup that changed meanwhile loads the grid again; the focus stays where it is.
+         */
+        fun propertiesClosed() {
+            synchronized(lock) {
+                managing = false
+                if (lineupAtOpen != null && lineupNow != lineupAtOpen) {
+                    reload(menu = shownSnapshot.value.menu)
+                } else {
+                    resumeTick()
+                }
+            }
+        }
+
         /** Channel management ended with a tune: the guide goes with it. */
         fun channelsEnded() {
             synchronized(lock) {
@@ -528,7 +578,7 @@ internal class GuideViewModel
         private fun snapshotOf(
             state: GuideState,
             focus: GuideFocus?,
-        ) = GuideSnapshot(state, focus, shownSnapshot.value.menu)
+        ) = shownSnapshot.value.let { GuideSnapshot(state, focus, it.menu, it.onChannel && focus != null) }
 
         private fun publishIfCurrent(
             s: CoroutineScope,
@@ -855,7 +905,9 @@ internal class GuideViewModel
             val located = focus?.let { ready.model.indexOf(it) }
             check(focus == null || located != null) { "The focus is not in the model it is published with" }
             val before = shownSnapshot.value.focus
-            shownSnapshot.value = GuideSnapshot(ready, focus, menu)
+            // The channel column keeps the focus across a move of rows or a rebuild, never together with the menu.
+            val onChannel = shownSnapshot.value.onChannel && menu == null && focus != null
+            shownSnapshot.value = GuideSnapshot(ready, focus, menu, onChannel)
             follow(ready.model, before, focus, located)
         }
 

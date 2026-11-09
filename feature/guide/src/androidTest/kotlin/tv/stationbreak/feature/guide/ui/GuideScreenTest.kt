@@ -17,6 +17,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -167,6 +169,10 @@ class GuideScreenTest {
 
     private fun min(m: Long) = T0 + m * MIN
 
+    // The finish of the properties slot a test has shown (#631), once it is composed.
+    @Volatile
+    private var propertiesDone: ((ChannelId?) -> Unit)? = null
+
     /** Channel 3 has a 5-minute program (a compact cell), 5 and 7 half hours and hours, 9 a slate after 2.5 hours. */
     private fun lineup() {
         fake.channel(ch3, 3, listOf(program(0, 70, 400), program(70, 75, 401), program(75, 600, 402)))
@@ -213,6 +219,10 @@ class GuideScreenTest {
                                 onTune = { tuned += it },
                                 channels = { _, _, _, _ -> },
                                 measure = measure,
+                                properties = { channel, _, _, _, onDone ->
+                                    LaunchedEffect(channel) { propertiesDone = onDone }
+                                    Box(Modifier.testTag("$PROPERTIES_SLOT${channel.value}"))
+                                },
                             )
                         }
                     }
@@ -277,6 +287,39 @@ class GuideScreenTest {
         cell(CH5, 60).assertContentDescriptionContains("Test Movie 201, ", substring = true)
         cell(CH5, 60).assertContentDescriptionContains(", on now", substring = true)
         assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
+    }
+
+    @Test
+    fun leftFromTheEarliestCellFocusesTheChannelAndRightReturns() {
+        showReady(CH5)
+        press(Key.DirectionLeft)
+        compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertExists()
+        assertEquals("Test Channel 5", text(GuideTags.CHANNEL_PANEL_NAME))
+        // No cell is drawn focused, and the hint says what OK and the way back do.
+        cell(CH5, 60).assertIsNotSelected()
+        assertTrue(text(GuideTags.HINT).contains("About this channel"))
+        assertTrue(text(GuideTags.HINT).contains("Back to programs"))
+        press(Key.DirectionRight)
+        compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertDoesNotExist()
+        cell(CH5, 60).assertIsSelected()
+        assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
+    }
+
+    @Test
+    fun selectOnTheChannelShowsThePropertiesSlotAndItsFinishReturnsToTheChannel() {
+        showReady(CH5)
+        press(Key.DirectionLeft)
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        compose.waitUntil(TIMEOUT_MS) { propertiesDone != null }
+        compose.onNodeWithTag("$PROPERTIES_SLOT${CH7.value}").assertExists()
+        assertTrue("Select on the channel does not tune", tuned.isEmpty())
+        // The sheet is over the guide, which keeps its place and takes its keys back when the slot finishes.
+        compose.runOnUiThread { propertiesDone?.invoke(null) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("$PROPERTIES_SLOT${CH7.value}").assertDoesNotExist()
+        compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertExists()
+        assertEquals("Test Channel 7", text(GuideTags.CHANNEL_PANEL_NAME))
     }
 
     @Test
@@ -978,6 +1021,7 @@ class GuideScreenTest {
         // Where live TV lays its picture on that screen, as it tells the guide.
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)))
         const val TIMEOUT_MS = 5_000L
+        const val PROPERTIES_SLOT = "test:properties:"
         const val PRESS_MS = 50L
         const val BODY = "body"
         const val LOG_TAG = "GuideScreenTest"

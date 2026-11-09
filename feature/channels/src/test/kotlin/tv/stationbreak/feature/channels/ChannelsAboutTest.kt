@@ -101,6 +101,24 @@ class ChannelsAboutTest {
         }
 
     @Test
+    fun overTheGuideTheKeysDoNothingUntilTheSheetIsUpAndBackThenEndsTheScreenAtOnce() =
+        channelsTest(trio) { rig ->
+            var done = 0
+            val keys = ChannelsActions(rig.vm, sheetOnly = true) { done++ }
+            rig.open(this, current = A)
+
+            // The list is not drawn, so a key must not act on its row.
+            keys.pad(Pad.Select)
+            keys.pad(Pad.Down)
+            assertNull(rig.ui.panel)
+            assertEquals(0, done)
+
+            rig.vm.openAbout(B)
+            keys.pad(Pad.Back)
+            assertEquals("Back ends the screen, there is no list to go back to", 1, done)
+        }
+
+    @Test
     fun anActionOnTheSheetKeepsItOpenAndReadsTheChannelAgain() =
         channelsTest(trio) { rig ->
             sheetOn(rig)

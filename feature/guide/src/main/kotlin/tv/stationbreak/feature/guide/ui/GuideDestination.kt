@@ -56,14 +56,17 @@ import tv.stationbreak.feature.guide.ui.mark.MarkCaches
  * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back closes
  * the info overlay when one is open and is otherwise left to the activity, which leaves live TV. Select on the Channels
  * button above the grid shows [channels] over the guide (channel management, which `app` hands in); the guide's own
- * keys and Back stand down while it shows.
+ * keys and Back stand down while it shows. Left from a row's first cell moves the focus to its channel; Select there
+ * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way.
  */
+@Suppress("LongParameterList") // The guide's own four, its two slots, and the modifier.
 @Composable
 fun GuideDestination(
     opening: GuideOpening,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
     channels: ChannelsSlot,
+    properties: PropertiesSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
@@ -83,6 +86,7 @@ fun GuideDestination(
             viewModel.measure,
             theme,
             themes::choose,
+            properties,
         )
     }
 }
@@ -94,6 +98,21 @@ fun GuideDestination(
  */
 typealias ChannelsSlot =
     @Composable (
+        current: ChannelId?,
+        openedAtNanos: Long,
+        pictureHole: DpRect,
+        onDone: (tune: ChannelId?) -> Unit,
+    ) -> Unit
+
+/**
+ * A channel's properties sheet (#631) as the guide draws it, over itself: the [channel], what is playing
+ * ([current]), the picture's hole, and a way to finish. [onDone] is called once per showing, with the channel to tune
+ * (Watch on the sheet) or null for Back; the guide stops drawing the slot then, and returns to the channel column. A
+ * slot, like [ChannelsSlot], because a feature never depends on another.
+ */
+typealias PropertiesSlot =
+    @Composable (
+        channel: ChannelId,
         current: ChannelId?,
         openedAtNanos: Long,
         pictureHole: DpRect,
@@ -119,6 +138,7 @@ internal fun GuideRoot(
     measure: Boolean = false,
     theme: GuideTheme = GuideTheme.Dark,
     onTheme: (GuideTheme) -> Unit = {},
+    properties: PropertiesSlot = NoProperties,
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -165,6 +185,11 @@ internal fun GuideRoot(
     // showing. It starts over with each showing of the guide.
     var managingSince by remember(viewModel, openedAtNanos) { mutableLongStateOf(NOT_MANAGING) }
     val managing = managingSince != NOT_MANAGING
+    // The channel whose properties sheet shows over the guide (#631), and the showing's own value for the slot.
+    var propertiesOf by remember(viewModel, openedAtNanos) { mutableStateOf<ChannelId?>(null) }
+    var propertiesSince by remember(viewModel, openedAtNanos) { mutableLongStateOf(NOT_MANAGING) }
+    // Either screen over the guide has the keys; only channel management hides the guide, the sheet is over it.
+    val covered = managing || propertiesOf != null
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val leave by rememberUpdatedState { backs?.onBackPressed() }
     var settingsOpen by remember(viewModel, openedAtNanos) { mutableStateOf(false) }
@@ -182,6 +207,15 @@ internal fun GuideRoot(
                     managingSince = System.nanoTime().coerceAtLeast(1L)
                 },
                 openSettings = { settingsOpen = true },
+                openProperties = {
+                    // Only one screen is over the guide at a time: an open while one shows is ignored. Both are read
+                    // as they stand now, not as this composition saw them, so a second OK in a frame is ignored too.
+                    if (managingSince == NOT_MANAGING && propertiesOf == null) {
+                        viewModel.channelsOpened()
+                        propertiesSince = System.nanoTime().coerceAtLeast(1L)
+                        propertiesOf = it
+                    }
+                },
             )
         }
     }
@@ -189,10 +223,10 @@ internal fun GuideRoot(
     // Back over the info overlay closes it; with none open, Back walks the focus outwards (to what is playing, then to
     // the menu row), and from the menu row it is the activity's and leaves live TV. While channel management shows, it
     // is the screen's.
-    BackHandler(enabled = info != null && !managing) { viewModel.closeInfo() }
+    BackHandler(enabled = info != null && !covered) { viewModel.closeInfo() }
     val keys = remember { FocusRequester() }
     // The guide takes the key focus when it shows, and takes it back when channel management has gone.
-    LaunchedEffect(keys, managing) { if (!managing) keys.requestFocus() }
+    LaunchedEffect(keys, covered) { if (!covered) keys.requestFocus() }
     val back: (() -> Unit)? =
         remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.back()) d.onBackPressed() } } }
     val move = remember(viewModel) { viewModel.tracedMove() }
@@ -209,12 +243,12 @@ internal fun GuideRoot(
                 Modifier
                     // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
                     .graphicsLayer { alpha = if (managing) 0f else 1f }
-                    .then(if (managing) Modifier.clearAndSetSemantics {} else Modifier)
+                    .then(if (covered) Modifier.clearAndSetSemantics {} else Modifier)
                     .focusRequester(keys)
                     .onKeyEvent {
                         guideRootKey(
                             it,
-                            managing = managing,
+                            managing = covered,
                             settingsOpen = settingsOpen,
                             settings = { event ->
                                 settingsKey(
@@ -236,12 +270,14 @@ internal fun GuideRoot(
                 // after onDone.
                 runCatching { keys.requestFocus() }
                 managingSince = NOT_MANAGING
-                if (tuneTo == null) {
-                    viewModel.channelsClosed()
-                } else {
-                    viewModel.channelsEnded()
-                    tune(tuneTo)
-                }
+                viewModel.overlayDone(tuneTo, viewModel::channelsClosed, tune)
+            }
+        }
+        propertiesOf?.let { channel ->
+            properties(channel, current, propertiesSince, pictureHole) { tuneTo ->
+                runCatching { keys.requestFocus() }
+                propertiesOf = null
+                viewModel.overlayDone(tuneTo, viewModel::propertiesClosed, tune)
             }
         }
     }
@@ -250,18 +286,21 @@ internal fun GuideRoot(
 private const val NOT_MANAGING = 0L
 
 /** What a one-off guide event asks the screen to do. Exit takes the way Back takes from the menu row. */
+@Suppress("LongParameterList") // One callback for each thing an event asks.
 private fun handleGuideEvent(
     event: GuideEvent,
     tune: (ChannelId) -> Unit,
     leave: () -> Unit,
     openChannels: () -> Unit,
     openSettings: () -> Unit,
+    openProperties: (ChannelId) -> Unit,
 ) {
     when (event) {
         is GuideEvent.Tune -> tune(event.channel)
         GuideEvent.Exit -> leave()
         GuideEvent.OpenChannels -> openChannels()
         GuideEvent.OpenSettings -> openSettings()
+        is GuideEvent.OpenChannelProperties -> openProperties(event.channel)
     }
 }
 
@@ -353,3 +392,20 @@ private fun directionOf(key: Key): GuideDirection? =
 // A move, inside its trace section ("guide move"): the step and its publish.
 private fun GuideViewModel.tracedMove(): (GuideDirection, Boolean, Long) -> Unit =
     { direction, repeat, atMs -> traced(TRACE_MOVE) { move(direction, repeat, atMs) } }
+
+/** A properties slot with nothing to show: it finishes at once, so a guide given none is never left covered. */
+private val NoProperties: PropertiesSlot = { _, _, _, _, onDone -> LaunchedEffect(Unit) { onDone(null) } }
+
+// A screen over the guide finished: back to the guide ([closed]) or, with a channel to tune, the guide goes with it.
+private fun GuideViewModel.overlayDone(
+    tuneTo: ChannelId?,
+    closed: () -> Unit,
+    tune: (ChannelId) -> Unit,
+) {
+    if (tuneTo == null) {
+        closed()
+    } else {
+        channelsEnded()
+        tune(tuneTo)
+    }
+}

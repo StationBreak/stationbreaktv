@@ -26,10 +26,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -68,6 +71,8 @@ private val NumberWidth = 22.dp
 private val NumberGap = 8.dp
 private val ColumnEnd = 4.dp
 private val LabelGap = 6.dp
+private val OutlineWidth = 2.dp
+private val OutlineRadius = 3.dp
 private const val MARK_LOOKAHEAD = 2
 
 /**
@@ -86,6 +91,7 @@ internal fun GuideGrid(
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
+    channelFocusOf: () -> ChannelId?,
     modifier: Modifier = Modifier,
 ) {
     val last = minOf(firstVisibleRow + GUIDE_VISIBLE_ROWS, model.rows.size)
@@ -112,7 +118,7 @@ internal fun GuideGrid(
                     val row = model.rows[index]
                     key(row.channel) {
                         Row(Modifier.height(RowHeight)) {
-                            ChannelCell(row, playing = row.channel == current)
+                            ChannelCell(row, playing = row.channel == current, channelFocusOf)
                             GuideRowCells(
                                 row.channel,
                                 row.cells,
@@ -172,18 +178,21 @@ private fun GuideRowCells(
 /**
  * The channel column: the number, right-aligned, then the mark in a 50 by 28 dp box. The channel's name is not drawn
  * here: the details panel has it. The channel playing is told by its number in the primary colour, not by an accent.
- * Nothing is drawn behind it, and it reads no focus, so a focus move does not recompose this cell.
+ * Nothing is drawn behind it. While the focus is on the channel column (#631) the focused row's cell has a 2 dp accent
+ * outline, inside its bounds; that is read in the draw phase only, so a focus move does not recompose this cell.
  */
 @Composable
 private fun ChannelCell(
     row: GuideRow,
     playing: Boolean,
+    channelFocusOf: () -> ChannelId?,
 ) {
     val colors = LocalGuideColors.current
     Row(
         Modifier
             .width(ChannelColumnWidth)
             .fillMaxHeight()
+            .channelOutline(colors.accent) { channelFocusOf() == row.channel }
             .padding(end = ColumnEnd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -201,6 +210,25 @@ private fun ChannelCell(
         ChannelMark(row.markKey, row.initials, Modifier.testTag(GuideTags.channelMark(row.channel)))
     }
 }
+
+/** A [OutlineWidth] outline of [color] inside the bounds, drawn only while [focused] says so (read when drawing). */
+private fun Modifier.channelOutline(
+    color: Color,
+    focused: () -> Boolean,
+): Modifier =
+    drawWithContent {
+        drawContent()
+        if (focused()) {
+            val half = OutlineWidth.toPx() / 2
+            drawRoundRect(
+                color,
+                topLeft = Offset(half, half),
+                size = Size(size.width - 2 * half, size.height - 2 * half),
+                cornerRadius = CornerRadius(OutlineRadius.toPx()),
+                style = Stroke(OutlineWidth.toPx()),
+            )
+        }
+    }
 
 /**
  * The clock ("MON 8:12 PM") over the channel column, and a tick with its time every half hour over the time columns,

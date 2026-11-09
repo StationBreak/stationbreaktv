@@ -115,6 +115,8 @@ internal data class ChannelsUi(
     val about: ChannelId? = null,
     /** What [about] reads; null while it is being read, which the sheet shows as loading. */
     val properties: ChannelProperties? = null,
+    /** The first list of channels has arrived, so a channel missing from [rows] is not just late. */
+    val listed: Boolean = false,
 ) {
     companion object {
         val Empty =

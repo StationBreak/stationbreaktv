@@ -42,11 +42,16 @@ internal sealed interface GuideState {
  * [menu] names the entry of the menu row above the grid that has the focus (spec 21), null while the focus is on the
  * grid. The [focus] then keeps the cell last focused, which Down returns to when nothing is playing, but no cell is
  * drawn focused.
+ *
+ * [onChannel] is true while the focus is on the channel column (#631): reached by Left from a row's earliest cell, it
+ * names the [focus]'s row, whose channel cell is drawn outlined and whose cell is not drawn focused. Right returns to
+ * that cell. It is never set together with [menu].
  */
 internal data class GuideSnapshot(
     val state: GuideState,
     val focus: GuideFocus?,
     val menu: GuideMenuEntry? = null,
+    val onChannel: Boolean = false,
 ) {
     companion object {
         /** The guide closed: nothing shown, nothing focused. */
@@ -94,4 +99,9 @@ internal sealed interface GuideEvent {
 
     /** Select on the Exit entry: leave live TV, the way Back from the menu row does. */
     data object Exit : GuideEvent
+
+    /** Select on the channel column (#631): the guide shows the properties sheet of [channel] over itself. */
+    data class OpenChannelProperties(
+        val channel: ChannelId,
+    ) : GuideEvent
 }
