@@ -13,8 +13,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
-import tv.stationbreak.core.domain.lineup.builder.PlayOrder
+import tv.stationbreak.core.domain.lineup.builder.RulesDescription
+import tv.stationbreak.core.domain.lineup.builder.ShownOrder
 import tv.stationbreak.core.domain.lineup.builder.SkippedPick
+import tv.stationbreak.core.domain.lineup.builder.describe
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderUi
@@ -146,10 +148,12 @@ private fun SheetRowLine(
 private fun sheetText(
     row: SheetRow,
     draft: ChannelDraft,
-): String =
-    when (row) {
+): String {
+    // What the rows say about the rules is the domain's one description, which a channel's properties word too.
+    val description = draft.describe()
+    return when (row) {
         SheetRow.Sources -> {
-            labelled(stringResource(R.string.builder_row_sources), sourcesText(draft))
+            labelled(stringResource(R.string.builder_row_sources), sourcesText(description))
         }
 
         SheetRow.NarrowDown -> {
@@ -157,20 +161,20 @@ private fun sheetText(
         }
 
         SheetRow.PlayOrder -> {
-            labelled(stringResource(R.string.builder_row_play_order), orderValue(draft))
+            labelled(stringResource(R.string.builder_row_play_order), orderValue(description))
         }
 
         SheetRow.SeriesCap -> {
             labelled(
                 stringResource(R.string.builder_series_cap),
-                capText(draft.shownSeriesCap()),
+                capText(description.seriesCap),
             )
         }
 
         SheetRow.FilmCap -> {
             labelled(
                 stringResource(R.string.builder_film_cap),
-                capText(draft.shownFilmCap()),
+                capText(description.filmCap),
             )
         }
 
@@ -198,22 +202,24 @@ private fun sheetText(
             ""
         }
     }
+}
 
 // The labels, or a count when they would not fit the two lines a row has.
 @Composable
-private fun sourcesText(draft: ChannelDraft): String {
-    val joined = joined(draft.sources.map { it.label }, R.string.builder_join)
-    val count = draft.sources.size
+private fun sourcesText(description: RulesDescription): String {
+    val joined = joined(description.sources.map { it.label }, R.string.builder_join)
+    val count = description.sources.size
     if (joined.length <= SOURCES_FIT_CHARS) return joined
     return pluralStringResource(R.plurals.builder_sources_count, count, count)
 }
 
 // A kept order has no PlayOrder to name: its own words stand in, as on the Play page.
 @Composable
-private fun orderValue(draft: ChannelDraft): String {
-    val kept = draft.keptInForce.filterIsInstance<KeptItem.Order>().firstOrNull()
-    return draft.order?.let { orderName(it) } ?: kept?.let { keptText(it) } ?: orderName(PlayOrder.Shuffle)
-}
+private fun orderValue(description: RulesDescription): String =
+    when (val order = description.order) {
+        is ShownOrder.Play -> orderName(order.order)
+        is ShownOrder.Kept -> keptText(KeptItem.Order(order.mode))
+    }
 
 @Composable
 private fun NameLine(
