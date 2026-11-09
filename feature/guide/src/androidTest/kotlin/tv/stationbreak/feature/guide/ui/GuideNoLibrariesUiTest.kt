@@ -164,11 +164,13 @@ class GuideNoLibrariesUiTest {
         compose.onNodeWithTag(GuideTags.GRID).assertDoesNotExist()
         awaitSelected(GuideTags.SETTINGS_BUTTON)
 
-        // Select opens the panel; Down is its Libraries row.
+        // Select opens the panel; Down is its Screen fit row (Safe chosen, the default), and Down again Libraries.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isNotEmpty()
         }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitSelected(GuideTags.FIT_SAFE)
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
 

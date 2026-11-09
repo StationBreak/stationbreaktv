@@ -60,8 +60,10 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
@@ -117,8 +119,16 @@ private const val CORNER_SLACK = 0.5f
 internal class GuideGeometry(
     screen: DpSize,
     hole: DpRect,
+    fit: ScreenFit = ScreenFit.Safe,
 ) {
-    val safe: DpRect = ScreenLayout.safeArea(screen)
+    val safe: DpRect = ScreenLayout.safeArea(screen, fit)
+
+    /**
+     * How far the screen's edge is past the safe area, at each side: surfaces (cells, the timeline's rule, the rows'
+     * backing) run on to the screen's edge by this much, while text, marks, the picture and the hints stay inside the
+     * safe area.
+     */
+    val bleed: Dp = safe.left
 
     init {
         // The panel takes the band left of the hole and the grid starts below it: a hole anywhere else would be drawn
@@ -189,8 +199,11 @@ internal fun GuideScreen(
     // panel, the clock strip's times and the grid's time axis read from it leftwards and onwards, as on a cable guide.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(GuideTags.SCREEN)) {
+            val fit = LocalScreenFit.current
             val geometry =
-                remember(maxWidth, maxHeight, pictureHole) { GuideGeometry(DpSize(maxWidth, maxHeight), pictureHole) }
+                remember(maxWidth, maxHeight, pictureHole, fit) {
+                    GuideGeometry(DpSize(maxWidth, maxHeight), pictureHole, fit)
+                }
             val colors = LocalGuideColors.current
             Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole, colors) })
             Column(
@@ -204,7 +217,7 @@ internal fun GuideScreen(
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 when {
                     info != null -> Spacer(panelSize)
-                    settings != null -> GuideSettingsPanel(themeChoice, settings.row, panelSize, syncNow)
+                    settings != null -> GuideSettingsPanel(themeChoice, fit, settings.row, panelSize, syncNow)
                     onChannel -> ChannelPanel(snapshotOf, panelSize)
                     else -> DetailsPanel(panel, nowOf, panelSize)
                 }

@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN
 import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
@@ -66,11 +67,42 @@ class GuideGeometryTest {
     }
 
     @Test
-    fun theWholeColumnFitsTheSafeArea() {
-        val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
-        val column = geometry.topHeight + TopGap + ClockHeight + RowsBandHeight + HintGap + HintHeight
-        val safeHeight = geometry.safe.bottom - geometry.safe.top
-        assertTrue("column $column over $safeHeight", column <= safeHeight)
+    fun theWholeColumnFitsTheSafeAreaInEveryFit() {
+        for (fit in ScreenFit.entries) {
+            val geometry = geometryFor(fit)
+            val column = geometry.topHeight + TopGap + ClockHeight + RowsBandHeight + HintGap + HintHeight
+            val safeHeight = geometry.safe.bottom - geometry.safe.top
+            assertTrue("$fit: column $column over $safeHeight", column <= safeHeight)
+        }
+    }
+
+    @Test
+    fun theBleedIsHowFarTheScreenEdgeIsPastTheSafeArea() {
+        // 5% of 960 dp at Safe, 1.5% at Edge: the surfaces run on by that much at each side.
+        assertEquals(48f, geometryFor(ScreenFit.Safe).bleed.value, EPS)
+        assertEquals(14.4f, geometryFor(ScreenFit.Edge).bleed.value, EPS)
+    }
+
+    @Test
+    fun theTimeScaleDoesNotChangeWithTheBleed() {
+        // The time columns are the safe width less the channel column: the bleed adds surface, not minutes.
+        val geometry = geometryFor(ScreenFit.Edge)
+        assertEquals(931.2f - 84f, geometry.viewportWidth.value, EPS)
+        assertEquals(geometry.viewportWidth.value, geometry.widthOf(geometry.spanMs).value, EPS)
+    }
+
+    @Test
+    fun theHoleStaysInTheCornerOfTheSafeAreaInEveryFit() {
+        // Live puts the picture at pictureRect of the fit's safe area; the guide takes that hole in either fit.
+        for (fit in ScreenFit.entries) {
+            val geometry = geometryFor(fit)
+            assertEquals(ScreenLayout.safeArea(screen, fit), geometry.safe)
+        }
+    }
+
+    private fun geometryFor(fit: ScreenFit): GuideGeometry {
+        val hole = ScreenLayout.pictureRect(ScreenLayout.safeArea(screen, fit))
+        return GuideGeometry(screen, hole, fit)
     }
 
     private companion object {

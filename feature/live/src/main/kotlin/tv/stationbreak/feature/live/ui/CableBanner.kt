@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
+import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.ScreenLayout
@@ -89,7 +90,7 @@ internal fun CableBanner(
     clock: () -> Long = System::currentTimeMillis,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
         val side = safe.left
         val edge = safe.top
         if (cornerNumber) {
@@ -125,7 +126,7 @@ internal fun ChannelBanner(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
         val side = safe.left
         val edge = safe.top
         Column(

@@ -36,6 +36,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.ScreenFit
+import tv.stationbreak.core.ui.rememberScreenFitStore
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
 import tv.stationbreak.feature.guide.GuideState
@@ -75,6 +77,8 @@ fun GuideDestination(
     val viewModel: GuideViewModel = hiltViewModel()
     val themes = rememberGuideThemeStore()
     val theme by themes.theme.collectAsStateWithLifecycle()
+    // The screen fit is the app's one choice, shared with live TV's picture: the guide only sets it.
+    val fits = rememberScreenFitStore()
     CompositionLocalProvider(
         LocalGuideColors provides theme.colors,
         LocalMarkCache provides MarkCaches.get(LocalContext.current),
@@ -89,6 +93,7 @@ fun GuideDestination(
             viewModel.measure,
             theme,
             themes::choose,
+            fits::choose,
             properties,
             libraries,
         )
@@ -137,7 +142,7 @@ typealias LibrariesSlot = @Composable (pictureHole: DpRect, onDone: () -> Unit) 
  * `System.nanoTime()` is evaluated again when this recomposes (once it has read state, Compose re-runs its defaults),
  * which would end the session and open a new one on an ordinary recomposition, such as channel management closing.
  */
-@Suppress("LongParameterList", "LongMethod") // The destination's own, and two a test leaves at their defaults.
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod") // Its own parameters; a test leaves three.
 @Composable
 internal fun GuideRoot(
     viewModel: GuideViewModel,
@@ -149,6 +154,7 @@ internal fun GuideRoot(
     measure: Boolean = false,
     theme: GuideTheme = GuideTheme.Dark,
     onTheme: (GuideTheme) -> Unit = {},
+    onFit: (ScreenFit) -> Unit = {},
     properties: PropertiesSlot = NoProperties,
     libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
 ) {
@@ -211,6 +217,7 @@ internal fun GuideRoot(
     var themeChoice by remember { mutableStateOf(theme) }
     LaunchedEffect(theme) { themeChoice = theme }
     val chooseTheme = rememberUpdatedState(onTheme)
+    val chooseFit = rememberUpdatedState(onFit)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             handleGuideEvent(
@@ -276,6 +283,7 @@ internal fun GuideRoot(
                                     themeChoice = next
                                     chooseTheme.value(next)
                                 }
+                                step.fit?.let { next -> chooseFit.value(next) }
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },

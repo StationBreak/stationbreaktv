@@ -10,17 +10,20 @@ import androidx.compose.ui.unit.DpSize
  * and the guide's hole for it come from the one rectangle and cannot drift apart.
  */
 object ScreenLayout {
-    /** How much a TV may crop (overscan): 5% of the width at each side, 5% of the height at top and bottom. */
-    const val OVERSCAN = 0.05f
-
     private const val PICTURE_WIDTH_FRACTION = 0.48f
     private const val ASPECT_WIDTH = 16f
     private const val ASPECT_HEIGHT = 9f
 
-    /** The part of a [screen] that every TV shows: [OVERSCAN] in from each edge. */
-    fun safeArea(screen: DpSize): DpRect {
-        val side = screen.width * OVERSCAN
-        val edge = screen.height * OVERSCAN
+    /**
+     * The part of a [screen] that text and pictures keep to: [ScreenFit.overscan] of the width in from the sides and of
+     * the height in from the top and bottom (5%, which every TV shows, unless the viewer chose [ScreenFit.Edge]).
+     */
+    fun safeArea(
+        screen: DpSize,
+        fit: ScreenFit = ScreenFit.Safe,
+    ): DpRect {
+        val side = screen.width * fit.overscan
+        val edge = screen.height * fit.overscan
         return DpRect(left = side, top = edge, right = screen.width - side, bottom = screen.height - edge)
     }
 

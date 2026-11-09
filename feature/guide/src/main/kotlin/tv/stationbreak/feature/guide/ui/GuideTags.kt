@@ -40,6 +40,10 @@ object GuideTags {
     const val THEME_DARK = "guide:theme:dark"
     const val THEME_LIGHT = "guide:theme:light"
 
+    /** The Safe and Edge choices of the Settings panel's Screen fit row. */
+    const val FIT_SAFE = "guide:fit:safe"
+    const val FIT_EDGE = "guide:fit:edge"
+
     /** The Libraries row of the Settings panel: Select shows Settings, Libraries (spec 26). */
     const val SETTINGS_LIBRARIES = "guide:settings:libraries"
 

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
+import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.R
 import java.util.Date
@@ -36,6 +37,9 @@ import java.util.Date
 internal enum class SettingsRow {
     /** Dark and Light: Left and Right pick one. */
     Appearance,
+
+    /** Safe and Edge (how far in from the screen's edge text keeps): Left and Right pick one. */
+    ScreenFit,
 
     /** Select shows Settings, Libraries (spec 26) over the guide. */
     Libraries,
@@ -57,13 +61,14 @@ internal data class SettingsPanel(
 }
 
 /**
- * What a key did to the panel: the [panel] after it (null when it closed), a [theme] it picked, if any, and whether it
- * asks for a [syncNow].
+ * What a key did to the panel: the [panel] after it (null when it closed), a [theme] or a screen [fit] it picked, if
+ * any, and whether it asks for a [syncNow].
  */
 internal data class SettingsStep(
     val panel: SettingsPanel?,
     val theme: GuideTheme? = null,
     val syncNow: Boolean = false,
+    val fit: ScreenFit? = null,
 )
 
 /** The line beside Sync now: the string [text], with the [time] it synced at for the one that has it. */
@@ -118,7 +123,8 @@ private fun reasonLine(failure: SyncFailure): Int =
  * Select and Back are all kept, so the grid never moves under the panel.
  *
  * Up and Down move between the rows (on every press, and stop at the ends). On Appearance, Left and Right pick Dark
- * and Light. Select, on its first press: on Appearance it closes the panel, on Libraries it shows the Libraries screen,
+ * and Light; on Screen fit, Safe and Edge. Select, on its first press: on Appearance and Screen fit it closes the
+ * panel, on Libraries it shows the Libraries screen,
  * and on Sync now it asks for a sync and leaves the panel open, so the line beside the row can say how it goes.
  * Back closes the panel at its release, as the guide's own Back does. While the Libraries screen shows, every key is
  * kept and does nothing: that screen has the keys, as channel management has them over the guide.
@@ -134,19 +140,36 @@ internal fun settingsStep(
     if (key != Key.Back && direction == null && !select) return null
     val same = SettingsStep(panel)
     return when {
-        panel.librariesShown -> same
-        key == Key.Back -> if (type == KeyEventType.KeyUp) SettingsStep(null) else same
-        type != KeyEventType.KeyDown -> same
-        direction != null -> SettingsStep(panel.moved(direction), panel.themeFor(direction))
-        repeatCount > 0 -> same
-        else -> panel.selected()
+        panel.librariesShown -> {
+            same
+        }
+
+        key == Key.Back -> {
+            if (type == KeyEventType.KeyUp) SettingsStep(null) else same
+        }
+
+        type != KeyEventType.KeyDown -> {
+            same
+        }
+
+        direction != null -> {
+            SettingsStep(panel.moved(direction), panel.themeFor(direction), fit = panel.fitFor(direction))
+        }
+
+        repeatCount > 0 -> {
+            same
+        }
+
+        else -> {
+            panel.selected()
+        }
     }
 }
 
 // Select on the panel's row, once per press.
 private fun SettingsPanel.selected(): SettingsStep =
     when (row) {
-        SettingsRow.Appearance -> SettingsStep(null)
+        SettingsRow.Appearance, SettingsRow.ScreenFit -> SettingsStep(null)
         SettingsRow.Libraries -> SettingsStep(copy(librariesShown = true))
         SettingsRow.SyncNow -> SettingsStep(this, syncNow = true)
     }
@@ -182,6 +205,7 @@ private fun SettingsPanel.themeFor(direction: GuideDirection): GuideTheme? =
 @Composable
 internal fun GuideSettingsPanel(
     choice: GuideTheme,
+    fit: ScreenFit,
     row: SettingsRow,
     modifier: Modifier = Modifier,
     sync: SyncNowState = SyncNowState.Idle,
@@ -212,6 +236,7 @@ internal fun GuideSettingsPanel(
                 light,
             )
         }
+        FitRow(fit, focused = row == SettingsRow.ScreenFit)
         val onLibraries = row == SettingsRow.Libraries
         PanelTab(
             R.string.guide_settings_libraries,
@@ -254,7 +279,7 @@ private fun SyncStatus(state: SyncNowState) {
 
 // One text tab of the panel. [selected] is what a screen reader is told: the chosen theme, or the focused row.
 @Composable
-private fun PanelTab(
+internal fun PanelTab(
     label: Int,
     tag: String,
     look: TabLook,

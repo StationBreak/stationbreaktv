@@ -59,7 +59,7 @@ fun ProgramInfoOverlay(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
+        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
         val side = safe.left
         val edge = safe.top
         val safeWidth = safe.right - safe.left

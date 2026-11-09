@@ -57,7 +57,7 @@ import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
 
 /** Half the gap between cells: 0.5 dp each side leaves the 1 dp the grid shows between cells and between rows. */
-private val CellInset = 0.5.dp
+internal val CellInset = 0.5.dp
 private val MinCellWidth = 20.dp
 
 // A 6-minute cell (kids' shorts) keeps its title: 780 dp over 90 minutes is 8.67 dp a minute, so it is 52 dp wide;
@@ -135,6 +135,7 @@ internal class CellPlace(
     private val geometry: GuideGeometry,
 ) {
     private val fromMs = maxOf(startMs, originMs)
+    private val bleed: Dp = geometry.bleed
 
     /** The cell's left edge from the origin. */
     val x: Dp = geometry.widthOf(fromMs - originMs)
@@ -206,7 +207,10 @@ internal class CellPlace(
     ): CellMarks {
         val inner = width - CellInset * 2
         val from = (visibleLeft(viewportStartMs) - CellInset).coerceIn(0.dp, inner)
-        val to = (visibleRight(viewportStartMs) - CellInset).coerceIn(from, inner)
+        // The fill ends at the viewport's right edge, or at the screen's edge for a cell that runs past it, as the
+        // cell's surface does; the title, the chevron and the ellipsis keep to the viewport ([visibleRight]).
+        val fillRight = (viewportRight(viewportStartMs) + bleed - x).coerceIn(0.dp, width)
+        val to = (fillRight - CellInset).coerceIn(from, inner)
         return CellMarks(
             ring = if (focused) from..to else null,
             earlier = !focused && !compactIn(viewportStartMs) && continuesEarlier(viewportStartMs),

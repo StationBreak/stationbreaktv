@@ -68,10 +68,10 @@ internal class GuideColors(
             )
 
         /**
-         * The same structure on a mid-light grey (about 87% lightness, no gradient: a white page is glaring on a TV),
-         * with ink where Dark has white. The focus fill keeps its orange; the accent used as text, as a line and for
-         * progress is darker ([LIGHT_ACCENT]), the least that holds 4.5:1 on this page for ON NOW and 3:1 for the cell
-         * progress line over a card.
+         * The same structure on a mid-light grey (about 83% lightness, no gradient: a white page is glaring on a TV),
+         * with ink where Dark has white. The focus fill and the accent are darker oranges than Dark's, the least that
+         * hold the floors on this page: the fill 3:1 over a card, the accent ([LIGHT_ACCENT], used as text, as a line
+         * and for progress) 4.5:1 for ON NOW and 3:1 for the cell progress line over a card.
          */
         val Light =
             GuideColors(
@@ -83,7 +83,7 @@ internal class GuideColors(
                 textSupporting = INK.copy(alpha = TERTIARY_ALPHA_LIGHT),
                 programmeText = INK.copy(alpha = PRIMARY_ALPHA_LIGHT),
                 accent = LIGHT_ACCENT,
-                focusFill = Color(0xFFB74719),
+                focusFill = LIGHT_FOCUS_FILL,
                 focusText = Color(0xFFFFFFFF),
                 focusTextSecondary = Color(0xFFFFFFFF).copy(alpha = FOCUS_SECONDARY_ALPHA),
                 nowLine = LIGHT_ACCENT,
@@ -104,14 +104,15 @@ internal val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
 // page without a warm tint. Light has its own alphas: its page is darker than a near-white one, so the card, the rules
 // and the track are stronger and its text is held at 4.5:1 on both the page and the card.
 private val INK = Color(0xFF111214)
-private val LIGHT_PAGE = Color(0xFFDCDEE1)
-private val LIGHT_ACCENT = Color(0xFF9A3C13)
+private val LIGHT_PAGE = Color(0xFFD2D5DA)
+private val LIGHT_ACCENT = Color(0xFF8F3811)
+private val LIGHT_FOCUS_FILL = Color(0xFFAD4216)
 private const val PRIMARY_ALPHA = 0.90f
 private const val SECONDARY_ALPHA_DARK = 0.58f
 private const val TERTIARY_ALPHA_DARK = 0.38f
 private const val PRIMARY_ALPHA_LIGHT = 0.92f
 private const val SECONDARY_ALPHA_LIGHT = 0.66f
-private const val TERTIARY_ALPHA_LIGHT = 0.50f
+private const val TERTIARY_ALPHA_LIGHT = 0.52f
 private const val CARD_ALPHA = 0.06f
 private const val CARD_ALPHA_LIGHT = 0.12f
 private const val FOCUS_SECONDARY_ALPHA = 0.90f

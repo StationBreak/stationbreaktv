@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import tv.stationbreak.core.ui.ScreenFit
 
 class GuideSettingsKeysTest {
     private fun SettingsPanel.press(
@@ -27,8 +28,10 @@ class GuideSettingsKeysTest {
         // Up at the top row stays there, and picks no theme any more.
         assertEquals(SettingsStep(opened), opened.press(Key.DirectionUp))
 
-        // Down moves to Libraries, then to Sync now (spec 26, Part 5), and stops at the last row, held or not.
-        val libraries = opened.press(Key.DirectionDown).panel
+        // Down moves to Screen fit, then Libraries, then Sync now (spec 26, Part 5), and stops at the last row.
+        val screenFit = opened.press(Key.DirectionDown).panel
+        assertEquals(SettingsRow.ScreenFit, screenFit?.row)
+        val libraries = screenFit!!.press(Key.DirectionDown).panel
         assertEquals(SettingsRow.Libraries, libraries?.row)
         val syncNow = libraries!!.press(Key.DirectionDown, repeat = 2).panel
         assertEquals(SettingsRow.SyncNow, syncNow?.row)
@@ -42,12 +45,26 @@ class GuideSettingsKeysTest {
         // Up from Sync now is Libraries.
         assertEquals(SettingsStep(libraries), syncNow.press(Key.DirectionUp))
 
-        // Up goes back to Appearance; releases change nothing.
-        assertEquals(SettingsStep(opened), libraries.press(Key.DirectionUp))
+        // Up goes back to Screen fit, and from there to Appearance; releases change nothing.
+        assertEquals(SettingsStep(screenFit), libraries.press(Key.DirectionUp))
+        assertEquals(SettingsStep(opened), screenFit.press(Key.DirectionUp))
         assertEquals(SettingsStep(libraries), libraries.release(Key.DirectionUp))
 
         // The media keys are not the panel's.
         assertNull(settingsStep(opened, Key.MediaPlayPause, KeyEventType.KeyDown, 0))
+    }
+
+    @Test
+    fun screenFit_leftPicksSafe_rightPicksEdge_andNothingElseDoes() {
+        val onFit = SettingsPanel(SettingsRow.ScreenFit)
+        assertEquals(SettingsStep(onFit, fit = ScreenFit.Safe), onFit.press(Key.DirectionLeft))
+        assertEquals(SettingsStep(onFit, fit = ScreenFit.Edge), onFit.press(Key.DirectionRight))
+        // It picks no theme, and Appearance picks no fit.
+        assertNull(onFit.press(Key.DirectionRight).theme)
+        assertNull(SettingsPanel().press(Key.DirectionRight).fit)
+        // Select closes the panel, as on Appearance; on Libraries Left and Right do nothing.
+        assertEquals(SettingsStep(null), onFit.press(Key.DirectionCenter))
+        assertNull(SettingsPanel(SettingsRow.Libraries).press(Key.DirectionLeft).fit)
     }
 
     @Test

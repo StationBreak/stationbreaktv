@@ -359,7 +359,8 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(GuideTags.SETTINGS_LIBRARIES)
 
-        // Down is the Libraries row, and Select shows the Libraries screen over the guide.
+        // Down is the Screen fit row, Down again the Libraries row; Select shows the Libraries screen over the guide.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)

@@ -25,9 +25,11 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
@@ -68,7 +70,8 @@ internal fun LiveScreen(
     // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
     LaunchedEffect(Unit) { SnowFrames.get() }
     BoxWithConstraints(Modifier.fillMaxSize().background(BroadcastColors.Ink)) {
-        val corner = remember(maxWidth, maxHeight) { pictureCorner(DpSize(maxWidth, maxHeight)) }
+        val fit = LocalScreenFit.current
+        val corner = remember(maxWidth, maxHeight, fit) { pictureCorner(DpSize(maxWidth, maxHeight), fit) }
         Box(if (guide != null) Modifier.inRect(corner) else Modifier.fillMaxSize()) { surface() }
         if (guide != null) {
             Box(Modifier.inRect(corner).clipToBounds()) { PictureLayers(state) }
@@ -81,7 +84,10 @@ internal fun LiveScreen(
 }
 
 /** Where the picture goes while the guide is open, on a [screen] of that size: the guide's corner. */
-private fun pictureCorner(screen: DpSize): DpRect = ScreenLayout.pictureRect(ScreenLayout.safeArea(screen))
+private fun pictureCorner(
+    screen: DpSize,
+    fit: ScreenFit,
+): DpRect = ScreenLayout.pictureRect(ScreenLayout.safeArea(screen, fit))
 
 /**
  * Exactly [rect] of the parent, which starts at the screen's top-left. Absolute: the corner is the same top-right in a
