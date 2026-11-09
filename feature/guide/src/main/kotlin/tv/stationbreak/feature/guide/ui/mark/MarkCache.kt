@@ -85,7 +85,10 @@ internal object MarkCaches {
     fun get(context: Context): MarkCache =
         instance ?: synchronized(this) {
             instance ?: MarkCache(
-                AssetMarkLoader(context.applicationContext.assets),
+                AssetMarkLoader(
+                    context.applicationContext.assets,
+                    context.resources.displayMetrics.density,
+                ),
                 CoroutineScope(SupervisorJob()),
                 Dispatchers.IO,
             ).also { instance = it }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -40,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -80,6 +85,13 @@ internal val ClockHeight = 20.dp
 private val TopGap = 8.dp
 private val HintGap = 8.dp
 private val HintHeight = 24.dp
+private val HintPairGap = 20.dp
+private val HintActionGap = 6.dp
+private val KeyHeight = 16.dp
+private val KeyStroke = 1.dp
+private val KeyRadius = 3.dp
+private val KeyPadding = 6.dp
+private val KeyRoundPadding = 4.dp
 private val PanelGap = 12.dp
 private const val HINT_SPACE = "   "
 
@@ -358,38 +370,54 @@ private fun HintRow(
             if (action != null) append("$ok $action$HINT_SPACE")
             append("$back $exit")
         }
-    val colors = LocalGuideColors.current
-    val actionStyle = guideText(16.sp, FontWeight.Medium)
+    val actionStyle = guideText(10.sp, FontWeight.Normal)
     Row(
         Modifier
             .height(HintHeight)
             .fillMaxWidth()
-            .drawBehind {
-                drawRect(colors.hintDivider, size = Size(size.width, 1.dp.toPx()))
-            }.testTag(GuideTags.HINT)
+            .testTag(GuideTags.HINT)
             .clearAndSetSemantics { text = AnnotatedString(spoken) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (action != null) {
-            HintKey(ok)
-            Text(text = " $action", style = actionStyle, color = colors.textSecondary, maxLines = 1)
-            Spacer(Modifier.width(12.dp))
+            HintKey(ok, round = true)
+            HintAction(action, actionStyle)
+            Spacer(Modifier.width(HintPairGap))
         }
-        HintKey(back)
-        Text(text = " $exit", style = actionStyle, color = colors.textSecondary, maxLines = 1)
+        HintKey(back, round = false)
+        HintAction(exit, actionStyle)
     }
 }
 
 @Composable
-private fun HintKey(label: String) {
+private fun HintAction(
+    text: String,
+    style: TextStyle,
+) = Text(
+    text = text,
+    modifier = Modifier.padding(start = HintActionGap),
+    style = style,
+    color = LocalGuideColors.current.textSecondary,
+    maxLines = 1,
+)
+
+/** An outlined key cap: a 1 dp stroke at 28%, 3 dp corners, 16 dp tall (the OK key is a circle), 10 sp SemiBold. */
+@Composable
+private fun HintKey(
+    label: String,
+    round: Boolean,
+) {
     val colors = LocalGuideColors.current
+    val shape = if (round) CircleShape else RoundedCornerShape(KeyRadius)
     Text(
         text = label,
         modifier =
             Modifier
-                .drawBehind { drawGuidePill(colors.keyHintPill) }
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-        style = guideText(16.sp, FontWeight.SemiBold),
+                .height(KeyHeight)
+                .border(KeyStroke, colors.keyCapStroke, shape)
+                .padding(horizontal = if (round) KeyRoundPadding else KeyPadding)
+                .wrapContentHeight(Alignment.CenterVertically),
+        style = guideText(10.sp, FontWeight.SemiBold),
         color = colors.textPrimary,
         maxLines = 1,
     )

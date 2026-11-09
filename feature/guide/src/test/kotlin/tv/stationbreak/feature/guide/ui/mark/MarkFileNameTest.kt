@@ -13,8 +13,18 @@ class MarkFileNameTest {
     }
 
     @Test
+    fun theBucketsAreThirtyTwoFortyEightAndSixtyFourDp() {
+        for (n in MarkBuckets) {
+            assertEquals("little-farm", markKeyOf("sl_004_little-farm_${n}dp.png"))
+            assertEquals(n, markBucketOf("sl_004_little-farm_${n}dp.png"))
+        }
+        assertNull(markBucketOf("sl_004_little-farm_40dp.png"))
+    }
+
+    @Test
     fun anyOtherNameHasNoKey() {
-        assertNull(markKeyOf("sl_004_little-farm_48dp.png"))
+        assertNull(markKeyOf("sl_004_little-farm_40dp.png"))
+        assertNull(markKeyOf("sl_004_little-farm_128dp.png"))
         assertNull(markKeyOf("readme.md"))
         assertNull(markKeyOf(""))
         assertNull(markKeyOf("sl_4_x_32dp.png"))

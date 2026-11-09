@@ -30,22 +30,15 @@ internal class GuideColors(
     val focusText: Color,
     /** Secondary text on the focus fill: 90%, the least that keeps 11 sp text at 4.5:1 in both themes. */
     val focusTextSecondary: Color,
-    val nowChipFill: Color,
-    val nowChipText: Color,
     val nowLine: Color,
     /** The now-line through the grid: 35%, so it may cross cells without hiding them. */
     val nowRailAlpha: Float,
     val progressFill: Color,
     val progressTrack: Color,
-    val menuPillSelected: Color,
-    val menuTextSelected: Color,
-    val menuTextUnselected: Color,
-    val menuPillFocused: Color,
-    val menuTextFocused: Color,
-    val keyHintPill: Color,
-    val hintDivider: Color,
     /** The 1 dp rules and ticks of the timeline. */
     val line: Color,
+    /** The 1 dp outline of a hint key cap: 28% white, or ink. */
+    val keyCapStroke: Color,
 ) {
     companion object {
         val Dark =
@@ -61,20 +54,12 @@ internal class GuideColors(
                 focusFill = Color(0xFFE8642C),
                 focusText = Color(0xFF1A0D06),
                 focusTextSecondary = Color(0xFF1A0D06).copy(alpha = FOCUS_SECONDARY_ALPHA),
-                nowChipFill = Color(0xFFE8642C),
-                nowChipText = Color(0xFF1A0D06),
                 nowLine = Color(0xFFE8642C),
                 nowRailAlpha = NOW_LINE_ALPHA,
                 progressFill = Color(0xFFE8642C),
                 progressTrack = Color.White.copy(alpha = TRACK_ALPHA),
-                menuPillSelected = Color.White.copy(alpha = TRACK_ALPHA),
-                menuTextSelected = Color.White.copy(alpha = PRIMARY_ALPHA),
-                menuTextUnselected = Color.White.copy(alpha = SECONDARY_ALPHA_DARK),
-                menuPillFocused = Color(0xFFE8642C),
-                menuTextFocused = Color(0xFF1A0D06),
-                keyHintPill = Color.White.copy(alpha = LINE_ALPHA),
-                hintDivider = Color.White.copy(alpha = LINE_ALPHA),
                 line = Color.White.copy(alpha = LINE_ALPHA),
+                keyCapStroke = Color.White.copy(alpha = KEY_STROKE_ALPHA),
             )
 
         /** The same structure on a near-white neutral, with ink where Dark has white. */
@@ -91,20 +76,12 @@ internal class GuideColors(
                 focusFill = Color(0xFFB74719),
                 focusText = Color(0xFFFFFFFF),
                 focusTextSecondary = Color(0xFFFFFFFF).copy(alpha = FOCUS_SECONDARY_ALPHA),
-                nowChipFill = Color(0xFFB74719),
-                nowChipText = Color(0xFFFFFFFF),
                 nowLine = Color(0xFFB74719),
                 nowRailAlpha = NOW_LINE_ALPHA,
                 progressFill = Color(0xFFB74719),
                 progressTrack = INK.copy(alpha = TRACK_ALPHA),
-                menuPillSelected = INK.copy(alpha = TRACK_ALPHA),
-                menuTextSelected = INK.copy(alpha = PRIMARY_ALPHA),
-                menuTextUnselected = INK.copy(alpha = SECONDARY_ALPHA_LIGHT),
-                menuPillFocused = Color(0xFFB74719),
-                menuTextFocused = Color(0xFFFFFFFF),
-                keyHintPill = INK.copy(alpha = LINE_ALPHA),
-                hintDivider = INK.copy(alpha = LINE_ALPHA),
                 line = INK.copy(alpha = LINE_ALPHA),
+                keyCapStroke = INK.copy(alpha = KEY_STROKE_ALPHA),
             )
     }
 }
@@ -125,6 +102,7 @@ private const val CARD_ALPHA = 0.06f
 private const val FOCUS_SECONDARY_ALPHA = 0.90f
 private const val TRACK_ALPHA = 0.08f
 private const val LINE_ALPHA = 0.10f
+private const val KEY_STROKE_ALPHA = 0.28f
 private const val NOW_LINE_ALPHA = 0.35f
 
 /** The guide's own appearance. [decode] is dark for anything that is not the light token, including a missing value. */

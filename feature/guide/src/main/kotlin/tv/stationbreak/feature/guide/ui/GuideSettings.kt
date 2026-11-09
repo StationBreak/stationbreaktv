@@ -44,7 +44,7 @@ internal fun GuideThemePanel(
             color = colors.textSecondary,
             maxLines = 1,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
             ThemeChoice(R.string.guide_theme_dark, GuideTags.THEME_DARK, choice == GuideTheme.Dark)
             ThemeChoice(R.string.guide_theme_light, GuideTags.THEME_LIGHT, choice == GuideTheme.Light)
         }
@@ -58,21 +58,18 @@ private fun ThemeChoice(
     chosen: Boolean,
 ) {
     val colors = LocalGuideColors.current
-    val fill = if (chosen) colors.menuPillFocused else colors.menuPillSelected
-    val text = if (chosen) colors.menuTextFocused else colors.menuTextSelected
     Text(
         text = stringResource(label),
         modifier =
             Modifier
-                .drawBehind { drawGuidePill(fill) }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .underline(if (chosen) colors.textPrimary else null)
                 .testTag(tag)
                 .semantics {
                     role = Role.Button
                     selected = chosen
                 },
-        style = guideText(18.sp, if (chosen) FontWeight.SemiBold else FontWeight.Medium),
-        color = text,
+        style = guideText(13.sp, FontWeight.Medium),
+        color = if (chosen) colors.textPrimary else colors.textSecondary,
         maxLines = 1,
     )
 }
