@@ -250,20 +250,20 @@ class GuideSessionTest : GuideRig() {
     fun theGuideOpensWithThePlayingRowAtTheTop() =
         guideTest { vm ->
             val more = tenRows()
-            vm.open(more[1]) // channel 12, the fifth row: of ten rows, the last page starts at the third
+            vm.open(more[1]) // channel 12, the fifth row: of ten rows, the last page starts at the sixth
             runCurrent()
-            assertEquals(2, vm.ready().firstVisibleRow)
+            assertEquals(4, vm.ready().firstVisibleRow)
 
             // A later move keeps the rows where they are while the focus stays in view.
             vm.move(GuideDirection.Down, repeat = false, atMs = 0)
-            assertEquals(2, vm.ready().firstVisibleRow)
+            assertEquals(4, vm.ready().firstVisibleRow)
         }
 
     @Test
     fun theGuideOpensOnAFullLastPage() =
         guideTest { vm ->
             val more = tenRows()
-            vm.open(more[5]) // channel 16, the ninth row of ten: the last eight rows show
+            vm.open(more[5]) // channel 16, the ninth row of ten: the last five rows show
             runCurrent()
             assertEquals(10 - GUIDE_VISIBLE_ROWS, vm.ready().firstVisibleRow)
         }

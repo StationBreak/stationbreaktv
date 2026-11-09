@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN
@@ -18,9 +19,9 @@ class GuideGeometryTest {
     @Test
     fun thePanelFillsTheBandBesideTheCornerPicture() {
         val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
-        // Safe area from 48 dp; the picture from 652.8 dp, 145.8 dp tall from 27 dp; 12 dp between panel and picture.
-        assertEquals(592.8f, geometry.panelWidth.value, EPS)
-        assertEquals(145.8f, geometry.topHeight.value, EPS)
+        // Safe area from 48 dp; the picture from 497.28 dp, 233.28 dp tall from 27 dp; 12 dp between panel and picture.
+        assertEquals(437.28f, geometry.panelWidth.value, EPS)
+        assertEquals(233.28f, geometry.topHeight.value, EPS)
     }
 
     @Test
@@ -54,6 +55,22 @@ class GuideGeometryTest {
     @Test
     fun rowsShareTheirBandExactly() {
         assertEquals(RowsBandHeight, RowHeight * GUIDE_VISIBLE_ROWS)
+    }
+
+    @Test
+    fun fiveFortyDpRowsWithOneDpBetweenThemMakeTheBand() {
+        assertEquals(5, GUIDE_VISIBLE_ROWS)
+        assertEquals(5 * 40f + 4 * 1f, RowsBandHeight.value, EPS)
+        // A cell is its row's part less the 0.5 dp inset on each side: 40 dp to within the 0.2 dp the end gaps take.
+        assertEquals(40f, RowHeight.value - 1f, 0.25f)
+    }
+
+    @Test
+    fun theWholeColumnFitsTheSafeArea() {
+        val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
+        val column = geometry.topHeight + TopGap + ClockHeight + RowsBandHeight + HintGap + HintHeight
+        val safeHeight = geometry.safe.bottom - geometry.safe.top
+        assertTrue("column $column over $safeHeight", column <= safeHeight)
     }
 
     private companion object {

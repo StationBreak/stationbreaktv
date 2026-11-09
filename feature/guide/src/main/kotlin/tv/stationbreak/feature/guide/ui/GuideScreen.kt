@@ -80,13 +80,17 @@ import kotlin.math.abs
 // The guide's layout in dp (the guide UX notes, on a 960 x 540 dp screen with a 5% safe area).
 internal val ChannelColumnWidth = 84.dp
 
-/** The band the visible rows share; each row is an equal part of it, so the grid body keeps its height. */
-internal val RowsBandHeight: Dp = 280.dp
+/**
+ * The band the visible rows share; each row is an equal part of it, so the grid body keeps its height. Five 40 dp
+ * cells with 1 dp between them are 204 dp; each row's part is 40.8 dp, the cell's 0.5 dp inset on every side being
+ * the gap, so a cell is 39.8 dp tall.
+ */
+internal val RowsBandHeight: Dp = 204.dp
 internal val RowHeight: Dp = RowsBandHeight / GUIDE_VISIBLE_ROWS
 internal val ClockHeight = 20.dp
-private val TopGap = 8.dp
-private val HintGap = 8.dp
-private val HintHeight = 24.dp
+internal val TopGap = 4.dp
+internal val HintGap = 4.dp
+internal val HintHeight = 20.dp
 private val HintPairGap = 20.dp
 private val HintActionGap = 6.dp
 private val KeyHeight = 16.dp
