@@ -213,6 +213,12 @@ internal fun GuideRoot(
     var settings by remember(viewModel, openedAtNanos) { mutableStateOf<SettingsPanel?>(null) }
     val librariesShown = settings?.librariesShown == true
     val cover = GuideCover(managing, propertiesOf != null, librariesShown)
+    // The Libraries screen hides the guide as channel management does, so the clock and the lineup reloads stop
+    // under it (a reload no one can see is wasted work on a slow TV) and start again when it closes.
+    DisposableEffect(viewModel, librariesShown) {
+        if (librariesShown) viewModel.librariesOpened()
+        onDispose { if (librariesShown) viewModel.librariesClosed() }
+    }
     val covered = cover.covered
     val hidden = cover.hidden
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -247,7 +253,6 @@ internal fun GuideRoot(
         }
     }
     val info by viewModel.info.collectAsStateWithLifecycle()
-    val selection by viewModel.selection.collectAsStateWithLifecycle()
     val syncNow by viewModel.syncNowState.collectAsStateWithLifecycle()
     // Back over the info overlay closes it; with none open, Back walks the focus outwards (to what is playing, then to
     // the menu row), and from the menu row it is the activity's and leaves live TV. While a screen covers the
@@ -268,7 +273,6 @@ internal fun GuideRoot(
             pictureHole = pictureHole,
             settings = settings,
             themeChoice = themeChoice,
-            noLibraries = selection?.gone == true,
             syncNow = syncNow,
             modifier =
                 Modifier

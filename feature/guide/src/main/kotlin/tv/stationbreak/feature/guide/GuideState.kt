@@ -46,12 +46,16 @@ internal sealed interface GuideState {
  * [onChannel] is true while the focus is on the channel column (#631): reached by Left from a row's earliest cell, it
  * names the [focus]'s row, whose channel cell is drawn outlined and whose cell is not drawn focused. Right returns to
  * that cell. It is never set together with [menu].
+ *
+ * [noLibraries] is true while the stored library selection is gone (spec 26): no grid is shown then, the focus is on
+ * the menu row and no programme is shown. The one place the guide reads that from: a screen draws from this flag only.
  */
 internal data class GuideSnapshot(
     val state: GuideState,
     val focus: GuideFocus?,
     val menu: GuideMenuEntry? = null,
     val onChannel: Boolean = false,
+    val noLibraries: Boolean = false,
 ) {
     companion object {
         /** The guide closed: nothing shown, nothing focused. */

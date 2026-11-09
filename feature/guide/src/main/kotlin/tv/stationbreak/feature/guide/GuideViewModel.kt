@@ -31,7 +31,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.domain.lineup.onGuide
 import tv.stationbreak.core.domain.selection.ChoiceView
-import tv.stationbreak.core.domain.selection.LibraryChoices
+import tv.stationbreak.core.domain.selection.LibrarySelectionView
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
@@ -75,7 +75,7 @@ internal class GuideViewModel
          * The stored library selection (spec 26). While it is gone (the server lists none of the chosen libraries) the
          * screen says so where the grid goes, and the focus stays on the menu row, where Settings leads to Libraries.
          */
-        val selection: StateFlow<ChoiceView?> = MutableStateFlow(null),
+        private val selection: StateFlow<ChoiceView?> = MutableStateFlow(null),
         /** Sync now (spec 26, Part 5), which the Settings panel's row starts and whose state it shows. */
         private val sync: SyncNow = SyncNow.None,
     ) : ViewModel() {
@@ -86,7 +86,7 @@ internal class GuideViewModel
             clock: Clock,
             lineup: ChannelRepository,
             @GuideMeasured measure: Boolean,
-            choices: LibraryChoices,
+            choices: LibrarySelectionView,
             syncNow: SyncNow,
         ) : this(
             schedule,
@@ -180,6 +180,8 @@ internal class GuideViewModel
         // What a session runs, at an open and again at each reload (which starts a fresh session): the first read,
         // build and fill-in, the lineup watch, and the library selection. Under [lock].
         private fun startWork(s: CoroutineScope) {
+            // The flag is right from the first snapshot, not only once the collector below has run.
+            shownSnapshot.value = shownSnapshot.value.copy(noLibraries = selection.value?.gone == true)
             startLoad(s)
             startWatch(s)
             s.launch { followSelection(s) }
@@ -189,18 +191,22 @@ internal class GuideViewModel
         // row (Down does nothing) until a library is chosen again.
         private suspend fun followSelection(s: CoroutineScope) {
             selection.collect { view ->
-                if (view?.gone == true) {
-                    synchronized(lock) {
-                        val current = shownSnapshot.value
-                        if (session === s && current.menu == null) {
-                            shownSnapshot.value = current.toSettings()
-                        }
+                val gone = view?.gone == true
+                synchronized(lock) {
+                    val current = shownSnapshot.value
+                    if (session === s) {
+                        shownSnapshot.value =
+                            when {
+                                gone && current.menu == null -> current.toSettings().copy(noLibraries = true)
+                                else -> current.copy(noLibraries = gone)
+                            }
                     }
                 }
             }
         }
 
-        private fun noLibraries(): Boolean = selection.value?.gone == true
+        // The one value: the flag the snapshot carries, set by [followSelection] and nowhere else.
+        private fun noLibraries(): Boolean = shownSnapshot.value.noLibraries
 
         // The menu row, on Settings, with nothing left focused on the channel column: where the libraries are chosen.
         private fun GuideSnapshot.toSettings(): GuideSnapshot = copy(menu = GuideMenuEntry.Settings, onChannel = false)
@@ -501,6 +507,15 @@ internal class GuideViewModel
             }
         }
 
+        /** The Libraries screen opens over the guide: as for channel management, the clock and reloads wait. */
+        fun librariesOpened() = channelsOpened()
+
+        /**
+         * The Libraries screen closed: the guide shows again as it was (on Settings, where the panel was left open),
+         * and a lineup that changed meanwhile loads the grid again, as for [propertiesClosed].
+         */
+        fun librariesClosed() = propertiesClosed()
+
         // The lineup (the On channels and their numbers) is watched for the whole session, against what the grid was
         // loaded from. A change that lands while the screen is not showing reloads the grid in place, with the focus
         // where it is: a slow write (a reset on older hardware) can land long after the screen closed. A lineup that
@@ -656,7 +671,7 @@ internal class GuideViewModel
         private fun snapshotOf(
             state: GuideState,
             focus: GuideFocus?,
-        ) = shownSnapshot.value.let { GuideSnapshot(state, focus, it.menu, it.onChannel && focus != null) }
+        ) = shownSnapshot.value.let { it.copy(state = state, focus = focus, onChannel = it.onChannel && focus != null) }
 
         private fun publishIfCurrent(
             s: CoroutineScope,
@@ -985,7 +1000,7 @@ internal class GuideViewModel
             val before = shownSnapshot.value.focus
             // The channel column keeps the focus across a move of rows or a rebuild, never together with the menu.
             val onChannel = shownSnapshot.value.onChannel && menu == null && focus != null
-            shownSnapshot.value = GuideSnapshot(ready, focus, menu, onChannel)
+            shownSnapshot.value = GuideSnapshot(ready, focus, menu, onChannel, shownSnapshot.value.noLibraries)
             follow(ready.model, before, focus, located)
         }
 

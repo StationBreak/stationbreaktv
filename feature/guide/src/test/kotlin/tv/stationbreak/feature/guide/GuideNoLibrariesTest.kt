@@ -20,7 +20,9 @@ import tv.stationbreak.core.domain.selection.ChoiceView
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.feature.guide.ui.GuideMessage
+import tv.stationbreak.feature.guide.ui.GuidePanelKind
 import tv.stationbreak.feature.guide.ui.guideMessageOf
+import tv.stationbreak.feature.guide.ui.guidePanelOf
 import kotlin.time.Instant
 
 /** Every library this TV chose is gone (spec 26): the guide says so, and its menu row is where the viewer goes. */
@@ -137,6 +139,81 @@ class GuideNoLibrariesTest : GuideRig() {
             vm.select()
             runCurrent()
             assertEquals(listOf(GuideEvent.OpenSettings), events)
+        }
+
+    // One value: the snapshot carries the flag, set and cleared with the selection; the screen reads nothing else.
+    @Test
+    fun theSnapshotCarriesTheFlag_withTheSelection() =
+        guideTest { vm ->
+            choices.selection.value = kept
+            vm.open(CH7)
+            runCurrent()
+            assertFalse(vm.snapshot.value.noLibraries)
+
+            choices.selection.value = gone
+            runCurrent()
+            assertTrue(vm.snapshot.value.noLibraries)
+
+            // It outlives a rebuild of the grid.
+            vm.move(GuideDirection.Left, false, 0)
+            vm.move(GuideDirection.Right, false, 0)
+            assertTrue(vm.snapshot.value.noLibraries)
+
+            choices.selection.value = kept
+            runCurrent()
+            assertFalse(vm.snapshot.value.noLibraries)
+        }
+
+    @Test
+    fun goneFromTheStart_theFirstPublishedGridAlreadyCarriesTheFlag() =
+        guideTest { vm ->
+            choices.selection.value = gone
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.snapshot.value.state is GuideState.Ready)
+            assertTrue(vm.snapshot.value.noLibraries)
+        }
+
+    // The details panel shows nothing of a programme while the selection is gone; Settings still has its own panel.
+    @Test
+    fun thePanel_showsNoProgrammeWhileGone() {
+        fun panel(
+            info: Boolean = false,
+            settings: Boolean = false,
+            gone: Boolean = false,
+            onChannel: Boolean = false,
+        ) = guidePanelOf(info = info, settings = settings, noLibraries = gone, onChannel = onChannel)
+
+        assertEquals(GuidePanelKind.Details, panel())
+        assertEquals(GuidePanelKind.Empty, panel(gone = true))
+        assertEquals(GuidePanelKind.Empty, panel(gone = true, onChannel = true))
+        assertEquals(GuidePanelKind.Settings, panel(gone = true, settings = true))
+        assertEquals(GuidePanelKind.Empty, panel(info = true))
+        assertEquals(GuidePanelKind.Channel, panel(onChannel = true))
+    }
+
+    // The Libraries screen hides the guide as channel management does: no reload under it, and the menu stays on
+    // Settings, where the panel was left open, when it closes.
+    @Test
+    fun whileLibrariesShow_aLineupChangeWaits_andTheMenuStaysOnSettings() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7))
+            vm.open(CH7)
+            runCurrent()
+            while (vm.menu() == null) check(vm.back()) { "Back did not reach the menu" }
+            vm.move(GuideDirection.Right, false, 0)
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            vm.librariesOpened()
+            val calls = schedule.calls
+
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            runCurrent()
+            assertEquals("the grid was read again under the Libraries screen", calls, schedule.calls)
+
+            vm.librariesClosed()
+            runCurrent()
+            assertTrue("the grid was not read again when Libraries closed", schedule.calls > calls)
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
         }
 
     @Test
