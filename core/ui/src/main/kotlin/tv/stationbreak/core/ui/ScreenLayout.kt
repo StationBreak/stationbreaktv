@@ -13,7 +13,7 @@ object ScreenLayout {
     /** How much a TV may crop (overscan): 5% of the width at each side, 5% of the height at top and bottom. */
     const val OVERSCAN = 0.05f
 
-    private const val PICTURE_WIDTH_FRACTION = 0.3f
+    private const val PICTURE_WIDTH_FRACTION = 0.48f
     private const val ASPECT_WIDTH = 16f
     private const val ASPECT_HEIGHT = 9f
 
@@ -24,7 +24,7 @@ object ScreenLayout {
         return DpRect(left = side, top = edge, right = screen.width - side, bottom = screen.height - edge)
     }
 
-    /** Where the live picture sits: the top-right of [safeArea], 30% of its width, 16:9. */
+    /** Where the live picture sits: the top-right of [safeArea], 48% of its width, 16:9. */
     fun pictureRect(safeArea: DpRect): DpRect {
         val width = (safeArea.right - safeArea.left) * PICTURE_WIDTH_FRACTION
         val height = width * (ASPECT_HEIGHT / ASPECT_WIDTH)

@@ -422,6 +422,7 @@ class GuideFocusTest {
 
     @Test
     fun fewerChannelsThanRowsShowAShortWindow() {
+        assertEquals(0, firstVisibleRowFor(1, 0, GUIDE_VISIBLE_ROWS, 2))
         assertEquals(0, firstVisibleRowFor(2, 0, GUIDE_VISIBLE_ROWS, 3))
         assertEquals(0, firstVisibleRowFor(3, 0, GUIDE_VISIBLE_ROWS, 4))
         assertEquals(0, firstVisibleRowFor(4, 0, GUIDE_VISIBLE_ROWS, 5))

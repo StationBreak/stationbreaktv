@@ -23,7 +23,7 @@ The mockup attached to this issue is the target. The numbers below are the spec;
 - **True neutrals.** No warm tints in page, bands, cards, or plates. Text is white at 90 / 58 / 38% alpha for primary / secondary / tertiary.
 - **One accent, three jobs.** `accent` may be used for (a) the focused cell fill, (b) the now-marker in the timeline + its thin line, (c) the progress line on current programs. Nowhere else. Remove the second NOW chip and the accent pill on the menu.
 - **Three type sizes, two weights** in the grid: title (13sp Medium), metadata (11sp Regular), labels/figures (11sp Medium, tabular). The header title is the one large thing on screen.
-- **Density target: 8 rows visible** in the 960×540dp layout.
+- **Density target: 5 rows visible** in the 960×540dp layout (8 in the first cut; reviewed on the TV and reduced for legibility from the couch).
 - **Marks are flat colour on transparent, untiled, same box, same optical size** (see `channel-identity.md`).
 
 ## Spec by area (current → target)
@@ -61,12 +61,13 @@ Light theme: derive the same way (near-white neutral, ink text at 90/58/38%, sam
 
 | | Current | Target |
 |---|---|---|
-| `GUIDE_VISIBLE_ROWS` | 4 | 8 |
-| `RowHeight` | 57dp | 36dp (band = 8 × 36 + 7 × 1dp gaps ≈ 295dp) |
+| `GUIDE_VISIBLE_ROWS` | 4 | 5 |
+| `RowHeight` | 57dp | 40dp (band = 5 × 40 + 4 × 1dp gaps = 204dp; each row is an equal 40.8dp part of the band and the 0.5dp cell inset is the gap, so a cell is 39.8dp) |
 | `ChannelColumnWidth` | 168dp | 84dp (number 22dp + gap + logo box 50dp) |
 | `ClockHeight` | 24dp | 20dp |
-| `TopGap` / `PanelGap` | 6 / 16dp | 8 / 12dp |
-| Picture corner (`ScreenLayout.pictureRect`) | 40% of safe width | 30% of safe width (16:9) so the panel can hold a description line |
+| `TopGap` / `PanelGap` / `HintGap` | 6 / 16 / 8dp | 4 / 12 / 4dp |
+| Hint row height | 24dp | 20dp (the 16dp key caps are unchanged; with the 48% picture the column is 485.3dp of the 486dp safe height) |
+| Picture corner (`ScreenLayout.pictureRect`) | 40% of safe width | 48% of safe width (16:9): 414.7 × 233.3dp, about 19% of the screen; the panel is 437dp wide |
 
 ### Timeline — `GuideGrid.kt` `ClockStrip`, `NowLine`
 
@@ -124,7 +125,7 @@ Content and rules live in `docs/design/channel-identity.md`; this issue only cha
 
 ## Acceptance criteria
 
-- [ ] 8 channel rows visible at 960×540dp with no clipping; no text in the guide below 10sp.
+- [ ] 5 channel rows visible at 960×540dp with no clipping; no text in the guide below 10sp.
 - [ ] No element inside the grid has a corner radius > 2dp; no shadows, washes or gradients remain in `feature:guide`.
 - [ ] Exactly one orange slab on screen (the focused cell); "NOW" appears once (the panel's `ON NOW` text); the menu has no filled pills.
 - [ ] Every channel mark is drawn flat on transparent (no tile, border, shadow or tint) in a 50×28dp box; channel name is not drawn in the grid.
