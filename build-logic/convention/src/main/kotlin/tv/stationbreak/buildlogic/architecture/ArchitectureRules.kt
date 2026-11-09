@@ -192,8 +192,7 @@ object ArchitectureRules {
             .mapNotNull { edge -> check(module, spec, edge)?.let { Violation(module, edge, it) } }
     }
 
-    private fun specOf(path: String): ModuleSpec? =
-        if (isFeature(path)) NARROWER_FEATURES[path] ?: FEATURE else MODULES[path]
+    private fun specOf(path: String): ModuleSpec? = if (isFeature(path)) NARROWER_FEATURES[path] ?: FEATURE else MODULES[path]
 
     private fun isFeature(path: String): Boolean = path.startsWith(FEATURE_PREFIX) && path.count { it == ':' } == 2
 
