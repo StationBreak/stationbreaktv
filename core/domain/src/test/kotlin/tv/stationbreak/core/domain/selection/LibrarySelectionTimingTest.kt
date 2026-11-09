@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.selection
 
+import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.repair.RepairPhases
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -54,11 +56,31 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
             timing.copy(repair = RepairPhases.NONE),
         )
         // The repair's own steps are reported too, on the same clock: the slow snapshot read is the current days'
-        // (a build) or the new selection's, and no other step took any time.
+        // (a build, before the turn or in it) or the new selection's, and no other step took any time.
         val phases = timing.repair
         assertNotEquals(RepairPhases.NONE, phases)
-        assertEquals(RECORD_MS, phases.daysMs + phases.snapsMs)
-        assertEquals(0, phases.admittedMs + phases.keptMs + phases.layoutMs + phases.pinMs + phases.writeMs)
+        assertEquals(RECORD_MS, listOf(phases.warmMs, phases.daysMs, phases.snapsMs).filter { it > 0 }.sum())
+        val others = listOf(phases.admittedMs, phases.keptMs, phases.layoutMs, phases.pinMs, phases.writeMs)
+        assertTrue(others.all { it <= 0 }, "no other step took any time: $others")
+    }
+
+    @Test
+    fun anUntickRightAfterAnAdd_buildsTodaysDaysBeforeTheTurn_notInIt() {
+        val tv = Tv(chosen = setOf(libA, libC)).ready(setOf(libA, libB, libC))
+        tv.rig.days()
+        // The add's save moves the saved selection, and today's days under it are not built yet (the add's own steps
+        // may build them; here they are let go, as after a lineup refresh or with the add pass still to run).
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB, libC)))
+        tv.rig.source.forget(ACCOUNT)
+        tv.rig.source.evictSnapshotsNaming(ACCOUNT, libA)
+        // Every snapshot read is slow, so a day build shows in the step that ran it.
+        tv.rig.library.afterSnapshot = { tv.ticks += SNAPSHOT_MS.milliseconds }
+
+        assertEquals(ChangeResult.Saved, tv.change(setOf(libA, libB)))
+
+        val phases = tv.changeTimes.last().repair
+        assertEquals(0, phases.daysMs, "the turn built no day")
+        assertTrue(phases.warmMs >= SNAPSHOT_MS, "the days were built before the turn: $phases")
     }
 
     @Test
@@ -74,6 +96,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
     fun theLine_isNumbersOnly() {
         val phases =
             RepairPhases(
+                warmMs = 5,
                 daysMs = 6,
                 snapsMs = 7,
                 admittedMs = 8,
@@ -93,8 +116,8 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
                 .line()
 
         assertEquals(
-            "SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15 days=6 snaps=7 admitted=8 " +
-                "before=9 kept=10 pools=11 live=12 layout=13 pin=14 write=15 cpu=16 gc=17 gcMs=18",
+            "SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15 warm=5 days=6 snaps=7 " +
+                "admitted=8 before=9 kept=10 pools=11 live=12 layout=13 pin=14 write=15 cpu=16 gc=17 gcMs=18",
             line,
         )
     }
@@ -104,8 +127,8 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
         val line = ChangeTiming(0, 0, 0, 0, 0, 0).line()
 
         assertEquals(
-            "SelectionChangeTook wait=0 turnWait=0 record=0 save=0 cache=0 total=0 days=-1 snaps=-1 admitted=-1 " +
-                "before=-1 kept=-1 pools=-1 live=-1 layout=-1 pin=-1 write=-1 cpu=-1 gc=-1 gcMs=-1",
+            "SelectionChangeTook wait=0 turnWait=0 record=0 save=0 cache=0 total=0 warm=-1 days=-1 snaps=-1 " +
+                "admitted=-1 before=-1 kept=-1 pools=-1 live=-1 layout=-1 pin=-1 write=-1 cpu=-1 gc=-1 gcMs=-1",
             line,
         )
     }
@@ -115,5 +138,6 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
         const val RECORD_MS = 400L
         const val SAVE_MS = 150L
         const val CACHE_MS = 250L
+        const val SNAPSHOT_MS = 100L
     }
 }

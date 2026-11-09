@@ -120,6 +120,7 @@ internal class SelectionRepairBenchmark {
         val reads: Reads,
         val channels: Int,
         val touched: Int,
+        val emptied: Int,
         val buildMs: Long,
         val buildPoolsMs: Long,
     )
@@ -152,11 +153,13 @@ internal class SelectionRepairBenchmark {
         fun med(of: (Run) -> Long): Long = runs.map(of).sorted()[runs.size / 2]
         val p = { of: (RepairPhases) -> Long -> med { of(it.phases) } }
         val first = runs.first()
-        return "$name: wall=${med { it.wallMs }} days=${p { it.daysMs }} snaps=${p { it.snapsMs }} " +
+        return "$name: wall=${med { it.wallMs }} warm=${p { it.warmMs }} days=${p { it.daysMs }} " +
+            "snaps=${p { it.snapsMs }} " +
             "admitted=${p { it.admittedMs }} before=${p { it.beforeMs }} kept=${p { it.keptMs }} " +
             "pools=${p { it.poolsMs }} live=${p { it.liveMs }} layout=${p { it.layoutMs }} pin=${p { it.pinMs }} " +
             "write=${p { it.writeMs }} cpu=${p { it.cpuMs }} gc=${med { it.gcCount }} gcMs=${med { it.gcMs }} | " +
-            "channels=${first.channels} touched=${first.touched} snapshotReads=${first.reads.snapshots} " +
+            "channels=${first.channels} touched=${first.touched} " +
+            "emptied=${first.emptied} snapshotReads=${first.reads.snapshots} " +
             "currentIdsCalls=${first.reads.currentIds} currentIdsIds=${first.reads.currentIdIds} " +
             "itemsOfCalls=${first.reads.itemsOf} | fullBuild=${med { it.buildMs }} buildPools=${med { it.buildPoolsMs }}"
     }
@@ -246,6 +249,8 @@ internal class SelectionRepairBenchmark {
             val clock = RepairClock()
             val began = TimeSource.Monotonic.markNow()
             val after = chosen - removed
+            // As the selection's allocation does: today's days warmed before the turn, with the saved selection.
+            clock.timed(RepairPhase.Warm) { repairer.warmDays(ACCOUNT, checkNotNull(before), atMs) }
             val outcome =
                 repairer.selectionChanged(ACCOUNT, after, atMs, 0L, clock = clock) { seq ->
                     chosen = after
@@ -255,6 +260,12 @@ internal class SelectionRepairBenchmark {
             val wallMs = began.elapsedNow().inWholeMilliseconds
             val gcAfter = gcNow()
             assertIs<RepairOutcome.Saved<SelectionRepaired>>(outcome, "the change before was $before")
+            // The repairs whose tail has nothing to air: each needs the new selection's build for its reason.
+            val seq = outcome.result.seq
+            val emptied =
+                checkNotNull(service.loaded(ACCOUNT)).repairs.selection.count {
+                    it.seq == seq && it.tailHidden != null
+                }
             if (!measured) return null
             return Run(
                 clock.phases(),
@@ -264,6 +275,7 @@ internal class SelectionRepairBenchmark {
                 reads.done(),
                 channels,
                 touched,
+                emptied,
                 build?.ms ?: -1L,
                 build?.poolsMs ?: -1L,
             )

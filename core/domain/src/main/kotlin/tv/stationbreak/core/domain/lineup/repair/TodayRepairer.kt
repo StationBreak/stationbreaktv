@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.repair
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -17,6 +18,7 @@ import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.RecordReset
 import tv.stationbreak.core.domain.lineup.Revisioned
+import tv.stationbreak.core.domain.lineup.SavedSelection
 import tv.stationbreak.core.model.ItemId
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration
@@ -104,6 +106,7 @@ internal suspend fun refuseInTurn() {
  * second change never starts before the first is saved. Each write also prunes the repairs a saved later seq has
  * superseded.
  */
+@Suppress("TooManyFunctions") // One per call of the repairer, its turn and record, and the warm-up before a change.
 class TodayRepairer internal constructor(
     private val service: LineupService,
     private val source: BuiltInScheduleSource,
@@ -166,6 +169,9 @@ class TodayRepairer internal constructor(
      * is the seq and the pins whose programme is of a library the change removes. [entered] is called first in the
      * turn, once it is held (a change times its wait for the turn). [clock], when given, times the repair's steps up
      * to the save, with the turn thread's CPU time and the collections over them ([RepairPhases]); it changes nothing.
+     *
+     * A caller that has the saved selection at hand calls [warmDays] with it first, so the turn finds today's days
+     * built.
      */
     @Suppress("LongParameterList") // The change, its moment and floor, the save, and the turn's timing hooks.
     suspend fun selectionChanged(
@@ -220,6 +226,29 @@ class TodayRepairer internal constructor(
                 }
             }
         }
+
+    /**
+     * Builds today's days at [atMs] under [saved] (the saved selection, as the schedule source's provider gives it)
+     * if they are not built yet, outside the repairer's turn and without taking it, so a [selectionChanged] that
+     * follows finds them built: after an earlier selection save (an add's, say) they are not, and their build would
+     * hold the turn. Only a warm-up: it changes nothing, reads no saved selection, and a build that fails is left to
+     * the turn's own read, which meets it as it would have. With no libraries chosen there are no days to build.
+     */
+    @Suppress("TooGenericExceptionCaught") // Whatever the build throws: the turn's own read meets it again.
+    suspend fun warmDays(
+        account: LibraryAccount,
+        saved: SavedSelection,
+        atMs: Long,
+    ) {
+        refuseInTurn()
+        try {
+            withContext(dispatcher) { source.currentDays(account, saved, Instant.fromEpochMilliseconds(atMs)) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The turn reads the days again.
+        }
+    }
 
     // How a change whose save did not return true ended.
     private enum class Settled { Committed, Undone, UndoFailed }

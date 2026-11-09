@@ -11,6 +11,7 @@ import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.RecordReset
 import tv.stationbreak.core.domain.lineup.repair.RepairOutcome
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
+import tv.stationbreak.core.domain.lineup.toSaved
 import tv.stationbreak.core.model.ItemId
 import kotlin.time.Clock
 
@@ -59,7 +60,12 @@ internal class SelectionAllocation(
         val held = { steps?.turnHeld() ?: Unit }
         val allocated =
             if (after != null) {
-                allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, held, steps?.repair, save)) {
+                val atMs = nowMs()
+                // Today's days are built before the turn is asked for, from the selection this lock read (the one the
+                // provider gives), so the turn never builds them.
+                val warm: suspend () -> Unit = { repairer.warmDays(account, stored.toSaved(), atMs) }
+                if (steps == null) warm() else steps.warming(warm)
+                allocated(repairer.selectionChanged(account, after, atMs, atLeast, held, steps?.repair, save)) {
                     it.seq
                 }
             } else {

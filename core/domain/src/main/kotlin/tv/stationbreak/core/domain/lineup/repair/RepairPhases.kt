@@ -6,9 +6,12 @@ import kotlin.time.TimeSource
 
 /**
  * Where a selection change's turn went, in milliseconds (spec 26: the slow untick on older hardware). Numbers only:
- * never an ID or a name. -1 is "not measured" (no repair ran, or the clock cannot tell).
+ * never an ID or a name. -1 is "not measured": no repair ran, the step never ran (a build that was not needed), or the
+ * clock cannot tell.
  *
- * - [daysMs]: today's days under the current selection (`chosenDays`; a day build when they were not built).
+ * - [warmMs]: today's days under the current selection built before the turn is asked for (a day build when they
+ *   were not built yet: after an earlier selection save, say), so the turn does not build them.
+ * - [daysMs]: today's days read in the turn (`chosenDays`; a day build only when they moved on while it waited).
  * - [snapsMs]: the new selection's snapshot reads.
  * - [admittedMs] and [beforeMs]: what each channel admits of the new and of the current selection (a build each).
  * - [keptMs]: the kept windows (with the read of which programmes are live, and any layout that forces).
@@ -20,6 +23,7 @@ import kotlin.time.TimeSource
  *   collections and their blocking time over it.
  */
 data class RepairPhases(
+    val warmMs: Long = -1,
     val daysMs: Long = -1,
     val snapsMs: Long = -1,
     val admittedMs: Long = -1,
@@ -36,7 +40,7 @@ data class RepairPhases(
 ) {
     /** These as the timing line's fields. */
     fun line(): String =
-        "days=$daysMs snaps=$snapsMs admitted=$admittedMs before=$beforeMs kept=$keptMs pools=$poolsMs " +
+        "warm=$warmMs days=$daysMs snaps=$snapsMs admitted=$admittedMs before=$beforeMs kept=$keptMs pools=$poolsMs " +
             "live=$liveMs layout=$layoutMs pin=$pinMs write=$writeMs cpu=$cpuMs gc=$gcCount gcMs=$gcMs"
 
     companion object {
@@ -46,7 +50,7 @@ data class RepairPhases(
 }
 
 /** The steps a [RepairClock] times. */
-internal enum class RepairPhase { Days, Snaps, Admitted, Before, Kept, Pools, Live, Layout, Pin, Write }
+internal enum class RepairPhase { Warm, Days, Snaps, Admitted, Before, Kept, Pools, Live, Layout, Pin, Write }
 
 /**
  * Times the steps of the selection changes a caller asks for, on [ticks], adding up over the attempts of one change
@@ -57,6 +61,9 @@ class RepairClock(
 ) {
     // Nanoseconds, so many short steps add up exactly.
     private val nanos = LongArray(RepairPhase.entries.size)
+
+    // Whether each step ran at all: one that never ran says -1.
+    private val ran = BooleanArray(RepairPhase.entries.size)
     private var used = false
     private var cpuMs = 0L
     private var gcCount = 0L
@@ -67,8 +74,9 @@ class RepairClock(
         if (!used) {
             RepairPhases.NONE
         } else {
-            val ms = LongArray(nanos.size) { nanos[it] / NANOS_PER_MS }
+            val ms = LongArray(nanos.size) { if (ran[it]) nanos[it] / NANOS_PER_MS else -1L }
             RepairPhases(
+                warmMs = ms[RepairPhase.Warm.ordinal],
                 daysMs = ms[RepairPhase.Days.ordinal],
                 snapsMs = ms[RepairPhase.Snaps.ordinal],
                 admittedMs = ms[RepairPhase.Admitted.ordinal],
@@ -92,6 +100,7 @@ class RepairClock(
         elapsed: Duration,
     ) {
         used = true
+        ran[phase.ordinal] = true
         nanos[phase.ordinal] += elapsed.inWholeNanoseconds
     }
 
@@ -116,6 +125,12 @@ class RepairClock(
         const val NANOS_PER_MS = 1_000_000L
     }
 }
+
+/** [block], timed as [phase]: a suspending step outside this module (the warm-up). */
+internal suspend fun <T> RepairClock.timed(
+    phase: RepairPhase,
+    block: suspend () -> T,
+): T = time(phase) { block() }
 
 /** [block], timed as [phase] when there is a clock. */
 internal inline fun <T> RepairClock?.time(
