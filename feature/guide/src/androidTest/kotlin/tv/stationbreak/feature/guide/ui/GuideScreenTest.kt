@@ -853,7 +853,10 @@ class GuideScreenTest {
         assertTrue("the number is inside the column", number.left >= columnLeft)
         assertTrue("the mark is inside the column", mark.right <= columnLeft + ChannelColumnWidth)
         assertTrue("the number is not cut", !isEllipsized("123"))
-        compose.onAllNodesWithText("Test Channel 123", useUnmergedTree = true).assertCountEquals(1) // the panel only
+        // The panel says the channel's name (with its number); the grid does not draw it.
+        compose
+            .onAllNodes(hasText("Test Channel 123", substring = true) and hasAnyAncestor(hasTestTag(GuideTags.GRID)))
+            .assertCountEquals(0)
     }
 
     // The grid's own text: the panel says the channel's name too.
