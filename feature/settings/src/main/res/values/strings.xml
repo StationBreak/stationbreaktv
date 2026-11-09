@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  The copy for Settings (spec 26). The Libraries screen is approved to try on a TV, not final: every line here is a
+  placeholder for the design partner to reword.
+-->
+<resources>
+    <!-- placeholder: design partner -->
+    <string name="settings_libraries_title">Libraries</string>
+    <!-- placeholder: design partner. Under a ticked library that is still being read. -->
+    <string name="settings_libraries_adding">Adding…</string>
+    <!-- placeholder: design partner. The change would leave no library chosen. -->
+    <string name="settings_libraries_last_library">Keep at least one library.</string>
+    <!-- placeholder: design partner. The server could not be asked; the rows are the stored choice, read-only. -->
+    <string name="settings_libraries_unavailable">Can\'t reach the server. These are the libraries this TV uses.</string>
+    <!-- Not in the copy table: short placeholders for the design partner to reword. -->
+    <!-- placeholder: design partner. While the server is asked for its libraries. -->
+    <string name="settings_libraries_loading">Asking the server for its libraries…</string>
+    <!-- placeholder: design partner. A change was stored. -->
+    <string name="settings_libraries_saved">Saved.</string>
+    <!-- placeholder: design partner. A change could not be stored, or an add could not be finished. -->
+    <string name="settings_libraries_failed">That didn\'t work. Try again.</string>
+    <!-- placeholder: design partner. A library to add was not in the server's last listing. -->
+    <string name="settings_libraries_not_listed">The server isn\'t showing that library right now.</string>
+    <!-- placeholder: design partner. A library this TV uses whose name no listing has given yet. -->
+    <string name="settings_libraries_unnamed">A library this TV uses</string>
+    <!-- Spoken with a row: its state. -->
+    <string name="settings_libraries_ticked">Ticked</string>
+    <string name="settings_libraries_unticked">Not ticked</string>
+</resources>

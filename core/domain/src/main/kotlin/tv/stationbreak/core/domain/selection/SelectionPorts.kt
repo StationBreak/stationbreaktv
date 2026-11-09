@@ -53,6 +53,17 @@ interface AddLandings {
 
     /** Puts the library cache in line with the stored selection. */
     suspend fun reconcile()
+
+    /**
+     * Says the add pass gave up the add of [id] under [stamp] for this run of the app (its retries ran out, or its
+     * landing cannot succeed): the published choice shows it as stalled until it is ticked again or the app starts
+     * again. Nothing is stored.
+     */
+    suspend fun addGivenUp(
+        account: LibraryAccount,
+        id: ItemId,
+        stamp: Long,
+    )
 }
 
 /** The first sync's side of the selection: the library set it writes and reads, under the selection's lock. */
@@ -61,13 +72,32 @@ fun interface FirstSyncLibraries {
     suspend fun firstSyncLibraries(account: LibraryAccount): Set<ItemId>
 }
 
-/** Stay current's side of the selection: each listing of the server's libraries it reads (the two-read rule). */
+/**
+ * Stay current's side of the selection: the one listing of the server's libraries each run reads (the two-read rule).
+ */
 fun interface ServerListings {
-    /** Follows one listing of [account]'s libraries. */
+    /** Follows one listing of [account]'s libraries: stay current hands over one listing per run. */
     suspend fun followServer(
         account: LibraryAccount,
         listed: ServerResult<List<Library>>,
     )
+}
+
+/**
+ * Stay current's side of the holds (spec 26, Part 4 D12): the only dedicated expiry of holds. After a run whose
+ * incremental pass completed, the libraries whose hold has ended leave the cache. The selection writes the cache from
+ * the stored selection with no new hold, under its lock, so the same move code runs as for an untick. Every other
+ * cache write of the selection (`applySelection`, the resume's included) also lets an ended hold go, and its
+ * held-before-stamp path (D1) can still place one.
+ *
+ * The cache trusts the clock for this only within an hour (the pause hold) of the account's last successful sync: past
+ * that, no hold expires in the call. So in practice holds expire in a run whose incremental pass completed (that pass
+ * records the success just before), and the resume's expiry acts only within that hour. While the selection is gone no
+ * pass runs, and none of these expiries do either.
+ */
+fun interface HoldExpiry {
+    /** Expires [account]'s holds that have ended; nothing for an account that is not the signed-in one. */
+    suspend fun expireHolds(account: LibraryAccount)
 }
 
 /** The app start's side of the selection: the one resume, run before anything else reads or writes it. */

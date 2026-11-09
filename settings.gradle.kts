@@ -25,4 +25,4 @@ include(":app")
 include(":core:model", ":core:rules", ":core:engine", ":core:scheduler", ":core:testing") // [KMP]
 include(":core:domain", ":data:jellyfin") // [JVM]
 include(":core:ui", ":core:playback", ":data:settings", ":data:library") // [Android]
-include(":feature:onboarding", ":feature:live", ":feature:guide", ":feature:channels") // [Android]
+include(":feature:onboarding", ":feature:live", ":feature:guide", ":feature:channels", ":feature:settings") // [Android]

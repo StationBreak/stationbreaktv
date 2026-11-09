@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.lineup.ProgramInfo
+import tv.stationbreak.core.domain.lineup.repair.DEFAULT_PAUSE_HOLD
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionMember
 import tv.stationbreak.core.model.CollectionNames
@@ -32,6 +33,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -79,13 +81,20 @@ internal data class RowCounts(
  * ever holds a
  * token. The database is a cache: it can be deleted and fetched again.
  */
-@Suppress("TooManyFunctions", "LargeClass") // The port plus the sync's side: each is one call into a DAO transaction.
+@Suppress("TooManyFunctions", "LargeClass", "LongParameterList") // The port and the sync's side; tunables defaulted.
 class RoomLibraryRepository internal constructor(
     private val db: LibraryDatabase,
     private val clock: Clock,
     private val sync: SyncControl = SyncControl.None,
     private val retention: HistoryRetention = HistoryRetention(),
     internal val collectionRelist: CollectionRelist = CollectionRelist(),
+    /**
+     * The hold-expiry clock guard: further past the account's last successful sync than this, no hold expires. It must
+     * be no longer than the repairer's pause hold (`TodayRepairer.pauseHold`, which the app checks where it builds
+     * the repairer), so a forward jump ends a hold at most its pause early.
+     */
+    val holdClockGuard: Duration = DEFAULT_HOLD_CLOCK_GUARD,
+    private val report: (String) -> Unit = {},
 ) : LibraryRepository {
     internal val dao =
         db.dao().also { dao ->
@@ -335,16 +344,20 @@ class RoomLibraryRepository internal constructor(
         val (server, user) = account.keys()
         // Libraries that go take their items, genres, tags, studios, series and checkpoint (foreign keys cascade),
         // after each item another library lists moved to it.
-        transactions.applySelection(
-            server,
-            user,
-            keep.mapTo(HashSet()) { it.value },
-            addStamps.mapKeys { it.key.value },
-            holds.mapKeys { it.key.value },
-            nowMs,
-            // The purge's forward-jump guard (clockLooksWrong): past it, no hold expires.
-            retention.millis - HistoryRetention.SAFE_LOOKBACK_MS,
-        )
+        val frozenSinceMs =
+            transactions.applySelection(
+                server,
+                user,
+                keep.mapTo(HashSet()) { it.value },
+                addStamps.mapKeys { it.key.value },
+                holds.mapKeys { it.key.value },
+                nowMs,
+                // The hold-expiry clock guard, sized to a hold: past it, no hold expires (a forward jump would end one
+                // early by at most its pause, never inside the pinned programme).
+                holdClockGuard.inWholeMilliseconds,
+            ) ?: return
+        // A number only. Logging is best effort.
+        runCatching { report("HoldExpiryFrozen sinceSuccessMin=${frozenSinceMs / MS_PER_MINUTE}") }
     }
 
     override suspend fun landAdd(
@@ -1135,6 +1148,11 @@ class RoomLibraryRepository internal constructor(
         /** The database file's name, with no path: Android puts it in the app's `databases` directory. */
         const val DATABASE_NAME = "library.db"
 
+        private const val MS_PER_MINUTE = 60_000L
+
+        /** The default hold-expiry clock guard: the repairer's default pause hold. */
+        val DEFAULT_HOLD_CLOCK_GUARD: Duration = DEFAULT_PAUSE_HOLD
+
         /** The as-of read walks the account's items this many at a time (spec 09, Vimes M2). */
         private const val AS_OF_CHUNK = 500
 
@@ -1144,11 +1162,12 @@ class RoomLibraryRepository internal constructor(
             clock: Clock = Clock.System,
             retention: HistoryRetention = HistoryRetention(),
             collectionRelist: CollectionRelist = CollectionRelist(),
+            report: (String) -> Unit = {},
         ): RoomLibraryRepository {
             val builder = LibraryDatabases.builder(context.applicationContext, DATABASE_NAME, clock)
             // Sign-in and sign-out cancel the unique sync work through WorkManager, asked for only when they do.
             val sync = AccountChangeSyncControl(WorkManagerEnqueuer(context))
-            return RoomLibraryRepository(builder.build(), clock, sync, retention, collectionRelist)
+            return RoomLibraryRepository(builder.build(), clock, sync, retention, collectionRelist, report = report)
         }
 
         /** For tests: a database from a builder the test configured (a JVM driver, a file or memory). */
@@ -1157,7 +1176,8 @@ class RoomLibraryRepository internal constructor(
             clock: Clock,
             sync: SyncControl = SyncControl.None,
             retention: HistoryRetention = HistoryRetention(),
-        ): RoomLibraryRepository = RoomLibraryRepository(builder.build(), clock, sync, retention)
+            report: (String) -> Unit = {},
+        ): RoomLibraryRepository = RoomLibraryRepository(builder.build(), clock, sync, retention, report = report)
     }
 }
 

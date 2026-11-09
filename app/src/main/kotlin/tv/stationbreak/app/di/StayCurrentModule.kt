@@ -9,6 +9,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.app.StationBreakApp
+import tv.stationbreak.core.domain.selection.HoldExpiry
+import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.data.library.FirstSyncRunner
 import tv.stationbreak.data.library.StayCurrent
 import javax.inject.Singleton
@@ -26,12 +28,15 @@ internal object StayCurrentModule {
      * The one stay-current for the process, so the open trigger, the on-open work and the periodic job share one runner
      * and its one gate. The `Application` and the worker both reach it through the graph (see
      * [StationBreakApp.FirstSyncEntryPoint]). It is built over the stores the first-sync runner reads, so the two
-     * cannot disagree about whose library it is.
+     * cannot disagree about whose library it is. After its passes it reaches the selection through two of its narrow
+     * ports only: the expiry of ended holds and the following of the run's listing (spec 26, Task 4.5).
      */
     @Provides
     @Singleton
     fun stayCurrent(
         @ApplicationContext context: Context,
         firstSync: FirstSyncRunner,
-    ): StayCurrent = StayCurrent.create(context, firstSync) { Log.i(SYNC_TAG, it) }
+        listings: ServerListings,
+        holds: HoldExpiry,
+    ): StayCurrent = StayCurrent.create(context, firstSync, listings, holds) { Log.i(SYNC_TAG, it) }
 }

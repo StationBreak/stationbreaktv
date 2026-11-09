@@ -111,6 +111,8 @@ dependencies {
     implementation(project(":feature:guide"))
     implementation(project(":feature:channels"))
     implementation(project(":feature:onboarding"))
+    // Settings, Libraries (spec 26): the guide's Libraries slot, filled in nav/AppNavHost.
+    implementation(project(":feature:settings"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     // ProcessLifecycleOwner: the app coming to the foreground starts the quiet library sync (spec 06 task 4.0).

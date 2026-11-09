@@ -47,6 +47,7 @@ import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
+import tv.stationbreak.core.domain.selection.FakeLibraryChoices
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Codecs
@@ -157,6 +158,7 @@ class LiveKeysTest {
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),
             LiveTimings(),
+            FakeLibraryChoices(null),
         )
     }
 

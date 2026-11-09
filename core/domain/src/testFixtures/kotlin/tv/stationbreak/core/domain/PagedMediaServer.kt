@@ -166,7 +166,7 @@ class PagedMediaServer(
         return ServerResult.Success(libraries)
     }
 
-    /** Libraries that exist but [libraries] does not list (hidden, grouped, or of a kind the app does not use). */
+    /** Libraries that exist but [libraries] does not list (grouped, or of a kind the app does not use). */
     var extraExistingLibraryIds: Set<ItemId> = emptySet()
 
     /** What [existingLibraryIds] answers when it should fail; the listing's own failure fails it too. */

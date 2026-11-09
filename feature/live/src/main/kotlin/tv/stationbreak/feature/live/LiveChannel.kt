@@ -45,6 +45,7 @@ import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.onLineup
 import tv.stationbreak.core.domain.logName
+import tv.stationbreak.core.domain.selection.ChoiceView
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
@@ -76,6 +77,11 @@ class LiveChannel(
     private val reportingConfig: ReportingConfig = ReportingConfig(),
     /** Fetches what the program info overlay shows beyond the banner; null leaves the overlay with the banner only. */
     details: ProgramDetailsCache? = null,
+    /**
+     * The stored library selection (spec 26). While it is gone, [LiveState.NoLibraries] shows and nothing is tuned;
+     * null leaves it unwatched.
+     */
+    private val selection: StateFlow<ChoiceView?>? = null,
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
     private val screen = Screen(LiveState.Ident(null))
@@ -219,7 +225,7 @@ class LiveChannel(
                 refresher = flipper::refresh
                 lineup = flipper::lineup
                 follow(this, commands, flipper)
-                launch { followLineup { flipper.lineupChanged() } }
+                followChanges(flipper, requests)
                 try {
                     requests.receiveAsFlow().collectLatest { request ->
                         if (sit(session, request, neighbours, reporter)) throw RunEnded()
@@ -247,6 +253,16 @@ class LiveChannel(
                 screen.drop()
             }
         }
+    }
+
+    // Followed for the run's life: a lineup change builds flipping's order afresh, and the libraries going end the
+    // sitting that plays (the next one waits for a library, spec 26).
+    private fun CoroutineScope.followChanges(
+        flipper: Flipper,
+        requests: Channel<SitRequest>,
+    ) {
+        launch { followLineup { flipper.lineupChanged() } }
+        launch { followLibrariesGone { send(requests, SitRequest(null, null)) } }
     }
 
     /** Queues a commit's sitting; a commit still waiting for its sitting is replaced, and its flip is logged so. */
@@ -590,10 +606,12 @@ class LiveChannel(
      * with the place; else the channel chosen as at start (and a kept place is dropped: the viewer joins live).
      */
     private suspend fun land(request: SitRequest?): Landing {
-        val kept = request?.resume
+        // No libraries: nothing is tuned until one is chosen again, and then the channel is chosen afresh.
+        val asked = if (awaitLibraries()) null else request
+        val kept = asked?.resume
         // A kept place goes with the first sitting of its run only: any other landing settles it.
         if (kept == null) pendingResume = null
-        request?.first?.let { return Landing(checkNotNull(account), it, null) }
+        asked?.first?.let { return Landing(checkNotNull(account), it, null) }
         val (acct, onAir) = kept?.let { onAirFor(it) } ?: awaitChannel()
         account = acct
         val place = kept?.takeIf { it.channel == onAir.channel.id && stillScheduled(it, onAir) }
@@ -648,6 +666,30 @@ class LiveChannel(
     private suspend fun onAirFor(place: Place): Pair<LibraryAccount, ChannelOnAir>? {
         val acct = library.activeAccount().first() ?: return null
         return schedule.onAir(place.channel, clock.now(), Sitting.WINDOW)?.let { acct to it }
+    }
+
+    /**
+     * While the selection is gone (spec 26), shows [LiveState.NoLibraries] and waits until it is not. True when it
+     * waited: whatever the sitting was asked to land on is out of date then.
+     */
+    private suspend fun awaitLibraries(): Boolean {
+        val choices = selection?.takeIf { it.value?.gone == true } ?: return false
+        screen.value = LiveState.NoLibraries
+        choices.first { it?.gone != true }
+        return true
+    }
+
+    /**
+     * Calls [gone] each time the selection goes from available to gone (spec 26): [run] then ends the sitting that
+     * plays, and the next one waits for a library.
+     */
+    private suspend fun followLibrariesGone(gone: () -> Unit) {
+        val choices = selection ?: return
+        choices
+            .map { it?.gone == true }
+            .distinctUntilChanged()
+            .drop(1)
+            .collect { if (it) gone() }
     }
 
     /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */

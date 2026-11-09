@@ -25,4 +25,7 @@ object LiveTags {
     const val IDENT = "live:ident"
     const val IDENT_NOTE = "live:identNote"
     const val NO_CHANNELS = "live:noChannels"
+
+    /** The line on the card when none of this TV's libraries is available (spec 26). */
+    const val NO_LIBRARIES = "live:noLibraries"
 }

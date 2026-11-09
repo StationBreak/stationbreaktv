@@ -17,8 +17,9 @@ import kotlin.time.Duration.Companion.hours
  * Spec 26, Part 4 (schema 11, §4 step 4, LOW-15): a chosen library marked for a rewalk is left to the rewalk by the
  * stay-current passes. The incremental, the backfill and the reconcile read the marks from the stored rows at their
  * start and leave the marked library out: no page of it is asked for, and the reconcile neither tombstones its rows
- * nor takes it for a library the server removed. The backfill counts the marked library as covered (its rewalk reads
- * it whole), and keeps its flag set while an unmarked chosen library is not listed.
+ * nor takes it for a library the server removed. A chosen library that still has its add stamp (saved as chosen a
+ * moment before it lands) is left out the same way, so the pass completes. The backfill counts the marked library as
+ * covered (its rewalk reads it whole), and keeps its flag set while an unmarked chosen library is not listed.
  * Invented libraries and names only.
  */
 class MarkedLibraryPassesTest {
@@ -57,6 +58,54 @@ class MarkedLibraryPassesTest {
     }
 
     private fun askedFor() = server.calls.map { it.library.id }.toSet()
+
+    // SHOWS's add walked to its end and proven, and then saved as chosen: the window in which the selection's
+    // passLanded has saved it before landAdd clears its stamp (binding item 1, Task 4.5).
+    private suspend fun stampedShowsSavedAsChosen() {
+        repository.useAccount(ALICE)
+        assertEquals(
+            SyncOutcome.Completed,
+            SyncWorld.engine(repository, server, clock).run(session, ALICE, setOf(MOVIES)),
+        )
+        repository.applySelection(ALICE, setOf(MOVIES, SHOWS), mapOf(SHOWS to 2L), nowMs = clock.nowMs)
+        repository
+            .writePage(ALICE, SHOWS, stamp = 2L, rewalk = false, episodes.items, 3, 3, run = clock.nowMs)
+            .written()
+        assertTrue(repository.markAddWalked(ALICE, SHOWS, 2L, clock.nowMs))
+        server.calls.clear()
+    }
+
+    // Binding item 1 (Task 4.5): a chosen library that still has its add stamp is left out of the incremental pass,
+    // which completes; its add walk read it, and the landing is a moment away.
+    @Test
+    fun incremental_leavesOutAChosenLibraryStillStamped_andCompletes() =
+        runBlocking {
+            stampedShowsSavedAsChosen()
+            clock.instant += 1.hours
+            // An episode the server saved since: a pass that walked SHOWS would write it, and the row would refuse.
+            episodes.items[0] = episodes.items[0].copy(name = "Renamed")
+            episodes.saved[episodes.items[0].id] = clock.now()
+
+            val result = engine().incremental(session, ALICE, setOf(MOVIES, SHOWS))
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(setOf(MOVIES), askedFor())
+        }
+
+    // Binding item 1 (Task 4.5): the reconcile leaves it out too, and completes rather than ending Cancelled.
+    @Test
+    fun reconcile_leavesOutAChosenLibraryStillStamped_andCompletes() =
+        runBlocking {
+            stampedShowsSavedAsChosen()
+            // An episode the server dropped: a reconcile of SHOWS would tombstone it, and the row would refuse.
+            episodes.items.removeAt(2)
+
+            val result = engine().reconcile(session, ALICE, setOf(MOVIES, SHOWS))
+
+            assertEquals(SyncOutcome.Completed, result.outcome)
+            assertEquals(setOf(MOVIES), askedFor())
+            assertEquals("its rows are untouched", 3, repository.liveItemIds(ALICE, SHOWS).size)
+        }
 
     @Test
     fun incremental_leavesOutAMarkedLibrary() =

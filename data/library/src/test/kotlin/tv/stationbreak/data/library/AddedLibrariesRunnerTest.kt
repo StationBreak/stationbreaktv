@@ -90,6 +90,7 @@ class AddedLibrariesRunnerTest {
     ) : AddLandings {
         var landings = 0
         var reconciles = 0
+        val givenUp = mutableListOf<Pair<ItemId, Long>>()
 
         override suspend fun pendingAdds(account: LibraryAccount): Map<ItemId, Long> {
             val stored = settings.loadSelection()
@@ -107,6 +108,14 @@ class AddedLibrariesRunnerTest {
 
         override suspend fun reconcile() {
             reconciles++
+        }
+
+        override suspend fun addGivenUp(
+            account: LibraryAccount,
+            id: ItemId,
+            stamp: Long,
+        ) {
+            givenUp += id to stamp
         }
     }
 
@@ -173,6 +182,7 @@ class AddedLibrariesRunnerTest {
             assertEquals(listOf(2, 4, 8, 16, 32).map { it.seconds }, slept)
             assertTrue("AddLandingStuck" in lines)
             assertTrue("still being added, its walk proved", stampedAndProved())
+            assertEquals("the selection is told: shown stalled", listOf(SHOWS to 2L), landings.givenUp)
 
             // The stamp is given up for the life of the process: a later run does not try it again.
             assertEquals(SyncOutcome.Completed, runner.outcome())
@@ -198,6 +208,7 @@ class AddedLibrariesRunnerTest {
             assertEquals(1, landings.landings)
             assertTrue(slept.isEmpty())
             assertTrue("AddLandingFailed" in lines)
+            assertEquals("the selection is told once", listOf(SHOWS to 2L), landings.givenUp)
         }
 
     @Test
@@ -232,6 +243,36 @@ class AddedLibrariesRunnerTest {
             assertEquals(1, landings.reconciles)
             assertEquals("never landed without a proof", 0, landings.landings)
             assertTrue(repository.stored(ALICE).none { it.library == SHOWS })
+        }
+
+    // Fix round 1 (#654): an add whose walks never prove ends the pass still stored; the selection is told.
+    @Test
+    fun anAddThatNeverProves_isToldToTheSelection() =
+        runBlocking {
+            signedInWithMovies()
+            addingShows()
+            val landings = ScriptedLandings { LandResult.Unproven }
+
+            assertEquals(SyncOutcome.Completed, runner(landings).outcome())
+
+            assertTrue("AddLandingUnproven" in lines)
+            assertEquals("shown stalled, not adding", listOf(SHOWS to 2L), landings.givenUp)
+        }
+
+    // Fix round 1 (#654): a refused write still refused after its one reconcile ends the pass with the add stored.
+    @Test
+    fun aRefusedWriteAfterItsReconcile_isToldToTheSelection() =
+        runBlocking {
+            signedInWithMovies()
+            addingShows()
+            val until = clock.nowMs + 60_000
+            repository.applySelection(ALICE, setOf(MOVIES), holds = mapOf(SHOWS to until), nowMs = clock.nowMs)
+            val landings = ScriptedLandings { LandResult.Landed }
+
+            assertEquals(SyncOutcome.Completed, runner(landings).outcome())
+
+            assertEquals(1, landings.reconciles)
+            assertEquals("shown stalled, not adding", listOf(SHOWS to 2L), landings.givenUp)
         }
 
     // A3: the work list is the selection's own, owner-checked: another account's choice gives no work at all.

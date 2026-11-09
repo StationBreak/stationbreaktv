@@ -14,6 +14,8 @@ import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.selection.HoldExpiry
+import tv.stationbreak.core.domain.selection.ServerListings
 import java.util.concurrent.TimeUnit
 
 /** The part of WorkManager the periodic stay-current job uses, so a test can stand in for it. */
@@ -165,12 +167,15 @@ class StayCurrent internal constructor(
     companion object {
         /**
          * Stay-current on the app's WorkManager, over the very stores [firstSync] reads (the stored server, the ticked
-         * libraries, the session, the server and the saved library), so the two cannot disagree about whose it is. [report]
-         * gets the runner's numbers-only timing lines.
+         * libraries, the session, the server and the saved library), so the two cannot disagree about whose it is.
+         * After a run's passes it asks the selection to expire the ended holds ([holds]) and to follow the run's
+         * listing ([listings]) (spec 26, Task 4.5). [report] gets the runner's numbers-only timing lines.
          */
         fun create(
             context: Context,
             firstSync: FirstSyncRunner,
+            listings: ServerListings,
+            holds: HoldExpiry,
             report: (String) -> Unit = {},
         ): StayCurrent {
             val enqueuer = WorkManagerEnqueuer(context)
@@ -181,6 +186,8 @@ class StayCurrent internal constructor(
                     firstSync.server,
                     firstSync.repository,
                     firstSync.ready,
+                    listings,
+                    holds,
                     firstSync.clock,
                     report = report,
                 )

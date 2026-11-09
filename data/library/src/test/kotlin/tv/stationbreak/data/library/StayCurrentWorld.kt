@@ -13,9 +13,18 @@ import tv.stationbreak.core.domain.PagedMediaServer
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.SelectionReady
+import tv.stationbreak.core.domain.selection.ServerListings
+import tv.stationbreak.core.model.Library
 import kotlin.time.Clock
 import kotlin.time.TimeSource
+
+/** The selection's listing port for a run whose test does not look at it: every listing is dropped. */
+internal val NO_LISTINGS = ServerListings { _, _ -> }
+
+/** The selection's hold-expiry port for a run whose test does not look at it: nothing expires. */
+internal val NO_EXPIRY = HoldExpiry {}
 
 /** Builders for the stay-current tests (spec 06 task 4.0), beside [SyncWorld]. */
 internal object StayCurrentWorld {
@@ -74,8 +83,49 @@ internal class StayCurrentRig(
     val store = InMemorySecretStore()
     val sessions = SessionRepository(store, server, repository)
     val settings = InMemoryServerSettings(ServerRecord(SyncWorld.session.address), setOf(MOVIES))
+
+    /** What a run asked of the selection after its passes, in order: `expire` and `follow` (spec 26, Task 4.5). */
+    val asked = mutableListOf<String>()
+
+    /** Each listing a run handed the selection to follow. */
+    val followed = mutableListOf<ServerResult<List<Library>>>()
+
+    /** Runs inside each hold expiry a run asks for. */
+    var onExpire: suspend (LibraryAccount) -> Unit = {}
+
+    /** Runs inside each listing a run hands over. */
+    var onFollow: suspend (LibraryAccount, ServerResult<List<Library>>) -> Unit = { _, _ -> }
+
+    private val holds =
+        HoldExpiry { account ->
+            asked += "expire"
+            onExpire(account)
+        }
+    private val listings =
+        ServerListings { account, listed ->
+            asked += "follow"
+            followed += listed
+            onFollow(account, listed)
+        }
     val runner =
-        StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, clock, timeSource, report)
+        StayCurrentRunner(
+            settings,
+            sessions,
+            server,
+            repository,
+            SelectionReady.Complete,
+            listings,
+            holds,
+            clock,
+            timeSource,
+            report,
+        )
+
+    /** The stored selection made gone: the server lists none of its chosen libraries any more. */
+    suspend fun goneSelection() {
+        val stored = checkNotNull(settings.loadSelection())
+        check(settings.saveSelection(stored.copy(seq = stored.seq + 1, gone = true)))
+    }
 
     /** Signs in and runs the first sync to its end; the recorded moment is the clock at that time. */
     suspend fun firstSyncDone() {

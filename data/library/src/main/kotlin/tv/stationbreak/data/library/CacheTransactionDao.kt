@@ -269,7 +269,8 @@ internal abstract class CacheTransactionDao(
      * (spec 26, schema 11), live or tombstoned: a chosen one first, then one being added, then a held one, then the
      * smallest id. Each move is versioned, deletes the target's also-listed row and lowers the target's coverage to
      * the deleted library's. Only then are the shared series re-homed, so a moved episode keeps its series, and the
-     * libraries deleted, with what is left under them. One transaction.
+     * libraries deleted, with what is left under them. One transaction. Gives how far past the last successful sync
+     * the clock read when the hold-expiry clock guard kept a hold that had ended, or null when it kept none.
      */
     @Transaction
     @Suppress("LongParameterList") // The selection, its stamps and holds, the clock and its guard.
@@ -281,12 +282,14 @@ internal abstract class CacheTransactionDao(
         holds: Map<String, Long>,
         nowMs: Long,
         holdClockGuardMs: Long? = null,
-    ) {
+    ): Long? {
         val change =
-            library.applySelectionRows(serverId, userId, keep, addStamps, holds, nowMs, holdClockGuardMs) ?: return
-        if (change.deleted.isEmpty()) return
-        moveBeforeDelete(serverId, userId, change, nowMs)
-        library.deleteLeavers(serverId, userId, change.deleted, change.staying)
+            library.applySelectionRows(serverId, userId, keep, addStamps, holds, nowMs, holdClockGuardMs) ?: return null
+        if (change.deleted.isNotEmpty()) {
+            moveBeforeDelete(serverId, userId, change, nowMs)
+            library.deleteLeavers(serverId, userId, change.deleted, change.staying)
+        }
+        return change.frozenSinceSuccessMs
     }
 
     // The delete-time moves (spec 26, schema 11): each item a deleted library owns goes to its best staying lister.

@@ -125,7 +125,8 @@ class SameAccountSetupTest {
             assertTrue(selection.clear())
             assertEquals(SetupResult.Saved, selection.choose(setOf(MOVIES, SHOWS)))
             clock.instant += 1.hours
-            val runner = StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, clock)
+            val ready = SelectionReady.Complete
+            val runner = StayCurrentRunner(settings, sessions, server, repository, ready, NO_LISTINGS, NO_EXPIRY, clock)
 
             assertEquals(SyncOutcome.Completed, runner.outcome(SyncPlan.Both))
 

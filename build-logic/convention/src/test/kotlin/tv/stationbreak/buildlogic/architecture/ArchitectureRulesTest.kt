@@ -113,6 +113,21 @@ class ArchitectureRulesTest {
         )
     }
 
+    // Spec 26: feature:settings consumes core:domain's ports and core:ui only; it plays nothing.
+    @Test
+    fun featureSettingsMayUseDomainModelAndUi_butNotPlayback() {
+        val allowed = listOf(":core:domain", ":core:model", ":core:ui").map { project("implementation", it) }
+        assertEquals(emptyList(), rulesBroken(":feature:settings", *allowed.toTypedArray()))
+        assertEquals(
+            listOf(Rule.NOT_ALLOWLISTED),
+            rulesBroken(":feature:settings", project("implementation", ":core:playback")),
+        )
+        assertEquals(
+            listOf(Rule.FEATURE_ISOLATION),
+            rulesBroken(":feature:settings", project("implementation", ":data:settings")),
+        )
+    }
+
     @Test
     fun androidFeatureModuleMayUseHiltAndItsNavigationAndViewModelLibraries() {
         // F0.5: an Android feature:* module may apply stationbreak.hilt for @HiltViewModel. The pure modules still may not.

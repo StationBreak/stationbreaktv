@@ -75,7 +75,7 @@ stationbreaktv/
     ├── live/           [Android] Full-screen player, up/down flipping, channel banner, info overlay, last-channel recall
     ├── guide/          [Android] Grid guide (>=6h) drawn over live TV: details panel, clock strip, model-driven focus
     ├── channels/       [Android] Channel list + custom channel builder
-    └── settings/       [Android] Settings, diagnostics, about/licenses
+    └── settings/       [Android] Settings: Libraries (spec 26); later diagnostics, about/licenses
 
 Deferred: `benchmark/` (Macrobenchmark + Baseline Profiles) is added in F2.5. `core:common` is not created
 until something genuinely needs sharing.
@@ -138,6 +138,16 @@ taken from the engine, so the screen keeps no copy of the bands or the rules. Li
 `ChannelsDestination` (a feature may not depend on another), over the picture and around the same hole. It tells its host when
 it is finished with one `onDone(tune)` call. Everything in `feature:channels` is internal except `ChannelsDestination` and
 `ChannelsTags` for `app`'s tests.
+
+`feature:settings` exists since spec 26 (library settings). It holds the Libraries screen: `LibrariesSettingsViewModel` (the
+server's libraries as rows, ticked from the stored choice, the focus as a value, and one change at a time) and its D-pad-only
+screen (Up and Down move, Select ticks or unticks at once, Back leaves). It depends on `core:domain`, `core:model` and
+`core:ui` only, with a narrower allowlist than other features (no `core:playback`), and applies the `hilt` convention plugin.
+It reaches the selection only through `LibraryChoices`: one listing per visit, the stored choice as `ChoiceView` (an add the
+add pass gave up shows as stalled, not as being added) and `change`. When the server cannot be asked it shows the stored choice
+read-only. Like the channel screen it is not a route: its host draws `LibrariesDestination` as a slot that `app` fills, over
+the picture and around the same hole, and it tells its host it is finished with one `onDone()` call. Everything in
+`feature:settings` is internal except `LibrariesDestination` and `SettingsTags` for `app`'s tests.
 
 The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan
 inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where live puts the corner
@@ -265,10 +275,11 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   - **Coverage.** A library's `coveredFromMs` is the earliest moment its next incremental pass must read from (an add
     or a rewalk that landed, a hold placed); the pass that walks it clears it.
   - **The generation** moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after
-    its walk wrote rows), and for a page only for a field the scheduler or the rules read: an item's in a library that
+    its walk wrote rows; a library that holds no row goes without a bump), and for a page only for a field the scheduler or the rules read: an item's in a library that
     is not being added, and a series' in any library (episodes of other libraries read a series row by its id). A
-    provider-id-only change, a tick and an add's item pages never move it. When the clock is past the purge's
-    forward-jump guard, no hold expires. A page rewrites an item's genre, tag or studio rows only when that list
+    provider-id-only change, a tick and an add's item pages never move it. When the clock is further past the
+    last successful sync than a hold lasts (the pause hold, 60 minutes by default), no hold expires, so a forward jump
+    cannot end one early. A page rewrites an item's genre, tag or studio rows only when that list
     changed. Provider ids are stored as `key=value;key=value`, keys sorted, and are never logged.
 - **The add pass and the rewalk (spec 26).** `LibraryPass` is the one walk of a library (pages from the checkpoint,
   the catch-up of what changed since the walk began, the series and the hidden series), with three uses: the first
@@ -277,10 +288,25 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   `AddedLibrariesRunner`. The runner waits for the selection's resume, takes its work from the selection
   (`AddLandings.pendingAdds`), walks each add under its stamp and hands it to the selection to land
   (`AddLandings.passLanded`); it never lands anything itself. A landing that may pass is tried again a few times per
-  stamp with a doubling wait; one that cannot is given up until the next start. The selection's `LibraryPasses.restart`
-  enqueues it with `REPLACE`. It stays out of the sync signal the lineup refresher holds its triggers on. The rewalk
-  is a step of a stay-current run whose passes completed: each chosen, marked library the server lists is walked from
-  its checkpoint, and a failure keeps the mark for the next run without changing how the run ended.
+  stamp with a doubling wait; one that cannot is given up until the next start, and the runner tells the selection
+  (`AddLandings.addGivenUp`), which publishes it as stalled (`ChoiceView.stalled`). The selection's `LibraryPasses.restart`
+  enqueues it with `REPLACE`. It stays out of the sync signal the lineup refresher holds its triggers on.
+- **After stay current's passes (spec 26).** A run whose passes completed, or whose incremental pass completed and
+  which was not cancelled, asks the selection to expire the holds that have ended (`HoldExpiry`, the cache write of the
+  stored selection with no new hold), then lists the server's libraries once and hands that listing to the selection
+  (`ServerListings`, the two-read rule). When the whole run completed, the rewalk runs on that same listing: each
+  chosen, marked library it lists is walked from its checkpoint, and a failure keeps the mark for the next run. The
+  rewalk reads what plays again first and is skipped when the listing left the selection gone. While the selection is
+  gone, a run makes no pass, no hold expiry and no rewalk, and still lists and follows, so a chosen library that comes
+  back ends the gone state. None of these steps changes how the run ended.
+  - **When holds really expire.** The cache trusts the clock for hold expiry only within the pause hold (60 minutes)
+    of the account's last successful sync, which only the incremental pass records. So holds expire in the hook of a
+    run whose incremental pass completed, and the resume's expiry acts only within 60 minutes of one; after a longer
+    gap an ended hold waits for the next incremental pass (at most about 6 hours). A call the guard froze logs
+    `HoldExpiryFrozen sinceSuccessMin=<n>`. A monotonic clock pair is the follow-up that would tell a jump from a gap. The passes leave out a chosen
+  library that is marked, still stamped (saved as chosen a moment before it lands) or held.
+- **Hidden views.** The library listing asks `UserViews` with `includeHidden=true`: a library the user hid from the
+  server's home screen is still listed, so it stays choosable and never reads as going missing.
 - **Re-id matching (spec 26).** `successors(account, libraries, gone)` finds where a tombstoned item came back under a new
   id, among the live rows of the playable libraries. The rows are read in one read transaction (narrowed in SQL to the
   gone items' series, titles and identity ids), and `ReIdMatch` runs after it, outside the transaction, over the live
@@ -337,8 +363,11 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   every change of the stored selection: a change after setup, the setup itself, the landing of an add, the following of
   the server's listings, the first sync's library set and the resume at start. Callers see it only through narrow
   ports: features through `LibraryChoices` and `LibrarySetup`, the add pass through `AddLandings`, the first sync
-  through `FirstSyncLibraries`, stay current through `ServerListings`, and the app's start through `SelectionResume`.
+  through `FirstSyncLibraries`, stay current through `ServerListings` and `HoldExpiry`, and the app's start through
+  `SelectionResume`.
   It asks for the add pass through `LibraryPasses`. The app binds it under `@AppStart` only, so nothing else can hold it.
+  Its work is split across internal collaborators in the same package (`SelectionOwnership`, `SelectionAllocation`,
+  `SelectionCache`, `SelectionReconciler`, `SelectionFollower`), built by it and run only under its lock.
   - **Order.** Locks are taken in one order: the selection's lock, then the repairer's turn, then the lineup's entry
     lock, then the settings' locks; Room transactions are leaves. Stores are written in one order: the repair record,
     then the settings (the truth), then the library cache. A cache write that fails after its save is put right by the

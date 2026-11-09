@@ -13,6 +13,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.ListLibrarySource
+import tv.stationbreak.core.domain.lineup.repair.DEFAULT_PAUSE_HOLD
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
@@ -554,7 +555,8 @@ class ApplySelectionTest {
             assertEquals(before + 1, generation())
         }
 
-    // Fix round 2 (Vimes). The purge's forward-jump guard: a clock far past the last success expires no hold.
+    // Fix round 2 (Vimes), resized in Task 4.5 (binding item 5): the hold-expiry clock guard is the pause hold, not
+    // the purge's 27 days. A clock further past the last success than that expires no hold; at the guard, it does.
     @Test
     fun aClockFarAheadOfTheLastSuccessExpiresNoHoldAndANormalLaterCallDoes() =
         runBlocking {
@@ -564,7 +566,7 @@ class ApplySelectionTest {
             val until = clock.nowMs + 60_000
             apply(setOf(MOVIES), holds = mapOf(SHOWS to until))
             val before = generation()
-            val guard = HistoryRetention().millis - HistoryRetention.SAFE_LOOKBACK_MS
+            val guard = DEFAULT_PAUSE_HOLD.inWholeMilliseconds
             val lastSuccess = clock.nowMs
 
             clock.atMs(lastSuccess + guard + 1)

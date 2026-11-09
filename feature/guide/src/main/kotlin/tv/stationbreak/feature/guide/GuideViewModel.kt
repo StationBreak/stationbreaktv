@@ -28,6 +28,8 @@ import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.domain.lineup.onGuide
+import tv.stationbreak.core.domain.selection.ChoiceView
+import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
@@ -67,6 +69,11 @@ internal class GuideViewModel
         val measure: Boolean = false,
         /** Where the one line about a lineup watch that ended by an error goes; numbers only. */
         private val log: (String) -> Unit = {},
+        /**
+         * The stored library selection (spec 26). While it is gone (the server lists none of the chosen libraries) the
+         * screen says so where the grid goes, and the focus stays on the menu row, where Settings leads to Libraries.
+         */
+        val selection: StateFlow<ChoiceView?> = MutableStateFlow(null),
     ) : ViewModel() {
         @Inject
         constructor(
@@ -75,7 +82,17 @@ internal class GuideViewModel
             clock: Clock,
             lineup: ChannelRepository,
             @GuideMeasured measure: Boolean,
-        ) : this(schedule, details, clock, Dispatchers.Default, lineup, measure, { Log.w(LOG_TAG, it) })
+            choices: LibraryChoices,
+        ) : this(
+            schedule,
+            details,
+            clock,
+            Dispatchers.Default,
+            lineup,
+            measure,
+            { Log.w(LOG_TAG, it) },
+            choices.selection,
+        )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
@@ -144,11 +161,37 @@ internal class GuideViewModel
                 endSession()
                 currentChannel = current
                 this.playing = playing?.takeIf { it.channel == current }
-                val fresh = newSession()
-                startLoad(fresh)
-                startWatch(fresh)
+                startWork(newSession())
             }
         }
+
+        // What a session runs, at an open and again at each reload (which starts a fresh session): the first read,
+        // build and fill-in, the lineup watch, and the library selection. Under [lock].
+        private fun startWork(s: CoroutineScope) {
+            startLoad(s)
+            startWatch(s)
+            s.launch { followSelection(s) }
+        }
+
+        // No libraries: the grid is not shown, so the focus goes to the menu row, on Settings. It stays on the menu
+        // row (Down does nothing) until a library is chosen again.
+        private suspend fun followSelection(s: CoroutineScope) {
+            selection.collect { view ->
+                if (view?.gone == true) {
+                    synchronized(lock) {
+                        val current = shownSnapshot.value
+                        if (session === s && current.menu == null) {
+                            shownSnapshot.value = current.toSettings()
+                        }
+                    }
+                }
+            }
+        }
+
+        private fun noLibraries(): Boolean = selection.value?.gone == true
+
+        // The menu row, on Settings, with nothing left focused on the channel column: where the libraries are chosen.
+        private fun GuideSnapshot.toSettings(): GuideSnapshot = copy(menu = GuideMenuEntry.Settings, onChannel = false)
 
         private fun newSession(): CoroutineScope {
             val fresh = CoroutineScope(dispatcher + SupervisorJob(root))
@@ -205,8 +248,13 @@ internal class GuideViewModel
                 val current = shownSnapshot.value
                 if (shownInfo.value != null) return
                 when {
+                    // A cell of a grid that is not shown is never moved to: the menu row takes the focus.
+                    current.menu == null && noLibraries() -> shownSnapshot.value = current.toSettings()
+
                     current.menu != null -> moveOnMenu(current, current.menu, direction)
+
                     current.onChannel -> moveOnChannel(current, direction, repeat, atMs)
+
                     else -> moveOnGrid(current, direction, repeat, atMs)
                 }
             }
@@ -245,7 +293,7 @@ internal class GuideViewModel
                 }
 
                 GuideDirection.Down -> {
-                    leaveMenu(current)
+                    if (!noLibraries()) leaveMenu(current)
                 }
 
                 GuideDirection.Up -> {
@@ -312,27 +360,25 @@ internal class GuideViewModel
         fun select() {
             synchronized(lock) {
                 val current = shownSnapshot.value
-                if (current.menu != null) {
-                    if (shownInfo.value == null) {
-                        eventChannel.trySend(
-                            when (current.menu) {
-                                GuideMenuEntry.Channels -> GuideEvent.OpenChannels
-                                GuideMenuEntry.Settings -> GuideEvent.OpenSettings
-                                GuideMenuEntry.Exit -> GuideEvent.Exit
-                            },
-                        )
-                    }
-                    return
+                when {
+                    current.menu != null -> if (shownInfo.value == null) selectOnMenu(current.menu)
+
+                    // No grid is shown without libraries: there is no cell or channel to act on.
+                    !noLibraries() -> selectOnGrid(current)
                 }
-                val ready = current.state as? GuideState.Ready
-                val located = current.focus?.let { ready?.model?.indexOf(it) }
-                if (ready == null || located == null || shownInfo.value != null) return
-                val row = ready.model.rows[located.first]
-                if (current.onChannel) {
-                    eventChannel.trySend(GuideEvent.OpenChannelProperties(row.channel))
-                } else {
-                    selectCell(row, row.cells[located.second], ready.nowMs)
-                }
+            }
+        }
+
+        // Select on the grid's focus, a cell or a channel; under [lock].
+        private fun selectOnGrid(current: GuideSnapshot) {
+            val ready = current.state as? GuideState.Ready
+            val located = current.focus?.let { ready?.model?.indexOf(it) }
+            if (ready == null || located == null || shownInfo.value != null) return
+            val row = ready.model.rows[located.first]
+            if (current.onChannel) {
+                eventChannel.trySend(GuideEvent.OpenChannelProperties(row.channel))
+            } else {
+                selectCell(row, row.cells[located.second], ready.nowMs)
             }
         }
 
@@ -347,6 +393,17 @@ internal class GuideViewModel
                 cell.kind != CellKind.Program -> Unit
                 else -> openInfo(row, cell)
             }
+        }
+
+        // Select on a menu entry: what it opens, or Exit; under [lock].
+        private fun selectOnMenu(entry: GuideMenuEntry) {
+            eventChannel.trySend(
+                when (entry) {
+                    GuideMenuEntry.Channels -> GuideEvent.OpenChannels
+                    GuideMenuEntry.Settings -> GuideEvent.OpenSettings
+                    GuideMenuEntry.Exit -> GuideEvent.Exit
+                },
+            )
         }
 
         /**
@@ -365,7 +422,17 @@ internal class GuideViewModel
                 val focus = current.focus
                 val showsMenu = ready != null || current.state == GuideState.Empty
                 when {
-                    shownInfo.value != null || current.menu != null || !showsMenu -> {
+                    shownInfo.value != null || current.menu != null -> {
+                        false
+                    }
+
+                    // No grid is shown: the menu row, on Settings, where the libraries are chosen again.
+                    noLibraries() -> {
+                        shownSnapshot.value = current.toSettings()
+                        true
+                    }
+
+                    !showsMenu -> {
                         false
                     }
 
@@ -526,8 +593,7 @@ internal class GuideViewModel
             if (shownSnapshot.value.menu != menu) {
                 shownSnapshot.value = shownSnapshot.value.copy(menu = menu)
             }
-            startLoad(fresh)
-            startWatch(fresh)
+            startWork(fresh)
         }
 
         override fun onCleared() {

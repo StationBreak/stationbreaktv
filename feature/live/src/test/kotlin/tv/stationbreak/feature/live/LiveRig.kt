@@ -33,6 +33,7 @@ import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.selection.FakeLibraryChoices
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
@@ -456,6 +457,9 @@ class Rig(
     val media = FakeMediaServer()
     val sessions = SessionRepository(InMemorySecretStore(), media)
 
+    /** The stored library selection live reads (spec 26); none stored by default. */
+    val choices = FakeLibraryChoices(null)
+
     /** The details the info overlay fetches: asks [media], which a test scripts with `itemDetailsResult`. */
     val details = ProgramDetailsCache(media, sessions, scope.backgroundScope)
 
@@ -475,6 +479,7 @@ class Rig(
             { reports += it },
             server,
             details = details,
+            selection = choices.selection,
         )
 
     /** Every state in order, each with how many port calls had been made when it appeared. */

@@ -65,6 +65,7 @@ import tv.stationbreak.core.domain.lineup.repair.TodayRepairer
 import tv.stationbreak.core.domain.lineup.savedSelectionOf
 import tv.stationbreak.core.domain.selection.AddLandings
 import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.LibrarySelection
@@ -77,12 +78,14 @@ import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.FirstSyncRunner
+import tv.stationbreak.data.library.RoomLibraryRepository
 import tv.stationbreak.data.library.StayCurrent
 import tv.stationbreak.data.settings.lineup.FileDayStore
 import tv.stationbreak.data.settings.lineup.FileLineupStore
 import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.time.Clock
+import kotlin.time.Duration
 
 private const val TAG = "Lineup"
 
@@ -341,10 +344,23 @@ internal object LineupModule {
         source: BuiltInScheduleSource,
         library: LibraryRepository,
         settings: ServerSettings,
+        room: RoomLibraryRepository,
     ): TodayRepairer =
         TodayRepairer(service, source, library, Successors { a, l, g -> library.successors(a, l, g) }) {
             settings.loadSelectionSeq()
-        }
+        }.also { checkHoldGuard(room.holdClockGuard, it.pauseHold) }
+
+    /**
+     * The library cache's hold-expiry clock guard must be no longer than the pause hold the repairer is configured
+     * with (spec 26, Task 4.5): a forward clock jump the guard lets through then ends a hold at most its pause early,
+     * never inside the pinned programme. Checked once, where the repairer is built.
+     */
+    fun checkHoldGuard(
+        guard: Duration,
+        pauseHold: Duration,
+    ) {
+        require(guard <= pauseHold) { "The hold-expiry clock guard is longer than the pause hold" }
+    }
 
     /**
      * The one writer of the library selection (spec 26, Part 4): onboarding's setup, the Settings changes, the landing
@@ -415,6 +431,12 @@ internal object LineupModule {
         @AppStart selection: LibrarySelection,
     ): ServerListings = selection
 
+    /** Stay current's expiry of ended holds after its incremental pass completed, run by the selection (Task 4.5). */
+    @Provides
+    fun holdExpiry(
+        @AppStart selection: LibrarySelection,
+    ): HoldExpiry = selection
+
     /** The resume at start, which the app's start alone runs: qualified, so nothing else can inject it. */
     @Provides
     @AppStart
@@ -441,7 +463,8 @@ internal object LineupModule {
     /**
      * A stay-current run soon, for a library whose unproven add was set back to be read again (spec 26): the open
      * trigger's own entry, so its rules (not while a sync runs, not before the first sync ended) hold. The provider is
-     * lazy: stay current's runner will follow the selection's listings (Task 4.5).
+     * lazy: stay current's runner follows the selection's listings and expires its holds (Task 4.5), so the two need
+     * each other.
      *
      * `onOpen` drops a request that comes while a run is going (it queues nothing then). That loses nothing: the
      * set-back library carries a durable rewalk mark in the cache, and the next run that gets past the first-sync gate

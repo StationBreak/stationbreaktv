@@ -30,6 +30,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
+import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackResolver
@@ -145,6 +146,8 @@ internal class LiveViewModel
         private val details: ProgramDetailsCache,
         // The live screen's tunables, with the device's own key-repeat timeout (the app builds them).
         private val timings: LiveTimings,
+        // The stored library selection: while it is gone, nothing plays (spec 26).
+        private val choices: LibraryChoices,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
@@ -358,6 +361,7 @@ internal class LiveViewModel
                         report = { log(it.line()) },
                         server = server,
                         details = details,
+                        selection = choices.selection,
                     ).also {
                         live = it
                         running.machine = it

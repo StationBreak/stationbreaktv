@@ -20,8 +20,10 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.selection.ResumeGate
 import tv.stationbreak.core.domain.selection.SelectionReady
+import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.Library
 import tv.stationbreak.data.library.SyncWorld.movies
 import tv.stationbreak.data.library.SyncWorld.session
 import tv.stationbreak.data.library.SyncWorld.shows
@@ -47,8 +49,17 @@ class StayCurrentRewalkTest {
     @After
     fun close() = repository.close()
 
+    // What the run hands the selection to follow, and what the selection does with it (nothing, unless a test says).
+    private val followed = mutableListOf<ServerResult<List<Library>>>()
+    private var onFollow: suspend (ServerResult<List<Library>>) -> Unit = {}
+    private val listings =
+        ServerListings { _, listed ->
+            followed += listed
+            onFollow(listed)
+        }
+
     private fun runner(ready: SelectionReady = SelectionReady.Complete) =
-        StayCurrentRunner(settings, sessions, server, repository, ready, clock)
+        StayCurrentRunner(settings, sessions, server, repository, ready, listings, NO_EXPIRY, clock)
 
     private suspend fun row(id: ItemId): LibraryEntity {
         val rows = repository.dao.libraries("server-1", "alice")
@@ -91,6 +102,40 @@ class StayCurrentRewalkTest {
             assertFalse(shows.rewalkPending)
             assertNotNull("the incremental reads it from the rewalk's start", shows.coveredFromMs)
             assertEquals(3, repository.stored(ALICE).count { it.library == SHOWS })
+        }
+
+    // Task 4.5: the rewalk walks on the run's one listing, the one the selection followed; it asks for none of its own.
+    @Test
+    fun rewalk_walksOnTheListingTheSelectionFollowed() =
+        runBlocking {
+            markedShows()
+            // After the run's listing, the server stops listing SHOWS: a listing of the rewalk's own would miss it.
+            onFollow = { server.libraries = listOf(movies) }
+
+            assertEquals(SyncOutcome.Completed, runner().outcome(SyncPlan.Both))
+
+            val listed = followed.single() as ServerResult.Success
+            assertTrue(listed.value.any { it.id == SHOWS })
+            assertTrue("walked on the followed listing", rewalkPages().isNotEmpty())
+            assertFalse(row(SHOWS).rewalkPending)
+        }
+
+    // D11 and Task 4.5: the selection may end gone on the run's listing; the rewalk checks for that and is skipped.
+    @Test
+    fun rewalk_isSkipped_whenTheFollowedListingLeftTheSelectionGone() =
+        runBlocking {
+            markedShows()
+            onFollow = {
+                val stored = checkNotNull(settings.loadSelection())
+                assertTrue(settings.saveSelection(stored.copy(seq = stored.seq + 1, gone = true)))
+            }
+            val runner = runner()
+
+            assertEquals(SyncOutcome.Completed, runner.outcome(SyncPlan.Both))
+
+            assertTrue(rewalkPages().isEmpty())
+            assertTrue("kept for a run after the selection is back", row(SHOWS).rewalkPending)
+            assertEquals(null, runner.lastRewalk)
         }
 
     @Test

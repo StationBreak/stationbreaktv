@@ -65,8 +65,9 @@ class QuietOpenGenerationTest {
     private val settings =
         InMemoryServerSettings(ServerRecord(SyncWorld.session.address), libraries.map { it.id }.toSet())
     private val lines = mutableListOf<String>()
+    private val ready = SelectionReady.Complete
     private val runner =
-        StayCurrentRunner(settings, sessions, server, repository, SelectionReady.Complete, clock) { lines += it }
+        StayCurrentRunner(settings, sessions, server, repository, ready, NO_LISTINGS, NO_EXPIRY, clock) { lines += it }
     private val open = SyncPlan(incremental = false, reconcile = true)
     private val both = SyncPlan(incremental = true, reconcile = true)
 

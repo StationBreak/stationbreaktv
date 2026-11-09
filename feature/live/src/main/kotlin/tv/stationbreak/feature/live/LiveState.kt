@@ -9,6 +9,12 @@ sealed interface LiveState {
     /** Signed in, but no channel is on the air. Not final: a lineup that arrives later opens a channel. */
     data object NoChannels : LiveState
 
+    /**
+     * None of this TV's chosen libraries is available any more (spec 26): the selection is gone. Nothing plays; the
+     * slate says where the libraries are chosen again. A library chosen again ends it.
+     */
+    data object NoLibraries : LiveState
+
     /** Snow with the banner, until the picture plays (at least the minimum snow time). */
     data class Tuning(
         val banner: Banner,

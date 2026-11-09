@@ -21,6 +21,7 @@ import tv.stationbreak.feature.onboarding.libraries.LibrariesDestination
 import tv.stationbreak.feature.onboarding.libraries.SignedInDestination
 import tv.stationbreak.feature.onboarding.server.ServerDestination
 import tv.stationbreak.feature.onboarding.signin.SignInDestination
+import tv.stationbreak.feature.settings.ui.LibrariesDestination as SettingsLibrariesDestination
 
 /**
  * The app's navigation graph, typed routes with the platform's back stack: Back goes up one level and, from the root,
@@ -110,8 +111,8 @@ internal fun AppNavGraph(
 }
 
 /**
- * The guide, with channel management (spec 21) and a channel's properties sheet (#631) as its slots, filled here
- * because a feature never depends on another.
+ * The guide, with channel management (spec 21), a channel's properties sheet (#631) and Settings, Libraries (spec 26)
+ * as its slots, filled here because a feature never depends on another.
  */
 @Composable
 private fun GuideWithChannels(
@@ -127,6 +128,7 @@ private fun GuideWithChannels(
         properties = { channel, current, opened, hole, onDone ->
             ChannelPropertiesDestination(channel, current, opened, hole, onDone)
         },
+        libraries = { hole, onDone -> SettingsLibrariesDestination(hole, onDone) },
     )
 }
 

@@ -104,11 +104,14 @@ internal class SignalRow(
 /**
  * What [LibraryDao.applySelectionRows] left to do (spec 26): the libraries to delete ([deleted], not yet deleted), the
  * ones that stay ([staying], kept or held), and the coverage each deleted one had ([coveredFrom], none left out).
+ * [frozenSinceSuccessMs] is how far past the last successful sync the clock read when the hold-expiry clock guard kept
+ * a hold that had ended, or null when it kept none.
  */
 internal class SelectionChange(
     val deleted: List<String>,
     val staying: List<String>,
     val coveredFrom: Map<String, Long>,
+    val frozenSinceSuccessMs: Long? = null,
 )
 
 /** What [CacheTransactionDao.writePage] did with a page's items. A replayed page is all [unchanged]. */
@@ -997,21 +1000,23 @@ internal abstract class LibraryDao {
      * everything under them, through the foreign keys). A stamp or hold for a library it does not apply to (a stamp
      * outside [keep], a hold inside it, a hold for a library not stored) is ignored.
      *
-     * The content generation moves once, and only when a library's rows are deleted: an unticked library, a hold that
-     * expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or be a held
-     * library's, re-ticked). A tick, a hold set or cleared, and an add dropped before it holds a row move nothing: none
-     * of them changes what a day is built from. A held row is kept by its hold alone, never by a stamp it may still
-     * carry. A library that is held (here, or from before) loses its
-     * stamp, its walk's proof and its rewalk mark: a held library is never one being added. A hold for a library
-     * already held keeps the later of the two; a hold placed now sets the library's coverage to the earlier of the one
-     * it has and [nowMs]. A kept library given a new stamp loses its proof and its mark; any other kept library keeps
-     * its proof, mark and coverage. An account that is not signed in gets no rows back, and null.
+     * The content generation moves once, and only when a library that holds rows is deleted: an unticked library, a
+     * hold that expired, or an add dropped after its walk wrote rows (they may have moved in from a chosen library, or
+     * be a held library's, re-ticked). A tick, a hold set or cleared, and the deletion of a library that holds no row
+     * (a pending library unticked, a held add that wrote nothing) move nothing: none of them changes what a day is
+     * built from. A held row is kept by its hold alone, never by a stamp it may still carry. A library that is held
+     * (here, or from before) loses its stamp, its walk's proof and its rewalk mark: a held library is never one being
+     * added. A hold for a library already held keeps the later of the two; a hold placed now sets the library's
+     * coverage to the earlier of the one it has and [nowMs]. A kept library given a new stamp loses its proof and its
+     * mark; any other kept library keeps its proof, mark and coverage. An account that is not signed in gets no rows
+     * back, and null.
      *
      * A new stamp may go only to a library that is new, held or already being added, never to a chosen library that
      * has landed: that throws [IllegalArgumentException] and writes nothing. The libraries to delete are returned,
-     * not deleted: [deleteLeavers] does that. [holdClockGuardMs] is the purge's forward-jump guard: when [nowMs] is
-     * more than that after the account's last successful sync, the clock looks wrong and no hold expires in this call
-     * (its rows and its hold are kept). Null (tests) means no guard.
+     * not deleted: [deleteLeavers] does that. [holdClockGuardMs] is the hold-expiry clock guard, sized to a hold:
+     * when [nowMs] is more than that after the account's last successful sync, the clock may have jumped forward and
+     * no hold expires in this call (its rows and its hold are kept); the next call soon after a sync that succeeded
+     * expires it; the change says so ([SelectionChange.frozenSinceSuccessMs]). Null (tests) means no guard.
      */
     @Transaction
     @Suppress("LongParameterList", "CyclomaticComplexMethod") // The selection, its stamps and holds, and the clock.
@@ -1028,26 +1033,28 @@ internal abstract class LibraryDao {
         if (activeCount(serverId, userId) == 0) return null
         val stored = libraries(serverId, userId)
         val lastSuccessMs = state(serverId, userId)?.lastSuccessMs
-        // A clock far ahead of the last success (as the purge's guard reads it) expires no hold (Vimes, spec 26).
+        // A clock further ahead of the last success than a hold lasts expires no hold (spec 26, Task 4.5).
         val holdsFrozen = holdClockGuardMs != null && lastSuccessMs != null && nowMs - lastSuccessMs > holdClockGuardMs
         val byId = stored.associateBy { it.libraryId }
         val toUpdate = mutableListOf<LibraryEntity>()
         val toDelete = mutableListOf<String>()
         val rewalk = mutableListOf<String>()
         var bump = false
+        var frozeOne = false
         for (row in stored) {
             if (row.libraryId in keep) continue
             // A hold for a library already held keeps the later of the two (D5).
             val until = maxOfNullable(holds[row.libraryId], row.heldUntilMs)
             if (until != null && (until > nowMs || holdsFrozen)) {
+                if (until <= nowMs) frozeOne = true
                 val next = heldRow(row, until, nowMs)
                 if (next != row) toUpdate += next
             } else {
                 toDelete += row.libraryId
-                // An add's rows can be ones a day was built from: an item or series that moved in from a chosen
-                // library (its versions go with it), or a held library re-ticked and then dropped. So an add goes
-                // without a bump only when it holds no row at all.
-                if (row.addStamp == null || holdsRows(serverId, userId, row.libraryId)) bump = true
+                // Any library's rows can be ones a day was built from (an add's too: an item or series that moved in
+                // from a chosen library, or a held library re-ticked and then dropped). A library that holds no row
+                // at all (one set up and never walked, a held add that wrote nothing) changes no day: no bump.
+                if (holdsRows(serverId, userId, row.libraryId)) bump = true
             }
         }
         val toInsert = mutableListOf<LibraryEntity>()
@@ -1082,7 +1089,8 @@ internal abstract class LibraryDao {
         toInsert.chunked(MAX_VARIABLES).forEach { insertLibraries(it) }
         val covered = HashMap<String, Long>()
         for (id in toDelete) byId[id]?.coveredFromMs?.let { covered[id] = it }
-        return SelectionChange(toDelete, stored.map { it.libraryId } - toDelete.toSet(), covered)
+        val frozenSince = if (frozeOne && lastSuccessMs != null) nowMs - lastSuccessMs else null
+        return SelectionChange(toDelete, stored.map { it.libraryId } - toDelete.toSet(), covered, frozenSince)
     }
 
     /**

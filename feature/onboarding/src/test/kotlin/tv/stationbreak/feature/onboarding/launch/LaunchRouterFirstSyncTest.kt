@@ -3,11 +3,13 @@ package tv.stationbreak.feature.onboarding.launch
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,6 +25,7 @@ import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.selection.ResumeGate
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Scheme
@@ -69,6 +72,29 @@ class LaunchRouterFirstSyncTest {
         fake.resumeResult = ServerResult.Success(session)
         val settings = InMemoryServerSettings(ServerRecord(https), chosen)
         return runBlocking { LaunchRouter(settings, sessions, fake, firstSync).route() }
+    }
+
+    // Binding item 3 (spec 26, Task 4.5): the stored choice is read only once the selection's resume has run. A
+    // foreign choice that the resume clears must route this launch to the picker, not to the first sync.
+    @Test
+    fun theChoiceIsReadOnlyAfterTheResume_soAChoiceItClearsRoutesToThePicker() {
+        runBlocking { sessions.save(session) }
+        fake.resumeResult = ServerResult.Success(session)
+        val settings = InMemoryServerSettings(ServerRecord(https), setOf(ItemId("movies")))
+        val gate = ResumeGate()
+        val router = LaunchRouter(settings, sessions, fake, InMemoryFirstSync(never), gate)
+
+        val route =
+            runBlocking {
+                val routing = async { router.route() }
+                yield()
+                // The resume clears another account's choice, then opens the gate.
+                assertTrue(settings.clearLibraries())
+                gate.open()
+                routing.await()
+            }
+
+        assertEquals(LaunchRoute.Libraries(session), route)
     }
 
     @Test
