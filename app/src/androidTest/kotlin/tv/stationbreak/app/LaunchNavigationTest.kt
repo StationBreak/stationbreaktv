@@ -9,6 +9,8 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isOff
+import androidx.compose.ui.test.isOn
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -74,6 +76,7 @@ import tv.stationbreak.feature.onboarding.libraries.SignedInTags
 import tv.stationbreak.feature.onboarding.server.ServerTags
 import tv.stationbreak.feature.onboarding.signin.SignInTags
 import tv.stationbreak.feature.onboarding.trust.TrustTags
+import tv.stationbreak.feature.settings.ui.SettingsTags
 import javax.inject.Singleton
 import kotlin.time.Clock
 
@@ -156,6 +159,7 @@ class LaunchNavigationTest {
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
     private val movies = Library(ItemId("movies"), "Movies", LibraryKind.Movies)
+    private val shows = Library(ItemId("shows"), "Shows", LibraryKind.TvShows)
     private val spki = SpkiPin(ByteArray(SpkiPin.SIZE) { 4 })
     private val selfSigned = CertificateEvidence(spki, selfSigned = true, notBeforeMillis = 0L, notAfterMillis = 1_000L)
 
@@ -334,6 +338,54 @@ class LaunchNavigationTest {
         // Nothing is playing on an empty lineup, so there is no playing cell to go back to, and Back on the menu row
         // leaves. (The playing-cell step is GuideMenuUiTest's.)
         assertBackLeavesTheApp()
+    }
+
+    @Test
+    fun librariesOpenFromTheGuidesSettings_selectTicksARow_andBackWalksOutOfIt() {
+        setUpEarlier()
+        // The server lists a second library, which the TV has not chosen yet.
+        Launched.server.fake.librariesResult = ServerResult.Success(listOf(movies, shows))
+        launchApp()
+        awaitExists(LiveTags.NO_CHANNELS)
+
+        // Back opens the guide and Back again reaches the menu row; Right is Settings, and Select opens its panel.
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.EMPTY)
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithTag(GuideTags.SETTINGS_BUTTON).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitExists(GuideTags.SETTINGS_LIBRARIES)
+
+        // Down is the Libraries row, and Select shows the Libraries screen over the guide.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitExists(SettingsTags.row(shows.id))
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodes(hasTestTag(SettingsTags.row(shows.id)) and isOff()).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // The rows are in the server's order: Down reaches the second library, and Select ticks it.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitSelected(SettingsTags.row(shows.id))
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodes(hasTestTag(SettingsTags.row(shows.id)) and isOn()).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Back from the screen shows the Settings panel again, on Libraries.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { count(SettingsTags.LIBRARIES) == 0 }
+        compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
+
+        // Back from the panel closes it: the guide again, on its Settings entry, and the app stays.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { count(GuideTags.SETTINGS_LIBRARIES) == 0 }
+        compose.onNodeWithTag(GuideTags.SETTINGS_BUTTON).assertIsSelected()
+        assertFalse("the Backs that closed Libraries and Settings did not leave", compose.activity.isFinishing)
     }
 
     // Here no catalog sync ever completes, so no lineup is published and its access stays Loading (the builder's own
