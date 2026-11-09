@@ -111,7 +111,13 @@ is top-right in screen coordinates; live places its picture absolutely). A chann
 on now) goes back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`),
 so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). The guide also hosts
 channel management (spec 21) as a second slot, `ChannelsSlot`, behind the Channels entry of its menu row (Channels and Exit, reached by Back); `app` fills it with
-`feature:channels`' `ChannelsDestination`. The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
+`feature:channels`' `ChannelsDestination`. Settings is another entry of the menu row, a panel of three rows (Appearance,
+Libraries and Sync now): Up and Down move the row, Left and Right pick the theme on Appearance, Select on Libraries opens
+a third slot, `LibrariesSlot`, which `app` fills with `feature:settings`' `LibrariesDestination`, and Select on Sync now asks
+`SyncNow` for a sync (a press while one runs does nothing) and shows its state on the row. The guide and live both read
+`LibraryChoices.selection`. When the stored selection is gone (no library of this TV's is available), the guide shows a
+message in place of the grid and keeps its menu row reachable, and live shows `LiveState.NoLibraries` and tunes nothing.
+The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
 `onGuide()`: `onLineup()` plus each channel's `PlayKey`, the days-input digest) to see the lineup change under it
 while that screen shows and just after. It needs the key because it shows the days: a new play order or a reshuffle
 moves no channel or number, yet must reload the grid. Live TV and flipping follow `onLineup()` only (which channels
@@ -120,7 +126,7 @@ playing is gone from the lineup, the guide tunes the neighbour by `neighbourOf` 
 lower). The channel plate carries a 32 dp channel mark (spec 27): the logo bundled in the module's `assets/channelmarks/`,
 found by the channel's recipe key (`ChannelAiring.recipeKey`) and decoded off the main thread into `MarkCache`, else an
 initials tile; the channel column is 168 dp wide to hold it. Everything in
-`feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` type, the `GuideMeasured` qualifier `app`
+`feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` and `LibrariesSlot` types, the `GuideMeasured` qualifier `app`
 provides, and `GuideTags` for `app`'s tests.
 
 `feature:channels` exists since spec 21 (channel management, F2.4). It holds `ChannelsViewModel` (the lineup as rows in three
@@ -273,7 +279,7 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
     chosen one first, then one being added, then a held one), and a series row a live episode of a staying library
     names moves too.
   - **Coverage.** A library's `coveredFromMs` is the earliest moment its next incremental pass must read from (an add
-    or a rewalk that landed, a hold placed); the pass that walks it clears it.
+    or a rewalk that landed, a hold placed); the next incremental pass that walks the library clears it.
   - **The generation** moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after
     its walk wrote rows; a library that holds no row goes without a bump), and for a page only for a field the scheduler or the rules read: an item's in a library that
     is not being added, and a series' in any library (episodes of other libraries read a series row by its id). A
@@ -305,6 +311,17 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
     gap an ended hold waits for the next incremental pass (at most about 6 hours). A call the guard froze logs
     `HoldExpiryFrozen sinceSuccessMin=<n>`. A monotonic clock pair is the follow-up that would tell a jump from a gap. The passes leave out a chosen
   library that is marked, still stamped (saved as chosen a moment before it lands) or held.
+- **Sync now (spec 26).** `SyncNow` (`core:domain`) is the port: a `state` (`Idle`, `Running`, `Done(atMs)`,
+  `Failed(failure)`) and `start()`, which returns false while a sync runs. `RunnerSyncNow` implements it over
+  `LibraryChoices` and `StayCurrentRunner`, on a scope of its own that `app` binds in `di/StayCurrentModule`. A press
+  lists the server once, through `LibraryChoices`: a listing that fails, a sign-in that has expired or an empty answer ends
+  as `Failed` with nothing run and nothing written. Otherwise it calls `StayCurrentRunner.runWaiting(SyncPlan.Both,
+  followServer = false, listed)`. `runWaiting` takes the run's gate by waiting where a background run skips as busy, so a
+  press queues behind a background run and two never run at once. With `followServer = false` the run expires holds
+  after its passes, walks the rewalk on the press's own listing, and skips the runner's own follow of the listing. A
+  completed run is `Done` (the time is the clock's), a failed one `Failed` with the run's reason, a cancelled one `Idle`,
+  and an unexpected throw `Failed(Server)`. The guide's Settings panel shows the state on the Sync now row. One line
+  per press is logged with numbers only.
 - **Hidden views.** The library listing asks `UserViews` with `includeHidden=true`: a library the user hid from the
   server's home screen is still listed, so it stays choosable and never reads as going missing.
 - **Re-id matching (spec 26).** `successors(account, libraries, gone)` finds where a tombstoned item came back under a new

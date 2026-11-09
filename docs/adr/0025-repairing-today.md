@@ -1,6 +1,6 @@
 # ADR-0025: Repairing today (spec 26)
 
-- **Status:** Proposed, 2026-11-07
+- **Status:** Accepted, 2026-11-08 (proposed 2026-11-07; see the amendments below for what was built)
 - **Date:** 2026-11-07
 - **Decided by:** the owner (spec 26 goals, approved 2026-11-07: the library selection is a setting, a changed selection
   updates the rest of today, a gap is always filled, each TV keeps its own selection) and the planning session (the
@@ -188,6 +188,131 @@ finish the save or drop the repair (`dropSelection`, which takes the change's fi
 seq at or below the saved one). Each lost-block check
 starts by dropping every selection repair above the saved seq, with its fixes. No change is being saved outside the
 repairer's turn, so those can only be left by a crash or by a failed undo.
+
+## Amendments 2026-11-08: as built (spec 26, Parts 2 to 5)
+
+The decision above stands. These amendments record what the code does where the plan was open or has since changed.
+The parts are [#649](https://github.com/StationBreak/stationbreaktv/pull/649),
+[#652](https://github.com/StationBreak/stationbreaktv/pull/652),
+[#655](https://github.com/StationBreak/stationbreaktv/pull/655),
+[#673](https://github.com/StationBreak/stationbreaktv/pull/673) and [#676](https://github.com/StationBreak/stationbreaktv/pull/676) (Sync now).
+
+### A1. Holds and add stamps
+
+- **An add stamp, not a token.** Ticking a library stamps it with the seq of the change that saved the tick (`addStamp`;
+  the settings store `adding=id:stamp,...`). Every stamp is at or below the saved seq, and a library is never both chosen
+  and adding.
+- **The seq is floored above every stamp.** Each allocation takes `max(next seq, highest stamp in the cache + 1)`, read
+  under the selection's lock, so no seq can equal a stamp left in the cache. The repairer's `selectionChanged`,
+  `saveWithoutRepair` and `resetSelection` all take this floor (`atLeast`, no default).
+- **Holds** come from `heldPins`: the shown pins with `pinEnd + pauseHold` still ahead. A hold given for a library that
+  already has one is stored as the later of the two. A held library loses its stamp and its walk proof, so it never
+  lands. Re-ticking a held library bumps nothing until it lands. A library that holds no pinned programme is deleted
+  at once.
+- **A tick, an untick and the add are three steps in one order**, so a crash between any two leaves a state the next start
+  repairs: the repair record, then the settings (the truth), then the library cache.
+
+### A2. The two-read listing rule
+
+A chosen or adding library that one listing leaves out is noted as missing and kept. It is dropped only when a later
+listing, from a different pass and at least `SelectionConfig.missingConfirmAfter` after the first miss (3 hours, a
+default), leaves it out again. A library the next listing gives clears its miss. When every chosen library is confirmed
+missing the selection is **gone**: the choice is kept, nothing is playable, the guide and live say so, and a listing
+that gives any chosen library back ends the state. While the selection is gone, a stay-current run makes no pass, no hold
+expiry and no rewalk, and still lists. Two reads exist because a listing can miss a library for a while.
+
+### A3. Re-id rules and tolerance
+
+`LibraryRepository.successors` matches a gone item to where it came back, among the live rows of the playable libraries
+only. A candidate is accepted on, in order:
+
+1. a shared identity id (`imdb`, `tmdb` or `tvdb` only) with no identity key that disagrees;
+2. else an episode of the same series, season and episode;
+3. else a film of the same title and year.
+
+A disagreeing identity id rules a candidate out of the two name rules. Every match also needs a runtime within 2 minutes
+or 2% of the gone item's, whichever is larger, exactly one candidate, and no other gone item that claims or sees it. An
+unknown runtime on either side fails the check. When the rules do not give one answer, the block is gap-filled. A
+wrong successor would put a different programme in the slot, so the rules lean to no match.
+
+### A4. Schema 10, then schema 11 and item ownership
+
+- **Schema 10** added `providerIds` to `item` and `series`, and `heldUntilMs` and `addStamp` to `library`. Its migration
+  sets `backfillPending` so the studios re-read fills the provider ids. A row tombstoned before the upgrade is never read
+  again and keeps no provider ids until it is revived or purged. Such a gone item has nothing to match on and is
+  gap-filled.
+- **Schema 11** added `walkedStamp`, `rewalkPending` and `coveredFromMs` to `library`, the `item_also_listed` table and
+  an index on `item(serverId, userId, seriesId)`. Its migration sets no flag and inserts nothing.
+- **Item ownership.** An item that two libraries list has one owner row. Every other library that lists it has an
+  `item_also_listed` row, so deleting one library's rows never takes an item that another chosen library lists. The
+  invariant is that `(item, owner)` never appears in the table and every other lister has a row. Before a library's rows
+  go (untick, a hold ending, an add dropped), each item it owns that a staying library lists moves to that library, as a
+  versioned move: a chosen library first, then one being added, then a held one, then the smallest id. A chosen
+  library's write takes an item from an owner that is being added, and any writer takes a tombstone. An item owned by a
+  held library and listed by a chosen one is off the chosen library's channels until the hold ends. That is accepted.
+- **Where the rows come from.** The first ID reconcile finds the items that two libraries already shared before the
+  upgrade; there is no backfill read. A hold that expires at the first start after the upgrade, before that reconcile,
+  deletes rows instead of moving them, as it did in schema 10.
+
+### A5. One writer of the selection
+
+`LibrarySelection` (`core:domain`, `selection` package) is the only writer of the stored selection. Features reach it
+through `LibraryChoices`, setup through `LibrarySetup`, and the workers through narrow ports (`AddLandings`,
+`FirstSyncLibraries`, `ServerListings`, `HoldExpiry`, `SelectionResume`).
+
+- **The lock and the order of stores.** One lock in this order, and no path takes two out of order: the selection's lock,
+  then the repairer's turn, then the lineup's entry lock, then the settings' locks. Cache transactions are leaves. Stores
+  are written in the order: repair record, settings, cache. A cache write that fails after its save is put right by the
+  next operation, before anything else. A re-entry into the selection or the repairer from inside their own lock throws.
+- **`SelectionReady`.** The resume at start finishes first, and every selection operation and the first-sync,
+  stay-current and add workers wait on it (the resume itself is exempt). It is open however the resume ended.
+- **The resume** raises the seq above the cache's stamps, branches each stamped chosen row (a row whose walk is proven
+  is landed; one whose walk is not is set back), writes the cache from the settings, expires holds that have ended and
+  asks for the add pass and the first sync when there is work.
+- **Setup** writes the new choice under a reset seq (`selectionResetSeq`), which hides every repair of an older seq, and
+  starts the first sync, so a same-account setup walks its libraries. A newer-version lineup record is left untouched.
+  It is hidden by the reset seq, not deleted.
+
+### A6. The add pass and its walk proof
+
+An added library is walked under its stamp by `LibraryPass`, the one walk of a library. Its pages move no generation.
+Its last stamp-checked transaction records the proof that the walk ended (`walkedStamp`) and the walk's start
+(`coveredFromMs`). The runner never lands a library. It hands it to the selection (`passLanded`), which lands it only
+while the library still has that stamp and that proof: the repair and the saved selection come first, then the cache,
+and the generation moves once. Every write of a walk names its library and stamp and is checked inside its own
+transaction, so a library dropped, held or restamped since the walk began takes nothing. Pages with `walkedStamp`
+unequal to `addStamp` are unproven: they never land.
+
+### A7. The rewalk
+
+A chosen row whose stamp was never proven (found at the start, at setup, or by the first sync) is set back, not landed:
+no stamp, pending, marked `rewalkPending`. A stay-current run whose passes all completed walks each marked, listed
+library from its checkpoint after holds expire, using that run's listing. A failure keeps the mark and is retried the
+next run, and never changes how the run ended. A marked library the listing omits keeps its mark and is skipped; the
+mark goes when the library leaves the choice. The rewalk stops while a first sync runs, which takes the library
+itself. `coveredFromMs` keeps the window open: until the next incremental pass has walked a library, that pass reads
+from the library's `coveredFromMs`, and only that pass clears it.
+
+### A8. Hold expiry
+
+Holds expire after each stay-current run whose incremental pass completed, and at the start. The cache trusts the clock
+for expiry only within the pause hold (60 minutes) of the last successful sync. After a longer gap, an ended hold waits
+for the next incremental pass, which is at most about 6 hours.
+
+### A9. A title added mid-day (round 4)
+
+A title added mid-day gets its home only. Guest spots wait for the next boundary. §3 says the same; it is repeated
+here because Part 2's review fixed it as a ruling.
+
+### A10. Sync now
+
+Sync now is the second trigger. `RunnerSyncNow` (behind the `SyncNow` port) lists the server once per press, and a
+failed listing ends the press as `Failed` with nothing written. Otherwise it runs stay-current's passes with
+`StayCurrentRunner.runWaiting`, which waits for the gate instead of skipping, so it never runs beside a background run
+and one press never runs two. It hands the press's own listing to the run, skips the runner's own follow, and expires
+holds. A completed run is `Done`, a failed one is `Failed` with its reason, and a cancelled one returns to `Idle`. A
+press while one runs starts nothing. Lost blocks are repaired by the lineup refresher's hook once the run's writing
+ends, as for a background pass.
 
 ## Consequences
 

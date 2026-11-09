@@ -153,6 +153,12 @@ How it works:
 Exceptions that apply at once: the back-to-back fix of an old file (applied at each TV's next start, so two TVs can
 differ until both have started), a viewer's reset, the safety holds, and the edges listed in Costs.
 
+*Amended 2026-11-08 by [ADR-0025](0025-repairing-today.md) (spec 26): three triggers relax this rule for the rest of
+today, and only these: a change of the library selection in Settings, Sync now when it finds changes, and a background
+pass that changed the library. Each repairs every switched-on channel's rest of today from the programme on air, and a
+title added that way gets its home only, with no guest spots until the boundary. Everything listed above still waits for
+the next boundary.*
+
 ### 4. Portability and the household setting
 
 Anchors (collection, series and film names, studios and networks) and theme studios are rules sources, matched by exact,
