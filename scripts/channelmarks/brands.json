@@ -293,17 +293,17 @@
     ], "gap": 0.02
   },
   "prestige": {
-    "note": "Cinzel 700 · emerald, one line",
+    "note": "Cinzel 700 · emerald, ruled",
+    "device": "rules", "device_color": "#46D6A0",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "PRESTIGE", "font": "cinzel-700", "color": "#46D6A0", "tracking": 0.04}]}
+      {"rel": 1.0, "segs": [{"text": "PRESTIGE", "font": "cinzel-700", "color": "#46D6A0", "tracking": 0.16}]}
     ]
   },
   "cold-case-cable": {
-    "note": "Special Elite · ice teal, big over small",
+    "note": "Special Elite · ice teal, one line",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "COLD CASE", "font": "special-elite-400", "color": "#7FE0E0"}]},
-      {"rel": 0.34, "segs": [{"text": "CABLE", "font": "special-elite-400", "color": "#FFFFFF", "tracking": 0.22}]}
-    ], "gap": 0.05
+      {"rel": 1.0, "segs": [{"text": "COLD CASE", "font": "special-elite-400", "color": "#7FE0E0"}]}
+    ]
   },
   "order-in-the-court": {
     "note": "Alfa Slab One · brass, ruled",
@@ -391,11 +391,10 @@
     ], "gap": 0.0
   },
   "life-stories": {
-    "note": "Yeseva One · rose-magenta, small over big",
+    "note": "Yeseva One · rose-magenta, one line",
     "lines": [
-      {"rel": 0.34, "segs": [{"text": "LIFE", "font": "yeseva-one-400", "color": "#FFFFFF", "tracking": 0.22}]},
-      {"rel": 1.0, "segs": [{"text": "Stories", "font": "yeseva-one-400", "color": "#FF5FA8"}]}
-    ], "gap": 0.05
+      {"rel": 1.0, "segs": [{"text": "Life Stories", "font": "yeseva-one-400", "color": "#FF5FA8"}]}
+    ]
   },
   "disaster-zone": {
     "note": "Bungee · hazard yellow, small over big",
