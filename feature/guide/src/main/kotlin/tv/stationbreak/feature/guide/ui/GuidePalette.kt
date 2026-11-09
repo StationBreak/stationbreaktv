@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide.ui
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import tv.stationbreak.core.ui.PanelColors
 
 /**
  * Guide tokens, dark or light (the broadcast-EPG overhaul, #657). Dark is the default. The choice is the guide's own
@@ -45,6 +46,10 @@ internal class GuideColors(
      */
     val markTint: Color? = null,
 ) {
+    /** What a panel drawn over the guide (Settings, Libraries) takes from this theme, via `LocalPanelColors`. */
+    val panel: PanelColors
+        get() = PanelColors(ground = page, text = textPrimary, secondary = textSecondary, ring = focusFill)
+
     companion object {
         val Dark =
             GuideColors(

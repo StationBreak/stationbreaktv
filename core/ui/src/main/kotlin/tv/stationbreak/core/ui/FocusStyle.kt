@@ -52,12 +52,15 @@ object FocusStyle {
 /**
  * The surface treatment for a row whose focus a screen draws itself from its state (the channel screen's model-driven
  * focus, ADR-0008 addendum): the same outline (`primary`, 3 dp) and scale as [FocusStyle.surfaceBorder] and
- * [FocusStyle.surfaceScale], without a Compose focus target.
+ * [FocusStyle.surfaceScale], without a Compose focus target. A screen on a ground other than the theme's passes its
+ * own [ring].
  */
 @Composable
-fun Modifier.drawnFocus(focused: Boolean): Modifier {
+fun Modifier.drawnFocus(
+    focused: Boolean,
+    ring: Color = MaterialTheme.colorScheme.primary,
+): Modifier {
     if (!focused) return this
-    val ring = MaterialTheme.colorScheme.primary
     return this
         .graphicsLayer {
             scaleX = FocusStyle.SURFACE_SCALE

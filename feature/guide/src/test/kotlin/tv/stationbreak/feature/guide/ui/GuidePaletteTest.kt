@@ -85,6 +85,26 @@ class GuidePaletteTest {
     }
 
     @Test
+    fun thePanelsFollowTheGuidesTheme() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            val panel = c.panel
+            assertEquals(c.page, panel.ground)
+            assertEquals(c.textPrimary, panel.text)
+            assertEquals(c.textSecondary, panel.secondary)
+            assertEquals(c.focusFill, panel.ring)
+            assertContrast(4.5, panel.text, panel.ground, "$name panel text", c.page)
+            assertContrast(4.5, panel.secondary, panel.ground, "$name panel secondary text", c.page)
+            assertContrast(3.0, panel.ring, panel.ground, "$name panel focus ring", c.page)
+        }
+        assertTrue(
+            GuideColors.Light.panel.ground
+                .luminance() >
+                GuideColors.Dark.panel.ground
+                    .luminance(),
+        )
+    }
+
+    @Test
     fun tertiaryIsForStrokesNotText() {
         for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
             val card = c.card.compositeOver(c.page)
