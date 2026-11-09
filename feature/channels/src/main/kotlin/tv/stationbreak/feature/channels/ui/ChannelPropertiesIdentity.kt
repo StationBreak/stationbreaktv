@@ -152,7 +152,10 @@ internal fun Status(
             }
         }
     val line = listOf(state, why).filter { it.isNotEmpty() }.joinToString("  ·  ")
-    Row(Modifier.testTag(ChannelsTags.ABOUT_STATUS), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(
+        Modifier.testTag(ChannelsTags.ABOUT_STATUS).merged(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         Text(line, style = body(), maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
 }

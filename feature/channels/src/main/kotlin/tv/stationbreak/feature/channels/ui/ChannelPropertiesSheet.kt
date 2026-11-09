@@ -115,7 +115,7 @@ private fun Section(
     tag: String,
     content: @Composable () -> Unit,
 ) {
-    Column(Modifier.testTag(tag), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(Modifier.testTag(tag).merged(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(title.uppercase(), style = small().copy(fontWeight = FontWeight.Medium), color = ChannelsPalette.secondary)
         content()
     }
@@ -127,7 +127,7 @@ private fun KeyValue(
     value: String,
     tag: String? = null,
 ) {
-    Row(Modifier.fillMaxWidth().let { if (tag != null) it.testTag(tag) else it }) {
+    Row(Modifier.fillMaxWidth().let { if (tag != null) it.testTag(tag) else it }.merged()) {
         Text(label, Modifier.width(96.dp), style = body(), color = ChannelsPalette.secondary)
         Text(value, Modifier.weight(1f), style = body(), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
@@ -181,3 +181,6 @@ internal fun body() = MaterialTheme.typography.bodyMedium.copy(fontSize = BODY_S
 
 /** The sheet's own actions, whatever panel is open over it. */
 private fun sheetChoices(ui: ChannelsUi) = choicesOf(ui.copy(panel = null))
+
+// One node per block, so a reader announces it whole and a test reads its text.
+internal fun Modifier.merged(): Modifier = semantics(mergeDescendants = true) {}

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertContentDescriptionContains
@@ -17,7 +16,6 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isOff
@@ -39,6 +37,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -286,7 +285,8 @@ class ChannelsScreenTest {
         lineup = Lineup(lineup(extra), access)
         currentNow.value = current
         runBlocking { library.useAccount(account) }
-        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, SamplePropertiesReader { lineup }, clock, work)
+        val properties = SamplePropertiesReader { lineup }
+        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, properties, clock, work)
         val builderVm =
             BuilderViewModel(library, builder, FakeCatalogPicker(), FakeChannelPreviews(), lineup, clock, work)
         compose.setContent {
@@ -746,7 +746,9 @@ class ChannelsScreenTest {
     fun theSheetScreenshot() {
         openSheetOnAlpha()
         until { exists(ChannelsTags.ABOUT_PLAYS) }
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        compose.waitForIdle()
+        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        assertNotNull("no screenshot", bitmap)
         val context = InstrumentationRegistry.getInstrumentation().context
         val directory = File(checkNotNull(context.getExternalFilesDir(null)), "screenshots")
         assertTrue("could not create $directory", directory.mkdirs() || directory.isDirectory)
