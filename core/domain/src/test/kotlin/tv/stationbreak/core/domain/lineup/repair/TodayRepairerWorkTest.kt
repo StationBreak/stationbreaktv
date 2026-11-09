@@ -3,42 +3,18 @@ package tv.stationbreak.core.domain.lineup.repair
 
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.lineup.ACCOUNT
-import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.model.ItemId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * The work a selection change does in the repairer's turn (spec 26: the slow untick on older hardware), not what it
- * records (the other repair tests pin that): what each channel admits of the new selection is built only when
- * something reads it, and today's days, warmed before the turn ([TodayRepairer.warmDays]), are not built in it.
+ * records (the other repair tests pin that): today's days, warmed before the turn ([TodayRepairer.warmDays]), are not
+ * built in it.
  */
 internal class TodayRepairerWorkTest : RepairTestBase() {
-    @Test
-    fun aFirstUntick_thatEmptiesNoChannel_neverBuildsTheNewSelectionsDays() {
-        val rig = Rig(lineupOf(laughs, whodunit), comedies + crimes + comediesB + crimesB, setOf(libA, libB))
-        val clock = RepairClock()
-
-        val outcome = rig.untick(setOf(libA), clock)
-
-        assertIs<RepairOutcome.Saved<SelectionRepaired>>(outcome)
-        assertEquals(-1, clock.phases().admittedMs, "the new selection's build never ran")
-    }
-
-    @Test
-    fun anUntick_thatEmptiesAChannel_buildsIt_forThatChannelsReason() {
-        val rig = Rig(lineupOf(laughs, ownB), comedies + comediesB, setOf(libA, libB))
-        val clock = RepairClock()
-
-        rig.untick(setOf(libB), clock)
-
-        assertTrue(clock.phases().admittedMs >= 0, "the build ran for the emptied channel's reason")
-        assertEquals(HiddenReason.LibraryNotChosen, rig.repairOf(ownB.id).tailHidden)
-    }
-
     @Test
     fun anUntickRightAfterAnAdd_warmedFirst_buildsNoDayInTheTurn() {
         val rig = Rig(lineupOf(laughs, whodunit), comedies + crimes + comediesB + crimesB, setOf(libA))

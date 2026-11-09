@@ -103,14 +103,7 @@ internal class SelectionRepair(
     private val added = (change.after - change.before).mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) }
     private lateinit var plain: Map<Long, RuleSnapshot>
     private lateinit var filtered: Map<Long, RuleSnapshot>
-    private lateinit var scheduled: List<Scheduled>
-
-    // What each channel admits of the new selection: a whole build of the days over it, so made only when read (an
-    // added library's items, a repaired day's films and weights, or a tail with nothing to air, for its reason). A
-    // first untick that empties no channel never reads it. The same value whenever it is read.
-    private val admitted: Admitted by lazy {
-        clock.time(RepairPhase.Admitted) { days.admitted(held.lineup, scheduled, plain, filtered, change.after) }
-    }
+    private lateinit var admitted: Admitted
     private var admittedBefore: Admitted? = null
     private val homes = HashMap<Pair<Cut, DayCuration>, Homes?>()
     private val removedSnapshots = HashMap<Long, RuleSnapshot>()
@@ -131,7 +124,8 @@ internal class SelectionRepair(
             }
         plain = p
         filtered = f
-        this.scheduled = scheduled
+        admitted =
+            clock.time(RepairPhase.Admitted) { days.admitted(held.lineup, scheduled, plain, filtered, change.after) }
         if (pairs.any { (day, _) -> day.record?.repair != null }) {
             admittedBefore = clock.time(RepairPhase.Before) { admittedBefore(scheduled) }
         }
@@ -179,6 +173,7 @@ internal class SelectionRepair(
             } else {
                 kept?.blocks.orEmpty() + tail.map { it.kept() }
             }
+        val reason = admitted.days[day.channel.id]?.hidden ?: day.hiddenAt(change.atMs) ?: HiddenReason.EmptyToday
         return ChannelRepair(
             channel = day.channel.id,
             n = day.n,
@@ -190,13 +185,9 @@ internal class SelectionRepair(
             pinEndMs = kept?.pinEndMs ?: start,
             pinLibrary = clock.time(RepairPhase.Pin) { kept?.pinItem?.let { libraryOf(it, s, snapshot) } },
             blocks = blocks,
-            tailHidden = if (nothing) reasonOf(day) else null,
+            tailHidden = if (nothing) reason else null,
         )
     }
-
-    // Why [day]'s tail is hidden when it has nothing to air: the new selection's reason, else the day's own.
-    private fun reasonOf(day: ChannelDay): HiddenReason =
-        admitted.days[day.channel.id]?.hidden ?: day.hiddenAt(change.atMs) ?: HiddenReason.EmptyToday
 
     // The scheduler's tail of [day] from [fromMs] over its tail pool, with [aired] left out; none at the day's end.
     @Suppress("LongParameterList") // The day, what it reads, and where the tail starts.
@@ -246,8 +237,7 @@ internal class SelectionRepair(
             }
         val present = presentBy.getOrPut(s.cutoffMs to s.extras) { snapshot.items.mapTo(HashSet()) { it.item.id } }
         val addedIds = addedIn(s, snapshot)
-        // Nothing is taken with nothing added: the build over the new selection is not needed for it.
-        val taken = if (addedIds.isEmpty()) emptyList() else admitted.pool(day.channel.id).filter { it.id in addedIds }
+        val taken = admitted.pool(day.channel.id).filter { it.id in addedIds }
         val own = ownTitles(day)
         val pool = days.tailPoolOf(s, base, present, taken, homesOf(s, snapshot), today, own)
         // An item deleted since the cut-off is still in the snapshot: a fresh tail never lays out one with no row.
@@ -307,9 +297,7 @@ internal class SelectionRepair(
         val ids = pool.mapTo(HashSet()) { it.id }
         val titles = pool.mapTo(HashSet()) { it.groupId }
         val newTitles = pool.filter { it.id in addedIds }.mapTo(HashSet()) { it.groupId }
-        // On a day with no repair, the new selection's films and weights are taken for the added items only: with none
-        // added, nothing of them is taken, so they are not read.
-        val after = if (repaired || addedIds.isNotEmpty()) admitted.days[day.channel.id] else null
+        val after = admitted.days[day.channel.id]
         val films =
             merged(if (repaired) emptyList() else day.films.entries, after?.films?.entries.orEmpty()) {
                 it in ids && (repaired || it in addedIds)
