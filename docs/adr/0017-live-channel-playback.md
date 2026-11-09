@@ -167,6 +167,19 @@ Spec 14 left the input shape open; spec 15 builds it. F2.2 (Select for the banne
   longer offers it and those files go straight to direct stream or transcode. The tune line carries `from=`, `route=` and the
   load-failure name.
 
+## Amendment 2026-11-08: a programme that left the library (spec 26, [ADR-0025](0025-repairing-today.md))
+
+- **A gone item is gap-filled, not stood in for.** A block whose item has left the library (no current row) is filled
+  when the schedule source names the block, by `GapFill.pick`: the longest item that still fits what is left of the
+  block, ties by hash, never running past the block. It shows no slate and is not retried. The screen and the guide read
+  the same answer. Decisions 2 and 3 are unchanged for an item that is still in the library and fails to play.
+- **`StandIn.pick` stays for tune failures.** An item that exists and cannot play still gets the retry, the slate and the
+  stand-in described above.
+- **On a repaired day the pool is narrower.** When a day has a selection repair (ADR-0025), a stand-in and the naming
+  fill read the day's **tail pool**, not the day pool. They are not recorded, and every lookup must give the same answer,
+  so they can use only what the record holds, read by id. The pool is narrower there, and a programme can come round
+  again sooner than on a day with no repair. A day with no repair keeps its built day pool.
+
 ## Consequences
 
 - A viewer sees a channel that matches the guide, apart from a deliberate, bounded drift that any retune clears.

@@ -17,6 +17,12 @@ It also isn't desirable: the kids' Boomerang shouldn't air MASH.
 1. **Scope: the same account on the same server gets the same lineup on any device, anywhere.**
    Two accounts with identical visibility within a channel's scope also get identical lineups.
    Accounts with different visibility get different lineups. That's by design.
+   *Amended 2026-11-08 by [ADR-0025](0025-repairing-today.md): the scope is the same account, the same selection and the
+   same recorded inputs. Each TV keeps its own library selection, and a repair of the rest of today (after a change of
+   the selection, a Sync now or a background pass that changed the library) is a recorded input of that day, kept in
+   that TV's own lineup file like the selection it follows. Two TVs on one account can differ for the rest of that day
+   and agree again at the next boundary, when their selection and library state match. One TV still gives the same
+   answer to every lookup of a day.*
 2. **Channel rules set the content limits.** Rules may declare a rating ceiling (e.g. `maxRating: "PG-13"`)
    and library/tag scopes. Account limits (Jellyfin parental controls) can only narrow this further.
    They are never bypassed.
