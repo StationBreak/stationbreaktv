@@ -104,21 +104,20 @@ Add a face only if it is OFL/Apache, visibly different from the faces above, and
 ## Files and formats
 
 - Masters: SVG, 200×112 viewBox, all text converted to outlines. `scripts/channelmarks/out-brands/svg/sl_<NNN>_<key>.svg` (colour) and `svg-mono/` (white).
-- Renders: PNG at 48dp and 64dp, 2× density, transparent. Produced by the generator (add `cairosvg` step as in `channelmarks.py` if needed).
-- Naming keeps the existing loader convention `sl_<NNN>_<key>`; `AssetMarkLoader` drops the `_32dp` suffix requirement and chooses a size bucket by density.
+- Renders: PNG at 48dp and 64dp at 2× (96×54 and 128×72 px), transparent, colour and mono, produced by `brands.py --png` into `feature/guide/src/main/assets/channelmarks/` as `sl_<NNN>_<key>_<N>dp.png` and `sl_<NNN>_<key>_mono_<N>dp.png`. `AssetMarkLoader` chooses the size bucket by screen density. The pipeline and how to update it are in `feature/guide/CHANNELMARKS.md`.
 
 ## Runtime (feature:guide)
 
-- `ChannelMark` draws the colour PNG/SVG centred in a 50×28dp box with **no tint and no tile**. Delete `MarkTileStyle` for assets.
-- Light theme uses the same colour masters (they pass 3:1 on the light base except silver/white parts, which the loader swaps to ink by tinting the mono variant `#1C1B19`).
+- `ChannelMark` draws the PNG centred in a 50×28dp box with **no tile**. Dark draws the colour render as it is.
+- Light theme draws the mono render tinted with the guide's ink (`GuideColors.Light.markTint`), so every mark is one dark shape; no colour mark has to pass a contrast test on the light page.
 - Details panel: the channel line may be tinted with the brand's first colour (store it as `brandColor` on `GuideRow`; the generator can emit a `brands-colors.json` sidecar).
 - Fallback for user-built channels with no mark: initials in Manrope Bold 12sp, white, no tile.
 
-## Approved sample (12 of 95)
+## Approved sample (12 of 95, the first review set)
 
 8 Sing-Along Station · 16 Saturday Morning · 56 Snowglobe · 106 Punchline · 122 Dial-Up · 182 Always December · 212 Order in the Court · 220 Silver Screen · 316 The Midnight Projector · 352 Neon Rain · 432 Masala Hour · 508 Graveyard Shift.
 
-Remaining 83 channels: add to `brands.json` one band at a time, reviewing the contact sheet after each band.
+The other 83 channels were added to `brands.json` one band at a time, reviewing the contact sheet after each band; all 95 are done and shipped in the app, with marks for the two catch-all channels (Kids' Odds & Ends, 99, and Odds & Ends, 199).
 
 ## Superseded
 

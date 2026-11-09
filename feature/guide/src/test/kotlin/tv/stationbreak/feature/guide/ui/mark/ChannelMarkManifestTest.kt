@@ -21,8 +21,13 @@ class ChannelMarkManifestTest {
     private val module = File(".")
 
     private val lineFormat =
-        Regex("^[0-9a-f]{64}  src/[a-zA-Z]+/assets/channelmarks/sl_\\d{3}_[a-z0-9-]+_32dp\\.png$")
-    private val namePattern = Regex("sl_(\\d{3})_([a-z0-9-]+)_32dp\\.png")
+        Regex("^[0-9a-f]{64}  src/[a-zA-Z]+/assets/channelmarks/sl_\\d{3}_[a-z0-9-]+(_mono)?_(48|64)dp\\.png$")
+
+    // sl_<NNN>_<key>_<N>dp.png (colour) or sl_<NNN>_<key>_mono_<N>dp.png (all fills white); N is 48 or 64.
+    private val namePattern = Regex("sl_(\\d{3})_([a-z0-9-]+)(_mono)?_(48|64)dp\\.png")
+
+    // The generator's sizes: a bucket is N dp at 2x wide, and the box is 200 by 112.
+    private val pixelSize = mapOf(48 to (96 to 54), 64 to (128 to 72))
     private val pngSignature = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
     private val allowedChunks = setOf("IHDR", "PLTE", "tRNS", "IDAT", "IEND")
 
@@ -158,9 +163,12 @@ class ChannelMarkManifestTest {
             val header = ByteBuffer.wrap(bytes, 8, 25) // big-endian: length, type, width, height
             assertEquals("$name first chunk length", 13, header.int)
             assertEquals("$name first chunk", "IHDR", ByteArray(4).also { header.get(it) }.toString(Charsets.US_ASCII))
-            assertEquals("$name width", 64, header.int)
-            assertEquals("$name height", 64, header.int)
+            val bucket = namePattern.matchEntire(name)!!.groupValues[4].toInt()
+            val (width, height) = pixelSize.getValue(bucket)
+            assertEquals("$name width", width, header.int)
+            assertEquals("$name height", height, header.int)
             assertEquals("$name bit depth", 8, bytes[24].toInt())
+            assertEquals("$name is RGBA (the marks are transparent)", 6, bytes[25].toInt())
             assertChunksEndCleanly(name, bytes)
         }
     }
@@ -201,9 +209,15 @@ class ChannelMarkManifestTest {
     }
 
     @Test
-    fun thereAreNinetySevenMarksWithDistinctKeys() {
+    fun thereAreNinetySevenMarksWithFourFilesEach() {
         val matches = moduleMarks().mapNotNull { namePattern.matchEntire(it.name) }
-        assertEquals(97, matches.size)
-        assertEquals("keys are distinct", 97, matches.map { it.groupValues[2] }.toSet().size)
+        assertEquals(97 * 4, matches.size)
+        val byKey = matches.groupBy { it.groupValues[2] }
+        assertEquals("keys are distinct", 97, byKey.size)
+        val expected = setOf("" to 48, "" to 64, "_mono" to 48, "_mono" to 64)
+        for ((key, files) in byKey) {
+            val got = files.map { it.groupValues[3] to it.groupValues[4].toInt() }.toSet()
+            assertEquals("$key has colour and mono at 48 and 64 dp", expected, got)
+        }
     }
 }

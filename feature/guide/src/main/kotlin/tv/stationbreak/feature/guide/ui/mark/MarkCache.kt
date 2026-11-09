@@ -22,6 +22,9 @@ internal interface MarkLoader {
 
     /** The decoded logo for [key], or null when there is none or it cannot be decoded. */
     fun load(key: String): ImageBitmap?
+
+    /** The all-white render of [key] (the Light theme tints it), or null when there is none. */
+    fun loadMono(key: String): ImageBitmap? = null
 }
 
 /**
@@ -33,10 +36,11 @@ internal class MarkCache(
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher,
 ) {
-    private val loaded = ConcurrentHashMap<String, ImageBitmap>()
+    // One map and one claim set per variant: a key's colour and mono renders are decoded, and given up on, separately.
+    private val loaded = MarkVariant.entries.associateWith { ConcurrentHashMap<String, ImageBitmap>() }
 
     // Every key ever claimed (loading, loaded or failed): a claim is never given back, so nothing is decoded twice.
-    private val claimed = ConcurrentHashMap.newKeySet<String>()
+    private val claimed = MarkVariant.entries.associateWith { ConcurrentHashMap.newKeySet<String>() }
     private val known: Set<String> by lazy {
         try {
             loader.keys()
@@ -49,24 +53,33 @@ internal class MarkCache(
     /** Counts logos as they arrive, so a composable that reads it redraws when one lands. */
     val arrivals: StateFlow<Int> = count.asStateFlow()
 
-    /** The logo for [key] if it has loaded, else null. Never blocks. */
-    fun peek(key: String): ImageBitmap? = loaded[key]
+    /** The logo for [key] in [variant] if it has loaded, else null. Never blocks. */
+    fun peek(
+        key: String,
+        variant: MarkVariant = MarkVariant.Colour,
+    ): ImageBitmap? = loaded.getValue(variant)[key]
 
-    /** Starts loading the logos for [keys] that are not loaded or loading. Unknown keys are ignored. Never blocks. */
-    fun request(keys: Collection<String>) {
+    /**
+     * Starts loading the [variant] logos for [keys] that are not loaded or loading. Unknown keys are ignored. Never
+     * blocks.
+     */
+    fun request(
+        keys: Collection<String>,
+        variant: MarkVariant = MarkVariant.Colour,
+    ) {
         if (keys.isEmpty()) return
         val wanted = keys.toList()
         scope.launch(io) {
             for (key in wanted) {
-                if (key !in known || !claimed.add(key)) continue
+                if (key !in known || !claimed.getValue(variant).add(key)) continue
                 val bitmap =
                     try {
-                        loader.load(key)
+                        if (variant == MarkVariant.Mono) loader.loadMono(key) else loader.load(key)
                     } catch (_: Exception) {
                         null
                     }
                 if (bitmap != null) {
-                    loaded[key] = bitmap
+                    loaded.getValue(variant)[key] = bitmap
                     count.update { it + 1 }
                 }
             }
@@ -76,7 +89,9 @@ internal class MarkCache(
 
 /**
  * The one cache for the process, so logos survive the guide opening and closing. It is never trimmed on low memory: it
- * holds at most 97 bitmaps of 16 KB each. The dispatcher is the cache's `io` argument alone (the scope adds none).
+ * holds at most 97 logos in each of two variants, each a 128 by 72 bitmap of 37 KB (the Light theme decodes only the
+ * mono ones, the Dark theme only the colour ones). The dispatcher is the cache's `io` argument alone (the scope adds
+ * none).
  */
 internal object MarkCaches {
     @Volatile private var instance: MarkCache? = null

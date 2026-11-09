@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 class CatalogMarksDriftTest {
     private val assets = File(checkNotNull(System.getProperty("stationbreak.channelmarks")) { "no logo folder" })
 
-    // The logo's file number against its key, for the files named like a logo.
+    // The logo's file number against its key, for the files named like a logo (the four files of a key agree).
     private val bundled: Map<String, Int> =
         assets
             .list()
@@ -47,6 +47,8 @@ class CatalogMarksDriftTest {
     private companion object {
         /** Keys that have no logo on purpose. Empty today. */
         val NO_LOGO_KEYS: Set<String> = emptySet()
-        val NAME = Regex("sl_(\\d{3})_([a-z0-9-]+)_32dp\\.png")
+
+        // sl_<NNN>_<key>_<N>dp.png and sl_<NNN>_<key>_mono_<N>dp.png, N in 48 or 64: four files per key, one key each.
+        val NAME = Regex("sl_(\\d{3})_([a-z0-9-]+)(?:_mono)?_(?:48|64)dp\\.png")
     }
 }
