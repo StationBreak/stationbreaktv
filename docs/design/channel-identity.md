@@ -24,10 +24,10 @@ Everything is flat. No gradients, bevels, shadows, outlines, tiles or background
 1. **Original, not adjacent.** The name, the colour pairing and the lockup must not evoke a real channel. Test: cover the words — if the shape and colours alone call a real network to mind, change one of them. No splats, no ball-and-letter marks, no peacock-fan colour arrays, no "Jr." suffixes, no first-letter-only wordmarks that match a real network's silhouette.
 2. **One typeface per channel, from the approved set.** A face may be used by at most 8 channels lineup-wide and at most 3 within a hundred-band, and never by two channels that are adjacent in the lineup (consecutive numbers in the band). When a face repeats within a band, the two marks must differ in both colour family and lockup form.
 3. **Max two brand colours + white.** Every brand colour must read ≥ 4.5:1 on the guide base `#0E0F11`; that contrast ratio is the only brightness test. Nothing orange-adjacent (hue 10–35° at saturation above 50%) because the focused cell is orange and the mark would merge with it; everything at 36° and up is allowed.
-4. **No shared look.** Across the whole lineup, no two marks may share both a colour family and a device; the earlier-approved mark keeps the combination. (Colour family: the hue family of the mark's main brand colour, i.e. red, yellow, green, teal, blue, violet or pink. A mark with no device shares no combination.) Also, no exact hex is used as the primary colour of more than two channels in a band.
+4. **No shared look.** Across the whole lineup, no two marks may share both a colour family and a device; the earlier-approved mark keeps the combination. (Colour family: the hue family of the mark's main brand colour, i.e. red, yellow, green, teal, blue, violet or pink. A mark with no device shares no combination.) Also, no exact hex is used as the primary colour of more than two channels in a band. Within a band, two marks sharing a face must also differ in colour family. The across-lineup check also applies without a device: no two marks may share both a lockup form and a colour family (the earlier-approved mark keeps the combination).
 5. **One device at most**, geometric only (arcs, circles, lines, triangles). Anything that needs more than that is an illustration and is out.
 6. **Same box, same optical size.** Every mark fills a 50×28dp box with a 44×22dp safe area, centred, and is scaled to use the safe area fully. Two-line lockups are therefore smaller per line than one-line ones — intended.
-7. **Legible at 28dp tall.** Check the 1:1 strip on the contact sheet. Long names get shortened to the part that carries the identity (The Midnight Projector → MIDNIGHT / PROJECTOR, Sing-Along Station → singalong / STATION).
+7. **Legible at 28dp tall.** Check the 1:1 strip on the contact sheet. Long names get shortened to the part that carries the identity (The Midnight Projector → MIDNIGHT / PROJECTOR, Sing-Along Station → singalong / STATION). Secondary lines (any line set smaller than the main one) need a relative size of at least 0.30 and letter-spacing (tracking) of at most 0.22; if the small line is still thin, make it the big line or set it in a heavier face. This minimum is forward-looking: marks approved before it was written were reviewed at 1:1 and kept.
 8. **Mono-safe.** Every mark must still read with all fills white. The generator writes this variant automatically (`svg-mono/`); it is used for the light theme and any future "quiet" setting.
 9. **Band flavour, not band uniform.** Bands have a leaning, not a rule: Kids → rounded faces, saturated primaries; General → clean display faces, friendly mids; Drama → serifs and slabs, metals and jewel tones; Genre → condensed and italic, neon; World → warm, expressive; Premium → restrained, one colour.
 
@@ -51,6 +51,11 @@ Everything is flat. No gradients, bevels, shadows, outlines, tiles or background
 | Titan One | fat, round, toy-like | Kids, vehicles, robots |
 | Sniglet 800 | soft, friendly rounded | Kids, preschool, gentle |
 | Boogaloo | hand-drawn, bouncy | Kids, animals, mystery |
+| Cinzel 700 | classical caps (lowercase draws as small caps) | Drama, prestige, war |
+| Yeseva One | romantic display serif | Drama, period, memoir |
+| Zilla Slab 700 | sturdy modern slab | Drama, spies, war |
+| Ultra | fat western slab | Drama, westerns, documentary |
+| Special Elite | worn typewriter | Drama, true crime, mysteries |
 
 Add a face only if it is OFL/Apache, visibly different from the faces above, and needed by at least two channels.
 

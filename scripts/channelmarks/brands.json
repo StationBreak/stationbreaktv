@@ -155,7 +155,7 @@
   "rabbit-ears": {
     "note": "Pacifico · pale static blue, one script line",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "Rabbit", "font": "pacifico-400", "color": "#BCD7F2", "gap": 0.30}, {"text": "Ears", "font": "pacifico-400", "color": "#FFFFFF"}]}
+      {"rel": 1.0, "segs": [{"text": "Rabbit", "font": "pacifico-400", "color": "#BCD7F2", "gap": 0.3}, {"text": "Ears", "font": "pacifico-400", "color": "#FFFFFF"}]}
     ]
   },
   "shag-carpet": {
@@ -292,6 +292,19 @@
       {"rel": 1.0, "segs": [{"text": "Call", "font": "abril-fatface-400", "color": "#FFFFFF"}]}
     ], "gap": 0.02
   },
+  "prestige": {
+    "note": "Cinzel 700 · emerald, ruled",
+    "device": "rules", "device_color": "#46D6A0",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "PRESTIGE", "font": "cinzel-700", "color": "#46D6A0", "tracking": 0.16}]}
+    ]
+  },
+  "cold-case-cable": {
+    "note": "Special Elite · ice teal, one line",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "COLD CASE", "font": "special-elite-400", "color": "#7FE0E0"}]}
+    ]
+  },
   "order-in-the-court": {
     "note": "Alfa Slab One · brass, ruled",
     "device": "rules", "device_color": "#FFFFFF",
@@ -300,12 +313,95 @@
       {"rel": 1.0, "segs": [{"text": "COURT", "font": "alfa-slab-one-400", "color": "#E2B45A", "tracking": 0.03}]}
     ], "gap": 0.08
   },
+  "code-blue": {
+    "note": "Bebas Neue · alert blue, one line two-tone",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "CODE", "font": "bebas-neue-400", "color": "#FFFFFF", "gap": 0.12}, {"text": "BLUE", "font": "bebas-neue-400", "color": "#4DA8FF"}]}
+    ]
+  },
   "silver-screen": {
     "note": "Playfair 900 · silver",
     "lines": [
       {"rel": 1.0, "segs": [{"text": "Silver", "font": "playfair-display-900", "color": "#DDE1E8"}]},
       {"rel": 1.0, "segs": [{"text": "Screen", "font": "playfair-display-900", "color": "#DDE1E8"}]}
     ], "gap": -0.02
+  },
+  "dead-drop": {
+    "note": "Zilla Slab 700 · crimson + white, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "DEAD", "font": "zilla-slab-700", "color": "#FFFFFF"}]},
+      {"rel": 1.0, "segs": [{"text": "DROP", "font": "zilla-slab-700", "color": "#FF3B5C"}]}
+    ], "gap": 0.0
+  },
+  "big-rumble": {
+    "note": "Titan One · blast yellow, slanted, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "BIG", "font": "titan-one-400", "color": "#FFFFFF", "skew": -8}]},
+      {"rel": 1.0, "segs": [{"text": "RUMBLE", "font": "titan-one-400", "color": "#FFE033", "skew": -8}]}
+    ], "gap": 0.0
+  },
+  "kung-fu-theater": {
+    "note": "Barlow Cond · gold + red, slanted, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "KUNG FU", "font": "BarlowCondensed-800", "color": "#F5C84A", "skew": -10}]},
+      {"rel": 0.4, "segs": [{"text": "THEATER", "font": "BarlowCondensed-800", "color": "#FF5A5A", "tracking": 0.22, "skew": -10}]}
+    ], "gap": 0.04
+  },
+  "docs-and-dusters": {
+    "note": "Ultra · cream + sage ampersand, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "DOCS", "font": "ultra-400", "color": "#F1E9D2"}]},
+      {"rel": 1.0, "segs": [{"text": "&", "font": "ultra-400", "color": "#A3B18A", "gap": 0.12}, {"text": "DUSTERS", "font": "ultra-400", "color": "#F1E9D2"}]}
+    ], "gap": 0.04
+  },
+  "front-lines": {
+    "note": "Zilla Slab 700 · olive drab, small over big",
+    "lines": [
+      {"rel": 0.4, "segs": [{"text": "FRONT", "font": "zilla-slab-700", "color": "#FFFFFF", "tracking": 0.22}]},
+      {"rel": 1.0, "segs": [{"text": "LINES", "font": "zilla-slab-700", "color": "#A9C77A", "tracking": 0.02}]}
+    ], "gap": 0.04
+  },
+  "dusty-trails": {
+    "note": "Ultra · turquoise, dashed trail",
+    "device": "rule_below_dashed", "device_color": "#5ED6C8",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "DUSTY", "font": "ultra-400", "color": "#5ED6C8"}]},
+      {"rel": 0.34, "segs": [{"text": "TRAILS", "font": "ultra-400", "color": "#FFFFFF", "tracking": 0.22}]}
+    ], "gap": 0.05
+  },
+  "noir-nights": {
+    "note": "Cinzel + Alfa Slab · white + rouge, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "NOIR", "font": "cinzel-700", "color": "#FFFFFF"}]},
+      {"rel": 0.34, "segs": [{"text": "NIGHTS", "font": "alfa-slab-one-400", "color": "#FF4D6D", "tracking": 0.22}]}
+    ], "gap": 0.04
+  },
+  "corsets-and-candlelight": {
+    "note": "Yeseva One · amethyst + candle gold, stacked",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Candle", "font": "yeseva-one-400", "color": "#C58BFF"}]},
+      {"rel": 1.0, "segs": [{"text": "light", "font": "yeseva-one-400", "color": "#FFD166"}]}
+    ], "gap": 0.0
+  },
+  "case-files": {
+    "note": "Special Elite · red + white, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "CASE", "font": "special-elite-400", "color": "#FFFFFF"}]},
+      {"rel": 1.0, "segs": [{"text": "FILES", "font": "special-elite-400", "color": "#FF7A7A"}]}
+    ], "gap": 0.0
+  },
+  "life-stories": {
+    "note": "Yeseva One · rose-magenta, one line",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Life Stories", "font": "yeseva-one-400", "color": "#FF5FA8"}]}
+    ]
+  },
+  "disaster-zone": {
+    "note": "Bungee · hazard yellow, small over big",
+    "lines": [
+      {"rel": 0.4, "segs": [{"text": "DISASTER", "font": "bungee-400", "color": "#FFFFFF", "tracking": 0.1}]},
+      {"rel": 1.0, "segs": [{"text": "ZONE", "font": "bungee-400", "color": "#FFE033"}]}
+    ], "gap": 0.05
   },
   "midnight-projector": {
     "note": "Bebas · violet, moon",
