@@ -49,8 +49,11 @@ internal class LibrariesSettingsViewModel
         private val choices: LibraryChoices,
         dispatcher: CoroutineDispatcher,
     ) : ViewModel() {
+        // The main thread, as a ViewModel's own work runs: it is light, and the selection moves its slow work to its
+        // own threads. Not Dispatchers.Default, where the day builds a change sets off would hold up the end of a
+        // change. Not Main.immediate: a change is launched under [lock], and must not start inside it.
         @Inject
-        constructor(choices: LibraryChoices) : this(choices, Dispatchers.Default)
+        constructor(choices: LibraryChoices) : this(choices, Dispatchers.Main)
 
         /** What one visit knows beyond what [LibrariesSettingsState] shows. */
         private data class Model(
