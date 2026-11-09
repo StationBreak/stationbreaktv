@@ -24,6 +24,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -181,6 +182,37 @@ class LibrariesScreenTest {
         until { exists(SettingsTags.row(last)) }
 
         compose.onNodeWithTag(SettingsTags.row(last)).assertIsSelected().assertIsDisplayed()
+    }
+
+    // The owner's report: the Saved. line under the title pushes the list down, and the focused bottom row, with its
+    // status line, was cut off by the panel's bottom edge until focus moved away and back.
+    @Test
+    fun theFocusedLastRow_staysInsideThePanel_whenTheSavedNoticeAppears() {
+        val many = (1..LONG_LIST).map { Library(ItemId("lib-$it"), "Library $it", LibraryKind.Movies) }
+        show(many, chosen = setOf(many.first().id))
+        repeat(LONG_LIST - 1) { press(Key.DirectionDown) }
+        val last = many.last().id
+        val gate = CompletableDeferred<Unit>()
+        choices.gate = gate
+
+        press(Key.DirectionCenter)
+        until { exists(SettingsTags.saving(last)) }
+        assertInsideList(SettingsTags.row(last))
+        assertInsideList(SettingsTags.saving(last))
+
+        choices.gate = null
+        gate.complete(Unit)
+        until { exists(SettingsTags.NOTICE) && exists(SettingsTags.adding(last)) }
+
+        compose.onNodeWithTag(SettingsTags.row(last)).assertIsSelected()
+        assertInsideList(SettingsTags.row(last))
+        assertInsideList(SettingsTags.adding(last))
+    }
+
+    private fun assertInsideList(tag: String) {
+        val list = compose.onNodeWithTag(SettingsTags.LIST).fetchSemanticsNode().boundsInRoot
+        val node = compose.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue("$tag $node is inside the list $list", node.top >= list.top && node.bottom <= list.bottom)
     }
 
     private companion object {

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -162,7 +163,17 @@ private fun LibraryList(
 ) {
     val list = rememberLazyListState()
     val focus = state.focus
-    LaunchedEffect(focus, state.rows.size) { if (state.rows.isNotEmpty()) list.keepVisible(focus) }
+    val rowCount = state.rows.size
+    // Not only when the focus moves: the header gaining a line (Saved.) shrinks the viewport, and the focused row's own
+    // status line (Adding...) grows it, and either can push the focused row past the bottom edge.
+    LaunchedEffect(list, focus, rowCount) {
+        if (rowCount == 0) return@LaunchedEffect
+        snapshotFlow {
+            val info = list.layoutInfo
+            (info.viewportEndOffset - info.viewportStartOffset) to
+                info.visibleItemsInfo.firstOrNull { it.index == focus }?.size
+        }.collect { list.keepVisible(focus) }
+    }
     LazyColumn(
         modifier.fillMaxWidth().testTag(SettingsTags.LIST),
         state = list,

@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -310,17 +312,23 @@ internal fun GuideRoot(
             }
         }
         if (librariesShown) {
-            libraries(pictureHole) {
-                // As for channel management: the key focus comes back first, then the slot goes, and the panel is
-                // left open on Libraries.
-                runCatching { keys.requestFocus() }
-                settings = settings?.librariesDone()
+            // The guide is hidden under this screen, so it stands on the theme's page, not the window's black.
+            Box(Modifier.fillMaxSize().background(librariesBackdrop(LocalGuideColors.current))) {
+                libraries(pictureHole) {
+                    // As for channel management: the key focus comes back first, then the slot goes, and the panel is
+                    // left open on Libraries.
+                    runCatching { keys.requestFocus() }
+                    settings = settings?.librariesDone()
+                }
             }
         }
     }
 }
 
 private const val NOT_MANAGING = 0L
+
+/** What the Libraries screen stands on, full screen: the guide's page for [colors]' theme. */
+internal fun librariesBackdrop(colors: GuideColors): Color = colors.page
 
 /**
  * What covers the guide: channel management ([managing]), a channel's properties sheet ([properties]) or Settings,
