@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -18,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -29,6 +27,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -50,20 +50,21 @@ import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
 import kotlin.time.Duration.Companion.milliseconds
 
-private val ChipPadding = 8.dp
-private val ChipRadius = (20f / 3f).dp
-private val ProgressHeight = (4f / 1.5f).dp
-private val ProgressRadius = (2f / 1.5f).dp
-private val LineGap = 4.dp
+private val ProgressHeight = 2.dp
+private val ProgressRadius = 1.dp
+private val LineGap = 3.dp
+private val MetaGap = 8.dp
 
 /** The title's letter-spacing, in em: -0.015. */
 private const val TITLE_TRACKING = -0.015f
 
-// One line fewer than the band would hold: the Channels button takes the foot of it, and a text that ends in an
-// ellipsis reads better than one clipped mid-line.
-private const val OVERVIEW_LINES_WITH_EPISODE = 1
+// Two lines at most, fewer when the lines above leave less room: a text that ends in an ellipsis reads better than one
+// clipped mid-line.
 private const val OVERVIEW_LINES = 2
-private val OVERVIEW_LINE_HEIGHT = 24.sp
+private val OVERVIEW_LINE_HEIGHT = 15.sp
+
+/** ON NOW: 10 sp, not the spec's 8.5, which is under the 10 sp floor the guide holds; bold, tracked +6%. */
+private const val ON_NOW_TRACKING = 0.06f
 private const val DESCRIBE_AFTER_MS = 150L
 
 /**
@@ -118,7 +119,7 @@ private fun restedOn(cell: Pair<Int, Long>): Boolean {
     return rested == cell
 }
 
-private enum class PanelSlot { Channel, Title, Episode, Meta, Time, Progress, Overview }
+private enum class PanelSlot { Channel, Title, Episode, Meta, Progress, Time, Overview }
 
 /** What drops first when the band is short: the last of these goes first, whole, never clipped through its glyphs. */
 private val DropOrder =
@@ -224,23 +225,12 @@ private fun PanelLines(
             )
         }
     }
-    meta?.let {
-        Slot(PanelSlot.Meta) {
-            Text(
-                text = it,
-                modifier = Modifier.testTag(GuideTags.PANEL_META),
-                style = guideText(11.sp, FontWeight.Normal),
-                color = colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
     val onNow = cell.startMs <= nowMs && nowMs < cell.endMs
-    Slot(PanelSlot.Time) { TimeRow(cell, nowMs, onNow, copy) }
+    if (onNow || meta != null) Slot(PanelSlot.Meta) { MetaRow(onNow, meta) }
     if (onNow && cell.kind == CellKind.Program) Slot(PanelSlot.Progress) { Progress(cell.startMs, cell.endMs, nowMs) }
+    Slot(PanelSlot.Time) { TimeRow(cell, nowMs, onNow, copy) }
     details.item?.overview?.takeIf { describe }?.let {
-        Slot(PanelSlot.Overview) { Overview(it, if (episode != null) OVERVIEW_LINES_WITH_EPISODE else OVERVIEW_LINES) }
+        Slot(PanelSlot.Overview) { Overview(it, OVERVIEW_LINES) }
     }
 }
 
@@ -261,7 +251,7 @@ private fun Overview(
             Text(
                 text = text,
                 modifier = Modifier.testTag(GuideTags.PANEL_OVERVIEW),
-                style = guideText(18.sp, FontWeight.Normal).copy(lineHeight = OVERVIEW_LINE_HEIGHT),
+                style = guideText(11.sp, FontWeight.Normal).copy(lineHeight = OVERVIEW_LINE_HEIGHT),
                 color = LocalGuideColors.current.textSecondary,
                 maxLines = lines,
                 overflow = TextOverflow.Ellipsis,
@@ -270,7 +260,42 @@ private fun Overview(
     }
 }
 
-/** A NOW chip, the slot and the time left; or the slot and how soon it starts. */
+/**
+ * "ON NOW" as accent text, then the meta line. There is no chip: the one orange slab on screen is the focused cell.
+ * [meta] is the "year · runtime · genres" line, tagged on its own so it can be read and tested as that.
+ */
+@Composable
+private fun MetaRow(
+    onNow: Boolean,
+    meta: String?,
+) {
+    val colors = LocalGuideColors.current
+    Row(horizontalArrangement = Arrangement.spacedBy(MetaGap), verticalAlignment = Alignment.CenterVertically) {
+        if (onNow) {
+            Text(
+                text = stringResource(R.string.guide_now).uppercase(),
+                style = guideText(10.sp, FontWeight.Bold).copy(letterSpacing = ON_NOW_TRACKING.em),
+                color = colors.accent,
+                maxLines = 1,
+            )
+        }
+        meta?.let {
+            Text(
+                text = it,
+                modifier = Modifier.testTag(GuideTags.PANEL_META),
+                style = guideText(11.sp, FontWeight.Normal),
+                color = colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * Under the progress line of a program on now: its start, the time left and its end, spread across the panel. For a
+ * later program: its slot and how soon it starts. A screen reader reads the slot once, as before, not the two ends.
+ */
 @Composable
 private fun TimeRow(
     cell: GuideCell,
@@ -281,49 +306,78 @@ private fun TimeRow(
     val zone = remember { ZoneId.systemDefault() }
     val is24h = is24Hour()
     val slot = ProgramText.slotOn(cell.startMs, cell.endMs, nowMs, zone, is24h)
+    if (onNow && cell.kind == CellKind.Program) {
+        NowTimes(cell, nowMs, slot, copy)
+    } else {
+        LaterTimes(cell, nowMs, onNow, slot, copy)
+    }
+}
+
+/** A program on now: its start, the time left and its end, spread across the panel under the progress line. */
+@Composable
+private fun NowTimes(
+    cell: GuideCell,
+    nowMs: Long,
+    slot: String,
+    copy: ProgramCopy,
+) {
+    val zone = remember { ZoneId.systemDefault() }
+    val is24h = is24Hour()
     val colors = LocalGuideColors.current
-    val time = guideFigures(11.sp, FontWeight.Medium)
+    val time = guideFigures(11.sp, FontWeight.Normal)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .testTag(GuideTags.PANEL_TIME)
+            .semantics { contentDescription = slot },
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        val ends = Modifier.clearAndSetSemantics {}
+        Text(ProgramText.time(cell.startMs, zone, is24h), ends, colors.textSecondary, style = time, maxLines = 1)
+        Text(
+            text = copy.minutesLeft(ProgramText.minutesUntil(cell.endMs, nowMs)),
+            modifier = OutsideTheLiveRegion,
+            style = time,
+            color = colors.textSecondary,
+            maxLines = 1,
+        )
+        Text(ProgramText.time(cell.endMs, zone, is24h), ends, colors.textSecondary, style = time, maxLines = 1)
+    }
+}
+
+/** Anything else: the slot, then the time left for a slate on now, or how soon a later program starts. */
+@Composable
+private fun LaterTimes(
+    cell: GuideCell,
+    nowMs: Long,
+    onNow: Boolean,
+    slot: String,
+    copy: ProgramCopy,
+) {
+    val colors = LocalGuideColors.current
+    val time = guideFigures(11.sp, FontWeight.Normal)
     Row(
         Modifier.testTag(GuideTags.PANEL_TIME),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (onNow) {
-            Text(
-                text = stringResource(R.string.guide_now).uppercase(),
-                modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(ChipRadius))
-                        .drawBehind { drawRect(colors.nowChipFill) }
-                        .padding(horizontal = ChipPadding, vertical = 2.dp),
-                style = guideText(11.sp, FontWeight.Bold),
-                color = colors.nowChipText,
-                maxLines = 1,
-            )
-        }
         Text(text = slot, style = time, color = colors.textSecondary, maxLines = 1)
-        when {
-            onNow -> {
-                val left = ProgramText.minutesUntil(cell.endMs, nowMs)
-                Text(
-                    text = copy.minutesLeft(left),
-                    modifier = OutsideTheLiveRegion,
-                    style = time,
-                    color = colors.textSecondary,
-                    maxLines = 1,
-                )
-            }
+        val note =
+            when {
+                onNow -> {
+                    copy.minutesLeft(ProgramText.minutesUntil(cell.endMs, nowMs)) to colors.textSecondary
+                }
 
-            cell.startMs > nowMs -> {
-                val soon = ProgramText.minutesUntil(cell.startMs, nowMs)
-                Text(
-                    text = copy.startsIn(soon),
-                    modifier = OutsideTheLiveRegion,
-                    style = time,
-                    color = colors.textPrimary,
-                    maxLines = 1,
-                )
+                cell.startMs > nowMs -> {
+                    copy.startsIn(ProgramText.minutesUntil(cell.startMs, nowMs)) to colors.textPrimary
+                }
+
+                else -> {
+                    null
+                }
             }
+        note?.let { (text, color) ->
+            Text(text = text, modifier = OutsideTheLiveRegion, style = time, color = color, maxLines = 1)
         }
     }
 }
@@ -345,7 +399,7 @@ private fun Progress(
             .testTag(GuideTags.PANEL_PROGRESS)
             .drawBehind {
                 val radius = CornerRadius(ProgressRadius.toPx())
-                drawRoundRect(colors.progressTrack, cornerRadius = radius)
+                drawRoundRect(colors.line, cornerRadius = radius)
                 drawRoundRect(
                     colors.progressFill,
                     size = Size(size.width * done, size.height),

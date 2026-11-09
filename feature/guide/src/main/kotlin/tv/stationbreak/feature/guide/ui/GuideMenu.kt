@@ -14,6 +14,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -21,6 +24,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -28,21 +32,21 @@ import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.R
 
 /**
- * An entry's own height (at least 40 dp, so the label has room), and the room it takes under the details panel.
- * The visible pill is this tall and fully rounded. A 40 dp target can surround a slightly shorter pill; here they
- * are the same, so the hit target and the pill match.
+ * The tabs' row: 28 dp, the text at its foot over a 1 dp underline when active. It takes the foot of the details band
+ * (the picture corner's height), so the panel has what is left.
  */
-private val ButtonHeight = 40.dp
-internal val ButtonRowHeight = ButtonHeight + 4.dp
-private val ButtonPadding = 16.dp
-private val EntryGap = 8.dp
+internal val ButtonRowHeight = 28.dp
+private val TabGap = 20.dp
+private val UnderlineGap = 4.dp
+private val UnderlineHeight = 1.dp
+private val FocusUnderlineHeight = 2.dp
 
 /**
- * The menu row above the grid: Channels, Settings and Exit. The guide's focus is its own (model-driven), so the
- * entries do not take Compose focus and do not grow ([CONTENT_SCALE]). [menuOf] says which one the guide's focus is
- * on, if any. The focused entry is a filled pill with no ring. While the focus is on the grid, Channels keeps the
- * quiet selected pill (it is the primary action, not the D-pad focus) and the others are transparent. Each is told
- * to a screen reader as selected only while the guide's focus is on it. An entry recomposes only when that changes.
+ * The menu row above the grid: Channels, Settings and Exit as plain text tabs, no pills. The guide's focus is its own
+ * (model-driven), so the tabs do not take Compose focus. [menuOf] says which one the guide's focus is on, if any. The
+ * active tab is in the primary colour with a 1 dp underline: the focused one, or Channels while the focus is on the
+ * grid (it is the screen the guide is on, not the D-pad focus). Exactly one is underlined at a time. Each is told to
+ * a screen reader as selected only while the guide's focus is on it. A tab recomposes only when that changes.
  */
 @Composable
 internal fun GuideMenu(
@@ -50,30 +54,21 @@ internal fun GuideMenu(
     modifier: Modifier = Modifier,
 ) {
     val onGridOf = remember(menuOf) { { menuOf() == null } }
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(EntryGap)) {
-        MenuButton(
-            R.string.guide_channels_button,
-            GuideTags.CHANNELS_BUTTON,
-            primary = true,
-            onGridOf = onGridOf,
-        ) { menuOf() == GuideMenuEntry.Channels }
-        MenuButton(
-            R.string.guide_settings_button,
-            GuideTags.SETTINGS_BUTTON,
-            primary = false,
-            onGridOf = onGridOf,
-        ) { menuOf() == GuideMenuEntry.Settings }
-        MenuButton(
-            R.string.guide_exit_button,
-            GuideTags.EXIT_BUTTON,
-            primary = false,
-            onGridOf = onGridOf,
-        ) { menuOf() == GuideMenuEntry.Exit }
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(TabGap)) {
+        MenuTab(R.string.guide_channels_button, GuideTags.CHANNELS_BUTTON, primary = true, onGridOf = onGridOf) {
+            menuOf() == GuideMenuEntry.Channels
+        }
+        MenuTab(R.string.guide_settings_button, GuideTags.SETTINGS_BUTTON, primary = false, onGridOf = onGridOf) {
+            menuOf() == GuideMenuEntry.Settings
+        }
+        MenuTab(R.string.guide_exit_button, GuideTags.EXIT_BUTTON, primary = false, onGridOf = onGridOf) {
+            menuOf() == GuideMenuEntry.Exit
+        }
     }
 }
 
 @Composable
-private fun MenuButton(
+private fun MenuTab(
     @StringRes text: Int,
     tag: String,
     primary: Boolean,
@@ -83,38 +78,58 @@ private fun MenuButton(
     val focused by remember(focusedOf) { derivedStateOf(focusedOf) }
     val onGrid by remember(onGridOf) { derivedStateOf(onGridOf) }
     val colors = LocalGuideColors.current
-    val quiet = primary && onGrid && !focused
-    val label = stringResource(text)
-    val fill =
-        when {
-            focused -> colors.menuPillFocused
-            quiet -> colors.menuPillSelected
-            else -> null
-        }
-    val textColor =
-        when {
-            focused -> colors.menuTextFocused
-            quiet -> colors.menuTextSelected
-            else -> colors.menuTextUnselected
-        }
+    val look = tabLook(focused = focused, selected = primary && onGrid, colors = colors)
     Box(
         Modifier
-            .padding(top = ButtonRowHeight - ButtonHeight)
-            .height(ButtonHeight)
-            .drawBehind { drawGuidePill(fill) }
-            .padding(horizontal = ButtonPadding)
+            .height(ButtonRowHeight)
             .testTag(tag)
             .semantics(mergeDescendants = true) {
                 role = Role.Button
                 selected = focused
             },
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.BottomStart,
     ) {
         Text(
-            text = label,
-            style = guideText(18.sp, if (focused || quiet) FontWeight.SemiBold else FontWeight.Medium),
-            color = textColor,
+            text = stringResource(text),
+            modifier = Modifier.underline(look.underline, look.thickness),
+            style = guideText(11.sp, FontWeight.Medium),
+            color = look.text,
             maxLines = 1,
         )
     }
 }
+
+/** How a tab is drawn: its text colour, and its underline (null for none) and the underline's thickness. */
+internal data class TabLook(
+    val text: Color,
+    val underline: Color?,
+    val thickness: Dp,
+)
+
+/**
+ * Three states, told apart by the underline: focused (the guide's focus is on the tab) is primary text over a 2 dp
+ * accent line; selected (Channels while the focus is on the grid) is primary text over a 1 dp quiet line; any other
+ * tab is secondary text with none. The accent line is the D-pad focus, the one thing the accent says on this row.
+ */
+internal fun tabLook(
+    focused: Boolean,
+    selected: Boolean,
+    colors: GuideColors,
+): TabLook =
+    when {
+        focused -> TabLook(colors.textPrimary, colors.accent, FocusUnderlineHeight)
+        selected -> TabLook(colors.textPrimary, colors.line, UnderlineHeight)
+        else -> TabLook(colors.textSecondary, null, UnderlineHeight)
+    }
+
+/** A rule 4 dp under the text, the width of the text, [thickness] thick, when [color] is not null. Reserves 2 dp. */
+internal fun Modifier.underline(
+    color: Color?,
+    thickness: Dp = UnderlineHeight,
+): Modifier =
+    padding(bottom = UnderlineGap + FocusUnderlineHeight).drawBehind {
+        if (color != null) {
+            val top = size.height + UnderlineGap.toPx()
+            drawRect(color, Offset(0f, top), Size(size.width, thickness.toPx()))
+        }
+    }

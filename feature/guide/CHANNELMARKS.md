@@ -23,6 +23,12 @@ Only the 32 dp PNG renders, `sl_<NNN>_<key>_32dp.png` (97 files), unchanged and 
 `src/main/assets/channelmarks/`. Not taken: the SVG masters, the 512 px, 48 dp and 64 dp renders, the JSON files and
 the sheets. Each file is 64 x 64 px and under 16 KB; the test checks both.
 
+**Size buckets.** A file name may end `_32dp`, `_48dp` or `_64dp` (N dp at 2x: 64, 96 and 128 px). `AssetMarkLoader`
+decodes, per key, the smallest bucket whose pixels cover the 50 dp mark box at the screen's density (about 100 px at
+2x), else the largest that key has. No bucket is required: a key with only a `_32dp` file uses it at every density, as
+today. New colour renders (the brand marks, #658) can be added as `_48dp` / `_64dp` without a code change; the manifest
+command below covers them.
+
 ## How the art was made
 
 The marks were produced by an AI-assisted design process (the project's design partner, StationBreak Look), directed

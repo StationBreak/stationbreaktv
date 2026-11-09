@@ -109,10 +109,3 @@ internal fun DrawScope.drawGuideCard(
         cornerRadius = CornerRadius(GuideCardRadius.toPx()),
     )
 }
-
-/** A fully rounded pill. Transparent when [fill] is null: the page shows through. */
-internal fun DrawScope.drawGuidePill(fill: Color?) {
-    if (fill == null) return
-    val radius = CornerRadius(size.minDimension / 2f)
-    drawRoundRect(fill, cornerRadius = radius)
-}

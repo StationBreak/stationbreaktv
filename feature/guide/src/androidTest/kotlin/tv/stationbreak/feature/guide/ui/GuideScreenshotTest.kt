@@ -154,7 +154,12 @@ class GuideScreenshotTest {
     @Suppress("InjectDispatcher") // The real cache loads on Dispatchers.IO, as in the app.
     @Test
     fun theChannelMarks() {
-        marks = MarkCache(AssetMarkLoader(targetAssets()), CoroutineScope(SupervisorJob()), Dispatchers.IO)
+        marks =
+            MarkCache(
+                AssetMarkLoader(targetAssets(), targetDensity()),
+                CoroutineScope(SupervisorJob()),
+                Dispatchers.IO,
+            )
         for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
             theme.value = shown
             showReady(MARK_FARM, ::fillMarksLineup)
@@ -162,6 +167,11 @@ class GuideScreenshotTest {
             shoot("$MARKS_FRAME$suffix.png")
         }
     }
+
+    private fun targetDensity() =
+        InstrumentationRegistry
+            .getInstrumentation()
+            .targetContext.resources.displayMetrics.density
 
     private fun targetAssets() = InstrumentationRegistry.getInstrumentation().targetContext.assets
 

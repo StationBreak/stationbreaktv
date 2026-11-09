@@ -58,14 +58,12 @@ class GuidePaletteTest {
             assertContrast(4.5, c.textSecondary, c.page, "$name secondary text", c.page)
             assertContrast(4.5, c.textSecondary, card, "$name secondary text on a card", c.page)
             assertContrast(4.5, c.programmeText, card, "$name programme text on a card", c.page)
-            val key = c.keyHintPill.compositeOver(c.page)
-            assertContrast(4.5, c.textSecondary, key, "$name secondary on a key", c.page)
-            assertContrast(4.5, c.accent, c.page, "$name accent text", c.page)
-            assertContrast(4.5, c.nowChipText, c.nowChipFill, "$name now chip", c.page)
+            // The panel's 10 sp ON NOW is accent text on the page, no longer on a chip.
+            assertContrast(4.5, c.accent, c.page, "$name accent text (ON NOW)", c.page)
             assertContrast(3.0, c.progressFill, c.progressTrack.compositeOver(c.page), "$name progress", c.page)
-            val pill = c.menuPillSelected.compositeOver(c.page)
-            assertContrast(3.0, c.menuPillFocused, pill, "$name focused menu", c.page)
-            // Tertiary is for numbers, chevrons and the panel's channel line: 3:1, as large text.
+            // The panel's 2 dp progress line: the accent over its 10% track.
+            assertContrast(3.0, c.progressFill, c.line.compositeOver(c.page), "$name panel progress", c.page)
+            // Tertiary is for strokes (the chevrons), not text: 3:1.
             assertContrast(3.0, c.textSupporting, c.page, "$name tertiary text", c.page)
             assertContrast(3.0, c.textSupporting, card, "$name tertiary on a card (chevrons)", c.page)
             // The progress line on a card, and its focused form on the focus fill.
@@ -102,6 +100,15 @@ class GuidePaletteTest {
         for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
             assertContrast(4.5, c.textSecondary, c.page, "$name channel number", c.page)
             assertContrast(4.5, c.textPrimary, c.page, "$name playing channel number", c.page)
+        }
+    }
+
+    @Test
+    fun noPillsOrChipsRemain() {
+        // The menu is text tabs and the NOW chip is text: the tokens for their fills are gone, and the key cap is an
+        // outline whose label is primary text.
+        for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
+            assertEquals(0.28f, c.keyCapStroke.alpha, 0.01f)
         }
     }
 
