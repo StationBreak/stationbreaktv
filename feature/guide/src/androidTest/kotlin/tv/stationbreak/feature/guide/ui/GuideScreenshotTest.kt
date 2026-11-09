@@ -173,25 +173,32 @@ class GuideScreenshotTest {
         }
     }
 
-    /** The Settings panel with its Screen fit row, dark then light: its last row must end above the menu row. */
+    /** The Settings panel with its Screen fit row: its last row must end above the menu row. */
     @Test
-    fun theSettingsPanel() {
-        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
-            theme.value = shown
-            showReady(CH7)
-            back()
-            channels().assertIsSelected()
-            press(Key.DirectionRight)
-            press(Key.DirectionCenter)
-            compose.waitUntil(TIMEOUT_MS) {
-                compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
-            }
-            val last = compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).fetchSemanticsNode().boundsInRoot
-            val menu = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).fetchSemanticsNode().boundsInRoot
-            assertTrue("Sync now (${last.bottom}) runs into the menu row (${menu.top})", last.bottom <= menu.top)
-            compose.onNodeWithTag(GuideTags.FIT_SAFE).assertIsSelected()
-            shoot("$SETTINGS_FRAME$suffix.png")
+    fun theSettingsPanel() = shootSettings(GuideTheme.Dark, suffix = "")
+
+    // One test a theme: the panel's state is the activity's, and a second pass would start on the open panel.
+    @Test
+    fun theSettingsPanelLight() = shootSettings(GuideTheme.Light, suffix = "-light")
+
+    private fun shootSettings(
+        shown: GuideTheme,
+        suffix: String,
+    ) {
+        theme.value = shown
+        showReady(CH7)
+        back()
+        channels().assertIsSelected()
+        press(Key.DirectionRight)
+        press(Key.DirectionCenter)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
         }
+        val last = compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).fetchSemanticsNode().boundsInRoot
+        val menu = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).fetchSemanticsNode().boundsInRoot
+        assertTrue("Sync now (${last.bottom}) runs into the menu row (${menu.top})", last.bottom <= menu.top)
+        compose.onNodeWithTag(GuideTags.FIT_SAFE).assertIsSelected()
+        shoot("$SETTINGS_FRAME$suffix.png")
     }
 
     // The panel's title starts at the fit's safe left edge, not at the screen's.
