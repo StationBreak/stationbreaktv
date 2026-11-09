@@ -608,6 +608,13 @@
       {"rel": 1.0, "segs": [{"text": "Blossom", "font": "yeseva-one-400", "color": "#FFFFFF"}]}
     ], "gap": 0.0
   },
+  "after-hours": {
+    "note": "Oswald 700 · after-hours magenta, small over big",
+    "lines": [
+      {"rel": 0.4, "segs": [{"text": "AFTER", "font": "oswald-700", "color": "#FFFFFF", "tracking": 0.22}]},
+      {"rel": 1.0, "segs": [{"text": "HOURS", "font": "oswald-700", "color": "#FF4D8D", "tracking": 0.03}]}
+    ], "gap": 0.03
+  },
   "graveyard-shift": {
     "note": "Barlow Cond · moss, barred",
     "device": "bars", "device_color": "#8DB580",
@@ -615,5 +622,47 @@
       {"rel": 0.34, "segs": [{"text": "GRAVEYARD", "font": "BarlowCondensed-600", "color": "#FFFFFF", "tracking": 0.2}]},
       {"rel": 1.0, "segs": [{"text": "SHIFT", "font": "BarlowCondensed-800", "color": "#8DB580", "tracking": 0.04}]}
     ], "gap": 0.06
+  },
+  "one-season-only": {
+    "note": "Bebas Neue · one colour teal, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "ONE SEASON", "font": "bebas-neue-400", "color": "#6FE3D4", "tracking": 0.02}]},
+      {"rel": 0.4, "segs": [{"text": "ONLY", "font": "bebas-neue-400", "color": "#FFFFFF", "tracking": 0.22}]}
+    ], "gap": 0.04
+  },
+  "cartoons-after-dark": {
+    "note": "Oswald 700 · night violet, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "CARTOONS", "font": "oswald-700", "color": "#B58CFF"}]},
+      {"rel": 0.4, "segs": [{"text": "AFTER DARK", "font": "oswald-700", "color": "#FFFFFF", "tracking": 0.2}]}
+    ], "gap": 0.04
+  },
+  "family-business": {
+    "note": "Alfa Slab One · money green, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "FAMILY", "font": "alfa-slab-one-400", "color": "#FFFFFF"}]},
+      {"rel": 1.0, "segs": [{"text": "BUSINESS", "font": "alfa-slab-one-400", "color": "#7BE08A"}]}
+    ], "gap": 0.02
+  },
+  "anthology-hour": {
+    "note": "Barlow Cond 600 · one blue, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "ANTHOLOGY", "font": "BarlowCondensed-800", "color": "#6FB0FF", "tracking": 0.02}]},
+      {"rel": 0.4, "segs": [{"text": "HOUR", "font": "BarlowCondensed-800", "color": "#FFFFFF", "tracking": 0.22}]}
+    ], "gap": 0.04
+  },
+  "satire-desk": {
+    "note": "Bebas Neue · one yellow, small over big",
+    "lines": [
+      {"rel": 0.4, "segs": [{"text": "COMEDY", "font": "bebas-neue-400", "color": "#FFFFFF", "tracking": 0.22}]},
+      {"rel": 1.0, "segs": [{"text": "COUNTY", "font": "bebas-neue-400", "color": "#FFE033", "tracking": 0.03}]}
+    ], "gap": 0.03
+  },
+  "directors-chair": {
+    "note": "Cinzel 700 · restrained red, small over big",
+    "lines": [
+      {"rel": 0.4, "segs": [{"text": "DIRECTOR'S", "font": "cinzel-700", "color": "#FFFFFF", "tracking": 0.15}]},
+      {"rel": 1.0, "segs": [{"text": "CHAIR", "font": "cinzel-700", "color": "#FF5A5A", "tracking": 0.04}]}
+    ], "gap": 0.04
   }
 }
