@@ -250,8 +250,11 @@ internal class GuideViewModel
                 when {
                     // A cell of a grid that is not shown is never moved to: the menu row takes the focus.
                     current.menu == null && noLibraries() -> shownSnapshot.value = current.toSettings()
+
                     current.menu != null -> moveOnMenu(current, current.menu, direction)
+
                     current.onChannel -> moveOnChannel(current, direction, repeat, atMs)
+
                     else -> moveOnGrid(current, direction, repeat, atMs)
                 }
             }

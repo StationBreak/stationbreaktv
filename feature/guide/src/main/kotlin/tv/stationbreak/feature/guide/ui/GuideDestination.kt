@@ -203,10 +203,9 @@ internal fun GuideRoot(
     // The Settings panel while it is open (null when closed), with the Libraries screen shown over the guide from it.
     var settings by remember(viewModel, openedAtNanos) { mutableStateOf<SettingsPanel?>(null) }
     val librariesShown = settings?.librariesShown == true
-    // Any screen over the guide has the keys, and the guide stays composed under it. Channel management and Settings,
-    // Libraries hide the guide; the properties sheet is drawn over it.
-    val covered = managing || propertiesOf != null || librariesShown
-    val hidden = managing || librariesShown
+    val cover = GuideCover(managing, propertiesOf != null, librariesShown)
+    val covered = cover.covered
+    val hidden = cover.hidden
     val backs = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val leave by rememberUpdatedState { backs?.onBackPressed() }
     var themeChoice by remember { mutableStateOf(theme) }
@@ -226,7 +225,9 @@ internal fun GuideRoot(
                 openProperties = {
                     // Only one screen is over the guide at a time: an open while one shows is ignored. All are read
                     // as they stand now, not as this composition saw them, so a second OK in a frame is ignored too.
-                    if (managingSince == NOT_MANAGING && propertiesOf == null && settings?.librariesShown != true) {
+                    val onLibraries = settings?.librariesShown == true
+                    val now = GuideCover(managingSince != NOT_MANAGING, propertiesOf != null, onLibraries)
+                    if (!now.covered) {
                         viewModel.channelsOpened()
                         propertiesSince = System.nanoTime().coerceAtLeast(1L)
                         propertiesOf = it
@@ -307,6 +308,20 @@ internal fun GuideRoot(
 }
 
 private const val NOT_MANAGING = 0L
+
+/**
+ * What covers the guide: channel management ([managing]), a channel's properties sheet ([properties]) or Settings,
+ * Libraries ([libraries]). Any of them has the keys, and the guide stays composed under it ([covered]); channel
+ * management and Settings, Libraries hide the guide ([hidden]), while the sheet is drawn over it.
+ */
+private class GuideCover(
+    managing: Boolean,
+    properties: Boolean,
+    libraries: Boolean,
+) {
+    val covered = managing || properties || libraries
+    val hidden = managing || libraries
+}
 
 /** A slot that draws nothing, for a test that never opens Settings, Libraries. */
 private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, _ -> }

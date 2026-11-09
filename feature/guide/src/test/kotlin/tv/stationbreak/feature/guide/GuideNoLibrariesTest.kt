@@ -116,6 +116,29 @@ class GuideNoLibrariesTest : GuideRig() {
             assertEquals(GuideMenuEntry.Settings, vm.menu())
         }
 
+    // On the channel column (#631) when the libraries go: the focus leaves it for the menu row, and Select there is
+    // Settings, never the channel's properties.
+    @Test
+    fun selectionGoneOnTheChannelColumn_focusGoesToSettings_notTheProperties() =
+        guideTest { vm ->
+            choices.selection.value = kept
+            val events = mutableListOf<GuideEvent>()
+            backgroundScope.launch { vm.events.collect { events += it } }
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Left, false, 0)
+            assertTrue(vm.snapshot.value.onChannel)
+
+            choices.selection.value = gone
+            runCurrent()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertFalse(vm.snapshot.value.onChannel)
+
+            vm.select()
+            runCurrent()
+            assertEquals(listOf(GuideEvent.OpenSettings), events)
+        }
+
     @Test
     fun theMessages_perState() {
         assertNull(guideMessageOf(GuideState.Closed, noLibraries = true))
