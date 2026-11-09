@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.BackgroundSaves
+import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.LineupEvent
@@ -163,15 +164,17 @@ class TodayRepairer internal constructor(
      * the change has no pin: its rest is laid out from the half hour, or the whole day stays hidden with the new
      * selection's reason. It runs while the removed libraries' rows still exist. The result of [RepairOutcome.Saved]
      * is the seq and the pins whose programme is of a library the change removes. [entered] is called first in the
-     * turn, once it is held (a change times its wait for the turn).
+     * turn, once it is held (a change times its wait for the turn). [clock], when given, times the repair's steps up
+     * to the save, with the turn thread's CPU time and the collections over them ([RepairPhases]); it changes nothing.
      */
-    @Suppress("LongParameterList") // The change, its moment and floor, the save, and the turn's timing hook.
+    @Suppress("LongParameterList") // The change, its moment and floor, the save, and the turn's timing hooks.
     suspend fun selectionChanged(
         account: LibraryAccount,
         after: Set<ItemId>,
         atMs: Long,
         atLeast: Long,
         entered: () -> Unit = {},
+        clock: RepairClock? = null,
         save: suspend (seq: Long) -> Boolean,
     ): RepairOutcome<SelectionRepaired> =
         turn {
@@ -180,14 +183,25 @@ class TodayRepairer internal constructor(
                 val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup
                 // With no saved selection read, the seq shown is unknown: recording would drop what it cannot place.
                 source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
-                val (current, today) = source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
-                val seq = maxOf(held.repairs.nextSeq(current.seq), atLeast)
-                val change = SelectionChange(current.libraries, after, seq, atMs)
-                val shared: SharedRead = { libraries, cuts -> source.sharedSnapshotsOf(account, libraries, cuts) }
-                val planned = SelectionRepair(days, library, account, held, change, shared).plan(today)
-                val repaired = SelectionRepaired(seq, planned.pins)
-                val recorded = record(account, held, repaired) { planned.into(it, current.seq, current.resetSeq) }
+                val recorded =
+                    probed(clock, source.probes) {
+                        val (current, today) =
+                            clock.time(RepairPhase.Days) {
+                                source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
+                            }
+                        val seq = maxOf(held.repairs.nextSeq(current.seq), atLeast)
+                        val change = SelectionChange(current.libraries, after, seq, atMs)
+                        val shared: SharedRead = { libraries, cuts ->
+                            source.sharedSnapshotsOf(account, libraries, cuts)
+                        }
+                        val planned = SelectionRepair(days, library, account, held, change, shared, clock).plan(today)
+                        val repaired = SelectionRepaired(seq, planned.pins)
+                        clock.time(RepairPhase.Write) {
+                            record(account, held, repaired) { planned.into(it, current.seq, current.resetSeq) }
+                        }
+                    }
                 if (recorded !is RepairOutcome.Saved) return@run recorded
+                val seq = recorded.result.seq
                 val written = service.loaded(account)?.repairs
                 var saved = false
                 var settled = Settled.Undone
@@ -451,6 +465,36 @@ class TodayRepairer internal constructor(
         }
     }
 }
+
+private const val NANOS_PER_MS = 1_000_000L
+
+// [block], with this thread's CPU time and the process's collections over it (read from [probes]) added to [clock]
+// when there is one.
+private inline fun <T> probed(
+    clock: RepairClock?,
+    probes: BuildProbes,
+    block: () -> T,
+): T {
+    if (clock == null) return block()
+    val cpu = probes.threadCpuNanos()
+    val count = probes.gcCount()
+    val blocked = probes.gcBlockMs()
+    try {
+        return block()
+    } finally {
+        clock.addProbes(
+            cpu = delta(cpu, probes.threadCpuNanos()).let { if (it < 0) -1 else it / NANOS_PER_MS },
+            count = delta(count, probes.gcCount()),
+            blocked = delta(blocked, probes.gcBlockMs()),
+        )
+    }
+}
+
+// A reading's change, or -1 when either end is unknown.
+private fun delta(
+    before: Long,
+    after: Long,
+): Long = if (before < 0 || after < before) -1 else after - before
 
 // Whether this is still the lineup [held] was read from: the same revision and the same selection repairs.
 private fun Revisioned.isStill(held: Revisioned): Boolean {

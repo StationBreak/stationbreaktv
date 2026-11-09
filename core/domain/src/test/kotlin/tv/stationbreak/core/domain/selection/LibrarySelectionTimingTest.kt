@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.selection
 
+import tv.stationbreak.core.domain.lineup.repair.RepairPhases
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -39,6 +41,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
 
         assertEquals(ChangeResult.Saved, tv.change(setOf(libA)))
 
+        val timing = tv.changeTimes.single()
         assertEquals(
             ChangeTiming(
                 waitMs = 0,
@@ -48,8 +51,14 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
                 cacheMs = CACHE_MS,
                 totalMs = TURN_MS + RECORD_MS + SAVE_MS + CACHE_MS,
             ),
-            tv.changeTimes.single(),
+            timing.copy(repair = RepairPhases.NONE),
         )
+        // The repair's own steps are reported too, on the same clock: the slow snapshot read is the current days'
+        // (a build) or the new selection's, and no other step took any time.
+        val phases = timing.repair
+        assertNotEquals(RepairPhases.NONE, phases)
+        assertEquals(RECORD_MS, phases.daysMs + phases.snapsMs)
+        assertEquals(0, phases.admittedMs + phases.keptMs + phases.layoutMs + phases.pinMs + phases.writeMs)
     }
 
     @Test
@@ -63,10 +72,42 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
 
     @Test
     fun theLine_isNumbersOnly() {
+        val phases =
+            RepairPhases(
+                daysMs = 6,
+                snapsMs = 7,
+                admittedMs = 8,
+                beforeMs = 9,
+                keptMs = 10,
+                poolsMs = 11,
+                liveMs = 12,
+                layoutMs = 13,
+                pinMs = 14,
+                writeMs = 15,
+                cpuMs = 16,
+                gcCount = 17,
+                gcMs = 18,
+            )
         val line =
-            ChangeTiming(waitMs = 1, turnWaitMs = 2, recordMs = 3, saveMs = 4, cacheMs = 5, totalMs = 15).line()
+            ChangeTiming(waitMs = 1, turnWaitMs = 2, recordMs = 3, saveMs = 4, cacheMs = 5, totalMs = 15, phases)
+                .line()
 
-        assertEquals("SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15", line)
+        assertEquals(
+            "SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15 days=6 snaps=7 admitted=8 " +
+                "before=9 kept=10 pools=11 live=12 layout=13 pin=14 write=15 cpu=16 gc=17 gcMs=18",
+            line,
+        )
+    }
+
+    @Test
+    fun aChangeWithNoRepair_saysSo_withMinusOnes() {
+        val line = ChangeTiming(0, 0, 0, 0, 0, 0).line()
+
+        assertEquals(
+            "SelectionChangeTook wait=0 turnWait=0 record=0 save=0 cache=0 total=0 days=-1 snaps=-1 admitted=-1 " +
+                "before=-1 kept=-1 pools=-1 live=-1 layout=-1 pin=-1 write=-1 cpu=-1 gc=-1 gcMs=-1",
+            line,
+        )
     }
 
     private companion object {

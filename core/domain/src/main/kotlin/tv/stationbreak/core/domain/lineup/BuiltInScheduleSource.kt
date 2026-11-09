@@ -124,7 +124,7 @@ class BuiltInScheduleSource(
     private val built: (DayBuild) -> Unit = {},
     laidOut: (dayIndex: Long, layoutMs: Long) -> Unit = { _, _ -> },
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val probes: BuildProbes = BuildProbes(),
+    internal val probes: BuildProbes = BuildProbes(),
     private val persisted: PersistedDays? = null,
     private val saveDispatcher: CoroutineDispatcher = BackgroundSaves.dispatcher,
     shared: SharedSnapshots? = null,

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.selection
 
+import tv.stationbreak.core.domain.lineup.repair.RepairClock
+import tv.stationbreak.core.domain.lineup.repair.RepairPhases
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -10,7 +12,9 @@ import kotlin.time.TimeSource
  * floor read just before, the move to the repairer's thread and the wait for the turn); [recordMs] in that turn
  * without the save (today's repair and its record); [saveMs] in the settings save; [cacheMs] in the steps after the
  * save (the library cache's write, the add pass asked for, the new choice published); and [totalMs] for the whole
- * call. A stale attempt that ran again adds to its steps. Numbers only: never an ID, a name or a count.
+ * call. [repair] splits the repair's turn by step, with its CPU time and the collections it saw ([RepairPhases.NONE]
+ * when no repair ran). A stale attempt that ran again adds to its steps. Numbers only: never an ID, a name or a count
+ * of content.
  */
 data class ChangeTiming(
     val waitMs: Long,
@@ -19,11 +23,12 @@ data class ChangeTiming(
     val saveMs: Long,
     val cacheMs: Long,
     val totalMs: Long,
+    val repair: RepairPhases = RepairPhases.NONE,
 ) {
     /** The line the app logs. */
     fun line(): String =
         "SelectionChangeTook wait=$waitMs turnWait=$turnWaitMs record=$recordMs save=$saveMs cache=$cacheMs " +
-            "total=$totalMs"
+            "total=$totalMs ${repair.line()}"
 }
 
 /** The steps of one change as it runs, on [ticks]: each adds what it took. Used under the selection's lock only. */
@@ -31,6 +36,9 @@ internal class ChangeSteps(
     private val ticks: TimeSource,
 ) {
     private val began = ticks.markNow()
+
+    /** Times the repair's own steps, on the same clock. */
+    val repair = RepairClock(ticks)
     private var waitMs = 0L
     private var allocateMs = 0L
     private var turnWaitMs = 0L
@@ -68,6 +76,7 @@ internal class ChangeSteps(
             saveMs = saveMs,
             cacheMs = cacheMs,
             totalMs = began.elapsedNow().inWholeMilliseconds,
+            repair = repair.phases(),
         )
 
     private suspend fun <T> timed(

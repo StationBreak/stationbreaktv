@@ -59,7 +59,9 @@ internal class SelectionAllocation(
         val held = { steps?.turnHeld() ?: Unit }
         val allocated =
             if (after != null) {
-                allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, held, save)) { it.seq }
+                allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, held, steps?.repair, save)) {
+                    it.seq
+                }
             } else {
                 allocated(repairer.saveWithoutRepair(account, atLeast, held, save)) { it }
             }

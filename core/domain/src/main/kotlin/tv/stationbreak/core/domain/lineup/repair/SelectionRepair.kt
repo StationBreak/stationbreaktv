@@ -95,6 +95,8 @@ internal class SelectionRepair(
     private val held: Revisioned,
     private val change: SelectionChange,
     private val shared: SharedRead,
+    // Times the steps (the timing line's), when given; it changes nothing.
+    private val clock: RepairClock? = null,
 ) {
     private val fills = Fills(library, account)
     private val removed = change.before - change.after
@@ -116,20 +118,32 @@ internal class SelectionRepair(
         val scheduled = days.scheduled(held.lineup, atMs, held.meta.extrasFromMs)
         val byId = scheduled.associateBy { it.channel.id }
         val pairs = today.mapNotNull { day -> byId[day.channel.id]?.let { day to it } }
-        val (p, f) = snapshotsOf(library, account, change.after, scheduled.map { it.cut }.distinct())
+        val (p, f) =
+            clock.time(RepairPhase.Snaps) {
+                snapshotsOf(library, account, change.after, scheduled.map { it.cut }.distinct())
+            }
         plain = p
         filtered = f
-        admitted = days.admitted(held.lineup, scheduled, plain, filtered, change.after)
-        if (pairs.any { (day, _) -> day.record?.repair != null }) admittedBefore = admittedBefore(scheduled)
+        admitted =
+            clock.time(RepairPhase.Admitted) { days.admitted(held.lineup, scheduled, plain, filtered, change.after) }
+        if (pairs.any { (day, _) -> day.record?.repair != null }) {
+            admittedBefore = clock.time(RepairPhase.Before) { admittedBefore(scheduled) }
+        }
         val titles = HashSet<CanonicalId>()
         for ((day, _) in pairs) titles += ownTitles(day)
         val shown = pairs.filter { (day, _) -> day.hiddenAt(atMs) == null }
-        fills.live(shown.flatMap { (day, _) -> KeptWindow.programmesOf(day, atMs) })
+        clock.time(RepairPhase.Kept) {
+            val programmes = shown.flatMap { (day, _) -> KeptWindow.programmesOf(day, atMs) }
+            clock.time(RepairPhase.Live) { fills.live(programmes) }
+        }
         val repairs = ArrayList<ChannelRepair>()
         val fixes = ArrayList<LostFix>()
         for ((day, s) in pairs) {
             // A day hidden at the change has nothing on the air to keep.
-            val kept = if (day.hiddenAt(atMs) == null) KeptWindow.of(day, atMs, change.seq, fills) else null
+            val kept =
+                clock.time(RepairPhase.Kept) {
+                    if (day.hiddenAt(atMs) == null) KeptWindow.of(day, atMs, change.seq, fills) else null
+                }
             repairs += repairOf(day, s, kept, titles)
             kept?.let { fixes += it.fixes }
         }
@@ -169,7 +183,7 @@ internal class SelectionRepair(
             libraries = change.after,
             keptFromMs = start,
             pinEndMs = kept?.pinEndMs ?: start,
-            pinLibrary = kept?.pinItem?.let { libraryOf(it, s, snapshot) },
+            pinLibrary = clock.time(RepairPhase.Pin) { kept?.pinItem?.let { libraryOf(it, s, snapshot) } },
             blocks = blocks,
             tailHidden = if (nothing) reason else null,
         )
@@ -187,9 +201,11 @@ internal class SelectionRepair(
     ): List<ScheduleBlock> {
         if (fromMs >= day.epochEndMs) return emptyList()
         val repaired = day.record?.repair != null
-        val pool = tailPool(day, s, snapshot, repaired, today)
-        val (films, weights) = sidesOf(day, pool, repaired, addedIn(s, snapshot))
-        return layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired)
+        val pool = clock.time(RepairPhase.Pools) { tailPool(day, s, snapshot, repaired, today) }
+        return clock.time(RepairPhase.Layout) {
+            val (films, weights) = sidesOf(day, pool, repaired, addedIn(s, snapshot))
+            layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired)
+        }
     }
 
     // The tail pool of [day]: its base (the day pool as built; on a repaired day the record's tail pool and what the
@@ -225,7 +241,7 @@ internal class SelectionRepair(
         val own = ownTitles(day)
         val pool = days.tailPoolOf(s, base, present, taken, homesOf(s, snapshot), today, own)
         // An item deleted since the cut-off is still in the snapshot: a fresh tail never lays out one with no row.
-        val live = fills.live(pool.map { it.id })
+        val live = clock.time(RepairPhase.Live) { fills.live(pool.map { it.id }) }
         return pool.filter { it.id in live }
     }
 
