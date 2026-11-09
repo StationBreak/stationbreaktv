@@ -10,7 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * A [LibraryChoices] for feature tests: the stored choice is [selection], [listing] answers [answer] (the server's
- * [libraries] by default), and [change] records each call, waits on [gate] when one is set, and answers [result]. A
+ * [libraries] by default, after [listingGate] when one is set), and [change] records each call, waits on [gate] when one is set, and answers [result]. A
  * [ChangeResult.Saved] change is stored as the real selection stores it: chosen libraries kept or unticked, adds kept
  * or dropped, and a new tick added as being added.
  */
@@ -29,6 +29,9 @@ class FakeLibraryChoices(
     /** When set, [change] waits on it before it answers. */
     @Volatile var gate: CompletableDeferred<Unit>? = null
 
+    /** When set, [listing] waits on it before it answers: a server slow to answer. */
+    @Volatile var listingGate: CompletableDeferred<Unit>? = null
+
     /** The ticked sets [change] was called with, in order. */
     val changes = CopyOnWriteArrayList<Set<ItemId>>()
 
@@ -37,6 +40,7 @@ class FakeLibraryChoices(
 
     override suspend fun listing(): LibraryListing {
         listings++
+        listingGate?.await()
         return answer()
     }
 

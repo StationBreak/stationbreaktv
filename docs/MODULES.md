@@ -146,8 +146,10 @@ it is finished with one `onDone(tune)` call. Everything in `feature:channels` is
 `ChannelsTags` for `app`'s tests.
 
 `feature:settings` exists since spec 26 (library settings). It holds the Libraries screen: `LibrariesSettingsViewModel` (the
-server's libraries as rows, ticked from the stored choice, the focus as a value, and one change at a time) and its D-pad-only
-screen (Up and Down move, Select ticks or unticks at once, Back leaves). It depends on `core:domain`, `core:model` and
+server's libraries as rows, the focus as a value, and the viewer's presses) and its D-pad-only screen (Up and Down move,
+Select ticks or unticks at once, Back leaves). A press flips its row at once and shows "Saving…" (a tick) or "Removing…"
+(an untick) until it is stored; one change is out at a time, and the presses made meanwhile go out together as the next,
+the last press of a row winning. A reopened screen shows the last listing's rows until its own listing answers. It depends on `core:domain`, `core:model` and
 `core:ui` only, with a narrower allowlist than other features (no `core:playback`), and applies the `hilt` convention plugin.
 It reaches the selection only through `LibraryChoices`: one listing per visit, the stored choice as `ChoiceView` (an add the
 add pass gave up shows as stalled, not as being added) and `change`. When the server cannot be asked it shows the stored choice
@@ -315,7 +317,8 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   `Failed(failure)`) and `start()`, which returns false while a sync runs. `RunnerSyncNow` implements it over
   `LibraryChoices` and `StayCurrentRunner`, on a scope of its own that `app` binds in `di/StayCurrentModule`. A press
   lists the server once, through `LibraryChoices`: a listing that fails, a sign-in that has expired or an empty answer ends
-  as `Failed` with nothing run and nothing written. Otherwise it calls `StayCurrentRunner.runWaiting(SyncPlan.Both,
+  as `Failed` with nothing run and nothing written. Otherwise it waits until the selection has followed that listing
+  (`LibraryChoices.followed`), then calls `StayCurrentRunner.runWaiting(SyncPlan.Both,
   followServer = false, listed)`. `runWaiting` takes the run's gate by waiting where a background run skips as busy, so a
   press queues behind a background run and two never run at once. With `followServer = false` the run expires holds
   after its passes, walks the rewalk on the press's own listing, and skips the runner's own follow of the listing. A
@@ -389,6 +392,12 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
     lock, then the settings' locks; Room transactions are leaves. Stores are written in one order: the repair record,
     then the settings (the truth), then the library cache. A cache write that fails after its save is put right by the
     next operation, before anything else. Every seq is floored one above the highest add stamp in the cache.
+  - **Listings.** `LibraryChoices.listing` answers as soon as the server does, never waiting on the lock (a change on
+    a slow TV holds it for tens of seconds). It is then followed under the lock on the selection's own scope, queued
+    on the fair lock before the listing returns, so an operation asked for after it runs after it. A listing that
+    failed or listed nothing has nothing to follow. `followed` waits for every follow that may still run. A follow that
+    fails is reported (`ListingFollowFailed`). Each change's time is logged by step: `SelectionChangeTook wait= turnWait=
+    record= save= cache= total=`, numbers only.
   - **The start.** `StationBreakApp` runs `SelectionResume.resumeAtStart` before the lineup refresher starts. It
     raises the seq, branches every stamped chosen row (proven: landed; unproven: set back), writes the cache from the
     stored selection, and asks for the add pass and the first sync when there is work. Another account's choice found

@@ -66,6 +66,13 @@ class RunnerSyncNowTest {
 
         @Volatile var answer: LibraryListing = LibraryListing.Listed(listOf(SyncWorld.movies), null)
 
+        /** When set, the listing's follow ends only once it completes, as when a change holds the selection's lock. */
+        @Volatile var followGate: CompletableDeferred<Unit>? = null
+
+        override suspend fun followed() {
+            followGate?.await()
+        }
+
         override suspend fun listing(): LibraryListing {
             listings.incrementAndGet()
             gate?.await()
@@ -95,6 +102,25 @@ class RunnerSyncNowTest {
             assertTrue(ended() is SyncNowState.Done)
             assertEquals("one press, one listing", 1, choices.listings.get())
             assertEquals("one run", 1, lines.count { it.startsWith("StayCurrent incremental=") })
+        }
+
+    // Fix round 1: the selection now follows a listing after answering it. A press runs only once its listing has
+    // been followed, so the run reads the choice that listing left (as when the listing was followed in place).
+    @Test
+    fun aPress_runsOnlyOnceItsListingIsFollowed() =
+        runBlocking {
+            rig.firstSyncDone()
+            val follow = CompletableDeferred<Unit>()
+            choices.followGate = follow
+
+            assertTrue(syncNow.start())
+            withTimeout(TIMEOUT) { while (choices.listings.get() == 0) delay(10) }
+            delay(200)
+            assertTrue("no run before the follow", lines.none { it.startsWith("StayCurrent incremental=") })
+            follow.complete(Unit)
+
+            assertTrue(ended() is SyncNowState.Done)
+            assertEquals(1, lines.count { it.startsWith("StayCurrent incremental=") })
         }
 
     @Test

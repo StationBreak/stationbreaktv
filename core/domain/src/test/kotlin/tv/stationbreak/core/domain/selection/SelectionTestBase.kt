@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlin.time.TestTimeSource
 
 /** One cache write the selection made, as [WatchedLibrary] saw it. */
 internal data class Applied(
@@ -61,6 +62,17 @@ internal class WatchedLibrary(
     /** Every [applySelection] asked for, whether it wrote or failed. */
     @Volatile var applyCalls = 0
 
+    /** Runs inside each [applySelection], before it writes: a slow cache write. */
+    @Volatile var beforeApply: suspend () -> Unit = {}
+
+    /** Runs at each [storedLibraries], before it reads. */
+    @Volatile var beforeRows: () -> Unit = {}
+
+    override suspend fun storedLibraries(account: LibraryAccount): List<StoredLibrary> {
+        beforeRows()
+        return inner.storedLibraries(account)
+    }
+
     /** Runs inside each [revertUnproven], before it writes: the add pass racing the selection. */
     @Volatile var beforeRevert: suspend (ItemId, Long) -> Unit = { _, _ -> }
 
@@ -78,6 +90,7 @@ internal class WatchedLibrary(
         nowMs: Long,
     ) {
         applyCalls++
+        beforeApply()
         if (failApplies > 0) {
             failApplies--
             error("the cache write failed")
@@ -134,6 +147,9 @@ internal class WatchedSettings(
         return inner.clearLibraries()
     }
 
+    /** The next [failLoads] reads throw, as settings that could not be read. */
+    @Volatile var failLoads = 0
+
     /** How many times the selection was read. */
     val loads = AtomicInteger()
 
@@ -142,6 +158,10 @@ internal class WatchedSettings(
 
     override suspend fun loadSelection(): StoredSelection? {
         val load = loads.incrementAndGet()
+        if (failLoads > 0) {
+            failLoads--
+            error("the settings could not be read")
+        }
         return if (load == unreadableLoad) null else inner.loadSelection()
     }
 
@@ -208,6 +228,12 @@ internal open class SelectionTestBase : RepairTestBase() {
         /** How long each resume at start took, as the selection reports it. */
         val resumeTimes: MutableList<Long> = Collections.synchronizedList(mutableListOf())
 
+        /** How long each change took, by step, as the selection reports it. */
+        val changeTimes: MutableList<ChangeTiming> = Collections.synchronizedList(mutableListOf())
+
+        /** The selection's clock for its timings: it moves only when a test moves it. */
+        val ticks = TestTimeSource()
+
         /** The gate this TV's selection opens at its resume, as the app binds it for `SelectionReady`. */
         val gate = ResumeGate()
         private val clock =
@@ -233,6 +259,8 @@ internal open class SelectionTestBase : RepairTestBase() {
                 config,
                 clock,
                 { resumeTimes += it },
+                { changeTimes += it },
+                ticks = ticks,
             ) { events += it }
 
         init {
@@ -292,7 +320,7 @@ internal open class SelectionTestBase : RepairTestBase() {
 
         fun listing(ids: Set<ItemId>): LibraryListing {
             server.librariesResult = listed(ids)
-            return runBlocking { selection.listing() }
+            return runBlocking { selection.listing().also { selection.followed() } }
         }
 
         /** Resumes, then lists [ids] once, so a tick of one of them is allowed. */

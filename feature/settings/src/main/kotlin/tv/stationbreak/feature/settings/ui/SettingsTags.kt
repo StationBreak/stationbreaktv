@@ -23,4 +23,10 @@ object SettingsTags {
 
     /** The "Adding…" line under a row being added. */
     fun adding(id: ItemId) = "settings:libraries:adding:${id.value}"
+
+    /** The "Saving…" line under a row ticked and not stored yet. */
+    fun saving(id: ItemId) = "settings:libraries:saving:${id.value}"
+
+    /** The "Removing…" line under a row unticked and not stored yet. */
+    fun removing(id: ItemId) = "settings:libraries:removing:${id.value}"
 }

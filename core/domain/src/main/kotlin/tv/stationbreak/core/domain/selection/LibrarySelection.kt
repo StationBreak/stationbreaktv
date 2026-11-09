@@ -2,9 +2,16 @@
 package tv.stationbreak.core.domain.selection
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -59,6 +66,12 @@ enum class SelectionEvent {
 
     /** The add pass could not be asked for after a committed write (the write stands; the next start asks again). */
     RestartFailed,
+
+    /**
+     * A listing was answered, but following it failed part way: what it noted before the failure stands (the listed
+     * libraries may have been noted), and the rest was not done. The next listing is followed again.
+     */
+    ListingFollowFailed,
 }
 
 /**
@@ -119,6 +132,10 @@ class LibrarySelection(
     config: SelectionConfig = SelectionConfig(),
     clock: Clock = Clock.System,
     private val resumeTook: (Long) -> Unit = {},
+    private val changeTook: (ChangeTiming) -> Unit = {},
+    private val ticks: TimeSource = TimeSource.Monotonic,
+    // Where a listing is followed, off the caller's path.
+    private val followScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val report: (SelectionEvent) -> Unit = {},
 ) : LibraryChoices,
     LibrarySetup,
@@ -177,29 +194,73 @@ class LibrarySelection(
 
     // --- LibraryChoices ---------------------------------------------------------------------------------------------
 
+    // Answers as soon as the server does, with the stored choice read without the lock: a change may hold the lock
+    // for long on a slow TV, and the screen must not wait for it. The listing is followed afterwards ([follow]).
     override suspend fun listing(): LibraryListing {
         refuseReentry()
         val held = session() ?: return LibraryListing.NotSignedIn(selection.value)
         val listed = server.libraries(held)
-        followServer(LibraryAccount(held.server.id, held.userId), listed)
+        follow(LibraryAccount(held.server.id, held.userId), listed)
         return when (listed) {
             is ServerResult.Success -> LibraryListing.Listed(listed.value, selection.value)
             is ServerResult.Failure -> LibraryListing.Unavailable(listed.error, selection.value)
         }
     }
 
-    override suspend fun change(ticked: Set<ItemId>): ChangeResult =
-        locked {
-            val account = activeAccountOrReport() ?: return@locked ChangeResult.Failed
-            // Stale (the lineup or its repairs moved while the repair ran): once more, from a fresh read.
-            changeOnce(account, ticked) ?: changeOnce(account, ticked) ?: ChangeResult.Failed
+    // The follows that may still run, each until it ends. Under [follows]' own lock.
+    private val follows = HashSet<Job>()
+
+    // Follows [listed] on [followScope], under the lock as [followServer] always is, when it has work for the lock (a
+    // listing that failed or listed nothing changes nothing). It is started undispatched, so once the resume has run
+    // it queues on the lock before the listing returns: an operation asked for after the listing (the lock is fair)
+    // runs after it, as when the listing was followed in place. One that fails is reported; the listing has answered.
+    @Suppress("TooGenericExceptionCaught") // Whatever the follow throws, the listing stands.
+    private fun follow(
+        account: LibraryAccount,
+        listed: ServerResult<List<Library>>,
+    ) {
+        if ((listed as? ServerResult.Success)?.value.isNullOrEmpty()) return
+        val job =
+            followScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                try {
+                    followServer(account, listed)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    report(SelectionEvent.ListingFollowFailed)
+                }
+            }
+        synchronized(follows) { follows += job }
+        // Registered after it is added: one already ended is taken out at once.
+        job.invokeOnCompletion { synchronized(follows) { follows -= job } }
+    }
+
+    // Every follow that may still run, whatever order they reach the lock in.
+    override suspend fun followed() {
+        synchronized(follows) { follows.toList() }.joinAll()
+    }
+
+    // Its time, by step, is reported however it ends ([changeTook]).
+    override suspend fun change(ticked: Set<ItemId>): ChangeResult {
+        val steps = ChangeSteps(ticks)
+        try {
+            return locked {
+                steps.locked()
+                val account = activeAccountOrReport() ?: return@locked ChangeResult.Failed
+                // Stale (the lineup or its repairs moved while the repair ran): once more, from a fresh read.
+                changeOnce(account, ticked, steps) ?: changeOnce(account, ticked, steps) ?: ChangeResult.Failed
+            }
+        } finally {
+            changeTook(steps.timing())
         }
+    }
 
     // One attempt at a change; null when it was stale.
     @Suppress("ReturnCount") // Each early return is a reason nothing is stored.
     private suspend fun changeOnce(
         account: LibraryAccount,
         ticked: Set<ItemId>,
+        steps: ChangeSteps,
     ): ChangeResult? {
         val stored = store.loadSelection() ?: return ChangeResult.Failed
         // Another account's choice (a sign-in whose clear failed) is not this account's to change.
@@ -216,12 +277,15 @@ class LibrarySelection(
         // Today's repair only when a chosen library goes; an add or a dropped add changes no programme on air.
         val repaired = chosen.takeIf { it != stored.chosen }
         val saved =
-            when (val outcome = allocation.allocate(account, stored, repaired, next)) {
+            when (
+                val outcome =
+                    steps.allocating { allocation.allocate(account, stored, repaired, next, steps) }
+            ) {
                 Allocated.Stale -> return null
                 is Allocated.Failed -> return ChangeResult.Failed
                 is Allocated.Saved -> next(outcome.seq)
             }
-        reconciler.afterSave(account, stored, saved)
+        steps.caching { reconciler.afterSave(account, stored, saved) }
         return ChangeResult.Saved
     }
 
@@ -455,7 +519,7 @@ class LibrarySelection(
     override suspend fun resumeAtStart() {
         // A call from inside the selection is a bug, not a failed resume: it is thrown as it is.
         refuseReentry()
-        val began = TimeSource.Monotonic.markNow()
+        val began = ticks.markNow()
         try {
             mutex.withLock {
                 withContext(NonCancellable + InSelection) { reconciler.resume() }

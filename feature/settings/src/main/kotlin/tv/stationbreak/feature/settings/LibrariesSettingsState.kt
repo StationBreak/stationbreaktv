@@ -19,14 +19,32 @@ internal sealed interface LibrariesPhase {
 
 /**
  * One library on the screen. [name] is null when no listing of this visit or an earlier one named it. [ticked] is
- * the stored choice (chosen or being added); [adding] is a tick whose library is still being read.
+ * what the viewer last asked for, else the stored choice (chosen or being added); [pending] is a press not stored
+ * yet; [adding] is a stored tick whose library is still being read.
  */
 internal data class LibraryRow(
     val id: ItemId,
     val name: String?,
     val ticked: Boolean,
     val adding: Boolean,
-)
+    val pending: Boolean = false,
+) {
+    /** The line under the row, or null when it is stored and settled. */
+    val status: RowStatus?
+        get() =
+            when {
+                pending && ticked -> RowStatus.Saving
+                pending -> RowStatus.Removing
+                adding -> RowStatus.Adding
+                else -> null
+            }
+}
+
+/**
+ * What a row says under its name: a tick not stored yet ([Saving]), an untick not stored yet ([Removing]), or a stored
+ * add whose library is still being read ([Adding]).
+ */
+internal enum class RowStatus { Saving, Removing, Adding }
 
 /** The line under the title after a change, or after an add was given up. */
 internal enum class Notice { LastLibrary, Saved, Failed, NotListed }

@@ -45,23 +45,26 @@ internal class SelectionAllocation(
     }
 
     // A save that moves the seq, through the repairer: with today's repair for the change to [after] when given, else
-    // with none. Before any lineup exists there is nothing to repair, and it is a plain save.
+    // with none. Before any lineup exists there is nothing to repair, and it is a plain save. A change's [steps] time
+    // the wait for the repairer's turn and each save.
     suspend fun allocate(
         account: LibraryAccount,
         stored: StoredSelection,
         after: Set<ItemId>?,
         next: (Long) -> StoredSelection,
+        steps: ChangeSteps? = null,
     ): Allocated {
         val atLeast = floorOf(library.storedLibraries(account))
-        val save: suspend (Long) -> Boolean = { seq -> write(next(seq), account) }
+        val save: suspend (Long) -> Boolean = { seq -> timed(steps) { write(next(seq), account) } }
+        val held = { steps?.turnHeld() ?: Unit }
         val allocated =
             if (after != null) {
-                allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, save)) { it.seq }
+                allocated(repairer.selectionChanged(account, after, nowMs(), atLeast, held, save)) { it.seq }
             } else {
-                allocated(repairer.saveWithoutRepair(account, atLeast, save)) { it }
+                allocated(repairer.saveWithoutRepair(account, atLeast, held, save)) { it }
             }
         // Null: no lineup, so nothing to repair.
-        return allocated ?: plain(account, stored, atLeast, next)
+        return allocated ?: plain(account, stored, atLeast, next, steps)
     }
 
     // The setup's save: the record is emptied first; the save is the setup's, with nothing being added, gone or
@@ -141,6 +144,7 @@ internal class SelectionAllocation(
         stored: StoredSelection,
         atLeast: Long,
         next: (Long) -> StoredSelection,
+        steps: ChangeSteps?,
     ): Allocated {
         // The record could not be read, or exists and is not loaded as writable yet: both may pass.
         val floor = service.floorRecord(account) as? RecordReset.Floor
@@ -148,8 +152,15 @@ internal class SelectionAllocation(
         // Over a newer app's file, one seq is skipped, as in the resume's raise (D17).
         val seq = maxOf(stored.seq + 1, atLeast, floor.seq + 1) + if (floor.newer) 1 else 0
         val selection = next(seq).let { if (floor.newer) it.copy(resetSeq = seq) else it }
-        return if (commit(seq, selection, account)) Allocated.Saved(seq) else Allocated.Failed(terminal = false)
+        val committed = timed(steps) { commit(seq, selection, account) }
+        return if (committed) Allocated.Saved(seq) else Allocated.Failed(terminal = false)
     }
+
+    // A save, timed when a change's [steps] are given.
+    private suspend fun timed(
+        steps: ChangeSteps?,
+        save: suspend () -> Boolean,
+    ): Boolean = steps?.saving(save) ?: save()
 
     // One above the highest add stamp in the cache: no seq may equal a stamp left there.
     private fun floorOf(rows: List<StoredLibrary>): Long = maxStamp(rows) + 1

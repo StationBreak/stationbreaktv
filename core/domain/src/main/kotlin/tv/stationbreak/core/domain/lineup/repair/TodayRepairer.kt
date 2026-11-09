@@ -162,16 +162,20 @@ class TodayRepairer internal constructor(
      * aired), plus the added titles where the build would home them, under today's rules and holds. A day hidden at
      * the change has no pin: its rest is laid out from the half hour, or the whole day stays hidden with the new
      * selection's reason. It runs while the removed libraries' rows still exist. The result of [RepairOutcome.Saved]
-     * is the seq and the pins whose programme is of a library the change removes.
+     * is the seq and the pins whose programme is of a library the change removes. [entered] is called first in the
+     * turn, once it is held (a change times its wait for the turn).
      */
+    @Suppress("LongParameterList") // The change, its moment and floor, the save, and the turn's timing hook.
     suspend fun selectionChanged(
         account: LibraryAccount,
         after: Set<ItemId>,
         atMs: Long,
         atLeast: Long,
+        entered: () -> Unit = {},
         save: suspend (seq: Long) -> Boolean,
     ): RepairOutcome<SelectionRepaired> =
         turn {
+            entered()
             run {
                 val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup
                 // With no saved selection read, the seq shown is unknown: recording would drop what it cannot place.
@@ -329,14 +333,17 @@ class TodayRepairer internal constructor(
      * that cannot be written gives its outcome ([RepairOutcome.Stale], [RepairOutcome.Refused] or
      * [RepairOutcome.NoLineup]) and nothing is saved. When [save] returns false the saved seq is read again: it is
      * [RepairOutcome.Saved] when that reached the seq (the write went through), else [RepairOutcome.Unsaved]. A
-     * throwable from [save] reaches the caller as it was thrown.
+     * throwable from [save] reaches the caller as it was thrown. [entered] is called first in the turn, once it is held
+     * (a change times its wait for the turn).
      */
     suspend fun saveWithoutRepair(
         account: LibraryAccount,
         atLeast: Long,
+        entered: () -> Unit = {},
         save: suspend (seq: Long) -> Boolean,
     ): RepairOutcome<Long> =
         turn {
+            entered()
             run {
                 val saved = source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
                 val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup

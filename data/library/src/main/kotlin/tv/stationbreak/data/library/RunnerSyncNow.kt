@@ -17,12 +17,12 @@ import kotlin.time.Clock
 
 /**
  * Sync now over the stay-current [runner] (spec 26, Task 5.1). A press lists the server's libraries once, through the
- * selection's [choices] (which follows that listing: it is the press's one listing for the two-read rule), then runs
- * both passes with [StayCurrentRunner.runWaiting], which waits behind a run already under way, so two never run at
- * once, and does not list the server again. A listing that fails ends the press with nothing written
- * (`changedNothing`); a run that fails may have written before it failed, and says so. The passes' writes reach
- * today's schedule the way any run's do: the lineup refresher repairs the blocks whose item left the library after a
- * run that wrote.
+ * selection's [choices] (which follows that listing: it is the press's one listing for the two-read rule), waits until
+ * the selection has followed it, then runs both passes with [StayCurrentRunner.runWaiting], which waits behind a run
+ * already under way, so two never run at once, and does not list the server again. A listing that fails ends the
+ * press with nothing written (`changedNothing`); a run that fails may have written before it failed, and says so. The
+ * passes' writes reach today's schedule the way any run's do: the lineup refresher repairs the blocks whose item left
+ * the library after a run that wrote.
  *
  * Presses run on [scope]. [report] gets one numbers-only line per press: how it ended, never a name, an ID or a
  * message.
@@ -83,6 +83,8 @@ class RunnerSyncNow(
             }
         // An empty listing is the answer the selection does not trust (it changes nothing): neither does Sync now.
         if (libraries.isEmpty()) return beforeSyncing(SyncFailure.Suspect)
+        // The run reads the choice this listing may change: it waits until the selection has followed it.
+        choices.followed()
         val outcome = runner.runWaiting(SyncPlan.Both, followServer = false, listed = ServerResult.Success(libraries))
         return when (outcome) {
             SyncOutcome.Completed -> SyncNowState.Done(clock.now().toEpochMilliseconds())

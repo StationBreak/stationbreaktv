@@ -19,6 +19,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -37,6 +38,7 @@ import java.util.concurrent.Executors
 
 private val ALPHA = Library(ItemId("lib-alpha"), "Alpha", LibraryKind.Movies)
 private val BRAVO = Library(ItemId("lib-bravo"), "Bravo", LibraryKind.TvShows)
+private val CHARLIE = Library(ItemId("lib-charlie"), "Charlie", LibraryKind.Mixed)
 
 @RunWith(AndroidJUnit4::class)
 class LibrariesScreenTest {
@@ -50,8 +52,11 @@ class LibrariesScreenTest {
     private lateinit var vm: LibrariesSettingsViewModel
     private lateinit var choices: FakeLibraryChoices
 
-    private fun show() {
-        choices = FakeLibraryChoices(ChoiceView(setOf(ALPHA.id), emptySet(), gone = false), listOf(ALPHA, BRAVO))
+    private fun show(
+        libraries: List<Library> = listOf(ALPHA, BRAVO),
+        chosen: Set<ItemId> = setOf(ALPHA.id),
+    ) {
+        choices = FakeLibraryChoices(ChoiceView(chosen, emptySet(), gone = false), libraries)
         vm = LibrariesSettingsViewModel(choices, work)
         compose.setContent {
             StationBreakTheme {
@@ -103,6 +108,62 @@ class LibrariesScreenTest {
 
         press(Key.Back)
         assertEquals(1, done)
+    }
+
+    // The owner's report: a press flips its row at once and shows it saving while a slow change is out; a press on
+    // another row meanwhile is not dropped, and is sent after it.
+    @Test
+    fun dPadSelect_flipsAtOnce_whileTheChangeIsSlow_andAPressMeanwhileIsKept() {
+        show(listOf(ALPHA, BRAVO, CHARLIE))
+        val gate = CompletableDeferred<Unit>()
+        choices.gate = gate
+
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(SettingsTags.row(ALPHA.id)).assertIsOn()
+        until { exists(SettingsTags.NOTICE) }
+        assertEquals("the last library stays: nothing sent", 0, choices.changes.size)
+
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(SettingsTags.row(BRAVO.id)).assertIsOn()
+        until { exists(SettingsTags.saving(BRAVO.id)) }
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        compose.onNodeWithTag(SettingsTags.row(CHARLIE.id)).assertIsOn()
+        until { exists(SettingsTags.saving(CHARLIE.id)) }
+        assertEquals("one change at a time", 1, choices.changes.size)
+
+        choices.gate = null
+        gate.complete(Unit)
+
+        until { exists(SettingsTags.adding(BRAVO.id)) && exists(SettingsTags.adding(CHARLIE.id)) }
+        compose.onNodeWithTag(SettingsTags.row(BRAVO.id)).assertIsOn()
+        compose.onNodeWithTag(SettingsTags.row(CHARLIE.id)).assertIsOn()
+        assertEquals(
+            listOf(setOf(ALPHA.id, BRAVO.id), setOf(ALPHA.id, BRAVO.id, CHARLIE.id)),
+            choices.changes.toList(),
+        )
+    }
+
+    // The owner's note: an untick shows Removing at once, until it is stored, as a tick shows Saving.
+    @Test
+    fun dPadSelect_onATickedRow_showsRemoving_untilItIsStored() {
+        show(chosen = setOf(ALPHA.id, BRAVO.id))
+        val gate = CompletableDeferred<Unit>()
+        choices.gate = gate
+
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithTag(SettingsTags.row(BRAVO.id)).assertIsOff()
+        until { exists(SettingsTags.removing(BRAVO.id)) }
+
+        choices.gate = null
+        gate.complete(Unit)
+
+        until { !exists(SettingsTags.removing(BRAVO.id)) }
+        compose.onNodeWithTag(SettingsTags.row(BRAVO.id)).assertIsOff()
+        assertEquals(listOf(setOf(ALPHA.id)), choices.changes.toList())
     }
 
     private companion object {
