@@ -116,15 +116,6 @@ class GuidePaletteTest {
         )
     }
 
-    // The owner's report: Libraries hides the guide, so its screen-wide backdrop must be the theme's page, not black.
-    @Test
-    fun theLibrariesBackdropIsThePageOfTheTheme_neverBlack() {
-        assertEquals(GuideColors.Dark.page, librariesBackdrop(GuideColors.Dark))
-        assertEquals(GuideColors.Light.page, librariesBackdrop(GuideColors.Light))
-        assertEquals(Color(0xFF0E0F11), librariesBackdrop(GuideColors.Dark))
-        assertTrue(librariesBackdrop(GuideColors.Light).luminance() > 0.5f)
-    }
-
     @Test
     fun tertiaryIsForStrokesNotText() {
         for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {

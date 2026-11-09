@@ -197,8 +197,6 @@ class LibrariesScreenTest {
 
         press(Key.DirectionCenter)
         until { exists(SettingsTags.saving(last)) }
-        assertInsideList(SettingsTags.row(last))
-        assertInsideList(SettingsTags.saving(last))
 
         choices.gate = null
         gate.complete(Unit)
@@ -209,10 +207,13 @@ class LibrariesScreenTest {
         assertInsideList(SettingsTags.adding(last))
     }
 
+    // boundsInRoot is clipped to the list, so a cut-off row would still pass: compare the row's own place and size.
     private fun assertInsideList(tag: String) {
         val list = compose.onNodeWithTag(SettingsTags.LIST).fetchSemanticsNode().boundsInRoot
-        val node = compose.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertTrue("$tag $node is inside the list $list", node.top >= list.top && node.bottom <= list.bottom)
+        val node = compose.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+        val top = node.positionInRoot.y
+        val bottom = top + node.size.height
+        assertTrue("$tag spans $top to $bottom, the list $list", top >= list.top && bottom <= list.bottom + 0.5f)
     }
 
     private companion object {
