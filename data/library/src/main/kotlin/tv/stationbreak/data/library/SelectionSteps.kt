@@ -34,8 +34,13 @@ internal class SelectionSteps(
         session: Session,
         account: LibraryAccount,
     ): ServerResult<List<Library>>? {
-        guarded("HoldExpiry") { holds.expireHolds(account) }
+        expire(account)
         return follow(session, account)
+    }
+
+    /** After the passes, for a run its caller already listed for (Sync now): only the holds that ended expire. */
+    suspend fun expire(account: LibraryAccount) {
+        guarded("HoldExpiry") { holds.expireHolds(account) }
     }
 
     /**
