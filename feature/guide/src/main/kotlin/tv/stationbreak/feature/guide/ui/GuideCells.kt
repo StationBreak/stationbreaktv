@@ -56,12 +56,13 @@ import tv.stationbreak.feature.guide.GuideFocus
 import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
 
-private val CellInset = 1.dp
+/** Half the gap between cells: 0.5 dp each side leaves the 1 dp the grid shows between cells and between rows. */
+private val CellInset = 0.5.dp
 private val MinCellWidth = 20.dp
 
-// A 10-minute cell (kids' shorts) keeps its title: 696 dp over 90 minutes is 7.73 dp a minute, so it is 77.3 dp wide;
-// a 9-minute cell (69.6 dp) is still compact, as before in minutes.
-private val CompactBelow = 77.dp
+// A 6-minute cell (kids' shorts) keeps its title: 780 dp over 90 minutes is 8.67 dp a minute, so it is 52 dp wide;
+// a 5-minute cell (43.3 dp) is compact.
+private val CompactBelow = 48.dp
 
 /**
  * The least of a cell in view that has room for a "…". Budget: the glyph is about 16 dp wide at 16 sp, up to about
@@ -70,10 +71,10 @@ private val CompactBelow = 77.dp
  */
 internal val EllipsisFrom = 32.dp
 internal const val ELLIPSIS = "…"
-private val ProgramStyle = guideText(19.sp, FontWeight.Medium)
+private val ProgramStyle = guideText(TITLE_SP.sp, FontWeight.Medium)
 
 /** The "…" on a slate, in the same face as its "OFF AIR" plate. */
-private val SlateStyle = guideText(19.sp, FontWeight.SemiBold)
+private val SlateStyle = guideText(TITLE_SP.sp, FontWeight.SemiBold)
 
 /**
  * The "…" laid out once for the whole grid (a program's style and a slate's), so a cell only draws it, in its own
@@ -100,7 +101,7 @@ internal fun rememberEllipsisMarks(): EllipsisMarks {
     }
 }
 
-private val EpisodeFrom = 160.dp
+private val EpisodeFrom = 110.dp
 private val TextStart = 12.dp
 
 /**
@@ -109,6 +110,9 @@ private val TextStart = 12.dp
  */
 private val TextEnd = 12.dp
 private val ChevronInset = 6.dp
+private val ChevronStroke = 1.5.dp
+private val ProgressHeight = 1.5.dp
+private const val FOCUSED_TRACK_ALPHA = 0.2f
 private val ChevronSize = 5.dp
 private val ChevronRoom = 14.dp
 
@@ -178,6 +182,12 @@ internal class CellPlace(
 
     /** The viewport's right edge on the row, from the origin. */
     fun viewportRight(viewportStartMs: Long): Dp = viewportLeft(viewportStartMs) + geometry.viewportWidth
+
+    /** Whether [nowMs] is inside the cell: the cell airs now. */
+    fun airsAt(nowMs: Long): Boolean = nowMs in startMs until endMs
+
+    /** [ms] on the row, from this cell's left edge: where the progress line ends for the time now. */
+    fun xAt(ms: Long): Dp = geometry.widthOf(ms - originMs) - x
 
     /** "‹": the cell runs on before the viewport, and that earlier time can be scrolled to (not at the origin). */
     fun continuesEarlier(viewportStartMs: Long): Boolean = viewportStartMs > originMs && startMs < viewportStartMs
@@ -279,6 +289,7 @@ internal fun GuideCellView(
                 place,
                 viewportOf,
                 mark.takeIf { title.isNotEmpty() },
+                nowOf.takeIf { !slate },
             ).testTag(GuideTags.cell(channel, cell.startMs))
             // The description carries the title, so the title Text's own semantics are cleared from the merged tree
             // (a screen reader would otherwise read the cell, then the title again). The tag stays outside, so it is
@@ -373,7 +384,7 @@ private fun CellText(
         Text(
             text = second,
             modifier = Modifier.testTag(slots.secondLineTag),
-            color = if (focused) colors.focusText else colors.textSecondary,
+            color = if (focused) colors.focusTextSecondary else colors.textSecondary,
             style = SecondLineStyle,
             maxLines = 1,
             softWrap = false,
@@ -393,15 +404,15 @@ private fun numbersOf(info: ProgramInfo): String? {
 }
 
 /** The line height, as a multiple of the font size, that the room for two lines is counted with. */
-internal const val LINE_HEIGHT_FACTOR = 1.25f
-private const val TITLE_SP = 19f
-private const val SECOND_LINE_SP = 16f
+internal const val LINE_HEIGHT_FACTOR = 1.2f
+private const val TITLE_SP = 13f
+private const val SECOND_LINE_SP = 11f
 
-/** The second line of an episode cell: 16 sp, in the figures face. */
-private val SecondLineStyle = guideFigures(SECOND_LINE_SP.sp, FontWeight.Medium)
+/** The second line of an episode cell: 11 sp Regular. */
+private val SecondLineStyle = guideText(SECOND_LINE_SP.sp, FontWeight.Normal)
 
 /**
- * Whether a title line (19 sp) and a second line (16 sp), each [LINE_HEIGHT_FACTOR] tall at [fontScale], and the cell's
+ * Whether a title line (13 sp) and a second line (11 sp), each [LINE_HEIGHT_FACTOR] tall at [fontScale], and the cell's
  * 1 dp inset on both sides fit in a row [rowHeightDp] high. When they do not, the second line is dropped, not clipped.
  */
 internal fun twoLinesFit(
@@ -451,6 +462,21 @@ private fun DrawScope.drawEllipsis(
     drawText(ellipsis, color, Offset(centre - ellipsis.size.width / 2, top))
 }
 
+/** The 1.5 dp line along a current program's bottom edge, filled up to [end] (the now-line's x in cell coordinates). */
+private fun DrawScope.drawProgress(
+    paint: CellPaint,
+    end: Float,
+    height: Float,
+    amount: Float,
+) {
+    val colors = paint.colors
+    val track = lerp(colors.progressTrack, colors.focusText.copy(alpha = FOCUSED_TRACK_ALPHA), amount)
+    val fill = lerp(colors.progressFill, colors.focusText, amount)
+    val top = size.height - height
+    drawRect(track, Offset(0f, top), Size(size.width, height))
+    drawRect(fill, Offset(0f, top), Size(end.coerceIn(0f, size.width), height))
+}
+
 /** What a cell paints: its resting fill, the theme, and how far the focus fill has grown. */
 private class CellPaint(
     val resting: Color,
@@ -470,9 +496,11 @@ private fun Modifier.cellLook(
     place: CellPlace,
     viewportOf: () -> Long,
     ellipsis: TextLayoutResult?,
+    nowOf: (() -> Long?)?,
 ): Modifier =
     drawWithCache {
-        val chevron = Stroke(width = 2.dp.toPx())
+        val chevron = Stroke(width = ChevronStroke.toPx())
+        val progress = ProgressHeight.toPx()
         val edge = ChevronInset.toPx()
         val inset = CellInset.toPx()
         val half = ChevronSize.toPx()
@@ -500,8 +528,12 @@ private fun Modifier.cellLook(
             val mark = lerp(restingMark, paint.colors.focusText, amount)
             val from = place.visibleLeft(at).toPx() - inset
             val to = place.visibleRight(at).toPx() - inset
-            if (marks.earlier) translate(left = from) { drawPath(left, mark, style = chevron) }
-            if (marks.later) translate(left = to) { drawPath(right, mark, style = chevron) }
+            val chevronColor = paint.colors.textSupporting
+            if (marks.earlier) translate(left = from) { drawPath(left, chevronColor, style = chevron) }
+            if (marks.later) translate(left = to) { drawPath(right, chevronColor, style = chevron) }
+            nowOf?.invoke()?.takeIf { place.airsAt(it) }?.let { now ->
+                drawProgress(paint, place.xAt(now).toPx() - inset, progress, amount)
+            }
             if (ellipsis != null) drawEllipsis(ellipsis, place.ellipsisIn(at), mark, inset)
         }
     }

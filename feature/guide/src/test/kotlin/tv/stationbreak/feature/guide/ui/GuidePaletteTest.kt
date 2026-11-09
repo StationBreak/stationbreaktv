@@ -2,107 +2,123 @@
 package tv.stationbreak.feature.guide.ui
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /** Guide A colours, and the contrast pairs from the Guide A audit. */
 class GuidePaletteTest {
     @Test
-    fun darkAndLightUseTheGuideATokens() {
+    fun darkAndLightUseTheOverhaulTokens() {
         val dark = GuideColors.Dark
-        assertEquals(Color(0xFF191A19), dark.page)
-        assertEquals(Color(0xFF212420), dark.pageGradientStart)
-        assertEquals(Color(0xFF33352F), dark.card)
+        assertEquals(Color(0xFF0E0F11), dark.page)
+        assertEquals(dark.page, dark.pageGradientStart)
+        assertEquals(Color.White.copy(alpha = 0.06f), dark.card)
         assertEquals(Color(0xFFE8642C), dark.focusFill)
-        assertEquals(Color(0xFF1C1B19), dark.focusText)
-        assertEquals(Color(0xFF3E3C36), dark.progressTrack)
-        assertEquals(Color(0xFFF3EEE3), dark.textPrimary)
-        assertEquals(Color(0xFFB3B4AE), dark.textSecondary)
+        assertEquals(Color(0xFF1A0D06), dark.focusText)
+        assertEquals(Color.White.copy(alpha = 0.08f), dark.progressTrack)
+        assertEquals(Color.White.copy(alpha = 0.90f), dark.textPrimary)
+        assertEquals(Color.White.copy(alpha = 0.58f), dark.textSecondary)
+        assertEquals(Color.White.copy(alpha = 0.38f), dark.textSupporting)
+        assertEquals(dark.textPrimary, dark.programmeText)
 
         val light = GuideColors.Light
-        assertEquals(Color(0xFFF3EEE3), light.page)
-        assertEquals(Color(0xFFF8F4EC), light.pageGradientStart)
-        assertEquals(Color(0xFFFFFCF6), light.card)
+        assertEquals(Color(0xFFF6F7F8), light.page)
+        assertEquals(light.page, light.pageGradientStart)
         assertEquals(Color(0xFFB74719), light.focusFill)
         assertEquals(Color(0xFFFFFFFF), light.focusText)
-        assertEquals(Color(0xFFD6CEC0), light.progressTrack)
-        assertEquals(Color(0xFF1C1B19), light.textPrimary)
-        assertEquals(Color(0xFF625D54), light.textSecondary)
+        assertEquals(light.textPrimary, light.programmeText)
     }
 
     @Test
-    fun everyAuditedPairClearsItsMinimum() {
-        val dark = GuideColors.Dark
-        val light = GuideColors.Light
-        assertContrast(3.0, dark.focusFill, dark.card, "dark focus on a card")
-        assertContrast(3.0, dark.focusFill, dark.pageGradientStart, "dark focus on the page")
-        assertContrast(4.5, dark.focusText, dark.focusFill, "dark focus text")
-        assertContrast(4.5, dark.textPrimary, dark.pageGradientStart, "dark primary text")
-        assertContrast(4.5, dark.textSecondary, dark.pageGradientStart, "dark secondary text")
-        assertContrast(4.5, dark.textSecondary, dark.keyHintPill, "dark secondary text on a key pill")
-        assertContrast(4.5, dark.textSecondary, dark.card, "dark secondary text on a card")
-        assertContrast(4.5, dark.programmeText, dark.card, "dark programme text")
-        assertContrast(4.5, dark.textSupporting, dark.pageGradientStart, "dark supporting text")
-        assertContrast(4.5, dark.accent, dark.pageGradientStart, "dark accent text")
-        assertContrast(4.5, dark.nowChipText, dark.nowChipFill, "dark now chip")
-        assertContrast(3.0, dark.progressFill, dark.progressTrack, "dark progress")
-        assertContrast(3.0, dark.menuPillFocused, dark.menuPillSelected, "dark focused menu")
-
-        assertContrast(3.0, light.focusFill, light.card, "light focus on a card")
-        assertContrast(3.0, light.focusFill, light.page, "light focus on the page")
-        assertContrast(4.5, light.focusText, light.focusFill, "light focus text")
-        assertContrast(4.5, light.textPrimary, light.page, "light primary text")
-        assertContrast(4.5, light.textSecondary, light.page, "light secondary text")
-        assertContrast(4.5, light.textSecondary, light.keyHintPill, "light secondary text on a key pill")
-        assertContrast(4.5, light.textSecondary, light.card, "light secondary text on a card")
-        assertContrast(4.5, light.programmeText, light.card, "light programme text")
-        assertContrast(4.5, light.textSupporting, light.page, "light supporting text")
-        assertContrast(4.5, light.accent, light.page, "light accent text")
-        assertContrast(4.5, light.nowChipText, light.nowChipFill, "light now chip")
-        assertContrast(3.0, light.progressFill, light.progressTrack, "light progress")
-        assertContrast(3.0, light.menuPillFocused, light.menuPillSelected, "light focused menu")
-    }
-
-    @Test
-    fun theLayersAndPlatesKeepTheirContrast() {
-        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
-            assertContrast(4.5, c.plateNumber, c.plateBottom, "$name plate number")
-            assertContrast(4.5, c.plateName, c.plateBottom, "$name plate name")
-            assertContrast(4.5, c.programmeText, c.card, "$name programme text on a card")
-            assertContrast(4.5, c.textSecondary, c.card, "$name secondary text on a card")
-            assertContrast(4.5, c.focusText, c.focusFill, "$name focus text")
-            for (plate in listOf(c.plateTop, c.plateBottom, c.plateHighlight, c.plateShadow)) {
-                assertEquals("$name plate colours are opaque", 1f, plate.alpha)
+    fun noWarmTintsRemain() {
+        // Every neutral role is grey: equal red, green and blue to within the 1-2 steps the near-black page keeps.
+        for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
+            for (neutral in listOf(c.page, c.card, c.textPrimary, c.textSecondary, c.textSupporting, c.progressTrack)) {
+                val channels = listOf(neutral.red, neutral.green, neutral.blue)
+                val spread = channels.max() - channels.min()
+                assertTrue("neutral $neutral is tinted", spread <= NEUTRAL_SPREAD)
             }
         }
     }
 
     @Test
-    fun eachLayerIsToldApartFromTheNext() {
-        val dark = GuideColors.Dark
-        val light = GuideColors.Light
-        // Dark steps lighter all the way: page, panel, band, card.
-        val darkLayers = listOf(dark.page, dark.gridPanel, dark.rowBand, dark.card)
-        assertEquals(4, darkLayers.toSet().size)
-        darkLayers.zipWithNext().forEach { (below, above) ->
-            assertTrue("dark layers step lighter", above.luminance() > below.luminance())
-            assertContrast(MIN_LAYER_STEP, above, below, "dark layer step")
+    fun everyAuditedPairClearsItsMinimum() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            val card = c.card.compositeOver(c.page)
+            assertContrast(3.0, c.focusFill, card, "$name focus on a card", c.page)
+            assertContrast(3.0, c.focusFill, c.page, "$name focus on the page", c.page)
+            assertContrast(4.5, c.focusText, c.focusFill, "$name focus text", c.page)
+            // The focused cell's 11 sp second line.
+            assertContrast(4.5, c.focusTextSecondary, c.focusFill, "$name focused second line", c.page)
+            assertContrast(4.5, c.textPrimary, c.page, "$name primary text", c.page)
+            assertContrast(4.5, c.textSecondary, c.page, "$name secondary text", c.page)
+            assertContrast(4.5, c.textSecondary, card, "$name secondary text on a card", c.page)
+            assertContrast(4.5, c.programmeText, card, "$name programme text on a card", c.page)
+            val key = c.keyHintPill.compositeOver(c.page)
+            assertContrast(4.5, c.textSecondary, key, "$name secondary on a key", c.page)
+            assertContrast(4.5, c.accent, c.page, "$name accent text", c.page)
+            assertContrast(4.5, c.nowChipText, c.nowChipFill, "$name now chip", c.page)
+            assertContrast(3.0, c.progressFill, c.progressTrack.compositeOver(c.page), "$name progress", c.page)
+            val pill = c.menuPillSelected.compositeOver(c.page)
+            assertContrast(3.0, c.menuPillFocused, pill, "$name focused menu", c.page)
+            // Tertiary is for numbers, chevrons and the panel's channel line: 3:1, as large text.
+            assertContrast(3.0, c.textSupporting, c.page, "$name tertiary text", c.page)
+            assertContrast(3.0, c.textSupporting, card, "$name tertiary on a card (chevrons)", c.page)
+            // The progress line on a card, and its focused form on the focus fill.
+            assertContrast(3.0, c.progressFill, c.progressTrack.compositeOver(card), "$name progress on a card", c.page)
+            val focusedTrack = c.focusText.copy(alpha = 0.2f).compositeOver(c.focusFill)
+            assertContrast(3.0, c.focusText, focusedTrack, "$name focused progress", c.page)
         }
-        // Light steps darker from the page to the panel and the band; the card is the lightest, a raised sheet.
-        val lightLayers = listOf(light.page, light.gridPanel, light.rowBand, light.card)
-        assertEquals(4, lightLayers.toSet().size)
-        assertTrue("light panel is darker than the page", light.gridPanel.luminance() < light.page.luminance())
-        assertTrue("light band is darker than the panel", light.rowBand.luminance() < light.gridPanel.luminance())
-        assertTrue("light card is lighter than the band", light.card.luminance() > light.rowBand.luminance())
-        lightLayers.zipWithNext().forEach { (a, b) -> assertContrast(MIN_LAYER_STEP, a, b, "light layer step") }
     }
 
     @Test
-    fun theThemesAreOpaqueExceptWhereAllowed() {
+    fun tertiaryIsForStrokesNotText() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            val card = c.card.compositeOver(c.page)
+            assertContrast(3.0, c.textSupporting, c.page, "$name tertiary over the page", c.page)
+            assertContrast(3.0, c.textSupporting, card, "$name tertiary over a card", c.page)
+            // It does not reach the 4.5:1 text needs, so it must not be used for text.
+            val seen = c.textSupporting.compositeOver(c.page).luminance()
+            val ratio = (maxOf(seen, c.page.luminance()) + 0.05) / (minOf(seen, c.page.luminance()) + 0.05)
+            assertTrue("$name tertiary is $ratio: if it now clears 4.5, this guard can go", ratio < 4.5)
+        }
+        // Only the cells (chevrons) read it: any other file that does is drawing text with it.
+        val readers =
+            File("src/main/kotlin/tv/stationbreak/feature/guide")
+                .walkTopDown()
+                .filter { it.extension == "kt" && it.name != "GuidePalette.kt" }
+                .filter { "textSupporting" in it.readText() }
+                .map { it.name }
+                .toList()
+        assertEquals(listOf("GuideCells.kt"), readers)
+    }
+
+    @Test
+    fun theChannelNumberKeepsItsContrastOnThePage() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            assertContrast(4.5, c.textSecondary, c.page, "$name channel number", c.page)
+            assertContrast(4.5, c.textPrimary, c.page, "$name playing channel number", c.page)
+        }
+    }
+
+    @Test
+    fun theNowLineIsFaintAndTheTimelineRulesAreFainter() {
         for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
-            listOf(c.gridPanel, c.rowBand, c.card, c.plateNumber, c.plateName).forEach { assertEquals(1f, it.alpha) }
+            assertEquals(0.35f, c.nowRailAlpha)
+            assertEquals(0.10f, c.line.alpha, 0.01f)
+        }
+    }
+
+    @Test
+    fun theTextAndCardAreTheOnlyAlphaRoles() {
+        for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
+            listOf(c.page, c.accent, c.focusFill, c.focusText, c.nowLine, c.progressFill).forEach {
+                assertEquals(1f, it.alpha)
+            }
         }
     }
 
@@ -118,7 +134,15 @@ class GuidePaletteTest {
     }
 
     @Test
-    fun focusExtendsInTheDrawAndDoesNotScale() {
+    fun focusIsAFillChangeOnly() {
+        assertEquals(1f, CONTENT_SCALE)
+        assertEquals(0f, GuideFocusExtendX.value)
+        assertEquals(0f, GuideFocusExtendY.value)
+        assertTrue("nothing in the grid is rounder than 2 dp", GuideCardRadius.value <= 2f)
+    }
+
+    @Test
+    fun theFocusBoundsStillGrowByAnExtent() {
         assertEquals(1f, CONTENT_SCALE)
         val inset = 4f
         val resting =
@@ -135,16 +159,19 @@ class GuidePaletteTest {
         assertEquals(38f, focused.bottom)
     }
 
+    /** WCAG ratio of [a] over [page] against [b] over [page], so a colour with an alpha is judged as it is seen. */
     private fun assertContrast(
         minimum: Double,
         a: Color,
         b: Color,
         what: String,
+        page: Color,
     ) {
-        val (light, dark) = listOf(a.luminance(), b.luminance()).sortedDescending()
+        val behind = b.compositeOver(page)
+        val (light, dark) = listOf(a.compositeOver(behind).luminance(), behind.luminance()).sortedDescending()
         val ratio = (light + 0.05) / (dark + 0.05)
         assertTrue("$what is $ratio, needs $minimum", ratio >= minimum)
     }
 }
 
-private const val MIN_LAYER_STEP = 1.05
+private const val NEUTRAL_SPREAD = 0.02f

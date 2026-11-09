@@ -11,13 +11,13 @@ import org.junit.Test
 
 class ScreenLayoutTest {
     @Test
-    fun pictureIsTopRightFortyPercentSixteenByNine() {
+    fun pictureIsTopRightThirtyPercentSixteenByNine() {
         val safeArea = DpRect(left = 48.dp, top = 27.dp, right = (48 + 864).dp, bottom = (27 + 486).dp)
         val picture = ScreenLayout.pictureRect(safeArea)
-        assertEquals(48f + 864f - 345.6f, picture.left.value, EPS)
+        assertEquals(48f + 864f - 259.2f, picture.left.value, EPS)
         assertEquals(27f, picture.top.value, EPS)
-        assertEquals(345.6f, picture.width.value, EPS)
-        assertEquals(194.4f, picture.height.value, EPS)
+        assertEquals(259.2f, picture.width.value, EPS)
+        assertEquals(145.8f, picture.height.value, EPS)
         assertEquals(safeArea.right.value, picture.right.value, EPS)
     }
 
@@ -34,9 +34,9 @@ class ScreenLayoutTest {
     fun theHoleAndThePictureComeFromTheSameSafeArea() {
         // The guide's hole and the corner picture are both pictureRect of safeArea: one source, so they cannot drift.
         val picture = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(960.dp, 540.dp)))
-        assertEquals(912f - 345.6f, picture.left.value, EPS)
+        assertEquals(912f - 259.2f, picture.left.value, EPS)
         assertEquals(27f, picture.top.value, EPS)
-        assertEquals(27f + 194.4f, picture.bottom.value, EPS)
+        assertEquals(27f + 145.8f, picture.bottom.value, EPS)
     }
 
     private companion object {

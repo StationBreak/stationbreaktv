@@ -806,8 +806,9 @@ jobs:
       - name: Instrumented tests (API 25 Android TV)
         id: tests
         continue-on-error: true
-        # A normal attempt takes 7 to 8 minutes (boot ~1.5, tests ~6); 12 leaves 50% headroom for a slow runner.
-        timeout-minutes: 12
+        # A normal attempt takes 7 to 9 minutes (boot ~1.5, tests ~6 to 8); 18 leaves 100% headroom for a slow runner (12 was
+        # cut off at its end on a runner where unchanged modules ran 1.2 to 2 times slower).
+        timeout-minutes: 18
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 25
@@ -858,8 +859,9 @@ jobs:
       - name: Instrumented tests, retry (API 25 Android TV)
         id: tests-retry
         if: steps.infra.outputs.retry == 'true'
-        # A normal attempt takes 7 to 8 minutes (boot ~1.5, tests ~6); 12 leaves 50% headroom for a slow runner.
-        timeout-minutes: 12
+        # A normal attempt takes 7 to 9 minutes (boot ~1.5, tests ~6 to 8); 18 leaves 100% headroom for a slow runner (12 was
+        # cut off at its end on a runner where unchanged modules ran 1.2 to 2 times slower).
+        timeout-minutes: 18
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 25
