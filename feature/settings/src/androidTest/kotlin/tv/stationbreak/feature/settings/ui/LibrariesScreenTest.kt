@@ -24,6 +24,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -181,6 +182,38 @@ class LibrariesScreenTest {
         until { exists(SettingsTags.row(last)) }
 
         compose.onNodeWithTag(SettingsTags.row(last)).assertIsSelected().assertIsDisplayed()
+    }
+
+    // The owner's report: the Saved. line under the title pushes the list down, and the focused bottom row, with its
+    // status line, was cut off by the panel's bottom edge until focus moved away and back.
+    @Test
+    fun theFocusedLastRow_staysInsideThePanel_whenTheSavedNoticeAppears() {
+        val many = (1..LONG_LIST).map { Library(ItemId("lib-$it"), "Library $it", LibraryKind.Movies) }
+        show(many, chosen = setOf(many.first().id))
+        repeat(LONG_LIST - 1) { press(Key.DirectionDown) }
+        val last = many.last().id
+        val gate = CompletableDeferred<Unit>()
+        choices.gate = gate
+
+        press(Key.DirectionCenter)
+        until { exists(SettingsTags.saving(last)) }
+
+        choices.gate = null
+        gate.complete(Unit)
+        until { exists(SettingsTags.NOTICE) && exists(SettingsTags.adding(last)) }
+
+        compose.onNodeWithTag(SettingsTags.row(last)).assertIsSelected()
+        assertInsideList(SettingsTags.row(last))
+        assertInsideList(SettingsTags.adding(last))
+    }
+
+    // boundsInRoot is clipped to the list, so a cut-off row would still pass: compare the row's own place and size.
+    private fun assertInsideList(tag: String) {
+        val list = compose.onNodeWithTag(SettingsTags.LIST).fetchSemanticsNode().boundsInRoot
+        val node = compose.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+        val top = node.positionInRoot.y
+        val bottom = top + node.size.height
+        assertTrue("$tag spans $top to $bottom, the list $list", top >= list.top && bottom <= list.bottom + 0.5f)
     }
 
     private companion object {

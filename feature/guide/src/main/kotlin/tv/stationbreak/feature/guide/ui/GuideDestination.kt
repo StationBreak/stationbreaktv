@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
@@ -310,17 +311,33 @@ internal fun GuideRoot(
             }
         }
         if (librariesShown) {
-            libraries(pictureHole) {
-                // As for channel management: the key focus comes back first, then the slot goes, and the panel is
-                // left open on Libraries.
-                runCatching { keys.requestFocus() }
-                settings = settings?.librariesDone()
+            LibrariesBackdrop(pictureHole) {
+                libraries(pictureHole) {
+                    // As for channel management: the key focus comes back first, then the slot goes, and the panel is
+                    // left open on Libraries.
+                    runCatching { keys.requestFocus() }
+                    settings = settings?.librariesDone()
+                }
             }
         }
     }
 }
 
 private const val NOT_MANAGING = 0L
+
+/**
+ * What the Libraries screen stands on while the guide is hidden under it: the guide's own ground for the theme (its
+ * page and gradient), not the window's black. The [pictureHole] stays clear, as the guide leaves it, so the live
+ * picture behind shows in both themes.
+ */
+@Composable
+internal fun LibrariesBackdrop(
+    pictureHole: DpRect,
+    content: @Composable () -> Unit,
+) {
+    val colors = LocalGuideColors.current
+    Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole, colors) }) { content() }
+}
 
 /**
  * What covers the guide: channel management ([managing]), a channel's properties sheet ([properties]) or Settings,

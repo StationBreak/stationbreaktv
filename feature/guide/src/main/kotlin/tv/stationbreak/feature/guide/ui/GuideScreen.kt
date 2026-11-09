@@ -242,7 +242,7 @@ internal fun GuideScreen(
  * The ground of the guide: a diagonal from [GuideColors.pageGradientStart] to [GuideColors.page] across the first 60%,
  * then [GuideColors.page]. The [hole] live TV laid its picture in is left clear. The picture itself stays dark.
  */
-private fun DrawScope.ground(
+internal fun DrawScope.ground(
     hole: DpRect,
     colors: GuideColors,
 ) {

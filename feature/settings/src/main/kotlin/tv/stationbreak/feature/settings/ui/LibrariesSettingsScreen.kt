@@ -4,6 +4,7 @@ package tv.stationbreak.feature.settings.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -162,7 +165,14 @@ private fun LibraryList(
 ) {
     val list = rememberLazyListState()
     val focus = state.focus
-    LaunchedEffect(focus, state.rows.size) { if (state.rows.isNotEmpty()) list.keepVisible(focus) }
+    val rowCount = state.rows.size
+    // Not only when the focus moves: the header gaining a line (Saved.) shrinks the viewport, and the focused row's own
+    // status line (Adding...) grows it, and either can push the focused row past the bottom edge. The flow's key is
+    // whether the focused row is clipped now, so it runs again whenever that turns true, with no allocation per frame.
+    LaunchedEffect(list, focus, rowCount) {
+        if (rowCount == 0) return@LaunchedEffect
+        snapshotFlow { list.isOutOfView(focus) }.collect { if (it) list.keepVisible(focus) }
+    }
     LazyColumn(
         modifier.fillMaxWidth().testTag(SettingsTags.LIST),
         state = list,
@@ -172,6 +182,13 @@ private fun LibraryList(
             LibraryLine(state.rows[i], focused = i == focus)
         }
     }
+}
+
+// Whether row [index] is not wholly inside the viewport (laid out clipped, or not laid out at all).
+private fun LazyListState.isOutOfView(index: Int): Boolean {
+    val info = layoutInfo
+    val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return true
+    return item.offset < info.viewportStartOffset || item.offset + item.size > info.viewportEndOffset
 }
 
 // Scrolls only when the focused row is not fully on screen.
@@ -185,8 +202,43 @@ private suspend fun LazyListState.keepVisible(index: Int) {
         shown.isEmpty() -> scrollToItem(index)
         index < shown.first().index -> scrollToItem(index)
         index > shown.last().index -> scrollToItem((index - shown.size + 1).coerceAtLeast(0))
+        else -> return
+    }
+    nudgeIntoView(index)
+}
+
+// Rows are not all one height (a status line adds one), so the estimate above can leave the row a little clipped: once
+// it is laid out, scroll by the clipped amount. Kept in step with the channel screen's own (a feature never depends on
+// another).
+private suspend fun LazyListState.nudgeIntoView(index: Int) {
+    repeat(NUDGE_PASSES) { _ ->
+        withFrameNanos { }
+        val info = layoutInfo
+        val shown = info.visibleItemsInfo
+        val item = shown.firstOrNull { it.index == index }
+        val half = (info.viewportEndOffset - info.viewportStartOffset) / 2f
+        when {
+            item == null -> {
+                val last = shown.lastOrNull() ?: return
+                if (index > last.index) scrollBy(half) else scrollBy(-half)
+            }
+
+            item.offset + item.size > info.viewportEndOffset -> {
+                scrollBy((item.offset + item.size - info.viewportEndOffset).toFloat())
+            }
+
+            item.offset < info.viewportStartOffset -> {
+                scrollBy((item.offset - info.viewportStartOffset).toFloat())
+            }
+
+            else -> {
+                return
+            }
+        }
     }
 }
+
+private const val NUDGE_PASSES = 6
 
 @Composable
 private fun LibraryLine(
