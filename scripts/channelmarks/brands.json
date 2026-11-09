@@ -407,10 +407,11 @@
     ], "gap": 0.0
   },
   "life-stories": {
-    "note": "Yeseva One · rose-magenta, one line",
+    "note": "Yeseva One · rose-magenta, two equal lines",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "Life Stories", "font": "yeseva-one-400", "color": "#FF5FA8"}]}
-    ]
+      {"rel": 1.0, "segs": [{"text": "Life", "font": "yeseva-one-400", "color": "#FF5FA8"}]},
+      {"rel": 1.0, "segs": [{"text": "Stories", "font": "yeseva-one-400", "color": "#FF5FA8"}]}
+    ], "gap": 0.04
   },
   "disaster-zone": {
     "note": "Bungee · hazard yellow, small over big",
@@ -470,11 +471,11 @@
     ], "gap": 0.02
   },
   "cult-following": {
-    "note": "Teko 700 · screening mint, two equal lines",
+    "note": "Teko 700 · screening mint, small over big",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "CULT", "font": "teko-700", "color": "#7CFFB0"}]},
+      {"rel": 0.4, "segs": [{"text": "CULT", "font": "teko-700", "color": "#7CFFB0", "tracking": 0.22}]},
       {"rel": 1.0, "segs": [{"text": "FOLLOWING", "font": "teko-700", "color": "#FFFFFF"}]}
-    ], "gap": 0.0
+    ], "gap": 0.05
   },
   "shuffle-and-groan": {
     "note": "Creepster · slime green, big over small",
@@ -586,13 +587,13 @@
     "lines": [
       {"rel": 1.0, "segs": [{"text": "WHODUNIT", "font": "zilla-slab-700", "color": "#FFD166"}]},
       {"rel": 1.0, "segs": [{"text": "ISLES", "font": "zilla-slab-700", "color": "#FFFFFF"}]}
-    ], "gap": 0.0
+    ], "gap": 0.05
   },
   "continental-drift": {
-    "note": "Cinzel 700 · subtitle pink, big over small",
+    "note": "Cinzel 700 · subtitle pink, small over big",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "DRIFT", "font": "cinzel-700", "color": "#FF8FD0", "tracking": 0.04}]},
-      {"rel": 0.4, "segs": [{"text": "CONTINENTAL", "font": "cinzel-700", "color": "#FFFFFF", "tracking": 0.12}]}
+      {"rel": 0.4, "segs": [{"text": "CONTINENTAL", "font": "cinzel-700", "color": "#FFFFFF", "tracking": 0.12}]},
+      {"rel": 1.0, "segs": [{"text": "DRIFT", "font": "cinzel-700", "color": "#FF8FD0", "tracking": 0.04}]}
     ], "gap": 0.05
   },
   "seoul-sundays": {
