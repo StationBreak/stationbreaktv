@@ -20,8 +20,8 @@ internal class GuideColors(
     val textPrimary: Color,
     val textSecondary: Color,
     /**
-     * 38% white (52% ink in Light): about 3.55:1 on the page, so for strokes only (chevrons, ticks, rules), never for
-     * text, which needs [textSecondary]'s 4.5:1. [GuidePaletteTest] fails if any file but the cells reads it.
+     * 38% white (50% ink in Light): about 3.55:1 on the dark page, so for strokes only (chevrons, ticks, rules),
+     * never for text, which needs [textSecondary]'s 4.5:1. [GuidePaletteTest] fails if any file but the cells reads it.
      */
     val textSupporting: Color,
     val programmeText: Color,
@@ -31,7 +31,7 @@ internal class GuideColors(
     /** Secondary text on the focus fill: 90%, the least that keeps 11 sp text at 4.5:1 in both themes. */
     val focusTextSecondary: Color,
     val nowLine: Color,
-    /** The now-line through the grid: 35%, so it may cross cells without hiding them. */
+    /** The now-line through the grid: 35% (60% in Light, where 35% is lost on the grey), so it may cross cells. */
     val nowRailAlpha: Float,
     val progressFill: Color,
     val progressTrack: Color,
@@ -67,26 +67,31 @@ internal class GuideColors(
                 keyCapStroke = Color.White.copy(alpha = KEY_STROKE_ALPHA),
             )
 
-        /** The same structure on a near-white neutral, with ink where Dark has white. */
+        /**
+         * The same structure on a mid-light grey (about 87% lightness, no gradient: a white page is glaring on a TV),
+         * with ink where Dark has white. The focus fill keeps its orange; the accent used as text, as a line and for
+         * progress is darker ([LIGHT_ACCENT]), the least that holds 4.5:1 on this page for ON NOW and 3:1 for the cell
+         * progress line over a card.
+         */
         val Light =
             GuideColors(
-                page = Color(0xFFF6F7F8),
-                pageGradientStart = Color(0xFFF6F7F8),
-                card = INK.copy(alpha = CARD_ALPHA),
-                textPrimary = INK.copy(alpha = PRIMARY_ALPHA),
+                page = LIGHT_PAGE,
+                pageGradientStart = LIGHT_PAGE,
+                card = INK.copy(alpha = CARD_ALPHA_LIGHT),
+                textPrimary = INK.copy(alpha = PRIMARY_ALPHA_LIGHT),
                 textSecondary = INK.copy(alpha = SECONDARY_ALPHA_LIGHT),
                 textSupporting = INK.copy(alpha = TERTIARY_ALPHA_LIGHT),
-                programmeText = INK.copy(alpha = PRIMARY_ALPHA),
-                accent = Color(0xFFB74719),
+                programmeText = INK.copy(alpha = PRIMARY_ALPHA_LIGHT),
+                accent = LIGHT_ACCENT,
                 focusFill = Color(0xFFB74719),
                 focusText = Color(0xFFFFFFFF),
                 focusTextSecondary = Color(0xFFFFFFFF).copy(alpha = FOCUS_SECONDARY_ALPHA),
-                nowLine = Color(0xFFB74719),
-                nowRailAlpha = NOW_LINE_ALPHA,
-                progressFill = Color(0xFFB74719),
-                progressTrack = INK.copy(alpha = TRACK_ALPHA),
-                line = INK.copy(alpha = LINE_ALPHA),
-                keyCapStroke = INK.copy(alpha = KEY_STROKE_ALPHA),
+                nowLine = LIGHT_ACCENT,
+                nowRailAlpha = NOW_LINE_ALPHA_LIGHT,
+                progressFill = LIGHT_ACCENT,
+                progressTrack = INK.copy(alpha = TRACK_ALPHA_LIGHT),
+                line = INK.copy(alpha = LINE_ALPHA_LIGHT),
+                keyCapStroke = INK.copy(alpha = LINE_ALPHA_LIGHT),
                 markTint = INK,
             )
     }
@@ -96,20 +101,27 @@ internal class GuideColors(
 internal val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
 
 // Text and surfaces are the one neutral (white in Dark, ink in Light) at fixed alphas, so every role steps from the
-// page without a warm tint. Light's secondary and tertiary are stronger than Dark's: ink at 58% on the card is under
-// 4.5:1.
+// page without a warm tint. Light has its own alphas: its page is darker than a near-white one, so the card, the rules
+// and the track are stronger and its text is held at 4.5:1 on both the page and the card.
 private val INK = Color(0xFF111214)
+private val LIGHT_PAGE = Color(0xFFDCDEE1)
+private val LIGHT_ACCENT = Color(0xFF9A3C13)
 private const val PRIMARY_ALPHA = 0.90f
 private const val SECONDARY_ALPHA_DARK = 0.58f
 private const val TERTIARY_ALPHA_DARK = 0.38f
-private const val SECONDARY_ALPHA_LIGHT = 0.64f
-private const val TERTIARY_ALPHA_LIGHT = 0.52f
+private const val PRIMARY_ALPHA_LIGHT = 0.92f
+private const val SECONDARY_ALPHA_LIGHT = 0.66f
+private const val TERTIARY_ALPHA_LIGHT = 0.50f
 private const val CARD_ALPHA = 0.06f
+private const val CARD_ALPHA_LIGHT = 0.12f
 private const val FOCUS_SECONDARY_ALPHA = 0.90f
 private const val TRACK_ALPHA = 0.08f
+private const val TRACK_ALPHA_LIGHT = 0.14f
 private const val LINE_ALPHA = 0.10f
+private const val LINE_ALPHA_LIGHT = 0.16f
 private const val KEY_STROKE_ALPHA = 0.28f
 private const val NOW_LINE_ALPHA = 0.35f
+private const val NOW_LINE_ALPHA_LIGHT = 0.60f
 
 /** The guide's own appearance. [decode] is dark for anything that is not the light token, including a missing value. */
 internal enum class GuideTheme {

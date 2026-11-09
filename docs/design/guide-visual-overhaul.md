@@ -55,7 +55,7 @@ Paths are under `feature/guide/src/main/kotlin/tv/stationbreak/feature/guide/ui/
 | `GuideFocusExtendX/Y`, focus shadow (4dp/8dp) | grow + shadow | no growth, no shadow; fill change only |
 | top highlight line (1dp `plateHighlight` @ .25) | present | remove |
 
-Light theme: derive the same way (near-white neutral, ink text at 90/58/38%, same single accent). Keep `GuidePaletteTest` contrast checks passing.
+Light theme (retuned after the TV review: the near-white page was glaring and low-contrast on the Insignia): mid-light grey page `#DCDEE1` (about 87% lightness, no gradient; `GuidePaletteTest` keeps every page at or under 90%), ink `#111214` for everything else. Card ink @ 12%, line ink @ 16% (the menu underline and the hint-cap outlines use it), progress track ink @ 14%, text primary / secondary / tertiary ink @ 92 / 66 / 50% (primary and secondary at least 4.5:1 on the page and on a card; tertiary 3:1, strokes only). The now-line is 60% (Dark stays 35%) so the line and its triangle show on the grey. The focus fill stays `#B74719` with white text; the accent used as text, as a line and for progress is `#9A3C13`, the least that keeps ON NOW at 4.5:1 on this page and the cell progress line at 3:1 over a card. Marks stay the mono render tinted ink. Dark is unchanged. Light is held to the same contrast floors as Dark.
 
 ### Geometry — `GuideScreen.kt` (`GuideGeometry`), `GuideState.kt`
 

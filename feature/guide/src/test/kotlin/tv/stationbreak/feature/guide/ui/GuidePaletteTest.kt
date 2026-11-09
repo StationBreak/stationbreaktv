@@ -26,8 +26,14 @@ class GuidePaletteTest {
         assertEquals(dark.textPrimary, dark.programmeText)
 
         val light = GuideColors.Light
-        assertEquals(Color(0xFFF6F7F8), light.page)
+        assertEquals(Color(0xFFDCDEE1), light.page)
         assertEquals(light.page, light.pageGradientStart)
+        assertEquals(Color(0xFF111214).copy(alpha = 0.12f), light.card)
+        assertEquals(Color(0xFF111214).copy(alpha = 0.16f), light.line)
+        assertEquals(Color(0xFF111214).copy(alpha = 0.14f), light.progressTrack)
+        assertEquals(Color(0xFF111214).copy(alpha = 0.92f), light.textPrimary)
+        assertEquals(Color(0xFF111214).copy(alpha = 0.66f), light.textSecondary)
+        assertEquals(Color(0xFF111214).copy(alpha = 0.50f), light.textSupporting)
         assertEquals(Color(0xFFB74719), light.focusFill)
         assertEquals(Color(0xFFFFFFFF), light.focusText)
         assertEquals(light.textPrimary, light.programmeText)
@@ -55,6 +61,7 @@ class GuidePaletteTest {
             // The focused cell's 11 sp second line.
             assertContrast(4.5, c.focusTextSecondary, c.focusFill, "$name focused second line", c.page)
             assertContrast(4.5, c.textPrimary, c.page, "$name primary text", c.page)
+            assertContrast(4.5, c.textPrimary, card, "$name primary text on a card", c.page)
             assertContrast(4.5, c.textSecondary, c.page, "$name secondary text", c.page)
             assertContrast(4.5, c.textSecondary, card, "$name secondary text on a card", c.page)
             assertContrast(4.5, c.programmeText, card, "$name programme text on a card", c.page)
@@ -107,17 +114,30 @@ class GuidePaletteTest {
     fun noPillsOrChipsRemain() {
         // The menu is text tabs and the NOW chip is text: the tokens for their fills are gone, and the key cap is an
         // outline whose label is primary text.
-        for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
-            assertEquals(0.28f, c.keyCapStroke.alpha, 0.01f)
-        }
+        assertEquals(0.28f, GuideColors.Dark.keyCapStroke.alpha, 0.01f)
+        // Light's cap outline is its line.
+        assertEquals(GuideColors.Light.line, GuideColors.Light.keyCapStroke)
     }
 
     @Test
     fun theNowLineIsFaintAndTheTimelineRulesAreFainter() {
-        for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
-            assertEquals(0.35f, c.nowRailAlpha)
-            assertEquals(0.10f, c.line.alpha, 0.01f)
+        assertEquals(0.35f, GuideColors.Dark.nowRailAlpha)
+        assertEquals(0.10f, GuideColors.Dark.line.alpha, 0.01f)
+        // On the grey page 35% of the accent is lost, so Light's now-line and triangle are stronger.
+        assertEquals(0.60f, GuideColors.Light.nowRailAlpha)
+        assertEquals(0.16f, GuideColors.Light.line.alpha, 0.01f)
+    }
+
+    @Test
+    fun noPageIsBlindingWhite() {
+        // The Insignia showed the near-white page as glare: no page, or the gradient's start, may be lighter than 90%.
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            for ((role, page) in listOf("page" to c.page, "gradient start" to c.pageGradientStart)) {
+                val lightness = (maxOf(page.red, page.green, page.blue) + minOf(page.red, page.green, page.blue)) / 2f
+                assertTrue("$name $role is $lightness light, over $MAX_PAGE_LIGHTNESS", lightness <= MAX_PAGE_LIGHTNESS)
+            }
         }
+        assertEquals("Light has no gradient", GuideColors.Light.page, GuideColors.Light.pageGradientStart)
     }
 
     @Test
@@ -191,3 +211,4 @@ class GuidePaletteTest {
 }
 
 private const val NEUTRAL_SPREAD = 0.02f
+private const val MAX_PAGE_LIGHTNESS = 0.90f
