@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -38,6 +39,7 @@ internal val ButtonRowHeight = 28.dp
 private val TabGap = 20.dp
 private val UnderlineGap = 4.dp
 private val UnderlineHeight = 1.dp
+private val FocusUnderlineHeight = 2.dp
 
 /**
  * The menu row above the grid: Channels, Settings and Exit as plain text tabs, no pills. The guide's focus is its own
@@ -76,7 +78,7 @@ private fun MenuTab(
     val focused by remember(focusedOf) { derivedStateOf(focusedOf) }
     val onGrid by remember(onGridOf) { derivedStateOf(onGridOf) }
     val colors = LocalGuideColors.current
-    val active = focused || (primary && onGrid)
+    val look = tabLook(focused = focused, selected = primary && onGrid, colors = colors)
     Box(
         Modifier
             .height(ButtonRowHeight)
@@ -89,19 +91,45 @@ private fun MenuTab(
     ) {
         Text(
             text = stringResource(text),
-            modifier = Modifier.underline(if (active) colors.textPrimary else null),
+            modifier = Modifier.underline(look.underline, look.thickness),
             style = guideText(11.sp, FontWeight.Medium),
-            color = if (active) colors.textPrimary else colors.textSecondary,
+            color = look.text,
             maxLines = 1,
         )
     }
 }
 
-/** A 1 dp rule 4 dp under the text, the width of the text, when [color] is not null. */
-internal fun Modifier.underline(color: Color?): Modifier =
-    padding(bottom = UnderlineGap + UnderlineHeight).drawBehind {
+/** How a tab is drawn: its text colour, and its underline (null for none) and the underline's thickness. */
+internal data class TabLook(
+    val text: Color,
+    val underline: Color?,
+    val thickness: Dp,
+)
+
+/**
+ * Three states, told apart by the underline: focused (the guide's focus is on the tab) is primary text over a 2 dp
+ * accent line; selected (Channels while the focus is on the grid) is primary text over a 1 dp quiet line; any other
+ * tab is secondary text with none. The accent line is the D-pad focus, the one thing the accent says on this row.
+ */
+internal fun tabLook(
+    focused: Boolean,
+    selected: Boolean,
+    colors: GuideColors,
+): TabLook =
+    when {
+        focused -> TabLook(colors.textPrimary, colors.accent, FocusUnderlineHeight)
+        selected -> TabLook(colors.textPrimary, colors.line, UnderlineHeight)
+        else -> TabLook(colors.textSecondary, null, UnderlineHeight)
+    }
+
+/** A rule 4 dp under the text, the width of the text, [thickness] thick, when [color] is not null. Reserves 2 dp. */
+internal fun Modifier.underline(
+    color: Color?,
+    thickness: Dp = UnderlineHeight,
+): Modifier =
+    padding(bottom = UnderlineGap + FocusUnderlineHeight).drawBehind {
         if (color != null) {
             val top = size.height + UnderlineGap.toPx()
-            drawRect(color, Offset(0f, top), Size(size.width, UnderlineHeight.toPx()))
+            drawRect(color, Offset(0f, top), Size(size.width, thickness.toPx()))
         }
     }
