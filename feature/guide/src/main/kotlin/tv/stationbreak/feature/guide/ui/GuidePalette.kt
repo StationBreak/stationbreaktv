@@ -19,6 +19,10 @@ internal class GuideColors(
     val card: Color,
     val textPrimary: Color,
     val textSecondary: Color,
+    /**
+     * 38% white (52% ink in Light): about 3.55:1 on the page, so for strokes only (chevrons, ticks, rules), never for
+     * text, which needs [textSecondary]'s 4.5:1. [GuidePaletteTest] fails if any file but the cells reads it.
+     */
     val textSupporting: Color,
     val programmeText: Color,
     val accent: Color,

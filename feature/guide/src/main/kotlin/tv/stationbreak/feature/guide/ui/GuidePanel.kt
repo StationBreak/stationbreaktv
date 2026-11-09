@@ -218,7 +218,7 @@ private fun PanelLines(
                 text = it,
                 modifier = Modifier.testTag(GuideTags.PANEL_EPISODE),
                 style = guideText(11.sp, FontWeight.Normal),
-                color = colors.textSupporting,
+                color = colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -230,7 +230,7 @@ private fun PanelLines(
                 text = it,
                 modifier = Modifier.testTag(GuideTags.PANEL_META),
                 style = guideText(11.sp, FontWeight.Normal),
-                color = colors.textSupporting,
+                color = colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -262,7 +262,7 @@ private fun Overview(
                 text = text,
                 modifier = Modifier.testTag(GuideTags.PANEL_OVERVIEW),
                 style = guideText(18.sp, FontWeight.Normal).copy(lineHeight = OVERVIEW_LINE_HEIGHT),
-                color = LocalGuideColors.current.textSupporting,
+                color = LocalGuideColors.current.textSecondary,
                 maxLines = lines,
                 overflow = TextOverflow.Ellipsis,
             )

@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /** Guide A colours, and the contrast pairs from the Guide A audit. */
 class GuidePaletteTest {
@@ -72,6 +73,28 @@ class GuidePaletteTest {
             val focusedTrack = c.focusText.copy(alpha = 0.2f).compositeOver(c.focusFill)
             assertContrast(3.0, c.focusText, focusedTrack, "$name focused progress", c.page)
         }
+    }
+
+    @Test
+    fun tertiaryIsForStrokesNotText() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            val card = c.card.compositeOver(c.page)
+            assertContrast(3.0, c.textSupporting, c.page, "$name tertiary over the page", c.page)
+            assertContrast(3.0, c.textSupporting, card, "$name tertiary over a card", c.page)
+            // It does not reach the 4.5:1 text needs, so it must not be used for text.
+            val seen = c.textSupporting.compositeOver(c.page).luminance()
+            val ratio = (maxOf(seen, c.page.luminance()) + 0.05) / (minOf(seen, c.page.luminance()) + 0.05)
+            assertTrue("$name tertiary is $ratio: if it now clears 4.5, this guard can go", ratio < 4.5)
+        }
+        // Only the cells (chevrons) read it: any other file that does is drawing text with it.
+        val readers =
+            File("src/main/kotlin/tv/stationbreak/feature/guide")
+                .walkTopDown()
+                .filter { it.extension == "kt" && it.name != "GuidePalette.kt" }
+                .filter { "textSupporting" in it.readText() }
+                .map { it.name }
+                .toList()
+        assertEquals(listOf("GuideCells.kt"), readers)
     }
 
     @Test
