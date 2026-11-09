@@ -139,11 +139,38 @@
       {"rel": 1.0, "segs": [{"text": "tiny", "font": "sniglet-800", "color": "#FF6B5E", "gap": 0.14}, {"text": "CHEFS", "font": "sniglet-800", "color": "#FFFFFF"}]}
     ]
   },
+  "laugh-track": {
+    "note": "Lilita One · mint teal, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "laugh", "font": "lilita-one-400", "color": "#7CE0C8"}]},
+      {"rel": 0.32, "segs": [{"text": "TRACK", "font": "lilita-one-400", "color": "#FFFFFF", "tracking": 0.3}]}
+    ], "gap": 0.05
+  },
   "punchline": {
     "note": "Bungee · two-tone word",
     "lines": [
       {"rel": 1.0, "segs": [{"text": "PUNCH", "font": "bungee-400", "color": "#FFE14D"}, {"text": "LINE", "font": "bungee-400", "color": "#FFFFFF"}]}
     ]
+  },
+  "rabbit-ears": {
+    "note": "Pacifico · pale static blue, one script line",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Rabbit", "font": "pacifico-400", "color": "#BCD7F2", "gap": 0.30}, {"text": "Ears", "font": "pacifico-400", "color": "#FFFFFF"}]}
+    ]
+  },
+  "shag-carpet": {
+    "note": "Titan One · harvest gold + avocado, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "SHAG", "font": "titan-one-400", "color": "#F2C94C"}]},
+      {"rel": 1.0, "segs": [{"text": "CARPET", "font": "titan-one-400", "color": "#BBE060"}]}
+    ], "gap": 0.03
+  },
+  "neon-decade": {
+    "note": "Bungee · synth lime + violet, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "NEON", "font": "bungee-400", "color": "#C6FF3D"}]},
+      {"rel": 1.0, "segs": [{"text": "DECADE", "font": "bungee-400", "color": "#B77BFF"}]}
+    ], "gap": 0.04
   },
   "dial-up": {
     "note": "Righteous · modem teal",
@@ -152,11 +179,117 @@
       {"rel": 1.0, "segs": [{"text": "DIAL-UP", "font": "righteous-400", "color": "#3DDC97", "tracking": 0.02}]}
     ]
   },
+  "flip-phone": {
+    "note": "Fredoka · cyan + candy pink, one line",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "flip", "font": "fredoka-700", "color": "#67D8FF", "gap": 0.1}, {"text": "phone", "font": "fredoka-700", "color": "#FF9ACB"}]}
+    ]
+  },
+  "binge-row": {
+    "note": "Baloo 2 · violet, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "binge", "font": "baloo-2-800", "color": "#B88CFF"}]},
+      {"rel": 0.34, "segs": [{"text": "ROW", "font": "baloo-2-800", "color": "#FFFFFF", "tracking": 0.42}]}
+    ], "gap": 0.04
+  },
+  "fresh-cut": {
+    "note": "Titan One · fresh green, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "FRESH", "font": "titan-one-400", "color": "#7CE8A8"}]},
+      {"rel": 0.34, "segs": [{"text": "CUT", "font": "titan-one-400", "color": "#FFFFFF", "tracking": 0.4}]}
+    ], "gap": 0.05
+  },
+  "glass-house": {
+    "note": "Righteous · ice blue, boxed",
+    "device": "box", "device_color": "#FFFFFF",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "GLASS", "font": "righteous-400", "color": "#A9E4FF", "tracking": 0.04}]},
+      {"rel": 1.0, "segs": [{"text": "HOUSE", "font": "righteous-400", "color": "#FFFFFF", "tracking": 0.04}]}
+    ], "gap": 0.02
+  },
+  "game-night": {
+    "note": "Luckiest Guy · prize yellow + cyan, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "GAME", "font": "luckiest-guy-400", "color": "#FFE033"}]},
+      {"rel": 1.0, "segs": [{"text": "NIGHT", "font": "luckiest-guy-400", "color": "#5CE1FF"}]}
+    ], "gap": 0.0
+  },
+  "couch-talk": {
+    "note": "Baloo 2 · warm coral, small over big",
+    "lines": [
+      {"rel": 0.3, "segs": [{"text": "COUCH", "font": "baloo-2-800", "color": "#FFFFFF", "tracking": 0.3}]},
+      {"rel": 1.0, "segs": [{"text": "talk", "font": "baloo-2-800", "color": "#FF8F8F"}]}
+    ], "gap": 0.04
+  },
+  "matinee-tears": {
+    "note": "Pacifico · rose, caps over script",
+    "lines": [
+      {"rel": 0.3, "segs": [{"text": "MATINEE", "font": "pacifico-400", "color": "#FFFFFF", "tracking": 0.28}]},
+      {"rel": 1.0, "segs": [{"text": "tears", "font": "pacifico-400", "color": "#FF8FB1"}]}
+    ], "gap": 0.06
+  },
+  "sideline": {
+    "note": "Bebas Neue · pitch green, touchline",
+    "device": "rule_below", "device_color": "#FFFFFF",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "SIDELINE", "font": "bebas-neue-400", "color": "#7BE08A", "tracking": 0.03}]}
+    ]
+  },
+  "spoof-central": {
+    "note": "Bungee · white + hot pink, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "SPOOF", "font": "bungee-400", "color": "#FFFFFF"}]},
+      {"rel": 0.34, "segs": [{"text": "CENTRAL", "font": "bungee-400", "color": "#FF4FA3", "tracking": 0.24}]}
+    ], "gap": 0.05
+  },
+  "date-night": {
+    "note": "Abril Fatface · rose, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Date", "font": "abril-fatface-400", "color": "#FF6B81"}]},
+      {"rel": 0.3, "segs": [{"text": "NIGHT", "font": "abril-fatface-400", "color": "#FFFFFF", "tracking": 0.36}]}
+    ], "gap": 0.05
+  },
+  "open-road": {
+    "note": "Barlow Cond · white + centre-line yellow, dashed",
+    "device": "rule_below_dashed", "device_color": "#FFE033",
+    "lines": [
+      {"rel": 0.4, "segs": [{"text": "OPEN", "font": "BarlowCondensed-800", "color": "#FFFFFF", "tracking": 0.3}]},
+      {"rel": 1.0, "segs": [{"text": "ROAD", "font": "BarlowCondensed-800", "color": "#FFFFFF", "tracking": 0.04}]}
+    ], "gap": 0.04
+  },
+  "simmer": {
+    "note": "Boogaloo · tomato, one word",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "simmer", "font": "boogaloo-400", "color": "#FF7A6B"}]}
+    ]
+  },
+  "fixer-hour": {
+    "note": "Lilita One · hard-hat yellow, hazard bars",
+    "device": "bars", "device_color": "#FFE033",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "FIXER", "font": "lilita-one-400", "color": "#FFE033"}]},
+      {"rel": 1.0, "segs": [{"text": "HOUR", "font": "lilita-one-400", "color": "#FFFFFF"}]}
+    ], "gap": 0.0
+  },
+  "backstage-pass": {
+    "note": "Righteous · stage violet, small over big",
+    "lines": [
+      {"rel": 0.3, "segs": [{"text": "BACKSTAGE", "font": "righteous-400", "color": "#FFFFFF", "tracking": 0.26}]},
+      {"rel": 1.0, "segs": [{"text": "pass", "font": "righteous-400", "color": "#D08CFF"}]}
+    ], "gap": 0.05
+  },
   "always-december": {
     "note": "Pacifico + Bebas · evergreen",
     "lines": [
       {"rel": 0.78, "segs": [{"text": "Always", "font": "pacifico-400", "color": "#5ED19B"}]},
       {"rel": 0.72, "segs": [{"text": "DECEMBER", "font": "bebas-neue-400", "color": "#FFFFFF", "tracking": 0.1}]}
+    ], "gap": 0.02
+  },
+  "curtain-call": {
+    "note": "Abril Fatface · gold + white, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Curtain", "font": "abril-fatface-400", "color": "#F2C94C"}]},
+      {"rel": 1.0, "segs": [{"text": "Call", "font": "abril-fatface-400", "color": "#FFFFFF"}]}
     ], "gap": 0.02
   },
   "order-in-the-court": {
