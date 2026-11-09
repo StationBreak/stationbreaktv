@@ -82,6 +82,7 @@ internal fun ChannelsRoot(
     pictureHole: DpRect,
     onDone: (tune: ChannelId?) -> Unit,
     modifier: Modifier = Modifier,
+    about: ChannelId? = null,
 ) {
     // One session per showing, and per opening: the host can close and reopen the screen between two frames.
     DisposableEffect(viewModel, openedAtNanos) {
@@ -98,7 +99,9 @@ internal fun ChannelsRoot(
     LaunchedEffect(keys, building) { if (!building) keys.requestFocus() }
     val done by rememberUpdatedState(onDone)
     val resources = LocalResources.current
-    val actions = remember(viewModel, openedAtNanos) { ChannelsActions(viewModel) { done(it) } }
+    val actions =
+        remember(viewModel, openedAtNanos) { ChannelsActions(viewModel, sheetOnly = about != null) { done(it) } }
+    SheetSession(about, ui, viewModel, actions, openedAtNanos)
     // The builder is made clean for its mode before it is drawn, so it never shows an earlier visit.
     var opened by remember { mutableStateOf<BuilderMode?>(null) }
     val builderMode = ui.builder
@@ -111,6 +114,7 @@ internal fun ChannelsRoot(
         ChannelsScreen(
             ui = ui.beneathBuilder(),
             pictureHole = pictureHole,
+            sheetOnly = about != null,
             modifier =
                 Modifier
                     .focusRequester(keys)
@@ -119,6 +123,32 @@ internal fun ChannelsRoot(
         )
         if (building && opened == ui.builder) {
             BuilderRoot(builderViewModel, pictureHole, onEvent = actions::builderEnded)
+        }
+    }
+}
+
+/**
+ * A showing that is only the properties sheet of [about] (#631), over the guide: it opens the sheet once that channel
+ * is in the list, and finishes the screen when the sheet goes (Back, or the channel leaving the lineup).
+ */
+@Composable
+private fun SheetSession(
+    about: ChannelId?,
+    ui: ChannelsUi,
+    viewModel: ChannelsViewModel,
+    actions: ChannelsActions,
+    openedAtNanos: Long,
+) {
+    if (about == null) return
+    var shown by remember(viewModel, openedAtNanos) { mutableStateOf(false) }
+    val listed = ui.rows.any { it.id == about }
+    LaunchedEffect(about, listed) { if (listed && !shown) viewModel.openAbout(about) }
+    val open = ui.about != null
+    LaunchedEffect(open) {
+        if (open) {
+            shown = true
+        } else if (shown) {
+            actions.end()
         }
     }
 }
@@ -189,6 +219,7 @@ internal fun padToAct(
  */
 internal class ChannelsActions(
     private val vm: ChannelsViewModel,
+    private val sheetOnly: Boolean = false,
     private val onDone: (ChannelId?) -> Unit,
 ) {
     // The screen is finished once: a key that follows (a fast double Back) is ignored.
@@ -216,13 +247,20 @@ internal class ChannelsActions(
         }
     }
 
+    /** The screen is over (its sheet has gone): finished as Back would, with what the changes leave to tune. */
+    fun end() {
+        if (!finished) finish(vm.closing())
+    }
+
     private fun finish(tune: ChannelId?) {
         finished = true
         onDone(tune)
     }
 
     private fun back(ui: ChannelsUi) {
-        if (ui.dialogOpen || ui.message != null) {
+        // Over the sheet only, Back closes what is on it first, then ends the screen.
+        val onTheSheet = ui.panel != null || ui.confirmingReset || ui.message != null
+        if (if (sheetOnly) onTheSheet else ui.dialogOpen || ui.message != null) {
             vm.dismiss()
         } else {
             finish(vm.closing())

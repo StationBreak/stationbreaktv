@@ -17,6 +17,10 @@ object GuideTags {
     const val PANEL_TIME = "guide:panel:time"
     const val PANEL_PROGRESS = "guide:panel:progress"
     const val PANEL_OVERVIEW = "guide:panel:overview"
+
+    /** The details panel's channel variant, while the focus is on the channel column (#631), and its name line. */
+    const val CHANNEL_PANEL = "guide:channelPanel"
+    const val CHANNEL_PANEL_NAME = "guide:channelPanel:name"
     const val NOW_LINE = "guide:nowLine"
     const val HINT = "guide:hint"
     const val LOADING = "guide:loading"

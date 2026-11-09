@@ -43,27 +43,33 @@ internal fun ChannelsScreen(
     ui: ChannelsUi,
     pictureHole: DpRect,
     modifier: Modifier = Modifier,
+    sheetOnly: Boolean = false,
 ) {
     // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(ChannelsTags.SCREEN)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight))
             val listWidth = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)
-            Column(
-                Modifier
-                    .offset(safe.left, safe.top)
-                    .width(listWidth)
-                    .height(safe.bottom - safe.top)
-                    .background(ChannelsPalette.ground),
-            ) {
-                // Not inside a Surface, so the content colour would be tv-material's black default.
-                CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
-                    Header(ui)
-                    ChannelList(ui, Modifier.weight(1f))
+            // Over the guide, a channel's properties sheet shows alone: the guide is the list behind it (#631).
+            if (!sheetOnly) {
+                Column(
+                    Modifier
+                        .offset(safe.left, safe.top)
+                        .width(listWidth)
+                        .height(safe.bottom - safe.top)
+                        .background(ChannelsPalette.ground),
+                ) {
+                    // Not inside a Surface, so the content colour would be tv-material's black default.
+                    CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
+                        Header(ui)
+                        ChannelList(ui, Modifier.weight(1f))
+                    }
                 }
             }
             if (ui.about != null) {
-                CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) { ChannelPropertiesSheet(ui) }
+                CompositionLocalProvider(
+                    LocalContentColor provides ChannelsPalette.text,
+                ) { ChannelPropertiesSheet(ui, toGuide = sheetOnly) }
             }
             val open = ui.panel != null || ui.confirmingReset
             if (open) {

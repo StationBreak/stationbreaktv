@@ -81,4 +81,10 @@ class HintKindTest {
     fun noGridHasOnlyBack() {
         assertEquals(HintKind.BackOnly, hintKindOf(GuideSnapshot.Closed))
     }
+
+    @Test
+    fun onTheChannelColumnOkOpensItsProperties() {
+        val onChannel = snapshotAt(nowMin = 65, focusMin = 0).copy(onChannel = true)
+        assertEquals(HintKind.Properties, hintKindOf(onChannel))
+    }
 }

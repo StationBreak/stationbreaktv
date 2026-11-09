@@ -51,12 +51,14 @@ private const val SCRIM_ALPHA = 0.55f
  * What a channel is and what feeds it (#631): a right-hand sheet over the dimmed list, drawn from [ui]'s `about`
  * channel. The identity and status come from the row the list already has, so they show at once; "What it plays" and
  * "How it runs" show a loading line until the rules have been read ([ChannelsUi.properties]). Its actions are the
- * actions panel's, minus the one that opened it. Plain words only: nothing here is a wire name or an ID.
+ * actions panel's, minus the one that opened it. [toGuide] is whether it was opened from the guide (#631), so the hint
+ * says where Back returns to. Plain words only: nothing here is a wire name or an ID.
  */
 @Composable
 internal fun ChannelPropertiesSheet(
     ui: ChannelsUi,
     modifier: Modifier = Modifier,
+    toGuide: Boolean = false,
 ) {
     val row = ui.rows.firstOrNull { it.id == ui.about } ?: return
     val properties = ui.properties?.takeIf { it.summary.id == row.id }
@@ -77,7 +79,7 @@ internal fun ChannelPropertiesSheet(
                     Rules(row, properties)
                 }
                 Status(row, properties)
-                Actions(ui)
+                Actions(ui, toGuide)
             }
         }
     }
@@ -150,7 +152,10 @@ private fun Plain(
 }
 
 @Composable
-private fun Actions(ui: ChannelsUi) {
+private fun Actions(
+    ui: ChannelsUi,
+    toGuide: Boolean,
+) {
     // A panel open over the sheet has the keys: the sheet's own choices show without a focus until it goes.
     val covered = ui.panel != null
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -168,8 +173,9 @@ private fun Actions(ui: ChannelsUi) {
             )
         }
     }
+    val returnHint = if (toGuide) R.string.channel_props_hint_return_guide else R.string.channel_props_hint_return
     Text(
-        "${stringResource(R.string.channel_props_hint_back)}  ${stringResource(R.string.channel_props_hint_return)}",
+        stringResource(R.string.channel_props_hint_back) + "  " + stringResource(returnHint),
         style = small(),
         color = ChannelsPalette.secondary,
     )

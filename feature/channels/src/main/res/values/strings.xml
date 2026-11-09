@@ -253,4 +253,5 @@
     <string name="channel_props_status_off_why">hidden by you</string>
     <string name="channel_props_hint_back">BACK</string>
     <string name="channel_props_hint_return">Return to Channels</string>
+    <string name="channel_props_hint_return_guide">Return to the guide</string>
 </resources>
