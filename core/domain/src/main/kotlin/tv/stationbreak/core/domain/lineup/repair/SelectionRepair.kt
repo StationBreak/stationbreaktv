@@ -136,33 +136,75 @@ internal class SelectionRepair(
             val programmes = shown.flatMap { (day, _) -> KeptWindow.programmesOf(day, atMs) }
             clock.time(RepairPhase.Live) { fills.live(programmes) }
         }
-        val repairs = ArrayList<ChannelRepair>()
-        val fixes = ArrayList<LostFix>()
+        // Each day's kept window and tail pool first, then one read of which tail pool items have a current row, for
+        // every channel at once (the read answers the same whenever it is asked), then the tails.
+        val prepared = ArrayList<Prepared>(pairs.size)
         for ((day, s) in pairs) {
             // A day hidden at the change has nothing on the air to keep.
             val kept =
                 clock.time(RepairPhase.Kept) {
                     if (day.hiddenAt(atMs) == null) KeptWindow.of(day, atMs, change.seq, fills) else null
                 }
-            repairs += repairOf(day, s, kept, titles)
-            kept?.let { fixes += it.fixes }
+            prepared += prepare(day, s, kept, titles)
+        }
+        val ids = HashSet<CanonicalId>()
+        for (p in prepared) p.pool?.mapTo(ids) { it.id }
+        val live = clock.time(RepairPhase.Live) { fills.live(ids) }
+        val repairs = ArrayList<ChannelRepair>()
+        val fixes = ArrayList<LostFix>()
+        for (p in prepared) {
+            repairs += repairOf(p, live)
+            p.kept?.let { fixes += it.fixes }
         }
         val pins = repairs.mapNotNull { r -> r.pinLibrary?.takeIf { it in removed }?.let { Pin(it, r.pinEndMs) } }
         return PlannedRepair(change.seq, repairs, fixes, pins)
     }
 
-    // [day]'s repair. With no [kept] window (a day hidden at the change) its tail starts at the half hour, and when
-    // that holds nothing either the whole day is one slate, hidden with the new selection's reason.
-    private suspend fun repairOf(
+    // A day's kept window, where its repair starts and its tail, and its tail pool before the current-row check (none
+    // when the tail starts at the day's end).
+    private class Prepared(
+        val day: ChannelDay,
+        val s: Scheduled,
+        val snapshot: RuleSnapshot,
+        val kept: KeptWindow?,
+        val fromMs: Long,
+        val tailFromMs: Long,
+        val pool: List<ScheduleItem>?,
+    )
+
+    // [day] made ready for its repair: with no [kept] window (a day hidden at the change) its tail starts at the half
+    // hour.
+    private suspend fun prepare(
         day: ChannelDay,
         s: Scheduled,
         kept: KeptWindow?,
         today: Set<CanonicalId>,
-    ): ChannelRepair {
+    ): Prepared {
         // The snapshot of the new selection that [s]'s day reads (with the extras out, for a filtered day).
         val snapshot = (if (s.extras) filtered else plain).getValue(s.cutoffMs)
         val fromMs = kept?.fromMs ?: maxOf(day.epochStartMs, change.atMs - Math.floorMod(change.atMs, KEPT_STEP_MS))
-        val tail = tailOf(day, s, snapshot, kept?.pinEndMs ?: fromMs, kept?.aired.orEmpty(), today)
+        val tailFromMs = kept?.pinEndMs ?: fromMs
+        val pool =
+            if (tailFromMs >= day.epochEndMs) {
+                null
+            } else {
+                clock.time(RepairPhase.Pools) { tailPool(day, s, snapshot, day.record?.repair != null, today) }
+            }
+        return Prepared(day, s, snapshot, kept, fromMs, tailFromMs, pool)
+    }
+
+    // [p]'s repair, its tail pool kept to the items in [live]. When the tail holds nothing either, a day hidden at the
+    // change is one slate all day, hidden with the new selection's reason.
+    private suspend fun repairOf(
+        p: Prepared,
+        live: Set<CanonicalId>,
+    ): ChannelRepair {
+        val day = p.day
+        val s = p.s
+        val snapshot = p.snapshot
+        val kept = p.kept
+        val fromMs = p.fromMs
+        val tail = tailOf(day, s, snapshot, p.pool?.filter { it.id in live }, p.tailFromMs, kept?.aired.orEmpty())
         val nothing = tail.isNotEmpty() && tail.none { it.content is ScheduleContent.Program }
         // Hidden at the change and after it: hidden all day, from its start, so no window ever shows it.
         val offAir = kept == null && nothing
@@ -189,19 +231,19 @@ internal class SelectionRepair(
         )
     }
 
-    // The scheduler's tail of [day] from [fromMs] over its tail pool, with [aired] left out; none at the day's end.
+    // The scheduler's tail of [day] from [fromMs] over its tail [pool], with [aired] left out; none at the day's end
+    // (where there is no pool).
     @Suppress("LongParameterList") // The day, what it reads, and where the tail starts.
-    private suspend fun tailOf(
+    private fun tailOf(
         day: ChannelDay,
         s: Scheduled,
         snapshot: RuleSnapshot,
+        pool: List<ScheduleItem>?,
         fromMs: Long,
         aired: Set<CanonicalId>,
-        today: Set<CanonicalId>,
     ): List<ScheduleBlock> {
-        if (fromMs >= day.epochEndMs) return emptyList()
+        if (pool == null) return emptyList()
         val repaired = day.record?.repair != null
-        val pool = clock.time(RepairPhase.Pools) { tailPool(day, s, snapshot, repaired, today) }
         return clock.time(RepairPhase.Layout) {
             val (films, weights) = sidesOf(day, pool, repaired, addedIn(s, snapshot))
             layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired)
@@ -210,7 +252,8 @@ internal class SelectionRepair(
 
     // The tail pool of [day]: its base (the day pool as built; on a repaired day the record's tail pool and what the
     // channel admits of the current selection, less what the record has airing before the change) without what the
-    // new selection lacks, and what it takes of the added libraries; only items with a current row.
+    // new selection lacks, and what it takes of the added libraries. The caller keeps only items with a current row:
+    // an item deleted since the cut-off is still in the snapshot, and a fresh tail never lays out one with no row.
     private suspend fun tailPool(
         day: ChannelDay,
         s: Scheduled,
@@ -239,10 +282,7 @@ internal class SelectionRepair(
         val addedIds = addedIn(s, snapshot)
         val taken = admitted.pool(day.channel.id).filter { it.id in addedIds }
         val own = ownTitles(day)
-        val pool = days.tailPoolOf(s, base, present, taken, homesOf(s, snapshot), today, own)
-        // An item deleted since the cut-off is still in the snapshot: a fresh tail never lays out one with no row.
-        val live = clock.time(RepairPhase.Live) { fills.live(pool.map { it.id }) }
-        return pool.filter { it.id in live }
+        return days.tailPoolOf(s, base, present, taken, homesOf(s, snapshot), today, own)
     }
 
     // What each channel admits of the current selection, read through the source's shared snapshot reader (the days'
