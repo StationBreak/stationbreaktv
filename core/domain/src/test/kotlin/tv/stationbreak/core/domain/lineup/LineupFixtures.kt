@@ -200,6 +200,9 @@ internal class CountingLibrary(
     /** Run after each `ruleSnapshot` read returns: a test lands a sync while a read is in flight. */
     var afterSnapshot: () -> Unit = {}
 
+    /** Run as each `currentIds` read starts: a test makes the reads take time. */
+    var beforeCurrentIds: () -> Unit = {}
+
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -232,6 +235,7 @@ internal class CountingLibrary(
     ): Set<CanonicalId> {
         currentIdsCalls++
         currentIdsAsked += ids.size
+        beforeCurrentIds()
         return delegate.currentIds(account, ids)
     }
 

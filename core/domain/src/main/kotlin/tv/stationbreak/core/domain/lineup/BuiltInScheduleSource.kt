@@ -742,6 +742,18 @@ class BuiltInScheduleSource(
     ): List<ChannelDay> = if (selection.libraries.isEmpty()) emptyList() else channelDays(account, selection, at)
 
     /**
+     * [currentDays] at [at] over [selection], on this source's [dispatcher] (main-safe), for their build only: the
+     * repairer warms today's days before a selection change asks for its turn (spec 26).
+     */
+    internal suspend fun warmDays(
+        account: LibraryAccount,
+        selection: SavedSelection,
+        at: Instant,
+    ) {
+        withContext(dispatcher) { currentDays(account, selection, at) }
+    }
+
+    /**
      * The saved selection now (none chosen: no libraries, and the seq as saved, 0 when unknown) and [currentDays] over
      * it, read once.
      */

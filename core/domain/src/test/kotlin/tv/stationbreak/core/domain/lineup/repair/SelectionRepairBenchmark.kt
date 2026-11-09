@@ -157,7 +157,9 @@ internal class SelectionRepairBenchmark {
             "snaps=${p { it.snapsMs }} " +
             "admitted=${p { it.admittedMs }} before=${p { it.beforeMs }} kept=${p { it.keptMs }} " +
             "pools=${p { it.poolsMs }} live=${p { it.liveMs }} layout=${p { it.layoutMs }} pin=${p { it.pinMs }} " +
-            "write=${p { it.writeMs }} cpu=${p { it.cpuMs }} gc=${med { it.gcCount }} gcMs=${med { it.gcMs }} | " +
+            "write=${p {
+                it.writeMs
+            }} other=${p { it.otherMs }} cpu=${p { it.cpuMs }} gc=${med { it.gcCount }} gcMs=${med { it.gcMs }} | " +
             "channels=${first.channels} touched=${first.touched} " +
             "emptied=${first.emptied} snapshotReads=${first.reads.snapshots} " +
             "currentIdsCalls=${first.reads.currentIds} currentIdsIds=${first.reads.currentIdIds} " +

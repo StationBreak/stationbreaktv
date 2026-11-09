@@ -185,45 +185,58 @@ class TodayRepairer internal constructor(
     ): RepairOutcome<SelectionRepaired> =
         turn {
             entered()
-            run {
-                val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup
-                // With no saved selection read, the seq shown is unknown: recording would drop what it cannot place.
-                source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
-                val recorded =
-                    probed(clock, source.probes) {
-                        val (current, today) =
-                            clock.time(RepairPhase.Days) {
-                                source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
-                            }
-                        val seq = maxOf(held.repairs.nextSeq(current.seq), atLeast)
-                        val change = SelectionChange(current.libraries, after, seq, atMs)
-                        val shared: SharedRead = { libraries, cuts ->
-                            source.sharedSnapshotsOf(account, libraries, cuts)
+            // Everything in the turn but the save is the repair's: what no step times is its other time.
+            clock.time(RepairPhase.Other) { changeInTurn(account, after, atMs, atLeast, clock, save) }
+        }
+
+    // [selectionChanged] in its turn.
+    @Suppress("LongParameterList") // The change, its moment and floor, the clock and the save.
+    private suspend fun changeInTurn(
+        account: LibraryAccount,
+        after: Set<ItemId>,
+        atMs: Long,
+        atLeast: Long,
+        clock: RepairClock?,
+        save: suspend (seq: Long) -> Boolean,
+    ): RepairOutcome<SelectionRepaired> =
+        run {
+            val held = service.loaded(account) ?: return@run RepairOutcome.NoLineup
+            // With no saved selection read, the seq shown is unknown: recording would drop what it cannot place.
+            source.savedSelection() ?: return@run RepairOutcome.SelectionUnknown
+            val recorded =
+                probed(clock, source.probes) {
+                    val (current, today) =
+                        clock.time(RepairPhase.Days) {
+                            source.chosenDays(account, Instant.fromEpochMilliseconds(atMs))
                         }
-                        val planned = SelectionRepair(days, library, account, held, change, shared, clock).plan(today)
-                        val repaired = SelectionRepaired(seq, planned.pins)
-                        clock.time(RepairPhase.Write) {
-                            record(account, held, repaired) { planned.into(it, current.seq, current.resetSeq) }
-                        }
+                    val seq = maxOf(held.repairs.nextSeq(current.seq), atLeast)
+                    val change = SelectionChange(current.libraries, after, seq, atMs)
+                    val shared: SharedRead = { libraries, cuts ->
+                        source.sharedSnapshotsOf(account, libraries, cuts)
                     }
-                if (recorded !is RepairOutcome.Saved) return@run recorded
-                val seq = recorded.result.seq
-                val written = service.loaded(account)?.repairs
-                var saved = false
-                var settled = Settled.Undone
-                try {
-                    // A trim while the save runs counts this seq as shown (`LineupService.saving`).
-                    service.saving(seq)
-                    saved = save(seq)
-                } finally {
-                    service.saving(null)
-                    if (!saved) settled = withContext(NonCancellable) { settle(account, held.repairs, written, seq) }
+                    val planned = SelectionRepair(days, library, account, held, change, shared, clock).plan(today)
+                    val repaired = SelectionRepaired(seq, planned.pins)
+                    clock.time(RepairPhase.Write) {
+                        record(account, held, repaired) { planned.into(it, current.seq, current.resetSeq) }
+                    }
                 }
-                when {
-                    saved || settled == Settled.Committed -> recorded
-                    settled == Settled.UndoFailed -> RepairOutcome.UndoFailed
-                    else -> RepairOutcome.Unsaved
-                }
+            if (recorded !is RepairOutcome.Saved) return@run recorded
+            val seq = recorded.result.seq
+            val written = service.loaded(account)?.repairs
+            var saved = false
+            var settled = Settled.Undone
+            try {
+                // A trim while the save runs counts this seq as shown (`LineupService.saving`).
+                service.saving(seq)
+                saved = clock.time(RepairPhase.Save) { save(seq) }
+            } finally {
+                service.saving(null)
+                if (!saved) settled = withContext(NonCancellable) { settle(account, held.repairs, written, seq) }
+            }
+            when {
+                saved || settled == Settled.Committed -> recorded
+                settled == Settled.UndoFailed -> RepairOutcome.UndoFailed
+                else -> RepairOutcome.Unsaved
             }
         }
 
@@ -242,7 +255,9 @@ class TodayRepairer internal constructor(
     ) {
         refuseInTurn()
         try {
-            withContext(dispatcher) { source.currentDays(account, saved, Instant.fromEpochMilliseconds(atMs)) }
+            // The source's own warm-up: it waits on the source's pool, not on the repairer's low-priority thread, where
+            // the wait would queue behind the day saves first.
+            source.warmDays(account, saved, Instant.fromEpochMilliseconds(atMs))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
