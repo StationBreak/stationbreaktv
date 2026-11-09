@@ -236,10 +236,10 @@
     ]
   },
   "spoof-central": {
-    "note": "Bungee · cyan + white, big over small",
+    "note": "Bungee · white + hot pink, big over small",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "SPOOF", "font": "bungee-400", "color": "#5CE1FF"}]},
-      {"rel": 0.34, "segs": [{"text": "CENTRAL", "font": "bungee-400", "color": "#FFFFFF", "tracking": 0.24}]}
+      {"rel": 1.0, "segs": [{"text": "SPOOF", "font": "bungee-400", "color": "#FFFFFF"}]},
+      {"rel": 0.34, "segs": [{"text": "CENTRAL", "font": "bungee-400", "color": "#FF4FA3", "tracking": 0.24}]}
     ], "gap": 0.05
   },
   "date-night": {
@@ -254,7 +254,7 @@
     "device": "rule_below_dashed", "device_color": "#FFE033",
     "lines": [
       {"rel": 0.4, "segs": [{"text": "OPEN", "font": "BarlowCondensed-800", "color": "#FFFFFF", "tracking": 0.3}]},
-      {"rel": 1.0, "segs": [{"text": "ROAD", "font": "BarlowCondensed-800", "color": "#FFE033", "tracking": 0.04}]}
+      {"rel": 1.0, "segs": [{"text": "ROAD", "font": "BarlowCondensed-800", "color": "#FFFFFF", "tracking": 0.04}]}
     ], "gap": 0.04
   },
   "simmer": {
