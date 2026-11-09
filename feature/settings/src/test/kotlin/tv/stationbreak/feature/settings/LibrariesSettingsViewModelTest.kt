@@ -526,4 +526,53 @@ class LibrariesSettingsViewModelTest {
             assertTrue(vm.now.rows.none { it.pending })
             assertEquals(2, choices.listings)
         }
+
+    // The owner's report: reopened with a change still saving, the focus went back to the top, and the pending row
+    // lower down could be off screen.
+    @Test
+    fun reopen_focusesTheRowThatWasFocusedWhenItClosed() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            choices.gate = CompletableDeferred()
+            val vm = open(choices)
+            vm.focusOn(CHARLIE.id)
+            vm.select()
+            runCurrent()
+            assertTrue(vm.now.row(CHARLIE.id).pending)
+
+            vm.close()
+            vm.open()
+            runCurrent()
+
+            assertTrue("still saving", vm.now.row(CHARLIE.id).pending)
+            assertEquals(2, vm.now.focus)
+        }
+
+    @Test
+    fun reopen_focusesTheFirstRow_whenTheFocusedRowIsGone() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val vm = open(choices)
+            vm.focusOn(CHARLIE.id)
+            vm.close()
+
+            choices.libraries = listOf(ALPHA, BRAVO)
+            vm.open()
+            runCurrent()
+
+            assertEquals(listOf(ALPHA.id, BRAVO.id), vm.now.rows.map { it.id })
+            assertEquals(0, vm.now.focus)
+        }
+
+    @Test
+    fun reopen_afterNoFocusMove_focusesTheFirstRow() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val vm = open(choices)
+            vm.close()
+            vm.open()
+            runCurrent()
+
+            assertEquals(0, vm.now.focus)
+        }
 }

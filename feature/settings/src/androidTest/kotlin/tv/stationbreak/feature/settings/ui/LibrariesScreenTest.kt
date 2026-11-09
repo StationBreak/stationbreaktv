@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
@@ -66,7 +67,7 @@ class LibrariesScreenTest {
                 }
             }
         }
-        until { exists(SettingsTags.row(BRAVO.id)) }
+        until { exists(SettingsTags.row(libraries[1].id)) }
     }
 
     @After
@@ -166,7 +167,25 @@ class LibrariesScreenTest {
         assertEquals(listOf(setOf(ALPHA.id)), choices.changes.toList())
     }
 
+    // The owner's report: reopened, the screen starts on the row it closed on, scrolled into view, not at the top.
+    @Test
+    fun reopen_scrollsTheRowItClosedOnIntoView() {
+        val many = (1..LONG_LIST).map { Library(ItemId("lib-$it"), "Library $it", LibraryKind.Movies) }
+        show(many, chosen = setOf(many.first().id))
+        repeat(LONG_LIST - 1) { press(Key.DirectionDown) }
+        val last = many.last().id
+        compose.onNodeWithTag(SettingsTags.row(last)).assertIsSelected().assertIsDisplayed()
+
+        compose.runOnIdle { vm.close() }
+        compose.runOnIdle { vm.open() }
+        until { exists(SettingsTags.row(last)) }
+
+        compose.onNodeWithTag(SettingsTags.row(last)).assertIsSelected().assertIsDisplayed()
+    }
+
     private companion object {
+        const val LONG_LIST = 30
+
         // A 1080p TV at xhdpi, whatever the device is, as the channel screen's tests host it.
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540
