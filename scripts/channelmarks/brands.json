@@ -22,7 +22,7 @@
   },
   "saturday-morning": {
     "note": "Lilita One · sky + sun",
-    "device": "circle_left", "device_color": "#FFC43D",
+    "device": "circle_left", "device_color": "#FFC43D", "device_size": 0.22,
     "lines": [
       {"rel": 0.42, "align": "l", "segs": [{"text": "SATURDAY", "font": "lilita-one-400", "color": "#FFFFFF", "tracking": 0.1}]},
       {"rel": 1.0, "align": "l", "segs": [{"text": "MORNING", "font": "lilita-one-400", "color": "#6CC9FF"}]}
@@ -64,18 +64,18 @@
     ], "gap": 0.05
   },
   "little-spirits": {
-    "note": "Sniglet · sakura pink, two equal lines",
+    "note": "Sniglet · sakura pink, title case, two equal lines",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "little", "font": "sniglet-800", "color": "#FFFFFF"}]},
-      {"rel": 1.0, "segs": [{"text": "spirits", "font": "sniglet-800", "color": "#FFA7D0"}]}
+      {"rel": 1.0, "segs": [{"text": "Little", "font": "sniglet-800", "color": "#FFFFFF"}]},
+      {"rel": 1.0, "segs": [{"text": "Spirits", "font": "sniglet-800", "color": "#FFA7D0"}]}
     ], "gap": -0.02
   },
   "lights-out": {
-    "note": "Baloo 2 · moon lavender, crescent",
-    "device": "crescent_right", "device_color": "#FFF3B0",
+    "note": "Baloo 2 · blue-violet, nightlight dot",
+    "device": "dot_after", "device_color": "#FFF3B0",
     "lines": [
       {"rel": 0.3, "align": "l", "segs": [{"text": "LIGHTS", "font": "baloo-2-800", "color": "#FFFFFF", "tracking": 0.28}]},
-      {"rel": 1.0, "align": "l", "segs": [{"text": "out", "font": "baloo-2-800", "color": "#C4B5FD"}]}
+      {"rel": 1.0, "align": "r", "segs": [{"text": "out", "font": "baloo-2-800", "color": "#A5B4FC"}]}
     ], "gap": 0.04
   },
   "pocket-heroes": {

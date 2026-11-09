@@ -69,14 +69,16 @@ def build(spec):
     total_w = max(b[2] - b[0] for _, b, _, _ in placed); total_h = y
     # device reserve
     dev = spec.get("device")
-    pad_w = {"ring": 0.55, "box": 0.30, "circle_left": 0.38, "crescent_right": 0.55, "dot_after": 0.25}.get(dev, 0)
+    pad_w = {"ring": 0.55, "box": 0.30, "circle_left": 0.0, "crescent_right": 0.55, "dot_after": 0.25}.get(dev, 0)
     pad_h = {"ring": 0.55, "box": 0.45, "rules": 0.45, "rule_below": 0.25, "rule_below_dashed": 0.25, "arc_above": 0.75, "bars": 0.45}.get(dev, 0)
     s = min(SAFE_W / (total_w * (1 + pad_w)), SAFE_H / (total_h * (1 + pad_h)))
+    rf = spec.get("device_size") or 0.30
+    if dev == "circle_left": s = min(SAFE_H / total_h, (SAFE_W - 8) / (total_w + 2 * rf * total_h))
     if dev == "ring": s = min(s, SAFE_H / (math.hypot(total_w, total_h) * 1.0 + 2 * STROKE + 10))
     out = []
     cx, cy = W / 2, H / 2
     # shift content for side devices
-    dx = {"circle_left": total_w * s * 0.16, "crescent_right": -total_w * s * 0.22, "dot_after": -total_w * s * 0.10}.get(dev, 0)
+    dx = {"circle_left": rf * total_h * s + 4, "crescent_right": -total_w * s * 0.22, "dot_after": -total_w * s * 0.10}.get(dev, 0)
     top = cy - total_h * s / 2
     for frags, bb, y0, align in placed:
         w = (bb[2] - bb[0]) * s
@@ -85,10 +87,10 @@ def build(spec):
         for d, col in frags:
             out.append(f'<path fill="{col}" transform="translate({tx:.2f} {ty:.2f}) scale({s:.4f})" d="{d}"/>')
     cw, ch = total_w * s, total_h * s
-    out = device(dev, spec.get("device_color", "#fff"), cx + dx, cy, cw, ch) + out
+    out = device(dev, spec.get("device_color", "#fff"), cx + dx, cy, cw, ch, spec.get("device_size")) + out
     return "".join(out)
 
-def device(kind, col, cx, cy, cw, ch):
+def device(kind, col, cx, cy, cw, ch, size=None):
     S = f'fill="none" stroke="{col}" stroke-width="{STROKE}" stroke-linecap="round"'
     if not kind: return []
     if kind == "ring":
@@ -109,7 +111,7 @@ def device(kind, col, cx, cy, cw, ch):
         rx = cw / 2 + 4; ry = ch * 0.55; y = cy - ch / 2 - 4
         return [f'<path d="M{cx-rx:.1f} {y:.1f}A{rx:.1f} {ry:.1f} 0 0 1 {cx+rx:.1f} {y:.1f}" {S}/>']
     if kind == "circle_left":
-        r = ch * 0.30; x = cx - cw / 2 - r - 8
+        r = ch * (size or 0.30); x = cx - cw / 2 - r - 8
         return [f'<circle cx="{x:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{col}"/>']
     if kind == "crescent_right":
         r = ch * 0.34; x = cx + cw / 2 + r + 10; y = cy - ch * 0.12
@@ -142,6 +144,7 @@ def main(catalog, brands, out):
         (out / "svg" / f"{base}.svg").write_text(full); (out / "svg-mono" / f"{base}.svg").write_text(mono)
         rows.append((c, full, mono, sp))
     rows.sort(key=lambda r: r[0]["number"])
+    total = len(cat)
     cells = "".join(f'<div class="m"><div class="box">{f}</div><div class="cap"><b>{c["number"]}</b>{c["name"]}<i>{c["band"]} · {sp.get("note","")}</i></div></div>' for c, f, m, sp in rows)
     strip = "".join(f"<div>{f}</div>" for c, f, m, sp in rows)
     mstrip = "".join(f"<div>{m}</div>" for c, f, m, sp in rows)
@@ -153,7 +156,7 @@ def main(catalog, brands, out):
 .strip{{display:flex;gap:2px;flex-wrap:wrap}}.strip div{{width:100px;height:56px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center}}.strip svg{{width:100px;height:56px}}
 .g{{width:900px}}.row{{display:grid;grid-template-columns:34px 100px 1fr 1fr;gap:2px;height:70px;margin-bottom:2px;align-items:center}}.num{{font-size:20px;color:rgba(255,255,255,.58);text-align:right;padding-right:6px;font-variant-numeric:tabular-nums}}.mk svg{{width:100px;height:56px;display:block}}
 .cell{{height:100%;background:rgba(255,255,255,.06);border-radius:3px;padding:0 16px;display:flex;flex-direction:column;justify-content:center;font-size:24px;font-weight:500}}.cell small{{font-size:19px;color:rgba(255,255,255,.58);margin-top:3px;font-weight:400}}.cell.f{{background:#f26b2b;color:#1a0d06}}.cell.f small{{color:rgba(26,13,6,.72)}}</style>
-<h1>Channel brands — sample set</h1><p>Each channel is its own brand: own typeface, own colours, own lockup. Same 50×28dp box, flat colour, no tiles.</p>
+<h1>Channel brands — {len(rows)} of {total}</h1><p>Each channel is its own brand: own typeface, own colours, own lockup. Same 50×28dp box, flat colour, no tiles.</p>
 <div class="grid">{cells}</div>
 <h2>At guide size (1:1 on 1080p)</h2><div class="strip">{strip}</div>
 <h2>Mono fallback (same masters, all fills white)</h2><div class="strip">{mstrip}</div>
