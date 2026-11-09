@@ -25,6 +25,8 @@ import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
+import tv.stationbreak.core.domain.lineup.ChannelProperties
+import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
@@ -57,7 +59,11 @@ internal val ACCESS_WAIT = 10.seconds
  * A write started in one visit finishes on this ViewModel's scope even if the screen goes meanwhile. A reset that
  * finishes after the screen was opened again is not used by [closing] (accepted: the new visit starts from the list).
  */
-@Suppress("TooManyFunctions", "LongParameterList") // One screen's actions, each small; its ports, one each.
+@Suppress(
+    "TooManyFunctions", // One screen's actions, each small.
+    "LongParameterList", // Its ports, one each.
+    "LargeClass", // The list, its dialogs, the sheet and the builder's entry share one state and one lock.
+)
 @HiltViewModel
 internal class ChannelsViewModel
     internal constructor(
@@ -66,6 +72,7 @@ internal class ChannelsViewModel
         private val household: HouseholdSetting,
         private val editor: ChannelEditor,
         private val schedule: ScheduleSource,
+        private val propertiesReader: ChannelPropertiesReader,
         private val clock: Clock,
         dispatcher: CoroutineDispatcher,
     ) : ViewModel() {
@@ -76,8 +83,9 @@ internal class ChannelsViewModel
             household: HouseholdSetting,
             editor: ChannelEditor,
             schedule: ScheduleSource,
+            propertiesReader: ChannelPropertiesReader,
             clock: Clock,
-        ) : this(library, repository, household, editor, schedule, clock, Dispatchers.Default)
+        ) : this(library, repository, household, editor, schedule, propertiesReader, clock, Dispatchers.Default)
 
         /** What one visit to the screen knows beyond what [ChannelsUi] shows. */
         private data class Model(
@@ -121,6 +129,9 @@ internal class ChannelsViewModel
             val listed: Boolean = false,
             /** The builder was asked for while the lineup's access was still loading: opened once it is known. */
             val wantBuilder: BuilderMode? = null,
+            /** The channel whose properties sheet is open, and what was read for it (null while being read). */
+            val about: ChannelId? = null,
+            val properties: ChannelProperties? = null,
         )
 
         private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -128,6 +139,7 @@ internal class ChannelsViewModel
         private var model = Model()
         private var session: Job? = null
         private var waiting: Job? = null
+        private var reading: Job? = null
 
         /** Between [open] and [close]: nothing is published outside it. */
         private var visible = false
@@ -144,6 +156,7 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 session?.cancel()
                 waiting?.cancel()
+                reading?.cancel()
                 generation = model.generation + 1
                 // New is always drawn, so with no channel to start on the focus is on it at once, without waiting for
                 // an account or a list; a channel to start on is waited for (until the first list, see onList).
@@ -163,6 +176,7 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 session?.cancel()
                 waiting?.cancel()
+                reading?.cancel()
                 session = null
                 visible = false
                 shown.value = ChannelsUi.Empty
@@ -240,6 +254,8 @@ internal class ChannelsViewModel
                 channels = list,
                 panel = if (keep) panel else null,
                 holder = if (keep) m.holder else null,
+                // The sheet reflects a change to its channel and closes only when the channel is gone.
+                about = m.about?.takeIf { id -> list.any { it.id == id } },
                 currentNumber = currentNumber,
                 listsDuringReset = m.listsDuringReset + 1,
                 listed = true,
@@ -267,7 +283,7 @@ internal class ChannelsViewModel
             // The rows are sorted only when the channels or their reasons changed: a key press does no sorting.
             if (next.channels !== old.channels || next.reasons !== old.reasons) next = next.copy(rows = rowsOf(next))
             // A new panel (or the reset question) starts with its own choice and digits, in the same assignment.
-            if (next.panel != old.panel || next.confirmingReset != old.confirmingReset) {
+            if (next.panel != old.panel || next.confirmingReset != old.confirmingReset || next.about != old.about) {
                 next =
                     next.copy(
                         choice = startChoice(next.panel, next.confirmingReset),
@@ -275,6 +291,7 @@ internal class ChannelsViewModel
                     )
             }
             next = builderWhenKnown(next)
+            next = aboutRead(old, next)
             val ids = next.rows.map { it.id }
             val pending = next.pendingFocus
             next =
@@ -286,6 +303,39 @@ internal class ChannelsViewModel
             model = next.copy(focus = mended(next, old.rows.map { it.id }, ids))
             if (visible) shown.value = derive(model)
         }
+
+        // The sheet's rules are read when it opens and again when its channel (or why it has nothing to air) changes.
+        private fun aboutRead(
+            old: Model,
+            next: Model,
+        ): Model {
+            val id = next.about
+            if (id == null) {
+                reading?.cancel()
+                return if (next.properties != null) next.copy(properties = null) else next
+            }
+            val changed = next.about != old.about || next.channels !== old.channels || next.reasons !== old.reasons
+            if (changed) {
+                reading?.cancel()
+                val generation = next.generation
+                reading =
+                    scope.launch {
+                        val read = readProperties(id)
+                        change(generation) { m -> if (m.about == id && read != null) m.copy(properties = read) else m }
+                    }
+            }
+            return if (next.about != old.about) next.copy(properties = null) else next
+        }
+
+        @Suppress("TooGenericExceptionCaught") // A failed read leaves the sheet as it was.
+        private suspend fun readProperties(id: ChannelId): ChannelProperties? =
+            try {
+                propertiesReader.read(id, clock.now())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
 
         // A builder asked for while the access loaded opens when it is Editable, or says so when it is ReadOnly.
         private fun builderWhenKnown(m: Model): Model {
@@ -314,7 +364,7 @@ internal class ChannelsViewModel
                                 },
                         )
                     }
-                } else if (model.panel != null || model.confirmingReset) {
+                } else if (model.panel != null || model.confirmingReset || model.about != null) {
                     val last = choicesOf(derive(model)).lastIndex
                     val step = if (move == PanelMove.Up || move == PanelMove.Left) -1 else 1
                     apply { it.copy(choice = (it.choice + step).coerceIn(0, last.coerceAtLeast(0))) }
@@ -349,12 +399,12 @@ internal class ChannelsViewModel
                     null
                 }
 
-                panel == null || choice == null -> {
+                (panel?.id ?: ui.about) == null || choice == null -> {
                     null
                 }
 
                 else -> {
-                    choose(choice, panel)
+                    choose(choice, checkNotNull(panel?.id ?: ui.about))
                 }
             }
         }
@@ -362,27 +412,29 @@ internal class ChannelsViewModel
         // The choice of an actions panel; the channel to tune for Watch, else null.
         private fun choose(
             choice: Choice,
-            panel: ChannelsPanel,
+            id: ChannelId,
         ): ChannelId? {
             when (choice) {
                 // The panel is closed in the model first, so the screen is finished with nothing open over it.
                 Choice.Watch -> dismiss()
 
-                Choice.SwitchOn -> switchOn(panel.id)
+                Choice.SwitchOn -> switchOn(id)
 
-                Choice.SwitchOff -> switchOff(panel.id)
+                Choice.SwitchOff -> switchOff(id)
 
-                Choice.CopyToCustomise -> openBuilder(BuilderMode.Copy(panel.id))
+                Choice.CopyToCustomise -> openBuilder(BuilderMode.Copy(id))
 
-                Choice.Edit -> openBuilder(BuilderMode.Edit(panel.id))
+                Choice.Edit -> openBuilder(BuilderMode.Edit(id))
 
-                Choice.ChangeNumber -> startNumber(panel.id)
+                Choice.ChangeNumber -> startNumber(id)
 
-                Choice.DefaultNumber -> defaultNumber(panel.id)
+                Choice.DefaultNumber -> defaultNumber(id)
+
+                Choice.About -> openAbout(id)
 
                 Choice.Confirm, Choice.Cancel -> Unit
             }
-            return panel.id.takeIf { choice == Choice.Watch }
+            return id.takeIf { choice == Choice.Watch }
         }
 
         private fun confirm(panel: ChannelsPanel?) {
@@ -440,6 +492,8 @@ internal class ChannelsViewModel
                 builder = m.builder,
                 gettingReady = m.wantBuilder != null,
                 useMyCollections = m.householdWant ?: m.useMyCollections,
+                about = m.about,
+                properties = m.properties,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons)
@@ -567,9 +621,18 @@ internal class ChannelsViewModel
                         it.wantBuilder != null -> it.copy(wantBuilder = null)
                         it.panel != null -> it.copy(panel = null, holder = null)
                         it.confirmingReset -> it.copy(confirmingReset = false)
+                        it.about != null -> it.copy(about = null)
                         else -> it.copy(message = null)
                     }
                 }
+            }
+        }
+
+        /** Opens the properties sheet over the list for [id]; its rules are read while it shows. */
+        fun openAbout(id: ChannelId) {
+            synchronized(lock) {
+                if (model.builder != null || model.channels.none { it.id == id }) return
+                apply { it.copy(panel = null, holder = null, about = id) }
             }
         }
 

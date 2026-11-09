@@ -24,10 +24,10 @@ class ChannelsPanelActionsTest {
             rig.vm.select()
             assertEquals(0, rig.ui.choice)
             repeat(5) { rig.vm.panelMove(PanelMove.Down) }
-            // Watch, Switch off, Copy to customise, Change number.
-            assertEquals(3, rig.ui.choice)
+            // Watch, Switch off, Copy to customise, Change number, About.
+            assertEquals(4, rig.ui.choice)
             rig.vm.panelMove(PanelMove.Up)
-            assertEquals(2, rig.ui.choice)
+            assertEquals(3, rig.ui.choice)
             repeat(5) { rig.vm.panelMove(PanelMove.Up) }
             assertEquals(0, rig.ui.choice)
         }

@@ -62,6 +62,9 @@ internal fun ChannelsScreen(
                     ChannelList(ui, Modifier.weight(1f))
                 }
             }
+            if (ui.about != null) {
+                CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) { ChannelPropertiesSheet(ui) }
+            }
             val open = ui.panel != null || ui.confirmingReset
             if (open) {
                 CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {

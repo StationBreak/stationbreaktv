@@ -69,14 +69,14 @@ class ChannelsChoicesTest {
     @Test
     fun onlyWatchWhenTheLineupCannotBeWritten() {
         val on = row(ChannelGroup.On, override = true)
-        assertEquals(listOf(Choice.Watch), actionsOf(on, LineupAccess.ReadOnly, reasonsRead = true))
-        assertEquals(listOf(Choice.Watch), actionsOf(on, LineupAccess.Loading, reasonsRead = true))
+        assertEquals(listOf(Choice.Watch, Choice.About), actionsOf(on, LineupAccess.ReadOnly, reasonsRead = true))
+        assertEquals(listOf(Choice.Watch, Choice.About), actionsOf(on, LineupAccess.Loading, reasonsRead = true))
     }
 
     @Test
     fun watchWaitsForTheFirstReadOfTheReasons() {
         assertEquals(
-            listOf(Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber),
+            listOf(Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About),
             actionsOf(row(ChannelGroup.On), LineupAccess.Editable, reasonsRead = false),
         )
     }
@@ -90,15 +90,16 @@ class ChannelsChoicesTest {
                 Choice.CopyToCustomise,
                 Choice.ChangeNumber,
                 Choice.DefaultNumber,
+                Choice.About,
             ),
             actionsOf(row(ChannelGroup.On, override = true), LineupAccess.Editable, reasonsRead = true),
         )
         assertEquals(
-            listOf(Choice.SwitchOn, Choice.CopyToCustomise, Choice.ChangeNumber),
+            listOf(Choice.SwitchOn, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About),
             actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true),
         )
         assertEquals(
-            listOf(Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber),
+            listOf(Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About),
             actionsOf(
                 row(ChannelGroup.On, reason = HiddenReason.EmptyToday),
                 LineupAccess.Editable,
@@ -106,40 +107,40 @@ class ChannelsChoicesTest {
             ),
         )
         val unusable = row(ChannelGroup.Off, ChannelKind.Unusable)
-        assertEquals(emptyList<Choice>(), actionsOf(unusable, LineupAccess.Editable, reasonsRead = true))
+        assertEquals(listOf(Choice.About), actionsOf(unusable, LineupAccess.Editable, reasonsRead = true))
     }
 
     @Test
     fun aBuiltInChannelOffersCopyToCustomise() {
         val choices = actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true)
-        assertEquals(listOf(Choice.SwitchOn, Choice.CopyToCustomise, Choice.ChangeNumber), choices)
+        assertEquals(listOf(Choice.SwitchOn, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About), choices)
     }
 
     @Test
     fun aLeftoversChannelOffersNeitherCopyNorEdit() {
         val choices = actionsOf(row(ChannelGroup.On, ChannelKind.Leftovers), LineupAccess.Editable, reasonsRead = true)
-        assertEquals(listOf(Choice.Watch, Choice.SwitchOff, Choice.ChangeNumber), choices)
+        assertEquals(listOf(Choice.Watch, Choice.SwitchOff, Choice.ChangeNumber, Choice.About), choices)
     }
 
     @Test
     fun anUnusableChannelOffersNeitherCopyNorEdit() {
         val choices = actionsOf(row(ChannelGroup.On, ChannelKind.Unusable), LineupAccess.Editable, reasonsRead = true)
-        assertEquals(listOf(Choice.Watch), choices)
+        assertEquals(listOf(Choice.Watch, Choice.About), choices)
         val off = actionsOf(row(ChannelGroup.Off, ChannelKind.Unusable), LineupAccess.Editable, reasonsRead = true)
-        assertEquals(emptyList<Choice>(), off)
+        assertEquals(listOf(Choice.About), off)
     }
 
     @Test
     fun aCustomChannelFromANewerAppOffersNeitherCopyNorEdit() {
         val kind = ChannelKind.UnusableCustom
         val choices = actionsOf(row(ChannelGroup.On, kind), LineupAccess.Editable, reasonsRead = true)
-        assertEquals(listOf(Choice.Watch), choices)
+        assertEquals(listOf(Choice.Watch, Choice.About), choices)
     }
 
     @Test
     fun aCustomChannelOffersEdit() {
         val choices = actionsOf(row(ChannelGroup.On, ChannelKind.Custom), LineupAccess.Editable, reasonsRead = true)
-        assertEquals(listOf(Choice.Watch, Choice.SwitchOff, Choice.Edit, Choice.ChangeNumber), choices)
+        assertEquals(listOf(Choice.Watch, Choice.SwitchOff, Choice.Edit, Choice.ChangeNumber, Choice.About), choices)
     }
 
     @Test
@@ -147,7 +148,7 @@ class ChannelsChoicesTest {
         for (access in listOf(LineupAccess.ReadOnly, LineupAccess.Loading)) {
             for (kind in listOf(ChannelKind.Starter, ChannelKind.Custom)) {
                 val choices = actionsOf(row(ChannelGroup.On, kind), access, reasonsRead = true)
-                assertEquals(listOf(Choice.Watch), choices)
+                assertEquals(listOf(Choice.Watch, Choice.About), choices)
             }
         }
     }

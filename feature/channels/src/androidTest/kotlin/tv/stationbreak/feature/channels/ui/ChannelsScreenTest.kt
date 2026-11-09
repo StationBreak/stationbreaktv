@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +37,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -46,9 +49,12 @@ import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.ChannelProperties
+import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.ChannelTiming
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
@@ -57,24 +63,36 @@ import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ShelfReason
+import tv.stationbreak.core.domain.lineup.ThemeAnchor
+import tv.stationbreak.core.domain.lineup.ThemeAnchorKind
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.FakeCatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.FakeChannelBuilder
 import tv.stationbreak.core.domain.lineup.builder.FakeChannelPreviews
+import tv.stationbreak.core.domain.lineup.builder.KeptItem
+import tv.stationbreak.core.domain.lineup.builder.KeptOrder
+import tv.stationbreak.core.domain.lineup.builder.Narrowing
+import tv.stationbreak.core.domain.lineup.builder.OnlyKind
 import tv.stationbreak.core.domain.lineup.builder.OpenResult
+import tv.stationbreak.core.domain.lineup.builder.RulesDescription
+import tv.stationbreak.core.domain.lineup.builder.ShownOrder
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
+import tv.stationbreak.feature.channels.Choice
 import tv.stationbreak.feature.channels.builder.BuilderViewModel
 import tv.stationbreak.feature.channels.builder.ui.BuilderTags
+import tv.stationbreak.feature.channels.choicesOf
+import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -111,6 +129,39 @@ private fun summary(
         playKey = PlayKey("test"),
         shelfReason = shelfReason,
     )
+}
+
+/** The properties of a channel of [lineup]: a themed channel's, with every block the sheet draws. */
+private class SamplePropertiesReader(
+    private val lineup: () -> Lineup,
+) : ChannelPropertiesReader {
+    override suspend fun read(
+        id: ChannelId,
+        at: Instant,
+    ): ChannelProperties? {
+        val summary = lineup().list.value.firstOrNull { it.id == id } ?: return null
+        val description =
+            RulesDescription(
+                sources = listOf(DraftSource.Genre("Crime", "Crime"), DraftSource.Collection("c1", "Noir Classics")),
+                leaveOut = listOf(DraftSource.Tag("late", "late")),
+                kept = listOf(KeptItem.Order(KeptOrder.Curated)),
+                narrowing = Narrowing(notGenres = listOf("Horror"), only = OnlyKind.Films),
+                ceiling = null,
+                order = ShownOrder.Kept(KeptOrder.Curated),
+                showsCaps = false,
+                seriesCap = null,
+                filmCap = null,
+            )
+        return ChannelProperties(
+            summary = summary,
+            personality = "Rain on the glass.",
+            description = description,
+            anchors = listOf(ThemeAnchor(ThemeAnchorKind.Collection, "Noir Classics")),
+            timing = ChannelTiming("06:00", null, "07EE-7E07"),
+            leftoversCeiling = null,
+            hidden = null,
+        )
+    }
 }
 
 /** A lineup that follows the edits made to it, as the real one does. */
@@ -234,7 +285,8 @@ class ChannelsScreenTest {
         lineup = Lineup(lineup(extra), access)
         currentNow.value = current
         runBlocking { library.useAccount(account) }
-        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, clock, work)
+        val properties = SamplePropertiesReader { lineup }
+        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, properties, clock, work)
         val builderVm =
             BuilderViewModel(library, builder, FakeCatalogPicker(), FakeChannelPreviews(), lineup, clock, work)
         compose.setContent {
@@ -641,6 +693,68 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.PANEL) }
         assertTrue(!exists(ChannelsTags.NEWER_APP))
         listOf(ChannelsTags.ACTION_COPY, ChannelsTags.ACTION_EDIT).forEach { assertTrue(it, !exists(it)) }
+    }
+
+    // The sheet over Alpha: Select opens the actions panel, and About is its last choice.
+    private fun openSheetOnAlpha() {
+        show(ALPHA)
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+        repeat(choicesOf(vm.ui.value).lastIndex) { press(Pad.Down) }
+        press(Pad.Select)
+        until { exists(ChannelsTags.ABOUT) }
+    }
+
+    @Test
+    fun aboutOpensTheSheetWithTheChannelsPropertiesAndBackReturnsToTheRow() {
+        openSheetOnAlpha()
+        compose.onNodeWithTag(ChannelsTags.ABOUT_NAME, useUnmergedTree = true).assertTextContains("Alpha")
+        until { exists(ChannelsTags.ABOUT_PLAYS) }
+        compose
+            .onNodeWithTag(ChannelsTags.ABOUT_PLAYS)
+            .assertTextContains("Noir Classics", substring = true)
+        compose.onNodeWithTag(ChannelsTags.ABOUT_RUNS).assertTextContains("Programmed", substring = true)
+        compose.onNodeWithTag(ChannelsTags.ABOUT_CODE).assertTextContains("07EE-7E07", substring = true)
+        compose.onNodeWithTag(ChannelsTags.ABOUT_STATUS).assertTextContains("showing today", substring = true)
+
+        press(Pad.Back)
+
+        until { !exists(ChannelsTags.ABOUT) }
+        compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
+    }
+
+    @Test
+    fun anActionOnTheSheetChangesTheStatusWithoutClosingIt() {
+        openSheetOnAlpha()
+        until { exists(ChannelsTags.ABOUT_PLAYS) }
+        val at = choicesOf(vm.ui.value).indexOf(Choice.SwitchOff)
+        repeat(at) { press(Pad.Down) }
+
+        press(Pad.Select)
+
+        until {
+            vm.ui.value.rows
+                .first { it.id == ALPHA }
+                .group == ChannelGroup.Off
+        }
+        until { exists(ChannelsTags.ABOUT) }
+        compose.onNodeWithTag(ChannelsTags.ABOUT_STATUS).assertTextContains("hidden by you", substring = true)
+    }
+
+    // The sheet as drawn, for the PR: written to the test package's external files, as the other screenshots are.
+    @Test
+    fun theSheetScreenshot() {
+        openSheetOnAlpha()
+        until { exists(ChannelsTags.ABOUT_PLAYS) }
+        compose.waitForIdle()
+        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        assertNotNull("no screenshot", bitmap)
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val directory = File(checkNotNull(context.getExternalFilesDir(null)), "screenshots")
+        assertTrue("could not create $directory", directory.mkdirs() || directory.isDirectory)
+        val file = File(directory, "channel-properties-sheet.png")
+        file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+        assertTrue("the screenshot is empty", file.length() > 0)
     }
 
     private companion object {
