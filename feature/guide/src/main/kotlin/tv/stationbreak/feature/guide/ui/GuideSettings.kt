@@ -74,7 +74,8 @@ internal data class SyncNowLine(
 
 /**
  * What the line beside Sync now says for [state]: nothing before a press (or after one with nothing to run), syncing,
- * when it synced (the time as [time] writes it: the device's own format on screen), or why it failed.
+ * when it synced (the time as [time] writes it: the device's own format on screen), or why it failed, with "Nothing
+ * changed." only when it failed before writing anything.
  */
 internal fun syncNowLine(
     state: SyncNowState,
@@ -84,16 +85,32 @@ internal fun syncNowLine(
         SyncNowState.Idle -> null
         SyncNowState.Running -> SyncNowLine(R.string.guide_sync_running)
         is SyncNowState.Done -> SyncNowLine(R.string.guide_sync_done, time(state.atMs))
-        is SyncNowState.Failed -> SyncNowLine(failureLine(state.failure))
+        is SyncNowState.Failed -> SyncNowLine(failureLine(state.failure, state.changedNothing))
     }
 
+// Why it failed; "Nothing changed." only when nothing was written.
 @StringRes
-private fun failureLine(failure: SyncFailure): Int =
+private fun failureLine(
+    failure: SyncFailure,
+    changedNothing: Boolean,
+): Int = if (changedNothing) nothingChangedLine(failure) else reasonLine(failure)
+
+@StringRes
+private fun nothingChangedLine(failure: SyncFailure): Int =
     when (failure) {
         SyncFailure.Network -> R.string.guide_sync_failed_network
         SyncFailure.SessionExpired -> R.string.guide_sync_failed_session
         SyncFailure.Server -> R.string.guide_sync_failed_server
         SyncFailure.Suspect -> R.string.guide_sync_failed_suspect
+    }
+
+@StringRes
+private fun reasonLine(failure: SyncFailure): Int =
+    when (failure) {
+        SyncFailure.Network -> R.string.guide_sync_reason_network
+        SyncFailure.SessionExpired -> R.string.guide_sync_reason_session
+        SyncFailure.Server -> R.string.guide_sync_reason_server
+        SyncFailure.Suspect -> R.string.guide_sync_reason_suspect
     }
 
 /**

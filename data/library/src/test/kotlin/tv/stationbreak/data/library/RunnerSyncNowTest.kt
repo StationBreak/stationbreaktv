@@ -164,7 +164,7 @@ class RunnerSyncNowTest {
             // The listing fails: nothing runs, and nothing is written, not even the sync state.
             choices.answer = LibraryListing.Unavailable(MediaServerError.NetworkUnreachable(), null)
             assertTrue(syncNow.start())
-            assertEquals(SyncNowState.Failed(SyncFailure.Network), ended())
+            assertEquals(SyncNowState.Failed(SyncFailure.Network, changedNothing = true), ended())
             assertTrue("no pass ran", rig.server.calls.isEmpty())
             assertEquals(status, rig.repository.activeStatus().first())
 
@@ -172,7 +172,8 @@ class RunnerSyncNowTest {
             choices.answer = LibraryListing.Listed(listOf(SyncWorld.movies), null)
             rig.server.respond = { MediaServerError.Timeout() }
             assertTrue(syncNow.start())
-            assertEquals(SyncNowState.Failed(SyncFailure.Network), ended())
+            // A failed run never says nothing changed, though here (its first call failed) nothing did.
+            assertEquals(SyncNowState.Failed(SyncFailure.Network, changedNothing = false), ended())
 
             assertEquals(generation, rig.repository.contentGeneration(ALICE))
             assertEquals(rows, rig.repository.stored(ALICE))
@@ -186,13 +187,13 @@ class RunnerSyncNowTest {
             rig.fake.resumeResult = ServerResult.Failure(MediaServerError.SessionExpired())
 
             assertTrue(syncNow.start())
-            assertEquals(SyncNowState.Failed(SyncFailure.SessionExpired), ended())
+            assertEquals(SyncNowState.Failed(SyncFailure.SessionExpired, changedNothing = false), ended())
 
-            // The listing itself rejected: the same, with no run.
+            // The listing itself rejected: the same, with no run, and so nothing changed.
             choices.answer = LibraryListing.Unavailable(MediaServerError.SessionExpired(), null)
             rig.server.calls.clear()
             assertTrue(syncNow.start())
-            assertEquals(SyncNowState.Failed(SyncFailure.SessionExpired), ended())
+            assertEquals(SyncNowState.Failed(SyncFailure.SessionExpired, changedNothing = true), ended())
             assertTrue(rig.server.calls.isEmpty())
         }
 
@@ -225,8 +226,25 @@ class RunnerSyncNowTest {
 
             assertTrue(syncNow.start())
 
-            assertEquals(SyncNowState.Failed(SyncFailure.Suspect), ended())
+            assertEquals(SyncNowState.Failed(SyncFailure.Suspect, changedNothing = true), ended())
             assertTrue(rig.server.calls.isEmpty())
+        }
+
+    // Fix round 1 (review MED): a run whose incremental pass wrote, and whose reconcile then failed, changed something;
+    // it must not say nothing changed.
+    @Test
+    fun incrementalWrote_thenReconcileFailed_failedChangedSomething() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            rig.library.items += SyncWorld.item("m", 900).copy(dateCreated = rig.clock.now())
+            val generation = rig.repository.contentGeneration(ALICE)
+            rig.server.respond = { call -> if (call.idsOnly) MediaServerError.Timeout() else null }
+
+            assertTrue(syncNow.start())
+
+            assertEquals(SyncNowState.Failed(SyncFailure.Network, changedNothing = false), ended())
+            assertTrue("the incremental pass wrote", rig.repository.contentGeneration(ALICE) > generation)
         }
 
     private companion object {

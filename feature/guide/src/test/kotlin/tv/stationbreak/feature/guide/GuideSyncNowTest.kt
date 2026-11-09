@@ -19,6 +19,21 @@ import tv.stationbreak.feature.guide.ui.syncNowLine
 
 /** Spec 26, Task 5.2: the Settings panel's Sync now row starts one sync per press and says how it stands. */
 class GuideSyncNowTest : GuideRig() {
+    // The module's English strings by resource name, read from the file: a unit test has no resources to resolve.
+    private val strings: Map<String, String> by lazy {
+        val file = java.io.File("src/main/res/values/strings.xml").readText()
+        val entry = Regex("""<string name="([^"]+)">([^<]*)</string>""")
+        entry.findAll(file).associate { it.groupValues[1] to it.groupValues[2] }
+    }
+
+    private fun text(id: Int): String {
+        val name =
+            R.string::class.java.fields
+                .single { it.getInt(null) == id }
+                .name
+        return checkNotNull(strings[name]) { "no string $name" }
+    }
+
     private val onSyncNow = SettingsPanel(SettingsRow.SyncNow)
 
     private fun press(
@@ -28,6 +43,10 @@ class GuideSyncNowTest : GuideRig() {
     ): SettingsStep = checkNotNull(settingsStep(onSyncNow, key, type, repeat))
 
     private val noTime: (Long) -> String = { error("no time to format") }
+
+    private companion object {
+        const val NOTHING_CHANGED = "Nothing changed."
+    }
 
     @Test
     fun select_startsOnce_rowShowsSyncing() =
@@ -62,8 +81,31 @@ class GuideSyncNowTest : GuideRig() {
                 )
             assertEquals(SyncFailure.entries.toSet(), expected.keys)
             for ((failure, line) in expected) {
-                syncNow.state.value = SyncNowState.Failed(failure)
+                syncNow.state.value = SyncNowState.Failed(failure, changedNothing = true)
                 assertEquals(SyncNowLine(line), syncNowLine(vm.syncNowState.value, noTime))
+                assertTrue(NOTHING_CHANGED in text(line))
+            }
+        }
+
+    // Fix round 1 (review MED): a sync that failed after it may have written gives the reason alone, never "Nothing
+    // changed."
+    @Test
+    fun failedAfterWriting_showsTheReasonAlone() =
+        guideTest { vm ->
+            val expected =
+                mapOf(
+                    SyncFailure.Network to R.string.guide_sync_reason_network,
+                    SyncFailure.SessionExpired to R.string.guide_sync_reason_session,
+                    SyncFailure.Server to R.string.guide_sync_reason_server,
+                    SyncFailure.Suspect to R.string.guide_sync_reason_suspect,
+                )
+            assertEquals(SyncFailure.entries.toSet(), expected.keys)
+            for ((failure, line) in expected) {
+                syncNow.state.value = SyncNowState.Failed(failure, changedNothing = false)
+                val shown = checkNotNull(syncNowLine(vm.syncNowState.value, noTime))
+                assertEquals(SyncNowLine(line), shown)
+                assertFalse(NOTHING_CHANGED in text(shown.text))
+                assertTrue(text(shown.text).isNotBlank())
             }
         }
 

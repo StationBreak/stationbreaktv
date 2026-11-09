@@ -18,9 +18,15 @@ sealed interface SyncNowState {
         val atMs: Long,
     ) : SyncNowState
 
-    /** The last press stopped for [failure]. The saved library and today's schedule are as they were. */
+    /**
+     * The last press stopped for [failure]. [changedNothing] is true when it stopped before syncing (the listing
+     * failed, nobody was signed in, or the listing looked wrong): nothing was written then. When the sync itself
+     * failed it is false, as a pass may have written before another failed (an incremental pass, say, before the
+     * reconcile), and the holds that ended may have expired; what was written stays, and the next sync goes on from it.
+     */
     data class Failed(
         val failure: SyncFailure,
+        val changedNothing: Boolean,
     ) : SyncNowState
 }
 
