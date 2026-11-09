@@ -56,6 +56,12 @@ Everything is flat. No gradients, bevels, shadows, outlines, tiles or background
 | Zilla Slab 700 | sturdy modern slab | Drama, spies, war |
 | Ultra | fat western slab | Drama, westerns, documentary |
 | Special Elite | worn typewriter | Drama, true crime, mysteries |
+| Anton | heavy condensed poster caps | Genre, superheroes, creature features |
+| Oswald 700 | tall gothic, signage | Genre, drive-in, campfire |
+| Teko 700 | squared tech condensed | Genre, cult, post-apocalyptic |
+| Orbitron 900 | geometric sci-fi | Genre, space, sci-fi |
+| Audiowide | wide rounded sci-fi | Genre, time travel, twists |
+| Creepster | dripping horror display (two channels at most) | Genre, haunted, zombies |
 
 Add a face only if it is OFL/Apache, visibly different from the faces above, and needed by at least two channels.
 
