@@ -381,6 +381,13 @@ class LaunchNavigationTest {
         compose.waitUntil(TIMEOUT_MS) { count(SettingsTags.LIBRARIES) == 0 }
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
 
+        // Down is Sync now (spec 26, Part 5): Select there starts a sync and leaves the panel open, on the row. The
+        // sync itself is RunnerSyncNowTest's; this does not wait for it.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).assertIsSelected()
+
         // Back from the panel closes it: the guide again, on its Settings entry, and the app stays.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(GuideTags.SETTINGS_LIBRARIES) == 0 }

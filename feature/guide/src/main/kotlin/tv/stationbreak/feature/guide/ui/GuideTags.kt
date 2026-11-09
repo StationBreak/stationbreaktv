@@ -43,6 +43,12 @@ object GuideTags {
     /** The Libraries row of the Settings panel: Select shows Settings, Libraries (spec 26). */
     const val SETTINGS_LIBRARIES = "guide:settings:libraries"
 
+    /** The Sync now row of the Settings panel: Select syncs with the server now (spec 26). */
+    const val SETTINGS_SYNC_NOW = "guide:settings:syncNow"
+
+    /** The line beside Sync now: syncing, when it last synced, or why it failed. */
+    const val SETTINGS_SYNC_STATUS = "guide:settings:syncStatus"
+
     /** The Exit entry of the menu row. */
     const val EXIT_BUTTON = "guide:exitButton"
 

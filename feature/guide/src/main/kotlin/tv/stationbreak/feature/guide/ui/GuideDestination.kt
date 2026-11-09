@@ -59,7 +59,7 @@ import tv.stationbreak.feature.guide.ui.mark.MarkCaches
  * keys and Back stand down while it shows. Left from a row's first cell moves the focus to its channel; Select there
  * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way. Select on
  * Libraries in the Settings panel shows [libraries] the same way; Back from it returns to the panel, and Back from the
- * panel closes it.
+ * panel closes it. Select on Sync now in the panel starts a sync, and the panel says how it goes.
  */
 @Suppress("LongParameterList") // The guide's own four, its three slots, and the modifier.
 @Composable
@@ -238,6 +238,7 @@ internal fun GuideRoot(
     }
     val info by viewModel.info.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
+    val syncNow by viewModel.syncNowState.collectAsStateWithLifecycle()
     // Back over the info overlay closes it; with none open, Back walks the focus outwards (to what is playing, then to
     // the menu row), and from the menu row it is the activity's and leaves live TV. While a screen covers the
     // guide (channel management, the properties sheet, Settings, Libraries), it is that screen's.
@@ -258,6 +259,7 @@ internal fun GuideRoot(
             settings = settings,
             themeChoice = themeChoice,
             noLibraries = selection?.gone == true,
+            syncNow = syncNow,
             modifier =
                 Modifier
                     // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
@@ -274,6 +276,7 @@ internal fun GuideRoot(
                                     themeChoice = next
                                     chooseTheme.value(next)
                                 }
+                                if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },
                             grid = { event -> guideKey(event, move, viewModel::select, back) },

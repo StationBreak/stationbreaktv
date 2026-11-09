@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.FakeSyncNow
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
@@ -111,6 +112,9 @@ open class GuideRig {
     /** The stored library selection the guide reads (spec 26); none stored by default. */
     internal val choices = FakeLibraryChoices(null)
 
+    /** Sync now as the guide's Settings panel starts it (spec 26); idle by default. */
+    internal val syncNow = FakeSyncNow()
+
     // Channel 7 airs half-hour programs, channel 5 hour-long ones, channel 9 a long program, a slate, then more.
     internal fun lineup(
         untilMin: Long = 600,
@@ -170,7 +174,15 @@ open class GuideRig {
         sessions.save(Session(UserId("u1"), AccessToken("fake-token-0123"), info, address, null, true))
         val dispatcher = StandardTestDispatcher(testScheduler)
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob() + dispatcher))
-        return GuideViewModel(schedule, cache, clock(startMin), dispatcher, lineupList, selection = choices.selection)
+        return GuideViewModel(
+            schedule,
+            cache,
+            clock(startMin),
+            dispatcher,
+            lineupList,
+            selection = choices.selection,
+            sync = syncNow,
+        )
     }
 
     /** Runs [body] with a guide whose clock reads [startMin] minutes into the test day, and stops it after. */

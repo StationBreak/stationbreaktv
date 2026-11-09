@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
+import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
@@ -152,6 +153,7 @@ internal fun GuideScreen(
     themeChoice: GuideTheme = GuideTheme.Dark,
     modifier: Modifier = Modifier,
     noLibraries: Boolean = false,
+    syncNow: SyncNowState = SyncNowState.Idle,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
@@ -198,7 +200,7 @@ internal fun GuideScreen(
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 when {
                     info != null -> Spacer(panelSize)
-                    settings != null -> GuideSettingsPanel(themeChoice, settings.row, panelSize)
+                    settings != null -> GuideSettingsPanel(themeChoice, settings.row, panelSize, syncNow)
                     onChannel -> ChannelPanel(snapshotOf, panelSize)
                     else -> DetailsPanel(panel, nowOf, panelSize)
                 }
