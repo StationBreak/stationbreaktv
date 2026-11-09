@@ -238,8 +238,8 @@ internal fun GuideRoot(
     val info by viewModel.info.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     // Back over the info overlay closes it; with none open, Back walks the focus outwards (to what is playing, then to
-    // the menu row), and from the menu row it is the activity's and leaves live TV. While channel management shows, it
-    // is the screen's.
+    // the menu row), and from the menu row it is the activity's and leaves live TV. While a screen covers the
+    // guide (channel management, the properties sheet, Settings, Libraries), it is that screen's.
     BackHandler(enabled = info != null && !covered) { viewModel.closeInfo() }
     val keys = remember { FocusRequester() }
     // The guide takes the key focus when it shows, and takes it back when the screen that covered it has gone.
@@ -266,7 +266,7 @@ internal fun GuideRoot(
                     .onKeyEvent {
                         guideRootKey(
                             it,
-                            managing = covered,
+                            covered = covered,
                             settings = settings,
                             onSettings = { step ->
                                 step.theme?.let { next ->
@@ -330,16 +330,19 @@ private fun handleGuideEvent(
     }
 }
 
-/** Keys for the guide: the slot has them while it shows, the Settings panel has them while it is open. */
+/**
+ * Keys for the guide: a slot has them while it shows (every key is kept here, as the slot may not have the focus yet),
+ * the Settings panel has them while it is open.
+ */
 private fun guideRootKey(
     event: KeyEvent,
-    managing: Boolean,
+    covered: Boolean,
     settings: SettingsPanel?,
     onSettings: (SettingsStep) -> Unit,
     grid: (KeyEvent) -> Boolean,
 ): Boolean =
     when {
-        managing -> {
+        covered -> {
             true
         }
 
