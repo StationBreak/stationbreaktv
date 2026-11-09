@@ -26,7 +26,8 @@ import javax.inject.Inject
 /**
  * Holds the Libraries screen (spec 26): the server's libraries with their ticks, the focus, and the changes the viewer
  * makes through [LibraryChoices]. The ViewModel outlives the screen, so [open] starts a clean visit, which asks the
- * server for its libraries once.
+ * server for its libraries once. Until it answers, a visit after a listing shows that listing's rows and takes presses
+ * ([lastListed]): the screen never sits empty while the server is slow.
  *
  * A Select flips the focused row at once: the press is kept as what the viewer wants for that row ([wanted]), shown as
  * saving (a tick) or removing (an untick) until it is stored. One change is out at a time; when it returns and
@@ -93,6 +94,10 @@ internal class LibrariesSettingsViewModel
         // The presses the change out carries, or null when none is out. Under [lock].
         private var sending: Map<ItemId, Boolean>? = null
 
+        // The server's libraries as the last listing gave them, shown by the next visit until its own listing answers;
+        // null when the last listing did not list them. Under [lock].
+        private var lastListed: List<Library>? = null
+
         // Names from every listing this ViewModel read, for the rows a later listing leaves out or cannot give.
         private val names = HashMap<ItemId, String>()
 
@@ -111,7 +116,13 @@ internal class LibrariesSettingsViewModel
             synchronized(lock) {
                 session?.cancel()
                 generation = model.generation + 1
-                model = Model(generation = generation)
+                val known = lastListed
+                model =
+                    if (known != null) {
+                        Model(generation = generation, phase = LibrariesPhase.Listed, listed = known)
+                    } else {
+                        Model(generation = generation)
+                    }
                 visible = true
                 shown.value = derive(model)
             }
@@ -153,18 +164,22 @@ internal class LibrariesSettingsViewModel
             when (listing) {
                 is LibraryListing.Listed -> {
                     listing.libraries.forEach { names[it.id] = it.name }
+                    lastListed = listing.libraries
                     m.copy(phase = LibrariesPhase.Listed, listed = listing.libraries)
                 }
 
                 is LibraryListing.Unavailable -> {
+                    lastListed = null
                     m.copy(phase = LibrariesPhase.Unavailable(listing.error))
                 }
 
                 is LibraryListing.NotSignedIn -> {
+                    lastListed = null
                     m.copy(phase = LibrariesPhase.Unavailable(null), signedOut = true)
                 }
 
                 null -> {
+                    lastListed = null
                     m.copy(phase = LibrariesPhase.Unavailable(null))
                 }
             }

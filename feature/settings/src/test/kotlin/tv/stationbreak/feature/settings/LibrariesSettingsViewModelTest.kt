@@ -487,4 +487,43 @@ class LibrariesSettingsViewModelTest {
             assertEquals(listOf(true, true, true), vm.now.rows.map { it.ticked })
             assertTrue(vm.now.rows.none { it.pending })
         }
+
+    // Fix round 1: reopened while a change is out and the server is slow to list (both on one gate), the screen shows
+    // the rows of the last listing at once, the earlier visit's press as removing, and takes a new press, queued.
+    @Test
+    fun reopenedWhileTheListingWaits_showsTheRowsAtOnce_andQueuesANewPress() =
+        runTest {
+            val choices =
+                FakeLibraryChoices(view(setOf(ALPHA.id, BRAVO.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val vm = open(choices)
+            vm.focusOn(BRAVO.id)
+            vm.select()
+            runCurrent()
+
+            vm.close()
+            choices.listingGate = gate
+            vm.open()
+            runCurrent()
+
+            assertEquals(LibrariesPhase.Listed, vm.now.phase)
+            assertEquals(listOf(ALPHA.id, BRAVO.id, CHARLIE.id), vm.now.rows.map { it.id })
+            assertEquals(RowStatus.Removing, vm.now.row(BRAVO.id).status)
+            vm.focusOn(CHARLIE.id)
+            vm.select()
+            runCurrent()
+            assertEquals(RowStatus.Saving, vm.now.row(CHARLIE.id).status)
+            assertEquals("one change at a time", 1, choices.changes.size)
+
+            choices.gate = null
+            choices.listingGate = null
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(listOf(setOf(ALPHA.id), setOf(ALPHA.id, CHARLIE.id)), choices.changes)
+            assertEquals(listOf(true, false, true), vm.now.rows.map { it.ticked })
+            assertTrue(vm.now.rows.none { it.pending })
+            assertEquals(2, choices.listings)
+        }
 }
