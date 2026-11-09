@@ -85,6 +85,18 @@ class GuidePaletteTest {
     }
 
     @Test
+    fun theDarkPanelIsTheGuidesOwnTokens_andIsOneInstance() {
+        val panel = GuideColors.Dark.panel
+        assertEquals(Color(0xFF0E0F11), panel.ground)
+        assertEquals(Color.White.copy(alpha = 0.90f), panel.text)
+        assertEquals(Color.White.copy(alpha = 0.58f), panel.secondary)
+        assertEquals(Color(0xFFE8642C), panel.ring)
+        // One instance per theme, so the static local it feeds does not recompose its subtree on every read.
+        assertTrue(GuideColors.Dark.panel === GuideColors.Dark.panel)
+        assertTrue(GuideColors.Light.panel === GuideColors.Light.panel)
+    }
+
+    @Test
     fun thePanelsFollowTheGuidesTheme() {
         for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
             val panel = c.panel

@@ -575,4 +575,56 @@ class LibrariesSettingsViewModelTest {
 
             assertEquals(0, vm.now.focus)
         }
+
+    // The listing is slow on the reopen: its rows come from the last listing, and the viewer moves before it answers.
+    // The listing, when it lands, does not pull the focus back to the row the last visit closed on.
+    @Test
+    fun reopen_aMoveBeforeTheListingAnswers_isKept() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val vm = open(choices)
+            vm.focusOn(CHARLIE.id)
+            vm.close()
+
+            val gate = CompletableDeferred<Unit>()
+            choices.listingGate = gate
+            vm.open()
+            runCurrent()
+            assertEquals("the last listing's rows, on the row closed on", 2, vm.now.focus)
+
+            vm.move(up = true)
+            assertEquals(1, vm.now.focus)
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(3, vm.now.rows.size)
+            assertEquals(1, vm.now.focus)
+        }
+
+    // The last listing has the row the visit closed on, the fresh one drops it: the focus falls to the first row, and
+    // no restore is left to pull it anywhere later.
+    @Test
+    fun reopen_aFreshListingThatDropsTheRow_fallsToTheFirstRow_andLeavesNoRestoreBehind() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val vm = open(choices)
+            vm.focusOn(CHARLIE.id)
+            vm.close()
+
+            val gate = CompletableDeferred<Unit>()
+            choices.listingGate = gate
+            choices.libraries = listOf(ALPHA, BRAVO)
+            vm.open()
+            runCurrent()
+            assertEquals(2, vm.now.focus)
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(0, vm.now.focus)
+
+            vm.move(up = false)
+            // The stored choice changing re-places nothing: the viewer's row stays.
+            choices.selection.value = view(setOf(ALPHA.id, BRAVO.id))
+            runCurrent()
+            assertEquals(1, vm.now.focus)
+        }
 }

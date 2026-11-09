@@ -47,8 +47,8 @@ internal class GuideColors(
     val markTint: Color? = null,
 ) {
     /** What a panel drawn over the guide (Settings, Libraries) takes from this theme, via `LocalPanelColors`. */
-    val panel: PanelColors
-        get() = PanelColors(ground = page, text = textPrimary, secondary = textSecondary, ring = focusFill)
+    val panel: PanelColors =
+        PanelColors(ground = page, text = textPrimary, secondary = textSecondary, ring = focusFill)
 
     companion object {
         val Dark =

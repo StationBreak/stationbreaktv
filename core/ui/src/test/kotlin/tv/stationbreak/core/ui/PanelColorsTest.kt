@@ -5,10 +5,10 @@ import androidx.compose.ui.graphics.compositeOver
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The colours a panel drawn over the guide takes from it: the dark default reads on its ground, as before. */
+/** The default colours of a panel with no guide around it (inside the guide, the guide provides its own). */
 class PanelColorsTest {
     @Test
-    fun theDarkDefaultKeepsTheScreensOwnInkAndCream() {
+    fun theDefaultIsInkCreamAndThePrimaryRing() {
         assertEquals(BroadcastColors.Ink, PanelColors.Dark.ground)
         assertEquals(BroadcastColors.Cream, PanelColors.Dark.text)
         assertEquals(StationBreakDarkColors.onSurfaceVariant, PanelColors.Dark.secondary)
@@ -16,7 +16,7 @@ class PanelColorsTest {
     }
 
     @Test
-    fun theDarkDefaultReadsOnItsGround() {
+    fun theDefaultReadsOnItsGround() {
         val p = PanelColors.Dark
         assertContrastAtLeast(4.5, p.text.compositeOver(p.ground), p.ground, "text")
         assertContrastAtLeast(4.5, p.secondary.compositeOver(p.ground), p.ground, "secondary")
