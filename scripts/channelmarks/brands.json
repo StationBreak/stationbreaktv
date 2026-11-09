@@ -404,9 +404,10 @@
     ], "gap": 0.05
   },
   "starport": {
-    "note": "Orbitron 900 · hangar blue, one line",
+    "note": "Orbitron 900 · hangar blue, landing strip",
+    "device": "rules", "device_color": "#6FB0FF",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "STARPORT", "font": "orbitron-900", "color": "#6FB0FF"}]}
+      {"rel": 1.0, "segs": [{"text": "STARPORT", "font": "orbitron-900", "color": "#6FB0FF", "tracking": 0.16}]}
     ]
   },
   "dragons-and-doorways": {
@@ -417,9 +418,9 @@
     ], "gap": 0.04
   },
   "rubber-suit-theatre": {
-    "note": "Titan One · lavender, two equal lines",
+    "note": "Titan One · suit red, two equal lines",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "RUBBER", "font": "titan-one-400", "color": "#C9A8FF"}]},
+      {"rel": 1.0, "segs": [{"text": "RUBBER", "font": "titan-one-400", "color": "#FF6B6B"}]},
       {"rel": 1.0, "segs": [{"text": "SUIT", "font": "titan-one-400", "color": "#FFFFFF"}]}
     ], "gap": 0.0
   },
@@ -432,10 +433,11 @@
     ], "gap": 0.02
   },
   "the-cheap-seats": {
-    "note": "Teko 700 · ticket red, one line",
+    "note": "Teko 700 · ticket teal, two equal lines",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "CHEAP SEATS", "font": "teko-700", "color": "#FF4D6D"}]}
-    ]
+      {"rel": 1.0, "segs": [{"text": "CHEAP", "font": "teko-700", "color": "#6FE3D4"}]},
+      {"rel": 1.0, "segs": [{"text": "SEATS", "font": "teko-700", "color": "#FFFFFF"}]}
+    ], "gap": 0.0
   },
   "drive-in-double": {
     "note": "Oswald 700 · marquee yellow, two equal lines",
@@ -480,9 +482,10 @@
     ], "gap": 0.03
   },
   "paradox": {
-    "note": "Audiowide · timeline violet, one line",
+    "note": "Audiowide · timeline violet, boxed loop",
+    "device": "box", "device_color": "#B58CFF",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "PARADOX", "font": "audiowide-400", "color": "#B58CFF"}]}
+      {"rel": 1.0, "segs": [{"text": "PARADOX", "font": "audiowide-400", "color": "#B58CFF", "tracking": 0.04}]}
     ]
   },
   "neon-rain": {
@@ -507,10 +510,11 @@
     ], "gap": 0.04
   },
   "end-times": {
-    "note": "Teko 700 · wasteland sand, one line",
+    "note": "Teko 700 · wasteland dusk, two equal lines",
     "lines": [
-      {"rel": 1.0, "segs": [{"text": "END TIMES", "font": "teko-700", "color": "#FFD166"}]}
-    ]
+      {"rel": 1.0, "segs": [{"text": "END", "font": "teko-700", "color": "#A98BFF"}]},
+      {"rel": 1.0, "segs": [{"text": "TIMES", "font": "teko-700", "color": "#FFFFFF"}]}
+    ], "gap": 0.0
   },
   "haunted-house": {
     "note": "Creepster · ghost violet, two equal lines",
@@ -520,10 +524,10 @@
     ], "gap": 0.0
   },
   "twist-ending": {
-    "note": "Audiowide · twist mint, two equal lines",
+    "note": "Audiowide · twist blue, two equal lines",
     "lines": [
       {"rel": 1.0, "segs": [{"text": "TWIST", "font": "audiowide-400", "color": "#FFFFFF"}]},
-      {"rel": 1.0, "segs": [{"text": "ENDING", "font": "audiowide-400", "color": "#7CFFB0"}]}
+      {"rel": 1.0, "segs": [{"text": "ENDING", "font": "audiowide-400", "color": "#6FB0FF"}]}
     ], "gap": 0.02
   },
   "gallows-humor": {

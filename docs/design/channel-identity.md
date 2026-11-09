@@ -24,12 +24,39 @@ Everything is flat. No gradients, bevels, shadows, outlines, tiles or background
 1. **Original, not adjacent.** The name, the colour pairing and the lockup must not evoke a real channel. Test: cover the words — if the shape and colours alone call a real network to mind, change one of them. No splats, no ball-and-letter marks, no peacock-fan colour arrays, no "Jr." suffixes, no first-letter-only wordmarks that match a real network's silhouette.
 2. **One typeface per channel, from the approved set.** A face may be used by at most 8 channels lineup-wide and at most 3 within a hundred-band, and never by two channels that are adjacent in the lineup (consecutive numbers in the band). When a face repeats within a band, the two marks must differ in both colour family and lockup form.
 3. **Max two brand colours + white.** Every brand colour must read ≥ 4.5:1 on the guide base `#0E0F11`; that contrast ratio is the only brightness test. Nothing orange-adjacent (hue 10–35° at saturation above 50%) because the focused cell is orange and the mark would merge with it; everything at 36° and up is allowed.
-4. **No shared look.** Across the whole lineup, no two marks may share both a colour family and a device; the earlier-approved mark keeps the combination. (Colour family: the hue family of the mark's main brand colour, i.e. red, yellow, green, teal, blue, violet or pink. A mark with no device shares no combination.) Also, no exact hex is used as the primary colour of more than two channels in a band. Within a band, two marks sharing a face must also differ in colour family. The across-lineup check also applies without a device: no two marks may share both a lockup form and a colour family (the earlier-approved mark keeps the combination).
+4. **No shared look.** A lockup is arrangement (one line, two equal lines, big over small, small over big) + face style (serif, slab, round, condensed, script, display) + case (caps, lower, title) + device (or none). Two marks collide when all four match and the colour family matches; the earlier-approved mark keeps the combination, so a mark with a different arrangement, style, case or device never collides. Within a band, two marks sharing a face must also differ in colour family. No exact hex is used as the primary colour of more than two channels in a band. A mark's colour family is the family of its main brand colour (the non-white colour of its largest line); families and hue edges are in the table below, and face styles are listed under it.
 5. **One device at most**, geometric only (arcs, circles, lines, triangles). Anything that needs more than that is an illustration and is out.
 6. **Same box, same optical size.** Every mark fills a 50×28dp box with a 44×22dp safe area, centred, and is scaled to use the safe area fully. Two-line lockups are therefore smaller per line than one-line ones — intended.
 7. **Legible at 28dp tall.** Check the 1:1 strip on the contact sheet. Long names get shortened to the part that carries the identity (The Midnight Projector → MIDNIGHT / PROJECTOR, Sing-Along Station → singalong / STATION). Secondary lines (any line set smaller than the main one) need a relative size of at least 0.30 and letter-spacing (tracking) of at most 0.22; if the small line is still thin, make it the big line or set it in a heavier face. This minimum is forward-looking: marks approved before it was written were reviewed at 1:1 and kept.
 8. **Mono-safe.** Every mark must still read with all fills white. The generator writes this variant automatically (`svg-mono/`); it is used for the light theme and any future "quiet" setting.
 9. **Band flavour, not band uniform.** Bands have a leaning, not a rule: Kids → rounded faces, saturated primaries; General → clean display faces, friendly mids; Drama → serifs and slabs, metals and jewel tones; Genre → condensed and italic, neon; World → warm, expressive; Premium → restrained, one colour.
+
+### Colour families (hue edges)
+
+Hue is measured in degrees in HSL. A colour with HSV saturation below 0.25 is **neutral** whatever its hue (silver, cream, white). Edges are inclusive at the lower end.
+
+| Family | Hue range |
+|---|---|
+| red | 345° to 10° |
+| yellow (includes tan) | 10° to 70° |
+| green | 70° to 160° |
+| teal | 160° to 192° |
+| blue | 192° to 225° |
+| blue-violet | 225° to 300° |
+| pink | 300° to 345° |
+
+Rule 3 still excludes saturated hues 10–35°, so in practice yellow starts at 36° for brand colours.
+
+### Face styles (for the lockup in rule 4)
+
+- **serif**: Playfair Display, Abril Fatface, Cinzel, Yeseva One
+- **slab**: Alfa Slab One, Zilla Slab, Ultra, Special Elite
+- **round**: Fredoka, Baloo 2, Sniglet, Boogaloo, Chewy
+- **condensed**: Bebas Neue, Barlow Condensed, Anton, Oswald, Teko
+- **script**: Pacifico
+- **display**: Lilita One, Bungee, Titan One, Luckiest Guy, Righteous, Orbitron, Audiowide, Creepster
+
+A new face goes into one of these styles when it is added to the approved set.
 
 ## Approved typefaces (all bundled in `scripts/channelmarks/fonts/`, OFL or Apache, licence text in `fonts/licenses/`; used by the generator only, never shipped in the app)
 
