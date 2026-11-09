@@ -103,10 +103,10 @@ internal object InSelection : CoroutineContext.Element, CoroutineContext.Key<InS
  * - **The holds.** A library leaving the cache is held while a programme of it is pinned on air (the repairer's
  *   `heldPins`), never for less than the hold its row already has.
  *
- * Its callers see it through narrow ports: features through [LibraryChoices] and [LibrarySetup], the add pass through
- * [AddLandings], the first sync through [FirstSyncLibraries], stay current through [ServerListings] and [HoldExpiry],
- * and the app start
- * through [SelectionResume]. Its writes reach the settings through [SelectionWriter] ([store]) alone. [resumed] is the
+ * Its callers see it through narrow ports: the guide and live through [LibrarySelectionView], the Libraries screen
+ * through [LibraryChoices], setup through [LibrarySetup], the add pass through [AddLandings], the first sync through
+ * [FirstSyncLibraries], stay current through [ServerListings] and [HoldExpiry], and the app start through
+ * [SelectionResume]. Its writes reach the settings through [SelectionWriter] ([store]) alone. [resumed] is the
  * gate the app binds as [SelectionReady]: the resume opens it, and the selection waits on it; the selection is not a
  * [SelectionReady] itself, so nothing that waits can open it.
  *

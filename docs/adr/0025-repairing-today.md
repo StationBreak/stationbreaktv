@@ -257,7 +257,7 @@ wrong successor would put a different programme in the slot, so the rules lean t
 ### A5. One writer of the selection
 
 `LibrarySelection` (`core:domain`, `selection` package) is the only writer of the stored selection. Features reach it
-through `LibraryChoices`, setup through `LibrarySetup`, and the workers through narrow ports (`AddLandings`,
+through `LibraryChoices` (the guide and live through the read-only `LibrarySelectionView`), setup through `LibrarySetup`, and the workers through narrow ports (`AddLandings`,
 `FirstSyncLibraries`, `ServerListings`, `HoldExpiry`, `SelectionResume`).
 
 - **The lock and the order of stores.** One lock in this order, and no path takes two out of order: the selection's lock,
