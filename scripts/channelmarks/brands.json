@@ -1,45 +1,169 @@
 {
+  "little-farm": {
+    "note": "Sniglet · sunshine + meadow, small over big",
+    "lines": [
+      {"rel": 0.3, "segs": [{"text": "LITTLE", "font": "sniglet-800", "color": "#9BE564", "tracking": 0.3}]},
+      {"rel": 1.0, "segs": [{"text": "farm", "font": "sniglet-800", "color": "#FFE066"}]}
+    ], "gap": 0.05
+  },
   "sing-along-station": {
     "note": "Fredoka · sunshine + bubblegum",
     "lines": [
       {"rel": 1.0, "segs": [{"text": "sing", "font": "fredoka-700", "color": "#FFD166", "tracking": -0.02}, {"text": "along", "font": "fredoka-700", "color": "#FF7AB6", "tracking": -0.02}]},
-      {"rel": 0.30, "segs": [{"text": "STATION", "font": "fredoka-700", "color": "#FFFFFF", "tracking": 0.28}]}
+      {"rel": 0.3, "segs": [{"text": "STATION", "font": "fredoka-700", "color": "#FFFFFF", "tracking": 0.28}]}
     ], "gap": 0.06
+  },
+  "once-upon": {
+    "note": "Pacifico · lavender + gold, two script lines",
+    "lines": [
+      {"rel": 0.8, "segs": [{"text": "Once", "font": "pacifico-400", "color": "#D4B5FF"}]},
+      {"rel": 0.8, "segs": [{"text": "Upon", "font": "pacifico-400", "color": "#FFD166"}]}
+    ], "gap": -0.06
   },
   "saturday-morning": {
     "note": "Lilita One · sky + sun",
-    "device": "circle_left", "device_color": "#FFC43D",
+    "device": "circle_left", "device_color": "#FFC43D", "device_size": 0.22,
     "lines": [
-      {"rel": 0.42, "align": "l", "segs": [{"text": "SATURDAY", "font": "lilita-one-400", "color": "#FFFFFF", "tracking": 0.10}]},
+      {"rel": 0.42, "align": "l", "segs": [{"text": "SATURDAY", "font": "lilita-one-400", "color": "#FFFFFF", "tracking": 0.1}]},
       {"rel": 1.0, "align": "l", "segs": [{"text": "MORNING", "font": "lilita-one-400", "color": "#6CC9FF"}]}
     ], "gap": 0.05
+  },
+  "backyard-fort": {
+    "note": "Luckiest Guy · lawn green, small over big",
+    "lines": [
+      {"rel": 0.3, "segs": [{"text": "BACKYARD", "font": "luckiest-guy-400", "color": "#FFFFFF", "tracking": 0.22}]},
+      {"rel": 1.0, "segs": [{"text": "FORT", "font": "luckiest-guy-400", "color": "#6EE07F", "tracking": 0.03}]}
+    ], "gap": 0.06
+  },
+  "critter-channel": {
+    "note": "Boogaloo · bubblegum pink, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "critter", "font": "boogaloo-400", "color": "#FF8FB1", "tracking": 0.01}]},
+      {"rel": 0.34, "segs": [{"text": "CHANNEL", "font": "boogaloo-400", "color": "#FFFFFF", "tracking": 0.24}]}
+    ], "gap": 0.05
+  },
+  "robot-factory": {
+    "note": "Titan One · cyan + white, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "ROBOT", "font": "titan-one-400", "color": "#5CE1FF"}]},
+      {"rel": 1.0, "segs": [{"text": "FACTORY", "font": "titan-one-400", "color": "#FFFFFF"}]}
+    ], "gap": 0.05
+  },
+  "hey-science": {
+    "note": "Fredoka · lab lime, small over big left",
+    "lines": [
+      {"rel": 0.42, "align": "l", "segs": [{"text": "Hey,", "font": "fredoka-700", "color": "#FFFFFF"}]},
+      {"rel": 1.0, "align": "l", "segs": [{"text": "Science!", "font": "fredoka-700", "color": "#A8F04D"}]}
+    ], "gap": 0.0
+  },
+  "rainy-day-matinee": {
+    "note": "Chewy · rain teal, small over big",
+    "lines": [
+      {"rel": 0.3, "segs": [{"text": "RAINY DAY", "font": "chewy-400", "color": "#FFFFFF", "tracking": 0.26}]},
+      {"rel": 1.0, "segs": [{"text": "matinee", "font": "chewy-400", "color": "#66D9D2"}]}
+    ], "gap": 0.05
+  },
+  "little-spirits": {
+    "note": "Sniglet · sakura pink, title case, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "Little", "font": "sniglet-800", "color": "#FFFFFF"}]},
+      {"rel": 1.0, "segs": [{"text": "Spirits", "font": "sniglet-800", "color": "#FFA7D0"}]}
+    ], "gap": -0.02
+  },
+  "lights-out": {
+    "note": "Baloo 2 · blue-violet, nightlight dot",
+    "device": "dot_after", "device_color": "#FFF3B0",
+    "lines": [
+      {"rel": 0.3, "align": "l", "segs": [{"text": "LIGHTS", "font": "baloo-2-800", "color": "#FFFFFF", "tracking": 0.28}]},
+      {"rel": 1.0, "align": "r", "segs": [{"text": "out", "font": "baloo-2-800", "color": "#A5B4FC"}]}
+    ], "gap": 0.04
+  },
+  "pocket-heroes": {
+    "note": "Luckiest Guy · hero yellow + red, slanted",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "POCKET", "font": "luckiest-guy-400", "color": "#FFD93D", "skew": -8}]},
+      {"rel": 1.0, "segs": [{"text": "HEROES", "font": "luckiest-guy-400", "color": "#FF5A6A", "skew": -8}]}
+    ], "gap": -0.02
+  },
+  "flipbook": {
+    "note": "Chewy · golden-oldie gold + white, one line",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "flip", "font": "chewy-400", "color": "#FFDB70"}, {"text": "book", "font": "chewy-400", "color": "#FFFFFF"}]}
+    ]
   },
   "snowglobe": {
     "note": "Baloo 2 · ice blue, dome arc",
     "device": "arc_above", "device_color": "#FFFFFF",
-    "lines": [{"rel": 1.0, "segs": [{"text": "snowglobe", "font": "baloo-2-800", "color": "#A9E4FF", "tracking": -0.01}]}]
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "snowglobe", "font": "baloo-2-800", "color": "#A9E4FF", "tracking": -0.01}]}
+    ]
+  },
+  "giggle-garage": {
+    "note": "Lilita One · magenta + white, two equal lines",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "GIGGLE", "font": "lilita-one-400", "color": "#FF7AD9"}]},
+      {"rel": 1.0, "segs": [{"text": "GARAGE", "font": "lilita-one-400", "color": "#FFFFFF"}]}
+    ], "gap": -0.02
+  },
+  "wheels-and-whistles": {
+    "note": "Titan One · digger yellow, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "WHEELS", "font": "titan-one-400", "color": "#FFE033"}]},
+      {"rel": 0.38, "segs": [{"text": "& WHISTLES", "font": "titan-one-400", "color": "#FFFFFF", "tracking": 0.14}]}
+    ], "gap": 0.05
+  },
+  "small-sleuths": {
+    "note": "Boogaloo · periwinkle, small over big left",
+    "lines": [
+      {"rel": 0.42, "align": "l", "segs": [{"text": "small", "font": "boogaloo-400", "color": "#FFFFFF"}]},
+      {"rel": 1.0, "align": "l", "segs": [{"text": "sleuths", "font": "boogaloo-400", "color": "#8FA2FF"}]}
+    ], "gap": 0.0
+  },
+  "tall-tales-club": {
+    "note": "Bungee · coral + white, club tag",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "TALL", "font": "bungee-400", "color": "#FF7A7A", "gap": 0.12}, {"text": "TALES", "font": "bungee-400", "color": "#FFFFFF"}]},
+      {"rel": 0.4, "segs": [{"text": "CLUB", "font": "bungee-400", "color": "#FF7A7A", "tracking": 0.3}]}
+    ], "gap": 0.06
+  },
+  "spooky-sleepover": {
+    "note": "Chewy · glow violet, big over small",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "spooky", "font": "chewy-400", "color": "#B89CFF"}]},
+      {"rel": 0.34, "segs": [{"text": "SLEEPOVER", "font": "chewy-400", "color": "#FFFFFF", "tracking": 0.2}]}
+    ], "gap": 0.05
+  },
+  "tiny-chefs": {
+    "note": "Sniglet · tomato + apron white, one line",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "tiny", "font": "sniglet-800", "color": "#FF6B5E", "gap": 0.14}, {"text": "CHEFS", "font": "sniglet-800", "color": "#FFFFFF"}]}
+    ]
   },
   "punchline": {
     "note": "Bungee · two-tone word",
-    "lines": [{"rel": 1.0, "segs": [{"text": "PUNCH", "font": "bungee-400", "color": "#FFE14D"}, {"text": "LINE", "font": "bungee-400", "color": "#FFFFFF"}]}]
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "PUNCH", "font": "bungee-400", "color": "#FFE14D"}, {"text": "LINE", "font": "bungee-400", "color": "#FFFFFF"}]}
+    ]
   },
   "dial-up": {
     "note": "Righteous · modem teal",
     "device": "rule_below_dashed", "device_color": "#FFFFFF",
-    "lines": [{"rel": 1.0, "segs": [{"text": "DIAL-UP", "font": "righteous-400", "color": "#3DDC97", "tracking": 0.02}]}]
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "DIAL-UP", "font": "righteous-400", "color": "#3DDC97", "tracking": 0.02}]}
+    ]
   },
   "always-december": {
     "note": "Pacifico + Bebas · evergreen",
     "lines": [
       {"rel": 0.78, "segs": [{"text": "Always", "font": "pacifico-400", "color": "#5ED19B"}]},
-      {"rel": 0.72, "segs": [{"text": "DECEMBER", "font": "bebas-neue-400", "color": "#FFFFFF", "tracking": 0.10}]}
+      {"rel": 0.72, "segs": [{"text": "DECEMBER", "font": "bebas-neue-400", "color": "#FFFFFF", "tracking": 0.1}]}
     ], "gap": 0.02
   },
   "order-in-the-court": {
     "note": "Alfa Slab One · brass, ruled",
     "device": "rules", "device_color": "#FFFFFF",
     "lines": [
-      {"rel": 0.30, "segs": [{"text": "ORDER IN THE", "font": "alfa-slab-one-400", "color": "#FFFFFF", "tracking": 0.22}]},
+      {"rel": 0.3, "segs": [{"text": "ORDER IN THE", "font": "alfa-slab-one-400", "color": "#FFFFFF", "tracking": 0.22}]},
       {"rel": 1.0, "segs": [{"text": "COURT", "font": "alfa-slab-one-400", "color": "#E2B45A", "tracking": 0.03}]}
     ], "gap": 0.08
   },
@@ -70,14 +194,14 @@
     "device": "dot_after", "device_color": "#E0357A",
     "lines": [
       {"rel": 1.0, "segs": [{"text": "Masala", "font": "abril-fatface-400", "color": "#F4A300"}]},
-      {"rel": 0.30, "segs": [{"text": "HOUR", "font": "alfa-slab-one-400", "color": "#FFFFFF", "tracking": 0.34}]}
+      {"rel": 0.3, "segs": [{"text": "HOUR", "font": "alfa-slab-one-400", "color": "#FFFFFF", "tracking": 0.34}]}
     ], "gap": 0.04
   },
   "graveyard-shift": {
     "note": "Barlow Cond · moss, barred",
     "device": "bars", "device_color": "#8DB580",
     "lines": [
-      {"rel": 0.34, "segs": [{"text": "GRAVEYARD", "font": "BarlowCondensed-600", "color": "#FFFFFF", "tracking": 0.20}]},
+      {"rel": 0.34, "segs": [{"text": "GRAVEYARD", "font": "BarlowCondensed-600", "color": "#FFFFFF", "tracking": 0.2}]},
       {"rel": 1.0, "segs": [{"text": "SHIFT", "font": "BarlowCondensed-800", "color": "#8DB580", "tracking": 0.04}]}
     ], "gap": 0.06
   }
