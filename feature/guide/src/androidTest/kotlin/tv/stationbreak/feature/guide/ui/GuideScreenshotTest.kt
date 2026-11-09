@@ -173,6 +173,27 @@ class GuideScreenshotTest {
         }
     }
 
+    /** The Settings panel with its Screen fit row, dark then light: its last row must end above the menu row. */
+    @Test
+    fun theSettingsPanel() {
+        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
+            theme.value = shown
+            showReady(CH7)
+            back()
+            channels().assertIsSelected()
+            press(Key.DirectionRight)
+            press(Key.DirectionCenter)
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
+            }
+            val last = compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).fetchSemanticsNode().boundsInRoot
+            val menu = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).fetchSemanticsNode().boundsInRoot
+            assertTrue("Sync now (${last.bottom}) runs into the menu row (${menu.top})", last.bottom <= menu.top)
+            compose.onNodeWithTag(GuideTags.FIT_SAFE).assertIsSelected()
+            shoot("$SETTINGS_FRAME$suffix.png")
+        }
+    }
+
     // The panel's title starts at the fit's safe left edge, not at the screen's.
     private fun assertTextInsideSafeArea(chosen: ScreenFit) {
         val screen = compose.onNodeWithTag(GuideTags.SCREEN).fetchSemanticsNode().boundsInRoot
@@ -514,6 +535,7 @@ class GuideScreenshotTest {
         const val PNG_QUALITY = 100
         const val FRAME_WAIT_MS = 500L
         const val FIT_FRAME = "guide-fit"
+        const val SETTINGS_FRAME = "guide-settings"
         const val TITLE_SLACK_PX = 2f
         const val EDGE_PROBE_PX = 3
         const val BELOW_GRID_PX = 12f
