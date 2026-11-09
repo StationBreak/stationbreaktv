@@ -17,7 +17,10 @@ import tv.stationbreak.feature.live.LiveState
 import kotlin.math.hypot
 import kotlin.math.min
 
-/** The ident card's reason (spec 26, #633): at most two lines, and the whole box inside the centre disc. */
+/**
+ * The ident card's reason (spec 26, #633), and the no-libraries card's line: at most two lines, and the whole box
+ * inside the centre disc.
+ */
 @RunWith(AndroidJUnit4::class)
 class IdentNoteTest {
     @get:Rule
@@ -28,10 +31,23 @@ class IdentNoteTest {
         compose.setContent { StationBreakTheme { LiveScreen(LiveState.Ident(null, null, CardNote.NotInLibrary)) {} } }
         compose.waitForIdle()
 
-        val note = compose.onNodeWithTag(LiveTags.IDENT_NOTE)
+        assertTwoLinesAtMostInsideTheDisc(LiveTags.IDENT_NOTE)
+    }
+
+    // The no-libraries card's line (spec 26) is set as the reason is, under the same rule.
+    @Test
+    fun theNoLibrariesLineIsTwoLinesAtMostAndInsideTheDisc() {
+        compose.setContent { StationBreakTheme { LiveScreen(LiveState.NoLibraries) {} } }
+        compose.waitForIdle()
+
+        assertTwoLinesAtMostInsideTheDisc(LiveTags.NO_LIBRARIES)
+    }
+
+    private fun assertTwoLinesAtMostInsideTheDisc(tag: String) {
+        val note = compose.onNodeWithTag(tag)
         val results = mutableListOf<TextLayoutResult>()
         val action = note.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action
-        assertTrue("the note has a text layout", action != null && action(results))
+        assertTrue("the line has a text layout", action != null && action(results))
         assertTrue("at most two lines, was ${results.first().lineCount}", results.first().lineCount <= 2)
         assertTrue("nothing is cut off", !results.first().hasVisualOverflow)
 

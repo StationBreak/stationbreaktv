@@ -126,13 +126,16 @@ internal fun NoChannelsSlate() {
     }
 }
 
-/** None of this TV's libraries is available (spec 26): the ident card with one line saying where to choose them. */
+/**
+ * None of this TV's libraries is available (spec 26): the ident card, with where to choose them set as the card's
+ * reason is, two lines at most inside the centre disc.
+ */
 @Composable
 internal fun NoLibrariesSlate() {
     Box(Modifier.fillMaxSize()) {
         TestCard(tvY = IDENT_TV_Y) { card ->
             Wordmark(card, LiveTags.IDENT)
-            CardLine(card, stringResource(R.string.live_no_libraries), LiveTags.NO_LIBRARIES)
+            NoteLine(card, stringResource(R.string.live_no_libraries), LiveTags.NO_LIBRARIES)
         }
     }
 }
@@ -146,6 +149,7 @@ internal fun NoLibrariesSlate() {
 private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
     card: CardScale,
     text: String,
+    tag: String = LiveTags.IDENT_NOTE,
 ) {
     Text(
         text = text,
@@ -154,7 +158,7 @@ private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
                 .align(Alignment.TopCenter)
                 .offset(y = card.dp(NOTE_TOP))
                 .width(card.dp(NOTE_WIDTH))
-                .testTag(LiveTags.IDENT_NOTE),
+                .testTag(tag),
         style = mono(card.sp(NOTE_SIZE)).copy(letterSpacing = card.sp(NOTE_SIZE) * NOTE_SPACING_EM),
         color = BroadcastColors.Ink,
         textAlign = TextAlign.Center,
