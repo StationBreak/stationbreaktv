@@ -61,6 +61,9 @@ internal class WatchedLibrary(
     /** Every [applySelection] asked for, whether it wrote or failed. */
     @Volatile var applyCalls = 0
 
+    /** Runs inside each [applySelection], before it writes: a slow cache write. */
+    @Volatile var beforeApply: suspend () -> Unit = {}
+
     /** Runs inside each [revertUnproven], before it writes: the add pass racing the selection. */
     @Volatile var beforeRevert: suspend (ItemId, Long) -> Unit = { _, _ -> }
 
@@ -78,6 +81,7 @@ internal class WatchedLibrary(
         nowMs: Long,
     ) {
         applyCalls++
+        beforeApply()
         if (failApplies > 0) {
             failApplies--
             error("the cache write failed")
@@ -208,6 +212,9 @@ internal open class SelectionTestBase : RepairTestBase() {
         /** How long each resume at start took, as the selection reports it. */
         val resumeTimes: MutableList<Long> = Collections.synchronizedList(mutableListOf())
 
+        /** How long each change took, by step, as the selection reports it. */
+        val changeTimes: MutableList<ChangeTiming> = Collections.synchronizedList(mutableListOf())
+
         /** The gate this TV's selection opens at its resume, as the app binds it for `SelectionReady`. */
         val gate = ResumeGate()
         private val clock =
@@ -233,6 +240,7 @@ internal open class SelectionTestBase : RepairTestBase() {
                 config,
                 clock,
                 { resumeTimes += it },
+                { changeTimes += it },
             ) { events += it }
 
         init {

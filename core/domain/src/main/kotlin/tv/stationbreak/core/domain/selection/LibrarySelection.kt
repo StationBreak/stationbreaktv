@@ -119,6 +119,7 @@ class LibrarySelection(
     config: SelectionConfig = SelectionConfig(),
     clock: Clock = Clock.System,
     private val resumeTook: (Long) -> Unit = {},
+    private val changeTook: (ChangeTiming) -> Unit = {},
     private val report: (SelectionEvent) -> Unit = {},
 ) : LibraryChoices,
     LibrarySetup,
@@ -188,18 +189,27 @@ class LibrarySelection(
         }
     }
 
-    override suspend fun change(ticked: Set<ItemId>): ChangeResult =
-        locked {
-            val account = activeAccountOrReport() ?: return@locked ChangeResult.Failed
-            // Stale (the lineup or its repairs moved while the repair ran): once more, from a fresh read.
-            changeOnce(account, ticked) ?: changeOnce(account, ticked) ?: ChangeResult.Failed
+    // Its time, by step, is reported however it ends ([changeTook]).
+    override suspend fun change(ticked: Set<ItemId>): ChangeResult {
+        val steps = ChangeSteps()
+        try {
+            return locked {
+                steps.locked()
+                val account = activeAccountOrReport() ?: return@locked ChangeResult.Failed
+                // Stale (the lineup or its repairs moved while the repair ran): once more, from a fresh read.
+                changeOnce(account, ticked, steps) ?: changeOnce(account, ticked, steps) ?: ChangeResult.Failed
+            }
+        } finally {
+            changeTook(steps.timing())
         }
+    }
 
     // One attempt at a change; null when it was stale.
     @Suppress("ReturnCount") // Each early return is a reason nothing is stored.
     private suspend fun changeOnce(
         account: LibraryAccount,
         ticked: Set<ItemId>,
+        steps: ChangeSteps,
     ): ChangeResult? {
         val stored = store.loadSelection() ?: return ChangeResult.Failed
         // Another account's choice (a sign-in whose clear failed) is not this account's to change.
@@ -216,12 +226,15 @@ class LibrarySelection(
         // Today's repair only when a chosen library goes; an add or a dropped add changes no programme on air.
         val repaired = chosen.takeIf { it != stored.chosen }
         val saved =
-            when (val outcome = allocation.allocate(account, stored, repaired, next)) {
+            when (
+                val outcome =
+                    steps.allocating { allocation.allocate(account, stored, repaired, next, steps) }
+            ) {
                 Allocated.Stale -> return null
                 is Allocated.Failed -> return ChangeResult.Failed
                 is Allocated.Saved -> next(outcome.seq)
             }
-        reconciler.afterSave(account, stored, saved)
+        steps.caching { reconciler.afterSave(account, stored, saved) }
         return ChangeResult.Saved
     }
 
