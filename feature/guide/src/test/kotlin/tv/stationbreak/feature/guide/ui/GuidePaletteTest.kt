@@ -167,6 +167,15 @@ class GuidePaletteTest {
     }
 
     /** WCAG ratio of [a] over [page] against [b] over [page], so a colour with an alpha is judged as it is seen. */
+    @Test
+    fun onlyLightTintsTheChannelMarks() {
+        assertEquals(null, GuideColors.Dark.markTint)
+        val ink = GuideColors.Light.markTint
+        assertTrue("Light tints the mono marks", ink != null)
+        assertEquals("the tint is opaque ink", 1f, ink!!.alpha, 0f)
+        assertTrue("the ink is dark", ink.luminance() < 0.05f)
+    }
+
     private fun assertContrast(
         minimum: Double,
         a: Color,

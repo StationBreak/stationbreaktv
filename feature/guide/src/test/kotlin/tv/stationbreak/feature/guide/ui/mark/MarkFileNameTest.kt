@@ -39,4 +39,20 @@ class MarkFileNameTest {
         assertNull(markKeyOf("sl_004_x_32dp.png.bak"))
         assertNull(markKeyOf("sl_004_x_32dp.png\nextra"))
     }
+
+    @Test
+    fun aMonoNameHasTheSameKeyAndBucketAsItsColourOne() {
+        assertEquals("little-farm", markKeyOf("sl_004_little-farm_mono_48dp.png"))
+        assertEquals(48, markBucketOf("sl_004_little-farm_mono_48dp.png"))
+        assertEquals(MarkVariant.Mono, markVariantOf("sl_004_little-farm_mono_64dp.png"))
+        assertEquals(MarkVariant.Colour, markVariantOf("sl_004_little-farm_64dp.png"))
+    }
+
+    @Test
+    fun anyOtherSuffixIsNotAVariant() {
+        assertNull(markVariantOf("sl_004_little-farm_color_48dp.png"))
+        assertNull(markVariantOf("sl_004_little-farm_mono_40dp.png"))
+        assertNull(markVariantOf("sl_004_little-farm_mono_mono_48dp.png"))
+        assertNull(markKeyOf("sl_004_little-farm_mono__48dp.png"))
+    }
 }

@@ -56,6 +56,7 @@ import tv.stationbreak.feature.guide.markBandOf
 import tv.stationbreak.feature.guide.ui.mark.ChannelMark
 import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
 import tv.stationbreak.feature.guide.ui.mark.LocalMarkTextMeasurer
+import tv.stationbreak.feature.guide.ui.mark.variantForTint
 import java.time.Instant
 import java.time.ZoneId
 
@@ -91,10 +92,11 @@ internal fun GuideGrid(
     // Ask for the logos of the rows in view and two more each side; request only schedules work on the cache's own
     // dispatcher, so nothing is read or decoded here.
     val marks = LocalMarkCache.current
-    LaunchedEffect(model, firstVisibleRow, marks) {
+    val markVariant = variantForTint(LocalGuideColors.current.markTint)
+    LaunchedEffect(model, firstVisibleRow, marks, markVariant) {
         val from = maxOf(0, firstVisibleRow - MARK_LOOKAHEAD)
         val to = minOf(model.rows.size, last + MARK_LOOKAHEAD)
-        marks?.request((from until to).mapNotNull { model.rows[it].markKey })
+        marks?.request((from until to).mapNotNull { model.rows[it].markKey }, markVariant)
     }
     val ellipsis = rememberEllipsisMarks()
     val markText = rememberTextMeasurer()

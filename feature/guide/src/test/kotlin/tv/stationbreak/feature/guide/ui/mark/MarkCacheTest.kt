@@ -51,6 +51,7 @@ private open class FakeLoader(
     private val known: Set<String>,
 ) : MarkLoader {
     val loadCalls = ConcurrentHashMap<String, Int>()
+    val monoCalls = ConcurrentHashMap<String, Int>()
     val threads = ConcurrentHashMap<String, Thread>()
     var keysThread: Thread? = null
     var result: (String) -> ImageBitmap? = { FakeBitmap() }
@@ -63,6 +64,11 @@ private open class FakeLoader(
     override fun load(key: String): ImageBitmap? {
         loadCalls.merge(key, 1, Int::plus)
         threads[key] = Thread.currentThread()
+        return result(key)
+    }
+
+    override fun loadMono(key: String): ImageBitmap? {
+        monoCalls.merge(key, 1, Int::plus)
         return result(key)
     }
 }
@@ -239,4 +245,46 @@ class MarkCacheTest {
             executor.shutdownNow()
         }
     }
+
+    @Test
+    fun aMonoRequestLoadsTheMonoRenderAndLeavesTheColourOneAlone() =
+        runTest {
+            val loader = FakeLoader(setOf("a"))
+            val cache = cacheOf(loader)
+            cache.request(listOf("a"), MarkVariant.Mono)
+            advanceUntilIdle()
+            assertNotNull(cache.peek("a", MarkVariant.Mono))
+            assertNull(cache.peek("a"))
+            assertNull(cache.peek("a", MarkVariant.Colour))
+            assertEquals(1, loader.monoCalls["a"])
+            assertNull(loader.loadCalls["a"])
+        }
+
+    @Test
+    fun colourAndMonoAreClaimedAndLoadedSeparately() =
+        runTest {
+            val loader = FakeLoader(setOf("a"))
+            val cache = cacheOf(loader)
+            cache.request(listOf("a"))
+            cache.request(listOf("a"), MarkVariant.Mono)
+            advanceUntilIdle()
+            cache.request(listOf("a"))
+            cache.request(listOf("a"), MarkVariant.Mono)
+            advanceUntilIdle()
+            assertEquals(1, loader.loadCalls["a"])
+            assertEquals(1, loader.monoCalls["a"])
+            assertNotSame(cache.peek("a"), cache.peek("a", MarkVariant.Mono))
+            assertEquals(2, cache.arrivals.value)
+        }
+
+    @Test
+    fun aKeyTheLoaderDoesNotKnowIsNotRequestedInEitherVariant() =
+        runTest {
+            val loader = FakeLoader(setOf("a"))
+            val cache = cacheOf(loader)
+            cache.request(listOf("zzz"), MarkVariant.Mono)
+            advanceUntilIdle()
+            assertNull(cache.peek("zzz", MarkVariant.Mono))
+            assertTrue(loader.monoCalls.isEmpty())
+        }
 }

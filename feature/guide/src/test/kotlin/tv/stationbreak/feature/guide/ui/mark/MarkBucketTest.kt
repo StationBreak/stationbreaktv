@@ -36,4 +36,15 @@ class MarkBucketTest {
     fun noBucketsMeansNoLogo() {
         assertNull(pickMarkBucket(emptySet(), MARK_BOX_DP, 2f))
     }
+
+    @Test
+    fun theGeneratedFortyEightAndSixtyFourDpSetsFollowTheDensity() {
+        // The generator makes 96 px and 128 px wide renders; the 50 dp box needs 50 px per density unit across.
+        val generated = setOf(48, 64)
+        assertEquals(48, pickMarkBucket(generated, MARK_BOX_DP, 1f))
+        assertEquals(48, pickMarkBucket(generated, MARK_BOX_DP, 1.5f))
+        assertEquals(48, pickMarkBucket(generated, MARK_BOX_DP, 1.9f))
+        assertEquals(64, pickMarkBucket(generated, MARK_BOX_DP, 2f))
+        assertEquals(64, pickMarkBucket(generated, MARK_BOX_DP, 3f))
+    }
 }

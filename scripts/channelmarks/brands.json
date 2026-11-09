@@ -139,6 +139,14 @@
       {"rel": 1.0, "segs": [{"text": "tiny", "font": "sniglet-800", "color": "#FF6B5E", "gap": 0.14}, {"text": "CHEFS", "font": "sniglet-800", "color": "#FFFFFF"}]}
     ]
   },
+  "kids-odds-and-ends": {
+    "note": "Fredoka · teal, big over small",
+    "band": "Kids", "number": 99, "name": "Kids' Odds & Ends",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "odds", "font": "fredoka-700", "color": "#6FE3D4"}]},
+      {"rel": 0.4, "segs": [{"text": "& ENDS", "font": "fredoka-700", "color": "#FFFFFF", "tracking": 0.22}]}
+    ], "gap": 0.05
+  },
   "laugh-track": {
     "note": "Lilita One · mint teal, big over small",
     "lines": [
@@ -290,6 +298,14 @@
     "lines": [
       {"rel": 1.0, "segs": [{"text": "Curtain", "font": "abril-fatface-400", "color": "#F2C94C"}]},
       {"rel": 1.0, "segs": [{"text": "Call", "font": "abril-fatface-400", "color": "#FFFFFF"}]}
+    ], "gap": 0.02
+  },
+  "odds-and-ends": {
+    "note": "Anton · one blue, two equal lines",
+    "band": "General", "number": 199, "name": "Odds & Ends",
+    "lines": [
+      {"rel": 1.0, "segs": [{"text": "ODDS", "font": "anton-400", "color": "#6FB0FF"}]},
+      {"rel": 1.0, "segs": [{"text": "& ENDS", "font": "anton-400", "color": "#FFFFFF"}]}
     ], "gap": 0.02
   },
   "prestige": {

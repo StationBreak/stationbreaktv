@@ -39,6 +39,11 @@ internal class GuideColors(
     val line: Color,
     /** The 1 dp outline of a hint key cap: 28% white, or ink. */
     val keyCapStroke: Color,
+    /**
+     * The ink the channel marks are tinted with: their mono render drawn in this colour (Light), or null to draw the
+     * colour render as it is (Dark). See `channelmarks` in `feature/guide/CHANNELMARKS.md`.
+     */
+    val markTint: Color? = null,
 ) {
     companion object {
         val Dark =
@@ -82,6 +87,7 @@ internal class GuideColors(
                 progressTrack = INK.copy(alpha = TRACK_ALPHA),
                 line = INK.copy(alpha = LINE_ALPHA),
                 keyCapStroke = INK.copy(alpha = KEY_STROKE_ALPHA),
+                markTint = INK,
             )
     }
 }

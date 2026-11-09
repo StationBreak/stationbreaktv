@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -40,10 +41,11 @@ private val MarkBoxWidth: Dp = 50.dp
 private val MarkBoxHeight: Dp = 28.dp
 
 /**
- * One channel mark in a 50 by 28 dp box: the channel's logo if it is in the [LocalMarkCache], drawn as it is (no tint,
- * tile, border or shadow) and scaled to fit the box, centred; else the channel's initials, bold and centred in the
- * same box, with no tile. The cache is read while drawing, so a logo that arrives redraws only this mark and
- * recomposes nothing. Decorative: the channel name is read from the panel.
+ * One channel mark in a 50 by 28 dp box: the channel's logo if it is in the [LocalMarkCache], drawn as it is in Dark
+ * and as its mono render tinted with ink in Light (no tile, border or shadow) and scaled to fit the box, centred;
+ * else the channel's initials, bold and centred in the same box, with no tile. The cache is read while drawing, so a
+ * logo that arrives redraws only this mark and recomposes nothing. Decorative: the channel name is read from the
+ * panel.
  */
 @Composable
 internal fun ChannelMark(
@@ -53,6 +55,9 @@ internal fun ChannelMark(
 ) {
     val cache = LocalMarkCache.current
     val arrivals = cache?.arrivals?.collectAsState()
+    val tint = LocalGuideColors.current.markTint
+    val variant = variantForTint(tint)
+    val tintFilter = remember(tint) { tint?.let { ColorFilter.tint(it) } }
     val color = LocalGuideColors.current.textPrimary
     val measurer = LocalMarkTextMeasurer.current ?: rememberTextMeasurer()
     val label =
@@ -64,12 +69,12 @@ internal fun ChannelMark(
             // Read by the semantics phase, not by composition: an arrival updates this and recomposes nothing. A custom
             // key, so no screen reader reads it.
             arrivals?.value
-            markKind = if (markVisual(markKey, cache) is MarkVisual.Logo) MarkKind.Logo else MarkKind.Initials
+            markKind = if (markVisual(markKey, cache, variant) is MarkVisual.Logo) MarkKind.Logo else MarkKind.Initials
         },
     ) {
         arrivals?.value // Reading the count here makes an arrival redraw this mark.
         // No MarkVisual is made per draw: the cache is asked directly.
-        val image = if (markKey == null) null else cache?.peek(markKey)
+        val image = if (markKey == null) null else cache?.peek(markKey, variant)
         if (image != null) {
             val scale = minOf(size.width / image.width, size.height / image.height)
             val w = (image.width * scale).roundToInt()
@@ -78,6 +83,7 @@ internal fun ChannelMark(
                 image,
                 dstOffset = IntOffset(((size.width - w) / 2).roundToInt(), ((size.height - h) / 2).roundToInt()),
                 dstSize = IntSize(w, h),
+                colorFilter = tintFilter,
                 filterQuality = FilterQuality.Low,
             )
         } else {

@@ -61,3 +61,15 @@ AI-assisted design partner under the owner's direction. They are not third-party
   not apply to it.
 - **Where things are.** Provenance (source commit, files taken, how to refresh) is in `feature/guide/CHANNELMARKS.md`;
   the file hashes are in `feature/guide/channelmarks.sha256`.
+
+## Update 2026-11-08: the marks are generated and replace the pack
+
+The 97 logos of the 2026-11-07 pack are replaced by 97 marks generated from `scripts/channelmarks/brands.json` by
+`scripts/channelmarks/brands.py` (the identity system is `docs/design/channel-identity.md`). They are project art under
+the same owner decision and licence as the pack was.
+
+- **Typefaces.** The text in a mark is drawn from SIL OFL 1.1 and Apache 2.0 typefaces and converted to outlines, so
+  no font software ships in the APK or in the repository's app modules. The fonts and their licence texts are only in
+  `scripts/channelmarks/fonts/`.
+- **Where things are.** The pipeline and how to refresh it are in `feature/guide/CHANNELMARKS.md`; the file hashes are in
+  `feature/guide/channelmarks.sha256`.

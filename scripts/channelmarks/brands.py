@@ -10,7 +10,8 @@ Output: SVG masters (text outlined), full-colour; plus a mono variant where
 every fill becomes white (for the grid when a theme asks for it).
 """
 from __future__ import annotations
-import json, math, re, sys, pathlib
+import json, math, re, struct, sys, pathlib
+from xml.sax.saxutils import escape
 from fontTools.ttLib import TTFont
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.boundsPen import BoundsPen
@@ -18,6 +19,10 @@ from fontTools.pens.transformPen import TransformPen
 
 HERE = pathlib.Path(__file__).parent
 W, H = 200, 112
+# App renders: a bucket is N dp at 2x, so N*2 px wide; the height keeps the 200:112 box. The app picks a bucket by screen
+# density (AssetMarkLoader). 96x54 serves up to 1.9x, 128x72 serves 2x and above.
+PNG_BUCKETS = (48, 64)
+PNG_KEEP = {b"IHDR", b"PLTE", b"tRNS", b"IDAT", b"IEND"}
 SAFE_W, SAFE_H = 176, 88
 STROKE = 8
 FONT_DIR = HERE / "fonts"
@@ -101,7 +106,7 @@ def device(kind, col, cx, cy, cw, ch, size=None):
         return [f'<rect x="{cx-pw/2:.1f}" y="{cy-ph/2:.1f}" width="{pw:.1f}" height="{ph:.1f}" rx="2" {S}/>']
     if kind in ("rule_below", "rule_below_dashed"):
         y = cy + ch / 2 + 12
-        dash = ' stroke-dasharray="14 9" stroke-linecap="butt"' if kind.endswith("dashed") else ""
+        dash = ' stroke-dasharray="14 9"' if kind.endswith("dashed") else ""
         return [f'<line x1="{cx-cw/2:.1f}" y1="{y:.1f}" x2="{cx+cw/2:.1f}" y2="{y:.1f}" {S}{dash}/>']
     if kind in ("rules", "bars"):
         y0, y1 = cy - ch / 2 - 12, cy + ch / 2 + 12
@@ -125,7 +130,7 @@ def svg(spec, mono=False):
     body = build(spec)
     if mono: body = re.sub(r'(fill|stroke)="#[0-9a-fA-F]{3,6}"', r'\1="#fff"', body)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">'
-            f'<title>{spec["name"]}</title>{body}</svg>')
+            f'<title>{escape(spec["name"])}</title>{body}</svg>')
 
 def parse_catalog(path):
     s = pathlib.Path(path).read_text(); out = {}
@@ -133,18 +138,50 @@ def parse_catalog(path):
         band, n, key, name = m.groups(); out[key] = {"band": band, "number": int(n), "key": key, "name": name}
     return out
 
-def main(catalog, brands, out):
+def png_size(bucket):
+    """Pixel size of a bucket: N dp at 2x wide, the 200:112 box tall."""
+    w = bucket * 2
+    return w, round(w * H / W)
+
+def strip_png(png):
+    """Keep only the chunks the app's manifest test allows (cairo adds a bKGD chunk)."""
+    out = [png[:8]]; i = 8
+    while i < len(png):
+        n, = struct.unpack(">I", png[i:i + 4]); kind = png[i + 4:i + 8]
+        if kind in PNG_KEEP: out.append(png[i:i + 12 + n])
+        i += 12 + n
+    return b"".join(out)
+
+def render_png(svg_text, bucket):
+    import cairosvg  # only needed for --png: pip install cairosvg
+    w, h = png_size(bucket)
+    return strip_png(cairosvg.svg2png(bytestring=svg_text.encode(), output_width=w, output_height=h))
+
+def write_pngs(png_dir, number, key, full, mono):
+    """sl_<NNN>_<key>_<N>dp.png (colour) and sl_<NNN>_<key>_mono_<N>dp.png (all fills white), N in PNG_BUCKETS."""
+    names = []
+    for bucket in PNG_BUCKETS:
+        for tag, svg_text in (("", full), ("_mono", mono)):
+            name = f"sl_{number:03d}_{key}{tag}_{bucket}dp.png"
+            (png_dir / name).write_bytes(render_png(svg_text, bucket)); names.append(name)
+    return names
+
+def main(catalog, brands, out, png_dir=None):
     cat = parse_catalog(catalog); specs = json.loads(pathlib.Path(brands).read_text())
     out = pathlib.Path(out); (out / "svg").mkdir(parents=True, exist_ok=True); (out / "svg-mono").mkdir(exist_ok=True)
-    rows = []
+    png_dir = pathlib.Path(png_dir) if png_dir else None
+    if png_dir: png_dir.mkdir(parents=True, exist_ok=True)
+    rows = []; pngs = 0
     for key, sp in specs.items():
-        c = cat[key]; sp = {**c, **sp}
+        # A channel that is not a recipe (the leftovers channels) carries its own band, number and name in brands.json.
+        c = cat.get(key) or {"band": sp["band"], "number": sp["number"], "key": key, "name": sp["name"]}; sp = {**c, **sp}
         full, mono = svg(sp), svg(sp, True)
         base = f"sl_{c['number']:03d}_{key}"
         (out / "svg" / f"{base}.svg").write_text(full); (out / "svg-mono" / f"{base}.svg").write_text(mono)
+        if png_dir: pngs += len(write_pngs(png_dir, c["number"], key, full, mono))
         rows.append((c, full, mono, sp))
     rows.sort(key=lambda r: r[0]["number"])
-    total = len(cat)
+    total = len(set(cat) | set(specs))
     cells = "".join(f'<div class="m"><div class="box">{f}</div><div class="cap"><b>{c["number"]}</b>{c["name"]}<i>{c["band"]} · {sp.get("note","")}</i></div></div>' for c, f, m, sp in rows)
     strip = "".join(f"<div>{f}</div>" for c, f, m, sp in rows)
     mstrip = "".join(f"<div>{m}</div>" for c, f, m, sp in rows)
@@ -161,6 +198,11 @@ def main(catalog, brands, out):
 <h2>At guide size (1:1 on 1080p)</h2><div class="strip">{strip}</div>
 <h2>Mono fallback (same masters, all fills white)</h2><div class="strip">{mstrip}</div>
 <h2>In the channel column</h2><div class="g">{col}</div>""")
-    print("wrote", len(rows))
+    print("wrote", len(rows), f"marks and {pngs} PNGs" if png_dir else "marks")
 
-if __name__ == "__main__": main(*sys.argv[1:4])
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    png = None
+    if "--png" in args:
+        i = args.index("--png"); png = args[i + 1]; del args[i:i + 2]
+    main(*args[:3], png_dir=png)
