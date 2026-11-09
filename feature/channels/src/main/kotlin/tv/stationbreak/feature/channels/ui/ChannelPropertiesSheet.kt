@@ -127,7 +127,9 @@ private fun KeyValue(
     value: String,
     tag: String? = null,
 ) {
-    Row(Modifier.fillMaxWidth().let { if (tag != null) it.testTag(tag) else it }.merged()) {
+    // Only a row with its own tag is a node of its own; the rest fold into their section's node (a merged node
+    // nested in a merged node is not folded into its parent).
+    Row(Modifier.fillMaxWidth().let { if (tag != null) it.testTag(tag).merged() else it }) {
         Text(label, Modifier.width(96.dp), style = body(), color = ChannelsPalette.secondary)
         Text(value, Modifier.weight(1f), style = body(), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
