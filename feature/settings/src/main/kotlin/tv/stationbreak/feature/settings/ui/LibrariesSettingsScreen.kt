@@ -59,6 +59,7 @@ import tv.stationbreak.feature.settings.LibrariesSettingsState
 import tv.stationbreak.feature.settings.LibraryRow
 import tv.stationbreak.feature.settings.Notice
 import tv.stationbreak.feature.settings.R
+import tv.stationbreak.feature.settings.RowStatus
 
 private val PanelGap = 16.dp
 private val TickSize = 24.dp
@@ -196,17 +197,24 @@ private fun LibraryLine(
     focused: Boolean,
 ) {
     val name = row.name ?: stringResource(R.string.settings_libraries_unnamed)
-    val adding = stringResource(R.string.settings_libraries_adding)
+    // A press not stored yet shows as saving or removing; a stored add still being read, as adding.
+    val status =
+        when (row.status) {
+            RowStatus.Saving -> stringResource(R.string.settings_libraries_saving) to SettingsTags.saving(row.id)
+            RowStatus.Removing -> stringResource(R.string.settings_libraries_removing) to SettingsTags.removing(row.id)
+            RowStatus.Adding -> stringResource(R.string.settings_libraries_adding) to SettingsTags.adding(row.id)
+            null -> null
+        }
     val tickState =
         stringResource(if (row.ticked) R.string.settings_libraries_ticked else R.string.settings_libraries_unticked)
-    val spoken = if (row.adding) "$name, $adding" else name
+    val spoken = status?.let { "$name, ${it.first}" } ?: name
     Row(
         Modifier
             .fillMaxWidth()
             .drawnFocus(focused)
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag(SettingsTags.row(row.id))
-            // One announcement for the whole row: its name, whether it is being added, and its tick.
+            // One announcement for the whole row: its name, its line (saving, removing, adding) and its tick.
             .clearAndSetSemantics {
                 contentDescription = spoken
                 role = Role.Checkbox
@@ -219,10 +227,10 @@ private fun LibraryLine(
         Tick(row.ticked)
         Column(Modifier.padding(start = 12.dp)) {
             Text(name, style = MaterialTheme.typography.bodyLarge)
-            if (row.adding) {
+            status?.let { (text, tag) ->
                 Text(
-                    adding,
-                    Modifier.testTag(SettingsTags.adding(row.id)),
+                    text,
+                    Modifier.testTag(tag),
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = SECONDARY_SP.sp),
                     color = Secondary,
                 )

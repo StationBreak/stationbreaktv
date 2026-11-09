@@ -10,6 +10,10 @@
     <string name="settings_libraries_title">Libraries</string>
     <!-- placeholder: design partner. Under a ticked library that is still being read. -->
     <string name="settings_libraries_adding">Adding…</string>
+    <!-- placeholder: design partner. Under a library just ticked, until the change is stored. -->
+    <string name="settings_libraries_saving">Saving…</string>
+    <!-- placeholder: design partner. Under a library just unticked, until the change is stored. -->
+    <string name="settings_libraries_removing">Removing…</string>
     <!-- placeholder: design partner. The change would leave no library chosen. -->
     <string name="settings_libraries_last_library">Keep at least one library.</string>
     <!-- placeholder: design partner. The server could not be asked; the rows are the stored choice, read-only. -->

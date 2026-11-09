@@ -85,19 +85,41 @@ class LibrariesSettingsViewModelTest {
             assertNull("no name: the listing gave none", vm.now.row(DELTA).name)
         }
 
+    // The rule is kept on the press: the last chosen library cannot be unticked, and nothing is sent.
     @Test
     fun lastLibrary_noticeAndStillTicked() =
         runTest {
             val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO))
-            choices.result = ChangeResult.LastLibrary
             val vm = open(choices)
 
             vm.select()
             runCurrent()
 
-            assertEquals(listOf(emptySet<ItemId>()), choices.changes)
+            assertTrue("refused on the press", choices.changes.isEmpty())
             assertEquals(Notice.LastLibrary, vm.now.notice)
             assertTrue(vm.now.row(ALPHA.id).ticked)
+            assertTrue(!vm.now.row(ALPHA.id).pending)
+        }
+
+    // An add does not count: with B only wanted, unticking the one chosen library is refused too.
+    @Test
+    fun lastLibrary_isKeptOnTheWantedTicks_whileAnAddIsSaving() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO))
+            choices.gate = CompletableDeferred()
+            val vm = open(choices)
+            vm.focusOn(BRAVO.id)
+            vm.select()
+            runCurrent()
+
+            vm.focusOn(ALPHA.id)
+            vm.select()
+            runCurrent()
+
+            assertEquals(Notice.LastLibrary, vm.now.notice)
+            assertTrue(vm.now.row(ALPHA.id).ticked)
+            assertTrue(vm.now.row(BRAVO.id).ticked)
+            assertEquals(listOf(setOf(ALPHA.id, BRAVO.id)), choices.changes)
         }
 
     @Test
@@ -135,8 +157,39 @@ class LibrariesSettingsViewModelTest {
             assertTrue(choices.changes.isEmpty())
         }
 
+    // The owner's report: a press flips its row at once, and shows it is saving until the change is stored.
     @Test
-    fun toggle_appliesOnce_perPress() =
+    fun select_flipsTheRowAtOnce_showsSaving_thenClears() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id, BRAVO.id)), listOf(ALPHA, BRAVO))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val vm = open(choices)
+            vm.focusOn(BRAVO.id)
+
+            vm.select()
+
+            val pressed = vm.now.row(BRAVO.id)
+            assertTrue("flipped on the press, before the change ran", !pressed.ticked)
+            assertTrue(pressed.pending)
+            assertEquals("an untick says it is removing", RowStatus.Removing, pressed.status)
+            assertTrue(!vm.now.row(ALPHA.id).pending)
+            runCurrent()
+            assertEquals(listOf(setOf(ALPHA.id)), choices.changes)
+            assertTrue("still saving while the change is out", vm.now.row(BRAVO.id).pending)
+            assertNull(vm.now.notice)
+
+            gate.complete(Unit)
+            runCurrent()
+
+            assertTrue(!vm.now.row(BRAVO.id).ticked)
+            assertTrue(!vm.now.row(BRAVO.id).pending)
+            assertEquals(Notice.Saved, vm.now.notice)
+        }
+
+    // A tick saving shows Saving, then Adding once it is stored and being read in.
+    @Test
+    fun aTick_showsSaving_thenAdding() =
         runTest {
             val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO))
             val gate = CompletableDeferred<Unit>()
@@ -146,19 +199,128 @@ class LibrariesSettingsViewModelTest {
 
             vm.select()
             runCurrent()
-            vm.select()
-            runCurrent()
-            assertEquals("a press while the change is out sends nothing", 1, choices.changes.size)
+            val saving = vm.now.row(BRAVO.id)
+            assertTrue(saving.ticked && saving.pending && !saving.adding)
+            assertEquals(RowStatus.Saving, saving.status)
 
             gate.complete(Unit)
             runCurrent()
-            assertEquals(listOf(setOf(ALPHA.id, BRAVO.id)), choices.changes)
-            assertEquals(Notice.Saved, vm.now.notice)
-            assertTrue(vm.now.row(BRAVO.id).ticked)
+            val adding = vm.now.row(BRAVO.id)
+            assertTrue(adding.ticked && !adding.pending && adding.adding)
+            assertEquals(RowStatus.Adding, adding.status)
+        }
 
+    // The owner's report: a press on another row while a change is out is not dropped; it is sent after it.
+    @Test
+    fun aPressOnAnotherRow_duringASlowChange_isSentAfterIt() =
+        runTest {
+            val choices =
+                FakeLibraryChoices(view(setOf(ALPHA.id, BRAVO.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val vm = open(choices)
+            vm.focusOn(BRAVO.id)
             vm.select()
             runCurrent()
-            assertEquals("the next press sends again", listOf(setOf(ALPHA.id)), choices.changes.drop(1))
+
+            vm.focusOn(CHARLIE.id)
+            vm.select()
+            runCurrent()
+
+            assertTrue("flipped at once", vm.now.row(CHARLIE.id).ticked)
+            assertTrue(vm.now.row(CHARLIE.id).pending)
+            assertEquals("one change at a time", 1, choices.changes.size)
+
+            choices.gate = null
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(listOf(setOf(ALPHA.id), setOf(ALPHA.id, CHARLIE.id)), choices.changes)
+            assertEquals(listOf(true, false, true), vm.now.rows.map { it.ticked })
+            assertTrue(vm.now.rows.none { it.pending })
+            assertEquals(Notice.Saved, vm.now.notice)
+        }
+
+    // Presses while a change is out are coalesced into one next change, and the last state of each row wins.
+    @Test
+    fun threeQuickToggles_coalesceIntoTwoChanges_andTheLastStateWins() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val vm = open(choices)
+
+            vm.focusOn(BRAVO.id)
+            vm.select()
+            runCurrent()
+            vm.focusOn(CHARLIE.id)
+            vm.select()
+            vm.focusOn(BRAVO.id)
+            vm.select()
+            runCurrent()
+            assertEquals(listOf(true, false, true), vm.now.rows.map { it.ticked })
+
+            choices.gate = null
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(listOf(setOf(ALPHA.id, BRAVO.id), setOf(ALPHA.id, CHARLIE.id)), choices.changes)
+            assertEquals(listOf(true, false, true), vm.now.rows.map { it.ticked })
+            assertTrue(vm.now.rows.none { it.pending })
+        }
+
+    // A row pressed back to what is stored while a change is out sends nothing more.
+    @Test
+    fun aRowPressedBackToStored_sendsNothingMore() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val vm = open(choices)
+            vm.focusOn(BRAVO.id)
+            vm.select()
+            runCurrent()
+            vm.focusOn(CHARLIE.id)
+            vm.select()
+            vm.select()
+            assertTrue(!vm.now.row(CHARLIE.id).ticked && !vm.now.row(CHARLIE.id).pending)
+
+            choices.gate = null
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(listOf(setOf(ALPHA.id, BRAVO.id)), choices.changes)
+        }
+
+    // A change that fails puts its rows back as stored and says Failed; a row pressed after it is still sent.
+    @Test
+    fun aFailedChange_revertsItsRows_andShowsFailed() =
+        runTest {
+            val choices =
+                FakeLibraryChoices(view(setOf(ALPHA.id, BRAVO.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            choices.result = ChangeResult.Failed
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val vm = open(choices)
+            vm.focusOn(BRAVO.id)
+            vm.select()
+            runCurrent()
+            vm.focusOn(CHARLIE.id)
+            vm.select()
+            runCurrent()
+
+            choices.gate = null
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(
+                "B's wish is dropped with its failure; C's is sent on its own",
+                listOf(setOf(ALPHA.id), setOf(ALPHA.id, BRAVO.id, CHARLIE.id)),
+                choices.changes,
+            )
+            assertEquals(listOf(true, true, false), vm.now.rows.map { it.ticked })
+            assertTrue(vm.now.rows.none { it.pending })
+            assertEquals(Notice.Failed, vm.now.notice)
         }
 
     @Test
@@ -294,9 +456,9 @@ class LibrariesSettingsViewModelTest {
             assertEquals(listOf(setOf(ALPHA.id), setOf(ALPHA.id, BRAVO.id)), choices.changes)
         }
 
-    // Fix round 1: a change still out from an earlier visit holds the next visit's Select, so it is never dropped.
+    // A change still out when the screen closes finishes; the next visit shows its row as saving, and takes presses.
     @Test
-    fun aChangeFromAnEarlierVisit_holdsSelect_untilItEnds() =
+    fun aChangeFromAnEarlierVisit_showsSaving_andANewPressIsSentAfterIt() =
         runTest {
             val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO, CHARLIE))
             val gate = CompletableDeferred<Unit>()
@@ -309,18 +471,20 @@ class LibrariesSettingsViewModelTest {
             vm.close()
             vm.open()
             runCurrent()
+            assertTrue("the earlier visit's tick, not the stale stored one", vm.now.row(BRAVO.id).ticked)
+            assertTrue(vm.now.row(BRAVO.id).pending)
             vm.focusOn(CHARLIE.id)
             vm.select()
             runCurrent()
-            assertEquals("ignored while the earlier change is out", 1, choices.changes.size)
+            assertTrue(vm.now.row(CHARLIE.id).ticked)
+            assertEquals("one change at a time", 1, choices.changes.size)
 
             choices.gate = null
             gate.complete(Unit)
             runCurrent()
-            vm.select()
-            runCurrent()
 
             assertEquals(listOf(setOf(ALPHA.id, BRAVO.id), setOf(ALPHA.id, BRAVO.id, CHARLIE.id)), choices.changes)
             assertEquals(listOf(true, true, true), vm.now.rows.map { it.ticked })
+            assertTrue(vm.now.rows.none { it.pending })
         }
 }
