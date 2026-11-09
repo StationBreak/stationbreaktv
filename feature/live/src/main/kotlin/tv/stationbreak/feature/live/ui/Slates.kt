@@ -126,6 +126,17 @@ internal fun NoChannelsSlate() {
     }
 }
 
+/** None of this TV's libraries is available (spec 26): the ident card with one line saying where to choose them. */
+@Composable
+internal fun NoLibrariesSlate() {
+    Box(Modifier.fillMaxSize()) {
+        TestCard(tvY = IDENT_TV_Y) { card ->
+            Wordmark(card, LiveTags.IDENT)
+            CardLine(card, stringResource(R.string.live_no_libraries), LiveTags.NO_LIBRARIES)
+        }
+    }
+}
+
 /**
  * The reason on an ident card: two lines at most, set small and tight so both sit inside the centre disc (radius 150
  * about y 288) below the wordmark, which ends at y 378. The box is 166 wide from y 378 to about y 403: its bottom

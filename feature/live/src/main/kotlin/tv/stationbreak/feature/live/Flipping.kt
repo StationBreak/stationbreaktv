@@ -81,6 +81,9 @@ internal class Tuned {
     }
 }
 
+// The states with no channel on the screen: nothing to flip from.
+private val OFF_SCREEN: Set<LiveState> = setOf(LiveState.NoChannels, LiveState.NoLibraries, LiveState.SignedOut)
+
 /**
  * Flipping (spec 15): follows the viewer's [LiveCommand]s and asks for a new sitting with [start] when a flip commits.
  * It never touches the running sitting: [LiveState.Choosing] is only laid over the screen ([Screen]), so the old
@@ -270,7 +273,7 @@ internal class Flipper(
     }
 
     private val onScreen: Boolean
-        get() = screen.value.let { it != LiveState.NoChannels && it != LiveState.SignedOut }
+        get() = screen.value !in OFF_SCREEN
 
     /**
      * A press steps at once. A held key's repeat steps only when [held] says it is due, on the key events' own times;

@@ -137,6 +137,7 @@ private fun PictureLayers(state: LiveState) {
         is LiveState.TechnicalDifficulties -> DifficultiesSlate(upNext = null, channel = null)
         is LiveState.Ident -> IdentSlate(upNext = null, channel = null)
         LiveState.NoChannels -> NoChannelsSlate()
+        LiveState.NoLibraries -> NoLibrariesSlate()
         is LiveState.Watching, LiveState.SignedOut -> Unit
     }
 }
@@ -184,6 +185,10 @@ private fun LiveLayers(
 
             LiveState.NoChannels -> {
                 NoChannelsSlate()
+            }
+
+            LiveState.NoLibraries -> {
+                NoLibrariesSlate()
             }
 
             LiveState.SignedOut -> {

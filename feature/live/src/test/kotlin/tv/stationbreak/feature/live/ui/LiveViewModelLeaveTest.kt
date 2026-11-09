@@ -14,6 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import tv.stationbreak.core.domain.selection.FakeLibraryChoices
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
@@ -68,6 +69,7 @@ class LiveViewModelLeaveTest {
                 server,
                 r.details,
                 LiveTimings(),
+                FakeLibraryChoices(null),
             )
         return Setup(r, server, vm)
     }

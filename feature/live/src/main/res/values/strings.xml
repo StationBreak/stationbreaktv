@@ -16,6 +16,8 @@
     <!-- DESIGN(#633): placeholder. The ident card's line when the programme on now left the library and nothing fills the slot. -->
     <string name="live_card_not_in_library">No longer in the library. Back with the next programme.</string>
     <string name="live_no_channels">No channels on the air yet</string>
+    <!-- placeholder: design partner. Every library this TV chose is gone from the server (spec 26). -->
+    <string name="live_no_libraries">None of this TV\'s libraries are available. Open the guide, then Settings, Libraries.</string>
 
     <!-- The banner's label line. -->
     <string name="live_label_tuning_in">Tuning in</string>
