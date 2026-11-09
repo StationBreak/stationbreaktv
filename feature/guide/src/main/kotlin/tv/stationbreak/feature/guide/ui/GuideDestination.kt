@@ -138,7 +138,7 @@ internal fun GuideRoot(
     measure: Boolean = false,
     theme: GuideTheme = GuideTheme.Dark,
     onTheme: (GuideTheme) -> Unit = {},
-    properties: PropertiesSlot = { _, _, _, _, _ -> },
+    properties: PropertiesSlot = NoProperties,
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -208,9 +208,13 @@ internal fun GuideRoot(
                 },
                 openSettings = { settingsOpen = true },
                 openProperties = {
-                    viewModel.channelsOpened()
-                    propertiesSince = System.nanoTime().coerceAtLeast(1L)
-                    propertiesOf = it
+                    // Only one screen is over the guide at a time: an open while one shows is ignored. Both are read
+                    // as they stand now, not as this composition saw them, so a second OK in a frame is ignored too.
+                    if (managingSince == NOT_MANAGING && propertiesOf == null) {
+                        viewModel.channelsOpened()
+                        propertiesSince = System.nanoTime().coerceAtLeast(1L)
+                        propertiesOf = it
+                    }
                 },
             )
         }
@@ -266,24 +270,14 @@ internal fun GuideRoot(
                 // after onDone.
                 runCatching { keys.requestFocus() }
                 managingSince = NOT_MANAGING
-                if (tuneTo == null) {
-                    viewModel.channelsClosed()
-                } else {
-                    viewModel.channelsEnded()
-                    tune(tuneTo)
-                }
+                viewModel.overlayDone(tuneTo, viewModel::channelsClosed, tune)
             }
         }
         propertiesOf?.let { channel ->
             properties(channel, current, propertiesSince, pictureHole) { tuneTo ->
                 runCatching { keys.requestFocus() }
                 propertiesOf = null
-                if (tuneTo == null) {
-                    viewModel.propertiesClosed()
-                } else {
-                    viewModel.channelsEnded()
-                    tune(tuneTo)
-                }
+                viewModel.overlayDone(tuneTo, viewModel::propertiesClosed, tune)
             }
         }
     }
@@ -398,3 +392,20 @@ private fun directionOf(key: Key): GuideDirection? =
 // A move, inside its trace section ("guide move"): the step and its publish.
 private fun GuideViewModel.tracedMove(): (GuideDirection, Boolean, Long) -> Unit =
     { direction, repeat, atMs -> traced(TRACE_MOVE) { move(direction, repeat, atMs) } }
+
+/** A properties slot with nothing to show: it finishes at once, so a guide given none is never left covered. */
+private val NoProperties: PropertiesSlot = { _, _, _, _, onDone -> LaunchedEffect(Unit) { onDone(null) } }
+
+// A screen over the guide finished: back to the guide ([closed]) or, with a channel to tune, the guide goes with it.
+private fun GuideViewModel.overlayDone(
+    tuneTo: ChannelId?,
+    closed: () -> Unit,
+    tune: (ChannelId) -> Unit,
+) {
+    if (tuneTo == null) {
+        closed()
+    } else {
+        channelsEnded()
+        tune(tuneTo)
+    }
+}

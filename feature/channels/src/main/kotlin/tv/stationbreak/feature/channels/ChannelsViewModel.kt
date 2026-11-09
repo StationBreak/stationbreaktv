@@ -494,6 +494,7 @@ internal class ChannelsViewModel
                 useMyCollections = m.householdWant ?: m.useMyCollections,
                 about = m.about,
                 properties = m.properties,
+                listed = m.listed,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons)

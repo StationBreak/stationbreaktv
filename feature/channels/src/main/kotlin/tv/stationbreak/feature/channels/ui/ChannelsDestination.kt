@@ -151,6 +151,9 @@ private fun SheetSession(
             actions.end()
         }
     }
+    // A channel the list does not hold (it left the lineup meanwhile) has no sheet to show: the screen is over, rather
+    // than an invisible one holding the keys.
+    LaunchedEffect(ui.listed, listed) { if (ui.listed && !listed && !shown) actions.end() }
 }
 
 /** Starts a clean builder visit for [mode]; a copy's name is [copyName] of the built-in's. */
@@ -229,7 +232,7 @@ internal class ChannelsActions(
         if (finished) return
         val ui = vm.ui.value
         // The builder has the keys while it shows.
-        if (ui.builder != null) return
+        if (ui.builder != null || waitingForTheSheet(ui, pad)) return
         val inPanel = ui.dialogOpen
         when {
             pad == Pad.Back -> back(ui)
@@ -237,6 +240,13 @@ internal class ChannelsActions(
             else -> list(pad)
         }
     }
+
+    // The list is not drawn over the guide: until the sheet is up only Back does anything, so a key never acts on a row
+    // nobody can see.
+    private fun waitingForTheSheet(
+        ui: ChannelsUi,
+        pad: Pad,
+    ) = sheetOnly && ui.about == null && pad != Pad.Back
 
     /** The builder ended: a save (and watch) finishes the screen, anything else shows the list again. */
     fun builderEnded(event: BuilderEvent) {
