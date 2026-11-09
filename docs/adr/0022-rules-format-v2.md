@@ -1,6 +1,6 @@
 # ADR-0022: Rules format version 2 (spec 22, the channel builder)
 
-- **Status:** Accepted when the PR that adds this record merges
+- **Status:** Accepted, 2026-11-02 (PR [#545](https://github.com/StationBreak/stationbreaktv/pull/545) merged)
 - **Date:** 2026-11-02
 - **Decided by:** the owner (the design, 2026-11-02) and Rincewind (rulings 1 to 25 below)
 - **Resolves:** F2.3, the channel builder

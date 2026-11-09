@@ -206,7 +206,7 @@ These IDs become GitHub issue titles once creating issues is approved.
 - ✅ Performance: [#309](https://github.com/StationBreak/stationbreaktv/issues/309) (every launch refreshed twice; skip refreshes when nothing changed) closed on 2026-10-21, before F1.3. Later performance work is in PRs [#406](https://github.com/StationBreak/stationbreaktv/pull/406), [#481](https://github.com/StationBreak/stationbreaktv/pull/481) and [#484](https://github.com/StationBreak/stationbreaktv/pull/484).
 
 **S1.2.2** As the engine, I need rule evaluation against the cache so that channel membership is correct.
-- 🧪 Union of sources and exclusions are covered by table tests, a seeded property test and the published `pool.json` vectors; AND of sources is [#293](https://github.com/StationBreak/stationbreaktv/issues/293).
+- 🧪 Union of sources and exclusions are covered by table tests, a seeded property test and the published `pool.json` vectors; AND of sources shipped with the rules format 2 `filters` ([ADR-0022](adr/0022-rules-format-v2.md); PRs [#545](https://github.com/StationBreak/stationbreaktv/pull/545), [#547](https://github.com/StationBreak/stationbreaktv/pull/547) and, for the builder's Narrow down step, [#551](https://github.com/StationBreak/stationbreaktv/pull/551)); [#293](https://github.com/StationBreak/stationbreaktv/issues/293) is closed.
 
 ## F1.3 Offset playback (M)
 
@@ -239,6 +239,11 @@ The lineup refresh and `airings` speed on the Insignia was fixed before this fea
 
 - 🧪 On a source error, the player retries the original item once, shows a "Technical difficulties" slate for about 3 s, then moves on to the next scheduled item from its start (30 minutes or less left in the dead block, a configurable default in `LiveTimings`; the channel then runs ahead for this sitting only and any retune re-anchors it) or fills the block with a deterministic stand-in (more than 30 minutes left).
 
+**S1.3.4** As a viewer, I want to pause, go back and skip ahead within the item that is on so that I can catch something again without the channel moving.
+
+📺 **Built 2026-10-31** (spec 20, [ADR-0021](adr/0021-pause-and-seek-on-live.md), [#383](https://github.com/StationBreak/stationbreaktv/issues/383); PRs [#514](https://github.com/StationBreak/stationbreaktv/pull/514), [#517](https://github.com/StationBreak/stationbreaktv/pull/517), [#518](https://github.com/StationBreak/stationbreaktv/pull/518) and [#527](https://github.com/StationBreak/stationbreaktv/pull/527)).
+- 🧪 Pause holds the picture and a paused place is kept for 60 minutes. Back reaches the start of the item and skip ahead never passes the schedule's current position. The schedule itself never moves: the next item starts where the schedule is for it, so every TV still agrees on what is on.
+
 ## F1.4 Channel flipping & last-channel recall (M)
 
 **S1.4.1** As a viewer, I want Up/Down (and CH+/CH− where the remote has them) to change channel so that I can surf.
@@ -263,7 +268,7 @@ The lineup refresh and `airings` speed on the Insignia was fixed before this fea
 
 **S1.4.5** As a viewer, I want flipping to be fast even on a budget stick so that surfing feels like cable.
 
-📺 **Gate not met.** Runs are recorded in [#392](https://github.com/StationBreak/stationbreaktv/issues/392). The best Firestick run (2026-10-26) had 20 of 21 direct flips under 2 s; the formal 30-flip run is pending. The gate is the two-tier gate in [EPICS.md](EPICS.md). Player reuse and the neighbour pre-resolve are built (look-ahead in PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390), [ADR-0017](adr/0017-live-channel-playback.md)); only the gate measurement is pending.
+📺 **Gate not met.** Runs are recorded in [#392](https://github.com/StationBreak/stationbreaktv/issues/392). The best Firestick run (2026-10-26) had 20 of 21 direct flips under 2 s; the formal 30-flip run was done on 2026-11-03: the Insignia met its usable floor, and the Firestick missed its 2 s gate (the end-of-file MP4 index). The gate is the two-tier gate in [EPICS.md](EPICS.md). Player reuse and the neighbour pre-resolve are built (look-ahead in PR [#390](https://github.com/StationBreak/stationbreaktv/pull/390), [ADR-0017](adr/0017-live-channel-playback.md)).
 - 📺 **Gate measurement** (the two-tier Phase 1 gate, [EPICS.md](EPICS.md), decided 2026-10-24), timed from the last key press over 30 flips per device. Firestick 4K (API 30): keypress → playing < 2.0 s on at least 29 of 30 direct-play flips. Insignia (API 25): the banner's channel number updates within about 250 ms, the median direct-play flip is under 4 s and the worst under 8 s, and no flip hangs: every flip ends on a moving picture or the channel's stand-in or slate. Transcoded flips are reported, not gated. First frame is reported but not gated.
 - 🧪 Investigate and close the first-frame-to-playing gap SP-1 found on some items, where the frame shows at about 0.9 s but playback starts at 1.9–2.9 s. The suspected cause is audio renderer readiness ([ADR-0007](adr/0007-tune-latency-spike.md)).
 - Techniques to evaluate (spike first; see R-PERF-1): reusing one ExoPlayer instance, tuned `LoadControl` buffers for fast start, pre-resolving stream URLs for adjacent channels, and optionally pre-warming the adjacent channel's first segment.
@@ -279,6 +284,8 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 - 🧪 The app counts the seconds actually watched per item. At 90% or more (configurable, default 90) it calls `POST /UserPlayedItems/{itemId}`. Flipping past never counts.
 - 🧪 `jellyfin-contract` tests on 12.1 and 12.2 pin the safe-position cases: user data unchanged for an unwatched item, an item with a resume point and a played item, after a failed stop and after a server auto-stop; mark-played mid-visit holds.
 - 📺 The dashboard shows the TV as playing throughout a sitting, and Continue Watching is unchanged afterwards.
+
+🧪 **Built** (PR [#414](https://github.com/StationBreak/stationbreaktv/pull/414), [ADR-0018](adr/0018-live-playback-reporting.md)).
 
 ## F1.6 Direct-play / transcode fallback (M)
 
@@ -312,6 +319,14 @@ Design and evidence: [ADR-0018](adr/0018-live-playback-reporting.md) (spike SP-6
 📺 **Built 2026-10-27** (spec 17, PRs [#426](https://github.com/StationBreak/stationbreaktv/pull/426), [#439](https://github.com/StationBreak/stationbreaktv/pull/439) and [#443](https://github.com/StationBreak/stationbreaktv/pull/443)); device checks 1, 1b and 2 done on both TVs. Open: [#445](https://github.com/StationBreak/stationbreaktv/issues/445) (Info overlaps the corner picture on smaller screens).
 - 📺 Back from the full-screen show opens the guide over the live video. The picture continues in a corner window at the top right (Q-UX-4), with the details panel top-left and the grid below. It is the same video surface as full screen, so there is no re-tune. Back in the guide walks outwards to the menu row and then leaves live TV (Q-UX-2). Up from the top row wraps to the bottom row.
 - 📺 The Guide key reaches the app on the Fire TV Stick but not on the older Fire TV, where Fire OS opens Amazon's own Live TV guide. Back and Select are the paths (A-DEV-2).
+
+**S2.1.3** As a viewer, I want the guide to look and work like a finished product so that I can read it from the sofa.
+
+📺 **Later guide work, built.**
+- **Restyle:** PRs [#606](https://github.com/StationBreak/stationbreaktv/pull/606), [#622](https://github.com/StationBreak/stationbreaktv/pull/622) and [#642](https://github.com/StationBreak/stationbreaktv/pull/642).
+- **Channel marks** (spec 27, [#571](https://github.com/StationBreak/stationbreaktv/issues/571)): PR [#653](https://github.com/StationBreak/stationbreaktv/pull/653); marks lineup [#658](https://github.com/StationBreak/stationbreaktv/issues/658).
+- **Guide overhaul** ([#657](https://github.com/StationBreak/stationbreaktv/issues/657)): PRs [#659](https://github.com/StationBreak/stationbreaktv/pull/659) and [#668](https://github.com/StationBreak/stationbreaktv/pull/668).
+- **Channel properties** ([#631](https://github.com/StationBreak/stationbreaktv/issues/631)): PRs [#660](https://github.com/StationBreak/stationbreaktv/pull/660), [#669](https://github.com/StationBreak/stationbreaktv/pull/669) and [#672](https://github.com/StationBreak/stationbreaktv/pull/672).
 
 ## F2.2 Now/next banner & info overlay (M)
 

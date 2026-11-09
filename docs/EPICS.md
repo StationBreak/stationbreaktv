@@ -54,7 +54,7 @@ F1.4 Channel flipping & last-channel recall · F1.5 Playback reporting · F1.6 D
       Both devices keep being optimised. Only the pass or fail bar moved. Older and budget hardware can never match a newer stick, and people with older devices deserve a good app too, so the floor device must be comfortable to use rather than fast. The thresholds are a starting point and may be adjusted after measurement.
 - [ ] Scheduler golden-vector tests pass in CI.
 
-Status 2026-11-03: not met. Firestick runs in [#392](https://github.com/StationBreak/stationbreaktv/issues/392) reach about 20 of 21 under 2 s; a formal 30-flip run per TV is pending. Phase 2 work started while this gate was open.
+Status 2026-11-03: not met. Firestick runs in [#392](https://github.com/StationBreak/stationbreaktv/issues/392) reach about 20 of 21 under 2 s; the formal 30-flip run was done on 2026-11-03 (the Insignia met its usable floor; the Firestick missed its 2 s gate because of the end-of-file MP4 index). Phase 2 work started while this gate was open.
 
 Status 2026-11-07 (spec 24, [ADR-0024](adr/0024-warm-next-decoder.md)): Firestick speed gate not met. Warming the next channel's decoder was built and measured; on the Firestick its standby costs about 60 MB and trips the system's running-low memory trim, so it ships off by default and [#392](https://github.com/StationBreak/stationbreaktv/issues/392) stays open. Insignia usable floor met: direct flips median 3267 ms and worst 4126 ms (transcode flips, reported only: median 6164 ms, worst 7998 ms).
 
@@ -69,9 +69,11 @@ the Phase 2 dogfood with two devices on the same account.
 fully replace NostalgiaTV.
 
 **Features:** F2.1 Grid guide · F2.2 Now/next banner & info overlay · F2.3 Custom channel builder ·
-F2.4 Channel management (renumber, hide, delete) · F2.5 Large-library performance
+F2.4 Channel management (renumber, hide, delete) · F2.5 Large-library performance ·
+F2.6 Kid channels, phase B
 
 **Gate (acceptance criteria):**
+- [ ] The owner's named pre-dogfood items are done: [#631](https://github.com/StationBreak/stationbreaktv/issues/631) (channel properties, built), [#571](https://github.com/StationBreak/stationbreaktv/issues/571) (channel marks, built), and [#497](https://github.com/StationBreak/stationbreaktv/issues/497) and [#630](https://github.com/StationBreak/stationbreaktv/issues/630) (track and version choice, open).
 - [ ] Used as the **daily** TV app on the reference Insignia for **14 consecutive days**, with NostalgiaTV uninstalled or
       unused. Issues found go into a dogfood log (`docs/dogfood/phase-2.md`).
 - [ ] No P0/P1 defects are open at the end of the 14 days.

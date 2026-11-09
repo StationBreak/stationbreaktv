@@ -89,6 +89,7 @@ CI, starting with the F0.2 hello-world. Nothing is built by hand.
 | 2 | F2.3 Channel builder | F1.2, F0.7 |
 | 2 | F2.4 Channel management | F1.2 |
 | 3 | F2.5 Perf hardening + baseline profile | F2.1 |
+| 3 | F2.6 Kid channels, phase B | Phase A (ADR-0019) |
 | — | **14-day dogfood** | all of the above |
 
 ## Phase 3 — Polish and personality
