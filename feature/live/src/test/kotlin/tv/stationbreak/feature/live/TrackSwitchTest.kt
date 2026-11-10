@@ -17,6 +17,9 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.tracks.SubtitlePreference
+import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.PlayMethod
+import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.playback.SubtitleChoice
@@ -29,6 +32,7 @@ import tv.stationbreak.feature.live.SwitchFixtures.FRENCH
 import tv.stationbreak.feature.live.SwitchFixtures.SOURCE
 import tv.stationbreak.feature.live.SwitchFixtures.SPANISH
 import tv.stationbreak.feature.live.SwitchFixtures.facts
+import tv.stationbreak.feature.live.report.RecordingServer
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -62,12 +66,17 @@ class TrackSwitchTest {
 
     private suspend fun TestScope.keys(vararg scripts: suspend () -> TuneOutcome): Keys {
         val setup: Rig.() -> Unit = { tune.script(itemOf(1), *scripts) }
-        return keysFor(setup)
+        return keysFor(setup = setup)
     }
 
     /** CH7 with item 1 from minute 0 to 60 and item 2 to 120, joined at minute 10; [setup] scripts the port. */
-    private suspend fun TestScope.keysFor(setup: Rig.() -> Unit): Keys {
-        val r = Rig(this, startMin = 10)
+    private suspend fun TestScope.keysFor(
+        reported: Boolean = false,
+        setup: Rig.() -> Unit,
+    ): Keys {
+        val server = if (reported) RecordingServer({ currentTime }) else null
+        val r = Rig(this, startMin = 10, server = server)
+        if (reported) r.tune.reportFacts = REPORT_FACTS
         r.schedule.channel(CH7, 7, listOf(program(0, 60, 1), program(60, 120, 2)))
         r.setup()
         val keys = Channel<LiveCommand>(Channel.UNLIMITED)
@@ -77,6 +86,7 @@ class TrackSwitchTest {
 
     private companion object {
         const val SETTLE_MS = 2_000L
+        val REPORT_FACTS = ReportFacts(MediaSourceId("src"), PlaySessionId("ps"), PlayMethod.DirectPlay, 50.minutes)
     }
 
     private fun audio(index: Int) = LiveCommand.Choose(TrackSelection.Audio(index))
@@ -161,6 +171,24 @@ class TrackSwitchTest {
                     ?.tracks
                     ?.audioIndex,
             )
+        }
+
+    @Test
+    fun aReportedPlaysRetuneStillSaysSwitchingNotTuningIn() =
+        runTest {
+            val k =
+                keysFor(reported = true) {
+                    tune.script(itemOf(1), withFacts(), withFacts(facts(audioIndex = FRENCH.index)))
+                }
+            k.r.atMin(1)
+            k.press(audio(FRENCH.index))
+            k.settle()
+            val labels =
+                k.r.seen
+                    .filterIsInstance<LiveState.Tuning>()
+                    .map { it.banner.label }
+            assertTrue("switching, not tuning in", BannerLabel.SwitchingAudio in labels)
+            assertFalse("the visit wrapper must not drop the label", labels.drop(1).any { it == BannerLabel.TuningIn })
         }
 
     @Test

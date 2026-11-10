@@ -92,12 +92,29 @@ internal suspend fun Sitting.holdReporting(
     val item = ItemId(program.itemId.value)
     val key = AiringKey(channel, block.startMs, item)
     facts?.let { f -> visiting.playing(fromMs) { it.visit(sittingId, key, f.target(item), fromMs) } }
+
+    // Both ways of retuning report the new play's visit. A lambda here would keep only `at` and lose the switch label.
+    fun visited(
+        placeMs: Long,
+        retried: TuneOutcome,
+    ): TuneOutcome {
+        val again = (retried as? TuneOutcome.Playing)?.report
+        if (again != null) visiting.playing(placeMs) { it.visit(sittingId, key, again.target(item), placeMs) }
+        return retried
+    }
     val reported =
-        Retune { placeMs, onPlaying ->
-            retune.at(placeMs, onPlaying).also { retried ->
-                val again = (retried as? TuneOutcome.Playing)?.report
-                if (again != null) visiting.playing(placeMs) { it.visit(sittingId, key, again.target(item), placeMs) }
-            }
+        object : Retune {
+            override suspend fun at(
+                mediaMs: Long,
+                onPlaying: (TuneOutcome.Playing) -> Unit,
+            ): TuneOutcome = visited(mediaMs, retune.at(mediaMs, onPlaying))
+
+            override suspend fun switching(
+                mediaMs: Long,
+                label: BannerLabel,
+                failed: Boolean,
+                onPlaying: (TuneOutcome.Playing) -> Unit,
+            ): TuneOutcome = visited(mediaMs, retune.switching(mediaMs, label, failed, onPlaying))
         }
     val held = holdProgram(block, outcome, visiting, reported, retries, from, fromDead)
     if (held is Held.Failed) visiting.failedPlay(held.positionMs ?: -1)

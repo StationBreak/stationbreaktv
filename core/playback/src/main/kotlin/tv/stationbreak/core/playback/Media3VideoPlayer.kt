@@ -440,9 +440,34 @@ class Media3VideoPlayer internal constructor(
                 SubtitleSwitch.Off -> true.also { parameters.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true) }
                 is SubtitleSwitch.To -> textOnto(parameters, subtitles.pick, tracks)
             }
-        if (!audioFound || !subtitleFound) return false
+        if (!audioFound || !subtitleFound) {
+            logRefusedSwitch(switch, tracks, audioFound, subtitleFound)
+            return false
+        }
         exo.trackSelectionParameters = parameters.build()
         return true
+    }
+
+    /**
+     * The `SBLIVE switchRefused` line: numbers and flags only, so a switch that was meant to be instant and was not can
+     * be told apart on a device (the wanted positions against the track groups the player holds, by kind).
+     */
+    private fun logRefusedSwitch(
+        switch: TrackSwitch,
+        tracks: Tracks,
+        audioFound: Boolean,
+        subtitleFound: Boolean,
+    ) {
+        val audioGroups = tracks.groups.count { it.type == C.TRACK_TYPE_AUDIO }
+        val textGroups = tracks.groups.count { it.type == C.TRACK_TYPE_TEXT }
+        val subtitles = switch.subtitles
+        val textPosition = (subtitles as? SubtitleSwitch.To)?.pick?.position ?: -1
+        android.util.Log.i(
+            MEMORY_LOG_TAG,
+            "switchRefused audioFound=$audioFound audioPosition=${switch.audio?.position ?: -1} " +
+                "audioGroups=$audioGroups subtitleFound=$subtitleFound " +
+                "textPosition=$textPosition textGroups=$textGroups",
+        )
     }
 
     /** The published snapshot if it is [generation]'s, else null. On the looper it is refreshed first. */
