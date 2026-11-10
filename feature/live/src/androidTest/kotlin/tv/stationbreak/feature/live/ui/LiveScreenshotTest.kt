@@ -69,6 +69,7 @@ class LiveScreenshotTest {
     private fun banner(
         actions: Boolean,
         recipeKey: String? = MARK_KEY,
+        joinedMs: Long = 29 * MINUTE,
     ) = Banner(
         number = 162,
         channelName = "Date Night",
@@ -77,7 +78,7 @@ class LiveScreenshotTest {
         info = episode,
         slotStartMs = now - 20 * MINUTE,
         slotEndMs = now + 100 * MINUTE,
-        joinedMs = 29 * MINUTE,
+        joinedMs = joinedMs,
         next = NextProgram("Roman Holiday", now + 100 * MINUTE),
         actions = actions,
         hasLast = actions,
@@ -113,6 +114,13 @@ class LiveScreenshotTest {
 
     @Test
     fun theTuneBanner() = shoot("live-tune.png", LiveState.Watching(banner(actions = false)))
+
+    /** Joined under a minute in: "Just started" where "N min in" would be. */
+    @Test
+    fun theTuneBannerJustStarted() {
+        val justStarted = banner(actions = false, joinedMs = 20_000)
+        shoot("live-tune-just-started.png", LiveState.Watching(justStarted))
+    }
 
     /** A custom channel: no logo, so its initials and then its name after the number. */
     @Test
