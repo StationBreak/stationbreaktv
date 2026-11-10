@@ -229,6 +229,17 @@ interface VideoPlayer {
     fun seekable(generation: Long): Boolean
 
     /**
+     * Switches [generation]'s tracks while it plays (direct play only): audio by [TrackSwitch.audio], subtitles by
+     * [TrackSwitch.subtitles], on the player's looper. True when it took the switch, and an audio pick matched the
+     * track it found (language and codec, as at the start); false, with nothing changed, when [generation] is not the
+     * play on the player, the track is not there or does not match, or this player cannot. Default: cannot.
+     */
+    suspend fun switchTracks(
+        generation: Long,
+        switch: TrackSwitch,
+    ): Boolean = false
+
+    /**
      * Spec 24: prepares [source] on a hidden, muted, paused standby player, and returns the handle the player issued
      * for it: `w<n>`, from the player's own counter (from 1), never derived from the source. A later [play] of that
      * source stamped with it (`source.copy(warmKey = handle)`) hands the surface over to the standby when it is ready.

@@ -605,8 +605,19 @@ class PlaybackResolverTest {
     fun aCarriedLanguageTheServerAlreadyPlaysCostsNoSecondCall() =
         runTest {
             answer(spanish)
-            resolve(preferences = TrackPreferences(audioLanguage = "en"))
+            val played = resolve(preferences = TrackPreferences(audioLanguage = "en"))
             assertEquals(1, server.playbackInfoCalls.size)
+            assertNull("no second call, nothing to time", played.carriedMs)
+        }
+
+    @Test
+    fun theSecondCallsDurationIsRecordedOnTheResultAndOnlyThen() =
+        runTest {
+            answer(spanish)
+            val carried = resolve(preferences = TrackPreferences(audioLanguage = "es"))
+            assertTrue("timed: ${carried.carriedMs}", (carried.carriedMs ?: -1L) >= 0L)
+            val plain = resolve()
+            assertNull(plain.carriedMs)
         }
 
     @Test

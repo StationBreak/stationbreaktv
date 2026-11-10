@@ -30,7 +30,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.TrackFlags
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.playback.AudioFacts
+import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.SourceFacts
+import tv.stationbreak.core.playback.StreamFacts
+import tv.stationbreak.core.playback.SubtitleFacts
+import tv.stationbreak.core.playback.SubtitleForm
+import tv.stationbreak.core.playback.SwitchCost
+import tv.stationbreak.core.playback.VideoFacts
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.feature.live.Banner
@@ -38,6 +48,7 @@ import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.NextProgram
+import tv.stationbreak.feature.live.PickerKind
 import tv.stationbreak.feature.live.TransportView
 import java.io.File
 
@@ -66,14 +77,78 @@ class LiveScreenshotTest {
             2005,
         )
 
+    /** A direct play with three audio tracks and three subtitle tracks, one of each that restarts the picture. */
+    private val facts =
+        StreamFacts(
+            route = Route.DIRECT_PLAY,
+            sourceId = SOURCE,
+            audioIndex = 1,
+            subtitleIndex = null,
+            sources =
+                listOf(
+                    SourceFacts(
+                        SOURCE,
+                        "Director's Cut",
+                        VideoFacts(1920, 1080, "hevc"),
+                        audio =
+                            listOf(
+                                AudioFacts(1, "eng", "ac3", 6, null, true, TrackFlags(), SwitchCost.Instant),
+                                AudioFacts(2, "spa", "ac3", 6, null, false, TrackFlags(), SwitchCost.Instant),
+                                AudioFacts(3, "eng", "ac3", 2, "Commentary", false, TrackFlags(commentary = true)),
+                            ),
+                        subtitles =
+                            listOf(
+                                SubtitleFacts(
+                                    4,
+                                    "eng",
+                                    "subrip",
+                                    SubtitleForm.Text,
+                                    null,
+                                    false,
+                                    false,
+                                    TrackFlags(),
+                                    SwitchCost.Instant,
+                                ),
+                                SubtitleFacts(
+                                    5,
+                                    "eng",
+                                    "subrip",
+                                    SubtitleForm.Text,
+                                    "SDH",
+                                    false,
+                                    false,
+                                    TrackFlags(sdh = true),
+                                    SwitchCost.Instant,
+                                ),
+                                SubtitleFacts(
+                                    6,
+                                    "spa",
+                                    "pgssub",
+                                    SubtitleForm.Picture,
+                                    null,
+                                    false,
+                                    false,
+                                    TrackFlags(),
+                                ),
+                            ),
+                    ),
+                ),
+            offCost = SwitchCost.Instant,
+        )
+
+    @Suppress("LongParameterList") // One frame's choices: which banner, what plays, what is open, what it says.
     private fun banner(
         actions: Boolean,
         recipeKey: String? = MARK_KEY,
         joinedMs: Long = 29 * MINUTE,
+        stream: StreamFacts? = null,
+        picker: PickerKind? = null,
+        label: BannerLabel = BannerLabel.Now,
+        switchFailed: Boolean = false,
     ) = Banner(
         number = 162,
         channelName = "Date Night",
-        label = BannerLabel.Now,
+        label = label,
         title = "Pride & Prejudice",
         info = episode,
         slotStartMs = now - 20 * MINUTE,
@@ -83,6 +158,9 @@ class LiveScreenshotTest {
         actions = actions,
         hasLast = actions,
         recipeKey = recipeKey,
+        stream = stream,
+        picker = picker,
+        switchFailed = switchFailed,
     )
 
     /** The logo is decoded off the main thread: wait for it, or a frame can show the initials in its place. */
@@ -131,6 +209,40 @@ class LiveScreenshotTest {
 
     @Test
     fun theSelectBanner() = shoot("live-select.png", LiveState.Watching(banner(actions = true)))
+
+    @Test
+    fun theSelectBannerWithItsChips() {
+        val state = LiveState.Watching(banner(actions = true, stream = facts))
+        shoot("live-select-chips.png", state)
+    }
+
+    @Test
+    fun theAudioPicker() =
+        shoot(
+            "live-picker-audio.png",
+            LiveState.Watching(banner(actions = true, stream = facts, picker = PickerKind.Audio)),
+        )
+
+    @Test
+    fun theSubtitlesPicker() =
+        shoot(
+            "live-picker-subtitles.png",
+            LiveState.Watching(banner(actions = true, stream = facts, picker = PickerKind.Subtitles)),
+        )
+
+    @Test
+    fun switchingAudioUnderTheSnow() =
+        shoot(
+            "live-switching.png",
+            LiveState.Tuning(banner(actions = false, label = BannerLabel.SwitchingAudio)),
+        )
+
+    @Test
+    fun theBannerAfterASwitchThatDidNotTake() =
+        shoot(
+            "live-switch-failed.png",
+            LiveState.Watching(banner(actions = false, stream = facts, switchFailed = true)),
+        )
 
     @Test
     fun theChannelFlip() {
@@ -211,6 +323,7 @@ class LiveScreenshotTest {
 
     private companion object {
         const val MARK_KEY = "date-night"
+        val SOURCE = MediaSourceId("frame-source")
         const val MARK_WAIT_MS = 10_000L
         const val POLL_MS = 50L
         const val LOG_TAG = "LiveScreenshot"

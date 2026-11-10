@@ -33,6 +33,13 @@ interface PlayControl {
 
     fun seekable(): Boolean
 
+    /**
+     * Switches tracks while the play plays (direct play only), without a new stream. True when the player took the
+     * switch and, for an audio pick, the track it holds is the one named (language and codec agree); false when the
+     * play is gone, the track is not there, or this play cannot (an HLS play: the caller re-tunes).
+     */
+    suspend fun switchTracks(switch: TrackSwitch): Boolean = false
+
     companion object {
         /** No play: calls do nothing, position is null, not seekable, no events. For tests and `None` cases only. */
         val None: PlayControl =
@@ -76,4 +83,6 @@ internal class GenerationControl(
     override suspend fun position(): Duration? = player.currentPosition(generation)
 
     override fun seekable(): Boolean = player.seekable(generation)
+
+    override suspend fun switchTracks(switch: TrackSwitch): Boolean = player.switchTracks(generation, switch)
 }

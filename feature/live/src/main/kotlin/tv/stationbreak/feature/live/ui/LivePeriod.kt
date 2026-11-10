@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.TrackSwitch
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveChannel
@@ -108,6 +109,12 @@ internal class LivePeriod(
         }
 
         override fun seekable(generation: Long): Boolean = !left.get() && inner.seekable(generation)
+
+        // An in-place switch after the leave changes nothing and says so: the caller re-tunes (and finds it gone).
+        override suspend fun switchTracks(
+            generation: Long,
+            switch: TrackSwitch,
+        ): Boolean = !left.get() && inner.switchTracks(generation, switch)
 
         override fun attach(surface: SurfaceView?) {
             if (!left.get()) inner.attach(surface)

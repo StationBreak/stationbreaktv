@@ -146,6 +146,8 @@ class LiveChannelReportTest {
             " playCallMs=-1 videoDecInitMs=-1 videoDecInitDurMs=-1 audioDecInitMs=-1 audioDecInitDurMs=-1" +
                 " audioTrackInitMs=-1 audioAdvancingMs=-1 audioUnderruns=-1 readyMs=-1"
         assertEquals(line + noLoads + noAv, tune.line())
+        // A carried preference's second `PlaybackInfo` call is timed on the line; no call, no field.
+        assertEquals(line + noLoads + noAv + " carriedMs=85", tune.copy(carriedMs = 85).line())
         val av = AvTimings(30, 120, 40, 150, 25, 300, 1_050, 2, 900)
         assertEquals(
             line + noLoads +

@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.playback.PlaybackTestData.audio
 import tv.stationbreak.core.playback.PlaybackTestData.source
 import tv.stationbreak.core.playback.PlaybackTestData.subtitle
@@ -121,6 +122,27 @@ class StreamFactsTest {
     private fun StreamFacts.audioCost(index: Int) = checkNotNull(playing).audio.single { it.index == index }.cost
 
     private fun StreamFacts.subtitleCost(index: Int) = checkNotNull(playing).subtitles.single { it.index == index }.cost
+
+    @Test
+    fun aTrackIsInstantOnlyWhenThePlayerCanBeToldWhichOneToShow() {
+        val facts = playingOn(Route.DIRECT_PLAY).facts()
+        val subtitles = checkNotNull(facts.playing).subtitles
+        assertTrue(
+            "an instant subtitle row must carry the pick its in-place switch needs",
+            subtitles.filter { it.cost == SwitchCost.Instant }.all { it.pick != null },
+        )
+        val audio = checkNotNull(facts.playing).audio
+        assertTrue(audio.filter { it.cost == SwitchCost.Instant }.all { it.pick != null })
+    }
+
+    @Test
+    fun theTitleIsTheFilesOwnNotTheServersGeneratedDisplayTitle() {
+        val first = tracks.streams.first { it.kind == StreamKind.SUBTITLE }
+        val stream = first.copy(title = null, displayTitle = "English - SUBRIP")
+        val media = tracks.copy(streams = tracks.streams.map { if (it.index == stream.index) stream else it })
+        val shown = checkNotNull(playingOn(Route.DIRECT_PLAY, media).facts().playing)
+        assertNull(shown.subtitles.single { it.index == stream.index }.title)
+    }
 
     @Test
     fun onDirectPlayEachTrackCarriesItsOwnCost() {

@@ -13,6 +13,7 @@ import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.playback.SubtitleFacts
 import tv.stationbreak.core.playback.SubtitleForm
 import tv.stationbreak.core.playback.VideoFacts
+import tv.stationbreak.feature.live.PickerRow
 import java.util.Locale
 
 /** The stream line and the picker rows (design doc B1, B2.8), read against the shipped `strings.xml`. */
@@ -36,7 +37,8 @@ class StreamLabelsTest {
         language: String? = "eng",
         form: SubtitleForm = SubtitleForm.Text,
         flags: TrackFlags = TrackFlags(),
-    ) = SubtitleFacts(index, language, "subrip", form, null, false, false, flags)
+        title: String? = null,
+    ) = SubtitleFacts(index, language, "subrip", form, title, false, false, flags)
 
     private fun version(
         id: String = "src1",
@@ -197,5 +199,60 @@ class StreamLabelsTest {
         assertEquals("XYZ", languageName("xyz", Locale.ENGLISH))
         assertNull(languageName("und", Locale.ENGLISH))
         assertNull(languageName(null, Locale.ENGLISH))
+    }
+
+    // --- twin rows ---
+
+    private fun subtitleTexts(vararg tracks: SubtitleFacts): List<String> =
+        StreamLabels.pickerTexts(tracks.map { PickerRow.Subtitle(it, playing = false) }, copy, language)
+
+    @Test
+    fun rowsThatReadTheSameTakeTheirTitlesAndRowsThatDoNotAreUnchanged() {
+        val texts =
+            subtitleTexts(
+                subtitle(1, title = "Full"),
+                subtitle(2, form = SubtitleForm.Picture),
+                subtitle(3, title = "Signs"),
+                subtitle(4, language = "spa"),
+            )
+        assertEquals("English · Text · Full", texts[0])
+        assertEquals("English · Picture", texts[1])
+        assertEquals("English · Text · Signs", texts[2])
+        assertEquals("Spanish · Text", texts[3])
+    }
+
+    @Test
+    fun untitledTwinsAreNumberedFromTheSecond() {
+        val texts = subtitleTexts(subtitle(1), subtitle(2), subtitle(3))
+        assertEquals(listOf("English · Text", "English · Text · 2", "English · Text · 3"), texts)
+    }
+
+    @Test
+    fun twinsWithTheSameTitleFallBackToNumbers() {
+        val texts = subtitleTexts(subtitle(1, title = "Full"), subtitle(2, title = "Full"))
+        assertEquals(listOf("English · Text · Full", "English · Text · Full · 2"), texts)
+    }
+
+    @Test
+    fun aTitleThatIsANumberOrSaysWhatTheRowAlreadySaysIsNoTitle() {
+        val texts =
+            subtitleTexts(
+                subtitle(1, flags = TrackFlags(forced = true), title = "Forced"),
+                subtitle(2, flags = TrackFlags(forced = true), title = "Forced"),
+                subtitle(3, title = "0"),
+                subtitle(4, title = "0"),
+                subtitle(5, title = "English"),
+            )
+        assertEquals("English · Forced · Text", texts[0])
+        assertEquals("English · Forced · Text · 2", texts[1])
+        assertEquals("English · Text", texts[2])
+        assertEquals("English · Text · 2", texts[3])
+        assertEquals("English · Text · 3", texts[4])
+    }
+
+    @Test
+    fun aTitledTwinNextToAnUntitledOneIsToldApartByTheTitle() {
+        val texts = subtitleTexts(subtitle(1), subtitle(2, title = "Full"))
+        assertEquals(listOf("English · Text", "English · Text · Full"), texts)
     }
 }

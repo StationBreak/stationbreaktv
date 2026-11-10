@@ -7,7 +7,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import tv.stationbreak.core.domain.logName
-import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
@@ -23,6 +22,8 @@ internal data class OverlayUp(
     val guide: Boolean = false,
     /** The picture is paused: Select plays it, and Left and Right scrub it (with no overlay up). */
     val paused: Boolean = false,
+    /** A picker is open over the banner's chips: Up, Down, Left, Right and Select are its focus's (design doc B2.4). */
+    val picker: Boolean = false,
 ) {
     companion object {
         val None = OverlayUp()
@@ -43,6 +44,7 @@ internal fun overlayUpOf(
     info = info != null,
     guide = guideOpen,
     paused = transport?.paused == true,
+    picker = (state as? LiveState.Watching)?.banner?.picker != null,
 )
 
 /** What a key asks for: a command for the machine, or the guide opened or closed, which the screen does itself. */
@@ -54,35 +56,6 @@ internal sealed interface KeyAction {
     data class Guide(
         val open: Boolean,
     ) : KeyAction
-}
-
-private fun mappedCommand(
-    key: Key,
-    up: OverlayUp = OverlayUp.None,
-): LiveCommand? {
-    // The guide has the D-pad and Select; flipping, Menu and Info would act on a picture the viewer cannot see.
-    if (up.guide) return null
-    // Left, Right and Select belong to the overlays when one is up; paused with none, they are the transport's.
-    val scrubbing = up.paused && !up.actions && !up.info
-    // Over the actions banner Select clicks its focused button; over the info overlay it does nothing; paused it plays
-    // (ADR-0021, 2).
-    val select = if (scrubbing) LiveCommand.Play else LiveCommand.ShowBanner.takeUnless { up.actions || up.info }
-    return when (key) {
-        Key.DirectionUp, Key.ChannelUp -> LiveCommand.Flip(FlipDirection.Up)
-
-        Key.DirectionDown, Key.ChannelDown -> LiveCommand.Flip(FlipDirection.Down)
-
-        Key.Menu -> LiveCommand.Previous
-
-        Key.Info -> LiveCommand.ShowInfo
-
-        Key.DirectionCenter, Key.Enter -> select
-
-        // Back closes an overlay; with none up it opens the guide (keyAction).
-        Key.Back -> LiveCommand.DismissOverlay.takeIf { up.actions || up.info }
-
-        else -> transportCommand(key, scrubbing)
-    }
 }
 
 /**
@@ -273,7 +246,7 @@ private fun release(
 private fun movesBetweenButtons(
     key: Key,
     up: OverlayUp,
-): Boolean = up.actions && !up.guide && (key == Key.DirectionLeft || key == Key.DirectionRight)
+): Boolean = up.actions && !up.guide && !up.picker && (key == Key.DirectionLeft || key == Key.DirectionRight)
 
 /**
  * The key line of [key] when it is the down of a key that acts (sends a command, or opens or closes the guide), else

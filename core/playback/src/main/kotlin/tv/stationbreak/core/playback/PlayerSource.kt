@@ -56,6 +56,29 @@ data class TrackPick(
     val codec: String?,
 )
 
+/** What a mid-play switch does about subtitles on direct play. */
+sealed interface SubtitleSwitch {
+    /** Leave the subtitle selection as it is. */
+    data object Keep : SubtitleSwitch
+
+    /** Turn the text track off. */
+    data object Off : SubtitleSwitch
+
+    /** Show the container's text track at [pick]. */
+    data class To(
+        val pick: TrackPick,
+    ) : SubtitleSwitch
+}
+
+/**
+ * A change of tracks the player makes while it plays (direct play only, [SwitchCost.Instant]): [audio] is the track to
+ * pick, or null to leave the audio alone, and [subtitles] what to do about subtitles.
+ */
+data class TrackSwitch(
+    val audio: TrackPick? = null,
+    val subtitles: SubtitleSwitch = SubtitleSwitch.Keep,
+)
+
 /**
  * A WebVTT file the player loads beside the video. The [url] carries no credential (ADR-0016), but it is still a
  * server address, so [toString] does not show it.
@@ -95,7 +118,8 @@ data class PlayerSource(
  * The resolver's answer: what to play and why. [requested] is the start the caller asked for. [sources] are every
  * version the server offered for the item, in its order, the chosen [media] among them; empty when a result is built by
  * hand without them. [limits] are the device's capabilities the route was decided with (null for a result built by
- * hand): the facts' switch costs are decided against them.
+ * hand): the facts' switch costs are decided against them. [carriedMs] is how long the second `PlaybackInfo` call took
+ * (the one a carried preference makes after resolving, design doc B2.6), null when none was made.
  */
 @Suppress("LongParameterList") // One independent fact each.
 data class ResolvedPlayback(
@@ -108,4 +132,5 @@ data class ResolvedPlayback(
     val requested: Duration,
     val sources: List<MediaSource> = emptyList(),
     val limits: DeviceCapabilities? = null,
+    val carriedMs: Long? = null,
 )

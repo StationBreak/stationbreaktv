@@ -50,10 +50,13 @@ interface TrackChoiceStore {
         language: String?,
     ): Boolean
 
-    /** Remembers the subtitle choice, replacing any earlier one. False when it could not be stored. */
+    /**
+     * Remembers the subtitle choice, replacing any earlier one; null clears it, so the server's default decides again
+     * (the way back from "Off" or a language). False when it could not be stored.
+     */
     suspend fun saveSubtitles(
         account: LibraryAccount,
-        choice: SubtitlePreference,
+        choice: SubtitlePreference?,
     ): Boolean
 
     /** The version the account last chose for [item], or null when none is remembered. */

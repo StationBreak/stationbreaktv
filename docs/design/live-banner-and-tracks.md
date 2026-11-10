@@ -36,7 +36,7 @@ The year is `ProgramInfo.year`, read with the item's other names from the librar
 
 ### Select banner (actions)
 
-The tune banner plus a 44 dp row under a 1 dp `line`: **102 dp** total. Buttons are 28 dp tall, 2 dp radius, 12 sp Medium, `card` fill; focused = `accent` fill with `focusText`, **no scale, no ring** (guide focus grammar; drop `FocusStyle` here). Order: `Live` (only while behind) · `Info` · `Last` (if any) · 1 dp divider · `Audio` · `Subtitles` · `Version`. Info takes focus on open, as today.
+The tune banner plus a 44 dp row under a 1 dp `line`: **102 dp** total. Buttons are 28 dp tall, 2 dp radius, 12 sp Medium, `card` fill; focused = `accent` fill with `focusText`, **no scale, no ring** (guide focus grammar; drop `FocusStyle` here). Order: `Live` (only while behind) · `Info` · `Last` (if any) · 1 dp divider · `Audio` · `Subtitles` · `Version`, then, right-aligned at the end of the row, "Transcoding" (11 sp `textSecondary`, not focusable) only while the route is a transcode; nothing for direct play or direct stream. Info takes focus on open, as today.
 
 ### Other live chrome
 
@@ -61,8 +61,8 @@ The **stream line** on every banner, information only: `1080p HEVC · English 5.
    - *Audio and subtitles:* the exact track applies to the programme on air. What carries on is the **language** (and subtitles on/off), stored on the device per signed-in user and kept across restarts. **Never written back to Jellyfin**, since that would change the viewer's other apps.
    - *Version:* remembered per item on the device (item id → media source id, most recent 200).
 6. **Next programme.** The carried language applies when the next item has a track in it (the default-flagged one, else the first); commentary, forced and audio-description tracks never carry. **Subtitles off does not remove a forced track** (owner decision, 2026-11-09): when the source's default subtitle is forced, the server default stands instead of Off. No match → the server default, silently; the stream line shows what is actually playing. A carried subtitle preference picks **text** tracks; it uses a picture subtitle only when that is also the server's default, so a preference never quietly turns direct play into a transcode. **SDH carries** (owner decision, 2026-11-09): the subtitle preference is a language plus whether the chosen track was SDH (hearing-impaired). With it set, the next programme prefers an SDH track in that language and falls back to a plain track in that language; without it, a plain track is preferred and an SDH track in that language is the fallback (owner decision, 2026-11-09). The server's own hearing-impaired flag marks an SDH track, and a title that says SDH or hearing impaired does too.
-7. **Interrupting changes.** Rows that need a re-tune carry a trailing "restarts picture" label (11 sp `textSecondary`). No confirmation dialog. Choosing one re-tunes at the current position under the usual snow with the banner label `SWITCHING AUDIO` / `SWITCHING SUBTITLES` / `SWITCHING VERSION`. If the re-tune fails, fall back to the previous choice and show "Couldn't switch" in place of the stream line for one linger. Undo is choosing the previous row.
-8. **Edge states.** One audio track or one version → that chip is shown but not focusable. No subtitle tracks → `Subtitles  None`, not focusable. Row labels: language (or "Unknown"), then flags from the server title (`Commentary`, `SDH`, `Forced`), then layout and codec for audio, `Text` / `Picture` for subtitles, resolution · codec · edition name for versions. `Off` is always the first subtitle row.
+7. **Interrupting changes.** Rows that need a re-tune carry a trailing "brief pause" label (11 sp `textSecondary`); when every row of the picker pauses, the label is said once as a heading above the rows instead of on each. No confirmation dialog. Choosing one re-tunes at the current position under the usual snow with the banner label `SWITCHING AUDIO` / `SWITCHING SUBTITLES` / `SWITCHING VERSION`. If the re-tune fails, fall back to the previous choice and show "Couldn't switch" in place of the stream line for one linger. Undo is choosing the previous row.
+8. **Edge states.** One audio track or one version → that chip is shown but not focusable. No subtitle tracks → `Subtitles  None`, not focusable. Row labels: language (or "Unknown"), then flags from the server title (`Commentary`, `SDH`, `Forced`), then layout and codec for audio, `Text` / `Picture` for subtitles, resolution · codec · edition name for versions. `Off` is always the first subtitle row, and the last row is **Server default**: the way back from a chosen subtitle (or Off) to the server deciding again. It re-tunes, and forgets the stored subtitle choice.
 9. **Kids channels.** Same choices.
 10. **Names.** Audio, Subtitles, Version. "Off", not "None", for the chosen-off state.
 
@@ -72,7 +72,7 @@ The **stream line** on every banner, information only: `1080p HEVC · English 5.
 |---|---|---|
 | Audio track | instant (`TrackSelectionOverride` mid-play) | re-tune |
 | Text subtitle in the container | instant | re-tune until proven instant on a TV (spike in PR 4) |
-| Text subtitle in a separate file | instant only if side-loaded at start; else re-tune | re-tune |
+| Text subtitle in a separate file | re-tune (the player cannot be told to show a side-loaded file by a position in the file; TV, 2026-11-10: a row labelled instant re-tuned) | re-tune |
 | Picture subtitle | re-tune (burn-in) | re-tune |
 | Version | re-tune | re-tune |
 

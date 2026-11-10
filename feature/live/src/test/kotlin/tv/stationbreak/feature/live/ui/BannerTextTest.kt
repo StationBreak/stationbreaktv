@@ -158,6 +158,11 @@ internal object StringsXml {
             text = text("live_track_text"),
             picture = text("live_track_picture"),
             off = text("live_track_off"),
+            chipNone = text("live_chip_none"),
+            serverDefault = text("live_picker_server_default"),
+            restarts = text("live_picker_restarts"),
+            playing = text("live_picker_playing"),
+            switchFailed = text("live_switch_failed"),
         )
 
     /** The words shared with the guide live in core:ui; the banner's episode lines are checked against them. */

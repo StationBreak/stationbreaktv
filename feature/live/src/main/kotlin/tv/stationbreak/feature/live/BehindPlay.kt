@@ -32,6 +32,18 @@ internal fun interface Retune {
         mediaMs: Long,
         onPlaying: (TuneOutcome.Playing) -> Unit,
     ): TuneOutcome
+
+    /**
+     * The same tune for a viewer's switch (design doc B2.7): the banner says [label] under the snow, and one that
+     * follows a switch that did not take ([failed]) says so in the stream line's place. A retune with no such text
+     * (a test's) is just the ordinary one.
+     */
+    suspend fun switching(
+        mediaMs: Long,
+        label: BannerLabel,
+        failed: Boolean,
+        onPlaying: (TuneOutcome.Playing) -> Unit,
+    ): TuneOutcome = at(mediaMs, onPlaying)
 }
 
 /** The one retry a block (or stand-in piece) allows, shared by its live and behind plays (ADR-0021 4 and 6). */
@@ -59,16 +71,39 @@ internal fun Sitting.retuneAt(
     item: ItemId,
     label: BannerLabel,
 ): Retune =
-    Retune { mediaMs, onPlaying ->
-        val position = mediaMs.milliseconds
-        val banner = bannerFor(onAir.channel, block, label, mediaMs, driftMs, onAir.nextProgram())
-        val what = TuneWhat(TuneKind.Retry, block, position)
-        val outcome =
-            tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir, onPlaying = onPlaying) {
-                tuner.tune(session, item, position, choiceFor(block, item))
-            }
-        if (outcome == TuneOutcome.Expired) expired()
-        outcome
+    object : Retune {
+        override suspend fun at(
+            mediaMs: Long,
+            onPlaying: (TuneOutcome.Playing) -> Unit,
+        ): TuneOutcome = tuneAgain(mediaMs, label, TuneKind.Retry, failed = false, onPlaying)
+
+        override suspend fun switching(
+            mediaMs: Long,
+            label: BannerLabel,
+            failed: Boolean,
+            onPlaying: (TuneOutcome.Playing) -> Unit,
+        ): TuneOutcome = tuneAgain(mediaMs, label, TuneKind.Retry, failed, onPlaying)
+
+        @Suppress("LongParameterList") // One tune: where, how it is labelled, and what is told of it.
+        private suspend fun tuneAgain(
+            mediaMs: Long,
+            label: BannerLabel,
+            kind: TuneKind,
+            failed: Boolean,
+            onPlaying: (TuneOutcome.Playing) -> Unit,
+        ): TuneOutcome {
+            val position = mediaMs.milliseconds
+            val banner =
+                bannerFor(onAir.channel, block, label, mediaMs, driftMs, onAir.nextProgram())
+                    .copy(switchFailed = failed)
+            val what = TuneWhat(kind, block, position)
+            val outcome =
+                tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir, onPlaying = onPlaying) {
+                    tuner.tune(session, item, position, choiceFor(block, item))
+                }
+            if (outcome == TuneOutcome.Expired) expired()
+            return outcome
+        }
     }
 
 /**
@@ -202,7 +237,7 @@ internal sealed interface BehindEnd {
  * play. [visiting] is null when the play is not reported (a stand-in is never). A stand-in piece (ADR-0021 4) is
  * paused and stepped as a program is, but resolves nothing ahead: what follows it is the dead block's next piece.
  */
-@Suppress("TooManyFunctions") // One function per transport op and state change.
+@Suppress("TooManyFunctions", "LargeClass") // One function per transport op and state change.
 internal class BehindPlay(
     private val host: BehindHost,
     private val block: AiringBlock,
@@ -449,7 +484,64 @@ internal class BehindPlay(
             TransportOp.GoLive -> {
                 liveOrItemEnd()
             }
+
+            is TransportOp.Switch -> {
+                switchTracks(op.selection)
+            }
         }
+
+    /**
+     * The viewer's audio or subtitle choice (design doc B2.7). In place when the player can; else the item is tuned
+     * again at the place under the snow, "Switching ...", and if that fails the previous choice is tuned instead. The
+     * retune does not use the block's one retry. Non-null when the play is lost or the sitting ends.
+     */
+    private suspend fun switchTracks(selection: TrackSelection): BehindEnd? {
+        val place = read()
+        val before = play
+        // The kept place while a retune tunes (a screen stop meanwhile keeps it); an in-place switch undoes it below.
+        linger?.cancel()
+        host.publishTransport(null)
+        val done = host.switchTo(selection, before, block, place, retune, ::carryOn)
+        return when (done) {
+            null -> {
+                publish()
+                null
+            }
+
+            is Switched.Done -> {
+                afterSwitch(before, done.play)
+            }
+
+            is Switched.FellBack -> {
+                afterSwitch(before, done.play)
+            }
+
+            Switched.Lost -> {
+                deadOrOver()
+            }
+
+            Switched.Expired -> {
+                BehindEnd.Exit(Exit.SignedOut)
+            }
+
+            Switched.Cancelled -> {
+                BehindEnd.Exit(Exit.Stopped)
+            }
+        }
+    }
+
+    /** The switch took: the same play with new facts (in place), or the new play whose picture is up (a retune). */
+    private suspend fun afterSwitch(
+        before: TuneOutcome.Playing,
+        after: TuneOutcome.Playing,
+    ): BehindEnd? {
+        play = after
+        if (after.control == before.control) {
+            publish()
+            return null
+        }
+        return shown(goingLive = false)
+    }
 
     /** GoLive: back to live while the block is on air; once it has ended by the clock, the item ends (non-null). */
     private suspend fun liveOrItemEnd(): BehindEnd? {

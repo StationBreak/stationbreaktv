@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.TrackSwitch
 import tv.stationbreak.core.playback.VideoPlayer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -61,6 +62,17 @@ internal class RecordingPlayer : VideoPlayer {
     override suspend fun currentPosition(generation: Long): Duration? = 1.seconds
 
     override fun seekable(generation: Long): Boolean = true
+
+    /** What [switchTracks] answers: the inner player's own word, which the guarded player must pass on. */
+    var switchAnswer = true
+
+    override suspend fun switchTracks(
+        generation: Long,
+        switch: TrackSwitch,
+    ): Boolean {
+        log += "switch:$generation:$switch"
+        return switchAnswer
+    }
 
     override fun release() {
         log += "release"

@@ -6,10 +6,12 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.playback.PlayNote
 import kotlin.time.Instant
 
 /** What a [BehindPlay] needs of the sitting it runs in, and nothing more (spec 20, ADR-0021 9). */
+@Suppress("TooManyFunctions") // The sitting's ports one for one: each is a thing the behind play asks of it.
 internal interface BehindHost {
     val timings: LiveTimings
 
@@ -47,6 +49,20 @@ internal interface BehindHost {
 
     /** A `press dropped` line with [reason] and the state on screen. */
     fun dropped(reason: String)
+
+    /**
+     * Makes the viewer's [selection] on [play] of [block] at media position [atMs] ([Sitting.switchTo]); null when the
+     * block has no item of its own to retune (a slate). A host with no tuner behind it (a test's) switches nothing.
+     */
+    @Suppress("LongParameterList") // The selection, the play and where it is, and how a retune is made and told.
+    suspend fun switchTo(
+        selection: TrackSelection,
+        play: TuneOutcome.Playing,
+        block: AiringBlock,
+        atMs: Long,
+        retune: Retune,
+        onPlaying: (TuneOutcome.Playing) -> Unit,
+    ): Switched? = null
 
     /** Shows [view] as the transport, or none. */
     fun publishTransport(view: TransportView?)
@@ -96,6 +112,18 @@ internal fun Sitting.behindHost(): BehindHost {
                         .logName(),
                 ),
             )
+
+        override suspend fun switchTo(
+            selection: TrackSelection,
+            play: TuneOutcome.Playing,
+            block: AiringBlock,
+            atMs: Long,
+            retune: Retune,
+            onPlaying: (TuneOutcome.Playing) -> Unit,
+        ): Switched? {
+            val item = block.airing.itemId()?.let { ItemId(it.value) } ?: return null
+            return sitting.switchTo(selection, play, block, item, atMs, retune, onPlaying)
+        }
 
         override fun publishTransport(view: TransportView?) {
             sitting.state.transport.value = view

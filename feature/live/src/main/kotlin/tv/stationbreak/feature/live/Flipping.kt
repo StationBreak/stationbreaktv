@@ -252,6 +252,9 @@ internal class Flipper(
 
             LiveCommand.ShowBanner, LiveCommand.ShowInfo, LiveCommand.DismissOverlay -> Unit
 
+            // The overlays' (Overlays.handle); Choose also goes to the sitting (LiveChannel.follow).
+            is LiveCommand.OpenPicker, is LiveCommand.Choose -> Unit
+
             // The sitting's inbox takes these (LiveChannel.routeTransport), not the flipper.
             LiveCommand.PlayPause, LiveCommand.Play, LiveCommand.Pause, is LiveCommand.Seek,
             LiveCommand.SeekReleased, LiveCommand.GoLive,

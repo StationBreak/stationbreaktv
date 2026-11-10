@@ -384,6 +384,8 @@ class LiveChannel(
             commands.collect { command ->
                 val op = transportOp(command)
                 if (op != null) {
+                    // A choice closes its picker (the overlays) as well as going to the sitting.
+                    if (command is LiveCommand.Choose) flipper.guarded { overlays.handle(command, scope) }
                     flipper.guarded { routeTransport(op) }
                 } else {
                     flipper.handle(command) { overlays.handle(it, scope) }
@@ -401,6 +403,7 @@ class LiveChannel(
             is LiveCommand.Seek -> TransportOp.Step(command.direction, command.repeat, command.atMs)
             LiveCommand.SeekReleased -> TransportOp.StepReleased
             LiveCommand.GoLive -> TransportOp.GoLive
+            is LiveCommand.Choose -> TransportOp.Switch(command.selection)
             else -> null
         }
 

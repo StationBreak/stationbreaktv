@@ -473,10 +473,24 @@ internal class Sitting(
                 tuneAndShow(scope, banner, snow = snow, what = TuneWhat(kind, block, asked), onAir = onAir) {
                     use?.consumed = true
                     when (use) {
-                        is Pending.AtBoundary -> tuner.tune(session, use.handle)
-                        is Pending.Retarget -> tuner.tune(session, use.handle, position)
-                        is Pending.CatchUp -> tuner.tune(session, use.handle, position)
-                        null -> tuner.tune(session, ItemId(program.itemId.value), position)
+                        is Pending.AtBoundary -> {
+                            tuner.tune(session, use.handle)
+                        }
+
+                        is Pending.Retarget -> {
+                            tuner.tune(session, use.handle, position)
+                        }
+
+                        is Pending.CatchUp -> {
+                            tuner.tune(session, use.handle, position)
+                        }
+
+                        // The viewer's choice for this programme, if they made one: a retry after a failed play
+                        // (an instant switch included) keeps it, as the behind play's retune does (choiceFor).
+                        null -> {
+                            val item = ItemId(program.itemId.value)
+                            tuner.tune(session, item, position, choiceFor(block, item))
+                        }
                     }
                 }
             val dead =
@@ -601,8 +615,12 @@ internal class Sitting(
         block: AiringBlock,
     ): Playing {
         lingering?.cancel()
-        // Once the picture plays, "Tuning in" becomes "Now" (R22). Filling in stays as it is.
-        val label = if (banner.label == BannerLabel.TuningIn) BannerLabel.Now else banner.label
+        // Once the picture plays, "Tuning in" (or a switch's "Switching ...") becomes "Now" (R22). Filling in stays.
+        val label =
+            when (banner.label) {
+                BannerLabel.TuningIn, BannerLabel.SwitchingAudio, BannerLabel.SwitchingSubtitles -> BannerLabel.Now
+                else -> banner.label
+            }
         val shown = banner.copy(label = label)
         val playing = Playing(shown, block.airing.itemId(), channel, block)
         state.watching(LiveState.Watching(shown), playing)
@@ -755,8 +773,11 @@ private suspend fun Sitting.takeLiveOp(
         val op = commands.receive(blockStartMs)
         val takes =
             when (op) {
-                TransportOp.Toggle, TransportOp.Pause -> true
+                // A switch of tracks is the behind play's to make, in place or by a retune at the place.
+                TransportOp.Toggle, TransportOp.Pause, is TransportOp.Switch -> true
+
                 is TransportOp.Step -> op.direction == SeekDirection.Back && control.seekable()
+
                 TransportOp.Play, TransportOp.StepReleased, TransportOp.GoLive -> false
             }
         if (takes) return Woke.Op(op)

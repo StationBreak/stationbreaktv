@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import tv.stationbreak.core.domain.tracks.SubtitlePreference
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
@@ -44,6 +45,8 @@ class NextHandle(
  * @property av when the audio and video start-up steps happened, ms since the play call, null if unknown.
  * @property warm what became of the warm standby for this tune (spec 24), null if the port did not say. A hand-over
  *   that then fell back still reports warm, so a flip counts as warm only with `fallback=none`.
+ * @property carriedMs how long the second `PlaybackInfo` call took, the one a carried track preference makes after
+ *   resolving (design doc B2.6); null when the tune made none.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -57,6 +60,7 @@ data class TuneTimings(
     val loads: LoadStats? = null,
     val av: AvTimings? = null,
     val warm: WarmUse? = null,
+    val carriedMs: Long? = null,
 )
 
 /**
@@ -159,4 +163,26 @@ interface TunePort {
     suspend fun stop(session: Session)
 
     suspend fun close(session: Session)
+
+    /**
+     * Keeps what the viewer chose for the next programmes (design doc B2.5), on this device and never on the server.
+     * Fire and forget: a port that cannot keep it does nothing, and the choice still holds for the programme on air.
+     */
+    suspend fun remember(
+        session: Session,
+        what: Remembered,
+    ) = Unit
+}
+
+/** What a viewer's choice leaves behind for the programmes that follow. */
+sealed interface Remembered {
+    /** The audio language to carry ([tv.stationbreak.core.model.LanguageCodes.canonical]); null forgets it. */
+    data class AudioLanguage(
+        val language: String?,
+    ) : Remembered
+
+    /** The subtitle choice to carry; null hands the decision back to the server. */
+    data class Subtitles(
+        val preference: SubtitlePreference?,
+    ) : Remembered
 }

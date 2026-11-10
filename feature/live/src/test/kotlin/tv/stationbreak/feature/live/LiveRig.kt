@@ -48,6 +48,7 @@ import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.TrackChoice
+import tv.stationbreak.core.playback.TrackSwitch
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -236,6 +237,16 @@ class FakeTune(
         calls += Call.Close(now())
     }
 
+    /** What the viewer's choices left for the next programmes, in the order they were kept. */
+    val remembered = mutableListOf<Remembered>()
+
+    override suspend fun remember(
+        session: Session,
+        what: Remembered,
+    ) {
+        remembered += what
+    }
+
     companion object {
         fun plays(
             end: Flow<PlaybackEnd> = flow { awaitCancellation() },
@@ -373,6 +384,18 @@ class FakePlayControl(
     }
 
     override fun seekable(): Boolean = seekableValue
+
+    /** What [switchTracks] answers: true when the player took the switch, false when it could not (then a retune). */
+    var switchTaken = true
+
+    /** Every in-place switch asked for, in order. */
+    val switches = mutableListOf<TrackSwitch>()
+
+    override suspend fun switchTracks(switch: TrackSwitch): Boolean {
+        calls += "switch"
+        switches += switch
+        return switchTaken
+    }
 }
 
 class CountingLastChannel(

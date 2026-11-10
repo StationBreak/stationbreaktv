@@ -19,6 +19,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.StreamKind
 import tv.stationbreak.core.model.SubtitleDelivery
 import kotlin.time.Duration
+import kotlin.time.TimeSource
 
 /**
  * Decides how to play an item from the server's answer and the device's [capabilities]. It asks the server once,
@@ -83,8 +84,10 @@ class PlaybackResolver(
         val tracks = TrackCarry.tracksFor(preferences, played.media)
         val override = TrackOverride(tracks.audioIndex, tracks.subtitles.toChoice())
         if (tracks.isServerDefault || played.alreadyPlays(override)) return null
+        val began = TimeSource.Monotonic.markNow()
         val second = resolveOnce(session, item, start, TrackChoice(played.media.id, override), forceTranscode, limits)
-        return second.takeIf { it is ServerResult.Success }
+        val tookMs = began.elapsedNow().inWholeMilliseconds
+        return (second as? ServerResult.Success)?.let { ServerResult.Success(it.value.copy(carriedMs = tookMs)) }
     }
 
     @Suppress("LongParameterList") // One call's context.

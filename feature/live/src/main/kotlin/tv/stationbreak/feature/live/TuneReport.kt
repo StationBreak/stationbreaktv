@@ -70,13 +70,17 @@ sealed interface TuneReport {
         val loads: LoadStats? = null,
         val av: AvTimings? = null,
         val warm: WarmUse? = null,
+        val carriedMs: Long? = null,
     ) : TuneReport {
         override fun line() =
             "tune kind=${kind.label} resolveMs=$resolveMs firstFrameMs=${firstFrameMs ?: NOT_SEPARATE} " +
                 "playingMs=$playingMs posErrMs=${positionErrorMs ?: NOT_SEPARATE} fallback=${fallback ?: "none"} " +
                 "lagMs=$lagMs from=${from ?: "none"} route=${route ?: "none"} " +
                 "tracksMs=${tracksMs ?: NOT_SEPARATE} skippedFrames=${skippedFrames ?: NOT_SEPARATE} " +
-                loadFields() + " " + avFields() + warmFields(warm)
+                loadFields() + " " + avFields() + warmFields(warm) + carriedFields()
+
+        /** ` carriedMs=<n>` when a carried preference made a second `PlaybackInfo` call; nothing otherwise. */
+        private fun carriedFields(): String = carriedMs?.let { " carriedMs=$it" }.orEmpty()
 
         private fun avFields(): String {
             val a = av ?: AvTimings()
@@ -320,6 +324,7 @@ internal fun Sitting.reportTune(
             timings.loads,
             timings.av,
             timings.warm,
+            timings.carriedMs,
         ),
     )
     if (cutSince != null) {

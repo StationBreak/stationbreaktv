@@ -12,14 +12,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LongState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -28,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -41,9 +48,12 @@ import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
+import tv.stationbreak.feature.live.PickerKind
 import tv.stationbreak.feature.live.R
+import tv.stationbreak.feature.live.TrackSelection
 import java.time.ZoneId
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /** The tune banner: 2 dp progress line and a 54 dp row inside a 1 dp border. */
 private val TuneHeight = 58.dp
@@ -81,17 +91,37 @@ internal fun CableBanner(
     onLive: () -> Unit = {},
     behind: Boolean = false,
     clock: () -> Long = System::currentTimeMillis,
+    onPicker: (PickerKind) -> Unit = {},
+    onChoose: (TrackSelection) -> Unit = {},
 ) {
     ChromeTheme {
-        BoxWithConstraints(modifier.fillMaxSize()) {
+        var origin by remember { mutableStateOf(0f) }
+        var chips by remember { mutableStateOf(mapOf<PickerKind, Float>()) }
+        BoxWithConstraints(modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot().x }) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             BannerStrip(
                 banner,
                 Modifier.align(Alignment.BottomCenter).padding(start = safe.left, end = safe.left, bottom = safe.top),
-                Actions(onInfo, onLast, onLive),
+                Actions(onInfo, onLast, onLive, { onPicker(PickerKind.Audio) }, { onPicker(PickerKind.Subtitles) }),
                 behind,
                 clock,
+                chipPlaced = { kind, x -> chips = chips + (kind to x) },
             )
+            val open = banner.picker
+            val facts = banner.stream
+            if (open != null && facts != null) {
+                // Above its chip, left edges together, clear of the 5% safe area and the banner under it.
+                val left = (chips[open] ?: origin) - origin
+                TrackPicker(
+                    open,
+                    facts,
+                    onChoose,
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = safe.top + SelectHeight + 4.dp)
+                        .offset { IntOffset(left.roundToInt(), 0) },
+                )
+            }
         }
     }
 }
@@ -150,6 +180,7 @@ internal fun channelLine(
     name: String,
 ) = channelNumber(number) + " · " + name
 
+@Suppress("LongParameterList") // The banner, its place, its actions, and the three things the row reads.
 @Composable
 private fun BannerStrip(
     banner: Banner,
@@ -157,6 +188,7 @@ private fun BannerStrip(
     actions: Actions,
     behind: Boolean,
     clock: () -> Long,
+    chipPlaced: (PickerKind, Float) -> Unit,
 ) {
     val colors = LocalGuideColors.current
     val context = LocalContext.current
@@ -193,7 +225,7 @@ private fun BannerStrip(
         BannerRow(banner, BannerLines(episode, slot, next, rememberStreamLine(banner), joined), programCopy, now)
         if (banner.actions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
-            ActionsRow(banner.hasLast, actions, behind)
+            ActionsRow(banner.hasLast, actions, behind, banner.stream, chipPlaced, banner.picker)
         }
     }
 }
@@ -368,4 +400,6 @@ private fun labelText(label: BannerLabel) =
         BannerLabel.Now -> R.string.live_label_now
         BannerLabel.UpNext -> R.string.live_label_up_next
         BannerLabel.FillingIn -> R.string.live_label_filling_in
+        BannerLabel.SwitchingAudio -> R.string.live_label_switching_audio
+        BannerLabel.SwitchingSubtitles -> R.string.live_label_switching_subtitles
     }

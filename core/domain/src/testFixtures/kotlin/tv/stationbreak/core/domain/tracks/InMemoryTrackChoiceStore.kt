@@ -24,7 +24,7 @@ class InMemoryTrackChoiceStore : TrackChoiceStore {
 
     override suspend fun saveSubtitles(
         account: LibraryAccount,
-        choice: SubtitlePreference,
+        choice: SubtitlePreference?,
     ): Boolean = save { preferences[account] = preferences(account).copy(subtitles = choice) }
 
     override suspend fun version(

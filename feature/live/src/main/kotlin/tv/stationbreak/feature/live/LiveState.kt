@@ -79,7 +79,16 @@ enum class BannerLabel {
 
     /** A stand-in playing in place of a dead show. */
     FillingIn,
+
+    /** The viewer chose another audio track and the picture restarts (design doc B2.7). */
+    SwitchingAudio,
+
+    /** The viewer chose other subtitles and the picture restarts. */
+    SwitchingSubtitles,
 }
+
+/** The pickers the actions banner opens over its chips (design doc B2.4). */
+enum class PickerKind { Audio, Subtitles }
 
 /**
  * The cable-box banner: all values are the schedule's own answer for the moment it was made (design goal 7). Times are
@@ -90,7 +99,9 @@ enum class BannerLabel {
  * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go). [recipeKey] is
  * the channel's recipe key, which finds its logo for the mark (null for a channel with none: the mark is its initials).
  * [stream] is what plays (route, tracks, the versions on offer), set once the picture is up and null before that and
- * when the adapter had nothing to say: the stream line shows it.
+ * when the adapter had nothing to say: the stream line shows it. [picker] is the picker open over the actions banner's
+ * chips, if any. [switchFailed] is true for the one banner that follows a switch that did not take: it says so in the
+ * stream line's place, and the picture is the previous choice's.
  */
 data class Banner(
     val number: Int,
@@ -106,6 +117,8 @@ data class Banner(
     val hasLast: Boolean = false,
     val recipeKey: String? = null,
     val stream: StreamFacts? = null,
+    val picker: PickerKind? = null,
+    val switchFailed: Boolean = false,
 )
 
 /** The program after the one a [Banner] names: its title as the banner shows it, and its start (UTC milliseconds). */

@@ -14,9 +14,10 @@ import tv.stationbreak.core.model.ItemDetails
  * [Screen] beside the sitting, never in its place: a tune, a boundary cut or a flip writes the next state and both are
  * gone. All of it runs on the run's one dispatcher, like the commands that drive it.
  *
- * The actions banner (Info, Last) stays [LiveTimings.actionsLinger] after the last key; the overlay has no timer, it
- * holds text to read. [details] is null where there is no cache (a test): the overlay then shows what the banner
- * knows, and never fails.
+ * The actions banner (Info, Last, and the Audio / Subtitles / Version chips) stays [LiveTimings.actionsLinger] after
+ * the last key; the overlay has no timer, it holds text to read, and nor has a picker open over the chips: its clock is
+ * suspended while it is open and starts again when it closes (design doc B2.4). [details] is null where there is no
+ * cache (a test): the overlay then shows what the banner knows, and never fails.
  */
 internal class Overlays(
     private val screen: Screen,
@@ -39,6 +40,10 @@ internal class Overlays(
 
             LiveCommand.DismissOverlay -> dismiss(scope)
 
+            is LiveCommand.OpenPicker -> openPicker(command.kind)
+
+            is LiveCommand.Choose -> closePicker(scope)
+
             is LiveCommand.Flip -> keepActions(scope)
 
             LiveCommand.Previous, is LiveCommand.Tune, LiveCommand.FlipReleased -> Unit
@@ -57,11 +62,11 @@ internal class Overlays(
         val playing = screen.nowPlaying
         if (shown == null || playing == null) return
         if (shown.banner?.actions == true) {
-            arm(scope, shown)
+            arm(scope)
         } else {
             val actions = LiveState.Watching(playing.banner.copy(actions = true, hasLast = tuned.previous != null))
             screen.overlay(actions)
-            arm(scope, actions)
+            arm(scope)
         }
     }
 
@@ -114,9 +119,33 @@ internal class Overlays(
             null
         }
 
-    /** Back: the overlay closes and the actions banner it came from returns; with only the banner up, it closes. */
+    /**
+     * Opens the [kind] picker over the chips, from the chip or a remote key. With no actions banner up (a key from the
+     * picture) it brings the banner up with the picker open. Nothing when the picture does not play, there are no facts
+     * to list, or the chip is not focusable (one audio track, no subtitle tracks).
+     */
+    private fun openPicker(kind: PickerKind) {
+        val shown = shownWatching()
+        val playing = screen.nowPlaying
+        if (shown == null || playing == null || !playing.banner.stream.canPick(kind)) return
+        timer?.cancel()
+        val raised = playing.banner.copy(actions = true, hasLast = tuned.previous != null)
+        val base = shown.banner?.takeIf { it.actions } ?: raised
+        screen.overlay(LiveState.Watching(base.copy(picker = kind)))
+    }
+
+    /** A choice was made, or the picker was left: the chips are back, and the banner's clock starts again. */
+    private fun closePicker(scope: CoroutineScope) {
+        val banner = shownWatching()?.banner?.takeIf { it.picker != null } ?: return
+        screen.overlay(LiveState.Watching(banner.copy(picker = null)))
+        arm(scope)
+    }
+
+    /** Back: a picker closes to its chip; the info overlay closes and the banner returns; the bare banner closes. */
     private fun dismiss(scope: CoroutineScope) {
-        if (screen.info.value != null) {
+        if (shownWatching()?.banner?.picker != null) {
+            closePicker(scope)
+        } else if (screen.info.value != null) {
             fetch?.cancel()
             screen.showInfo(null)
             showBanner(scope)
@@ -128,19 +157,16 @@ internal class Overlays(
 
     private fun keepActions(scope: CoroutineScope) {
         val shown = shownWatching() ?: return
-        if (shown.banner?.actions == true) arm(scope, shown)
+        if (shown.banner?.actions == true) arm(scope)
     }
 
-    /** Starts the actions banner's clock again from now. It hides [shown] only if nothing has replaced it by then. */
-    private fun arm(
-        scope: CoroutineScope,
-        shown: LiveState.Watching,
-    ) {
+    /** Starts the actions banner's clock again from now; it hides the banner unless a picker is open by then. */
+    private fun arm(scope: CoroutineScope) {
         timer?.cancel()
         timer =
             scope.launch {
                 delay(timings.actionsLinger)
-                screen.compareAndSet(shown, LiveState.Watching(null))
+                screen.hideActions()
             }
     }
 }

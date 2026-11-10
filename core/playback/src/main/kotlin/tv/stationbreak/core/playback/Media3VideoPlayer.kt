@@ -416,6 +416,60 @@ class Media3VideoPlayer internal constructor(
 
     override fun seekable(generation: Long): Boolean = snapshot(generation)?.seekable == true
 
+    override suspend fun switchTracks(
+        generation: Long,
+        switch: TrackSwitch,
+    ): Boolean =
+        suspendCancellableCoroutine { continuation ->
+            onPlayerThread {
+                val taken = generation > 0 && active == generation && switchNow(switch)
+                continuation.resume(taken)
+            }
+        }
+
+    /** On the looper: puts [switch] onto the player's selection, or changes nothing and says false. */
+    private fun switchNow(switch: TrackSwitch): Boolean {
+        val tracks = exo.currentTracks
+        val parameters = exo.trackSelectionParameters.buildUpon()
+        // An audio pick must find its track and match what the server named, else nothing changes and the caller
+        // re-tunes.
+        val audioFound = switch.audio?.let { audioOnto(parameters, it, tracks) == true } ?: true
+        val subtitleFound =
+            when (val subtitles = switch.subtitles) {
+                SubtitleSwitch.Keep -> true
+                SubtitleSwitch.Off -> true.also { parameters.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true) }
+                is SubtitleSwitch.To -> textOnto(parameters, subtitles.pick, tracks)
+            }
+        if (!audioFound || !subtitleFound) {
+            logRefusedSwitch(switch, tracks, audioFound, subtitleFound)
+            return false
+        }
+        exo.trackSelectionParameters = parameters.build()
+        return true
+    }
+
+    /**
+     * The `SBLIVE switchRefused` line: numbers and flags only, so a switch that was meant to be instant and was not can
+     * be told apart on a device (the wanted positions against the track groups the player holds, by kind).
+     */
+    private fun logRefusedSwitch(
+        switch: TrackSwitch,
+        tracks: Tracks,
+        audioFound: Boolean,
+        subtitleFound: Boolean,
+    ) {
+        val audioGroups = tracks.groups.count { it.type == C.TRACK_TYPE_AUDIO }
+        val textGroups = tracks.groups.count { it.type == C.TRACK_TYPE_TEXT }
+        val subtitles = switch.subtitles
+        val textPosition = (subtitles as? SubtitleSwitch.To)?.pick?.position ?: -1
+        android.util.Log.i(
+            MEMORY_LOG_TAG,
+            "switchRefused audioFound=$audioFound audioPosition=${switch.audio?.position ?: -1} " +
+                "audioGroups=$audioGroups subtitleFound=$subtitleFound " +
+                "textPosition=$textPosition textGroups=$textGroups",
+        )
+    }
+
     /** The published snapshot if it is [generation]'s, else null. On the looper it is refreshed first. */
     private fun snapshot(generation: Long): Published? {
         if (generation <= 0) return null
@@ -487,22 +541,41 @@ class Media3VideoPlayer internal constructor(
         source: PlayerSource,
         tracks: Tracks,
     ) {
-        source.audioPick?.let { pick ->
-            val group = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.getOrNull(pick.position)
-            if (group != null) {
-                parameters.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0))
-                lastPickVerified = matches(pick, group.getTrackFormat(0))
-            }
-        }
+        source.audioPick?.let { audioOnto(parameters, it, tracks) }
         val subtitlePick = source.subtitlePick
         if (subtitlePick != null) {
-            tracks.groups
-                .filter { it.type == C.TRACK_TYPE_TEXT }
-                .getOrNull(subtitlePick.position)
-                ?.let { parameters.setOverrideForType(TrackSelectionOverride(it.mediaTrackGroup, 0)) }
+            textOnto(parameters, subtitlePick, tracks)
         } else if (source.subtitles.isEmpty()) {
             parameters.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
         }
+    }
+
+    /**
+     * Overrides the audio track of [pick]'s position, and records in [lastPickVerified] whether it is the track the
+     * server named. Null when the file has no track there (nothing is changed).
+     */
+    private fun audioOnto(
+        parameters: TrackSelectionParameters.Builder,
+        pick: TrackPick,
+        tracks: Tracks,
+    ): Boolean? {
+        val group = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.getOrNull(pick.position) ?: return null
+        parameters.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0))
+        val verified = matches(pick, group.getTrackFormat(0))
+        lastPickVerified = verified
+        return verified
+    }
+
+    /** Shows the text track of [pick]'s position (and turns text on); false when the file has none there. */
+    private fun textOnto(
+        parameters: TrackSelectionParameters.Builder,
+        pick: TrackPick,
+        tracks: Tracks,
+    ): Boolean {
+        val group = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }.getOrNull(pick.position) ?: return false
+        parameters.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        parameters.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0))
+        return true
     }
 
     private fun matches(
