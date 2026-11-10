@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,7 +18,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -49,22 +49,17 @@ class LibrariesBackdropTest {
         }
         compose.waitForIdle()
         val density = compose.activity.resources.displayMetrics.density
+        // Read from the window's own view tree, drawn now: a screenshot of the display can be taken before the first
+        // frame with this content has reached the screen, and then shows the window's own background.
+        val decor = compose.activity.window.decorView
+        val frame = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888)
+        compose.runOnUiThread { decor.draw(Canvas(frame)) }
         val bounds = compose.onNodeWithTag("host").fetchSemanticsNode().boundsInWindow
-        val origin =
-            IntArray(2).also {
-                compose.activity.window.decorView
-                    .getLocationOnScreen(it)
-            }
-        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
 
         fun at(
             dpX: Float,
             dpY: Float,
-        ): Int =
-            screen.getPixel(
-                origin[0] + (bounds.left + dpX * density).toInt(),
-                origin[1] + (bounds.top + dpY * density).toInt(),
-            )
+        ): Int = frame.getPixel((bounds.left + dpX * density).toInt(), (bounds.top + dpY * density).toInt())
         // The hole shows what is behind; the panel's side shows the page (Light's page is not black).
         val centreX = HOLE.left.value + (HOLE.right.value - HOLE.left.value) / 2
         val centreY = HOLE.top.value + (HOLE.bottom.value - HOLE.top.value) / 2
