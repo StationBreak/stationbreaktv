@@ -8,8 +8,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * #607: the server's own series name is display only. An existing row gets it on its next write, and that write is no
- * new version and does not move the content generation: nothing a schedule or a rule reads has changed.
+ * #607: the server's own series name is display only. When a page holding an existing row is written (a first sync,
+ * rewalk or backfill, or the server re-saving the item), the row gets it, and that write is no new
+ * version and does not move the content generation: nothing a schedule or a rule reads has changed.
  */
 class SeriesNameFallbackWriteTest {
     private val clock = FakeClock()

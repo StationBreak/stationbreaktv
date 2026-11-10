@@ -10,8 +10,9 @@ import androidx.sqlite.execSQL
  * no default. It is a display fallback for an episode whose series row is not held, and nothing schedules on it. The
  * statement is what Room declares in the exported `12.json`, because Room checks the migrated schema against its own.
  *
- * No row is written and no backfill is set: an existing episode gets the name the next time its page is written, and
- * until then shows what it showed before. `item_version` is untouched (the name is not a schedule field), the content
+ * No row is written and no backfill is set: an existing episode gets the name on the next first sync, rewalk or
+ * backfill, or when the server re-saves it (the incremental pass reads only what the server re-saved); until then it
+ * shows what it showed before. `item_version` is untouched (the name is not a schedule field), the content
  * generation does not move, and there is no way down: a downgrade drops and rebuilds the cache ([LibraryDatabases]).
  */
 internal class Migration11To12 : Migration(FROM, TO) {

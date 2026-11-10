@@ -516,7 +516,8 @@ class InMemoryLibraryRepository : LibraryRepository {
                 val id = CanonicalId.parseOrNull(row.item.id.value)?.takeIf { it in ids } ?: return@mapNotNull null
                 val kind = ScheduleItemKind.entries.firstOrNull { it.name == row.item.kind.name } ?: return@mapNotNull null
                 val series = row.item.seriesId?.let { CanonicalId.parseOrNull(it.value) }
-                val seriesName = series?.let { seriesNameRows[account to it] }
+                // As the Room repository: the series row's name wins, else the item's own series name (#607).
+                val seriesName = series?.let { seriesNameRows[account to it] } ?: row.item.seriesName
                 id to
                     ProgramInfo(
                         id,
