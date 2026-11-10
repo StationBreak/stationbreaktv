@@ -99,7 +99,10 @@ class LiveScreenshotTest {
     fun theSelectBanner() = shoot("live-select.png", LiveState.Watching(banner(actions = true)))
 
     @Test
-    fun theChannelFlip() = shoot("live-flip.png", LiveState.Choosing(ChannelTag(162, "Date Night", "date-night"), overPicture = true))
+    fun theChannelFlip() {
+        val target = ChannelTag(162, "Date Night", "date-night")
+        shoot("live-flip.png", LiveState.Choosing(target, overPicture = true))
+    }
 
     @Test
     fun theTransportStrip() =
