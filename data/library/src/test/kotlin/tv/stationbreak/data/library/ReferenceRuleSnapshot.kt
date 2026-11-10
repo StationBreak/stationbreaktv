@@ -17,7 +17,8 @@ import kotlin.time.Instant
 //
 // It calls the live DAO reads (`ItemHistoryDao.heldAsOf`, `SeriesDao.heldAsOf`, `CollectionDao.heldAsOf`),
 // `ScheduleInputs`, `RuleItemMapper`, `RuleInputs` and `idSpellings`, so the one-walk PR must not change those; it may
-// add to them.
+// add to them. A change in them that alters what this reference reads fails the golden fingerprint of the reference's
+// own output (`REFERENCE_FINGERPRINT` in the test), which the equality check alone would miss (both sides would move).
 //
 // Differences from the original, and only these: the item chunk is a parameter (the original reads in chunks of
 // 500), and the reads are not in one transaction (the generated libraries do not change while they are read, so one

@@ -43,6 +43,9 @@ import kotlin.test.assertIs
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+// Part of the oracle for #684 (with `ReferenceSelectionRepair`, `RepairMatrix` and `SelectionRepairEqualityTest`):
+// DO NOT EDIT in a later #684 PR. The mutants that may be updated are in `SelectionRepairMutantsTest`.
+
 /** What a planner is given: everything `TodayRepairer`'s turn gives `SelectionRepair`. */
 @Suppress("LongParameterList") // Everything the turn gives `SelectionRepair`, one for one.
 internal class PlanInputs(
@@ -109,6 +112,7 @@ internal class RepairWorld(
     shape: LineupShape,
     val library: CountingLibrary = seededLibrary(libs),
     private val planner: Planner? = null,
+    firstSeenFilter: Boolean = false,
 ) {
     val atMs: Long = NOON.toEpochMilliseconds() + TEN_MINUTES
     val allIds: Set<ItemId> = libs.mapTo(LinkedHashSet()) { it.id }
@@ -126,6 +130,7 @@ internal class RepairWorld(
     val steps = ArrayList<Step>()
 
     init {
+        library.createdBeforeCutoff = firstSeenFilter
         service =
             when (shape) {
                 is LineupShape.Catalog -> LineupService(store, library, clock, { 0 }, {}, StarterCatalog)

@@ -9,6 +9,8 @@ import org.junit.Test
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
+import java.security.MessageDigest
+import java.util.HexFormat
 import kotlin.time.Instant
 
 /**
@@ -53,6 +55,9 @@ class RuleSnapshotReferenceEqualityTest {
         var unsynced = 0
         var multiChunk = 0
         var edges = 0
+
+        // Everything the reference read at its repository chunk, rendered, for [REFERENCE_FINGERPRINT].
+        val fingerprint: MessageDigest = MessageDigest.getInstance("SHA-256")
     }
 
     private val a = RuleLibraryGen.LIBRARY_A
@@ -103,6 +108,40 @@ class RuleSnapshotReferenceEqualityTest {
         snapshot.items.flatMap { listOf(it.foldedGenres, it.foldedTags, it.foldedStudios) } +
             snapshot.series.values.flatMap { listOf(it.foldedGenres, it.foldedTags, it.foldedStudios) }
 
+    // A stable rendering of everything a snapshot holds, the folded names included (no `toString` of a set).
+    private fun render(
+        label: String,
+        snapshot: RuleSnapshot,
+    ): String {
+        val out = StringBuilder(label).append('\n').append(snapshot.cutoffMs).append(snapshot.collectionsSynced)
+        out.append(snapshot.libraries.map { it.value }.sorted())
+        for (item in snapshot.items) {
+            out
+                .append('\n')
+                .append(item)
+                .append(item.name)
+                .append(item.foldedGenres)
+                .append(item.foldedTags)
+            out.append(item.foldedStudios)
+        }
+        for ((id, series) in snapshot.series) {
+            out
+                .append('\n')
+                .append(id.value)
+                .append(series)
+                .append(series.name)
+                .append(series.foldedGenres)
+            out.append(series.foldedTags).append(series.foldedStudios)
+        }
+        for ((id, c) in snapshot.collections) {
+            out.append('\n').append(id.value).append(c.name)
+            for (members in listOf(c.movies, c.episodes, c.series, c.seasons)) {
+                out.append(members.map { it.value }.sorted())
+            }
+        }
+        return out.toString()
+    }
+
     private fun check(
         seed: ULong,
         counts: Counts,
@@ -120,6 +159,7 @@ class RuleSnapshotReferenceEqualityTest {
                     val reference = ReferenceRuleSnapshot.read(db, ALICE, selection, cutoff, chunk)
                     assertEquals("$label, chunk $chunk: the snapshot", reference, actual)
                     assertEquals("$label, chunk $chunk: the folded names", foldsOf(reference), foldsOf(actual))
+                    if (chunk == REPOSITORY_CHUNK) counts.fingerprint.update(render(label, reference).toByteArray())
                 }
                 counts.reads++
                 counts.items += actual.items.size
@@ -143,11 +183,23 @@ class RuleSnapshotReferenceEqualityTest {
         assertTrue("some libraries have collectionsSynced false (${counts.unsynced})", counts.unsynced > 0)
         assertTrue("some reads span more than one chunk of ${CHUNKS.min()}", counts.multiChunk > 0)
         assertTrue("edge cut-offs were read (${counts.edges})", counts.edges > 0)
+        val fingerprint = HexFormat.of().formatHex(counts.fingerprint.digest())
+        assertEquals(
+            "the reference no longer reads what it did over the $CASES fixed seeds (the DAO reads or the assembly it " +
+                "calls changed, or the generator did): the golden fingerprint is $fingerprint",
+            REFERENCE_FINGERPRINT,
+            fingerprint,
+        )
         println("RuleSnapshotReferenceEqualityTest: ${counts.reads} reads, ${counts.items} items")
     }
 
     private companion object {
         const val CASES = 60
+        const val REPOSITORY_CHUNK = 500
+
+        // The SHA-256 of what the reference read over the fixed seeds (rendered by `render`), at the repository chunk.
+        // It pins the frozen reference against drift in the live DAO code it calls; moving it is the oracle changing.
+        const val REFERENCE_FINGERPRINT = "cee67c1665570f72f25cf8c8a36f6575f53e75da86ef2264935e87d8bb941dd7"
         const val SEED_BASE = 0x684UL
         const val MOVE_PERCENT = 30
         const val MOVE_STEP_MS = 3_600_000L

@@ -203,6 +203,12 @@ internal class CountingLibrary(
     /** Run as each `currentIds` read starts: a test makes the reads take time. */
     var beforeCurrentIds: () -> Unit = {}
 
+    /**
+     * When set, a snapshot holds only the items created before its cut-off, as the real read holds only what was first
+     * seen before it (the in-memory fake filters on deletion alone): the equality matrix's snapshots differ by cut-off.
+     */
+    var createdBeforeCutoff = false
+
     /** Run as each `currentIds` read starts, given how many ids it asks about: the benchmark's read-latency model. */
     var currentIdsLatency: (Int) -> Unit = {}
 
@@ -212,7 +218,14 @@ internal class CountingLibrary(
         cutoff: Instant,
     ): RuleSnapshot {
         snapshotCutoffs += cutoff
-        return delegate.ruleSnapshot(account, libraries, cutoff).also { afterSnapshot() }
+        val read = delegate.ruleSnapshot(account, libraries, cutoff)
+        val held =
+            if (createdBeforeCutoff) {
+                read.copy(items = read.items.filter { it.item.createdAtMs < read.cutoffMs })
+            } else {
+                read
+            }
+        return held.also { afterSnapshot() }
     }
 
     override suspend fun scheduleItems(

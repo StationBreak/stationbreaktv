@@ -68,6 +68,10 @@ internal object RuleLibraryGen {
     val RATINGS = listOf(null, "", " ", "G", "PG", "TV-14", "R")
     val GENRES = listOf("Drama", "Comedy", "Horror", "Action", "Sci-Fi")
     val TAGS = listOf("a", "b", "c", "noir", "new")
+
+    // Studio names as a server may give them: the same name in other cases and with spaces round it (the read
+    // cleans and folds them).
+    val STUDIOS = listOf("Acme Films", " Acme Films ", "ACME FILMS", "Beta Studio", "beta studio", "Gamma")
     private const val HOUR_MS = 3_600_000L
     private const val DAY_MS = 24 * HOUR_MS
 
@@ -125,7 +129,8 @@ internal object RuleLibraryGen {
             val tags = List(gen.nextInt(3)) { gen.pick(TAGS) }
             // The row may be stored under another spelling than the episodes name it by (and than other writes use).
             val stored = if (spellings && gen.chance(SPELLED_SERIES_PERCENT)) respelled(gen, show) else show
-            repository.putSeries(ALICE, LIBRARY_A, series(stored, gen.pick(RATINGS), genres, tags))
+            val studios = if (spellings) List(gen.nextInt(3)) { gen.pick(STUDIOS) } else emptyList()
+            repository.putSeries(ALICE, LIBRARY_A, series(stored, gen.pick(RATINGS), genres, tags, studios = studios))
         }
         if (gen.chance(DELETE_PERCENT)) repository.tombstoneSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
         if (gen.chance(REVIVE_PERCENT)) repository.reviveSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
@@ -233,6 +238,7 @@ internal object RuleLibraryGen {
             officialRating = gen.pick(RATINGS),
             genres = List(gen.nextInt(3)) { gen.pick(GENRES) },
             tags = List(gen.nextInt(3)) { gen.pick(TAGS) },
+            studios = if (spellings) List(gen.nextInt(3)) { gen.pick(STUDIOS) } else emptyList(),
             seriesId = namedSeries?.let(::ItemId),
             seasonId = if (episode && gen.chance(SEASON_PERCENT)) ItemId(gen.pick(SEASONS)) else null,
             seasonNumber = if (episode || series != null) numberOf(gen) else null,

@@ -11,7 +11,7 @@ import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.Revisioned
 import tv.stationbreak.core.domain.lineup.Scheduled
-import tv.stationbreak.core.domain.lineup.snapshotsOf
+import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.curation.Homes
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
@@ -25,13 +25,20 @@ import tv.stationbreak.core.scheduler.layoutTail
 import kotlin.time.Instant
 
 // FROZEN at be035da2 (main, 2026-11-09): a copy of `SelectionRepair` as it was then, for #684's equality tests. DO NOT
-// EDIT. It is the oracle that later #684 PRs (planning dispatcher, one library walk, parallel lanes) are checked
-// against, byte for byte, so a change here would move the oracle with the code it judges.
+// EDIT. This file, `SelectionRepairEqualityTest`, `RepairWorld` and the golden constants in them are the oracle that
+// later #684 PRs (planning dispatcher, one library walk, parallel lanes) are checked against, byte for byte: a change
+// here would move the oracle with the code it judges. (`SelectionRepairMutantsTest` is the one file of the set that
+// later PRs may update.)
 //
-// It still calls the live `LineupDays`, `KeptWindow`, `layoutTail`, `Fills` (and `Fills.live`), `snapshotsOf`,
-// `PlannedRepair` and `SelectionChange`, so PRs for #684 must not change those (`LineupDays`, `KeptWindow`,
-// `layoutTail`, `Fills.live`). Differences from the original, and only these: the class name, no `RepairClock`
-// parameter (timing changes nothing), and the KDoc is cut down.
+// It still calls live code, which PRs for #684 must therefore leave alone (or, where one must change, keep identical
+// in what it returns): `LineupDays`, `KeptWindow`, `layoutTail`, `Fills` (`Fills.live` with nothing primed behaves as
+// today, `Fills.dayPool` as today), `BuiltInScheduleSource.sharedSnapshotsOf`, `ExtrasFilter`, `PlannedRepair.into`
+// and `kept()`, `LibraryRepository.ruleSnapshot`. A change in one of them that alters what this reference records
+// fails the golden digests in `SelectionRepairEqualityTest` (`referenceStillRecordsWhatItDid`), loudly, instead of
+// moving the oracle silently. `snapshotsOf` is inlined below (frozen with it), because the one-walk PR rewrites it.
+//
+// Differences from the original, and only these: the class name, no `RepairClock` parameter (timing changes nothing),
+// `snapshotsOf` inlined as `referenceSnapshotsOf`, and the KDoc is cut down.
 
 /**
  * The reference repair of one selection change: [SelectionRepair] as it was at be035da2. See the note above.
@@ -68,7 +75,7 @@ internal class ReferenceSelectionRepair(
         val scheduled = days.scheduled(held.lineup, atMs, held.meta.extrasFromMs)
         val byId = scheduled.associateBy { it.channel.id }
         val pairs = today.mapNotNull { day -> byId[day.channel.id]?.let { day to it } }
-        val (p, f) = snapshotsOf(library, account, change.after, scheduled.map { it.cut }.distinct())
+        val (p, f) = referenceSnapshotsOf(library, account, change.after, scheduled.map { it.cut }.distinct())
         plain = p
         filtered = f
         admitted = days.admitted(held.lineup, scheduled, plain, filtered, change.after)
@@ -320,4 +327,24 @@ internal class ReferenceSelectionRepair(
                 removedSnapshots[cutoffMs] = it
             }
     }
+}
+
+/**
+ * `snapshotsOf` as it was at be035da2: one `ruleSnapshot` per distinct cut-off of [cuts], the plain ones by cut-off,
+ * and for the cuts the extras filter applies to, the filtered ones.
+ */
+private suspend fun referenceSnapshotsOf(
+    library: LibraryRepository,
+    account: LibraryAccount,
+    libraries: Set<ItemId>,
+    cuts: Collection<Cut>,
+): Pair<Map<Long, RuleSnapshot>, Map<Long, RuleSnapshot>> {
+    val plain = HashMap<Long, RuleSnapshot>()
+    val filtered = HashMap<Long, RuleSnapshot>()
+    // Two cuts that differ only in the day they start on read the same snapshot.
+    for (cut in cuts.distinctBy { it.cutoffMs to it.extras }) {
+        val read = library.ruleSnapshot(account, libraries, Instant.fromEpochMilliseconds(cut.cutoffMs))
+        if (cut.extras) filtered[cut.cutoffMs] = ExtrasFilter.filter(read).snapshot else plain[cut.cutoffMs] = read
+    }
+    return plain to filtered
 }
