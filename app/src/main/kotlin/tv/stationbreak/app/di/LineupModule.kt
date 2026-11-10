@@ -69,6 +69,7 @@ import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.domain.selection.LibraryPasses
 import tv.stationbreak.core.domain.selection.LibrarySelection
+import tv.stationbreak.core.domain.selection.LibrarySelectionView
 import tv.stationbreak.core.domain.selection.LibrarySetup
 import tv.stationbreak.core.domain.selection.ResumeGate
 import tv.stationbreak.core.domain.selection.SelectionConfig
@@ -409,6 +410,12 @@ internal object LineupModule {
     fun libraryChoices(
         @AppStart selection: LibrarySelection,
     ): LibraryChoices = selection
+
+    /** The guide's and live's read-only side of the selection: its stored choice and nothing else. */
+    @Provides
+    fun librarySelectionView(
+        @AppStart selection: LibrarySelection,
+    ): LibrarySelectionView = selection
 
     @Provides
     fun librarySetup(

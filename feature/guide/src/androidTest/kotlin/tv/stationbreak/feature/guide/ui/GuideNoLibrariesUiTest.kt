@@ -28,6 +28,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -40,17 +41,22 @@ import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.GuideOpening
+import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.selection.ChoiceView
 import tv.stationbreak.core.domain.selection.FakeLibraryChoices
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
@@ -98,13 +104,13 @@ class GuideNoLibrariesUiTest {
             override fun now() = Instant.fromEpochMilliseconds(T0 + 65 * MIN)
         }
 
-    private fun showGone() {
+    private fun showGone(lineup: ChannelRepository = StillLineup) {
         // The schedule still holds programmes: the guide shows the line all the same.
         fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200 + (it / 60).toInt()) })
         fake.channel(CH7, 7, (0L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) })
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
         val work = pool.asCoroutineDispatcher()
-        vm = GuideViewModel(fake, cache, clock, work, StillLineup, selection = choices.selection, sync = syncNow)
+        vm = GuideViewModel(fake, cache, clock, work, lineup, selection = choices.selection, sync = syncNow)
         compose.setContent {
             StationBreakTheme {
                 // The host: a key the guide does not keep comes here.
@@ -219,7 +225,66 @@ class GuideNoLibrariesUiTest {
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
     }
 
+    private fun summary(
+        id: ChannelId,
+        number: Int,
+    ) = ChannelSummary(
+        id,
+        number,
+        "Test Channel $number",
+        ChannelStatus.On,
+        ChannelKind.Starter,
+        Instant.fromEpochMilliseconds(T0),
+        number,
+        kid = false,
+        optIn = false,
+        playKey = PlayKey("test"),
+    )
+
+    // The Libraries screen hides the guide: a lineup change under it reloads nothing until it closes, then once, and
+    // the panel is left open on Settings.
+    @Test
+    fun librariesSlot_pausesTheGuide_andOneReloadFollowsItsClosing() {
+        val lineup = MutableStateFlow(listOf(summary(CH5, 5), summary(CH7, 7)))
+        showGone(
+            object : ChannelRepository {
+                override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = lineup
+
+                override fun activeChannels(): Flow<List<ChannelSummary>> = lineup
+            },
+        )
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isNotEmpty()
+        }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitSelected(GuideTags.SETTINGS_LIBRARIES)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) { done != null }
+        compose.waitForIdle()
+
+        val reads = fake.scheduleCalls.size
+        lineup.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+        compose.waitForIdle()
+        Thread.sleep(SETTLE_MS)
+        assertEquals("the guide read the schedule under the Libraries screen", reads, fake.scheduleCalls.size)
+
+        compose.runOnUiThread { done?.invoke() }
+        compose.waitForIdle()
+        compose.waitUntil(TIMEOUT_MS) { fake.scheduleCalls.size > reads }
+        Thread.sleep(SETTLE_MS)
+        assertEquals(
+            "one reload after the screen closed",
+            1,
+            fake.scheduleCalls.size - reads,
+        )
+        assertEquals(GuideMenuEntry.Settings, vm.snapshot.value.menu)
+        awaitSelected(GuideTags.SETTINGS_LIBRARIES)
+    }
+
     private companion object {
+        const val SETTLE_MS = 500L
         const val SLOT = "test:librariesSlot"
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540

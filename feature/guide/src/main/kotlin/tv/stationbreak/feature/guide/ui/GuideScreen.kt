@@ -166,7 +166,6 @@ internal fun GuideScreen(
     settings: SettingsPanel? = null,
     themeChoice: GuideTheme = GuideTheme.Dark,
     modifier: Modifier = Modifier,
-    noLibraries: Boolean = false,
     syncNow: SyncNowState = SyncNowState.Idle,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
@@ -186,6 +185,7 @@ internal fun GuideScreen(
         }
     // The panel's variant, read as a state of its own so a move on the grid does not recompose this level.
     val onChannel by remember(shown) { derivedStateOf { shown.value.onChannel } }
+    val noLibraries by remember(shown) { derivedStateOf { shown.value.noLibraries } }
     val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
     // The clock and the viewport as states of their own, so reading them is invalidated only when they change.
     val now = remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.nowMs } }
@@ -215,12 +215,8 @@ internal fun GuideScreen(
                 // the time are shown once. Its place is kept, so the grid does not move.
                 // The menu row takes the foot of that band, so the grid and the picture stay where they are.
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
-                when {
-                    info != null -> Spacer(panelSize)
-                    settings != null -> GuideSettingsPanel(themeChoice, fit, settings.row, panelSize, syncNow)
-                    onChannel -> ChannelPanel(snapshotOf, panelSize)
-                    else -> DetailsPanel(panel, nowOf, panelSize)
-                }
+                val kind = guidePanelOf(info != null, settings != null, noLibraries, onChannel)
+                TopPanel(kind, TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow), panelSize)
                 GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(

@@ -65,6 +65,7 @@ class SelectionWiringTest {
         val selection = selection()
 
         assertSame(selection, LineupModule.libraryChoices(selection))
+        assertSame(selection, LineupModule.librarySelectionView(selection))
         assertSame(selection, LineupModule.librarySetup(selection))
         assertSame(selection, LineupModule.addLandings(selection))
         assertSame(selection, LineupModule.firstSyncLibraries(selection))

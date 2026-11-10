@@ -61,11 +61,17 @@ sealed interface LibraryListing {
     ) : LibraryListing
 }
 
-/** How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. */
-interface LibraryChoices {
+/**
+ * The read-only side of the stored selection: what the guide and live need (whether it is gone), and nothing that
+ * lists or changes it. The Libraries screen has [LibraryChoices] for that.
+ */
+interface LibrarySelectionView {
     /** The stored selection, or null when none is stored. */
     val selection: StateFlow<ChoiceView?>
+}
 
+/** How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. */
+interface LibraryChoices : LibrarySelectionView {
     /**
      * Asks the server for its libraries once, and answers as soon as it has, never waiting on a change. What it lists
      * is followed afterwards, off the caller's path (one listing for the two-read rule).

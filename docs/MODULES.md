@@ -115,8 +115,8 @@ channel management (spec 21) as a second slot, `ChannelsSlot`, behind the Channe
 Libraries and Sync now): Up and Down move the row, Left and Right pick the theme on Appearance, Select on Libraries opens
 a third slot, `LibrariesSlot`, which `app` fills with `feature:settings`' `LibrariesDestination`, and Select on Sync now asks
 `SyncNow` for a sync (a press while one runs does nothing) and shows its state on the row. The guide and live both read
-`LibraryChoices.selection`. When the stored selection is gone (no library of this TV's is available), the guide shows a
-message in place of the grid and keeps its menu row reachable, and live shows `LiveState.NoLibraries` and tunes nothing.
+`LibrarySelectionView.selection` (the guide carries it as one flag on its snapshot). When the stored selection is gone (no library of this TV's is available), the guide shows a
+message in place of the grid (and no programme in the details panel) and keeps its menu row reachable, and live shows `LiveState.NoLibraries` and tunes nothing.
 The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
 `onGuide()`: `onLineup()` plus each channel's `PlayKey`, the days-input digest) to see the lineup change under it
 while that screen shows and just after. It needs the key because it shows the days: a new play order or a reshuffle
@@ -382,7 +382,8 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
 - **`core:domain` `selection` package (spec 26)** is the one writer of the chosen libraries. `LibrarySelection` runs
   every change of the stored selection: a change after setup, the setup itself, the landing of an add, the following of
   the server's listings, the first sync's library set and the resume at start. Callers see it only through narrow
-  ports: features through `LibraryChoices` and `LibrarySetup`, the add pass through `AddLandings`, the first sync
+  ports: the guide and live through `LibrarySelectionView` (read-only: the stored choice and nothing else), the Libraries
+  screen through `LibraryChoices` (which extends it with `listing` and `change`), setup through `LibrarySetup`, the add pass through `AddLandings`, the first sync
   through `FirstSyncLibraries`, stay current through `ServerListings` and `HoldExpiry`, and the app's start through
   `SelectionResume`.
   It asks for the add pass through `LibraryPasses`. The app binds it under `@AppStart` only, so nothing else can hold it.
