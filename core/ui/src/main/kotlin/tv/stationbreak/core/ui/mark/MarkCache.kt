@@ -110,5 +110,8 @@ object MarkCaches {
         }
 }
 
-/** The cache the guide's rows draw from; null where none is provided (previews, tests), which draws initials. */
+/**
+ * The cache the guide's rows and live TV's banner draw from; null where none is provided (previews, tests), which draws
+ * initials.
+ */
 val LocalMarkCache = staticCompositionLocalOf<MarkCache?> { null }

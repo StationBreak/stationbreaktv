@@ -57,9 +57,10 @@ stationbreaktv/
 │   │                            (Port fakes live in core:domain testFixtures.)
 │   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers;
 │   │                            the program text and info overlay live TV and the guide share, the guide's geometry and
-│   │                            the one safe area everything lays out in (spec 17); the guide's colour tokens (`GuideColors`), type helpers (`guideText`,
-│   │                            `guideFigures`) and channel marks (`ChannelMark`, `MarkCache`, and the bundled logos in `assets/channelmarks/`),
-│   │                            public so live TV draws with them too (#686)
+│   │                            the one safe area everything lays out in (spec 17); the guide's colour tokens (`GuideColors`, `LocalGuideColors`),
+│   │                            its type helpers (`guideText`, `guideFigures`) and the channel marks (`ChannelMark`, `MarkCache`,
+│   │                            `MarkCaches`, and the bundled logos in `assets/channelmarks/`), public so live TV draws with them
+│   │                            too (#686)
 │   └── playback/       [Android] Media3 wrapper: tune-at-offset, direct-play vs transcode decision,
 │                                codec capability probe, one reused player (spec 13; see "Playback")
 │

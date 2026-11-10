@@ -10,7 +10,8 @@ import androidx.compose.ui.graphics.Color
  * [page]; contrast is judged on the composite. Roles the overhaul removes keep their field until the code that reads
  * them goes: they are [Color.Transparent] meanwhile.
  *
- * The guide draws these itself. The cream-ring treatment in core:ui stays for screens that have not moved yet.
+ * The guide and live TV's banner draw these themselves (the banner always uses [Dark]). The cream-ring treatment in
+ * core:ui stays for screens that have not moved yet.
  */
 @Suppress("LongParameterList") // One field per Guide A colour role.
 class GuideColors(

@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 
 /** What one mark shows right now. */
-sealed interface MarkVisual {
+internal sealed interface MarkVisual {
     data class Logo(
         val image: ImageBitmap,
     ) : MarkVisual
@@ -20,7 +20,7 @@ fun variantForTint(tint: Color?): MarkVariant = if (tint == null) MarkVariant.Co
 enum class MarkKind { Logo, Initials }
 
 /** The logo only when [markKey] has a decoded [variant] bitmap in [cache]; otherwise the initials. Never blocks. */
-fun markVisual(
+internal fun markVisual(
     markKey: String?,
     cache: MarkCache?,
     variant: MarkVariant = MarkVariant.Colour,

@@ -12,8 +12,8 @@ android {
 }
 
 dependencies {
-    // MarkCache decodes channel logos off the main thread.
-    implementation(libs.kotlinx.coroutines.core)
+    // MarkCache decodes channel logos off the main thread; its constructor and `arrivals` expose coroutines types.
+    api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.kotlinx.coroutines.test)
 

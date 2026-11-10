@@ -33,7 +33,10 @@ import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.guideText
 import kotlin.math.roundToInt
 
-/** What the mark draws now, for tests: they cannot see pixels without API 26. A custom key, so never announced. */
+/**
+ * Test hook, not API: what the mark draws now, for tests that cannot see pixels without API 26. A custom key, so never
+ * announced.
+ */
 val MarkKindKey = SemanticsPropertyKey<MarkKind>("MarkKind")
 private var SemanticsPropertyReceiver.markKind by MarkKindKey
 

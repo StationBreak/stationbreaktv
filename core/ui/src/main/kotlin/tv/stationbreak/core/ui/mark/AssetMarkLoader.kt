@@ -13,7 +13,7 @@ private const val MARKS_FOLDER = "channelmarks"
  * The sizes a bundled logo may come in. A name is `_<N>dp`: N dp at 2x, so `_48dp` is 96 px wide and `_64dp` is 128 px
  * wide (the generator in `scripts/channelmarks` makes those two; 32 is still accepted).
  */
-val MarkBuckets = setOf(32, 48, 64)
+internal val MarkBuckets = setOf(32, 48, 64)
 
 /** The two renders of a logo: its own colours, or all fills white (the Light theme tints it with ink). */
 enum class MarkVariant { Colour, Mono }
@@ -27,23 +27,23 @@ private const val BUCKET_GROUP = 4
 private const val BUCKET_SCALE = 2
 
 /** The width of the box a mark is drawn in, in dp: what the bucket has to cover. */
-const val MARK_BOX_DP = 50f
+internal const val MARK_BOX_DP = 50f
 
 /**
  * The recipe key in a bundled logo's file name, `sl_<NNN>_<key>_<N>dp.png` or `sl_<NNN>_<key>_mono_<N>dp.png` with N
  * in [MarkBuckets], or null for any other name. This is the only way an asset name is ever accepted: nothing else is
  * turned into an asset path (spec 27).
  */
-fun markKeyOf(fileName: String): String? = MARK_FILE.matchEntire(fileName)?.groupValues?.get(KEY_GROUP)
+internal fun markKeyOf(fileName: String): String? = MARK_FILE.matchEntire(fileName)?.groupValues?.get(KEY_GROUP)
 
 /** Which render a bundled logo's file name is, or null for any other name. */
-fun markVariantOf(fileName: String): MarkVariant? =
+internal fun markVariantOf(fileName: String): MarkVariant? =
     MARK_FILE.matchEntire(fileName)?.let {
         if (it.groupValues[MONO_GROUP].isEmpty()) MarkVariant.Colour else MarkVariant.Mono
     }
 
 /** The bucket (dp at 2x) in a bundled logo's file name, or null for any other name. */
-fun markBucketOf(fileName: String): Int? =
+internal fun markBucketOf(fileName: String): Int? =
     MARK_FILE
         .matchEntire(fileName)
         ?.groupValues
@@ -55,7 +55,7 @@ fun markBucketOf(fileName: String): Int? =
  * (twice its N) cover the box, else the largest there is, and null when there is none. A key with only one size uses it
  * at any density, so no particular size is required.
  */
-fun pickMarkBucket(
+internal fun pickMarkBucket(
     available: Set<Int>,
     boxDp: Float,
     density: Float,

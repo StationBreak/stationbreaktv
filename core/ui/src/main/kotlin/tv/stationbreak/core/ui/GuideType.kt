@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.TextUnit
  * no variable font and no separate tabular cut. Times and channel numbers get tabular figures from the OpenType `tnum`
  * feature on the same files; everything else keeps proportional figures.
  */
-object GuideType {
+internal object GuideType {
     val Proportional =
         FontFamily(
             Font(R.font.manrope_regular, FontWeight.Normal),

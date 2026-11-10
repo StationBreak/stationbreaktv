@@ -104,7 +104,7 @@ Add a face only if it is OFL/Apache, visibly different from the faces above, and
 ## Files and formats
 
 - Masters: SVG, 200×112 viewBox, all text converted to outlines. `scripts/channelmarks/out-brands/svg/sl_<NNN>_<key>.svg` (colour) and `svg-mono/` (white).
-- Renders: PNG at 48dp and 64dp at 2× (96×54 and 128×72 px), transparent, colour and mono, produced by `brands.py --png` into `feature/guide/src/main/assets/channelmarks/` as `sl_<NNN>_<key>_<N>dp.png` and `sl_<NNN>_<key>_mono_<N>dp.png`. `AssetMarkLoader` chooses the size bucket by screen density. The pipeline and how to update it are in `core/ui/CHANNELMARKS.md`.
+- Renders: PNG at 48dp and 64dp at 2× (96×54 and 128×72 px), transparent, colour and mono, produced by `brands.py --png` into `core/ui/src/main/assets/channelmarks/` as `sl_<NNN>_<key>_<N>dp.png` and `sl_<NNN>_<key>_mono_<N>dp.png`. `AssetMarkLoader` chooses the size bucket by screen density. The pipeline and how to update it are in `core/ui/CHANNELMARKS.md`.
 
 ## Runtime (feature:guide)
 
