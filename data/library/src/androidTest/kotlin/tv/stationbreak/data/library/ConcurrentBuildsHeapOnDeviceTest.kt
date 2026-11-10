@@ -12,7 +12,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.LibraryAccount
-import tv.stationbreak.core.domain.lineup.ConcurrentBuildPair
+import tv.stationbreak.core.domain.lineup.repair.RealRepairRun
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaItem
 import tv.stationbreak.core.model.ServerId
@@ -22,14 +22,15 @@ import kotlin.time.Clock
 
 /**
  * #684 PR 3, the merge gate of crew:architecture M2, on the API 25 emulator over the platform SQLite that Fire OS 6
- * has: the plan's two builds (what each channel admits of the new and of the current selection) run at the same time,
- * so their transient state is on the heap at once, beside both snapshots (one walk read the two selections). This
- * pairs the two builds as the lanes do on the generated library of two libraries of 7,500 items each (15,000 in all,
- * the size `RuleSnapshotHeapOnDeviceTest` reads), the new selection holding one of them, the current both, over a
- * lineup of the starter catalog with 14 channels on. The heap must grow by less than 64 MB, the budget of
- * `RuleSnapshotHeapOnDeviceTest` and `FirstSyncHeapOnDeviceTest`, both at the raw peak (sampled from a plain thread
- * while the builds run, garbage included) and once what the builds leave behind is collected. The times are logged
- * only: the TV's own timing line is the measure of speed. Generated placeholder data only.
+ * has: the real selection-change plan (`SelectionRepair.plan` in the repairer's turn, with its lanes) over the Room
+ * repository, on three libraries of 11,000 generated items (33,000 in all, past the owner's scale) and a lineup of
+ * every starter the fixture can switch on. A first untick repairs the days; the second plans on repaired days with a
+ * removed library, so one walk reads the new, the current and the removed selections and the two builds, the early
+ * current-row read, the tail pools and the kept windows are all live at the peak. The heap must grow by less than
+ * 64 MB, the budget of `RuleSnapshotHeapOnDeviceTest` and `FirstSyncHeapOnDeviceTest`, at the raw peak (sampled every
+ * 5 ms from a plain thread, garbage included) and for what the change leaves reachable (the repairs recorded, the
+ * caches), measured with the run still referenced. Time is logged only: the TV's own timing line is the measure of
+ * speed. Generated placeholder data only.
  */
 @RunWith(AndroidJUnit4::class)
 class ConcurrentBuildsHeapOnDeviceTest {
@@ -37,6 +38,7 @@ class ConcurrentBuildsHeapOnDeviceTest {
     private val account = LibraryAccount(ServerId(SERVER_HEX), UserId(USER_HEX))
     private val first = ItemId("11111111111111111111111111111111")
     private val second = ItemId("22222222222222222222222222222222")
+    private val third = ItemId("33333333333333333333333333333333")
     private lateinit var repository: RoomLibraryRepository
 
     @Before
@@ -116,36 +118,45 @@ class ConcurrentBuildsHeapOnDeviceTest {
     }
 
     @Test
-    fun twoBuildsAtOnceBesideBothSnapshots_growTheHeapByLessThan64Mb() =
+    fun aSecondUntickThroughTheRealPlan_growsTheHeapByLessThan64Mb() =
         runBlocking {
+            val libraries = listOf(first, second, third)
             repository.useAccount(account)
-            repository.applySelection(account, setOf(first, second), nowMs = 0)
+            repository.applySelection(account, libraries.toSet(), nowMs = 0)
             write(first, itemsOf(first, 'a'))
             write(second, itemsOf(second, 'b'))
+            write(third, itemsOf(third, 'c'))
             // A full collection pass has run, so the lineup is planned over the library at once.
             repository.recordCollectionPass(account, Clock.System.now(), relisted = true)
-            val pair = ConcurrentBuildPair(repository, account)
-            pair.prepare(setOf(first, second))
-            Log.i(TAG, "lineup: ${pair.channelsOn} on of ${pair.channels}")
-            val at = Clock.System.now()
+            val run = RealRepairRun(repository, account)
+            run.prepare(libraries.toSet())
+            // The first untick repairs the days; the second plans on repaired days with a removed library.
+            assertTrue("the first untick was saved", run.untick(setOf(third)))
             val baseline = usedHeap()
 
             val sampler = HeapSampler(baseline, ::rawUsedHeap).also { it.start() }
             val started = System.nanoTime()
-            val made = pair.buildBoth(after = setOf(first), before = setOf(first, second), at = at)
+            val saved = run.untick(setOf(second))
             val tookMs = (System.nanoTime() - started) / NANOS_PER_MS
             val peak = sampler.finish()
+            // What the change leaves reachable (the record of the repairs, the caches) is measured, not garbage.
             val retained = usedHeap() - baseline
+            val repairs = run.repairs()
 
             val streamed = peak - baseline
-            Log.i(TAG, "read and two builds at once: $tookMs ms, $made channel days")
+            val items = ITEMS_EACH * libraries.size
+            val walks = run.walkSizes.toList()
+            Log.i(TAG, "lineup: ${run.channelsOn} on of ${run.channels}; items $items; walks $walks; repairs $repairs")
             println(
-                "TWO BUILDS on the device: $tookMs ms for the walk and both builds, $made channel days; " +
-                    "raw peak grew the heap by ${streamed / KB} KB; kept result grew it by ${retained / KB} KB",
+                "REAL PLAN on the device: second untick $tookMs ms over $items items, ${run.channelsOn} channels on " +
+                    "of ${run.channels}, $repairs channel days repaired; walks $walks; " +
+                    "raw peak grew the heap by ${streamed / KB} KB; retained ${retained / KB} KB",
             )
-            assertTrue("the builds made no channel day", made > 0)
-            assertTrue("the builds grew the heap by ${retained / MB} MB, limit $LIMIT_MB", retained / MB < LIMIT_MB)
-            val peaked = "the builds' raw peak grew the heap by ${streamed / MB} MB, limit $LIMIT_MB"
+            assertTrue("the second untick was saved", saved)
+            assertTrue("the second plan walked the new, the current and the removed", walks.last() == THREE)
+            assertTrue("no day was repaired", repairs > 0)
+            assertTrue("the plan left ${retained / MB} MB on the heap, limit $LIMIT_MB", retained / MB < LIMIT_MB)
+            val peaked = "the plan's raw peak grew the heap by ${streamed / MB} MB, limit $LIMIT_MB"
             assertTrue(peaked, streamed / MB < LIMIT_MB)
         }
 
@@ -155,7 +166,8 @@ class ConcurrentBuildsHeapOnDeviceTest {
         // Canonical ids: the lineup belongs to an account of two of them.
         const val SERVER_HEX = "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
         const val USER_HEX = "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
-        const val ITEMS_EACH = 7_500
+        const val ITEMS_EACH = 11_000
+        const val THREE = 3
         const val PAGE = 400
         const val SAMPLE_MS = 5L
         const val GCS = 2
