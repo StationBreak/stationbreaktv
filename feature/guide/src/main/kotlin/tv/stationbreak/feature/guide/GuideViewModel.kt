@@ -195,6 +195,7 @@ internal class GuideViewModel
                 synchronized(lock) {
                     val current = shownSnapshot.value
                     if (session === s) {
+                        if (gone) closeInfoForGone()
                         shownSnapshot.value =
                             when {
                                 gone && current.menu == null -> current.toSettings().copy(noLibraries = true)
@@ -203,6 +204,15 @@ internal class GuideViewModel
                     }
                 }
             }
+        }
+
+        // No programme is shown without libraries: the info overlay closes, and a reload must not restore it. Under [lock].
+        private fun closeInfoForGone() {
+            infoJob?.cancel()
+            infoJob = null
+            infoOf = null
+            infoKept = null
+            shownInfo.value = null
         }
 
         // The one value: the flag the snapshot carries, set by [followSelection] and nowhere else.
