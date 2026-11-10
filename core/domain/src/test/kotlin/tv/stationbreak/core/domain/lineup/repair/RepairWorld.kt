@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.repair
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.ACCOUNT
+import tv.stationbreak.core.domain.lineup.BackgroundSaves
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelDay
 import tv.stationbreak.core.domain.lineup.CountingLibrary
@@ -45,6 +47,7 @@ import kotlin.time.Instant
 
 // Part of the oracle for #684 (with `ReferenceSelectionRepair`, `RepairMatrix` and `SelectionRepairEqualityTest`):
 // DO NOT EDIT in a later #684 PR. The mutants that may be updated are in `SelectionRepairMutantsTest`.
+// Additive test seams allowed (#684 PR 2: planning); oracle logic must not change.
 
 /** What a planner is given: everything `TodayRepairer`'s turn gives `SelectionRepair`. */
 @Suppress("LongParameterList") // Everything the turn gives `SelectionRepair`, one for one.
@@ -113,6 +116,7 @@ internal class RepairWorld(
     val library: CountingLibrary = seededLibrary(libs),
     private val planner: Planner? = null,
     firstSeenFilter: Boolean = false,
+    planning: CoroutineDispatcher? = null,
 ) {
     val atMs: Long = NOON.toEpochMilliseconds() + TEN_MINUTES
     val allIds: Set<ItemId> = libs.mapTo(LinkedHashSet()) { it.id }
@@ -137,7 +141,13 @@ internal class RepairWorld(
                 is LineupShape.Hand -> LineupService(store, library, clock, { 0 }, {}, LineupSeams(TestCatalog))
             }
         source = BuiltInScheduleSource(service, library, built = { builds += it }) { selectionOf(chosen, applied) }
-        repairer = TodayRepairer(service, source, library) { applied }
+        repairer =
+            if (planning == null) {
+                TodayRepairer(service, source, library) { applied }
+            } else {
+                val saves = BackgroundSaves.dispatcher
+                TodayRepairer(service, source, library, Successors.None, { applied }, saves, planning)
+            }
         runBlocking {
             when (shape) {
                 is LineupShape.Catalog -> {
