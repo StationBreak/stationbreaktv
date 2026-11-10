@@ -84,6 +84,7 @@ internal class SelectionRepairEqualityTest {
         val byCutoff = RepairMatrix.itemIdsByCutoff()
         assertTrue(byCutoff.size > 1, "the days read more than one cut-off (${byCutoff.keys})")
         assertTrue(byCutoff.values.toSet().size > 1, "the snapshots of the cut-offs hold different items")
+        assertTrue(RepairMatrix.extrasDropped().all { it > 0 }, "a filtered snapshot differs from its plain one")
     }
 
     private companion object {
@@ -92,77 +93,77 @@ internal class SelectionRepairEqualityTest {
             mapOf(
                 "catalog: untick the 250-item library, days laid out" to
                     listOf(
-                        "a520426a5953d5ca32a3741d6b8b56eadafaea0b4fb07b8cb2d479923dd8fb7c",
+                        "8ca385de85048518d41996c8f9752d34186c96161af2a3f190270166c7742913",
                     ),
                 "catalog: untick the 250-item library, days not laid out" to
                     listOf(
-                        "a520426a5953d5ca32a3741d6b8b56eadafaea0b4fb07b8cb2d479923dd8fb7c",
+                        "8ca385de85048518d41996c8f9752d34186c96161af2a3f190270166c7742913",
                     ),
                 "catalog: second untick on repaired days" to
                     listOf(
-                        "a520426a5953d5ca32a3741d6b8b56eadafaea0b4fb07b8cb2d479923dd8fb7c",
-                        "ce9401e3277a074fd1638c23ab43c2681d2e31eb0d28166e2a3c66e9f4e665af",
+                        "8ca385de85048518d41996c8f9752d34186c96161af2a3f190270166c7742913",
+                        "d51c03372f224bbe55af34b26d82f6b3ef3f8b8b915d9875933aa7d2c5afd25a",
                     ),
                 "catalog: untick right after an add" to
                     listOf(
-                        "a26476309d32a99ebe02fae549ed568fc06048e27ecf926a259996c1617f78b6",
+                        "9aa552dffa7d2d9a45e07e26bd7310ffde081a3ad9b279d60bdc739910253086",
                     ),
                 "catalog: untick the one-genre library" to
                     listOf(
-                        "da2f3b8ebb062f4110692f9f3ec8ae7611c4e1b2d158ddd1694adc13f0bb7df2",
+                        "09295aebc621404c406ef547dbc623dc139ec87036c321d5d55b7027ca6d2902",
                     ),
                 "catalog: untick the biggest library, whose series another shares" to
                     listOf(
-                        "5945f96ecf5f26a57a862ac2f3b28360781faf14634cb516a53ff21a90744a45",
+                        "ddc70c4a0fecae699f92b85bbf19c3c5ecd8db3bb5ba10e26a7805d8accf559a",
                     ),
                 "catalog: untick the library that shares a series" to
                     listOf(
-                        "5268e8ed5caeb53527bb349163c8f6f34beba6b8f149b2aadf82ee971823352f",
+                        "50906d5af9155f45a07645ef62cad80b2c7ee93c50b9bbd0fd2183f4242a8864",
                     ),
                 "catalog: an add that lands with a remove" to
                     listOf(
-                        "14ded88470374a6d40df92cebe7613fad43e423d43f49ef404613a4ac5eab669",
+                        "cb8026c6d6853e38184e30be6eedb362036dd670eb5c6a518d489fef4660d47e",
                     ),
                 "catalog: tiny libraries, untick two at once" to
                     listOf(
-                        "ddbc5bbc07073b4abf4aa8483fc3a4808607f1f9e1f652e784ee0bf786dacd3c",
+                        "c2a6e9ab27539d8738495294cab597edead7f5299c6cdd08ed6bf652a0c168a6",
                     ),
                 "hand: no extras filter, untick the 50-item library" to
                     listOf(
-                        "14d857597136d827aaa4f6763938ecbd14d07a48ec7e2f6631a43f27cafe0083",
+                        "72bfdded481f4c2764fc216a1b08f4b618c9f82ea6da34c478f3025b5ce74e0a",
                     ),
                 "hand: extras filter from the start of time" to
                     listOf(
-                        "7636ec54c9b27a60d7a7f5b5d9f526fced219f71d754ad68c48ba6ab524415f6",
+                        "176a89acd8d27c95933744c14d69724e96569b133c1929bbfb068611c256d2cf",
                     ),
                 "hand: extras cut inside the day, two cut-offs" to
                     listOf(
-                        "21bc14045e1d0728ebf212ceac5c789ea67240f092927ef9164120bec3bc2796",
+                        "a9dfdf877b1e097a563ce86d65553d80d1e84d8b0ed9141824cf0388602f8d00",
                     ),
                 "hand: two cut-offs, items change between them" to
                     listOf(
-                        "a58552b3f11dfc6ef34eedfdf3a382e51fcdc903d1daedc99d87dd6bb5960f69",
+                        "3b091996f9eacb83793469f02f58dc885b3ff595cd616be2de991119c4999e2c",
                     ),
                 "hand: items deleted after the cut-off, then an untick" to
                     listOf(
-                        "e0b3c49699f205790056d62bc907cf79050ca69ad91ab824c7a23c3407f63ec7",
+                        "70f5964cee367f33cfbac3fa12e800f62516be3aad002314b02ae0f1609c5770",
                     ),
                 "hand: items deleted, a second untick on the repaired days" to
                     listOf(
-                        "21bc14045e1d0728ebf212ceac5c789ea67240f092927ef9164120bec3bc2796",
-                        "28bb1747e3836e5f7c59858a4d2910f4fe51d4c7a8ccdbde44eb905dd561f5d8",
+                        "a9dfdf877b1e097a563ce86d65553d80d1e84d8b0ed9141824cf0388602f8d00",
+                        "0a99a2217d63e324f46dba101a8477d64ca4837c65736b3d04b5ed7453bb0165",
                     ),
                 "hand: untick down to one library" to
                     listOf(
-                        "78f9848d80f980424253ffa685cd0a9def87ea765ae0a189f932c87f119faaf3",
+                        "36b30a0149cfaaef9e9a1accbc220e82e2b12f0dc645b7ca4247319547a7c7e8",
                     ),
                 "hand: an empty selection after (S - R = {})" to
                     listOf(
-                        "35874ef60d011e1999cb1f8de6b9cba691c34715edf5bf169633626a9de9dc39",
+                        "47e6e6b46a8c268bff54da9a9bb0c8aef72c7928decbf3283930b095376e5b29",
                     ),
                 "hand: days not laid out, untick the biggest" to
                     listOf(
-                        "b187908159ff62c28ceb11c2f918229cc5420521cb7238ad30e82e008f74770d",
+                        "da4fa632bf9b5bd19f697c5d3386a8daa6ca5e27edea51e0b8f6d87d23391927",
                     ),
             )
     }

@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.NOON
+import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import java.util.concurrent.ConcurrentHashMap
@@ -28,25 +29,32 @@ internal class Scenario(
 internal object RepairMatrix {
     private const val HOUR_MS = 3_600_000L
 
+    @Suppress("LongParameterList") // A library's setup, one for one; all but the first two defaulted.
     private fun lib(
         n: Int,
         size: Int,
         onlyGenre: String? = null,
         between: Boolean = false,
         relisting: SyntheticLib? = null,
-    ) = SyntheticLib(ItemId("d$n".repeat(16)), '0' + n, size, 10L + n, onlyGenre, between, relisting)
+        extras: Boolean = false,
+    ) = SyntheticLib(ItemId("d$n".repeat(16)), '0' + n, size, 10L + n, onlyGenre, between, relisting, extras)
 
     // The first two libraries have items created and deleted between the cut-offs of the day (noon the day before and
     // 00:00 on the day): a snapshot read at one holds other items than one read at the other.
     private val tiny =
-        listOf(lib(1, 90, between = true), lib(2, 70, between = true), lib(3, 50), lib(4, 40, "Documentary"))
-    private val first = lib(1, 700, between = true)
+        listOf(
+            lib(1, 90, between = true, extras = true),
+            lib(2, 70, between = true),
+            lib(3, 50),
+            lib(4, 40, "Documentary"),
+        )
+    private val first = lib(1, 700, between = true, extras = true)
 
     // The fifth library's episodes name the series of the first (a series shared across libraries).
     private val small =
         listOf(
             first,
-            lib(2, 500, between = true),
+            lib(2, 500, between = true, extras = true),
             lib(3, 250),
             lib(4, 120, "Documentary"),
             lib(5, 150, relisting = first),
@@ -170,6 +178,25 @@ internal object RepairMatrix {
                     .ruleSnapshot(ACCOUNT, world.allIds, cutoff)
                     .items
                     .mapTo(HashSet()) { it.item.id }
+            }
+        }
+
+    /**
+     * How many items the extras filter takes out of the snapshot of every library at each of the hand lineup's
+     * cut-offs: some out of each (the libraries with extras hold trailers), so a day the filter applies to reads a
+     * smaller pool than one it does not.
+     */
+    fun extrasDropped(): List<Int> =
+        runBlocking {
+            val world = RepairWorld(small, LineupShape.Hand(null), firstSeenFilter = true)
+            val held = checkNotNull(world.service.loaded(ACCOUNT))
+            val scheduled = LineupDays(world.service.catalog).scheduled(held.lineup, world.atMs, held.meta.extrasFromMs)
+            scheduled.map { it.cutoffMs }.distinct().map { cutoffMs ->
+                val plain = world.library.ruleSnapshot(ACCOUNT, world.allIds, Instant.fromEpochMilliseconds(cutoffMs))
+                plain.items.size -
+                    ExtrasFilter
+                        .filter(plain)
+                        .snapshot.items.size
             }
         }
 

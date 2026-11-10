@@ -25,7 +25,9 @@ import tv.stationbreak.core.testing.SyntheticLibrary
  * one read at the later; and [relisting] makes this library's episodes name the series of another library (a series
  * shared across libraries). One item id cannot be listed by two libraries in a snapshot (the rule evaluator refuses
  * a duplicate id, and the Room read keeps one row per item under its owner), so items an owner change moves between
- * libraries and the spellings of ids are covered at the data layer (`RuleSnapshotReferenceEqualityTest`).
+ * libraries and the spellings of ids are covered at the data layer (`RuleSnapshotReferenceEqualityTest`). With [extras]
+ * every fifth item (of those not made between the cut-offs) is a five-minute "Trailer": what the extras filter takes
+ * out of a snapshot, so a day it applies to reads a smaller pool than one it does not.
  */
 @Suppress("LongParameterList") // A library's setup, one for one; all but the first four defaulted.
 internal class SyntheticLib(
@@ -36,6 +38,7 @@ internal class SyntheticLib(
     val onlyGenre: String? = null,
     val betweenCutoffs: Boolean = false,
     val relisting: SyntheticLib? = null,
+    val extras: Boolean = false,
 )
 
 /**
@@ -87,7 +90,7 @@ private fun timed(
         index % CREATED_EVERY == 0 -> item.copy(item = item.item.copy(createdAtMs = BETWEEN_CUTOFFS_MS))
         index % DELETED_EVERY == 0 -> item.copy(item = item.item.copy(deletedAtMs = BETWEEN_CUTOFFS_MS))
         else -> item
-    }
+    }.let { if (lib.extras && index % EXTRA_EVERY == 0) trailer(it, index) else it }
 
 // A synthetic id with the library's digit first: the libraries' own ids all start the same way.
 private fun idOf(
@@ -141,5 +144,13 @@ private fun seriesOf(
     lib: SyntheticLib,
 ) = RuleSeries(id, first.officialRating, genresOf(first, lib), first.tags)
 
+// [item] as a five-minute trailer, which the extras filter drops by its name.
+private fun trailer(
+    item: RuleItem,
+    index: Int,
+): RuleItem = item.copy(item = item.item.copy(runtimeMs = TRAILER_MS), name = "Trailer $index")
+
+private const val TRAILER_MS = 300_000L
+private const val EXTRA_EVERY = 5
 private const val CREATED_EVERY = 3
 private const val DELETED_EVERY = 13
