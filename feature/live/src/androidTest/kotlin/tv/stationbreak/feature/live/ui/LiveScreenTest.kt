@@ -47,15 +47,8 @@ class LiveScreenTest {
         compose.onNodeWithTag(LiveTags.SNOW).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertTextEquals("Test Movie A")
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("joining 12 min in")
-        compose.onNodeWithText("Tuning in").assertExists()
+        compose.onNodeWithText("TUNING IN").assertExists()
         compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
-    }
-
-    @Test
-    fun aJustStartedShowSaysJustStarted() {
-        show(LiveState.Tuning(banner(BannerLabel.TuningIn, joinedMs = 20_000)))
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("Just started")
     }
 
     @Test
@@ -74,17 +67,15 @@ class LiveScreenTest {
     @Test
     fun aCutInShowsNowAndNoJoinedLine() {
         show(LiveState.Watching(banner(BannerLabel.Now, joinedMs = null)))
-        compose.onNodeWithText("Now").assertExists()
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertDoesNotExist()
+        compose.onNodeWithText("NOW").assertExists()
         compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertExists()
     }
 
     @Test
     fun aLingeringBannerOverThePictureSaysNowNotTuningIn() {
         show(LiveState.Watching(banner(BannerLabel.Now)))
-        compose.onNodeWithText("Now").assertExists()
-        compose.onNodeWithText("Tuning in").assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("joining 12 min in")
+        compose.onNodeWithText("NOW").assertExists()
+        compose.onNodeWithText("TUNING IN").assertDoesNotExist()
     }
 
     @Test
@@ -110,7 +101,7 @@ class LiveScreenTest {
         compose.onNodeWithTag(LiveTags.DIFFICULTIES).assertExists()
         compose.onNodeWithText("TECHNICAL DIFFICULTIES").assertExists()
         compose.onNodeWithText("PLEASE STAND BY").assertExists()
-        compose.onNodeWithText("Up next").assertExists()
+        compose.onNodeWithText("UP NEXT").assertExists()
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
     }
 
@@ -126,7 +117,7 @@ class LiveScreenTest {
         show(LiveState.Ident(null, ChannelTag(7, "Laughs")))
         compose.onNodeWithTag(LiveTags.IDENT).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
-        compose.onNodeWithText("LAUGHS").assertExists()
+        compose.onNodeWithText("Laughs").assertExists()
         compose.onNodeWithText("07").assertExists()
         compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertDoesNotExist()
@@ -136,7 +127,7 @@ class LiveScreenTest {
     fun theDifficultiesSlateWithoutAnUpNextStillNamesTheChannel() {
         show(LiveState.TechnicalDifficulties(null, ChannelTag(7, "Laughs")))
         compose.onNodeWithText("TECHNICAL DIFFICULTIES").assertExists()
-        compose.onNodeWithText("LAUGHS").assertExists()
+        compose.onNodeWithText("Laughs").assertExists()
         compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
     }
 
@@ -145,7 +136,7 @@ class LiveScreenTest {
         show(LiveState.Ident(banner(BannerLabel.UpNext, joinedMs = null)))
         compose.onNodeWithTag(LiveTags.TEST_CARD).assertExists()
         compose.onNodeWithTag(LiveTags.IDENT).assertExists()
-        compose.onNodeWithText("Up next").assertExists()
+        compose.onNodeWithText("UP NEXT").assertExists()
         compose.onNodeWithTag(LiveTags.DIFFICULTIES).assertDoesNotExist()
     }
 
@@ -160,7 +151,7 @@ class LiveScreenTest {
     @Test
     fun fillingInBannerSaysFillingIn() {
         show(LiveState.Watching(banner(BannerLabel.FillingIn)))
-        compose.onNodeWithText("Filling in").assertExists()
+        compose.onNodeWithText("FILLING IN").assertExists()
     }
 
     @Test
@@ -168,7 +159,7 @@ class LiveScreenTest {
         show(LiveState.Choosing(ChannelTag(7, "Laughs"), overPicture = true))
         compose.onNodeWithTag(LiveTags.BANNER_CHOOSING).assertExists()
         compose.onNodeWithText("07").assertExists()
-        compose.onNodeWithText("LAUGHS").assertExists()
+        compose.onNodeWithText("Laughs").assertExists()
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertDoesNotExist()
@@ -180,7 +171,7 @@ class LiveScreenTest {
         compose.onNodeWithTag(LiveTags.SNOW).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER_CHOOSING).assertExists()
         compose.onNodeWithText("12").assertExists()
-        compose.onNodeWithText("WESTERNS").assertExists()
+        compose.onNodeWithText("Westerns").assertExists()
     }
 
     private companion object {

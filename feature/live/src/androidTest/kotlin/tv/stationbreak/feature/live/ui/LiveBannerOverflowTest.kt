@@ -115,7 +115,6 @@ class LiveBannerOverflowTest {
         assertEllipsized(LiveTags.BANNER_SUBTITLE)
         assertInside(LiveTags.BANNER_SUBTITLE)
         assertInside(LiveTags.BANNER_SLOT)
-        assertInside(LiveTags.BANNER_JOINED)
     }
 
     @Test
@@ -126,10 +125,9 @@ class LiveBannerOverflowTest {
     }
 
     @Test
-    fun aLongChannelNameEndsInAnEllipsisAndLeavesRoomForTheText() {
+    fun aLongChannelNameIsNotOnTheTuneBannerSoTheTextKeepsItsRoom() {
         show(LiveState.Watching(banner(longEpisode, channelName = "Test Channel $longWords")))
-        assertEllipsized(LiveTags.BANNER_CHANNEL)
-        assertInside(LiveTags.BANNER_CHANNEL)
+        compose.onNodeWithTag(LiveTags.BANNER_CHANNEL).assertDoesNotExist()
         assertEllipsized(LiveTags.BANNER_SUBTITLE)
         assertInside(LiveTags.BANNER_SUBTITLE)
     }

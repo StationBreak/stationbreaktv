@@ -58,15 +58,16 @@ sealed interface LiveState {
     data object SignedOut : LiveState
 }
 
-/** A channel's number and name: all a card says when no show follows. */
+/** A channel's number and name (and [recipeKey], for its mark): all a card says when no show follows. */
 data class ChannelTag(
     val number: Int,
     val name: String,
+    val recipeKey: String? = null,
 )
 
 /** What a [Banner] says about its show. */
 enum class BannerLabel {
-    /** Joining a show in progress under the snow (shows "joining N min in", or "Just started"). */
+    /** Joining a show in progress under the snow. */
     TuningIn,
 
     /** The show that has just cut in at its start. */
@@ -85,7 +86,8 @@ enum class BannerLabel {
  * holds the rest of the show's names (the episode line is made from it on the screen, from resources). [joinedMs] is
  * how far into the media the viewer joined (null when the show cut in at its start, and for "up next"). [next] is the
  * program that follows, when one does. [actions] is true for the banner the viewer asked for (Select or Info), which
- * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go).
+ * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go). [recipeKey] is
+ * the channel's recipe key, which finds its logo for the mark (null for a channel with none: the mark is its initials).
  */
 data class Banner(
     val number: Int,
@@ -99,6 +101,7 @@ data class Banner(
     val next: NextProgram? = null,
     val actions: Boolean = false,
     val hasLast: Boolean = false,
+    val recipeKey: String? = null,
 )
 
 /** The program after the one a [Banner] names: its title as the banner shows it, and its start (UTC milliseconds). */

@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LongState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
@@ -30,25 +32,24 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
-import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.live.R
 
-private const val PROGRESS_TRACK_ALPHA = 0.35f
-private const val ACTION_FILL_ALPHA = 0.16f
-private val ActionTextSize = 16.sp
+private val ActionTextSize = 12.sp
+private val ProgressHeight = 2.dp
 
-/** What the two buttons of the actions banner do. */
+/** What the buttons of the actions banner do. */
 internal class Actions(
     val info: () -> Unit,
     val last: () -> Unit,
@@ -56,18 +57,12 @@ internal class Actions(
 )
 
 /**
- * How far through its slot the program is: 6 dp, square, Ground track and Accent fill. The one-minute tick is read in
- * the draw phase and in the semantics, so it redraws the bar and nothing else.
+ * The wall clock as the banner reads it: read now, and again on each clock minute, when "min left" changes (#440), not
+ * a minute from whenever the banner came up.
  */
 @Composable
-internal fun ProgressBar(
-    startMs: Long,
-    endMs: Long,
-    copy: ProgramCopy,
-    clock: () -> Long,
-) {
+internal fun rememberMinuteClock(clock: () -> Long): LongState {
     val now = remember(clock) { mutableLongStateOf(clock()) }
-    // On the clock's minute, when "min left" changes (#440), not a minute from whenever the banner came up.
     LaunchedEffect(clock) {
         while (true) {
             val read = clock()
@@ -75,25 +70,41 @@ internal fun ProgressBar(
             delay(ProgramText.untilNextMinute(read))
         }
     }
+    return now
+}
+
+/**
+ * How far through its slot the program is: one 2 dp line along the top edge of the banner, `progressTrack` with a
+ * `progressFill` fill. [now] is read in the draw phase and in the semantics, so a tick redraws the line and nothing
+ * else.
+ */
+@Composable
+internal fun ProgressLine(
+    startMs: Long,
+    endMs: Long,
+    copy: ProgramCopy,
+    now: LongState,
+) {
+    val colors = LocalGuideColors.current
     Box(
         Modifier
-            .padding(top = 4.dp)
             .fillMaxWidth()
-            .height(6.dp)
+            .height(ProgressHeight)
             .testTag(LiveTags.BANNER_PROGRESS)
             .semantics {
                 progressBarRangeInfo = ProgressBarRangeInfo(BannerText.progress(startMs, endMs, now.longValue), 0f..1f)
                 contentDescription = copy.minutesLeft(BannerText.minutesLeft(startMs, endMs, now.longValue))
             }.drawBehind {
-                drawRect(BroadcastColors.Ground.copy(alpha = PROGRESS_TRACK_ALPHA))
+                drawRect(colors.progressTrack)
                 val done = BannerText.progress(startMs, endMs, now.longValue)
-                drawRect(BroadcastColors.Accent, size = Size(size.width * done, size.height))
+                drawRect(colors.progressFill, size = Size(size.width * done, size.height))
             },
     )
 }
 
 /**
  * Live (while behind), Info, then Last (when there is a channel to go back to). Info has the focus as the row appears.
+ * A 43 dp row under the banner's rule.
  */
 @Composable
 internal fun ActionsRow(
@@ -115,15 +126,16 @@ internal fun ActionsRow(
         val onLive = rowFocused && !infoFocused && !lastFocused
         if (!behind && onLive) first.requestFocus()
     }
-    // 6 dp here plus the banner column's 4 dp spacing makes the 10 dp gap above the buttons of the UX notes.
     Row(
         Modifier
-            .padding(top = 6.dp)
+            .fillMaxWidth()
+            .height(ACTION_ROW_HEIGHT)
+            .padding(horizontal = 16.dp)
             .onFocusChanged { if (behindNow || it.hasFocus) rowFocused = it.hasFocus }
             .testTag(LiveTags.BANNER_ACTIONS),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // DESIGN(#383): placeholder
         if (behind) {
             val modifier =
                 Modifier
@@ -146,9 +158,11 @@ internal fun ActionsRow(
     }
 }
 
+private val ACTION_ROW_HEIGHT = 43.dp
+
 /**
- * A button on the Ink banner. The default container is nearly Ink and would vanish, so the colours are set: Cream at
- * 16% with Cream text, and on focus Cream with Ink text (14.9:1) in the app's one focus treatment.
+ * A button on the banner, in the guide's focus grammar: a `card` fill, and when focused the `accent` fill with
+ * `focusText`. No scale and no ring.
  */
 @Composable
 private fun ActionButton(
@@ -156,23 +170,24 @@ private fun ActionButton(
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
+    val colors = LocalGuideColors.current
     Button(
         onClick = onClick,
-        modifier = modifier.height(40.dp).widthIn(min = 96.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+        modifier = modifier.height(28.dp).widthIn(min = 44.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+        shape = ButtonDefaults.shape(ChromeShape),
         colors =
             ButtonDefaults.colors(
-                containerColor = BroadcastColors.Cream.copy(alpha = ACTION_FILL_ALPHA),
-                contentColor = BroadcastColors.Cream,
-                focusedContainerColor = BroadcastColors.Cream,
-                focusedContentColor = BroadcastColors.Ink,
-                pressedContainerColor = BroadcastColors.Cream,
-                pressedContentColor = BroadcastColors.Ink,
+                containerColor = colors.card,
+                contentColor = colors.textPrimary,
+                focusedContainerColor = colors.focusFill,
+                focusedContentColor = colors.focusText,
+                pressedContainerColor = colors.focusFill,
+                pressedContentColor = colors.focusText,
             ),
-        border = FocusStyle.buttonBorder(),
-        scale = FocusStyle.buttonScale(),
+        border = ButtonDefaults.border(focusedBorder = Border.None, pressedBorder = Border.None),
+        scale = ButtonDefaults.scale(focusedScale = 1f),
     ) {
-        val style = TextStyle(fontSize = ActionTextSize, fontWeight = FontWeight.SemiBold)
-        Text(text = stringResource(label), style = style, maxLines = 1)
+        Text(text = stringResource(label), style = guideText(ActionTextSize, FontWeight.Medium), maxLines = 1)
     }
 }

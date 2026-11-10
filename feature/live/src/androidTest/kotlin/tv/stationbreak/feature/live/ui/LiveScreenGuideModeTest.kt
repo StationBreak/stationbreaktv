@@ -135,7 +135,7 @@ class LiveScreenGuideModeTest {
         compose.onNodeWithTag(LiveTags.IDENT, useUnmergedTree = true).assertExists()
         // The card's "Up next" banner is a banner: the guide says what is next.
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
-        compose.onNodeWithText("Up next").assertDoesNotExist()
+        compose.onNodeWithText("UP NEXT").assertDoesNotExist()
 
         compose.runOnIdle { shown.value = LiveState.TechnicalDifficulties(upNext, ChannelTag(4, "Test Channel")) }
         compose.waitForIdle()

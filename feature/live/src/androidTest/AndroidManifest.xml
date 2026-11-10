@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Public storage for LiveScreenshotTest's frames (written beside the guide's). connectedAndroidTest uninstalls the test package before CI can pull,
+    and that removes the package's own external files. /sdcard/guide-screenshots is not part of the package, so it
+    stays. The permission is only needed on the API 25 emulator (target 34 does not grant it at install).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+</manifest>
