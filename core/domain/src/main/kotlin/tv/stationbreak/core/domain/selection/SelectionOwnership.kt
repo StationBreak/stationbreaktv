@@ -87,7 +87,8 @@ internal class SelectionOwnership(
         // The record's account, as [owns] reads it: its owner, or the account that adopted it when it names none.
         val account = stored?.let { it.owner ?: adopted }
         // A give-up that no stored add of its account matches is over: nothing is left to show or to ask again.
-        givenUp.retainAll { g -> account == g.account && stored.adding[g.id] == g.stamp }
+        // Nothing published (no choice read, or another account's) prunes nothing: the next stored choice decides.
+        if (stored != null) givenUp.retainAll { g -> account == g.account && stored.adding[g.id] == g.stamp }
         view.value =
             stored?.let { saved ->
                 val stalled = givenUp.map { it.id }.toSet()

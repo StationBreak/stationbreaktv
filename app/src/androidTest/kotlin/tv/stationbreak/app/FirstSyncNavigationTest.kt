@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
-import android.content.Context
 import android.view.KeyEvent
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
@@ -14,7 +13,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.UninstallModules
@@ -32,14 +30,11 @@ import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
 import tv.stationbreak.core.domain.AccountCache
-import tv.stationbreak.core.domain.AccountCaches
-import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.InMemoryFirstSync
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
-import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
