@@ -24,8 +24,9 @@ import kotlin.time.TimeSource
  * - [writeMs]: the record's write.
  * - [otherMs]: the rest of the turn (its reads of the lineup and the saved selection, the days scheduled, the titles
  *   of today's pools), not counting the caller's save.
- * - [cpuMs]: the turn thread's CPU time over the repair, before the save; [gcCount] and [gcMs]: the process's
- *   collections and their blocking time over it.
+ * - [cpuMs]: the process's CPU time over the repair, before the save (the whole process, not the turn's thread: the
+ *   plan runs on the planning dispatcher's threads, and other work of the process counts in it too); [gcCount] and
+ *   [gcMs]: the process's collections and their blocking time over it. -1 when the process's CPU time cannot be read.
  */
 data class RepairPhases(
     val warmMs: Long = -1,

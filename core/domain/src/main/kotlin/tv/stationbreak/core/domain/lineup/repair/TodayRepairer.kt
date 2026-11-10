@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup.repair
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
@@ -106,7 +107,7 @@ internal suspend fun refuseInTurn() {
  * second change never starts before the first is saved. Each write also prunes the repairs a saved later seq has
  * superseded.
  */
-@Suppress("TooManyFunctions") // One per call of the repairer, its turn and record, and the warm-up before a change.
+@Suppress("TooManyFunctions", "LongParameterList") // A function per call; the constructor takes two dispatchers.
 class TodayRepairer internal constructor(
     private val service: LineupService,
     private val source: BuiltInScheduleSource,
@@ -114,6 +115,7 @@ class TodayRepairer internal constructor(
     private val successors: Successors,
     private val storedSeq: suspend () -> Long?,
     private val dispatcher: CoroutineDispatcher,
+    private val planning: CoroutineDispatcher,
 ) {
     /**
      * [storedSeq] is `ServerSettings.loadSelectionSeq`: the stored seq, which outlives the selection (a sign-out keeps
@@ -125,7 +127,16 @@ class TodayRepairer internal constructor(
         library: LibraryRepository,
         successors: Successors = Successors.None,
         storedSeq: suspend () -> Long?,
-    ) : this(service, source, library, successors, storedSeq, BackgroundSaves.dispatcher)
+    ) : this(
+        service,
+        source,
+        library,
+        successors,
+        storedSeq,
+        BackgroundSaves.dispatcher,
+        // Made once per repairer: planning runs on at most this many normal-priority threads, not the day-saves one.
+        Dispatchers.Default.limitedParallelism(service.repairConfig.planThreads),
+    )
 
     // The service's own: one instance of the tunables for the record's saves and for the repair.
     internal val config: RepairConfig get() = service.repairConfig
@@ -168,7 +179,7 @@ class TodayRepairer internal constructor(
      * selection's reason. It runs while the removed libraries' rows still exist. The result of [RepairOutcome.Saved]
      * is the seq and the pins whose programme is of a library the change removes. [entered] is called first in the
      * turn, once it is held (a change times its wait for the turn). [clock], when given, times the repair's steps up
-     * to the save, with the turn thread's CPU time and the collections over them ([RepairPhases]); it changes nothing.
+     * to the save, with the process's CPU time and the collections over them ([RepairPhases]); it changes nothing.
      *
      * A caller that has the saved selection at hand calls [warmDays] with it first, so the turn finds today's days
      * built.
@@ -214,7 +225,12 @@ class TodayRepairer internal constructor(
                     val shared: SharedRead = { libraries, cuts ->
                         source.sharedSnapshotsOf(account, libraries, cuts)
                     }
-                    val planned = SelectionRepair(days, library, account, held, change, shared, clock).plan(today)
+                    // Only the planning leaves the turn's thread: it is a pure function of what it reads, and runs at
+                    // normal priority. The record, the save and the settle stay on [dispatcher], so their order holds.
+                    val planned =
+                        withContext(planning) {
+                            SelectionRepair(days, library, account, held, change, shared, clock).plan(today)
+                        }
                     val repaired = SelectionRepaired(seq, planned.pins)
                     clock.time(RepairPhase.Write) {
                         record(account, held, repaired) { planned.into(it, current.seq, current.resetSeq) }
@@ -510,24 +526,22 @@ class TodayRepairer internal constructor(
     }
 }
 
-private const val NANOS_PER_MS = 1_000_000L
-
-// [block], with this thread's CPU time and the process's collections over it (read from [probes]) added to [clock]
-// when there is one.
+// [block], with the process's CPU time and collections over it (read from [probes]) added to [clock] when there is
+// one. The process's, not the thread's: the plan runs on another thread than the turn's.
 private inline fun <T> probed(
     clock: RepairClock?,
     probes: BuildProbes,
     block: () -> T,
 ): T {
     if (clock == null) return block()
-    val cpu = probes.threadCpuNanos()
+    val cpu = probes.processCpuMs()
     val count = probes.gcCount()
     val blocked = probes.gcBlockMs()
     try {
         return block()
     } finally {
         clock.addProbes(
-            cpu = delta(cpu, probes.threadCpuNanos()).let { if (it < 0) -1 else it / NANOS_PER_MS },
+            cpu = delta(cpu, probes.processCpuMs()),
             count = delta(count, probes.gcCount()),
             blocked = delta(blocked, probes.gcBlockMs()),
         )
