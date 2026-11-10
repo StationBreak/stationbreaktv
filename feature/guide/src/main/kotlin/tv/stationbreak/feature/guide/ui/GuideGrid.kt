@@ -48,7 +48,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.guideFigures
+import tv.stationbreak.core.ui.mark.ChannelMark
+import tv.stationbreak.core.ui.mark.LocalMarkCache
+import tv.stationbreak.core.ui.mark.LocalMarkTextMeasurer
+import tv.stationbreak.core.ui.mark.variantForTint
 import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
@@ -58,10 +64,6 @@ import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.SLOT_MS
 import tv.stationbreak.feature.guide.indexOf
 import tv.stationbreak.feature.guide.markBandOf
-import tv.stationbreak.feature.guide.ui.mark.ChannelMark
-import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
-import tv.stationbreak.feature.guide.ui.mark.LocalMarkTextMeasurer
-import tv.stationbreak.feature.guide.ui.mark.variantForTint
 import java.time.Instant
 import java.time.ZoneId
 

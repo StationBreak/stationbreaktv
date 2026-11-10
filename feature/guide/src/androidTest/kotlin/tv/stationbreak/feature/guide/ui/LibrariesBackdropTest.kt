@@ -22,6 +22,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ScreenLayout
 
 /** The Libraries backdrop is the guide's page in each theme, and leaves the picture's hole clear for live TV. */

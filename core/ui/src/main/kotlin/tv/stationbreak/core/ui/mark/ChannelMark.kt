@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.guide.ui.mark
+package tv.stationbreak.core.ui.mark
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
@@ -29,12 +29,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import tv.stationbreak.feature.guide.ui.LocalGuideColors
-import tv.stationbreak.feature.guide.ui.guideText
+import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.guideText
 import kotlin.math.roundToInt
 
-/** What the mark draws now, for tests: they cannot see pixels without API 26. A custom key, so never announced. */
-internal val MarkKindKey = SemanticsPropertyKey<MarkKind>("MarkKind")
+/**
+ * Test hook, not API: what the mark draws now, for tests that cannot see pixels without API 26. A custom key, so never
+ * announced.
+ */
+val MarkKindKey = SemanticsPropertyKey<MarkKind>("MarkKind")
 private var SemanticsPropertyReceiver.markKind by MarkKindKey
 
 private val MarkBoxWidth: Dp = 50.dp
@@ -48,7 +51,7 @@ private val MarkBoxHeight: Dp = 28.dp
  * panel.
  */
 @Composable
-internal fun ChannelMark(
+fun ChannelMark(
     markKey: String?,
     initials: String,
     modifier: Modifier = Modifier,
@@ -97,4 +100,4 @@ internal fun ChannelMark(
 }
 
 /** The one text measurer the guide's rows share; null where a mark is drawn alone, which then makes its own. */
-internal val LocalMarkTextMeasurer = staticCompositionLocalOf<TextMeasurer?> { null }
+val LocalMarkTextMeasurer = staticCompositionLocalOf<TextMeasurer?> { null }

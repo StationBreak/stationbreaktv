@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.guide.ui
+package tv.stationbreak.core.ui
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import tv.stationbreak.core.ui.PanelColors
 
 /**
  * Guide tokens, dark or light (the broadcast-EPG overhaul, #657). Dark is the default. The choice is the guide's own
@@ -11,10 +10,11 @@ import tv.stationbreak.core.ui.PanelColors
  * [page]; contrast is judged on the composite. Roles the overhaul removes keep their field until the code that reads
  * them goes: they are [Color.Transparent] meanwhile.
  *
- * The guide draws these itself. The cream-ring treatment in core:ui stays for screens that have not moved yet.
+ * The guide and live TV's banner draw these themselves (the banner always uses [Dark]). The cream-ring treatment in
+ * core:ui stays for screens that have not moved yet.
  */
 @Suppress("LongParameterList") // One field per Guide A colour role.
-internal class GuideColors(
+class GuideColors(
     val page: Color,
     val pageGradientStart: Color,
     val card: Color,
@@ -42,7 +42,7 @@ internal class GuideColors(
     val keyCapStroke: Color,
     /**
      * The ink the channel marks are tinted with: their mono render drawn in this colour (Light), or null to draw the
-     * colour render as it is (Dark). See `channelmarks` in `feature/guide/CHANNELMARKS.md`.
+     * colour render as it is (Dark). See `channelmarks` in `core/ui/CHANNELMARKS.md`.
      */
     val markTint: Color? = null,
 ) {
@@ -103,7 +103,7 @@ internal class GuideColors(
 }
 
 /** Dark unless a caller provides the saved choice. Never the system theme. */
-internal val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
+val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
 
 // Text and surfaces are the one neutral (white in Dark, ink in Light) at fixed alphas, so every role steps from the
 // page without a warm tint. Light has its own alphas: its page is darker than a near-white one, so the card, the rules
@@ -128,19 +128,3 @@ private const val LINE_ALPHA_LIGHT = 0.16f
 private const val KEY_STROKE_ALPHA = 0.28f
 private const val NOW_LINE_ALPHA = 0.35f
 private const val NOW_LINE_ALPHA_LIGHT = 0.60f
-
-/** The guide's own appearance. [decode] is dark for anything that is not the light token, including a missing value. */
-internal enum class GuideTheme {
-    Dark,
-    Light,
-    ;
-
-    val colors: GuideColors
-        get() = if (this == Light) GuideColors.Light else GuideColors.Dark
-
-    companion object {
-        fun decode(stored: String?): GuideTheme = if (stored == encode(Light)) Light else Dark
-
-        fun encode(theme: GuideTheme): String = theme.name
-    }
-}

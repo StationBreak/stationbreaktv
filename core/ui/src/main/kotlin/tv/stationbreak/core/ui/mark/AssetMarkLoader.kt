@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.guide.ui.mark
+package tv.stationbreak.core.ui.mark
 
 import android.content.res.AssetManager
 import android.graphics.Bitmap
@@ -16,7 +16,7 @@ private const val MARKS_FOLDER = "channelmarks"
 internal val MarkBuckets = setOf(32, 48, 64)
 
 /** The two renders of a logo: its own colours, or all fills white (the Light theme tints it with ink). */
-internal enum class MarkVariant { Colour, Mono }
+enum class MarkVariant { Colour, Mono }
 
 private val MARK_FILE = Regex("""sl_(\d{3})_([a-z0-9-]+)(_mono)?_(32|48|64)dp\.png""")
 private const val KEY_GROUP = 2
@@ -68,7 +68,7 @@ internal fun pickMarkBucket(
  * Finds the bundled logos by recipe key and decodes the size that fits [density]. Blocking: call it off the main thread
  * only.
  */
-internal class AssetMarkLoader(
+class AssetMarkLoader(
     private val assets: AssetManager,
     private val density: Float = 2f,
 ) : MarkLoader {

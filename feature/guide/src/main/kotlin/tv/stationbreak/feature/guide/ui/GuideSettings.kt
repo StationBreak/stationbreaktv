@@ -28,7 +28,9 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ScreenFit
+import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.R
 import java.util.Date

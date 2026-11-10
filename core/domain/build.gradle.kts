@@ -31,7 +31,7 @@ dependencies {
 
 // CatalogMarksDriftTest reads the guide's bundled logos: Gradle must see them as inputs, or a changed logo folder leaves
 // the cached test result in place.
-val channelMarks = rootProject.layout.projectDirectory.dir("feature/guide/src/main/assets/channelmarks")
+val channelMarks = rootProject.layout.projectDirectory.dir("core/ui/src/main/assets/channelmarks")
 tasks.withType<Test>().configureEach {
     inputs.dir(channelMarks).withPropertyName("channelMarks").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("stationbreak.channelmarks", channelMarks.asFile.absolutePath)

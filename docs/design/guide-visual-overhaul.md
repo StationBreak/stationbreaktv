@@ -30,7 +30,7 @@ The mockup attached to this issue is the target. The numbers below are the spec;
 
 Paths are under `feature/guide/src/main/kotlin/tv/stationbreak/feature/guide/ui/` unless noted.
 
-### Tokens — `GuidePalette.kt`, `GuideChrome.kt`
+### Tokens — `GuideColors.kt` (now in core:ui), `GuideChrome.kt`
 
 | Token | Current (Dark) | Target |
 |---|---|---|
@@ -114,7 +114,7 @@ Light theme (retuned after the TV review: the near-white page was glaring and lo
 
 - Key cap: 1dp stroke white @ 28%, 3dp radius, 7.5sp SemiBold, 15dp tall; OK key is a circle. Action label 10sp `textSecondary`. 20dp between pairs. Remove the divider line.
 
-### Channel marks — `ui/mark/*`, `feature/guide/src/main/assets/channelmarks/`
+### Channel marks — `ui/mark/*`, `core/ui/src/main/assets/channelmarks/`
 
 Content and rules live in `docs/design/channel-identity.md`; this issue only changes how marks are drawn.
 

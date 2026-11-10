@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.guide.ui.mark
+package tv.stationbreak.core.ui.mark
 
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.test.platform.app.InstrumentationRegistry

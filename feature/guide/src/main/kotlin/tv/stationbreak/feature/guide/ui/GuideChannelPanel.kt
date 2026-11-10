@@ -23,10 +23,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.guideFigures
+import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.mark.ChannelMark
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.focusedRow
-import tv.stationbreak.feature.guide.ui.mark.ChannelMark
 
 // The mark at twice its 50 by 28 dp column box (#631).
 private val LargeMarkWidth = 100.dp

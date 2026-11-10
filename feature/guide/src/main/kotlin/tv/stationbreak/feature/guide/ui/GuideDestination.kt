@@ -37,15 +37,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.ScreenFit
+import tv.stationbreak.core.ui.mark.LocalMarkCache
+import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.core.ui.rememberScreenFitStore
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.GuideViewModel
-import tv.stationbreak.feature.guide.ui.mark.LocalMarkCache
-import tv.stationbreak.feature.guide.ui.mark.MarkCaches
 
 /**
  * The program guide (spec 17), drawn by live TV over its picture while the guide is open: live owns whether it shows,

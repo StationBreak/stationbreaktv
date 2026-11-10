@@ -1,7 +1,7 @@
 # Bundled channel marks
 
-Provenance and pipeline for the channel marks in `feature/guide`. The checked-in hashes are in `channelmarks.sha256`
-(sha256sum format, paths relative to `feature/guide`); `ChannelMarkManifestTest` fails if a bundled file stops matching,
+Provenance and pipeline for the channel marks in `core/ui`. The checked-in hashes are in `channelmarks.sha256`
+(sha256sum format, paths relative to `core/ui`); `ChannelMarkManifestTest` fails if a bundled file stops matching,
 and also if any file under a `src/*/assets/channelmarks/` folder of any module in the repo (Android merges assets across
 modules), or a symlink there, is missing from the manifest. Dot-folders and `build/` are skipped at the repo walk.
 
@@ -27,7 +27,7 @@ scripts/channelmarks/brands.json  (one entry per channel: faces, colours, lockup
 SVG masters, text converted to outlines          scripts/channelmarks/out-brands/svg/ and svg-mono/
         |
         v   cairosvg (the --png step)
-PNG renders, transparent, 48 dp and 64 dp at 2x  feature/guide/src/main/assets/channelmarks/
+PNG renders, transparent, 48 dp and 64 dp at 2x  core/ui/src/main/assets/channelmarks/
 ```
 
 - **Masters.** One 200 by 112 viewBox per channel (the 50 by 28 dp box at 4 px per dp), in colour (`svg/`) and with every
@@ -82,15 +82,15 @@ assets in the built APK against this manifest is a tracked follow-up.
        core/engine/src/commonMain/kotlin/tv/stationbreak/core/engine/lineup/CatalogV3Recipes.kt \
        scripts/channelmarks/brands.json \
        scripts/channelmarks/out-brands \
-       --png feature/guide/src/main/assets/channelmarks
+       --png core/ui/src/main/assets/channelmarks
    ```
 
    Review `scripts/channelmarks/out-brands/contact-sheet.html` (the 1:1 and mono strips) before accepting a mark.
 3. Regenerate the manifest:
 
    ```
-   cd feature/guide && sha256sum src/main/assets/channelmarks/*.png | LC_ALL=C sort -k2 > channelmarks.sha256
+   cd core/ui && sha256sum src/main/assets/channelmarks/*.png | LC_ALL=C sort -k2 > channelmarks.sha256
    ```
 
-4. Run `./gradlew :feature:guide:testDebugUnitTest :core:domain:test`, and commit the masters, the renders and the
+4. Run `./gradlew :core:ui:testDebugUnitTest :core:domain:test`, and commit the masters, the renders and the
    manifest together. A channel added to the catalog without a mark fails `CatalogMarksDriftTest`.
