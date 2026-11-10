@@ -87,6 +87,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
+import tv.stationbreak.core.ui.ProgramInfoTags
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
@@ -172,6 +173,36 @@ class GuideScreenshotTest {
                 shoot("$FIT_FRAME-${chosen.name.lowercase()}$suffix.png")
             }
         }
+    }
+
+    /**
+     * The info overlay of a later program (OK on a cell after the playing one), with the details in: overview, year,
+     * genres and runtime. One test a theme, as the settings panel is: the overlay's state is the activity's.
+     */
+    @Test
+    fun theInfoPanel() = shootInfo(GuideTheme.Dark, suffix = "")
+
+    @Test
+    fun theInfoPanelLight() = shootInfo(GuideTheme.Light, suffix = "-light")
+
+    private fun shootInfo(
+        shown: GuideTheme,
+        suffix: String,
+    ) {
+        theme.value = shown
+        showReady(CH7)
+        press(Key.DirectionRight)
+        press(Key.DirectionCenter)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose
+                .onAllNodesWithTag(ProgramInfoTags.OVERVIEW, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        compose.onNodeWithTag(GuideTags.INFO).assertIsDisplayed()
+        assertEquals(OVERVIEW, text(ProgramInfoTags.OVERVIEW))
+        assertEquals("2018 · Animation, Family · 22 min", text(ProgramInfoTags.DETAILS))
+        shoot("$INFO_FRAME$suffix.png")
     }
 
     /** The Settings panel with its Screen fit row: its last row must end above the menu row. */
@@ -531,6 +562,7 @@ class GuideScreenshotTest {
         const val FOCUSED_MENU = "guide-focused-menu"
         const val OFF_AIR = "guide-off-air.png"
         const val MARKS_FRAME = "guide-marks"
+        const val INFO_FRAME = "guide-info"
         val MARK_FARM = ChannelId("ch-marks-farm")
         val MARK_ROBOTS = ChannelId("ch-marks-robots")
         val MARK_LONG = ChannelId("ch-marks-long")

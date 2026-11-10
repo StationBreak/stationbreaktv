@@ -10,6 +10,7 @@ object LiveTags {
     const val BANNER_CHANNEL = "live:banner:channel"
     const val BANNER_SLOT = "live:banner:slot"
     const val BANNER_MARK = "live:banner:mark"
+    const val BANNER_JOINED = "live:banner:joined"
 
     /** The stream line (a later PR fills it in); reserved now so the tag is stable. */
     const val BANNER_STREAM = "live:banner:stream"

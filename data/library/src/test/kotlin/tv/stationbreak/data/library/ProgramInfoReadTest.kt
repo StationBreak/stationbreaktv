@@ -41,7 +41,15 @@ class ProgramInfoReadTest {
                 episodeNumber = 5,
             )
         val movie =
-            MediaItem(movieId, "Test Movie A", ItemKind.Movie, 90.minutes, SHOWS, dateCreated = EPOCH - 1.minutes)
+            MediaItem(
+                movieId,
+                "Test Movie A",
+                ItemKind.Movie,
+                90.minutes,
+                SHOWS,
+                dateCreated = EPOCH - 1.minutes,
+                productionYear = 2002,
+            )
         val series = SeriesInfo(seriesId, "Test Series B", null, emptyList(), emptyList())
         repository.writePage(
             account,
@@ -57,7 +65,7 @@ class ProgramInfoReadTest {
     }
 
     @Test
-    fun programInfoReturnsTitleAndSeriesNameForEpisodes() =
+    fun programInfoReturnsTitleSeriesNameAndYear() =
         runBlocking {
             save(ALICE)
 
@@ -68,7 +76,7 @@ class ProgramInfoReadTest {
                     canon(0x1001) to
                         ProgramInfo(canon(0x1001), ScheduleItemKind.Episode, "Episode One", "Test Series B", 2, 5),
                     canon(0x1002) to
-                        ProgramInfo(canon(0x1002), ScheduleItemKind.Movie, "Test Movie A", null, null, null),
+                        ProgramInfo(canon(0x1002), ScheduleItemKind.Movie, "Test Movie A", null, null, null, 2002),
                 ),
                 info,
             )

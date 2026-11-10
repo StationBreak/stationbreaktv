@@ -47,7 +47,18 @@ class LiveBannerOverflowTest {
     private fun banner(
         info: ProgramInfo,
         channelName: String = "Test Channel",
-    ) = Banner(4, channelName, BannerLabel.Now, info.seriesName, info, START, START + 30 * MINUTE, 12 * MINUTE)
+        recipeKey: String? = null,
+    ) = Banner(
+        4,
+        channelName,
+        BannerLabel.Now,
+        info.seriesName,
+        info,
+        START,
+        START + 30 * MINUTE,
+        12 * MINUTE,
+        recipeKey = recipeKey,
+    )
 
     private fun show(state: LiveState) {
         compose.setContent { StationBreakTheme { LiveScreen(state) {} } }
@@ -125,9 +136,20 @@ class LiveBannerOverflowTest {
     }
 
     @Test
-    fun aLongChannelNameIsNotOnTheTuneBannerSoTheTextKeepsItsRoom() {
-        show(LiveState.Watching(banner(longEpisode, channelName = "Test Channel $longWords")))
+    fun aChannelWithAMarkHasNoNameOnTheTuneBannerSoTheTextKeepsItsRoom() {
+        val marked = banner(longEpisode, channelName = "Test Channel $longWords", recipeKey = "little-farm")
+        show(LiveState.Watching(marked))
         compose.onNodeWithTag(LiveTags.BANNER_CHANNEL).assertDoesNotExist()
+        assertEllipsized(LiveTags.BANNER_SUBTITLE)
+        assertInside(LiveTags.BANNER_SUBTITLE)
+    }
+
+    @Test
+    fun aLongNameOfAChannelWithNoMarkEndsInAnEllipsisAndTheTitleKeepsItsRoom() {
+        show(LiveState.Watching(banner(longEpisode, channelName = "Test Channel $longWords")))
+        assertEllipsized(LiveTags.BANNER_CHANNEL)
+        assertInside(LiveTags.BANNER_CHANNEL)
+        assertInside(LiveTags.BANNER_TITLE)
         assertEllipsized(LiveTags.BANNER_SUBTITLE)
         assertInside(LiveTags.BANNER_SUBTITLE)
     }

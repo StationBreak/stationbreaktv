@@ -40,6 +40,10 @@
         <item quantity="other">%1$d min behind</item>
     </plurals>
 
+    <!-- How far in the viewer joined, on the tune banner: "12 min in", or "Just started" under a minute. -->
+    <string name="live_just_started">Just started</string>
+    <string name="live_min_in">%1$d min in</string>
+
     <!-- The stream line of the banner: what plays. "Transcoding" starts it while the server re-encodes; no word for direct play. -->
     <string name="live_stream_transcoding">Transcoding</string>
     <string name="live_stream_subtitles_off">Subtitles off</string>

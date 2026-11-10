@@ -60,6 +60,7 @@ private val MetaSize = 11.sp
 private val FlipNumberSize = 20.sp
 private val FlipNameSize = 15.sp
 private val NextMaxWidth = 280.dp
+private val NameMaxWidth = 140.dp
 
 /**
  * The tune banner, in the guide's design (Dark tokens, Manrope): a 2 dp progress line along the top, then one row with
@@ -165,7 +166,12 @@ private fun BannerStrip(
         remember(banner, is24h) {
             ProgramText.slot(banner.slotStartMs, banner.slotEndMs, ZoneId.systemDefault(), is24h)
         }
-    val episode = remember(banner) { BannerText.episodeLine(banner.info, programCopy) }
+    val bannerCopy = remember(context) { BannerCopy.from(context.resources) }
+    // A film has no episode line: its production year takes the place.
+    val episode =
+        remember(banner) { BannerText.episodeLine(banner.info, programCopy) ?: BannerText.yearLine(banner.info) }
+    // How far in the viewer joined: on the tune banner only, not the Select banner (its row of buttons is the line).
+    val joined = remember(banner) { if (banner.actions) null else BannerText.joined(banner.joinedMs, bannerCopy) }
     val next =
         remember(banner, is24h) {
             banner.next?.let { BannerText.nextLine(it, programCopy, ZoneId.systemDefault(), is24h) }
@@ -184,7 +190,7 @@ private fun BannerStrip(
         } else {
             ProgressLine(banner.slotStartMs, banner.slotEndMs, programCopy, now)
         }
-        BannerRow(banner, BannerLines(episode, slot, next, rememberStreamLine(banner)), programCopy, now)
+        BannerRow(banner, BannerLines(episode, slot, next, rememberStreamLine(banner), joined), programCopy, now)
         if (banner.actions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
             ActionsRow(banner.hasLast, actions, behind)
@@ -193,14 +199,15 @@ private fun BannerStrip(
 }
 
 /**
- * What the banner's row writes besides the title: the episode line, the slot, the "Next" line, and the stream line
- * (what plays: information only, not focusable).
+ * What the banner's row writes besides the title: the episode line (a film's year), the slot, the "Next" line, the
+ * stream line (what plays: information only, not focusable), and "N min in" (the tune banner only).
  */
 private class BannerLines(
     val episode: String?,
     val slot: String,
     val next: String?,
     val stream: String?,
+    val joined: String?,
 )
 
 /** The 54 dp row: the mark and number, the title and meta line, and the "Next" line on the right. */
@@ -224,6 +231,18 @@ private fun BannerRow(
             color = colors.textSecondary,
             maxLines = 1,
         )
+        // No mark to say which channel this is: the name follows the number, so it is not initials alone.
+        if (banner.recipeKey == null) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = banner.channelName,
+                modifier = Modifier.widthIn(max = NameMaxWidth).testTag(LiveTags.BANNER_CHANNEL),
+                style = guideText(NumberSize, FontWeight.Medium),
+                color = colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
             banner.title?.let {
@@ -236,7 +255,7 @@ private fun BannerRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            MetaLine(banner, lines.episode, lines.slot, programCopy, now)
+            MetaLine(banner, lines, programCopy, now)
         }
         val stream = lines.stream?.takeIf { it.isNotEmpty() }
         if (lines.next != null || stream != null) {
@@ -270,14 +289,14 @@ private fun RightLine(
 
 /**
  * The one 11 sp line under the title: the label (NOW, TUNING IN, UP NEXT or FILLING IN), the episode line when there is
- * one, the slot, and the minutes left (not on a card for what comes next, which has not begun). The episode line gives
- * way first when the line is long.
+ * one (a film's production year stands in), the slot, how far in the viewer joined (the tune banner only) and the
+ * minutes left (not on a card for what comes next, which has not begun). The episode line gives way first when the line
+ * is long.
  */
 @Composable
 private fun MetaLine(
     banner: Banner,
-    episode: String?,
-    slot: String,
+    lines: BannerLines,
     copy: ProgramCopy,
     now: LongState,
 ) {
@@ -290,7 +309,7 @@ private fun MetaLine(
             color = colors.accent,
             maxLines = 1,
         )
-        episode?.let {
+        lines.episode?.let {
             Separator()
             Text(
                 text = it,
@@ -303,12 +322,22 @@ private fun MetaLine(
         }
         Separator()
         Text(
-            text = slot,
+            text = lines.slot,
             modifier = Modifier.testTag(LiveTags.BANNER_SLOT),
             style = guideFigures(MetaSize, FontWeight.Normal),
             color = colors.textSecondary,
             maxLines = 1,
         )
+        lines.joined?.let {
+            Separator()
+            Text(
+                text = it,
+                modifier = Modifier.testTag(LiveTags.BANNER_JOINED),
+                style = style,
+                color = colors.textSecondary,
+                maxLines = 1,
+            )
+        }
         if (banner.label != BannerLabel.UpNext) {
             Separator()
             Text(

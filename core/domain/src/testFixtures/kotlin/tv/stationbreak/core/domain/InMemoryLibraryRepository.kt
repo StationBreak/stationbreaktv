@@ -516,7 +516,16 @@ class InMemoryLibraryRepository : LibraryRepository {
                 val kind = ScheduleItemKind.entries.firstOrNull { it.name == row.item.kind.name } ?: return@mapNotNull null
                 val series = row.item.seriesId?.let { CanonicalId.parseOrNull(it.value) }
                 val seriesName = series?.let { seriesNameRows[account to it] }
-                id to ProgramInfo(id, kind, row.item.name, seriesName, row.item.seasonNumber, row.item.episodeNumber)
+                id to
+                    ProgramInfo(
+                        id,
+                        kind,
+                        row.item.name,
+                        seriesName,
+                        row.item.seasonNumber,
+                        row.item.episodeNumber,
+                        row.item.productionYear,
+                    )
             }.toMap()
 
     override suspend fun currentIds(
