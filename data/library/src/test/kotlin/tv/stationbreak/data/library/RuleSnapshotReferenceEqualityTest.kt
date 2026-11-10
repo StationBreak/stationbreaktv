@@ -29,7 +29,8 @@ import kotlin.time.Instant
  * - ownership moves through [moveItems] (`ItemHistoryDao.planMove`), which versions an item under its old library
  *   when it goes to another, beside the generator's own puts to another library;
  * - items edited, tombstoned and revived; the same ID in two spellings; series and collections as the generator
- *   makes them.
+ *   makes them; episodes that name their series in another spelling (upper, dashed) than the series row is stored
+ *   under; collection passes that have succeeded in some libraries (`collectionsSynced` true) and not in others.
  *
  * A failure prints the seed: rerun it with `SeededGen(<seed>)`.
  */
@@ -48,6 +49,8 @@ class RuleSnapshotReferenceEqualityTest {
         var items = 0
         var series = 0
         var collections = 0
+        var synced = 0
+        var unsynced = 0
         var multiChunk = 0
         var edges = 0
     }
@@ -105,7 +108,7 @@ class RuleSnapshotReferenceEqualityTest {
         counts: Counts,
     ) = runBlocking {
         val gen = SeededGen(seed)
-        val generated = RuleLibraryGen.fill(repository, clock, gen)
+        val generated = RuleLibraryGen.fill(repository, clock, gen, spellings = true)
         moveSome(gen)
         val edges = edgeCutoffs(gen)
         counts.edges += edges.size
@@ -122,6 +125,7 @@ class RuleSnapshotReferenceEqualityTest {
                 counts.items += actual.items.size
                 counts.series += actual.series.size
                 counts.collections += actual.collections.size
+                if (actual.collectionsSynced) counts.synced++ else counts.unsynced++
                 if (actual.items.size > CHUNKS.min()) counts.multiChunk++
                 assertEquals(selection.mapNotNull { CanonicalId.parseOrNull(it.value) }.toSet(), actual.libraries)
             }
@@ -135,6 +139,8 @@ class RuleSnapshotReferenceEqualityTest {
         assertTrue("the corpus has items to compare (${counts.items})", counts.items > 0)
         assertTrue("the corpus has series to compare (${counts.series})", counts.series > 0)
         assertTrue("the corpus has collections to compare (${counts.collections})", counts.collections > 0)
+        assertTrue("some libraries have collectionsSynced true (${counts.synced})", counts.synced > 0)
+        assertTrue("some libraries have collectionsSynced false (${counts.unsynced})", counts.unsynced > 0)
         assertTrue("some reads span more than one chunk of ${CHUNKS.min()}", counts.multiChunk > 0)
         assertTrue("edge cut-offs were read (${counts.edges})", counts.edges > 0)
         println("RuleSnapshotReferenceEqualityTest: ${counts.reads} reads, ${counts.items} items")

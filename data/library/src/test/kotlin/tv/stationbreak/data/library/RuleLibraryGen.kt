@@ -71,11 +71,18 @@ internal object RuleLibraryGen {
     private const val HOUR_MS = 3_600_000L
     private const val DAY_MS = 24 * HOUR_MS
 
-    /** Generates one library into [repository], moving [clock] as it goes, and returns what to read it with. */
+    /**
+     * Generates one library into [repository], moving [clock] as it goes, and returns what to read it with. With
+     * [spellings] the library also holds what the as-of reads must match by canonical ID: an episode names its series
+     * in another spelling (dashed, upper case or both) than the series row is stored under, and a collection pass has
+     * succeeded now and then (so `collectionsSynced` is true in some libraries and false in others). Off by default, so
+     * the corpus of the older property tests stays as it was.
+     */
     suspend fun fill(
         repository: RoomLibraryRepository,
         clock: FakeClock,
         gen: SeededGen,
+        spellings: Boolean = false,
     ): GeneratedLibrary {
         repository.forget(ALICE)
         repository.useAccount(ALICE)
@@ -92,13 +99,16 @@ internal object RuleLibraryGen {
             for (id in ids) {
                 if (!gen.chance(WRITE_PERCENT)) continue
                 if (gen.chance(MOVE_PERCENT)) library[id] = other(library.getValue(id))
-                repository.put(ALICE, library.getValue(id), randomItem(gen, id, start))
+                repository.put(ALICE, library.getValue(id), randomItem(gen, id, start, spellings))
             }
             if (gen.chance(DELETE_PERCENT)) repository.tombstone(ALICE, listOf(gen.pick(ids)))
             if (gen.chance(REVIVE_PERCENT)) repository.revive(ALICE, listOf(gen.pick(ids)))
-            writeSeries(repository, gen)
+            writeSeries(repository, gen, spellings)
             writeCollections(repository, gen, ids)
             at += 1 + gen.nextLong(3 * HOUR_MS)
+        }
+        if (spellings && gen.chance(SYNCED_PERCENT)) {
+            repository.recordCollectionPass(ALICE, Instant.fromEpochMilliseconds(clock.nowMs), relisted = true)
         }
         return GeneratedLibrary(libraries, cutoffsAround(gen, start, times.last()))
     }
@@ -107,12 +117,15 @@ internal object RuleLibraryGen {
     private suspend fun writeSeries(
         repository: RoomLibraryRepository,
         gen: SeededGen,
+        spellings: Boolean,
     ) {
         for (show in SERIES) {
             if (!gen.chance(SERIES_WRITE_PERCENT)) continue
             val genres = List(gen.nextInt(3)) { gen.pick(GENRES) }
             val tags = List(gen.nextInt(3)) { gen.pick(TAGS) }
-            repository.putSeries(ALICE, LIBRARY_A, series(show, gen.pick(RATINGS), genres, tags))
+            // The row may be stored under another spelling than the episodes name it by (and than other writes use).
+            val stored = if (spellings && gen.chance(SPELLED_SERIES_PERCENT)) respelled(gen, show) else show
+            repository.putSeries(ALICE, LIBRARY_A, series(stored, gen.pick(RATINGS), genres, tags))
         }
         if (gen.chance(DELETE_PERCENT)) repository.tombstoneSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
         if (gen.chance(REVIVE_PERCENT)) repository.reviveSeries(ALICE, listOf(ItemId(gen.pick(SERIES))))
@@ -163,6 +176,19 @@ internal object RuleLibraryGen {
         return ids.distinct()
     }
 
+    // A canonical [hex] ID in one of the spellings a server may give it: upper case, dashed, or dashed in upper case.
+    // Anything that is not a canonical ID stays as it is.
+    private fun respelled(
+        gen: SeededGen,
+        hex: String,
+    ): String =
+        if (hex.length != CANONICAL_LENGTH) {
+            hex
+        } else {
+            val dashed = spelled(hex)
+            gen.pick(listOf(hex.uppercase(), dashed.lowercase(), dashed))
+        }
+
     // The 8-4-4-4-12 form in upper case: the same ID to CanonicalId, a different row to the database.
     private fun spelled(hex: String) =
         "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}"
@@ -183,6 +209,7 @@ internal object RuleLibraryGen {
         gen: SeededGen,
         id: ItemId,
         start: Long,
+        spellings: Boolean,
     ): MediaItem {
         val episode = gen.chance(EPISODE_PERCENT)
         val kind =
@@ -192,6 +219,8 @@ internal object RuleLibraryGen {
                 else -> ItemKind.Movie
             }
         val series = if (episode || gen.chance(ODD_PERCENT)) gen.pick(SERIES + "series-not-an-id") else null
+        val respell = spellings && gen.chance(SPELLED_SERIES_PERCENT)
+        val namedSeries = if (respell) series?.let { respelled(gen, it) } else series
         return MediaItem(
             id = id,
             name = "Name ${gen.nextInt(NAMES)}",
@@ -204,7 +233,7 @@ internal object RuleLibraryGen {
             officialRating = gen.pick(RATINGS),
             genres = List(gen.nextInt(3)) { gen.pick(GENRES) },
             tags = List(gen.nextInt(3)) { gen.pick(TAGS) },
-            seriesId = series?.let(::ItemId),
+            seriesId = namedSeries?.let(::ItemId),
             seasonId = if (episode && gen.chance(SEASON_PERCENT)) ItemId(gen.pick(SEASONS)) else null,
             seasonNumber = if (episode || series != null) numberOf(gen) else null,
             episodeNumber = if (episode || series != null) numberOf(gen) else null,
@@ -250,4 +279,7 @@ internal object RuleLibraryGen {
     private const val MAX_MEMBERS = 8
     private const val HELD_MEMBER_PERCENT = 60
     private const val CUTOFFS = 3
+    private const val SPELLED_SERIES_PERCENT = 50
+    private const val SYNCED_PERCENT = 60
+    private const val CANONICAL_LENGTH = 32
 }
