@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.selection.ChangeResult
 import tv.stationbreak.core.domain.selection.ChoiceView
 import tv.stationbreak.core.domain.selection.LibraryChoices
@@ -52,6 +53,8 @@ internal class LibrariesSettingsViewModel
         private val choices: LibraryChoices,
         dispatcher: CoroutineDispatcher,
         private val ticks: TimeSource = TimeSource.Monotonic,
+        // Where a change runs, so the mark of its return is taken before the hop back to [dispatcher].
+        private val worker: CoroutineDispatcher = dispatcher,
         private val log: (String) -> Unit = {},
     ) : ViewModel() {
         // The main thread, as a ViewModel's own work runs: it is light, and the selection moves its slow work to its
@@ -62,6 +65,7 @@ internal class LibrariesSettingsViewModel
             choices,
             Dispatchers.Main,
             TimeSource.Monotonic,
+            Dispatchers.Default,
             { runCatching { Log.i(LOG_TAG, it) } },
         )
 
@@ -265,8 +269,7 @@ internal class LibrariesSettingsViewModel
             val ticked = stored.wantedAs(presses)
             // On the ViewModel's scope, not the visit's: it finishes when the screen closes.
             scope.launch {
-                val result = send(ticked)
-                val returned = ticks.markNow()
+                val (result, returned) = withContext(worker) { send(ticked) to ticks.markNow() }
                 synchronized(lock) { settle(presses, result) }
                 log("SelectionChangeActed gap=${returned.elapsedNow().inWholeMilliseconds}")
             }

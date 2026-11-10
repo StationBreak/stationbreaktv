@@ -7,6 +7,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -22,8 +23,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
+import kotlin.time.TestTimeSource
 
 private val ALPHA = Library(ItemId("lib-alpha"), "Alpha", LibraryKind.Movies)
 private val BRAVO = Library(ItemId("lib-bravo"), "Bravo", LibraryKind.TvShows)
@@ -695,28 +695,31 @@ class LibrariesSettingsViewModelTest {
             assertTrue(choices.changes.isEmpty())
         }
 
-    // The gap between a change returning and the ViewModel acting on it is logged, numbers only.
+    // The gap runs from the change returning, off Main, to the ViewModel acting: a wait for Main shows in it.
     @Test
-    fun aChange_logsOneActingGapLine_withNoNamesOrIds() =
+    fun aChange_gapIncludesTheWaitForMainAfterItReturned() =
         runTest {
             val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
             val lines = mutableListOf<String>()
-            val sevenMs =
-                object : TimeSource {
-                    override fun markNow() =
-                        object : TimeMark {
-                            override fun elapsedNow() = 7.milliseconds
-                        }
-                }
-            val dispatcher = StandardTestDispatcher(testScheduler)
-            val made = LibrariesSettingsViewModel(choices, dispatcher, sevenMs) { lines += it }
+            val clock = TestTimeSource()
+            val main = StandardTestDispatcher(testScheduler)
+            val worker = UnconfinedTestDispatcher(testScheduler)
+            val made = LibrariesSettingsViewModel(choices, main, clock, worker) { lines += it }
             vm = made
             made.open()
             runCurrent()
             made.move(up = false)
             made.select()
             runCurrent()
+            assertTrue(lines.isEmpty())
 
-            assertEquals(listOf("SelectionChangeActed gap=7"), lines)
+            // The change returns off Main; Main is busy for 5 ms before it runs the continuation.
+            gate.complete(Unit)
+            clock += 5.milliseconds
+            runCurrent()
+
+            assertEquals(listOf("SelectionChangeActed gap=5"), lines)
         }
 }
