@@ -11,8 +11,6 @@ import java.util.Locale
 
 /** What the banner says about progress, the next program and episodes (spec 14); the shared rules are [ProgramText]. */
 internal object BannerText {
-    private const val MS_PER_MINUTE = 60_000L
-
     /** The longest title the "Next" line shows, ellipsis included: the time after it must stay in view. */
     private const val NEXT_TITLE_MAX = 40
     private const val ELLIPSIS = "\u2026"

@@ -50,7 +50,14 @@ class LiveScreenshotTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val episode =
-        ProgramInfo(CanonicalId.parse("1".padStart(32, '0')), ScheduleItemKind.Movie, "Pride & Prejudice", null, null, null)
+        ProgramInfo(
+            CanonicalId.parse("1".padStart(32, '0')),
+            ScheduleItemKind.Movie,
+            "Pride & Prejudice",
+            null,
+            null,
+            null,
+        )
 
     private fun banner(actions: Boolean) =
         Banner(

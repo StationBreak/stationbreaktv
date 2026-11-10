@@ -20,6 +20,7 @@ import androidx.compose.runtime.LongState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -269,7 +270,7 @@ private fun MetaLine(
     val style = guideText(MetaSize, FontWeight.Normal)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = stringResource(labelText(banner.label)).uppercase(Locale.getDefault()),
+            text = stringResource(labelText(banner.label)).uppercase(LocalConfiguration.current.locales[0]),
             style = guideText(LabelSize, FontWeight.Bold).copy(letterSpacing = 0.6.sp),
             color = colors.accent,
             maxLines = 1,
