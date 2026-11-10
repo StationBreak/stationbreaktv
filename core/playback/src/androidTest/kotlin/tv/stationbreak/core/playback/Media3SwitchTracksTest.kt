@@ -245,6 +245,40 @@ class Media3SwitchTracksTest {
         assertEquals(0, selected().audio)
     }
 
+    /** Polls [VideoPlayer.cues] until [done] holds, failing with the last text after [WAIT]. */
+    private fun awaitCues(
+        why: String,
+        done: (List<String>) -> Boolean,
+    ): List<String> {
+        val deadline = SystemClock.uptimeMillis() + WAIT.inWholeMilliseconds
+        var texts = player.cues.value.map { it.text.toString() }
+        while (!done(texts) && SystemClock.uptimeMillis() < deadline) {
+            Thread.sleep(POLL_MS)
+            texts = player.cues.value.map { it.text.toString() }
+        }
+        assertTrue("$why: $texts", done(texts))
+        return texts
+    }
+
+    @Test
+    fun theSelectedTextSubtitlesCueReachesTheCueStreamAndGoesWhenItIsTurnedOff() {
+        val generation = playing()
+        assertEquals("no caption before a subtitle is chosen", emptyList<String>(), player.cues.value.map { it.text })
+        assertTrue(switchTo(generation, TrackSwitch(subtitles = SubtitleSwitch.To(TrackPick(0, "eng", "mov_text")))))
+        awaitCues("the clip's cue is shown") { it == listOf("Test subtitle") }
+        assertTrue(switchTo(generation, TrackSwitch(subtitles = SubtitleSwitch.Off)))
+        awaitCues("turned off: nothing shown") { it.isEmpty() }
+    }
+
+    @Test
+    fun aStopClearsTheCaptionSoItNeverStaysOverTheNextPlay() {
+        val generation = playing()
+        assertTrue(switchTo(generation, TrackSwitch(subtitles = SubtitleSwitch.To(TrackPick(0, "eng", "mov_text")))))
+        awaitCues("the clip's cue is shown") { it.isNotEmpty() }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { player.stop() }
+        awaitCues("stopped: nothing shown") { it.isEmpty() }
+    }
+
     private companion object {
         val WAIT = 15.seconds
         const val POLL_MS = 50L
