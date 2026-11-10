@@ -24,8 +24,10 @@ import kotlin.time.Duration.Companion.minutes
  * selection's [choices] (which follows that listing: it is the press's one listing for the two-read rule), waits until
  * the selection has followed it, then runs both passes with [StayCurrentRunner.runWaiting], which waits behind a run
  * already under way, so two never run at once, and does not list the server again. A listing that fails ends the
- * press with nothing written (`changedNothing`); a run that fails may have written before it failed, and says so. The
- * passes' writes reach today's schedule the way any run's do: the lineup refresher repairs the blocks whose item left
+ * press with nothing written (`changedNothing`). A follow of that listing catches only `Exception` and reports it, so
+ * the press no longer sees a follow that failed: it waits for the follow to end, not for it to succeed. A run that
+ * fails may have written before it failed, and says so. The passes' writes reach today's schedule the way any run's
+ * do: the lineup refresher repairs the blocks whose item left
  * the library after a run that wrote.
  *
  * The [timeout] limits the waiting only: the listing, the selection's follow of it, the wait for the selection's resume

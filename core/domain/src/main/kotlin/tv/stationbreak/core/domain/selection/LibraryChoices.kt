@@ -75,7 +75,11 @@ interface LibrarySelectionView {
     val selection: StateFlow<ChoiceView?>
 }
 
-/** How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. */
+/**
+ * How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. Safe to
+ * call from Main: each call suspends (the server read, the lock, the store and cache writes are all suspend calls)
+ * rather than blocking the caller.
+ */
 interface LibraryChoices : LibrarySelectionView {
     /**
      * Asks the server for its libraries once, and answers as soon as it has, never waiting on a change. What it lists

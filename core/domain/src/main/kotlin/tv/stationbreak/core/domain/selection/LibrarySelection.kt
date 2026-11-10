@@ -215,6 +215,10 @@ class LibrarySelection(
     // listing that failed or listed nothing changes nothing). It is started undispatched, so once the resume has run
     // it queues on the lock before the listing returns: an operation asked for after the listing (the lock is fair)
     // runs after it, as when the listing was followed in place. One that fails is reported; the listing has answered.
+    // Undispatched, its body runs on the caller's thread (Main, for the screen) until it first suspends, which is the
+    // wait for the lock. A follow queued behind a slow change then runs on a listing that is old by the time it gets
+    // the lock: [followServer] checks the account and the choice's ownership again under the lock, so an old listing
+    // never writes for another account's choice.
     @Suppress("TooGenericExceptionCaught") // Whatever the follow throws, the listing stands.
     private fun follow(
         account: LibraryAccount,

@@ -16,6 +16,9 @@ import kotlin.time.Instant
 /**
  * Whose library the saved copy holds: one user on one server. Every saved row is keyed by it, so a different account on
  * the same TV never sees the first account's library (ADR-0002, spec 06 Unit 2). It holds IDs only, never a token.
+ *
+ * It is an identity key, compared whole to tell one account's rows from another's: a new field must be an identity
+ * field (part of whose library this is), never a detail about the account or its session.
  */
 data class LibraryAccount(
     val server: ServerId,
