@@ -39,6 +39,7 @@ class TrackCarryTest {
         title = title,
     )
 
+    @Suppress("LongParameterList") // A test fixture: every field a case may set, defaulted.
     private fun subtitle(
         index: Int,
         language: String?,

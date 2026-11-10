@@ -22,6 +22,7 @@ import java.util.Locale
  * The words the stream line and the picker rows are made from, from resources. A plain holder, so the rules in
  * [StreamLabels] are tested on the JVM against the shipped `strings.xml`.
  */
+@Suppress("LongParameterList") // One string per resource: a holder, not behaviour.
 internal class StreamCopy(
     val transcoding: String,
     val subtitlesOff: String,
