@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.guide.ui.mark
+package tv.stationbreak.core.ui.mark
 
 import android.content.Context
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 /** Where channel logos come from. Blocking; always called off the main thread. */
-internal interface MarkLoader {
+interface MarkLoader {
     /** The recipe keys that have a logo. */
     fun keys(): Set<String>
 
@@ -31,7 +31,7 @@ internal interface MarkLoader {
  * Decoded channel logos held in memory so the guide draws them without decoding on the main thread (spec 27). [request]
  * only schedules work on [io]; [peek] only reads. A logo that fails to load is not retried.
  */
-internal class MarkCache(
+class MarkCache(
     private val loader: MarkLoader,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher,
@@ -93,7 +93,7 @@ internal class MarkCache(
  * mono ones, the Dark theme only the colour ones). The dispatcher is the cache's `io` argument alone (the scope adds
  * none).
  */
-internal object MarkCaches {
+object MarkCaches {
     @Volatile private var instance: MarkCache? = null
 
     @Suppress("InjectDispatcher") // The process-wide cache is a root: there is nothing to inject a dispatcher into.
@@ -111,4 +111,4 @@ internal object MarkCaches {
 }
 
 /** The cache the guide's rows draw from; null where none is provided (previews, tests), which draws initials. */
-internal val LocalMarkCache = staticCompositionLocalOf<MarkCache?> { null }
+val LocalMarkCache = staticCompositionLocalOf<MarkCache?> { null }

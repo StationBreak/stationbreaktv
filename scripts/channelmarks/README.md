@@ -8,7 +8,7 @@ Rules: `docs/design/channel-identity.md`.
         core/engine/src/commonMain/kotlin/tv/stationbreak/core/engine/lineup/CatalogV3Recipes.kt \
         scripts/channelmarks/brands.json \
         scripts/channelmarks/out-brands \
-        --png feature/guide/src/main/assets/channelmarks
+        --png core/ui/src/main/assets/channelmarks
 
 Writes `out-brands/svg/` (colour masters, text outlined), `out-brands/svg-mono/` (all-white
 variant) and `out-brands/contact-sheet.html`. Open the sheet and check the 1:1 strip and the
@@ -17,7 +17,7 @@ mono strip before accepting a mark.
 With `--png <dir>` it also renders each mark to PNG with cairosvg, at 48 dp and 64 dp at 2x (96 by 54 and
 128 by 72 px), transparent, colour and mono: `sl_<NNN>_<key>_<N>dp.png` and `sl_<NNN>_<key>_mono_<N>dp.png`. The
 files are stripped to the PNG chunks the app's manifest test allows. After a run, regenerate
-`feature/guide/channelmarks.sha256`; the steps are in `feature/guide/CHANNELMARKS.md`.
+`core/ui/channelmarks.sha256`; the steps are in `core/ui/CHANNELMARKS.md`.
 
 The twelve first-review masters in `out-brands` (Sing-Along Station, Saturday Morning, Snowglobe, Punchline,
 Dial-Up, Always December, Order in the Court, Silver Screen, The Midnight Projector, Neon Rain, Masala Hour,

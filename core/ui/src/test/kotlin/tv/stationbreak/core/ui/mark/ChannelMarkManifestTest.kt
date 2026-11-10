@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.guide.ui.mark
+package tv.stationbreak.core.ui.mark
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -12,7 +12,7 @@ import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.Locale
 
-/** The bundled channel logos are exactly the files recorded in `feature/guide/channelmarks.sha256`. */
+/** The bundled channel logos are exactly the files recorded in `core/ui/channelmarks.sha256`. */
 class ChannelMarkManifestTest {
     @get:Rule
     val temp = TemporaryFolder()

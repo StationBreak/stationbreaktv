@@ -49,7 +49,10 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramText
+import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus

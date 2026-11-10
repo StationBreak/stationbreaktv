@@ -57,7 +57,9 @@ stationbreaktv/
 │   │                            (Port fakes live in core:domain testFixtures.)
 │   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers;
 │   │                            the program text and info overlay live TV and the guide share, the guide's geometry and
-│   │                            the one safe area everything lays out in (spec 17)
+│   │                            the one safe area everything lays out in (spec 17); the guide's colour tokens (`GuideColors`), type helpers (`guideText`,
+│   │                            `guideFigures`) and channel marks (`ChannelMark`, `MarkCache`, and the bundled logos in `assets/channelmarks/`),
+│   │                            public so live TV draws with them too (#686)
 │   └── playback/       [Android] Media3 wrapper: tune-at-offset, direct-play vs transcode decision,
 │                                codec capability probe, one reused player (spec 13; see "Playback")
 │
@@ -123,7 +125,7 @@ while that screen shows and just after. It needs the key because it shows the da
 moves no channel or number, yet must reload the grid. Live TV and flipping follow `onLineup()` only (which channels
 exist, and where); a channel's order reaches them through the schedule they read at the next block. When the channel
 playing is gone from the lineup, the guide tunes the neighbour by `neighbourOf` (the next higher number, else the next
-lower). The channel plate carries a 32 dp channel mark (spec 27): the logo bundled in the module's `assets/channelmarks/`,
+lower). The channel plate carries a 32 dp channel mark (spec 27): the logo bundled in `core:ui`'s `assets/channelmarks/` (`ChannelMark`, `MarkCache`),
 found by the channel's recipe key (`ChannelAiring.recipeKey`) and decoded off the main thread into `MarkCache`, else an
 initials tile; the channel column is 168 dp wide to hold it. Everything in
 `feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` and `LibrariesSlot` types, the `GuideMeasured` qualifier `app`

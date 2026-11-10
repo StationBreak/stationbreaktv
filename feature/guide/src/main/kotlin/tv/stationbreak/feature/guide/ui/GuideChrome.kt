@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import tv.stationbreak.core.ui.GuideColors
 
 /** The focused card does not grow: focus is a fill change only. [guideFocusBounds] still takes an extent. */
 internal val GuideFocusExtendX = 0.dp

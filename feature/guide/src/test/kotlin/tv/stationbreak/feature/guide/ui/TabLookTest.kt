@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import tv.stationbreak.core.ui.GuideColors
 
 /** The menu's three tab states are told apart by their underline, in both themes. */
 class TabLookTest {

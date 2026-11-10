@@ -12,6 +12,11 @@ android {
 }
 
 dependencies {
+    // MarkCache decodes channel logos off the main thread.
+    implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.kotlinx.coroutines.test)
+
     // The instrumented tests' ComponentActivity and test manifest would otherwise resolve androidx.activity,
     // lifecycle and core to old versions that have no entry in gradle/verification-metadata.xml; these pin them
     // to the app's versions (feature modules get the same pins from their lifecycle dependencies).
@@ -48,4 +53,24 @@ tasks.withType<Test>().configureEach {
         ).withPathSensitivity(PathSensitivity.RELATIVE)
         .ignoreEmptyDirectories()
         .withPropertyName("fontManifestScan")
+}
+
+// ChannelMarkManifestTest scans every module's channel mark folders (Android merges assets across modules). Declare
+// the manifest and the files it scans as inputs so a cached test result cannot hide a file that was added or changed.
+tasks.withType<Test>().configureEach {
+    inputs
+        .files(
+            fileTree(rootDir) {
+                include("core/ui/channelmarks.sha256", "**/src/*/assets/channelmarks/**")
+                // Dot-folders and build output are pruned at the root walk only, never beneath a channelmarks folder.
+                exclude { element ->
+                    val segments = element.relativePath.segments
+                    val marks = segments.indexOf("channelmarks")
+                    val head = if (marks >= 0) segments.take(marks) else segments.dropLast(1)
+                    head.any { it.startsWith(".") || it == "build" }
+                }
+            },
+        ).withPathSensitivity(PathSensitivity.RELATIVE)
+        .ignoreEmptyDirectories()
+        .withPropertyName("channelMarkManifestScan")
 }

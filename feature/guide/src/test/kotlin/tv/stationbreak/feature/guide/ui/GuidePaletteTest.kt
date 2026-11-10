@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.ui.GuideColors
 import java.io.File
 
 /** Guide A colours, and the contrast pairs from the Guide A audit. */

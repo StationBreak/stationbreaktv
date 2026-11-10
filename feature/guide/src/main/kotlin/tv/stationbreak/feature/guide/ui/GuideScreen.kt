@@ -60,11 +60,14 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN

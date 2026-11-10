@@ -1,6 +1,6 @@
 # Channel identity system
 
-How StationBreak channels get a brand, and how the marks are produced. Replaces the pictorial 32dp tile icons described in `feature/guide/CHANNELMARKS.md`.
+How StationBreak channels get a brand, and how the marks are produced. Replaces the pictorial 32dp tile icons described in `core/ui/CHANNELMARKS.md`.
 
 Generator and sample: `scripts/channelmarks/brands.py` + `brands.json` (see the README there). Approved sample sheet: `docs/design/channel-identity-sample.png`.
 
@@ -104,7 +104,7 @@ Add a face only if it is OFL/Apache, visibly different from the faces above, and
 ## Files and formats
 
 - Masters: SVG, 200×112 viewBox, all text converted to outlines. `scripts/channelmarks/out-brands/svg/sl_<NNN>_<key>.svg` (colour) and `svg-mono/` (white).
-- Renders: PNG at 48dp and 64dp at 2× (96×54 and 128×72 px), transparent, colour and mono, produced by `brands.py --png` into `feature/guide/src/main/assets/channelmarks/` as `sl_<NNN>_<key>_<N>dp.png` and `sl_<NNN>_<key>_mono_<N>dp.png`. `AssetMarkLoader` chooses the size bucket by screen density. The pipeline and how to update it are in `feature/guide/CHANNELMARKS.md`.
+- Renders: PNG at 48dp and 64dp at 2× (96×54 and 128×72 px), transparent, colour and mono, produced by `brands.py --png` into `feature/guide/src/main/assets/channelmarks/` as `sl_<NNN>_<key>_<N>dp.png` and `sl_<NNN>_<key>_mono_<N>dp.png`. `AssetMarkLoader` chooses the size bucket by screen density. The pipeline and how to update it are in `core/ui/CHANNELMARKS.md`.
 
 ## Runtime (feature:guide)
 
