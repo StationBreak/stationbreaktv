@@ -115,6 +115,7 @@ internal fun TrackPicker(
  * One row: its text, and on the right "brief pause" when choosing it re-tunes and [showPause] (the picker says it
  * once in a heading when every row does). One merged semantics node, which always says it.
  */
+@Suppress("LongParameterList") // The row, its text, the copy, whether it says the pause, and what it does.
 @Composable
 private fun PickerRowButton(
     row: PickerRow,

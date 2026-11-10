@@ -372,12 +372,17 @@ class LiveBannerActionsTest {
     }
 
     @Test
-    fun directPlayAndDirectStreamSayNothingOfTheRoute() {
-        for (route in listOf(Route.DIRECT_PLAY, Route.DIRECT_STREAM)) {
-            show(selectBanner(route))
-            compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertExists()
-            compose.onNodeWithTag(LiveTags.BANNER_TRANSCODING).assertDoesNotExist()
-        }
+    fun directPlaySaysNothingOfTheRoute() {
+        show(selectBanner(Route.DIRECT_PLAY))
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_TRANSCODING).assertDoesNotExist()
+    }
+
+    @Test
+    fun directStreamSaysNothingOfTheRoute() {
+        show(selectBanner(Route.DIRECT_STREAM))
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_TRANSCODING).assertDoesNotExist()
     }
 
     @Test
