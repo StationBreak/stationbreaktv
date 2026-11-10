@@ -519,6 +519,7 @@ internal object LineupModule {
             sync,
             selection.selectionChanges,
             afterSync = afterSync::invoke,
+            selectionOwner = { settings.loadSelection()?.owner },
             report = report,
         )
     }

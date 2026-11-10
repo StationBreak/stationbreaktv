@@ -1004,6 +1004,29 @@ class LineupRefresherTest {
             assertEquals(emptyList(), seen.reads, "no refresh with the other account's libraries")
         }
 
+    // #305: the stored selection is one record per server. Just after a switch it can still be the previous
+    // account's, while the active account is already the new one: nothing is refreshed from it.
+    @Test
+    fun aSelectionOwnedByAnotherAccountIsNotRefreshedFrom() =
+        runBlocking<Unit> {
+            val previous = LibraryAccount(ServerId("other-server"), UserId("other-user"))
+            LineupRefresher(service, library, { libraries }, sync, NO_CHANGES, selectionOwner = { previous }) {
+                events += it
+            }.start(scope)
+            settle()
+
+            assertEquals(0, refreshes, "no refresh from another account's selection")
+        }
+
+    @Test
+    fun aSelectionOwnedByTheAccountIsRefreshedFrom() =
+        runBlocking<Unit> {
+            LineupRefresher(service, library, { libraries }, sync, NO_CHANGES, selectionOwner = { ACCOUNT }) {
+                events += it
+            }.start(scope)
+            until("refreshed from its own selection") { refreshes > 0 }
+        }
+
     // Ruling 2: the lineup is not part of the session's saved library. Signing out, or a rejected session, forgets the
     // saved library (`AccountCache.forget`) and leaves the lineup file alone.
     @Test

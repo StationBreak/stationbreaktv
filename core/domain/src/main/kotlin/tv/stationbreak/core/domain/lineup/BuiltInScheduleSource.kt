@@ -363,11 +363,17 @@ class BuiltInScheduleSource(
         }
 
     // The account and its saved selection, read together once per call; null with no account or nothing chosen.
+    // The stored selection is one record per server, not keyed by account: for a moment after a switch it can still be
+    // the previous account's. It says whose it is, so a selection owned by another account than the active one is no
+    // selection (null owner: saved by an older build, taken as the account's). An account that switches between the
+    // two reads shows the same way, as a mismatch (#305).
     private suspend fun signedIn(): Pair<LibraryAccount, SavedSelection>? {
         val account = library.activeAccount().first()
-        val chosen = saved()?.takeIf { it.libraries.isNotEmpty() }
+        val chosen = saved()?.takeIf { it.libraries.isNotEmpty() && it.owner.isNullOrSameAs(account) }
         return if (account == null || chosen == null) null else account to chosen
     }
+
+    private fun LibraryAccount?.isNullOrSameAs(account: LibraryAccount?) = this == null || this == account
 
     override suspend fun onAir(
         channel: ChannelId,

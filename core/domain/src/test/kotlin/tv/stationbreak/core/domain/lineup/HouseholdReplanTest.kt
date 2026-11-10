@@ -126,6 +126,25 @@ class HouseholdReplanTest {
             assertEquals(lineup, saved)
         }
 
+    // #306: the switch on a finalised lineup, over a snapshot with no items (a library not synced yet), keeps the
+    // channels as they were and records nothing of the plan; the edit itself is saved.
+    @Test
+    fun theSwitchOverAnEmptySnapshotKeepsTheChannelsAndTheMeta() =
+        runBlocking<Unit> {
+            val shelved = offAndShelved()
+            val file = LineupCodec.decode(checkNotNull(store.inner.peek(ACCOUNT)))
+            val metaBefore = (file as LineupCodec.Decoded.Loaded).meta
+            val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
+            val unsynced = setOf(ItemId("d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"))
+
+            assertEquals(ChangeResult.Done, ChannelManager(fresh) { unsynced }.change(ACCOUNT, on))
+
+            val held = checkNotNull(fresh.loaded(ACCOUNT))
+            assertEquals(true, held.lineup.useMyCollections, "the edit is saved")
+            assertEquals(shelved.channels, held.lineup.channels, "no plan reshaped the channels")
+            assertEquals(metaBefore, held.meta, "and nothing of the plan is recorded")
+        }
+
     private val job = Job()
     private val scope = CoroutineScope(job)
     private val boundary = NOON.toEpochMilliseconds() + 18 * 3_600_000L // 06:00 the next day
