@@ -13,6 +13,9 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:model"))
 
+    testImplementation(testFixtures(project(":core:domain")))
+
+    androidTestImplementation(testFixtures(project(":core:domain")))
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)

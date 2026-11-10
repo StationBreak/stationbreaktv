@@ -73,7 +73,7 @@ class LaunchRouterTest {
         fake.resumeResult = ServerResult.Success(session)
         val settings = InMemoryServerSettings(ServerRecord(https))
         val gone = StoredSelection(setOf(ItemId("library-a")), seq = 1L, gone = true)
-        assertTrue(runBlocking { settings.saveSelection(gone) })
+        assertTrue(runBlocking { settings.saveSelection(gone, setup = true) })
 
         val route = route(settings)
 

@@ -79,7 +79,7 @@ class StoredSelectionTest {
             assertNull(settings.loadSelection())
             assertEquals(0L, settings.loadSelectionSeq())
             assertFalse(settings.saveSelection(StoredSelection(emptySet(), seq = 1)))
-            assertTrue(settings.saveSelection(stored.copy(gone = true, listings = 3, resetSeq = 2)))
+            assertTrue(settings.saveSelection(stored.copy(gone = true, listings = 3, resetSeq = 2), setup = true))
             assertNull(settings.loadPlayableLibraries())
             assertEquals(setOf(alpha), settings.loadLibraries())
             assertFalse(settings.saveSelection(stored.copy(seq = 4, adding = emptyMap(), missing = emptyMap())))

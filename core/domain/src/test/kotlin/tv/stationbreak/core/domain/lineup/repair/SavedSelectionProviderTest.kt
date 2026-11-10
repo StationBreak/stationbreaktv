@@ -39,7 +39,7 @@ internal class SavedSelectionProviderTest : RepairTestBase() {
 
     private fun settingsWith(selection: StoredSelection?): InMemoryServerSettings {
         val settings = InMemoryServerSettings(ServerRecord(address))
-        if (selection != null) assertTrue(runBlocking { settings.saveSelection(selection) })
+        if (selection != null) assertTrue(runBlocking { settings.saveSelection(selection, setup = true) })
         return settings
     }
 
