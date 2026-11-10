@@ -188,3 +188,19 @@ private fun trimmed(text: StringBuilder): String {
 /** [names] cleaned ([cleanStudioName]) then folded ([foldNameAscii]), in order; a name left empty is dropped. */
 internal fun foldStudioNames(names: List<String>): List<String> =
     names.mapNotNull { name -> cleanStudioName(name).takeIf { it.isNotEmpty() }?.let(::foldNameAscii) }
+
+/**
+ * One name per [foldNameAscii] group of [names], by folded name: the spelling shown for a group is the first in plain
+ * `String` order (so `Action` beats `action`), and an empty name is dropped. The same fold the rules match by, so any
+ * spelling of a group selects the same items.
+ */
+fun distinctByFold(names: Iterable<String>): List<String> {
+    val chosen = HashMap<String, String>()
+    for (name in names) {
+        if (name.isEmpty()) continue
+        val key = foldNameAscii(name)
+        val kept = chosen[key]
+        if (kept == null || name < kept) chosen[key] = name
+    }
+    return chosen.values.sortedWith(compareBy({ foldNameAscii(it) }, { it }))
+}

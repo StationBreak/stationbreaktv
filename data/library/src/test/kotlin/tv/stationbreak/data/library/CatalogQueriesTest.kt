@@ -103,9 +103,9 @@ class CatalogQueriesTest {
                 shows = listOf(show(1, "Show A", listOf("Drama", "Sci-Fi"))),
             )
 
-            // Exact spelling, by folded name and then name; "Episode Only Genre" is the episode's own, still an item's.
+            // One entry per folded name, by folded name; "Episode Only Genre" is the episode's own, still an item's.
             assertEquals(
-                listOf("Comedy", "comedy", "Drama", "Episode Only Genre", "Sci-Fi"),
+                listOf("Comedy", "Drama", "Episode Only Genre", "Sci-Fi"),
                 repository.distinctGenres(ALICE),
             )
         }
@@ -132,6 +132,37 @@ class CatalogQueriesTest {
 
             assertEquals(listOf("Studio A", "Studio B", "Studio C"), repository.distinctStudios(ALICE))
             assertTrue(repository.distinctStudios(BOB).isEmpty())
+        }
+
+    @Test
+    fun namesThatFoldTheSameAreListedOnceAcrossItemsAndSeries() =
+        runBlocking<Unit> {
+            save(
+                movies =
+                    listOf(
+                        movie(
+                            1,
+                            "Film A",
+                            listOf("action", "Caf\u00E9"),
+                            listOf("holiday"),
+                            studios = listOf("studio x"),
+                        ),
+                        movie(2, "Film B", listOf("CAF\u00E9"), listOf("Holiday"), studios = listOf("Studio X")),
+                    ),
+                shows =
+                    listOf(
+                        show(1, "Show A", listOf("Action"), listOf("HOLIDAY"), listOf("STUDIO X")),
+                    ),
+            )
+
+            // "Action" beats "action" in plain String order, and so does the capitalised accented name (the ASCII
+            // fold leaves the accent alone, so the pair is the same name by case only).
+            assertEquals(
+                listOf("Action", "CAF\u00E9", "Episode Only Genre"),
+                repository.distinctGenres(ALICE),
+            )
+            assertEquals(listOf("HOLIDAY"), repository.distinctTags(ALICE))
+            assertEquals(listOf("STUDIO X"), repository.distinctStudios(ALICE))
         }
 
     @Test

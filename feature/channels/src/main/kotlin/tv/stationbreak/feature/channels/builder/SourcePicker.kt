@@ -7,6 +7,7 @@ import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
+import tv.stationbreak.core.model.foldNameAscii
 
 /** What the source of [tab] is: the draft's kind of source, for a [key] and [label] the picker lists. */
 internal fun sourceOf(
@@ -23,8 +24,23 @@ internal fun sourceOf(
         SourceKindTab.Pick -> if (kind == TitleKind.Show) DraftSource.Show(key, label) else DraftSource.Pick(key, label)
     }
 
-/** Whether [this] and [other] are the same choice: the same kind of source and key (a label may differ). */
-internal fun DraftSource.sameAs(other: DraftSource): Boolean = this::class == other::class && key == other.key
+/**
+ * Whether [this] and [other] are the same choice: the same kind of source and key (a label may differ). The key of a
+ * tag or a genre is a name the rules match folded (`foldNameAscii`), so those compare folded: a source stored as
+ * `action` is the listed `Action`.
+ */
+internal fun DraftSource.sameAs(other: DraftSource): Boolean =
+    this::class == other::class &&
+        when (this) {
+            is DraftSource.Tag, is DraftSource.Genre -> sameName(key, other.key)
+            else -> key == other.key
+        }
+
+/** Whether [a] and [b] are the same name to the rules: equal once folded by `foldNameAscii`. */
+internal fun sameName(
+    a: String,
+    b: String,
+): Boolean = foldNameAscii(a) == foldNameAscii(b)
 
 /** Ticks [source] if the list lacks it, else removes it. */
 internal fun List<DraftSource>.toggled(source: DraftSource): List<DraftSource> =

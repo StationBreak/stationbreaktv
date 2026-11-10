@@ -122,7 +122,10 @@ internal fun BuilderModel.toUi(): BuilderUi {
     val narrow =
         if (narrowOpen) {
             NarrowView(
-                genres = pickerViewOf(reads[SourceKindTab.Genres]) { it.key in draft.filters.genres },
+                genres =
+                    pickerViewOf(reads[SourceKindTab.Genres]) { entry ->
+                        draft.filters.genres.any { sameName(it, entry.key) }
+                    },
                 genreCursor = genreCursor,
                 leavingOut = leavingOut,
             )
