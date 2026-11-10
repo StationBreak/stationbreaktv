@@ -245,7 +245,7 @@ internal class RepairWorld(
     /** Changes the selection to [after], through the repairer or the planner given, and records the outcome. */
     suspend fun change(after: Set<ItemId>): Step {
         // As the selection's allocation does: today's days warmed before the turn, with the saved selection.
-        repairer.warmDays(ACCOUNT, checkNotNull(source.savedSelection()), atMs)
+        repairer.warmDays(ACCOUNT, atMs)
         val pins =
             if (planner == null) {
                 val outcome =

@@ -22,7 +22,7 @@ dependencies {
     // The fakes in testFixtures suspend and use Deferred.
     testFixturesApi(libs.kotlinx.coroutines.core)
 
-    // The concurrent-build fixture (#684) plans a real lineup, which takes engine and scheduler types. Not api.
+    // RealRepairRun (the real repair run the heap test uses) plans a real lineup, which takes engine and scheduler types. Not api.
     testFixturesImplementation(project(":core:engine"))
     testFixturesImplementation(project(":core:scheduler"))
 

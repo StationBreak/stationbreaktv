@@ -299,7 +299,7 @@ internal class SelectionRepairBenchmark {
             val began = TimeSource.Monotonic.markNow()
             val after = chosen - removed
             // As the selection's allocation does: today's days warmed before the turn, with the saved selection.
-            clock.timed(RepairPhase.Warm) { repairer.warmDays(ACCOUNT, checkNotNull(before), atMs) }
+            clock.timed(RepairPhase.Warm) { repairer.warmDays(ACCOUNT, atMs) }
             val outcome =
                 repairer.selectionChanged(ACCOUNT, after, atMs, 0L, clock = clock) { seq ->
                     chosen = after

@@ -99,6 +99,8 @@ internal suspend fun refuseInTurn() {
  * - [saveWithoutRepair] saves a selection change that needs no repair under the next seq; [resetSelection] does a
  *   setup's save, with the record emptied first; [heldPins] gives the holds of the pins shown.
  *
+ * Every call takes a turn, except [warmDays] (internal), which warms today's days before a change asks for its turn.
+ *
  * A call made from inside a turn (a save callback calling back in) fails with [IllegalStateException] ([InTurn]).
  *
  * Each call plans from the record it read and writes only if the lineup's revision and the record's selection repairs
@@ -181,8 +183,7 @@ class TodayRepairer internal constructor(
      * turn, once it is held (a change times its wait for the turn). [clock], when given, times the repair's steps up
      * to the save, with the process's CPU time and the collections over them ([RepairPhases]); it changes nothing.
      *
-     * A caller that has the saved selection at hand calls [warmDays] with it first, so the turn finds today's days
-     * built.
+     * A caller calls [warmDays] first, so the turn finds today's days built.
      */
     @Suppress("LongParameterList") // The change, its moment and floor, the save, and the turn's timing hooks.
     suspend fun selectionChanged(
@@ -258,22 +259,24 @@ class TodayRepairer internal constructor(
         }
 
     /**
-     * Builds today's days at [atMs] under [saved] (the saved selection, as the schedule source's provider gives it)
-     * if they are not built yet, outside the repairer's turn and without taking it, so a [selectionChanged] that
-     * follows finds them built: after an earlier selection save (an add's, say) they are not, and their build would
-     * hold the turn. Only a warm-up: it changes nothing, reads no saved selection, and a build that fails is left to
-     * the turn's own read, which meets it as it would have. With no libraries chosen there are no days to build.
+     * Builds today's days at [atMs] under the saved selection, read through the source the repair itself reads (so the
+     * two cannot drift), if they are not built yet, outside the repairer's turn and without taking it, so a
+     * [selectionChanged] that follows finds them built: after an earlier selection save (an add's, say) they are not,
+     * and their build would hold the turn. Only a warm-up: it changes nothing, and a build that fails, or a saved
+     * selection that cannot be read, is left to the turn's own read, which meets it as it would have. With no
+     * libraries chosen there are no days to build.
+     * The one call here that does not take a turn: it is made before the turn is asked for.
      */
     @Suppress("TooGenericExceptionCaught") // Whatever the build throws: the turn's own read meets it again.
-    suspend fun warmDays(
+    internal suspend fun warmDays(
         account: LibraryAccount,
-        saved: SavedSelection,
         atMs: Long,
     ) {
         refuseInTurn()
         try {
             // The source's own warm-up: it waits on the source's pool, not on the repairer's low-priority thread, where
             // the wait would queue behind the day saves first.
+            val saved = source.savedSelection() ?: return
             source.warmDays(account, saved, Instant.fromEpochMilliseconds(atMs))
         } catch (cancelled: CancellationException) {
             throw cancelled

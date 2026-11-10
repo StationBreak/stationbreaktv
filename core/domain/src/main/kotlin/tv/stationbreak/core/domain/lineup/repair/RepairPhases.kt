@@ -32,7 +32,8 @@ import kotlin.time.TimeSource
  * - [otherMs]: the rest of the turn (its reads of the lineup and the saved selection, the days scheduled, the titles
  *   of today's pools), not counting the caller's save.
  * - [cpuMs]: the process's CPU time over the repair, before the save (the whole process, not the turn's thread: the
- *   plan runs on the planning dispatcher's threads, and other work of the process counts in it too); [gcCount] and
+ *   plan runs on the planning dispatcher's threads, and other work of the process counts in it too, including any
+ *   day save that runs on the shared `day-saves` thread during the turn); [gcCount] and
  *   [gcMs]: the process's collections and their blocking time over it. -1 when the process's CPU time cannot be read.
  * - [walkTxMs]: the wall time the library walks' transactions held the writer connection (the reads of the new and,
  *   when needed, the current and the removed selections: one transaction per cut-off). It is part of [snapsMs] and is

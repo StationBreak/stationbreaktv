@@ -73,7 +73,7 @@ class RealRepairRun(
     /** Unticks [removed] through the repairer's turn, as the selection's change does; true when it was saved. */
     suspend fun untick(removed: Set<ItemId>): Boolean {
         val after = chosen - removed
-        repairer.warmDays(account, SavedSelection(chosen, applied, chosen, 0L), atMs)
+        repairer.warmDays(account, atMs)
         val outcome =
             repairer.selectionChanged(account, after, atMs, 0L) { seq ->
                 chosen = after
