@@ -2,6 +2,8 @@
 package tv.stationbreak.feature.channels.ui
 
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -30,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -94,7 +96,6 @@ import tv.stationbreak.feature.channels.builder.ui.BuilderTags
 import tv.stationbreak.feature.channels.choicesOf
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -247,9 +248,11 @@ class ChannelsScreenTest {
     private val library = InMemoryLibraryRepository()
     private val schedule = FakeSchedule()
 
-    // The ViewModel's own thread, as Dispatchers.Default would be in the app.
-    private val pool = Executors.newSingleThreadExecutor()
-    private val work = pool.asCoroutineDispatcher()
+    // The ViewModels' work runs in the main thread's message queue. Off it, a state change could reach the UI at any
+    // moment, unseen by Compose's idle wait: a query from this thread (waitUntil, assertions) would then build a node's
+    // semantics here while the main thread rebuilt it, and Compose refuses that ("Detected multithreaded access to
+    // SnapshotStateObserver"). On it, Compose's idle wait covers the work.
+    private val work = Handler(Looper.getMainLooper()).asCoroutineDispatcher()
     private val tuned = CopyOnWriteArrayList<ChannelId>()
     private var closed = 0
     private val showing = mutableStateOf(true)
@@ -311,7 +314,6 @@ class ChannelsScreenTest {
     @After
     fun tearDown() {
         if (::vm.isInitialized) vm.close()
-        pool.shutdownNow()
     }
 
     private fun press(vararg pads: Pad) {
