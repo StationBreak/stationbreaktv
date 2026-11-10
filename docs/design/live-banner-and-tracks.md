@@ -23,13 +23,16 @@ The banner always uses the **Dark** token set, whatever the guide theme: it sits
 | Corner number | 72 sp accent, top right | **removed** |
 | Surface | Ink, opaque, square | `page` @ 92 %, 1 dp `line` border, 2 dp radius |
 | Accent rule 4 dp + progress bar 6 dp | two elements | **one** 2 dp progress line along the top edge (`progressTrack` / `accent`) |
-| Channel | number block 150–280 dp, 36 sp number, 14 sp caps name | **mark** 50×28 dp + number 13 sp Medium tabular `textSecondary`; no name |
+| Channel | number block 150–280 dp, 36 sp number, 14 sp caps name | **mark** 50×28 dp + number 13 sp Medium tabular `textSecondary`; no name. A channel with no mark (initials only) adds its **name** after the number: 13 sp Medium `textSecondary`, one line, ellipsis, at most 140 dp |
 | Title | Display 26 sp | Manrope 15 sp SemiBold `textPrimary`, one line, ellipsis |
-| Line 2 | episode line, slot, joined, each on its own line | one 11 sp `textSecondary` line: **NOW** (8.5 sp Bold accent; or TUNING IN / UP NEXT / FILLING IN) · episode line or year · slot · "N min left" |
+| Line 2 | episode line, slot, joined, each on its own line | one 11 sp `textSecondary` line: **NOW** (8.5 sp Bold accent; or TUNING IN / UP NEXT / FILLING IN) · episode line, or the production year for a film · slot · "N min in" (tune banner only; "Just started" under a minute; not on UP NEXT) · "N min left" |
 | Right column | — | two right-aligned 11 sp `textSecondary` lines: "Next: … at …", and the **stream line** (Part B) |
-| Signal bars, "joining N min in" | present | removed (the progress line says how far in) |
+| Signal bars | present | removed |
+| "joining N min in" | own line | the short form "N min in", before "N min left", on the tune banner only (the Select banner's second row is its buttons) |
 
-Padding 16 dp sides; same safe-area insets and `LocalScreenFit` as today. Keep every existing test tag on the element that now carries that text; add `live:banner:mark`, `live:banner:stream`.
+Padding 16 dp sides; same safe-area insets and `LocalScreenFit` as today. Keep every existing test tag on the element that now carries that text (`live:banner:joined` on "N min in", `live:banner:subtitle` on the year of a film, `live:banner:channel` on the name of a channel with no mark); add `live:banner:mark`, `live:banner:stream`.
+
+The year is `ProgramInfo.year`, read with the item's other names from the library's stored production year: the same Jellyfin field the info overlay shows, with no fetch at tune time.
 
 ### Select banner (actions)
 
@@ -98,12 +101,12 @@ One function decides this from the resolved playback and the target (`switchCost
 
 - [ ] Tune banner ≤ 58 dp and Select banner ≤ 102 dp at 960×540 dp; no corner number; no text under 10 sp; all text ≥ 4.5:1 on the banner surface over a white frame.
 - [ ] Banner, flip bar, transport strip and info overlay use Manrope and the lifted tokens; no `BroadcastType` / `BroadcastColors` left in them.
-- [ ] Mark shown for starter channels, initials for custom ones.
+- [ ] Mark shown for starter channels; initials and the channel's name for custom ones.
 - [ ] Stream line matches what is playing after every tune, switch and fallback.
 - [ ] Each cell of the B3 table behaves as stated on the Insignia; instant switches do not drop the picture.
 - [ ] Choices carry to the next programme and survive a restart per B2.5–6; nothing is written to Jellyfin.
 - [ ] Back, focus and the linger timer behave per B2.4; Up/Down never flip channels while a picker is open.
-- [ ] Screenshot frames (before/after) in each UI PR.
+- [ ] Screenshot frames (before/after) in each UI PR, including the guide's info panel (`guide-info`, `guide-info-light`) and the live tune banner of a channel with no mark (`live-tune-nomark`).
 
 ## Open for the owner
 

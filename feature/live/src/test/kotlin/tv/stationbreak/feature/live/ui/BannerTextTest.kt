@@ -19,6 +19,7 @@ import java.util.Locale
  */
 class BannerTextTest {
     private val copy = StringsXml.programCopy()
+    private val banner = StringsXml.bannerCopy()
     private val id = CanonicalId.parse("1".padStart(32, '0'))
 
     private fun episode(
@@ -47,6 +48,38 @@ class BannerTextTest {
         val movie = ProgramInfo(id, ScheduleItemKind.Movie, "Test Movie A", null, null, null)
         assertNull(BannerText.episodeLine(movie, copy))
         assertNull(BannerText.episodeLine(null, copy))
+    }
+
+    @Test
+    fun joinedUnderAMinuteIsJustStarted() {
+        assertEquals("Just started", BannerText.joined(0, banner))
+        assertEquals("Just started", BannerText.joined(59_999, banner))
+    }
+
+    @Test
+    fun joinedIsTheShortFormMinutesIn() {
+        assertEquals("12 min in", BannerText.joined(12 * 60_000L + 20_000, banner))
+        assertEquals("1 min in", BannerText.joined(60_000, banner))
+    }
+
+    @Test
+    fun noJoinedTextWhenTheShowCutInAtItsStart() {
+        assertNull(BannerText.joined(null, banner))
+    }
+
+    @Test
+    fun aFilmsYearStandsWhereTheEpisodeLineWouldBe() {
+        val film = ProgramInfo(id, ScheduleItemKind.Movie, "Test Movie A", null, null, null, 2002)
+        assertEquals("2002", BannerText.yearLine(film))
+        assertNull(BannerText.episodeLine(film, copy))
+    }
+
+    @Test
+    fun noYearLineWithoutAYearOrForAnEpisodeOrWithoutInfo() {
+        assertNull(BannerText.yearLine(ProgramInfo(id, ScheduleItemKind.Movie, "Test Movie A", null, null, null)))
+        val episodeWithYear = ProgramInfo(id, ScheduleItemKind.Episode, "Episode One", "Test Series B", 2, 5, 2011)
+        assertNull(BannerText.yearLine(episodeWithYear))
+        assertNull(BannerText.yearLine(null))
     }
 
     @Test
@@ -105,6 +138,12 @@ internal object StringsXml {
     }
 
     fun text(name: String): String = read(file, name)
+
+    fun bannerCopy(): BannerCopy =
+        BannerCopy(
+            justStarted = text("live_just_started"),
+            minutesIn = { String.format(Locale.US, text("live_min_in"), it) },
+        )
 
     fun streamCopy(): StreamCopy =
         StreamCopy(

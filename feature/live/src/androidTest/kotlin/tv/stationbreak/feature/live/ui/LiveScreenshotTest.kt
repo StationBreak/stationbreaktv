@@ -63,23 +63,26 @@ class LiveScreenshotTest {
             null,
             null,
             null,
+            2005,
         )
 
-    private fun banner(actions: Boolean) =
-        Banner(
-            number = 162,
-            channelName = "Date Night",
-            label = BannerLabel.Now,
-            title = "Pride & Prejudice",
-            info = episode,
-            slotStartMs = now - 20 * MINUTE,
-            slotEndMs = now + 100 * MINUTE,
-            joinedMs = 29 * MINUTE,
-            next = NextProgram("Roman Holiday", now + 100 * MINUTE),
-            actions = actions,
-            hasLast = actions,
-            recipeKey = MARK_KEY,
-        )
+    private fun banner(
+        actions: Boolean,
+        recipeKey: String? = MARK_KEY,
+    ) = Banner(
+        number = 162,
+        channelName = "Date Night",
+        label = BannerLabel.Now,
+        title = "Pride & Prejudice",
+        info = episode,
+        slotStartMs = now - 20 * MINUTE,
+        slotEndMs = now + 100 * MINUTE,
+        joinedMs = 29 * MINUTE,
+        next = NextProgram("Roman Holiday", now + 100 * MINUTE),
+        actions = actions,
+        hasLast = actions,
+        recipeKey = recipeKey,
+    )
 
     /** The logo is decoded off the main thread: wait for it, or a frame can show the initials in its place. */
     @Before
@@ -110,6 +113,13 @@ class LiveScreenshotTest {
 
     @Test
     fun theTuneBanner() = shoot("live-tune.png", LiveState.Watching(banner(actions = false)))
+
+    /** A custom channel: no logo, so its initials and then its name after the number. */
+    @Test
+    fun theTuneBannerWithNoMark() {
+        val noMark = banner(actions = false, recipeKey = null)
+        shoot("live-tune-nomark.png", LiveState.Watching(noMark))
+    }
 
     @Test
     fun theSelectBanner() = shoot("live-select.png", LiveState.Watching(banner(actions = true)))

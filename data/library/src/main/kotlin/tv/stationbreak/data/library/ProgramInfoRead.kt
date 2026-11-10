@@ -36,7 +36,8 @@ internal suspend fun LibraryDao.programInfo(
             val id = CanonicalId.parseOrNull(row.itemId)
             val kind = ScheduleItemKind.entries.firstOrNull { it.name == row.kind }
             if (id == null || kind == null) continue
-            info[id] = ProgramInfo(id, kind, row.name, row.seriesName, row.seasonNumber, row.episodeNumber)
+            info[id] =
+                ProgramInfo(id, kind, row.name, row.seriesName, row.seasonNumber, row.episodeNumber, row.productionYear)
         }
     }
     return info

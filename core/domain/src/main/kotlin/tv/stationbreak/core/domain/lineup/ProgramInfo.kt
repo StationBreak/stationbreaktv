@@ -7,6 +7,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItemKind
 /**
  * The names of one scheduled item, for a banner that says what is on (spec 14). [title] is the item's own name;
  * [seriesName], [seasonNumber] and [episodeNumber] are set for an episode whose series is known, and null otherwise.
+ * [year] is the item's production year as the server gave it (the one the info overlay shows); null when it has none.
  */
 data class ProgramInfo(
     val id: CanonicalId,
@@ -15,4 +16,5 @@ data class ProgramInfo(
     val seriesName: String?,
     val seasonNumber: Int?,
     val episodeNumber: Int?,
+    val year: Int? = null,
 )

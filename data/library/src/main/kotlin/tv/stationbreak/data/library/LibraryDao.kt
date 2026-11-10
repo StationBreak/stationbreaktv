@@ -78,11 +78,12 @@ internal data class ProgramRow(
     val seriesName: String?,
     val seasonNumber: Int?,
     val episodeNumber: Int?,
+    val productionYear: Int? = null,
 ) {
     // The names are text a person typed: they never reach a log.
     override fun toString(): String =
         "ProgramRow(itemId=$itemId, kind=$kind, name=<name>, " +
-            "seriesName=${if (seriesName == null) "null" else "<name>"}, seasonNumber=$seasonNumber, episodeNumber=$episodeNumber)"
+            "seriesName=${if (seriesName == null) "null" else "<name>"}, seasonNumber=$seasonNumber, episodeNumber=$episodeNumber, productionYear=$productionYear)"
 }
 
 /** What the re-id match reads of one stored movie or episode (spec 26); the text is never logged. */
@@ -404,7 +405,8 @@ internal abstract class LibraryDao {
     // The names of the live items among [ids] (at most MAX_VARIABLES of them), with the live series' name (spec 14).
     @Query(
         "SELECT item.itemId AS itemId, item.kind AS kind, item.name AS name, series.name AS seriesName, " +
-            "item.seasonNumber AS seasonNumber, item.episodeNumber AS episodeNumber FROM item " +
+            "item.seasonNumber AS seasonNumber, item.episodeNumber AS episodeNumber, " +
+            "item.productionYear AS productionYear FROM item " +
             "LEFT JOIN series ON series.serverId = item.serverId AND series.userId = item.userId " +
             "AND series.seriesId = item.seriesId AND series.deletedAtMs IS NULL " +
             "WHERE item.serverId = :serverId AND item.userId = :userId AND item.deletedAtMs IS NULL " +

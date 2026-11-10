@@ -29,12 +29,26 @@ class LiveScreenTest {
     private val movie = ProgramInfo(id, ScheduleItemKind.Movie, "Test Movie A", null, null, null)
     private val episode = ProgramInfo(id, ScheduleItemKind.Episode, "Test Episode One", "Test Series B", 2, 5)
 
+    @Suppress("LongParameterList") // One parameter per fact a case varies.
     private fun banner(
         label: BannerLabel,
         info: ProgramInfo? = movie,
         title: String? = info?.seriesName ?: info?.title,
         joinedMs: Long? = 12 * MINUTE,
-    ) = Banner(4, "Test Channel", label, title, info, START, START + 30 * MINUTE, joinedMs)
+        actions: Boolean = false,
+        recipeKey: String? = null,
+    ) = Banner(
+        4,
+        "Test Channel",
+        label,
+        title,
+        info,
+        START,
+        START + 30 * MINUTE,
+        joinedMs,
+        actions = actions,
+        recipeKey = recipeKey,
+    )
 
     private fun show(state: LiveState) {
         compose.setContent { StationBreakTheme { LiveScreen(state) {} } }
@@ -65,9 +79,60 @@ class LiveScreenTest {
     }
 
     @Test
+    fun theTuneBannerSaysHowFarInBeforeTheMinutesLeft() {
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("12 min in")
+    }
+
+    @Test
+    fun aShowJoinedUnderAMinuteInSaysJustStarted() {
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn, joinedMs = 20_000)))
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("Just started")
+    }
+
+    @Test
+    fun aLingeringBannerKeepsHowFarIn() {
+        show(LiveState.Watching(banner(BannerLabel.Now)))
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("12 min in")
+    }
+
+    @Test
+    fun theSelectBannerHasNoHowFarIn() {
+        show(LiveState.Watching(banner(BannerLabel.Now, actions = true)))
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertDoesNotExist()
+    }
+
+    @Test
+    fun aFilmShowsItsYearOnTheMetaLine() {
+        val film = ProgramInfo(id, ScheduleItemKind.Movie, "Test Movie A", null, null, null, 2002)
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn, info = film)))
+        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE).assertTextEquals("2002")
+    }
+
+    @Test
+    fun anEpisodeShowsItsEpisodeLineNotAYear() {
+        val withYear = ProgramInfo(id, ScheduleItemKind.Episode, "Test Episode One", "Test Series B", 2, 5, 2011)
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn, info = withYear)))
+        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE).assertTextEquals("S2 E5 · Test Episode One")
+    }
+
+    @Test
+    fun aChannelWithNoMarkNamesItselfAfterTheNumber() {
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
+        compose.onNodeWithTag(LiveTags.BANNER_CHANNEL).assertTextEquals("Test Channel")
+    }
+
+    @Test
+    fun aChannelWithAMarkLeavesItsNameToTheMark() {
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn, recipeKey = "little-farm")))
+        compose.onNodeWithTag(LiveTags.BANNER_CHANNEL).assertDoesNotExist()
+    }
+
+    @Test
     fun aCutInShowsNowAndNoJoinedLine() {
         show(LiveState.Watching(banner(BannerLabel.Now, joinedMs = null)))
         compose.onNodeWithText("NOW").assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertExists()
     }
 
