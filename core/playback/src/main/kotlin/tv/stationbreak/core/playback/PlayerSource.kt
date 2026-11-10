@@ -56,6 +56,29 @@ data class TrackPick(
     val codec: String?,
 )
 
+/** What a mid-play switch does about subtitles on direct play. */
+sealed interface SubtitleSwitch {
+    /** Leave the subtitle selection as it is. */
+    data object Keep : SubtitleSwitch
+
+    /** Turn the text track off. */
+    data object Off : SubtitleSwitch
+
+    /** Show the container's text track at [pick]. */
+    data class To(
+        val pick: TrackPick,
+    ) : SubtitleSwitch
+}
+
+/**
+ * A change of tracks the player makes while it plays (direct play only, [SwitchCost.Instant]): [audio] is the track to
+ * pick, or null to leave the audio alone, and [subtitles] what to do about subtitles.
+ */
+data class TrackSwitch(
+    val audio: TrackPick? = null,
+    val subtitles: SubtitleSwitch = SubtitleSwitch.Keep,
+)
+
 /**
  * A WebVTT file the player loads beside the video. The [url] carries no credential (ADR-0016), but it is still a
  * server address, so [toString] does not show it.

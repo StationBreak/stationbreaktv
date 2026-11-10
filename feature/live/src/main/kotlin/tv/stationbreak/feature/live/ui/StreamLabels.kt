@@ -15,6 +15,7 @@ import tv.stationbreak.core.playback.SubtitleFacts
 import tv.stationbreak.core.playback.SubtitleForm
 import tv.stationbreak.core.playback.VideoFacts
 import tv.stationbreak.feature.live.Banner
+import tv.stationbreak.feature.live.PickerRow
 import tv.stationbreak.feature.live.R
 import java.util.Locale
 
@@ -35,6 +36,11 @@ internal class StreamCopy(
     val text: String,
     val picture: String,
     val off: String,
+    val chipNone: String,
+    val serverDefault: String,
+    val restarts: String,
+    val playing: String,
+    val switchFailed: String,
 ) {
     companion object {
         fun from(resources: Resources) =
@@ -50,15 +56,26 @@ internal class StreamCopy(
                 text = resources.getString(R.string.live_track_text),
                 picture = resources.getString(R.string.live_track_picture),
                 off = resources.getString(R.string.live_track_off),
+                chipNone = resources.getString(R.string.live_chip_none),
+                serverDefault = resources.getString(R.string.live_picker_server_default),
+                restarts = resources.getString(R.string.live_picker_restarts),
+                playing = resources.getString(R.string.live_picker_playing),
+                switchFailed = resources.getString(R.string.live_switch_failed),
             )
     }
 }
 
-/** The banner's stream line (what plays), or null when the tune had no facts to give. */
+/**
+ * The banner's stream line (what plays), or null when the tune had no facts to give. After a switch that did not take
+ * it says so instead, for the one banner that follows (design doc B2.7).
+ */
 @Composable
 internal fun rememberStreamLine(banner: Banner): String? {
     val resources = LocalContext.current.resources
-    return remember(banner) { banner.stream?.let { StreamLabels.streamLine(it, StreamCopy.from(resources)) } }
+    return remember(banner) {
+        val copy = StreamCopy.from(resources)
+        if (banner.switchFailed) copy.switchFailed else banner.stream?.let { StreamLabels.streamLine(it, copy) }
+    }
 }
 
 /**
@@ -79,6 +96,7 @@ internal fun languageName(
  * The text of the stream line and of the picker rows (design doc B1, B2.8). Pure: the language names come in as
  * [language] (the screen passes [languageName]) so a test names them itself.
  */
+@Suppress("TooManyFunctions") // One function per piece of text the banner and the pickers say.
 internal object StreamLabels {
     const val SEPARATOR = " · "
 
@@ -141,6 +159,46 @@ internal object StreamLabels {
 
     /** The first row of the subtitles picker. */
     fun offRow(copy: StreamCopy): String = copy.off
+
+    /** The Audio chip's value: "English 5.1"; null when the facts do not say. */
+    fun audioChip(
+        facts: StreamFacts,
+        copy: StreamCopy,
+        language: (String?) -> String? = { languageName(it) },
+    ): String? = facts.audio?.let { audioInUse(it, copy, language) }
+
+    /** The Subtitles chip's value: "None" with no tracks, "Off", or the language in use. */
+    fun subtitlesChip(
+        facts: StreamFacts,
+        copy: StreamCopy,
+        language: (String?) -> String? = { languageName(it) },
+    ): String {
+        val chosen = facts.subtitle
+        return when {
+            chosen != null -> language(chosen.language) ?: copy.unknown
+            facts.playing?.subtitles?.isEmpty() == true -> copy.chipNone
+            else -> copy.off
+        }
+    }
+
+    /** The Version chip's value: the playing version's picture and name, as its row reads. */
+    fun versionChip(
+        facts: StreamFacts,
+        copy: StreamCopy,
+    ): String? = facts.playing?.let { versionRow(it, copy) }
+
+    /** The text of [row] in a picker. */
+    fun pickerRow(
+        row: PickerRow,
+        copy: StreamCopy,
+        language: (String?) -> String? = { languageName(it) },
+    ): String =
+        when (row) {
+            is PickerRow.Audio -> audioRow(row.track, copy, language)
+            is PickerRow.Off -> offRow(copy)
+            is PickerRow.Subtitle -> subtitleRow(row.track, copy, language)
+            is PickerRow.ServerDefault -> copy.serverDefault
+        }
 
     private fun pictureOf(video: VideoFacts): String? =
         listOfNotNull(StreamFigures.resolution(video.width, video.height), video.codec?.let(StreamFigures::videoCodec))

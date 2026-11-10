@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.playback.StreamFacts
 
 /** What is playing, for the overlays: the banner of its block (as the picture's banner reads) and the item. */
 internal class Playing(
@@ -108,6 +109,29 @@ internal class Screen(
             }
         }
     }
+
+    /**
+     * Updates the stream facts of the play on [block] after an in-place switch (no new tune): the banner it keeps, and
+     * the one on screen, so the stream line and the chips say what plays. Dropped if another block is on by now.
+     */
+    fun restream(
+        block: AiringBlock,
+        facts: StreamFacts,
+    ) = synchronized(this) {
+        val now = playing ?: return
+        if (now.block.startMs != block.startMs) return
+        playing = Playing(now.banner.copy(stream = facts), now.itemId, now.channel, now.block, now.token)
+        val banner = (shown as? LiveState.Watching)?.banner ?: return
+        shown = LiveState.Watching(banner.copy(stream = facts))
+        if (choosing == null) out.value = shown
+    }
+
+    /** Hides the actions banner when its clock runs out, unless a picker is open over it (its clock is suspended). */
+    fun hideActions() =
+        synchronized(this) {
+            val banner = (shown as? LiveState.Watching)?.banner
+            if (banner != null && banner.actions && banner.picker == null) overlay(LiveState.Watching(null))
+        }
 
     /** An overlay's write over the playing picture: published like [value], but the info overlay stays. */
     fun overlay(next: LiveState.Watching) =

@@ -163,6 +163,16 @@ class FileTrackChoiceStoreTest {
         }
 
     @Test
+    fun savingNoSubtitleChoiceHandsTheDecisionBackToTheServer() =
+        runBlocking {
+            store.saveAudioLanguage(account, "es")
+            store.saveSubtitles(account, SubtitlePreference.Off)
+            assertTrue(store.saveSubtitles(account, null))
+            assertNull(store.preferences(account).subtitles)
+            assertEquals("the audio choice stayed", "es", store.preferences(account).audioLanguage)
+        }
+
+    @Test
     fun aRecordFromBeforeTheBitReadsAsAPlainPreference() =
         runBlocking {
             store.saveAudioLanguage(account, "es")

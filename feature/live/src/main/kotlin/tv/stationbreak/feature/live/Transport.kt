@@ -28,6 +28,11 @@ internal sealed interface TransportOp {
     data object StepReleased : TransportOp
 
     data object GoLive : TransportOp
+
+    /** The viewer chose a track (or subtitles) in a picker: switched in place when the player can, else re-tuned. */
+    data class Switch(
+        val selection: TrackSelection,
+    ) : TransportOp
 }
 
 /** An op for the sitting [sittingId] while it showed the block (or stand-in piece) that started at [blockStartMs]. */

@@ -25,6 +25,8 @@ import kotlin.time.Duration
 @Suppress("TooManyFunctions") // One override per port call, and the result mappers.
 class TunePortAdapter(
     private val controller: TuneController,
+    /** Keeps a viewer's choice for the account (the track choice store): it never throws, and a failed save is lost. */
+    private val keep: suspend (Session, Remembered) -> Unit = { _, _ -> },
     /** The carried language preferences of the session's account (design doc B2.6); never throws, null for none. */
     private val preferences: suspend (Session) -> TrackPreferences? = { null },
 ) : TunePort {
@@ -81,6 +83,11 @@ class TunePortAdapter(
     override suspend fun stop(session: Session) = controller.stop(session)
 
     override suspend fun close(session: Session) = controller.close(session)
+
+    override suspend fun remember(
+        session: Session,
+        what: Remembered,
+    ) = keep(session, what)
 
     private fun NextHandle.prepared(): Prepared = token as Prepared
 

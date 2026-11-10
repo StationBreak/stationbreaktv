@@ -24,6 +24,8 @@
     <string name="live_label_now">Now</string>
     <string name="live_label_up_next">Up next</string>
     <string name="live_label_filling_in">Filling in</string>
+    <string name="live_label_switching_audio">Switching audio</string>
+    <string name="live_label_switching_subtitles">Switching subtitles</string>
 
     <!-- The actions banner's buttons (Select on the picture): the program's info, and the channel before this one. -->
     <string name="live_action_info">Info</string>
@@ -58,4 +60,16 @@
     <string name="live_track_text">Text</string>
     <string name="live_track_picture">Picture</string>
     <string name="live_track_off">Off</string>
+
+    <!-- The chips on the Select banner and the pickers they open (design doc B2.4, B2.7, B2.8) -->
+    <string name="live_chip_audio">Audio</string>
+    <string name="live_chip_subtitles">Subtitles</string>
+    <string name="live_chip_version">Version</string>
+    <string name="live_chip_none">None</string>
+    <string name="live_chip_description">%1$s: %2$s</string>
+    <string name="live_picker_restarts">restarts picture</string>
+    <string name="live_picker_server_default">Server default</string>
+    <string name="live_picker_playing">playing now</string>
+    <string name="live_picker_row_description">%1$s, %2$s</string>
+    <string name="live_switch_failed">Couldn\'t switch</string>
 </resources>

@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live
 
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.playback.SubtitleChoice
 
 /** What the viewer asks of the live channel (spec 15, F1.4). The screen sends these; [LiveChannel.run] follows them. */
 sealed interface LiveCommand {
@@ -47,6 +48,16 @@ sealed interface LiveCommand {
     /** Back: closes the info overlay (the actions banner comes back), else the actions banner; else nothing. */
     data object DismissOverlay : LiveCommand
 
+    /** Opens the [kind] picker over the actions banner's chips (the chip, or the remote's Captions / Audio key). */
+    data class OpenPicker(
+        val kind: PickerKind,
+    ) : LiveCommand
+
+    /** The viewer chose a row of an open picker: the picker closes and the choice is made (design doc B2.7). */
+    data class Choose(
+        val selection: TrackSelection,
+    ) : LiveCommand
+
     /** Play/Pause: pauses a playing picture, plays a paused one (spec 20). */
     data object PlayPause : LiveCommand
 
@@ -71,4 +82,16 @@ sealed interface LiveCommand {
 
     /** Back to live from behind (spec 20). */
     data object GoLive : LiveCommand
+}
+
+/** What the viewer picked in a picker: the audio track by its server [index], or what to do about subtitles. */
+sealed interface TrackSelection {
+    data class Audio(
+        val index: Int,
+    ) : TrackSelection
+
+    /** [SubtitleChoice.Default] hands the decision back to the server (and forgets the viewer's subtitle choice). */
+    data class Subtitles(
+        val choice: SubtitleChoice,
+    ) : TrackSelection
 }

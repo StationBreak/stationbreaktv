@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +28,9 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -40,20 +45,25 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
+import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.feature.live.PickerKind
 import tv.stationbreak.feature.live.R
+import tv.stationbreak.feature.live.canPick
 
 private val ActionTextSize = 12.sp
 private val ProgressHeight = 2.dp
 
-/** What the buttons of the actions banner do. */
+/** What the buttons and chips of the actions banner do. */
 internal class Actions(
     val info: () -> Unit,
     val last: () -> Unit,
     val live: () -> Unit = {},
+    val audio: () -> Unit = {},
+    val subtitles: () -> Unit = {},
 )
 
 /**
@@ -111,6 +121,8 @@ internal fun ActionsRow(
     hasLast: Boolean,
     actions: Actions,
     behind: Boolean = false,
+    stream: StreamFacts? = null,
+    chipPlaced: (PickerKind, Float) -> Unit = { _, _ -> },
 ) {
     val first = remember { FocusRequester() }
     val live = remember { FocusRequester() }
@@ -155,6 +167,79 @@ internal fun ActionsRow(
             val last = Modifier.onFocusChanged { lastFocused = it.hasFocus }.testTag(LiveTags.BANNER_ACTION_LAST)
             ActionButton(R.string.live_action_last, actions.last, last)
         }
+        if (stream != null) Chips(stream, actions, chipPlaced)
+    }
+}
+
+/**
+ * The Audio, Subtitles and Version chips (design doc B1, B2.8), after a 1 dp divider: each `Label  Value`, the value
+ * the same fact the stream line states. A chip with nothing to choose from shows but takes no focus: one audio track,
+ * no subtitle tracks, and the Version chip until the version picker comes (#630).
+ */
+@Composable
+private fun Chips(
+    stream: StreamFacts,
+    actions: Actions,
+    placed: (PickerKind, Float) -> Unit,
+) {
+    val context = LocalContext.current
+    val copy = remember(context) { StreamCopy.from(context.resources) }
+    Box(Modifier.width(1.dp).height(16.dp).background(LocalGuideColors.current.line))
+    val audio = StreamLabels.audioChip(stream, copy)
+    if (audio != null) {
+        Chip(
+            R.string.live_chip_audio,
+            audio,
+            stream.canPick(PickerKind.Audio),
+            actions.audio,
+            Modifier
+                .onGloballyPositioned { placed(PickerKind.Audio, it.positionInRoot().x) }
+                .testTag(LiveTags.BANNER_CHIP_AUDIO),
+        )
+    }
+    Chip(
+        R.string.live_chip_subtitles,
+        StreamLabels.subtitlesChip(stream, copy),
+        stream.canPick(PickerKind.Subtitles),
+        actions.subtitles,
+        Modifier
+            .onGloballyPositioned { placed(PickerKind.Subtitles, it.positionInRoot().x) }
+            .testTag(LiveTags.BANNER_CHIP_SUBTITLES),
+    )
+    StreamLabels.versionChip(stream, copy)?.let {
+        val tag = Modifier.testTag(LiveTags.BANNER_CHIP_VERSION)
+        Chip(R.string.live_chip_version, it, focusable = false, onClick = {}, modifier = tag)
+    }
+}
+
+/** One chip: a button when it can open a picker, else the same look with no focus and no click. */
+@Composable
+private fun Chip(
+    label: Int,
+    value: String,
+    focusable: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier,
+) {
+    val colors = LocalGuideColors.current
+    val name = stringResource(label)
+    val description = stringResource(R.string.live_chip_description, name, value)
+    if (focusable) {
+        val merged = modifier.semantics(mergeDescendants = true) { contentDescription = description }
+        ActionButton(label, onClick, merged, value)
+    } else {
+        Row(
+            modifier
+                .height(28.dp)
+                .padding(horizontal = 12.dp)
+                .semantics(mergeDescendants = true) { contentDescription = description },
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val dim = colors.textSecondary
+            Text(text = name, style = guideText(ActionTextSize, FontWeight.Medium), color = dim, maxLines = 1)
+            Text(text = value, style = guideText(ActionTextSize, FontWeight.Normal), color = dim, maxLines = 1)
+        }
     }
 }
 
@@ -169,6 +254,7 @@ private fun ActionButton(
     label: Int,
     onClick: () -> Unit,
     modifier: Modifier,
+    value: String? = null,
 ) {
     val colors = LocalGuideColors.current
     Button(
@@ -189,5 +275,12 @@ private fun ActionButton(
         scale = ButtonDefaults.scale(focusedScale = 1f),
     ) {
         Text(text = stringResource(label), style = guideText(ActionTextSize, FontWeight.Medium), maxLines = 1)
+        if (value != null) {
+            Text(
+                text = "  $value \u2303",
+                style = guideText(ActionTextSize, FontWeight.Normal),
+                maxLines = 1,
+            )
+        }
     }
 }

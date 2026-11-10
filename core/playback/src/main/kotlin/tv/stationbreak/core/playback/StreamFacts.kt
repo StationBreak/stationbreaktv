@@ -63,6 +63,8 @@ data class AudioFacts(
     val isDefault: Boolean,
     val flags: TrackFlags,
     val cost: SwitchCost = SwitchCost.Retune,
+    /** Where the player finds this track in the file, for an instant switch on direct play; null when it cannot. */
+    val pick: TrackPick? = null,
 )
 
 /** Whether a subtitle is text (the player or the server renders it) or a picture (burned in when chosen). */
@@ -79,6 +81,8 @@ data class SubtitleFacts(
     val isExternal: Boolean,
     val flags: TrackFlags,
     val cost: SwitchCost = SwitchCost.Retune,
+    /** Where the player finds this container text track, for an instant switch; null for any other. */
+    val pick: TrackPick? = null,
 )
 
 /**
@@ -126,22 +130,37 @@ private fun MediaSource.summary(
 private fun MediaStreamInfo.title(): String? = (title ?: displayTitle)?.takeIf { it.isNotBlank() }
 
 private fun MediaStreamInfo.audioFacts(cost: SwitchCost): AudioFacts =
-    AudioFacts(index, language, codec, channels, title(), isDefault, flags(), cost)
+    AudioFacts(
+        index,
+        language,
+        codec,
+        channels,
+        title(),
+        isDefault,
+        flags(),
+        cost,
+        positionInKind?.let { TrackPick(it, language, codec) },
+    )
 
-private fun MediaStreamInfo.subtitleFacts(cost: SwitchCost) =
-    SubtitleFacts(
+private fun MediaStreamInfo.subtitleFacts(cost: SwitchCost): SubtitleFacts {
+    val form =
+        when {
+            Codecs.isTextSubtitle(codec) -> SubtitleForm.Text
+            Codecs.isImageSubtitle(codec) -> SubtitleForm.Picture
+            else -> SubtitleForm.Other
+        }
+    return SubtitleFacts(
         index = index,
         language = language,
         codec = codec,
-        form =
-            when {
-                Codecs.isTextSubtitle(codec) -> SubtitleForm.Text
-                Codecs.isImageSubtitle(codec) -> SubtitleForm.Picture
-                else -> SubtitleForm.Other
-            },
+        form = form,
         title = title(),
         isDefault = isDefault,
         isExternal = isExternal,
         flags = flags(),
         cost = cost,
+        pick = positionInKind?.takeIf { !isExternal && form == SubtitleForm.Text }?.let { pickAt(it) },
     )
+}
+
+private fun MediaStreamInfo.pickAt(position: Int) = TrackPick(position, language, codec)

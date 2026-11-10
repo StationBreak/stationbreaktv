@@ -171,6 +171,8 @@ private fun LiveLayers(
                         onLast = { onCommand(LiveCommand.Previous) },
                         onLive = { onCommand(LiveCommand.GoLive) },
                         behind = behind,
+                        onPicker = { kind -> onCommand(LiveCommand.OpenPicker(kind)) },
+                        onChoose = { selection -> onCommand(LiveCommand.Choose(selection)) },
                     )
                 }
             }

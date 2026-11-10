@@ -59,7 +59,7 @@ class FileTrackChoiceStore internal constructor(
 
     override suspend fun saveSubtitles(
         account: LibraryAccount,
-        choice: SubtitlePreference,
+        choice: SubtitlePreference?,
     ): Boolean =
         (choice as? SubtitlePreference.On)?.let { validLanguage(it.language) } != false &&
             update(account) { Record(it.preferences.copy(subtitles = choice), it.versions) }

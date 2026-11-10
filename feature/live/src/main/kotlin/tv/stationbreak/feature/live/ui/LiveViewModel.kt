@@ -48,6 +48,7 @@ import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.LiveTimings
+import tv.stationbreak.feature.live.Remembered
 import tv.stationbreak.feature.live.TransportView
 import tv.stationbreak.feature.live.TunePort
 import tv.stationbreak.feature.live.TunePortAdapter
@@ -124,8 +125,9 @@ internal class ControllerTunerFactory
                     warmSwitches = warmSwitches,
                     clock = SystemClock::elapsedRealtime,
                 ),
+                keep = { who, what -> keepChoice(trackChoices, LibraryAccount(who.server.id, who.userId), what) },
                 // What the viewer chose before, for this account on this device (never from the server).
-                { trackChoices.preferences(LibraryAccount(it.server.id, it.userId)) },
+                preferences = { trackChoices.preferences(LibraryAccount(it.server.id, it.userId)) },
             )
     }
 
@@ -421,4 +423,16 @@ internal suspend fun publishAfterCleanup(
 ) = withContext(NonCancellable) {
     cleanup()
     publish()
+}
+
+/** Keeps a viewer's [what] in [store] for [account]; the store never throws, so a failed save is only not kept. */
+private suspend fun keepChoice(
+    store: TrackChoiceStore,
+    account: LibraryAccount,
+    what: Remembered,
+) {
+    when (what) {
+        is Remembered.AudioLanguage -> store.saveAudioLanguage(account, what.language)
+        is Remembered.Subtitles -> store.saveSubtitles(account, what.preference)
+    }
 }
