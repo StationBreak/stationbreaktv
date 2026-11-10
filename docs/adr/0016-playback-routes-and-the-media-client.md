@@ -319,8 +319,8 @@ stands for every tune that carries no choice, and these rules govern the ones th
   target, capabilities)` is internal to core:playback. `ResolvedPlayback.facts()` puts its answer on every audio
   track, subtitle track and version in `StreamFacts` (and `offCost` for subtitles off), so the picker's "restarts
   picture" label and what then happens come from one place. Only direct play can switch while it plays (the player
-  holds the file's tracks): audio the device decodes, subtitles off, an embedded text subtitle, and a separate file only
-  if it was side-loaded at the start are instant. A picture subtitle, audio the device cannot decode (the route moves
+  holds the file's tracks): audio the device decodes, subtitles off, and an embedded text subtitle are instant. A separate file
+  re-tunes, even one side-loaded at the start (nothing names it to the player; found on the TV, 2026-11-10). A picture subtitle, audio the device cannot decode (the route moves
   to HLS, decision 8), any change on a direct stream or transcode, and every version change re-tune. Text subtitles
   while transcoding stay a re-tune until the PR 4 spike measures otherwise.
 - **The sitting holds the viewer's choice for the programme on air.** A retune (a retry after a failure, a re-anchor of

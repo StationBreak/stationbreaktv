@@ -203,7 +203,8 @@ internal object StreamLabels {
     /**
      * The texts of a whole picker, each row told apart from its twins: two rows that read the same take the track's own
      * title after the text, and one with no title (or the same title again) takes " · 2", " · 3" by its place among
-     * them. The first of untitled twins stays as it is. A row nobody shares a text with is unchanged.
+     * them. A title that is only digits, or that the row's text already says (a flag, the language), is no title. The
+     * first of untitled twins stays as it is. A row nobody shares a text with is unchanged.
      */
     fun pickerTexts(
         rows: List<PickerRow>,
@@ -213,7 +214,7 @@ internal object StreamLabels {
         val base = rows.map { pickerRow(it, copy, language) }
         val titled =
             base.mapIndexed { i, text ->
-                val title = titleOf(rows[i])
+                val title = titleOf(rows[i])?.takeIf { informs(it, text) }
                 if (base.count { it == text } > 1 && title != null) text + SEPARATOR + title else text
             }
         val seen = mutableMapOf<String, Int>()
@@ -223,6 +224,12 @@ internal object StreamLabels {
             if (titled.count { it == text } > 1 && place > 1) text + SEPARATOR + place else text
         }
     }
+
+    /** A title tells twins apart only if it says something the row does not: not a bare number, not words it has. */
+    private fun informs(
+        title: String,
+        text: String,
+    ): Boolean = title.any { it.isLetter() } && !text.contains(title, ignoreCase = true)
 
     private fun titleOf(row: PickerRow): String? =
         when (row) {

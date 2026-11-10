@@ -127,7 +127,11 @@ private fun MediaSource.summary(
     )
 }
 
-private fun MediaStreamInfo.title(): String? = (title ?: displayTitle)?.takeIf { it.isNotBlank() }
+/**
+ * The file's own name for the track. The server's generated `DisplayTitle` is not used: it repeats the language, codec
+ * and delivery ("English - SUBRIP - External"), which the row already says (and tells twin rows apart by nothing).
+ */
+private fun MediaStreamInfo.title(): String? = title?.takeIf { it.isNotBlank() }
 
 private fun MediaStreamInfo.audioFacts(cost: SwitchCost): AudioFacts =
     AudioFacts(

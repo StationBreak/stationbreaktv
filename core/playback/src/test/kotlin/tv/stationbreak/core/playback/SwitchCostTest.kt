@@ -98,14 +98,12 @@ class SwitchCostTest {
     }
 
     @Test
-    fun aSeparateFileIsInstantOnlyWhenItWasLoadedAtTheStart() {
+    fun aSeparateFileAlwaysRetunesEvenTheOneLoadedAtTheStart() {
         val loaded = externalText(5)
         val p = playing(chosenSubtitle = loaded, subtitles = listOf(SeparateSubtitle("u", "eng")))
-        assertEquals(SwitchCost.Instant, cost(p, SwitchTarget.Subtitle(loaded)))
-        val another = SwitchTarget.Subtitle(externalText(6))
-        assertEquals("another file was never side-loaded", SwitchCost.Retune, cost(p, another))
-        val none = SwitchTarget.Subtitle(externalText(5))
-        assertEquals("nothing was side-loaded", SwitchCost.Retune, cost(playing(), none))
+        assertEquals("no in-place pick names it", SwitchCost.Retune, cost(p, SwitchTarget.Subtitle(loaded)))
+        assertEquals(SwitchCost.Retune, cost(p, SwitchTarget.Subtitle(externalText(6))))
+        assertEquals(SwitchCost.Retune, cost(playing(), SwitchTarget.Subtitle(externalText(5))))
     }
 
     @Test

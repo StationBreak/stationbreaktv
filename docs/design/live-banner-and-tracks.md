@@ -72,7 +72,7 @@ The **stream line** on every banner, information only: `1080p HEVC · English 5.
 |---|---|---|
 | Audio track | instant (`TrackSelectionOverride` mid-play) | re-tune |
 | Text subtitle in the container | instant | re-tune until proven instant on a TV (spike in PR 4) |
-| Text subtitle in a separate file | instant only if side-loaded at start; else re-tune | re-tune |
+| Text subtitle in a separate file | re-tune (the player cannot be told to show a side-loaded file by a position in the file; TV, 2026-11-10: a row labelled instant re-tuned) | re-tune |
 | Picture subtitle | re-tune (burn-in) | re-tune |
 | Version | re-tune | re-tune |
 

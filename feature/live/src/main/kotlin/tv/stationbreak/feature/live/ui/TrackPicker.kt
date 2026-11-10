@@ -113,7 +113,7 @@ private fun PickerRowButton(
         modifier =
             modifier
                 .fillMaxWidth()
-                .height(RowHeight)
+                .heightIn(min = RowHeight)
                 .semantics(mergeDescendants = true) {
                     contentDescription = description
                     selected = row.playing
@@ -137,7 +137,8 @@ private fun PickerRowButton(
                 text = text,
                 modifier = Modifier.weight(1f),
                 style = guideText(RowTextSize, if (row.playing) FontWeight.SemiBold else FontWeight.Medium),
-                maxLines = 1,
+                // Two lines, so the suffix that tells twin rows apart is never the part that is cut off.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (row.restarts) {

@@ -41,9 +41,9 @@ sealed interface SwitchTarget {
  *
  * - **Audio** is instant when the player can decode the track as it is ([audioPlays]); one it cannot decode moves the
  *   route to HLS (ADR-0016, 8), so it re-tunes.
- * - **Subtitles off** is instant. A **text subtitle in the container** is instant. One in **a separate file** is
- *   instant only if it is the one loaded at the start (the source carries its file); any other re-tunes, because
- *   nothing else was side-loaded. A **picture subtitle** re-tunes (burn-in).
+ * - **Subtitles off** is instant. A **text subtitle in the container** is instant. One in **a separate file**
+ *   re-tunes, even the one loaded at the start: the player cannot be told to show it by a position in the file, and
+ *   the picker's label must be what happens. A **picture subtitle** re-tunes (burn-in).
  * - A track the player cannot find by its position in the file (no `positionInKind`) re-tunes: the instant switch
  *   names the track by it.
  * - **Version** always re-tunes.
@@ -63,7 +63,7 @@ internal fun switchCost(
         target is SwitchTarget.Version -> SwitchCost.Retune
         !playing.source.directPlayTracks || playing.route != Route.DIRECT_PLAY -> SwitchCost.Retune
         target is SwitchTarget.Audio -> audioCost(target.stream, capabilities)
-        target is SwitchTarget.Subtitle -> subtitleCost(playing, target.stream)
+        target is SwitchTarget.Subtitle -> subtitleCost(target.stream)
         else -> SwitchCost.Retune
     }
 
@@ -75,10 +75,7 @@ private fun audioCost(
     return if (playable) SwitchCost.Instant else SwitchCost.Retune
 }
 
-private fun subtitleCost(
-    playing: ResolvedPlayback,
-    stream: MediaStreamInfo?,
-): SwitchCost =
+private fun subtitleCost(stream: MediaStreamInfo?): SwitchCost =
     when {
         stream == null -> {
             SwitchCost.Instant
@@ -88,9 +85,10 @@ private fun subtitleCost(
             SwitchCost.Retune
         }
 
+        // The loaded file is a text group in the player, but nothing names it as a pick (a position among the file's
+        // own tracks), so the in-place switch cannot reach it. Say so, or the label and the behaviour disagree.
         stream.isExternal -> {
-            val loaded = stream.index == playing.chosenSubtitle?.index && playing.source.subtitles.isNotEmpty()
-            if (loaded) SwitchCost.Instant else SwitchCost.Retune
+            SwitchCost.Retune
         }
 
         stream.positionInKind == null -> {

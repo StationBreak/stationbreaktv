@@ -234,6 +234,23 @@ class StreamLabelsTest {
     }
 
     @Test
+    fun aTitleThatIsANumberOrSaysWhatTheRowAlreadySaysIsNoTitle() {
+        val texts =
+            subtitleTexts(
+                subtitle(1, flags = TrackFlags(forced = true), title = "Forced"),
+                subtitle(2, flags = TrackFlags(forced = true), title = "Forced"),
+                subtitle(3, title = "0"),
+                subtitle(4, title = "0"),
+                subtitle(5, title = "English"),
+            )
+        assertEquals("English · Forced · Text", texts[0])
+        assertEquals("English · Forced · Text · 2", texts[1])
+        assertEquals("English · Text", texts[2])
+        assertEquals("English · Text · 2", texts[3])
+        assertEquals("English · Text · 3", texts[4])
+    }
+
+    @Test
     fun aTitledTwinNextToAnUntitledOneIsToldApartByTheTitle() {
         val texts = subtitleTexts(subtitle(1), subtitle(2, title = "Full"))
         assertEquals(listOf("English · Text", "English · Text · Full"), texts)
