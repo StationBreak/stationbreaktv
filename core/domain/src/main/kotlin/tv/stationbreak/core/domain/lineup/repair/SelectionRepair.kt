@@ -230,19 +230,7 @@ internal class SelectionRepair(
             if (walked.txNanos >= 0) clock?.addWalkTx(walked.txNanos)
             // With nothing added no day takes anything from the new build, so its tail pools do not wait for it.
             val taking = if (added.isEmpty()) null else lanes.after.get()
-            val prepared = ArrayList<Prepared>(pairs.size)
-            for ((index, pair) in pairs.withIndex()) {
-                prepared += prepare(pair.first, pair.second, windows[index], titles, walked, before, taking)
-            }
-            val ids = HashSet<CanonicalId>()
-            for (p in prepared) p.pool?.mapTo(ids) { it.id }
-            var live = clock.time(RepairPhase.Pools) { fills.live(ids) }
-            // A sync that landed since the early read may have changed which items have a current row: the primed
-            // answers are let go and the read is today's.
-            if (library.contentGeneration(account) != early.generation) {
-                fills.dropPrimed()
-                live = clock.time(RepairPhase.Pools) { fills.live(ids) }
-            }
+            val (prepared, live) = tailPools(pairs, windows, titles, walked, before, taking, early)
             val admitted = lanes.after.get()
             val repairs = ArrayList<ChannelRepair>()
             val fixes = ArrayList<LostFix>()
@@ -253,6 +241,33 @@ internal class SelectionRepair(
             val pins = repairs.mapNotNull { r -> r.pinLibrary?.takeIf { it in removed }?.let { Pin(it, r.pinEndMs) } }
             PlannedRepair(change.seq, repairs, fixes, pins)
         }
+    }
+
+    // Each day's tail pool, then one read of which of their items have a current row, for every channel at once: the
+    // early read's answers, unless a sync landed since (the content generation moved), when they are let go and the
+    // read is today's.
+    @Suppress("LongParameterList") // What the main path has by now.
+    private suspend fun tailPools(
+        pairs: List<Pair<ChannelDay, Scheduled>>,
+        windows: List<KeptWindow?>,
+        titles: Set<CanonicalId>,
+        walked: Walked,
+        before: Admitted?,
+        taking: Admitted?,
+        early: Early,
+    ): Pair<List<Prepared>, Set<CanonicalId>> {
+        val prepared = ArrayList<Prepared>(pairs.size)
+        for ((index, pair) in pairs.withIndex()) {
+            prepared += prepare(pair.first, pair.second, windows[index], titles, walked, before, taking)
+        }
+        val ids = HashSet<CanonicalId>()
+        for (p in prepared) p.pool?.mapTo(ids) { it.id }
+        var live = clock.time(RepairPhase.Pools) { fills.live(ids) }
+        if (library.contentGeneration(account) != early.generation) {
+            fills.dropPrimed()
+            live = clock.time(RepairPhase.Pools) { fills.live(ids) }
+        }
+        return prepared to live
     }
 
     // Starts the lanes, with no context of their own: they run on the dispatcher this plan runs on (the planning pool).

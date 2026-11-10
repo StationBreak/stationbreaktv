@@ -22,6 +22,10 @@ dependencies {
     // The fakes in testFixtures suspend and use Deferred.
     testFixturesApi(libs.kotlinx.coroutines.core)
 
+    // The concurrent-build fixture (#684) plans a real lineup, which takes engine and scheduler types. Not api.
+    testFixturesImplementation(project(":core:engine"))
+    testFixturesImplementation(project(":core:scheduler"))
+
     // Test only: a 15,000-item library for the schedule source's size test (MODULES.md: tests may use it).
     testImplementation(project(":core:testing"))
 

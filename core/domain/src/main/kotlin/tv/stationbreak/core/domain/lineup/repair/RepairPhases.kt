@@ -169,7 +169,8 @@ class RepairClock(
         if (inside.isNotEmpty()) inside[inside.lastIndex] += total
     }
 
-    // A lane (#684) ran for [wallNanos] beside the main path: its own wall time, in no step's sum and in no `inside` stack.
+    // A lane (#684) ran for [wallNanos] beside the main path: its own wall time, in no step's sum and in no `inside`
+    // stack.
     // Only the main coroutine calls this, after it has awaited the lane: a lane never touches the clock.
     internal fun lane(
         phase: RepairPhase,

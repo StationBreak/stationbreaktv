@@ -36,7 +36,8 @@ internal class SelectionRepairLanesTest {
         threads: Int,
     ) : CoroutineDispatcher(),
         AutoCloseable {
-        private val pool = Executors.newFixedThreadPool(threads) { Thread(it, "lanes-test-pool").apply { isDaemon = true } }
+        private val pool =
+            Executors.newFixedThreadPool(threads) { Thread(it, "lanes-test-pool").apply { isDaemon = true } }
         val dispatched = AtomicInteger()
 
         override fun dispatch(
@@ -97,6 +98,9 @@ internal class SelectionRepairLanesTest {
             }
         }
     }
+
+    private fun repairOf(inputs: PlanInputs) =
+        SelectionRepair(inputs.days, inputs.library, inputs.account, inputs.held, inputs.change, inputs.shared)
 
     private fun runWith(
         scenario: Scenario,
@@ -169,8 +173,7 @@ internal class SelectionRepairLanesTest {
             withContext(dispatcher) {
                 inPlan.set(true)
                 try {
-                    SelectionRepair(inputs.days, inputs.library, inputs.account, inputs.held, inputs.change, inputs.shared)
-                        .plan(inputs.today)
+                    repairOf(inputs).plan(inputs.today)
                 } finally {
                     inPlan.set(false)
                 }
@@ -198,7 +201,7 @@ internal class SelectionRepairLanesTest {
     fun theTailPoolsCurrentRowRead_isAnsweredByTheEarlyRead_inEveryScenario() {
         val misses = AtomicInteger()
         val planner: Planner = { inputs ->
-            val repair = SelectionRepair(inputs.days, inputs.library, inputs.account, inputs.held, inputs.change, inputs.shared)
+            val repair = repairOf(inputs)
             repair.plan(inputs.today).also { misses.addAndGet(repair.primeMisses) }
         }
 

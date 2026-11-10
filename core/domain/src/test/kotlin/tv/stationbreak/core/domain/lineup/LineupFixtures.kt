@@ -188,7 +188,7 @@ internal class CountingLibrary(
         delegate.setCollectionsSynced(ACCOUNT, true)
     }
 
-    val snapshotCutoffs = java.util.Collections.synchronizedList(mutableListOf<Instant>())
+    val snapshotCutoffs: MutableList<Instant> = java.util.Collections.synchronizedList(mutableListOf())
     var scheduleItemsCalls = 0
     var programInfoCalls = 0
 
