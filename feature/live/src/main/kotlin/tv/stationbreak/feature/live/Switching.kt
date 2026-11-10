@@ -51,7 +51,7 @@ internal class SwitchPlan(
  * The plan for [selection] on the play whose facts are [facts]; null when the selection names a track the playing
  * version does not have. [now] is the viewer's choice already made for this programme, which a retune keeps: a
  * subtitle the viewer turned off stays off when they change the audio. The cost comes from [facts] (decided in
- * core:playback), so the row's "restarts picture" and what happens here are one answer.
+ * core:playback), so the row's "brief pause" and what happens here are one answer.
  */
 internal fun planSwitch(
     selection: TrackSelection,

@@ -11,7 +11,7 @@ enum class SwitchCost {
     /** The player switches while it plays: no snow, no new stream. */
     Instant,
 
-    /** The stream is asked for again at the current position, under the snow ("restarts picture"). */
+    /** The stream is asked for again at the current position, under the snow ("brief pause"). */
     Retune,
 }
 

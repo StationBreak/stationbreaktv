@@ -14,8 +14,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -29,7 +31,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.TrackFlags
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.playback.AudioFacts
+import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.SourceFacts
+import tv.stationbreak.core.playback.StreamFacts
+import tv.stationbreak.core.playback.SwitchCost
+import tv.stationbreak.core.playback.VideoFacts
 import tv.stationbreak.core.ui.ProgramInfoTags
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
@@ -38,6 +48,7 @@ import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.NextProgram
+import tv.stationbreak.feature.live.PickerKind
 import tv.stationbreak.feature.live.TransportView
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -316,7 +327,88 @@ class LiveBannerActionsTest {
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }
 
+    private fun facts(
+        route: Route,
+        secondAudio: SwitchCost = SwitchCost.Retune,
+    ) = StreamFacts(
+        route,
+        SOURCE,
+        1,
+        null,
+        listOf(
+            SourceFacts(
+                SOURCE,
+                null,
+                VideoFacts(1920, 1080, "hevc"),
+                listOf(
+                    AudioFacts(1, "eng", "ac3", 6, null, true, TrackFlags()),
+                    AudioFacts(2, "spa", "ac3", 6, null, false, TrackFlags(), secondAudio),
+                ),
+                emptyList(),
+            ),
+        ),
+    )
+
+    private fun selectBanner(
+        route: Route,
+        picker: PickerKind? = null,
+        secondAudio: SwitchCost = SwitchCost.Retune,
+    ) = banner(actions = true).copy(stream = facts(route, secondAudio), picker = picker)
+
+    @Test
+    fun transcodingIsSaidAtTheEndOfTheChipsRowOnlyForATranscode() {
+        show(selectBanner(Route.TRANSCODE))
+        val label = compose.onNodeWithTag(LiveTags.BANNER_TRANSCODING)
+        label.assertExists()
+        assertEquals(
+            listOf("Transcoding"),
+            label.fetchSemanticsNode().config[SemanticsProperties.Text].map { it.text },
+        )
+        assertTrue("not focusable", SemanticsProperties.Focused !in label.fetchSemanticsNode().config)
+        assertTrue("not clickable", SemanticsActions.OnClick !in label.fetchSemanticsNode().config)
+        // At the right end of the row: past the last chip.
+        val chip = compose.onNodeWithTag(LiveTags.BANNER_CHIP_SUBTITLES).fetchSemanticsNode().boundsInRoot
+        assertTrue(label.fetchSemanticsNode().boundsInRoot.left >= chip.right)
+    }
+
+    @Test
+    fun directPlayAndDirectStreamSayNothingOfTheRoute() {
+        for (route in listOf(Route.DIRECT_PLAY, Route.DIRECT_STREAM)) {
+            show(selectBanner(route))
+            compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertExists()
+            compose.onNodeWithTag(LiveTags.BANNER_TRANSCODING).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun aTuneBannerNeverSaysTranscoding() {
+        show(banner(actions = false).copy(stream = facts(Route.TRANSCODE)))
+        compose.onNodeWithTag(LiveTags.BANNER_TRANSCODING).assertDoesNotExist()
+    }
+
+    @Test
+    fun whenEveryRowPausesThePickerSaysSoOnceInAHeading() {
+        show(selectBanner(Route.TRANSCODE, PickerKind.Audio))
+        val heading = compose.onNodeWithTag(LiveTags.PICKER_HEADING)
+        heading.assertExists()
+        assertEquals(
+            listOf("brief pause"),
+            heading.fetchSemanticsNode().config[SemanticsProperties.Text].map { it.text },
+        )
+        // The rows no longer carry the label: their merged description still does.
+        compose.onAllNodesWithText("brief pause", useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun whenOnlySomeRowsPauseEachSaysSoAndThereIsNoHeading() {
+        show(selectBanner(Route.DIRECT_PLAY, PickerKind.Audio, secondAudio = SwitchCost.Instant))
+        compose.onNodeWithTag(LiveTags.PICKER).assertExists()
+        compose.onNodeWithTag(LiveTags.PICKER_HEADING).assertDoesNotExist()
+        compose.onAllNodesWithText("brief pause", useUnmergedTree = true).assertCountEquals(1)
+    }
+
     private companion object {
+        val SOURCE = MediaSourceId("src")
         const val MINUTE = 60_000L
         const val START = 1_800_000_000_000L
         const val REPEAT_MS = 50L

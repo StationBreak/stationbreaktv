@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -72,32 +73,54 @@ internal fun TrackPicker(
     val list = rememberLazyListState(initialFirstVisibleItemIndex = start)
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
-    LazyColumn(
+    // When every row pauses the picture, that is said once, as a heading, not on each row.
+    val allPause = rows.size > 1 && rows.all { it.restarts }
+    Column(
         modifier
             .width(PickerWidth)
-            .heightIn(max = PickerMaxHeight)
             .chromeSurface(colors)
             .padding(6.dp)
             // Up and Down stop at the ends: the buttons under the picker are not part of it.
             .focusProperties { exit = { FocusRequester.Cancel } }
             .testTag(LiveTags.PICKER),
-        state = list,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        itemsIndexed(rows) { index, row ->
-            val mine = if (index == start) Modifier.focusRequester(focus) else Modifier
-            val tag = mine.testTag(LiveTags.PICKER_ROW + index)
-            PickerRowButton(row, texts[index], copy, { onChoose(row.selection) }, tag)
+        if (allPause) {
+            Text(
+                text = copy.restarts,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .testTag(LiveTags.PICKER_HEADING),
+                style = guideText(HintSize, FontWeight.Normal),
+                color = colors.textSecondary,
+                maxLines = 1,
+            )
+        }
+        LazyColumn(
+            Modifier.heightIn(max = PickerMaxHeight),
+            state = list,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            itemsIndexed(rows) { index, row ->
+                val mine = if (index == start) Modifier.focusRequester(focus) else Modifier
+                val tag = mine.testTag(LiveTags.PICKER_ROW + index)
+                PickerRowButton(row, texts[index], copy, !allPause, { onChoose(row.selection) }, tag)
+            }
         }
     }
 }
 
-/** One row: its text, and on the right "restarts picture" when choosing it re-tunes. One merged semantics node. */
+/**
+ * One row: its text, and on the right "brief pause" when choosing it re-tunes and [showPause] (the picker says it
+ * once in a heading when every row does). One merged semantics node, which always says it.
+ */
 @Composable
 private fun PickerRowButton(
     row: PickerRow,
     text: String,
     copy: StreamCopy,
+    showPause: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
@@ -141,7 +164,7 @@ private fun PickerRowButton(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (row.restarts) {
+            if (row.restarts && showPause) {
                 Spacer(Modifier.width(12.dp))
                 Text(text = copy.restarts, style = guideText(HintSize, FontWeight.Normal), maxLines = 1)
             }

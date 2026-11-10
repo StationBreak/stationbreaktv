@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -38,6 +39,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
@@ -45,6 +47,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
+import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramCopy
@@ -181,13 +184,29 @@ internal fun ActionsRow(
     }
 }
 
+/** "Transcoding" at the right end of the chips row: 11 sp, `textSecondary`, never focused. */
+@Composable
+private fun TranscodingLabel(modifier: Modifier) {
+    Text(
+        text = stringResource(R.string.live_stream_transcoding),
+        modifier = modifier.testTag(LiveTags.BANNER_TRANSCODING),
+        style = guideText(TranscodingSize, FontWeight.Normal),
+        color = LocalGuideColors.current.textSecondary,
+        textAlign = TextAlign.End,
+        maxLines = 1,
+    )
+}
+
+private val TranscodingSize = 11.sp
+
 /**
  * The Audio, Subtitles and Version chips (design doc B1, B2.8), after a 1 dp divider: each `Label  Value`, the value
  * the same fact the stream line states. A chip with nothing to choose from shows but takes no focus: one audio track,
- * no subtitle tracks, and the Version chip until the version picker comes (#630).
+ * no subtitle tracks, and the Version chip until the version picker comes (#630). While the route is a transcode, the
+ * row ends with a right-aligned "Transcoding".
  */
 @Composable
-private fun Chips(
+private fun RowScope.Chips(
     stream: StreamFacts,
     actions: Actions,
     focus: Map<PickerKind, FocusRequester>,
@@ -223,6 +242,7 @@ private fun Chips(
         val tag = Modifier.testTag(LiveTags.BANNER_CHIP_VERSION)
         Chip(R.string.live_chip_version, it, focusable = false, onClick = {}, modifier = tag)
     }
+    if (stream.route == Route.TRANSCODE) TranscodingLabel(Modifier.weight(1f))
 }
 
 /** One chip: a button when it can open a picker, else the same look with no focus and no click. */

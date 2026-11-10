@@ -25,9 +25,15 @@ object LiveTags {
     const val BANNER_CHIP_SUBTITLES = "live:banner:chip:subtitles"
     const val BANNER_CHIP_VERSION = "live:banner:chip:version"
 
+    /** "Transcoding", right-aligned after the chips, only while the route is a transcode. Not focusable. */
+    const val BANNER_TRANSCODING = "live:banner:transcoding"
+
     /** A picker over the chips; its rows are tagged [PICKER_ROW] plus the row's index. */
     const val PICKER = "live:picker"
     const val PICKER_ROW = "live:picker:row:"
+
+    /** "brief pause", once above the rows when choosing any of them pauses the picture. */
+    const val PICKER_HEADING = "live:picker:heading"
     const val TRANSPORT = "live:transport"
     const val TRANSPORT_SPINNER = "live:transport:spinner"
     const val INFO = "live:info"
