@@ -275,7 +275,16 @@ class LineupService internal constructor(
         start: Start,
     ): Pair<Lineup, RefreshMeta> =
         readForPlan(account, libraries).let { read ->
-            plannedFrom(owner, read, libraries, start.current, start.meta, newAccount = start.isNew)
+            val held = start.current
+            if (held != null && held.finalised && read.snapshot.items.isEmpty()) {
+                // #306: a finalised lineup is never shelved or reshaped from a snapshot with no items. That is a
+                // library not synced (yet), not an empty one: keep the lineup as rolled and the old meta, so the
+                // generation is not recorded and the next trigger plans again. A selection that really became empty
+                // is the selection-change repair's to handle, not the refresh's.
+                held.rolled(read.now.toEpochMilliseconds()) to start.meta
+            } else {
+                plannedFrom(owner, read, libraries, held, start.meta, newAccount = start.isNew)
+            }
         }
 
     /** What the library says at the moment of a plan. */

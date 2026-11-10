@@ -363,10 +363,20 @@ class BuiltInScheduleSource(
         }
 
     // The account and its saved selection, read together once per call; null with no account or nothing chosen.
+    // The selection is not account-keyed, so it is read between two reads of the account: account, selection, account.
+    // If the account changed meanwhile the selection may be the other's, so it is read once more; if it changes again,
+    // there is no selection this call (#305).
     private suspend fun signedIn(): Pair<LibraryAccount, SavedSelection>? {
-        val account = library.activeAccount().first()
-        val chosen = saved()?.takeIf { it.libraries.isNotEmpty() }
-        return if (account == null || chosen == null) null else account to chosen
+        var read: Pair<LibraryAccount, SavedSelection>? = null
+        var attempts = 0
+        while (read == null && attempts < SIGNED_IN_READS) {
+            attempts++
+            val account = library.activeAccount().first()
+            val chosen = saved()?.takeIf { it.libraries.isNotEmpty() }
+            if (account == null || chosen == null) break
+            if (library.activeAccount().first() == account) read = account to chosen
+        }
+        return read
     }
 
     override suspend fun onAir(
@@ -1245,6 +1255,9 @@ class BuiltInScheduleSource(
     internal companion object {
         /** How many built sets of days are kept: today and tomorrow for a few revisions. */
         const val KEPT = 8
+
+        /** How many times [signedIn] reads the account with its selection: the read, and one retry (#305). */
+        const val SIGNED_IN_READS = 2
 
         /**
          * How long before a channel's day ends the day after it is built in the background. A build took up to 26 s on

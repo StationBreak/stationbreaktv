@@ -220,6 +220,39 @@ class LineupServiceTest {
             assertEquals(before.channels, stored()?.channels)
         }
 
+    // #306: a snapshot with no items on a finalised lineup is "not synced yet", never "the library is empty".
+    private val unsyncedSelection = setOf(ItemId("d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"))
+
+    @Test
+    fun anEmptySnapshotLeavesAFinalisedLineupAsRolledAndDoesNotRecordTheGeneration() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            val before = checkNotNull(stored())
+            val metaBefore = checkNotNull(storedMeta())
+            assertTrue(before.finalised)
+            library.delegate.noteContentChange(ACCOUNT)
+
+            service.refresh(ACCOUNT, unsyncedSelection)
+
+            val after = checkNotNull(stored())
+            assertEquals(before.channels, after.channels, "state, leavesAtMs and shelf reasons are untouched")
+            assertEquals(metaBefore, storedMeta(), "the generation is not recorded, so the next trigger retries")
+        }
+
+    @Test
+    fun aNonEmptySnapshotAfterAnEmptyOneOnAFinalisedLineupPlansNormally() =
+        runBlocking<Unit> {
+            service.refresh(ACCOUNT, LIBRARIES)
+            library.delegate.noteContentChange(ACCOUNT)
+            service.refresh(ACCOUNT, unsyncedSelection)
+            val generation = library.delegate.contentGeneration(ACCOUNT)
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(generation, storedMeta()?.plannedGeneration)
+            assertEquals(LIBRARIES.map { it.value }.sorted(), storedMeta()?.plannedLibraries)
+        }
+
     private val newerCatalog =
         object : StarterCatalogView by TestCatalog {
             override val version: Int = 2
