@@ -83,6 +83,65 @@ class ProgramInfoReadTest {
         }
 
     @Test
+    fun anEpisodeWithNoSeriesRowShowsItsOwnSeriesName() =
+        runBlocking {
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
+            val orphan =
+                MediaItem(
+                    episodeId,
+                    "Episode One",
+                    ItemKind.Episode,
+                    30.minutes,
+                    SHOWS,
+                    dateCreated = EPOCH - 1.minutes,
+                    seriesId = seriesId,
+                    seriesName = "Server Series C",
+                    seasonNumber = 2,
+                    episodeNumber = 5,
+                )
+            repository.writePage(ALICE, SHOWS, stamp = null, rewalk = false, listOf(orphan), 1, 1, run = 1)
+
+            val info = repository.programInfo(ALICE, setOf(canon(0x1001))).getValue(canon(0x1001))
+
+            assertEquals("Server Series C", info.seriesName)
+        }
+
+    @Test
+    fun theSeriesRowStillWinsOverTheEpisodesOwnSeriesName() =
+        runBlocking {
+            repository.applySelection(ALICE, setOf(SHOWS), nowMs = 0)
+            val episode =
+                MediaItem(
+                    episodeId,
+                    "Episode One",
+                    ItemKind.Episode,
+                    30.minutes,
+                    SHOWS,
+                    dateCreated = EPOCH - 1.minutes,
+                    seriesId = seriesId,
+                    seriesName = "Server Series C",
+                    seasonNumber = 2,
+                    episodeNumber = 5,
+                )
+            val series = SeriesInfo(seriesId, "Test Series B", null, emptyList(), emptyList())
+            repository.writePage(
+                ALICE,
+                SHOWS,
+                stamp = null,
+                rewalk = false,
+                listOf(episode),
+                1,
+                1,
+                run = 1,
+                series = listOf(series),
+            )
+
+            val info = repository.programInfo(ALICE, setOf(canon(0x1001))).getValue(canon(0x1001))
+
+            assertEquals("Test Series B", info.seriesName)
+        }
+
+    @Test
     fun programInfoOmitsDeletedItems() =
         runBlocking {
             save(ALICE)

@@ -26,7 +26,9 @@ enum class ItemKind {
  * format maps them (spec 09); [premiereDate] is the UTC calendar date of the premiere as `YYYY-MM-DD`.
  * [officialRating] is the server's text as sent: null, `""` and `" "` are three different values. [providerIds] are the
  * item's ids at outside databases (spec 26), already cleaned: keys [a-z0-9._-]{1,32}, values printable ASCII, no
- * spaces, ';' or '=', at most 64 chars, at most eight; never log them.
+ * spaces, ';' or '=', at most 64 chars, at most eight; never log them. [seriesName] is the server's own name for an
+ * episode's series, kept only as a display fallback for an episode whose series row is not held (#607); it is not
+ * scheduled on and not read by the rules.
  */
 data class MediaItem(
     val id: ItemId,
@@ -46,6 +48,7 @@ data class MediaItem(
     val episodeNumber: Int? = null,
     val studios: List<String> = emptyList(),
     val providerIds: Map<String, String> = emptyMap(),
+    val seriesName: String? = null,
 )
 
 /** One page of a library: [totalCount] counts every item, [items] the ones from [startIndex] on. */

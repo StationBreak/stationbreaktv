@@ -1266,6 +1266,7 @@ private fun MediaItem.toRows(
             seenFromMs = 0,
             firstSeenMs = 0,
             providerIds = ProviderIdsCodec.encode(providerIds),
+            seriesName = seriesName,
         ),
     genres = genres.mapIndexed { index, value -> GenreEntity(server, user, id.value, index, value) },
     tags = tags.mapIndexed { index, value -> TagEntity(server, user, id.value, index, value) },
@@ -1327,4 +1328,5 @@ private fun ItemRows.toItem() =
         seasonNumber = item.seasonNumber,
         episodeNumber = item.episodeNumber,
         providerIds = ProviderIdsCodec.decode(item.providerIds),
+        seriesName = item.seriesName,
     )

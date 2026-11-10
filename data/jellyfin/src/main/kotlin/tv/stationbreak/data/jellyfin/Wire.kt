@@ -133,6 +133,8 @@ internal class ItemDto(
     @SerialName("ProviderIds") val providerIds: JsonElement? = null,
     @SerialName("SeriesId") val seriesId: String? = null,
     @SerialName("SeasonId") val seasonId: String? = null,
+    // Sent on an episode without being asked for, like SeriesId and SeasonId (not in ITEM_FIELDS).
+    @SerialName("SeriesName") val seriesName: String? = null,
     @SerialName("ParentIndexNumber") val seasonNumber: Int? = null,
     @SerialName("IndexNumber") val episodeNumber: Int? = null,
 )

@@ -46,6 +46,18 @@ class EpisodeSeasonMappingTest {
     }
 
     @Test
+    fun anEpisodesSeriesNameMapsToTheItemsSeriesName() {
+        val item = one("""{"Id":"e1","Name":"Pilot","Type":"Episode","SeriesId":"series1","SeriesName":"Test Show"}""")
+
+        assertEquals("Test Show", item.seriesName)
+    }
+
+    @Test
+    fun anItemWithNoSeriesNameHasNone() {
+        assertNull(one("""{"Id":"m1","Name":"Heat","Type":"Movie"}""").seriesName)
+    }
+
+    @Test
     fun anEpisodeWithNoSeasonFolderHasNoSeasonId() {
         assertNull(one("""{"Id":"e1","Name":"Loose","Type":"Episode","SeriesId":"series1"}""").seasonId)
     }
