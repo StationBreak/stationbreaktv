@@ -14,7 +14,7 @@ import kotlin.time.Clock
 /**
  * The library cache's side of the selection (spec 26, Part 4 §2): the cache's library rows follow the stored selection
  * through here, the stamped chosen rows are branched (landed or set back), the holds of the pins on air are kept, and
- * a cache write that failed after a committed save leaves [roomBehind] set for the next operation.
+ * a cache write that failed after a committed save leaves [cacheBehind] set for the next operation.
  *
  * Part of [LibrarySelection], which builds it: it takes no lock of its own and runs only inside the selection's lock
  * (`locked {}` or the resume), after the save it follows.
@@ -29,17 +29,17 @@ internal class SelectionCache(
     // Set until a resume or a catch-up has put the cache in line, and again when a cache write failed after its save
     // committed: the next operation reconciles the cache first. It starts set, so an instance that never resumed (one
     // built after the start's resume failed) catches up on its first operation.
-    @Volatile var roomBehind = true
+    @Volatile var cacheBehind = true
         private set
 
     // The cache was left behind (a cache write after a committed save failed, or the resume failed).
     fun markBehind() {
-        roomBehind = true
+        cacheBehind = true
     }
 
     // The cache is in line with the stored selection (or there is nothing of this account's to put in line).
     fun markInLine() {
-        roomBehind = false
+        cacheBehind = false
     }
 
     // The two branches of a stamped chosen row: a proven one lands, an unproven one is set back, and stay current is
@@ -89,7 +89,7 @@ internal class SelectionCache(
     // to be read again, or one whose untick never reached the cache), so such a row is held first, in a write of its
     // own, and then stamped: no add is ever dropped or left unstamped for that (D1). [pins] false is the expiry of
     // holds (D12): no new hold is asked for, and a held row keeps the one it has until that ends.
-    suspend fun applyRoom(
+    suspend fun applyToCache(
         account: LibraryAccount,
         saved: StoredSelection,
         rows: List<StoredLibrary>,
@@ -126,7 +126,7 @@ internal class SelectionCache(
 
     // A cache write after a committed save: a failure is reported, and the next operation catches up (D13).
     @Suppress("TooGenericExceptionCaught") // Whatever the cache throws, the save stands.
-    suspend fun room(block: suspend () -> Unit) {
+    suspend fun guarded(block: suspend () -> Unit) {
         try {
             block()
         } catch (e: CancellationException) {

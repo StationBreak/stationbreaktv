@@ -175,7 +175,7 @@ class LibrarySelection(
         resumed.await()
         return mutex.withLock {
             withContext(NonCancellable + InSelection) {
-                if (catchUpFirst && cache.roomBehind) reconciler.catchUp(restartPasses = !fromAddPass)
+                if (catchUpFirst && cache.cacheBehind) reconciler.catchUp(restartPasses = !fromAddPass)
                 block()
             }
         }
@@ -321,13 +321,13 @@ class LibrarySelection(
             if (held?.adding.orEmpty().isNotEmpty()) {
                 reconciler.followUp(SelectionEvent.SetupFollowUpFailed) { passes.restart() }
             }
-            cache.room {
+            cache.guarded {
                 cache.branches(account, ids, library.storedLibraries(account))
                 // The cache follows the new choice now, not only when the first sync reads its set: a stay-current
                 // pass before that run meets every chosen library's row, and none of a library the setup dropped.
                 val saved = store.loadSelection()?.takeIf { ownership.owns(account, it) }
                 if (saved != null) {
-                    cache.applyRoom(account, saved, library.storedLibraries(account))
+                    cache.applyToCache(account, saved, library.storedLibraries(account))
                 } else {
                     // The save committed, but the read for its cache write gave nothing: the next operation catches up.
                     cache.markBehind()
@@ -398,12 +398,12 @@ class LibrarySelection(
                 is Allocated.Failed -> return if (outcome.terminal) LandResult.Failed else LandResult.Retry
                 is Allocated.Saved -> next(outcome.seq)
             }
-        cache.room {
+        cache.guarded {
             if (!library.landAdd(account, id, stamp)) {
                 // Lost a race in the cache: branch it again, so a chosen library never keeps a stamp.
                 cache.branches(account, setOf(id), library.storedLibraries(account))
             }
-            if (stored.gone) cache.applyRoom(account, saved, library.storedLibraries(account))
+            if (stored.gone) cache.applyToCache(account, saved, library.storedLibraries(account))
         }
         ownership.publish(saved)
         return LandResult.Landed
@@ -419,7 +419,7 @@ class LibrarySelection(
         locked {
             val stored = store.loadSelection()?.takeIf { ownership.owns(account, it) } ?: return@locked emptySet()
             cache.branches(account, stored.chosen, library.storedLibraries(account))
-            cache.applyRoom(account, stored, library.storedLibraries(account))
+            cache.applyToCache(account, stored, library.storedLibraries(account))
             stored.chosen
         }
 
@@ -456,7 +456,7 @@ class LibrarySelection(
     ) {
         locked(catchUpFirst = false, fromAddPass = true) {
             if (activeAccount() != account) return@locked
-            ownership.giveUp(id, stamp)
+            ownership.giveUp(account, id, stamp)
             ownership.publishOwned(store.loadSelection(), account)
         }
     }
@@ -503,12 +503,12 @@ class LibrarySelection(
     override suspend fun expireHolds(account: LibraryAccount) {
         locked {
             // The catch-up first (in [locked]) failed: the cache may hold an untick owed a hold. The next one retries.
-            if (cache.roomBehind) return@locked
+            if (cache.cacheBehind) return@locked
             if (activeAccount() != account) return@locked
             val stored = store.loadSelection()?.takeIf { ownership.owns(account, it) } ?: return@locked
-            cache.room {
+            cache.guarded {
                 val rows = library.storedLibraries(account)
-                if (rows.any { it.heldUntilMs != null }) cache.applyRoom(account, stored, rows, pins = false)
+                if (rows.any { it.heldUntilMs != null }) cache.applyToCache(account, stored, rows, pins = false)
             }
         }
     }

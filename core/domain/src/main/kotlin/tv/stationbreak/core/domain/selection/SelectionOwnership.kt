@@ -23,8 +23,15 @@ internal class SelectionOwnership(
     private val view = MutableStateFlow<ChoiceView?>(null)
     private val seqs = MutableStateFlow(0L)
 
-    // The adds the add pass gave up in this process, each by its stamp: published as stalled while still stored.
-    private val givenUp = mutableSetOf<Pair<ItemId, Long>>()
+    // The adds the add pass gave up in this process, each by its account and stamp: published as stalled while still
+    // stored for that account, and dropped when the choice is published without them.
+    private val givenUp = mutableSetOf<GivenUp>()
+
+    private data class GivenUp(
+        val account: LibraryAccount,
+        val id: ItemId,
+        val stamp: Long,
+    )
 
     // The account that adopted an older build's record (one naming no owner) at the resume: that record is its own
     // for the life of the process, even when the write naming it the owner failed. Set only by the resume.
@@ -64,19 +71,26 @@ internal class SelectionOwnership(
         publish(stored?.takeIf { account != null && owns(account, it) })
     }
 
-    // Records that the add pass gave up the add of [id] under [stamp] for the life of the process.
+    // Records that the add pass gave up [account]'s add of [id] under [stamp] for the life of the process.
     fun giveUp(
+        account: LibraryAccount,
         id: ItemId,
         stamp: Long,
     ) {
-        givenUp += id to stamp
+        givenUp += GivenUp(account, id, stamp)
     }
+
+    internal fun givenUpCount(): Int = givenUp.size
 
     // Publishes the selection to features, and its seq to the refresher (never back).
     fun publish(stored: StoredSelection?) {
+        // The record's account, as [owns] reads it: its owner, or the account that adopted it when it names none.
+        val account = stored?.let { it.owner ?: adopted }
+        // A give-up that no stored add of its account matches is over: nothing is left to show or to ask again.
+        givenUp.retainAll { g -> account == g.account && stored.adding[g.id] == g.stamp }
         view.value =
             stored?.let { saved ->
-                val stalled = saved.adding.filter { (id, stamp) -> id to stamp in givenUp }.keys
+                val stalled = givenUp.map { it.id }.toSet()
                 ChoiceView(saved.chosen, saved.adding.keys, saved.gone, stalled)
             }
         if (stored != null) seqs.value = maxOf(seqs.value, stored.seq)
