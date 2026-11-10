@@ -49,6 +49,9 @@ class LiveScreenshotTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
+    /** The real clock, which the banner's progress line and "min left" read: the slot is 20 minutes in, 100 to go. */
+    private val now = System.currentTimeMillis()
+
     private val episode =
         ProgramInfo(
             CanonicalId.parse("1".padStart(32, '0')),
@@ -66,10 +69,10 @@ class LiveScreenshotTest {
             label = BannerLabel.Now,
             title = "Pride & Prejudice",
             info = episode,
-            slotStartMs = NOW - 20 * MINUTE,
-            slotEndMs = NOW + 100 * MINUTE,
+            slotStartMs = now - 20 * MINUTE,
+            slotEndMs = now + 100 * MINUTE,
             joinedMs = 29 * MINUTE,
-            next = NextProgram("Roman Holiday", NOW + 100 * MINUTE),
+            next = NextProgram("Roman Holiday", now + 100 * MINUTE),
             actions = actions,
             hasLast = actions,
             recipeKey = "date-night",
@@ -83,7 +86,7 @@ class LiveScreenshotTest {
         compose.setContent {
             StationBreakTheme {
                 Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)) {
-                    LiveScreen(state = state, transport = transport, nowMs = { NOW }) { Backdrop() }
+                    LiveScreen(state = state, transport = transport, nowMs = { now }) { Backdrop() }
                 }
             }
         }
@@ -116,8 +119,8 @@ class LiveScreenshotTest {
                 visible = true,
                 mediaMs = 10 * MINUTE,
                 targetMs = null,
-                asOfMs = NOW,
-                blockStartMs = NOW - 15 * MINUTE,
+                asOfMs = now,
+                blockStartMs = now - 15 * MINUTE,
                 inPointMs = 0,
                 cutMs = 60 * MINUTE,
                 driftMs = 0,
@@ -186,6 +189,5 @@ class LiveScreenshotTest {
         const val FRAME_WAIT_MS = 600L
         const val PNG_QUALITY = 100
         const val MINUTE = 60_000L
-        const val NOW = 1_800_000_000_000L
     }
 }
