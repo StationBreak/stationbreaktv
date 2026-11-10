@@ -76,9 +76,10 @@ interface LibrarySelectionView {
 }
 
 /**
- * How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. Safe to
- * call from Main: each call suspends (the server read, the lock, the store and cache writes are all suspend calls)
- * rather than blocking the caller.
+ * How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. Calls
+ * are made from Main (the screen's dispatcher). The file store switches to IO for its reads and writes, and the cache
+ * writes are suspend DAO calls, but the selection's own work (its decisions and bookkeeping) runs on the caller's
+ * dispatcher.
  */
 interface LibraryChoices : LibrarySelectionView {
     /**
