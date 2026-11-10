@@ -36,3 +36,27 @@ tasks.withType<Test>().configureEach {
     inputs.dir(channelMarks).withPropertyName("channelMarks").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("stationbreak.channelmarks", channelMarks.asFile.absolutePath)
 }
+
+// The repair benchmark is a wall-clock measurement, so it never gates anything: it is left out of `test` (and so of
+// `check`) and runs only through `./gradlew :core:domain:selectionRepairBenchmark` (as core/scheduler does).
+val benchmarkClasses = listOf("*SelectionRepairBenchmark")
+
+tasks.named<Test>("test") {
+    filter { benchmarkClasses.forEach { excludeTestsMatching(it) } }
+}
+
+tasks.register<Test>("selectionRepairBenchmark") {
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    description = "Times a selection change's repair over a synthetic library at real scale. Not part of check."
+    val test = tasks.named<Test>("test").get()
+    testClassesDirs = test.testClassesDirs
+    classpath = test.classpath
+    filter { benchmarkClasses.forEach { includeTestsMatching(it) } }
+    environment("STATIONBREAK_BENCH", "1")
+    // A timing is never "up to date", and the numbers are the point, so show the test's output.
+    outputs.upToDateWhen { false }
+    testLogging {
+        showStandardStreams = true
+        events("passed", "failed")
+    }
+}
