@@ -28,6 +28,13 @@ class ConcurrentBuildPair(
 ) {
     private val service = LineupService(InMemoryLineupStore(), library, Clock.System, { 0 }, {})
 
+    /** How many channels the prepared lineup has on, and how many it has. */
+    var channelsOn = 0
+        private set
+
+    var channels = 0
+        private set
+
     /** Plans the lineup over [libraries] and switches starters on. */
     suspend fun prepare(libraries: Set<ItemId>) {
         service.refresh(account, libraries)
@@ -40,6 +47,8 @@ class ConcurrentBuildPair(
                 on++
             }
         }
+        channels = lineup.channels.size
+        channelsOn = on
     }
 
     /**

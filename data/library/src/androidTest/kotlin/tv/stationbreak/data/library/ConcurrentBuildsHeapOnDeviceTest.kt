@@ -34,7 +34,7 @@ import kotlin.time.Clock
 @RunWith(AndroidJUnit4::class)
 class ConcurrentBuildsHeapOnDeviceTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
-    private val account = LibraryAccount(ServerId("lanes-test-server"), UserId("lanes-test-user"))
+    private val account = LibraryAccount(ServerId(SERVER_HEX), UserId(USER_HEX))
     private val first = ItemId("11111111111111111111111111111111")
     private val second = ItemId("22222222222222222222222222222222")
     private lateinit var repository: RoomLibraryRepository
@@ -122,8 +122,11 @@ class ConcurrentBuildsHeapOnDeviceTest {
             repository.applySelection(account, setOf(first, second), nowMs = 0)
             write(first, itemsOf(first, 'a'))
             write(second, itemsOf(second, 'b'))
+            // A full collection pass has run, so the lineup is planned over the library at once.
+            repository.recordCollectionPass(account, Clock.System.now(), relisted = true)
             val pair = ConcurrentBuildPair(repository, account)
             pair.prepare(setOf(first, second))
+            Log.i(TAG, "lineup: ${pair.channelsOn} on of ${pair.channels}")
             val at = Clock.System.now()
             val baseline = usedHeap()
 
@@ -148,6 +151,10 @@ class ConcurrentBuildsHeapOnDeviceTest {
 
     private companion object {
         const val TAG = "CBH"
+
+        // Canonical ids: the lineup belongs to an account of two of them.
+        const val SERVER_HEX = "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+        const val USER_HEX = "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
         const val ITEMS_EACH = 7_500
         const val PAGE = 400
         const val SAMPLE_MS = 5L
