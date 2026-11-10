@@ -4,6 +4,7 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -11,6 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -33,6 +37,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -243,6 +248,35 @@ class RunnerSyncNowTest {
             assertEquals(SyncNowState.Idle, ended())
         }
 
+    // Follow-up to #654: a listing made for another account than the run's is not walked on, and the press is not
+    // failed for it. (The listing the real selection gives carries its account.)
+    @Test
+    fun aListingForAnotherAccount_isNotRewalked_andThePressIsDone() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            choices.answer = LibraryListing.Listed(listOf(SyncWorld.movies), null, BOB)
+
+            assertTrue(syncNow.start())
+
+            assertTrue(ended() is SyncNowState.Done)
+            assertEquals(null, rig.runner.lastRewalk)
+            assertTrue(lines.any { "ListingAccountMismatch" in it })
+        }
+
+    @Test
+    fun aListingForTheRunsAccount_isRewalked() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            choices.answer = LibraryListing.Listed(listOf(SyncWorld.movies), null, ALICE)
+
+            assertTrue(syncNow.start())
+
+            assertTrue(ended() is SyncNowState.Done)
+            assertNotNull(rig.runner.lastRewalk)
+        }
+
     // An empty listing is the answer the selection does not trust: nothing runs.
     @Test
     fun emptyListing_failedSuspect_nothingRuns() =
@@ -276,4 +310,26 @@ class RunnerSyncNowTest {
     private companion object {
         val TIMEOUT = 10.seconds
     }
+
+    // Follow-up to #654: a press whose run never finishes (here the follow of its listing never ends) is ended by its
+    // timeout as a server failure, in virtual time, and a press after it is accepted.
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun aPressThatNeverFinishes_endsAsAServerFailureAfterTheTimeout() =
+        runTest {
+            val hung = CountingChoices().also { it.followGate = CompletableDeferred() }
+            val limit = 5.minutes
+            val press = RunnerSyncNow(hung, rig.runner, backgroundScope, rig.clock, limit)
+
+            assertTrue(press.start())
+            advanceTimeBy(limit - 1.seconds)
+            runCurrent()
+            assertEquals("still waiting just before the limit", SyncNowState.Running, press.state.value)
+
+            advanceTimeBy(2.seconds)
+            runCurrent()
+
+            assertEquals(SyncNowState.Failed(SyncFailure.Server, changedNothing = false), press.state.value)
+            assertTrue("a new press is accepted", press.start())
+        }
 }

@@ -152,6 +152,49 @@ class StayCurrentAfterPassesTest {
             assertFalse("not recorded as a failure", state is SyncState.LastSyncFailed)
         }
 
+    // #654 follow-up: a sign-out that lands in the after-passes hook does not turn the run that completed into a
+    // cancelled one; the hook's own work (here the listing's follow) is skipped, as for the backfill.
+    @Test
+    fun aSignOutDuringTheAfterPassesHook_leavesTheRunCompleted() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            rig.onExpire = { throw AccountNotActiveException() }
+
+            assertEquals(SyncOutcome.Completed, rig.runner.outcome(both))
+
+            assertEquals("the follow never ran", listOf("expire"), rig.asked)
+        }
+
+    // #654 follow-up: a Sync now press hands the run the account its listing was made for. Another account's listing
+    // is not walked on (the run's own account is what the rewalk writes to), and the run is not failed for it.
+    @Test
+    fun aListingForAnotherAccount_isNotRewalked_andTheRunStillCompletes() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            val listed = ServerResult.Success(listOf(SyncWorld.movies))
+
+            val outcome = rig.runner.runWaiting(both, followServer = false, listed = listed, listedFor = BOB)
+
+            assertEquals(SyncOutcome.Completed, outcome)
+            assertNull("no rewalk on another account's listing", rig.runner.lastRewalk)
+            assertTrue(lines.any { "ListingAccountMismatch" in it })
+        }
+
+    @Test
+    fun aListingForTheRunsOwnAccount_isRewalked() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            val listed = ServerResult.Success(listOf(SyncWorld.movies))
+
+            val outcome = rig.runner.runWaiting(both, followServer = false, listed = listed, listedFor = ALICE)
+
+            assertEquals(SyncOutcome.Completed, outcome)
+            assertNotNull(rig.runner.lastRewalk)
+        }
+
     // Spec 26, Task 4.5, through the real selection: an item owned by a held library and listed by a chosen one stays
     // with its held owner, and the expiry after the next completed pass moves it to the chosen lister.
     @Test

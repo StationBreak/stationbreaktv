@@ -160,13 +160,18 @@ class StayCurrentRunner(
      * for, not skipped, so two never run at once. With [followServer] false the run does not list the server's
      * libraries after its passes, nor while the selection is gone: its caller has already listed them once, and handed
      * the selection that listing to follow. The holds still expire, and the rewalk walks on [listed], that same listing
-     * (with none, the rewalk is skipped).
+     * (with none, the rewalk is skipped). [listedFor] is the account that listing was made for, when the caller knows
+     * it: a listing for another account than the run's is not walked on (the run is not failed for it).
      */
     internal suspend fun runWaiting(
         plan: SyncPlan,
         followServer: Boolean,
         listed: ServerResult<List<Library>>? = null,
-    ): SyncOutcome = gated(plan, wait = true, if (followServer) AfterPasses.Follow else AfterPasses.Listed(listed))
+        listedFor: LibraryAccount? = null,
+    ): SyncOutcome {
+        val after = if (followServer) AfterPasses.Follow else AfterPasses.Listed(listed, listedFor)
+        return gated(plan, wait = true, after)
+    }
 
     @Suppress("ReturnCount") // Each early return is a run that does nothing.
     private suspend fun gated(
@@ -282,20 +287,47 @@ class StayCurrentRunner(
         // success it just recorded is what lets the hold-expiry clock guard trust the clock). The rewalk, on that
         // listing, needs the whole run to have completed. None of them ever changes how the run ended. A run handed
         // its caller's listing (Sync now) only expires the holds, and rewalks on that listing.
-        val listed =
+        // A sign-out that lands inside the hook skips what is left of it and the rewalk, and the run stays as its
+        // passes ended it (as for the backfill). A listing made for another account than the run's is not walked on.
+        val hooked =
             if (outcome == SyncOutcome.Completed || (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled)) {
-                when (after) {
-                    AfterPasses.Follow -> steps.expireAndFollow(session, account)
-                    is AfterPasses.Listed -> after.listed.also { steps.expire(account) }
-                }
+                afterPasses(after, session, account)
             } else {
-                null
+                Hooked(null)
             }
-        if (outcome == SyncOutcome.Completed) steps.rewalk(session, account, listed)?.let { lastRewalk = it }
+        if (outcome == SyncOutcome.Completed && !hooked.signedOut) {
+            steps.rewalk(session, account, hooked.listed)?.let { lastRewalk = it }
+        }
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
         if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
         return outcome
     }
+
+    // The after-passes hook: the holds that ended expire and the run's listing is followed (or its caller's is used).
+    private suspend fun afterPasses(
+        after: AfterPasses,
+        session: Session,
+        account: LibraryAccount,
+    ): Hooked =
+        try {
+            when (after) {
+                AfterPasses.Follow -> {
+                    Hooked(steps.expireAndFollow(session, account))
+                }
+
+                is AfterPasses.Listed -> {
+                    steps.expire(account)
+                    if (after.listedFor == null || after.listedFor == account) {
+                        Hooked(after.listed)
+                    } else {
+                        report.say("ListingAccountMismatch")
+                        Hooked(null)
+                    }
+                }
+            }
+        } catch (_: AccountNotActiveException) {
+            Hooked(null, signedOut = true)
+        }
 
     @Suppress("ReturnCount") // Each early return is a pass that did not complete.
     private suspend fun stayCurrent(
@@ -448,8 +480,16 @@ private sealed interface AfterPasses {
 
     data class Listed(
         val listed: ServerResult<List<Library>>?,
+        val listedFor: LibraryAccount?,
     ) : AfterPasses
 }
+
+// What the after-passes hook gave: the listing the rewalk walks on (null when there is none), or that a sign-out landed
+// inside it.
+private class Hooked(
+    val listed: ServerResult<List<Library>>?,
+    val signedOut: Boolean = false,
+)
 
 // How the passes of a run ended, whether the incremental pass was in the plan and completed (the re-read's cue), and
 // what each pass that ran wrote (null for one that did not run).
