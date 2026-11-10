@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
-import android.content.Context
 import android.view.KeyEvent
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
@@ -14,7 +13,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.UninstallModules
@@ -27,19 +25,16 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import tv.stationbreak.app.di.LibraryModule
+import tv.stationbreak.app.di.LibraryWorkModule
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
 import tv.stationbreak.core.domain.AccountCache
-import tv.stationbreak.core.domain.AccountCaches
-import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.InMemoryFirstSync
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.InMemoryServerSettings
-import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -96,7 +91,7 @@ private object Syncing {
  * focus while it syncs, and that Back leaves the app with the sync still going.
  */
 @HiltAndroidTest
-@UninstallModules(MediaServerModule::class, LibraryModule::class, PlayerModule::class)
+@UninstallModules(MediaServerModule::class, LibraryWorkModule::class, PlayerModule::class)
 @RunWith(AndroidJUnit4::class)
 @Suppress("TooManyFunctions") // One function per route and behaviour.
 class FirstSyncNavigationTest {
@@ -137,13 +132,6 @@ class FirstSyncNavigationTest {
             library: AccountCache,
         ): SessionRepository = SessionRepository(store, server, library)
 
-        // What sign-in and sign-out tell, built as LibraryModule builds it: the saved library, then the built days.
-        @Provides
-        fun accountCache(
-            repository: RoomLibraryRepository,
-            days: DayStore,
-        ): AccountCache = AccountCaches(repository, days)
-
         // The live screen is in the graph: its clock, and a player that is never made (no real HTTP client here).
         @Provides
         fun clock(): Clock = Clock.System
@@ -155,21 +143,11 @@ class FirstSyncNavigationTest {
         @Singleton
         fun firstSync(): FirstSync = Syncing.firstSync
 
-        // The saved library itself is real; only its first-sync status is scripted.
-        @Provides
-        @Singleton
-        fun roomLibraryRepository(
-            @ApplicationContext context: Context,
-        ): RoomLibraryRepository = RoomLibraryRepository.create(context)
-
-        // The lineup refresher, started by the Application, reads the saved library (spec 12).
-        @Provides
-        fun libraryRepository(repository: RoomLibraryRepository): LibraryRepository = repository
-
+        // The saved library itself is real (LibraryModule's); only its first-sync status is scripted.
         // The Application's entry point asks for it; the worker is not run in this test.
         @Provides
         @Singleton
-        @Suppress("LongParameterList") // As LibraryModule builds it.
+        @Suppress("LongParameterList") // As LibraryWorkModule builds it.
         fun firstSyncRunner(
             settings: ServerSettings,
             sessions: SessionRepository,
@@ -186,7 +164,7 @@ class FirstSyncNavigationTest {
         // The Application's entry point asks for it; the add worker is not run in this test.
         @Provides
         @Singleton
-        @Suppress("LongParameterList") // As LibraryModule builds it.
+        @Suppress("LongParameterList") // As LibraryWorkModule builds it.
         fun addedLibrariesRunner(
             settings: ServerSettings,
             sessions: SessionRepository,

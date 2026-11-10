@@ -55,7 +55,7 @@ internal class SelectionReconciler(
             // A reload that read nothing skips the raise and the reconcile: the next operation catches up.
             if (current != null && account != null && ownership.owns(account, current)) {
                 raise(account, current)
-                reconcileRoom(account)
+                reconcileCache(account)
             }
         }
     }
@@ -74,7 +74,7 @@ internal class SelectionReconciler(
     @Suppress("TooGenericExceptionCaught") // Whatever the cache throws, the operation goes on from the settings.
     suspend fun catchUp(restartPasses: Boolean) {
         try {
-            ownership.activeAccount()?.let { reconcileRoom(it, restartPasses) }
+            ownership.activeAccount()?.let { reconcileCache(it, restartPasses) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -87,7 +87,7 @@ internal class SelectionReconciler(
     // stamp, whose untick never reached the cache, or one set back) is not dropped from the adds: the cache write
     // holds it first and then stamps it, so the viewer's tick stands and nothing loops. [restartPasses] is false when
     // the add pass itself is the caller.
-    private suspend fun reconcileRoom(
+    private suspend fun reconcileCache(
         account: LibraryAccount,
         restartPasses: Boolean = true,
     ) {
@@ -104,7 +104,7 @@ internal class SelectionReconciler(
             return
         }
         val changed = cache.branches(account, stored.chosen, library.storedLibraries(account))
-        cache.applyRoom(account, stored, library.storedLibraries(account))
+        cache.applyToCache(account, stored, library.storedLibraries(account))
         cache.markInLine()
         // The cache is written: a restart that throws now must not skip the first sync's request below (D6).
         if (stored.adding.isNotEmpty() && restartPasses) restartPasses()
@@ -128,7 +128,7 @@ internal class SelectionReconciler(
         stored: StoredSelection,
         saved: StoredSelection,
     ) {
-        cache.room { cache.applyRoom(account, saved, library.storedLibraries(account)) }
+        cache.guarded { cache.applyToCache(account, saved, library.storedLibraries(account)) }
         if (saved.adding.keys != stored.adding.keys) restartPasses()
         ownership.publish(saved)
     }

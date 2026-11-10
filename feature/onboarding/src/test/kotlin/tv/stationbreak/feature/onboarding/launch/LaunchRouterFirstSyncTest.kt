@@ -71,7 +71,7 @@ class LaunchRouterFirstSyncTest {
         runBlocking { sessions.save(session) }
         fake.resumeResult = ServerResult.Success(session)
         val settings = InMemoryServerSettings(ServerRecord(https), chosen)
-        return runBlocking { LaunchRouter(settings, sessions, fake, firstSync).route() }
+        return runBlocking { launchRouterForTest(settings, sessions, fake, firstSync).route() }
     }
 
     // Binding item 3 (spec 26, Task 4.5): the stored choice is read only once the selection's resume has run. A
@@ -82,7 +82,7 @@ class LaunchRouterFirstSyncTest {
         fake.resumeResult = ServerResult.Success(session)
         val settings = InMemoryServerSettings(ServerRecord(https), setOf(ItemId("movies")))
         val gate = ResumeGate()
-        val router = LaunchRouter(settings, sessions, fake, InMemoryFirstSync(never), gate)
+        val router = launchRouterForTest(settings, sessions, fake, InMemoryFirstSync(never), gate)
 
         val route =
             runBlocking {
@@ -142,7 +142,7 @@ class LaunchRouterFirstSyncTest {
         runBlocking { sessions.save(session) }
         fake.resumeResult = ServerResult.Success(session)
         val settings = InMemoryServerSettings(ServerRecord(https), setOf(ItemId("movies")))
-        val router = LaunchRouter(settings, sessions, fake, InMemoryFirstSync(never))
+        val router = launchRouterForTest(settings, sessions, fake, InMemoryFirstSync(never))
         val vm =
             LaunchViewModel(
                 router,

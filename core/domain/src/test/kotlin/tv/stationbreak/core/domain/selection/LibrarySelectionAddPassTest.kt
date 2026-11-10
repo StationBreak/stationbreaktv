@@ -193,4 +193,48 @@ internal class LibrarySelectionAddPassTest : SelectionTestBase() {
 
         assertTrue(assertNotNull(tv.selection.selection.value).stalled.isEmpty())
     }
+
+    // A give-up is the account's own: the same id and stamp stored for another account does not show as given up.
+    @Test
+    fun aGiveUpOfOneAccount_doesNotStallTheSameAddOfAnother() {
+        val (tv, stamp) = adding()
+        val ownership = SelectionOwnership(tv.library)
+        val mine = assertNotNull(tv.stored()).copy(owner = ACCOUNT)
+
+        ownership.giveUp(ACCOUNT, libB, stamp)
+        ownership.publish(mine)
+        assertEquals(setOf(libB), assertNotNull(ownership.selection.value).stalled)
+
+        ownership.publish(mine.copy(owner = other))
+        assertTrue(assertNotNull(ownership.selection.value).stalled.isEmpty(), "not given up on the other account")
+    }
+
+    // Publishing nothing prunes nothing: a give-up recorded before a null publish still shows once the choice returns.
+    @Test
+    fun aGiveUp_survivesAPublishOfNothing() {
+        val (tv, stamp) = adding()
+        val ownership = SelectionOwnership(tv.library)
+        val mine = assertNotNull(tv.stored()).copy(owner = ACCOUNT)
+
+        ownership.giveUp(ACCOUNT, libB, stamp)
+        ownership.publish(null)
+        ownership.publish(mine)
+
+        assertEquals(setOf(libB), assertNotNull(ownership.selection.value).stalled)
+    }
+
+    // What no stored add matches is dropped when the choice is published, so the set does not grow for ever.
+    @Test
+    fun aGiveUpNoStoredAddMatches_isPrunedAtPublish() {
+        val (tv, stamp) = adding()
+        val ownership = SelectionOwnership(tv.library)
+        val mine = assertNotNull(tv.stored()).copy(owner = ACCOUNT)
+
+        ownership.giveUp(ACCOUNT, libB, stamp)
+        ownership.publish(mine.copy(adding = emptyMap()))
+        assertEquals(0, ownership.givenUpCount(), "the add is no longer stored")
+
+        ownership.publish(mine)
+        assertTrue(assertNotNull(ownership.selection.value).stalled.isEmpty(), "and it stays dropped")
+    }
 }

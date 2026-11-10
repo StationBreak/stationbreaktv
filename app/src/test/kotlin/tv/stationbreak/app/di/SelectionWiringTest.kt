@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app.di
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -57,6 +59,7 @@ class SelectionWiringTest {
             InMemoryFirstSync(),
             StayCurrentRequests {},
             gate,
+            CoroutineScope(SupervisorJob()),
         )
     }
 
