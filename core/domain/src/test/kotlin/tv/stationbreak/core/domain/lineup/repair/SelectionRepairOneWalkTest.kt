@@ -87,7 +87,8 @@ internal class SelectionRepairOneWalkTest {
 
             val phases = clock.phases()
             assertTrue(phases.walkTxMs >= 1, "the walk's transaction time was recorded: ${phases.line()}")
-            assertTrue(phases.line().endsWith("walkTxMs=${phases.walkTxMs}"), "it is the last field: ${phases.line()}")
+            val tail = " walkTxMs=${phases.walkTxMs} lanesWaitMs=${phases.lanesWaitMs} buildCpuMs=${phases.buildCpuMs}"
+            assertTrue(phases.line().endsWith(tail), "walkTxMs, then the lane fields, end the line: ${phases.line()}")
         }
 
     @Test

@@ -229,7 +229,7 @@ class TodayRepairer internal constructor(
                     // normal priority. The record, the save and the settle stay on [dispatcher], so their order holds.
                     val planned =
                         withContext(planning) {
-                            SelectionRepair(days, library, account, held, change, shared, clock).plan(today)
+                            SelectionRepair(days, library, account, held, change, shared, clock, source.probes).plan(today)
                         }
                     val repaired = SelectionRepaired(seq, planned.pins)
                     clock.time(RepairPhase.Write) {
