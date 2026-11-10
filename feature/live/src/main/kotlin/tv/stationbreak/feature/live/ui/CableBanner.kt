@@ -2,51 +2,41 @@
 package tv.stationbreak.feature.live.ui
 
 import android.text.format.DateFormat
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.StartOffset
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LongState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.BroadcastType
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.core.ui.guideFigures
+import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
@@ -54,91 +44,98 @@ import tv.stationbreak.feature.live.R
 import java.time.ZoneId
 import java.util.Locale
 
-private const val RULE_HEIGHT = 4
-private const val TINT_ALPHA = 0.08f
+/** The tune banner: 2 dp progress line and a 54 dp row inside a 1 dp border. */
+private val TuneHeight = 58.dp
 
-private val CornerSize = 72.sp
-private val NumberSize = 36.sp
-private val TitleSize = 26.sp
-private val LabelSize = 14.sp
-private val NameSize = 14.sp
-private val DetailSize = 16.sp
-private val ShadowOffset = Offset(3f, 3f)
-private val BAR_HEIGHTS = listOf(5, 8, 12, 16)
-private const val BAR_PULSE_MS = 600
-private const val BAR_STAGGER_MS = 200
-private const val BAR_LOW_ALPHA = 0.25f
+/** The Select banner: the tune banner and a 1 dp rule and a 43 dp row of buttons, 102 dp in all. */
+private val SelectHeight = 102.dp
+private val ProgressHeight = 2.dp
+private val RowHeight = 54.dp
+private val SidePadding = 16.dp
+private val LabelSize = 8.5.sp
+private val NumberSize = 13.sp
+private val TitleSize = 15.sp
+private val MetaSize = 11.sp
+private val FlipNumberSize = 20.sp
+private val FlipNameSize = 15.sp
+private val NextMaxWidth = 280.dp
 
 /**
- * The cable-box banner (design: board D's layout in board E2's brand styling): the channel number large in the corner
- * (when [cornerNumber]), and a bottom strip with the number and name, the signal bars and label, the title, the
- * episode line when there is one, and the slot with how far in the viewer joined. Under the title a progress bar,
- * redrawn once a minute from [clock] without recomposing, and the "Next" line. The banner the viewer asked for
- * ([Banner.actions]) adds an Info and a Last button, which call [onInfo] and [onLast], and a Live button (while
- * [behind]: the viewer is paused or behind live) that calls [onLive]. Inside a 5% safe area.
+ * The tune banner, in the guide's design (Dark tokens, Manrope): a 2 dp progress line along the top, then one row with
+ * the channel's mark and number, the title and one line (the label, the episode line, the slot, the minutes left), and
+ * on the right the "Next" line. The banner the viewer asked for ([Banner.actions]) adds a rule and a row with an Info
+ * and a Last button, which call [onInfo] and [onLast], and a Live button (while [behind]: the viewer is paused or
+ * behind
+ * live) that calls [onLive]. The progress line and the minutes left are redrawn once a minute from [clock]. Inside the
+ * 5% safe area.
  */
-@Suppress("LongParameterList") // The banner, its two actions and a clock a test can set.
+@Suppress("LongParameterList") // The banner, its three actions and a clock a test can set.
 @Composable
 internal fun CableBanner(
     banner: Banner,
     modifier: Modifier = Modifier,
-    cornerNumber: Boolean = true,
     onInfo: () -> Unit = {},
     onLast: () -> Unit = {},
     onLive: () -> Unit = {},
     behind: Boolean = false,
     clock: () -> Long = System::currentTimeMillis,
 ) {
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
-        val side = safe.left
-        val edge = safe.top
-        if (cornerNumber) {
-            Text(
-                text = channelNumber(banner.number),
-                modifier = Modifier.align(Alignment.TopEnd).padding(end = side, top = edge),
-                style =
-                    TextStyle(
-                        fontFamily = BroadcastType.Display,
-                        fontSize = CornerSize,
-                        color = BroadcastColors.Accent,
-                        shadow = Shadow(BroadcastColors.Ink, ShadowOffset),
-                    ),
+    ChromeTheme {
+        BoxWithConstraints(modifier.fillMaxSize()) {
+            val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
+            BannerStrip(
+                banner,
+                Modifier.align(Alignment.BottomCenter).padding(start = safe.left, end = safe.left, bottom = safe.top),
+                Actions(onInfo, onLast, onLive),
+                behind,
+                clock,
             )
         }
-        BannerStrip(
-            banner,
-            Modifier.align(Alignment.BottomCenter).padding(start = side, end = side, bottom = edge),
-            Actions(onInfo, onLast, onLive),
-            behind,
-            clock,
-        )
     }
 }
 
 /**
- * The strip of a card with no show to name (an ident or slate with nothing coming up): the number and name of the
- * channel, in the banner's own chrome, and no program lines.
+ * The bar of a channel flip, and of a card with no show to name (an ident or slate with nothing coming up): the
+ * channel's mark, number and name in the banner's own chrome, and no program lines.
  */
 @Composable
 internal fun ChannelBanner(
     channel: ChannelTag,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
-        val side = safe.left
-        val edge = safe.top
-        Column(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .padding(start = side, end = side, bottom = edge)
-                .fillMaxWidth()
-                .background(BroadcastColors.Ink)
-                .testTag(LiveTags.BANNER),
-        ) {
-            Box(Modifier.fillMaxWidth().height(RULE_HEIGHT.dp).background(BroadcastColors.Accent))
-            Row(Modifier.height(IntrinsicSize.Min)) { NumberBlock(channel.number, channel.name) }
+    ChromeTheme {
+        val colors = LocalGuideColors.current
+        BoxWithConstraints(modifier.fillMaxSize()) {
+            val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = safe.left, end = safe.left, bottom = safe.top)
+                    .fillMaxWidth()
+                    .height(TuneHeight)
+                    .chromeSurface(colors)
+                    .padding(horizontal = SidePadding)
+                    .testTag(LiveTags.BANNER),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ChannelMarkBox(channel.recipeKey, channel.name)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = channelNumber(channel.number),
+                    style = guideFigures(FlipNumberSize, FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = channel.name,
+                    modifier = Modifier.weight(1f).testTag(LiveTags.BANNER_CHANNEL),
+                    style = guideText(FlipNameSize, FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -149,7 +146,7 @@ private fun channelNumber(number: Int) = String.format(Locale.ROOT, "%02d", numb
 internal fun channelLine(
     number: Int,
     name: String,
-) = channelNumber(number) + " \u00B7 " + name
+) = channelNumber(number) + " · " + name
 
 @Composable
 private fun BannerStrip(
@@ -159,109 +156,166 @@ private fun BannerStrip(
     behind: Boolean,
     clock: () -> Long,
 ) {
+    val colors = LocalGuideColors.current
     val context = LocalContext.current
-    val copy = remember(context) { BannerCopy.from(context.resources) }
     val programCopy = remember(context) { ProgramCopy.from(context.resources) }
     val is24h = remember(context) { DateFormat.is24HourFormat(context) }
     val slot =
         remember(banner, is24h) {
             ProgramText.slot(banner.slotStartMs, banner.slotEndMs, ZoneId.systemDefault(), is24h)
         }
-    val joined = remember(banner) { BannerText.joined(banner.joinedMs, copy) }
     val episode = remember(banner) { BannerText.episodeLine(banner.info, programCopy) }
     val next =
         remember(banner, is24h) {
             banner.next?.let { BannerText.nextLine(it, programCopy, ZoneId.systemDefault(), is24h) }
         }
+    val now = rememberMinuteClock(clock)
     Column(
         modifier
             .fillMaxWidth()
-            .background(BroadcastColors.Ink)
+            .height(if (banner.actions) SelectHeight else TuneHeight)
+            .chromeSurface(colors)
+            .padding(1.dp)
             .testTag(LiveTags.BANNER),
     ) {
-        Box(Modifier.fillMaxWidth().height(RULE_HEIGHT.dp).background(BroadcastColors.Accent))
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            NumberBlock(banner.number, banner.channelName)
+        if (banner.label == BannerLabel.UpNext) {
+            Spacer(Modifier.height(ProgressHeight))
+        } else {
+            ProgressLine(banner.slotStartMs, banner.slotEndMs, programCopy, now)
+        }
+        BannerRow(banner, BannerLines(episode, slot, next), programCopy, now)
+        if (banner.actions) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
+            ActionsRow(banner.hasLast, actions, behind)
+        }
+    }
+}
+
+/** What the banner's row writes besides the title: the episode line, the slot, and the "Next" line. */
+private class BannerLines(
+    val episode: String?,
+    val slot: String,
+    val next: String?,
+)
+
+/** The 54 dp row: the mark and number, the title and meta line, and the "Next" line on the right. */
+@Composable
+private fun BannerRow(
+    banner: Banner,
+    lines: BannerLines,
+    programCopy: ProgramCopy,
+    now: LongState,
+) {
+    val colors = LocalGuideColors.current
+    Row(
+        Modifier.fillMaxWidth().height(RowHeight).padding(horizontal = SidePadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ChannelMarkBox(banner.recipeKey, banner.channelName)
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = channelNumber(banner.number),
+            style = guideFigures(NumberSize, FontWeight.Medium),
+            color = colors.textSecondary,
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
+            banner.title?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier.fillMaxWidth().testTag(LiveTags.BANNER_TITLE),
+                    style = guideText(TitleSize, FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            MetaLine(banner, lines.episode, lines.slot, programCopy, now)
+        }
+        lines.next?.let {
             Column(
-                Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                Modifier.padding(start = SidePadding).widthIn(max = NextMaxWidth),
+                horizontalAlignment = Alignment.End,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LabelLine(banner.label)
-                    Row(Modifier.weight(1f).padding(start = 16.dp), horizontalArrangement = Arrangement.End) {
-                        Detail(slot, LiveTags.BANNER_SLOT, Modifier.weight(1f, fill = false))
-                        joined?.let {
-                            Detail(SEPARATOR, null)
-                            Detail(it, LiveTags.BANNER_JOINED, Modifier.weight(1f, fill = false))
-                        }
-                    }
-                }
-                banner.title?.let {
-                    Text(
-                        text = it,
-                        modifier = Modifier.fillMaxWidth().testTag(LiveTags.BANNER_TITLE),
-                        style = TextStyle(fontFamily = BroadcastType.Display, fontSize = TitleSize),
-                        color = BroadcastColors.Cream,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                episode?.let { Detail(it, LiveTags.BANNER_SUBTITLE, Modifier.fillMaxWidth()) }
-                if (banner.label != BannerLabel.UpNext) {
-                    ProgressBar(banner.slotStartMs, banner.slotEndMs, programCopy, clock)
-                }
-                next?.let { Detail(it, LiveTags.BANNER_NEXT, Modifier.fillMaxWidth()) }
-                if (banner.actions) ActionsRow(banner.hasLast, actions, behind)
+                Text(
+                    text = it,
+                    modifier = Modifier.testTag(LiveTags.BANNER_NEXT),
+                    style = guideText(MetaSize, FontWeight.Normal),
+                    color = colors.textSecondary,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
 }
 
-private const val SEPARATOR = " · "
-
+/**
+ * The one 11 sp line under the title: the label (NOW, TUNING IN, UP NEXT or FILLING IN), the episode line when there is
+ * one, the slot, and the minutes left (not on a card for what comes next, which has not begun). The episode line gives
+ * way first when the line is long.
+ */
 @Composable
-private fun NumberBlock(
-    number: Int,
-    name: String,
+private fun MetaLine(
+    banner: Banner,
+    episode: String?,
+    slot: String,
+    copy: ProgramCopy,
+    now: LongState,
 ) {
-    Column(
-        Modifier
-            .fillMaxHeight()
-            .widthIn(min = 150.dp, max = 280.dp)
-            .background(BroadcastColors.Cream.copy(alpha = TINT_ALPHA))
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
-    ) {
+    val colors = LocalGuideColors.current
+    val style = guideText(MetaSize, FontWeight.Normal)
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = channelNumber(number),
-            style = TextStyle(fontFamily = BroadcastType.Display, fontSize = NumberSize),
-            color = BroadcastColors.Cream,
+            text = stringResource(labelText(banner.label)).uppercase(Locale.getDefault()),
+            style = guideText(LabelSize, FontWeight.Bold).copy(letterSpacing = 0.6.sp),
+            color = colors.accent,
             maxLines = 1,
         )
+        episode?.let {
+            Separator()
+            Text(
+                text = it,
+                modifier = Modifier.weight(1f, fill = false).testTag(LiveTags.BANNER_SUBTITLE),
+                style = style,
+                color = colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Separator()
         Text(
-            text = name.uppercase(),
-            modifier = Modifier.testTag(LiveTags.BANNER_CHANNEL),
-            style = mono(NameSize, letterSpacing = 1.5.sp),
-            color = BroadcastColors.Ground,
+            text = slot,
+            modifier = Modifier.testTag(LiveTags.BANNER_SLOT),
+            style = guideFigures(MetaSize, FontWeight.Normal),
+            color = colors.textSecondary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
+        if (banner.label != BannerLabel.UpNext) {
+            Separator()
+            Text(
+                text = copy.minutesLeft(BannerText.minutesLeft(banner.slotStartMs, banner.slotEndMs, now.longValue)),
+                style = style,
+                color = colors.textSecondary,
+                maxLines = 1,
+            )
+        }
     }
 }
 
 @Composable
-private fun LabelLine(label: BannerLabel) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        SignalBars()
-        Text(
-            text = stringResource(labelText(label)),
-            style = mono(LabelSize, letterSpacing = 2.sp),
-            color = BroadcastColors.Accent,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+private fun Separator() {
+    Text(
+        text = SEPARATOR,
+        style = guideText(MetaSize, FontWeight.Normal),
+        color = LocalGuideColors.current.textSecondary,
+        maxLines = 1,
+    )
 }
+
+private const val SEPARATOR = " · "
 
 private fun labelText(label: BannerLabel) =
     when (label) {
@@ -270,57 +324,3 @@ private fun labelText(label: BannerLabel) =
         BannerLabel.UpNext -> R.string.live_label_up_next
         BannerLabel.FillingIn -> R.string.live_label_filling_in
     }
-
-@Composable
-private fun Detail(
-    text: String,
-    tag: String?,
-    modifier: Modifier = Modifier,
-) {
-    Text(
-        text = text,
-        modifier = if (tag == null) modifier else modifier.testTag(tag),
-        style = mono(DetailSize),
-        color = BroadcastColors.Ground,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-private fun mono(
-    size: TextUnit,
-    letterSpacing: TextUnit = TextUnit.Unspecified,
-) = TextStyle(
-    fontFamily = BroadcastType.Mono,
-    fontWeight = FontWeight.Bold,
-    fontSize = size,
-    letterSpacing = letterSpacing,
-)
-
-/** Four bars that pulse one after the other, as on a cable box that is finding the signal. Purely decorative. */
-@Composable
-private fun SignalBars() {
-    val pulse = rememberInfiniteTransition(label = "signal")
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
-        BAR_HEIGHTS.forEachIndexed { index, bar ->
-            val alpha =
-                pulse.animateFloat(
-                    initialValue = BAR_LOW_ALPHA,
-                    targetValue = 1f,
-                    animationSpec =
-                        infiniteRepeatable(
-                            tween(BAR_PULSE_MS, easing = FastOutSlowInEasing),
-                            RepeatMode.Reverse,
-                            StartOffset(index * BAR_STAGGER_MS),
-                        ),
-                    label = "bar$index",
-                )
-            Box(
-                Modifier
-                    .size(width = 4.dp, height = bar.dp)
-                    .graphicsLayer { this.alpha = alpha.value }
-                    .background(BroadcastColors.Accent),
-            )
-        }
-    }
-}

@@ -754,5 +754,5 @@ internal class Flipper(
     /** Writes the line of a press that was not acted on, with the label of why and the state on screen (#392). */
     private fun dropped(reason: String) = report(TuneReport.PressDropped(reason, screen.value.javaClass.logName()))
 
-    private fun ChannelAiring.tag() = ChannelTag(number, name)
+    private fun ChannelAiring.tag() = ChannelTag(number, name, recipeKey)
 }

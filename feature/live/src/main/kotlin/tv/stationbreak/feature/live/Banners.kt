@@ -37,7 +37,18 @@ internal fun bannerFor(
     val start = block.startMs - driftMs
     val after = next?.let { nextOf(it, driftMs) }
     val end = block.endMs - driftMs
-    return Banner(channel.number, channel.name, label, titleOf(info), info, start, end, joinedMs, after)
+    return Banner(
+        channel.number,
+        channel.name,
+        label,
+        titleOf(info),
+        info,
+        start,
+        end,
+        joinedMs,
+        after,
+        recipeKey = channel.recipeKey,
+    )
 }
 
 /** [block] as the banner's "Next" line, titled as [bannerFor] titles it; null for a block with no name to show. */
@@ -106,7 +117,7 @@ private fun List<AiringBlock>.firstProgramBefore(limitMs: Long): AiringBlock? =
     firstOrNull { (it.airing as? Airing.Program)?.info != null && it.startMs < limitMs }
 
 /** What a card without an "up next" says: the channel's number and name. */
-internal fun ChannelOnAir.tag() = ChannelTag(channel.number, channel.name)
+internal fun ChannelOnAir.tag() = ChannelTag(channel.number, channel.name, channel.recipeKey)
 
 /**
  * The wider look for the banner's "Next" ([upNextBlock]), made once the picture is up. It fills the line in only if

@@ -65,6 +65,7 @@ class LiveScreenshotTest {
             next = NextProgram("Roman Holiday", NOW + 100 * MINUTE),
             actions = actions,
             hasLast = actions,
+            recipeKey = "date-night",
         )
 
     private fun shoot(
@@ -91,7 +92,7 @@ class LiveScreenshotTest {
     fun theSelectBanner() = shoot("live-select.png", LiveState.Watching(banner(actions = true)))
 
     @Test
-    fun theChannelFlip() = shoot("live-flip.png", LiveState.Choosing(ChannelTag(162, "Date Night"), overPicture = true))
+    fun theChannelFlip() = shoot("live-flip.png", LiveState.Choosing(ChannelTag(162, "Date Night", "date-night"), overPicture = true))
 
     @Test
     fun theTransportStrip() =

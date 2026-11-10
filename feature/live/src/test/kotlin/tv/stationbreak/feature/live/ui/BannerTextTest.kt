@@ -18,7 +18,6 @@ import java.util.Locale
  * and episode rules themselves are tested in core:ui; here only the banner's delegation to them is checked.
  */
 class BannerTextTest {
-    private val banner = StringsXml.bannerCopy()
     private val copy = StringsXml.programCopy()
     private val id = CanonicalId.parse("1".padStart(32, '0'))
 
@@ -26,23 +25,6 @@ class BannerTextTest {
         season: Int?,
         number: Int?,
     ) = ProgramInfo(id, ScheduleItemKind.Episode, "Episode One", "Test Series B", season, number)
-
-    @Test
-    fun joinedUnderAMinuteIsJustStarted() {
-        assertEquals("Just started", BannerText.joined(0, banner))
-        assertEquals("Just started", BannerText.joined(59_999, banner))
-    }
-
-    @Test
-    fun joinedTwelveMinutesIn() {
-        assertEquals("joining 12 min in", BannerText.joined(12 * 60_000L + 20_000, banner))
-        assertEquals("joining 1 min in", BannerText.joined(60_000, banner))
-    }
-
-    @Test
-    fun noJoinedLineWhenTheShowCutInAtItsStart() {
-        assertNull(BannerText.joined(null, banner))
-    }
 
     @Test
     fun episodeLineIsSeasonAndEpisodeAndTitle() {
@@ -124,13 +106,6 @@ internal object StringsXml {
 
     fun text(name: String): String = read(file, name)
 
-    fun bannerCopy(): BannerCopy =
-        BannerCopy(
-            justStarted = text("live_just_started"),
-            joining = { String.format(Locale.US, text("live_joining"), it) },
-        )
-
-    /** The words shared with the guide live in core:ui; the banner's episode lines are checked against them. */
     fun programCopy(): ProgramCopy {
         fun fmt(name: String): String = read(shared, name)
         return ProgramCopy(

@@ -9,7 +9,10 @@ object LiveTags {
     const val BANNER_SUBTITLE = "live:banner:subtitle"
     const val BANNER_CHANNEL = "live:banner:channel"
     const val BANNER_SLOT = "live:banner:slot"
-    const val BANNER_JOINED = "live:banner:joined"
+    const val BANNER_MARK = "live:banner:mark"
+
+    /** The stream line (a later PR fills it in); reserved now so the tag is stable. */
+    const val BANNER_STREAM = "live:banner:stream"
     const val BANNER_CHOOSING = "live:banner:choosing"
     const val BANNER_PROGRESS = "live:banner:progress"
     const val BANNER_NEXT = "live:banner:next"

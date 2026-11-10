@@ -40,7 +40,4 @@
         <item quantity="other">%1$d min behind</item>
     </plurals>
 
-    <!-- How far in the viewer joined; "Just started" under a minute. -->
-    <string name="live_just_started">Just started</string>
-    <string name="live_joining">joining %1$d min in</string>
 </resources>

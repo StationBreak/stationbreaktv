@@ -104,7 +104,7 @@ private fun CardBanner(
     channel: ChannelTag?,
 ) {
     if (upNext != null) {
-        CableBanner(upNext, cornerNumber = false)
+        CableBanner(upNext)
     } else if (channel != null) {
         ChannelBanner(channel)
     }

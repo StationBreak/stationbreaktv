@@ -592,7 +592,7 @@ internal class Sitting(
         block: AiringBlock,
     ): Playing {
         lingering?.cancel()
-        // Once the picture plays, "Tuning in" becomes "Now" (R22); the joining line stays. Filling in stays as it is.
+        // Once the picture plays, "Tuning in" becomes "Now" (R22). Filling in stays as it is.
         val label = if (banner.label == BannerLabel.TuningIn) BannerLabel.Now else banner.label
         val shown = banner.copy(label = label)
         val playing = Playing(shown, block.airing.itemId(), channel, block)

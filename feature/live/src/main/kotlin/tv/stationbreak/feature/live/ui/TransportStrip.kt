@@ -8,7 +8,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -35,16 +34,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
-import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TransportView
 
@@ -54,7 +53,7 @@ private const val TICK_MS = 1_000L
 private const val SPIN_MS = 900
 private const val FULL_TURN = 360f
 private const val ARC_SWEEP = 270f
-private val StripTextSize = 18.sp
+private val StripTextSize = 12.sp
 private val SpinnerSize = 22.dp
 
 /**
@@ -70,9 +69,9 @@ internal fun behindMinutes(
 }
 
 /**
- * DESIGN(#383): placeholder. The transport strip: "Paused" while paused, otherwise how many minutes behind live
+ * The transport strip, in the guide's design: "Paused" while paused, otherwise how many minutes behind live
  * (nothing when caught up), and a spinner while a seek is under way, over the frozen frame (never snow). Drawn only while [view]
- * says it is [TransportView.visible]; the final look belongs to the design. Paused, the label does not change; playing
+ * says it is [TransportView.visible]. Paused, the label does not change; playing
  * behind, the gap holds; only while seeking does the gap grow, so [nowMs] is read once a second then, not otherwise.
  */
 @Composable
@@ -92,34 +91,37 @@ internal fun TransportStrip(
     val minutes by remember(view) { derivedStateOf { behindMinutes(view, now.longValue) } }
     val shown = minutes
     if (!view.paused && shown == null && !view.seeking) return
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
-        Row(
-            Modifier
-                .align(Alignment.TopStart)
-                .padding(start = safe.left, top = safe.top)
-                .background(BroadcastColors.Ink)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
-                .testTag(LiveTags.TRANSPORT),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val label =
-                when {
-                    view.paused -> stringResource(R.string.live_transport_paused)
-                    shown != null -> pluralStringResource(R.plurals.live_transport_behind, shown, shown)
-                    else -> null
+    ChromeTheme {
+        val colors = LocalGuideColors.current
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
+            Row(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = safe.left, top = safe.top)
+                    .chromeSurface(colors)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+                    .testTag(LiveTags.TRANSPORT),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val label =
+                    when {
+                        view.paused -> stringResource(R.string.live_transport_paused)
+                        shown != null -> pluralStringResource(R.plurals.live_transport_behind, shown, shown)
+                        else -> null
+                    }
+                if (label != null) {
+                    Text(
+                        text = label,
+                        color = colors.textPrimary,
+                        style = guideText(StripTextSize, FontWeight.Medium),
+                        maxLines = 1,
+                    )
                 }
-            if (label != null) {
-                Text(
-                    text = label,
-                    color = BroadcastColors.Cream,
-                    style = TextStyle(fontSize = StripTextSize, fontWeight = FontWeight.SemiBold),
-                    maxLines = 1,
-                )
+                if (view.seeking) Spinner()
             }
-            if (view.seeking) Spinner()
         }
     }
 }
@@ -135,6 +137,7 @@ private fun Spinner() {
             label = "turn",
         )
     val seeking = stringResource(R.string.live_transport_seeking)
+    val accent = LocalGuideColors.current.accent
     Canvas(
         Modifier
             .size(SpinnerSize)
@@ -146,7 +149,7 @@ private fun Spinner() {
     ) {
         val width = 3.dp.toPx()
         drawArc(
-            color = BroadcastColors.Accent,
+            color = accent,
             startAngle = turn,
             sweepAngle = ARC_SWEEP,
             useCenter = false,
