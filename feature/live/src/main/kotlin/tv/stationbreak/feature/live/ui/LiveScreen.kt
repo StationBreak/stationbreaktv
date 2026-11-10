@@ -223,16 +223,19 @@ private fun InfoPanel(info: LiveInfo) {
         }
     val episode = remember(banner) { BannerText.episodeLine(banner.info, copy) }
     val details = info.details
-    ProgramInfoOverlay(
-        channel = channelLine(banner.number, banner.channelName),
-        title = banner.title.orEmpty(),
-        episodeLine = episode,
-        slot = slot,
-        overview = details?.overview,
-        year = details?.year,
-        genres = details?.genres.orEmpty(),
-        runtimeMinutes = details?.runtime?.inWholeMinutes?.toInt(),
-        loading = info.loading,
-        modifier = Modifier.testTag(LiveTags.INFO),
-    )
+    // Over the picture, so the guide's Dark tokens whatever the guide's own theme is: not the composition default.
+    ChromeTheme {
+        ProgramInfoOverlay(
+            channel = channelLine(banner.number, banner.channelName),
+            title = banner.title.orEmpty(),
+            episodeLine = episode,
+            slot = slot,
+            overview = details?.overview,
+            year = details?.year,
+            genres = details?.genres.orEmpty(),
+            runtimeMinutes = details?.runtime?.inWholeMinutes?.toInt(),
+            loading = info.loading,
+            modifier = Modifier.testTag(LiveTags.INFO),
+        )
+    }
 }
