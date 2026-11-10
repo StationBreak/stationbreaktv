@@ -200,6 +200,37 @@ internal object StreamLabels {
             is PickerRow.ServerDefault -> copy.serverDefault
         }
 
+    /**
+     * The texts of a whole picker, each row told apart from its twins: two rows that read the same take the track's own
+     * title after the text, and one with no title (or the same title again) takes " · 2", " · 3" by its place among
+     * them. The first of untitled twins stays as it is. A row nobody shares a text with is unchanged.
+     */
+    fun pickerTexts(
+        rows: List<PickerRow>,
+        copy: StreamCopy,
+        language: (String?) -> String? = { languageName(it) },
+    ): List<String> {
+        val base = rows.map { pickerRow(it, copy, language) }
+        val titled =
+            base.mapIndexed { i, text ->
+                val title = titleOf(rows[i])
+                if (base.count { it == text } > 1 && title != null) text + SEPARATOR + title else text
+            }
+        val seen = mutableMapOf<String, Int>()
+        return titled.map { text ->
+            val place = (seen[text] ?: 0) + 1
+            seen[text] = place
+            if (titled.count { it == text } > 1 && place > 1) text + SEPARATOR + place else text
+        }
+    }
+
+    private fun titleOf(row: PickerRow): String? =
+        when (row) {
+            is PickerRow.Audio -> row.track.title
+            is PickerRow.Subtitle -> row.track.title
+            else -> null
+        }?.trim()?.takeIf { it.isNotEmpty() }
+
     private fun pictureOf(video: VideoFacts): String? =
         listOfNotNull(StreamFigures.resolution(video.width, video.height), video.codec?.let(StreamFigures::videoCodec))
             .takeIf { it.isNotEmpty() }

@@ -67,6 +67,7 @@ internal fun TrackPicker(
     val resources = LocalContext.current.resources
     val copy = remember(resources) { StreamCopy.from(resources) }
     val rows = remember(facts, kind) { pickerRows(facts, kind) }
+    val texts = remember(rows, copy) { StreamLabels.pickerTexts(rows, copy) }
     val start = rows.indexOfFirst { it.playing }.coerceAtLeast(0)
     val list = rememberLazyListState(initialFirstVisibleItemIndex = start)
     val focus = remember { FocusRequester() }
@@ -85,7 +86,8 @@ internal fun TrackPicker(
     ) {
         itemsIndexed(rows) { index, row ->
             val mine = if (index == start) Modifier.focusRequester(focus) else Modifier
-            PickerRowButton(row, copy, { onChoose(row.selection) }, mine.testTag(LiveTags.PICKER_ROW + index))
+            val tag = mine.testTag(LiveTags.PICKER_ROW + index)
+            PickerRowButton(row, texts[index], copy, { onChoose(row.selection) }, tag)
         }
     }
 }
@@ -94,12 +96,12 @@ internal fun TrackPicker(
 @Composable
 private fun PickerRowButton(
     row: PickerRow,
+    text: String,
     copy: StreamCopy,
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
     val colors = LocalGuideColors.current
-    val text = StreamLabels.pickerRow(row, copy)
     val description =
         buildString {
             append(text)
