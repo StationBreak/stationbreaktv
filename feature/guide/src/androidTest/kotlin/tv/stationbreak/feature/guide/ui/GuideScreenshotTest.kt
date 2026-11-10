@@ -201,7 +201,7 @@ class GuideScreenshotTest {
         }
         compose.onNodeWithTag(GuideTags.INFO).assertIsDisplayed()
         assertEquals(OVERVIEW, text(ProgramInfoTags.OVERVIEW))
-        assertEquals("2018 · 22 min · Animation, Family", text(ProgramInfoTags.DETAILS))
+        assertEquals("2018 · Animation, Family · 22 min", text(ProgramInfoTags.DETAILS))
         shoot("$INFO_FRAME$suffix.png")
     }
 
