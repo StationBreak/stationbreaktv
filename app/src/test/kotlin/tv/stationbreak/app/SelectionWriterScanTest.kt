@@ -12,7 +12,8 @@ import java.io.File
  * stores and the selection call the writes; the cache's library-row writes are called only by the selection and
  * carried out by the repository and its DAOs. The selection itself is named only by the module that binds it
  * (anything holding it could open the resume gate), and its collaborators only by its own package. Each DI module
- * takes one store. A new user fails this test.
+ * takes one store. The resume and its gate, `@AppStart` and the DAO-level row writers have their own narrow lists.
+ * A new user fails this test.
  */
 class SelectionWriterScanTest {
     private val ports = "core/domain/src/main/kotlin/tv/stationbreak/core/domain/ServerSettings.kt"
@@ -39,8 +40,13 @@ class SelectionWriterScanTest {
         generateSequence(File("").absoluteFile) { it.parentFile }
             .first { File(it, "settings.gradle.kts").exists() }
 
-    // Repo-relative path to the file's code lines: comments and KDoc left out, as they write nothing.
-    private val code: Map<String, List<String>> by lazy {
+    private val start = "app/src/main/kotlin/tv/stationbreak/app/SelectionStart.kt"
+    private val appEntry = "app/src/main/kotlin/tv/stationbreak/app/StationBreakApp.kt"
+    private val appDi = "app/src/main/kotlin/tv/stationbreak/app/di"
+
+    // Repo-relative path to the file's code: comments and KDoc stripped (string-aware), as they write nothing. The
+    // patterns run over the whole text, so a call or a parameter split across lines is still seen.
+    private val code: Map<String, String> by lazy {
         root
             .walkTopDown()
             // `.claude` holds agent worktrees: whole checkouts of other branches, not this tree's sources.
@@ -48,17 +54,11 @@ class SelectionWriterScanTest {
             .filter { it.isFile && it.extension == "kt" }
             .filter { productionSourceSet.containsMatchIn(it.path.replace('\\', '/')) }
             .associate { source ->
-                val lines =
-                    source
-                        .readLines()
-                        .map { it.substringBefore("//").trim() }
-                        .filterNot { it.startsWith("*") || it.startsWith("/*") }
-                source.relativeTo(root).path.replace('\\', '/') to lines
+                source.relativeTo(root).path.replace('\\', '/') to SourceScan.stripComments(source.readText())
             }
     }
 
-    private fun usersOf(pattern: Regex): Set<String> =
-        code.filterValues { lines -> lines.any { pattern.containsMatchIn(it) } }.keys.toSortedSet()
+    private fun usersOf(pattern: Regex) = code.filterValues { pattern.containsMatchIn(it) }.keys.toSortedSet()
 
     @Test
     fun theWritePorts_areNamedOnlyByTheirWriterTheStoresAndTheirBindings() {
@@ -74,7 +74,7 @@ class SelectionWriterScanTest {
     fun theWrites_areCalledOnlyByTheSelectionAndTheStores() {
         val allowed = setOf(selection, allocation, reconciler, file, pinSyncing)
 
-        val users = usersOf(Regex("""\.(saveSelection|clearLibraries)\("""))
+        val users = usersOf(SourceScan.selectionWrites)
 
         assertEquals("a selection write called outside the allowed files", emptySet<String>(), users - allowed)
     }
@@ -85,7 +85,7 @@ class SelectionWriterScanTest {
     fun theCacheRowWrites_areCalledOnlyByTheSelectionTheRepositoryAndItsDaos() {
         val allowed = setOf(selection, cache, roomRepository, cacheDao, libraryDao)
 
-        val users = usersOf(Regex("""\.(applySelection|landAdd|revertUnproven)\("""))
+        val users = usersOf(SourceScan.cacheRowWrites)
 
         assertEquals("a library-row write called outside the allowed files", emptySet<String>(), users - allowed)
     }
@@ -112,11 +112,46 @@ class SelectionWriterScanTest {
 
     @Test
     fun eachModule_takesTheStoreOnce() {
-        val parameter = Regex("""\b\w+: SelectionStore\b""")
-
-        fun count(path: String) = code.getValue(path).sumOf { parameter.findAll(it).count() }
+        fun count(path: String) = SourceScan.storeParameter.findAll(code.getValue(path)).count()
 
         assertEquals("the selection's one store parameter in LineupModule", 1, count(lineupModule))
         assertEquals("the one binding over the store in MediaServerModule", 1, count(mediaServerModule))
+    }
+
+    // The DAO-level library-row writers sit under the repository: only it and its DAOs name them.
+    @Test
+    fun theDaoRowWriters_areNamedOnlyByTheRepositoryAndItsDaos() {
+        val users = usersOf(SourceScan.daoRowWriters)
+
+        assertEquals(
+            "a DAO library-row writer named outside the allowed files",
+            emptySet<String>(),
+            users - setOf(libraryDao, cacheDao, roomRepository),
+        )
+    }
+
+    // Whoever holds the resume or its gate can open the gate: only the selection's package, the DI module that binds
+    // them and the start that runs them may name them.
+    @Test
+    fun theResumeAndItsGate_areNamedOnlyByTheSelectionTheDiAndTheStart() {
+        val users = usersOf(SourceScan.resumeAndGate)
+
+        val outside = users.filterNot { it.substringBeforeLast('/') == selectionDir }.toSortedSet()
+
+        assertEquals(
+            "the resume or its gate named outside the allowed files",
+            emptySet<String>(),
+            outside - setOf(lineupModule, start, appEntry),
+        )
+    }
+
+    // `@AppStart` marks the app-start copies of the selection and its resume: only the app's DI and the start files.
+    @Test
+    fun appStart_isNamedOnlyUnderTheAppsDiAndTheStartFiles() {
+        val users = usersOf(SourceScan.appStart)
+
+        val outside = users.filterNot { it.substringBeforeLast('/') == appDi }.toSortedSet()
+
+        assertEquals("@AppStart named outside the allowed files", emptySet<String>(), outside - setOf(start, appEntry))
     }
 }
