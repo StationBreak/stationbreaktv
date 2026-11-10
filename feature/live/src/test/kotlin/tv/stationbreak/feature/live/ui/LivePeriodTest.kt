@@ -21,6 +21,8 @@ import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.TrackPick
+import tv.stationbreak.core.playback.TrackSwitch
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveCommand
@@ -84,6 +86,29 @@ class LivePeriodTest {
             r.at(120_000)
             assertEquals(listOf("stop", "attach(null)", "release"), inner.log)
             assertEquals(1, server.count("stopped"))
+        }
+
+    private val spanish = TrackSwitch(audio = TrackPick(1, "spa", "ac3"))
+
+    @Test
+    fun theGuardedPlayerForwardsAnInPlaceSwitchAndTheInnerPlayersAnswer() =
+        runTest {
+            val inner = RecordingPlayer()
+            val period = LivePeriod(inner, Job(), null) {}
+            assertTrue("taken", period.player.switchTracks(7, spanish))
+            inner.switchAnswer = false
+            assertFalse("refused: the caller re-tunes", period.player.switchTracks(7, spanish))
+            assertEquals(listOf("switch:7:$spanish", "switch:7:$spanish"), inner.log)
+        }
+
+    @Test
+    fun anInPlaceSwitchAfterTheLeaveIsRefusedAndNeverReachesThePlayer() =
+        runTest {
+            val inner = RecordingPlayer()
+            val period = LivePeriod(inner, Job(), null) {}
+            period.leave()
+            assertFalse(period.player.switchTracks(7, spanish))
+            assertTrue("only the leave's own calls", inner.log.none { it.startsWith("switch") })
         }
 
     @Test

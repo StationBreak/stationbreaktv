@@ -367,7 +367,7 @@ The pickers (PR 4) make the choices decision 6 and the 2026-11-09 update prepare
 - **The second `PlaybackInfo` call is timed.** `ResolvedPlayback.carriedMs` is how long the call a carried preference
   makes took; it rides to the tune log line as ` carriedMs=<n>` (a tune with no second call has no field). The cost
   on a TV has not been measured yet.
-- **Not done here.** The on-TV spike of whether a text subtitle can switch without a re-tune while transcoding has
-  **not been run**: those switches stay `Retune` (decision of `switchCost`), and this update records no result for it.
-  Version choice and applying the remembered version are #630. Following Android's system caption setting (B2.2) is
+- **Text subtitles while transcoding: to be measured on the TV.** Whether a text subtitle can switch without a re-tune
+  on a direct stream or a transcode is not known yet. Until it is measured, those switches stay `Retune` (`switchCost`),
+  and the result is to be recorded here by the owner. Version choice and applying the remembered version are #630. Following Android's system caption setting (B2.2) is
   still the owner's open question and is not implemented.
