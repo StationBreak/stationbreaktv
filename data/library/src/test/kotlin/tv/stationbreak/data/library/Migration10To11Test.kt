@@ -86,6 +86,18 @@ class Migration10To11Test {
             buildList { while (st.step()) add((0 until 6).map { if (st.isNull(it)) null else st.getText(it) }) }
         }
 
+    // The item columns of version 11: the file now migrates on to 12, whose `seriesName` is not what this test pins.
+    private fun SQLiteConnection.dumpOldItems(): List<List<String?>> =
+        prepare(
+            "SELECT serverId, userId, itemId, libraryId, kind, name, parentId, seriesId, seasonId, seasonNumber, " +
+                "episodeNumber, runtimeMs, createdAtMs, premiereDate, productionYear, officialRating, deletedAtMs, " +
+                "seenFromMs, firstSeenMs, providerIds FROM item ORDER BY rowid",
+        ).use { st ->
+            buildList {
+                while (st.step()) add((0 until st.getColumnCount()).map { if (st.isNull(it)) null else st.getText(it) })
+            }
+        }
+
     private fun SQLiteConnection.strings(sql: String): List<String> =
         prepare(sql).use { st -> buildList { while (st.step()) add(st.getText(0)) } }
 
@@ -96,7 +108,7 @@ class Migration10To11Test {
             SchemaFile.create(file, 10) { it.fill() }
             val metaBefore = raw(file) { it.dump("sync_meta") }
             val stateBefore = raw(file) { it.dump("account_state") }
-            val itemsBefore = raw(file) { it.dump("item") }
+            val itemsBefore = raw(file) { it.dumpOldItems() }
             val librariesBefore = raw(file) { it.oldLibraryColumns() }
 
             migrate(file).close()
@@ -122,9 +134,9 @@ class Migration10To11Test {
                 assertTrue(itemIndexes.toString(), "index_item_serverId_userId_seriesId" in itemIndexes)
                 assertEquals("sync_meta is as it was (backfillPending, generation)", metaBefore, db.dump("sync_meta"))
                 assertEquals("account_state is as it was", stateBefore, db.dump("account_state"))
-                assertEquals("no item row moves", itemsBefore, db.dump("item"))
+                assertEquals("no item row moves", itemsBefore, db.dumpOldItems())
                 assertEquals("fetched, the hold and the stamp stay", librariesBefore, db.oldLibraryColumns())
-                assertEquals(listOf("11"), db.strings("PRAGMA user_version"))
+                assertEquals(listOf("${LibraryDatabase.VERSION}"), db.strings("PRAGMA user_version"))
             }
         }
 
@@ -152,21 +164,21 @@ class Migration10To11Test {
         }
 
     @Test
-    fun theSchemaMatchesTheExportedEleven() =
+    fun aVersionTenFileEndsAtTheExportedCurrentSchema() =
         runBlocking {
             val file = File(folder.root, "schema.db")
             SchemaFile.create(file, 10) { it.fill() }
             migrate(file).close()
 
             val exported = SchemaFile.text()
-            assertTrue(exported.contains("\"version\": 11"))
+            assertTrue(exported.contains("\"version\": ${LibraryDatabase.VERSION}"))
             val hash = Regex("\"identityHash\":\\s*\"([0-9a-f]+)\"").find(exported)!!.groupValues[1]
             raw(file) { db -> assertEquals(listOf(hash), db.strings("SELECT identity_hash FROM room_master_table")) }
         }
 
     @Test
     fun theMigrationSqlIsTheExportedSql() {
-        val exported = SchemaFile.text()
+        val exported = File("schemas/tv.stationbreak.data.library.LibraryDatabase/11.json").readText()
         for (sql in Migration10To11.STATEMENTS.filter { it.startsWith("CREATE") }) {
             val asExported =
                 sql

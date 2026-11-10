@@ -402,9 +402,11 @@ internal abstract class LibraryDao {
         libraryId: String,
     ): List<String>
 
-    // The names of the live items among [ids] (at most MAX_VARIABLES of them), with the live series' name (spec 14).
+    // The names of the live items among [ids] (at most MAX_VARIABLES of them), with the live series' name (spec 14), or
+    // the episode's own series name when no series row is held (#607).
     @Query(
-        "SELECT item.itemId AS itemId, item.kind AS kind, item.name AS name, series.name AS seriesName, " +
+        "SELECT item.itemId AS itemId, item.kind AS kind, item.name AS name, " +
+            "COALESCE(series.name, item.seriesName) AS seriesName, " +
             "item.seasonNumber AS seasonNumber, item.episodeNumber AS episodeNumber, " +
             "item.productionYear AS productionYear FROM item " +
             "LEFT JOIN series ON series.serverId = item.serverId AND series.userId = item.userId " +

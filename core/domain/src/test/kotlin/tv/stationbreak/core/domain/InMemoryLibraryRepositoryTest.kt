@@ -70,6 +70,28 @@ class InMemoryLibraryRepositoryTest {
         }
 
     @Test
+    fun programInfoUsesTheItemsOwnSeriesNameWhenNoSeriesNameIsSeeded() =
+        runBlocking {
+            val alice = LibraryAccount(ServerId("server-1"), UserId("alice"))
+            val episode =
+                MediaItem(
+                    ItemId("a".repeat(32)),
+                    "Episode One",
+                    ItemKind.Episode,
+                    30.minutes,
+                    null,
+                    seriesId = ItemId("b".repeat(32)),
+                    seriesName = "Server Series C",
+                )
+            val repository = InMemoryLibraryRepository()
+            repository.seed(alice, ItemId("c".repeat(32)), episode)
+
+            val info = repository.programInfo(alice, setOf(CanonicalId.parse("a".repeat(32))))
+
+            assertEquals("Server Series C", info.getValue(CanonicalId.parse("a".repeat(32))).seriesName)
+        }
+
+    @Test
     fun currentIdsGivesTheLiveItemsOfTheAccountOnly() =
         runBlocking {
             val repository = InMemoryLibraryRepository()

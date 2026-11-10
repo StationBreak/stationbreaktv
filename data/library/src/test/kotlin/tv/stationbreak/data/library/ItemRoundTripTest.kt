@@ -33,6 +33,7 @@ class ItemRoundTripTest {
             genres = listOf("Drama", "Comedy", "Drama again"),
             tags = listOf("holiday", "classic"),
             seriesId = ItemId("series-9"),
+            seriesName = "Invented Show",
             seasonNumber = 3,
             episodeNumber = 12,
             studios = listOf("Invented Studio B", "Invented Studio A"),

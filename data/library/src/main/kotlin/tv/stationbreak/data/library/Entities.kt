@@ -124,6 +124,8 @@ internal data class ItemEntity(
     val seenFromMs: Long,
     val firstSeenMs: Long,
     @ColumnInfo(defaultValue = "") val providerIds: String = "",
+    // The server's own series name for an episode: a display fallback only, never part of [sameScheduleFields] (#607).
+    val seriesName: String? = null,
 ) {
     // A name is text a person typed, and provider ids are never logged: neither reaches a log.
     override fun toString(): String = "ItemEntity(serverId=$serverId, userId=$userId, itemId=$itemId, name=<name>)"

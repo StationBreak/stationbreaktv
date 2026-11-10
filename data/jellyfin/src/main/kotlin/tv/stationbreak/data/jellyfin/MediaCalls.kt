@@ -621,6 +621,7 @@ internal fun toMediaItem(dto: ItemDto): MediaItem =
         providerIds = providerIdsOf(dto.providerIds),
         seriesId = dto.seriesId?.let(::ItemId),
         seasonId = dto.seasonId?.let(::ItemId),
+        seriesName = dto.seriesName,
         seasonNumber = dto.seasonNumber,
         episodeNumber = dto.episodeNumber,
     )
