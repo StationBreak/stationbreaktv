@@ -48,6 +48,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.domain.selection.FakeLibraryChoices
+import tv.stationbreak.core.domain.tracks.InMemoryTrackChoiceStore
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -64,6 +65,7 @@ import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.WarmConfig
@@ -138,6 +140,7 @@ class LiveDestinationLifecycleTest {
             session: Session,
             item: ItemId,
             start: Duration,
+            choice: TrackChoice?,
         ): TuneOutcome = TuneOutcome.Cancelled
 
         override suspend fun preResolve(
@@ -150,6 +153,7 @@ class LiveDestinationLifecycleTest {
             session: Session,
             next: NextHandle,
             start: Duration?,
+            choice: TrackChoice?,
         ): TuneOutcome = TuneOutcome.Cancelled
 
         override suspend fun discard(
@@ -222,7 +226,13 @@ class LiveDestinationLifecycleTest {
             InMemoryLibraryRepository(),
             noLineup,
             Clock.System,
-            ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server, WarmConfig(), WarmSwitches.None),
+            ControllerTunerFactory(
+                PlaybackResolver(server) { capabilities },
+                server,
+                WarmConfig(),
+                WarmSwitches.None,
+                InMemoryTrackChoiceStore(),
+            ),
             VideoPlayerFactory { _, _ -> RecordingPlayer(++created).also { log += "create#$created" } },
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),

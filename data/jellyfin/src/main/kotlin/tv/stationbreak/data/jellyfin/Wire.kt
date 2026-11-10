@@ -270,6 +270,9 @@ internal class MediaStreamDto(
     // The level and depth are read as JSON values so one odd value on a track can't fail the whole answer.
     @SerialName("Level") val level: JsonElement? = null,
     @SerialName("BitDepth") val bitDepth: JsonElement? = null,
+    @SerialName("Title") val title: String? = null,
+    @SerialName("DisplayTitle") val displayTitle: String? = null,
+    @SerialName("IsHearingImpaired") val isHearingImpaired: Boolean = false,
 )
 
 /**

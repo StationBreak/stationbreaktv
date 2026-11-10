@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.MediaSource
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.PlaySessionId
 import kotlin.time.Duration
@@ -9,10 +11,39 @@ import kotlin.time.Duration
 /** How the item reaches the screen. */
 enum class Route { DIRECT_PLAY, DIRECT_STREAM, TRANSCODE }
 
-/** A track choice. A null [subtitleIndex] means subtitles off, a null [audioIndex] the server's default. */
+/** What a tune does about subtitles. Three states, so no null has to mean two things. */
+sealed interface SubtitleChoice {
+    /** The server applies the user's own preferences (ADR-0016, 6): the source's default subtitle, or none. */
+    data object Default : SubtitleChoice
+
+    /** No subtitles, whatever the server's default is. */
+    data object Off : SubtitleChoice
+
+    /** The subtitle track with the server's stream [index]. */
+    data class Track(
+        val index: Int,
+    ) : SubtitleChoice
+}
+
+/**
+ * Tracks to play, by the server's stream indices of one source. A null [audioIndex] is the server's default audio;
+ * [subtitle] says what to do about subtitles. The indices mean something only for one source, so an override never
+ * travels alone: see [TrackChoice].
+ */
 data class TrackOverride(
     val audioIndex: Int?,
-    val subtitleIndex: Int?,
+    val subtitle: SubtitleChoice = SubtitleChoice.Default,
+)
+
+/**
+ * A viewer's choice for one tune: the [source] (version) to play, and optionally the [tracks] within it. The tracks
+ * and their source are one value, because an override's indices are one source's stream indices. If [source] is not in
+ * the server's answer, [tracks] is dropped and the item is resolved as if no choice was made (ADR-0016, update
+ * 2026-11-09).
+ */
+data class TrackChoice(
+    val source: MediaSourceId,
+    val tracks: TrackOverride? = null,
 )
 
 /**
@@ -60,7 +91,12 @@ data class PlayerSource(
     override fun toString(): String = "PlayerSource(hls=$isHls, url=<not shown>, subtitles=${subtitles.size})"
 }
 
-/** The resolver's answer: what to play and why. [requested] is the start the caller asked for. */
+/**
+ * The resolver's answer: what to play and why. [requested] is the start the caller asked for. [sources] are every
+ * version the server offered for the item, in its order, the chosen [media] among them; empty when a result is built by
+ * hand without them. [limits] are the device's capabilities the route was decided with (null for a result built by
+ * hand): the facts' switch costs are decided against them.
+ */
 @Suppress("LongParameterList") // One independent fact each.
 data class ResolvedPlayback(
     val source: PlayerSource,
@@ -70,4 +106,6 @@ data class ResolvedPlayback(
     val chosenAudio: MediaStreamInfo?,
     val chosenSubtitle: MediaStreamInfo?,
     val requested: Duration,
+    val sources: List<MediaSource> = emptyList(),
+    val limits: DeviceCapabilities? = null,
 )

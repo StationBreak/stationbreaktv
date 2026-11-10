@@ -47,7 +47,9 @@ internal class BlockRetries {
 /**
  * The [Retune] of [item] on [block] (a program's block, or a stand-in piece): a fresh tune at the place under the snow,
  * with the block's banner ([label], joined at the place), reported as [TuneKind.Retry]. A session that expired shows
- * as signed out before the behind play exits.
+ * as signed out before the behind play exits. The viewer's version and track choice for this block is read from the
+ * sitting ([choiceFor], for this block and item) when the retune fires, not when it is built, so a retry after an
+ * instant switch keeps it.
  */
 @Suppress("LongParameterList") // The block's scope, schedule, block, item and banner label: what its own tune uses.
 internal fun Sitting.retuneAt(
@@ -63,7 +65,7 @@ internal fun Sitting.retuneAt(
         val what = TuneWhat(TuneKind.Retry, block, position)
         val outcome =
             tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir, onPlaying = onPlaying) {
-                tuner.tune(session, item, position)
+                tuner.tune(session, item, position, choiceFor(block, item))
             }
         if (outcome == TuneOutcome.Expired) expired()
         outcome

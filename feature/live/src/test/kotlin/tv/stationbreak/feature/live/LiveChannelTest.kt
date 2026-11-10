@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -19,7 +21,13 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.standIn
+import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.SourceFacts
+import tv.stationbreak.core.playback.StreamFacts
+import tv.stationbreak.core.playback.VideoFacts
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -665,5 +673,38 @@ class LiveChannelTest {
             assertEquals("Test Movie 1", b.title)
             assertNull(b.info?.seriesName)
             assertEquals(10.minutes.inWholeMilliseconds, b.joinedMs)
+        }
+
+    @Test
+    fun theBannerCarriesWhatPlaysOnceThePictureIsUp() =
+        runTest {
+            val r = Rig(this)
+            r.ordinaryDay()
+            val hevc1080 = VideoFacts(1920, 1080, "hevc")
+            val facts =
+                StreamFacts(
+                    Route.TRANSCODE,
+                    MediaSourceId("src1"),
+                    audioIndex = 1,
+                    subtitleIndex = null,
+                    sources = listOf(SourceFacts(MediaSourceId("src1"), null, hevc1080, emptyList(), emptyList())),
+                )
+            val plays = { TuneOutcome.Playing(flow { awaitCancellation() }, PlayControl.None, facts = facts) }
+            r.tune.script(itemOf(1), plays)
+            r.start()
+            r.at(500)
+            assertNull("no picture yet, nothing to say", banner(r.seen.first { it is LiveState.Tuning }).stream)
+            val watching = r.seen.first { it is LiveState.Watching } as LiveState.Watching
+            assertEquals(facts, checkNotNull(watching.banner).stream)
+        }
+
+    @Test
+    fun aTuneWithNoFactsShowsNoStreamLine() =
+        runTest {
+            val r = Rig(this)
+            r.ordinaryDay()
+            r.start()
+            r.at(500)
+            assertNull(checkNotNull((r.seen.first { it is LiveState.Watching } as LiveState.Watching).banner).stream)
         }
 }

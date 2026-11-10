@@ -28,6 +28,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.feature.live.report.PlaybackReporter
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -170,6 +171,13 @@ internal class Sitting(
 
     /** The wide look for the banner's "Next", kept for the block it was made in: the ident card reuses it. */
     internal var widenedNext: Pair<Long, AiringBlock>? = null
+
+    /**
+     * The viewer's version and track choice for the programme on air (set when they choose, PR 4), tied to the block
+     * it was made on: a choice is for that programme only (design doc B2.5). Every tune of that block reads it through
+     * [choiceFor] when it fires, so a retry or a retune after an instant switch keeps it.
+     */
+    internal var onAirChoice: OnAirChoice? = null
 
     /** When the last play was cut off at a boundary (or an ident card ended): the start of the next tune's gap. */
     private var cutFrom: Instant? = null
@@ -341,7 +349,7 @@ internal class Sitting(
         val banner = bannerFor(onAir.channel, block, label, place.mediaMs, driftMs, onAir.nextProgram())
         val outcome =
             tuneAndShow(scope, banner, true, TuneWhat(kind, block, position), onAir, { it.control.pause() }) {
-                tuner.tune(session, item, position)
+                tuner.tune(session, item, position, choiceFor(block, item))
             }
         if (outcome is TuneOutcome.Dead) {
             heldBlockStartMs = block.startMs
@@ -577,7 +585,8 @@ internal class Sitting(
                 if (left > Duration.ZERO) delay(minOf(left, timings.minSnow))
             }
             heldBlockStartMs = what.block.startMs
-            val playing = showWatching(scope, banner, what.block)
+            // What plays, as the adapter learned it after any fallback: the banner's stream line says it.
+            val playing = showWatching(scope, banner.copy(stream = outcome.facts), what.block)
             // The banner's "Next" came from the blocks already read; with no program among them, look wider, now that
             // the picture is up and the tune no longer waits for it.
             if (onAir != null && playing.banner.next == null) widenNext(scope, onAir, playing)
@@ -752,4 +761,24 @@ private suspend fun Sitting.takeLiveOp(
             }
         if (takes) return Woke.Op(op)
     }
+}
+
+/** A [TrackChoice] and the programme it was made on: the start of its block and the item that plays in it. */
+internal class OnAirChoice(
+    val blockStartMs: Long,
+    val item: ItemId,
+    val choice: TrackChoice,
+)
+
+/**
+ * The viewer's choice for [item] on [block], or null when they made none for it. A choice never outlives its
+ * programme, and it is keyed by the item as well as the block because a stand-in piece plays a different item in the
+ * same block, whose track indices mean nothing for the choice's item.
+ */
+internal fun Sitting.choiceFor(
+    block: AiringBlock,
+    item: ItemId,
+): TrackChoice? {
+    val made = onAirChoice ?: return null
+    return made.choice.takeIf { made.blockStartMs == block.startMs && made.item == item }
 }

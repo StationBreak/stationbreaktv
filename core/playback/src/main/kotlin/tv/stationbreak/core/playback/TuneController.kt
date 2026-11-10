@@ -30,6 +30,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.tracks.TrackPreferences
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
@@ -123,7 +124,25 @@ class Prepared internal constructor(
     internal val item: ItemId,
     internal val start: Duration,
     internal val resolved: ResolvedPlayback,
+    /** The carried preferences this handle was resolved with: a tune with other preferences cannot use it. */
+    internal val preferences: TrackPreferences? = null,
 ) {
+    /** The version this handle resolved to: the source a viewer's track choice on it must name. */
+    val sourceId: MediaSourceId get() = resolved.media.id
+
+    /**
+     * True when this handle, resolved with the server's default (or carried) tracks, is what a tune with [choice] and
+     * [carried] preferences wants: no choice of tracks (it cannot honour one), no other version chosen, and the same
+     * preferences it was resolved with (one changed since, mid-programme, makes it stale).
+     */
+    internal fun serves(
+        choice: TrackChoice?,
+        carried: TrackPreferences?,
+    ): Boolean {
+        val sameVersion = choice == null || choice.source == resolved.media.id
+        return choice?.tracks == null && sameVersion && carried == preferences
+    }
+
     /** Set once nothing else need end any encode this handle's play started: a tune adopted it, or stopped it. */
     @Volatile internal var adopted: Boolean = false
 
@@ -221,7 +240,7 @@ sealed interface TuneResult {
  * alone. A [Prepared] handle that the caller drops without [tune], [discard] or [close] keeps
  * its server encode until the server times it out.
  */
-@Suppress("TooManyFunctions", "LongParameterList") // One controller by decision; one independent input each.
+@Suppress("TooManyFunctions", "LongParameterList", "LargeClass") // One controller by decision; one input each.
 class TuneController(
     private val resolver: PlaybackResolver,
     private val server: MediaServer,
@@ -268,20 +287,35 @@ class TuneController(
 
     /**
      * Tunes [item]. Tunes are serialized: a new call cancels the one in flight (which returns [TuneResult.Superseded])
-     * and starts only when that one has finished, so two never share the player.
+     * and starts only when that one has finished, so two never share the player. A [choice] is the viewer's version and
+     * tracks (its tracks travel with their source, ADR-0016, update 2026-11-09); [preferences] are the carried
+     * language preferences, applied by the resolver where the viewer chose no tracks.
      */
     suspend fun tune(
         session: Session,
         item: ItemId,
         start: Duration,
-        override: TrackOverride?,
-    ): TuneResult = tuneWith(session, item, start, override, null)
+        choice: TrackChoice?,
+        preferences: TrackPreferences? = null,
+    ): TuneResult = tuneWith(session, item, start, Ask(choice, preferences), null)
+
+    /** What one tune asks of the tracks: the viewer's [choice], and the carried [preferences] beneath it. */
+    private data class Ask(
+        val choice: TrackChoice?,
+        val preferences: TrackPreferences?,
+    ) {
+        /** The same ask pinned to [source]: a fallback transcodes the version that just failed (ADR-0016). */
+        fun pinnedTo(source: MediaSourceId?): Ask {
+            if (source == null) return this
+            return copy(choice = TrackChoice(source, choice?.tracks))
+        }
+    }
 
     private suspend fun tuneWith(
         session: Session,
         item: ItemId,
         start: Duration,
-        override: TrackOverride?,
+        ask: Ask,
         prepared: Prepared?,
     ): TuneResult =
         coroutineScope {
@@ -293,7 +327,11 @@ class TuneController(
                     lock.withLock {
                         // A newer tune silences the old play's end from here on, before it resolves anything.
                         watching?.cancel()
-                        if (closed.get()) TuneResult.Stopped else run(session, item, start, override, mine, prepared)
+                        if (closed.get()) {
+                            TuneResult.Stopped
+                        } else {
+                            run(session, item, start, ask, mine, prepared)
+                        }
                     }
                 }
             inFlight.getAndSet(mine)?.cancel()
@@ -312,17 +350,18 @@ class TuneController(
         }
 
     /**
-     * Resolves [item] at [start] with the server's default tracks, ahead of the [tune] that will play it, and returns
-     * a handle for it; null when it could not be resolved or the controller is closed. It does not touch the player
-     * and does not take the tune lock, so it can run while another item plays.
+     * Resolves [item] at [start] with the server's default tracks (or the carried [preferences]), ahead of the [tune]
+     * that will play it, and returns a handle for it; null when it could not be resolved or the controller is closed.
+     * It does not touch the player and does not take the tune lock, so it can run while another item plays.
      */
     suspend fun preResolve(
         session: Session,
         item: ItemId,
         start: Duration,
+        preferences: TrackPreferences? = null,
     ): Prepared? {
-        val resolved = if (closed.get()) null else resolve(session, item, start, null, false).resolved
-        val prepared = resolved?.let { Prepared(item, start, it) }
+        val resolved = if (closed.get()) null else resolve(session, item, start, Ask(null, preferences), false).resolved
+        val prepared = resolved?.let { Prepared(item, start, it, preferences) }
         if (prepared != null) {
             outstanding.add(prepared)
             // Added before this check and close() sets the flag before it reads the set: one of the two sees the other.
@@ -419,9 +458,11 @@ class TuneController(
      * A handle is gone once it is passed here, whatever the result: the call takes it on entry, and if the tune ends
      * without having started its play (cancelled while waiting for the lock, superseded, stopped, or [close]d) the
      * handle's encode is ended before this returns. So [discard] on a handle already passed here does nothing. A
-     * handle that was already discarded is tuned the ordinary way, with a fresh resolve. An [override] other than null
-     * cannot be honoured by a handle resolved with the default tracks, so the handle is ended and the item is tuned the
-     * ordinary way.
+     * handle that was already discarded is tuned the ordinary way, with a fresh resolve. A [choice] of tracks cannot be
+     * honoured by a handle resolved with the default tracks, so the handle is ended and the item is tuned the ordinary
+     * way. So is a [choice] of another source than the one the handle resolved, and so are [preferences] other than
+     * the ones the handle was resolved with: the handle is stale. The same [preferences] also carry through a fallback
+     * after the handle's play, which resolves again.
      *
      * [start] replaces the start the handle was resolved with (a handle held a while is played from where the schedule
      * is now); null keeps it. The handle itself is not changed. Direct play and HLS both seek to it.
@@ -429,14 +470,16 @@ class TuneController(
     suspend fun tune(
         session: Session,
         prepared: Prepared,
-        override: TrackOverride?,
+        choice: TrackChoice?,
         start: Duration? = null,
+        preferences: TrackPreferences? = null,
     ): TuneResult {
         // Taken before waiting for the lock, so the caller never has to wonder whether it still owns the handle.
         val taken = outstanding.remove(prepared)
         return try {
-            if (taken && override == null) {
-                tuneWith(session, prepared.item, start ?: prepared.start, null, prepared)
+            if (taken && prepared.serves(choice, preferences)) {
+                // The preferences ride along for a fallback, which resolves again and must still carry the language.
+                tuneWith(session, prepared.item, start ?: prepared.start, Ask(null, preferences), prepared)
             } else {
                 if (taken) {
                     // Resolved without the override, so it is of no use: end its encode now, not after this tune, so
@@ -446,7 +489,7 @@ class TuneController(
                     dropHeld(prepared)
                     stopEncodeNow(session, prepared.resolved)
                 }
-                tuneWith(session, prepared.item, start ?: prepared.start, override, null)
+                tuneWith(session, prepared.item, start ?: prepared.start, Ask(choice, preferences), null)
             }
         } finally {
             if (taken) {
@@ -485,23 +528,24 @@ class TuneController(
         session: Session,
         item: ItemId,
         start: Duration,
-        override: TrackOverride?,
+        ask: Ask,
         mine: Deferred<TuneResult>,
         ready: Prepared?,
     ): TuneResult =
         try {
-            attempts(session, item, start, override, ready)
+            attempts(session, item, start, ask, ready)
         } catch (e: CancellationException) {
             val supersededByNewer = inFlight.get() !== mine && stopped.get() !== mine
             if (supersededByNewer) abandonEncode(session) else release(session)
             throw e
         }
 
+    @Suppress("LongParameterList") // One call's context.
     private suspend fun attempts(
         session: Session,
         item: ItemId,
         start: Duration,
-        override: TrackOverride?,
+        ask: Ask,
         ready: Prepared?,
     ): TuneResult {
         // An earlier tune's play that is still current (a flip after it returned Played): end its encode now. A
@@ -528,14 +572,14 @@ class TuneController(
                     play(resolved.copy(source = resolved.source.copy(warmKey = key)), began, false, null)
                 }
             } else {
-                attempt(session, item, start, override, false, began)
+                attempt(session, item, start, ask, false, began)
             }
         while (fallback == null && attempt.canFallBack) {
             fallback = Fallback(checkNotNull(attempt.resolved).route, attempt.fallbackCause())
             (attempt as? Landed)?.warm?.takeIf { it.warm }?.let { swapped = it }
             // A stop or supersede here must not lose the first attempt's encode: it is issued before the next step.
             abandonEncode(session)
-            val next = attempt(session, item, start, override, true, began, attempt.resolved?.media?.id)
+            val next = attempt(session, item, start, ask.pinnedTo(attempt.resolved?.media?.id), true, began)
             // A fallback that could not even resolve leaves the first attempt's route on record.
             attempt = if (next is Broke && next.resolved == null) next.copy(resolved = attempt.resolved) else next
         }
@@ -673,12 +717,11 @@ class TuneController(
         session: Session,
         item: ItemId,
         start: Duration,
-        override: TrackOverride?,
+        ask: Ask,
         forceTranscode: Boolean,
-        prefer: MediaSourceId? = null,
     ): Resolution =
         try {
-            when (val answer = resolver.resolve(session, item, start, override, forceTranscode, prefer)) {
+            when (val answer = resolver.resolve(session, item, start, ask.choice, forceTranscode, ask.preferences)) {
                 is ServerResult.Failure -> {
                     val error = answer.error
                     Resolution(null, Broke(null, TuneFailure.SERVER, error.stableName(), error.refusesSession()))
@@ -701,12 +744,11 @@ class TuneController(
         session: Session,
         item: ItemId,
         start: Duration,
-        override: TrackOverride?,
+        ask: Ask,
         forceTranscode: Boolean,
         began: Long,
-        prefer: MediaSourceId? = null,
     ): Attempt {
-        val resolution = resolve(session, item, start, override, forceTranscode, prefer)
+        val resolution = resolve(session, item, start, ask, forceTranscode)
         val resolved = resolution.resolved ?: return checkNotNull(resolution.broke)
         // A stop or a newer tune during the resolve must not be followed by a play.
         currentCoroutineContext().ensureActive()

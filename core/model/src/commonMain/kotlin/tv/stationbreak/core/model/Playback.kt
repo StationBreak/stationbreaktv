@@ -15,7 +15,10 @@ enum class SubtitleDelivery { IN_STREAM, SEPARATE, BURNED_IN, NONE }
  * file's embedded streams of its own [kind] (the third audio track is 2), or null for an external subtitle, which is
  * not in the file. A player that numbers tracks per kind (Media3's track groups on direct play) maps [index] to its
  * own track with it. [videoProfile] (a [Codecs] profile name), [videoLevel] (level_idc) and [bitDepth] describe a video
- * stream and are null when the server did not say; the route oracle skips a limit it has no fact for.
+ * stream and are null when the server did not say; the route oracle skips a limit it has no fact for. [title] is the
+ * server's `Title` for the track (the file's own name for it, such as "Director's Commentary"), and [displayTitle] its
+ * `DisplayTitle` (the server's generated label); both are display text only, null when the server sent none.
+ * [isHearingImpaired] is the server's own flag for a track made for the deaf and hard of hearing (SDH).
  */
 data class MediaStreamInfo(
     val index: Int,
@@ -33,6 +36,9 @@ data class MediaStreamInfo(
     val videoProfile: String? = null,
     val videoLevel: Int? = null,
     val bitDepth: Int? = null,
+    val title: String? = null,
+    val displayTitle: String? = null,
+    val isHearingImpaired: Boolean = false,
 )
 
 /** One playable version of an item. The server's file path is deliberately not here (R2). */
@@ -53,8 +59,8 @@ data class MediaSource(
 
 /**
  * How a player wants to start: the device [capabilities], where to [start], and which tracks. A null [audioIndex] or
- * [subtitleIndex] lets the server apply the user's preferences. [forceTranscode] asks for a transcode even where the
- * file could be played as stored.
+ * [subtitleIndex] lets the server apply the user's preferences; [SUBTITLES_OFF] turns subtitles off. [forceTranscode]
+ * asks for a transcode even where the file could be played as stored.
  */
 data class PlaybackRequest(
     val capabilities: DeviceCapabilities,
@@ -65,6 +71,11 @@ data class PlaybackRequest(
 ) {
     init {
         require(!start.isNegative()) { "start must not be negative" }
+    }
+
+    companion object {
+        /** The [subtitleIndex] that asks for no subtitles (Jellyfin's own -1), as against the server's default. */
+        const val SUBTITLES_OFF = -1
     }
 }
 

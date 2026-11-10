@@ -48,6 +48,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.domain.selection.FakeLibraryChoices
+import tv.stationbreak.core.domain.tracks.InMemoryTrackChoiceStore
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Codecs
@@ -55,6 +56,7 @@ import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackResolver
+import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.WarmConfig
 import tv.stationbreak.core.playback.WarmSwitches
@@ -84,6 +86,7 @@ class LiveKeysTest {
             session: Session,
             item: ItemId,
             start: Duration,
+            choice: TrackChoice?,
         ): TuneOutcome = TuneOutcome.Cancelled
 
         override suspend fun preResolve(
@@ -96,6 +99,7 @@ class LiveKeysTest {
             session: Session,
             next: NextHandle,
             start: Duration?,
+            choice: TrackChoice?,
         ): TuneOutcome = TuneOutcome.Cancelled
 
         override suspend fun discard(
@@ -153,7 +157,13 @@ class LiveKeysTest {
             InMemoryLibraryRepository(),
             noLineup,
             Clock.System,
-            ControllerTunerFactory(PlaybackResolver(server) { capabilities }, server, WarmConfig(), WarmSwitches.None),
+            ControllerTunerFactory(
+                PlaybackResolver(server) { capabilities },
+                server,
+                WarmConfig(),
+                WarmSwitches.None,
+                InMemoryTrackChoiceStore(),
+            ),
             VideoPlayerFactory { _, _ -> error("no session, so no player") },
             server,
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),

@@ -184,7 +184,7 @@ private fun BannerStrip(
         } else {
             ProgressLine(banner.slotStartMs, banner.slotEndMs, programCopy, now)
         }
-        BannerRow(banner, BannerLines(episode, slot, next), programCopy, now)
+        BannerRow(banner, BannerLines(episode, slot, next, rememberStreamLine(banner)), programCopy, now)
         if (banner.actions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
             ActionsRow(banner.hasLast, actions, behind)
@@ -192,11 +192,15 @@ private fun BannerStrip(
     }
 }
 
-/** What the banner's row writes besides the title: the episode line, the slot, and the "Next" line. */
+/**
+ * What the banner's row writes besides the title: the episode line, the slot, the "Next" line, and the stream line
+ * (what plays: information only, not focusable).
+ */
 private class BannerLines(
     val episode: String?,
     val slot: String,
     val next: String?,
+    val stream: String?,
 )
 
 /** The 54 dp row: the mark and number, the title and meta line, and the "Next" line on the right. */
@@ -234,23 +238,34 @@ private fun BannerRow(
             }
             MetaLine(banner, lines.episode, lines.slot, programCopy, now)
         }
-        lines.next?.let {
+        val stream = lines.stream?.takeIf { it.isNotEmpty() }
+        if (lines.next != null || stream != null) {
             Column(
                 Modifier.padding(start = SidePadding).widthIn(max = NextMaxWidth),
                 horizontalAlignment = Alignment.End,
             ) {
-                Text(
-                    text = it,
-                    modifier = Modifier.testTag(LiveTags.BANNER_NEXT),
-                    style = guideText(MetaSize, FontWeight.Normal),
-                    color = colors.textSecondary,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                lines.next?.let { RightLine(it, LiveTags.BANNER_NEXT) }
+                stream?.let { RightLine(it, LiveTags.BANNER_STREAM) }
             }
         }
     }
+}
+
+/** One of the two right-aligned 11 sp lines of the row: the "Next" line, and the stream line under it. */
+@Composable
+private fun RightLine(
+    text: String,
+    tag: String,
+) {
+    Text(
+        text = text,
+        modifier = Modifier.testTag(tag),
+        style = guideText(MetaSize, FontWeight.Normal),
+        color = LocalGuideColors.current.textSecondary,
+        textAlign = TextAlign.End,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /**

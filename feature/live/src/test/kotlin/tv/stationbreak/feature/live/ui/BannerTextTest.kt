@@ -106,6 +106,22 @@ internal object StringsXml {
 
     fun text(name: String): String = read(file, name)
 
+    fun streamCopy(): StreamCopy =
+        StreamCopy(
+            transcoding = text("live_stream_transcoding"),
+            subtitlesOff = text("live_stream_subtitles_off"),
+            subtitlesNone = text("live_stream_subtitles_none"),
+            subtitles = { String.format(Locale.US, text("live_stream_subtitles"), it) },
+            unknown = text("live_track_unknown"),
+            commentary = text("live_track_commentary"),
+            sdh = text("live_track_sdh"),
+            forced = text("live_track_forced"),
+            text = text("live_track_text"),
+            picture = text("live_track_picture"),
+            off = text("live_track_off"),
+        )
+
+    /** The words shared with the guide live in core:ui; the banner's episode lines are checked against them. */
     fun programCopy(): ProgramCopy {
         fun fmt(name: String): String = read(shared, name)
         return ProgramCopy(

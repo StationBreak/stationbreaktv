@@ -4,6 +4,9 @@ package tv.stationbreak.core.playback
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.tracks.SubtitleCarry
+import tv.stationbreak.core.domain.tracks.TrackCarry
+import tv.stationbreak.core.domain.tracks.TrackPreferences
 import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
@@ -23,31 +26,88 @@ import kotlin.time.Duration
  * the server's `SupportsDirectPlay` where the chosen audio could not be decoded here or the subtitle is burned in
  * (ADR-0016, 8). A [prefer]red source that is in the answer is the only one resolved.
  */
+@Suppress("TooManyFunctions") // The resolve calls and the per-source decisions; the pure helpers are below.
 class PlaybackResolver(
     private val server: MediaServer,
     private val capabilities: () -> DeviceCapabilities,
 ) {
     /**
-     * Resolves [item]. When [prefer] names a source in the answer, only that one is resolved (a fallback transcodes the
-     * version that just failed, not the first, which may be the heaviest); otherwise the choice is [choose]'s. A caller
-     * that passes a [TrackOverride] should pass [prefer] (the current `media.id`), because its indices are one
-     * source's stream indices and must keep meaning the same tracks.
+     * Resolves [item]. A [choice] names the version to play ([TrackChoice.source]; only that one is resolved when the
+     * answer has it, so a fallback transcodes the version that just failed, not the first, which may be the heaviest)
+     * and, optionally, the tracks within it. If the chosen source is not in the answer its tracks are dropped and the
+     * item is resolved again as if nothing was chosen: an override's indices are one source's, and must never be
+     * applied to another version.
+     *
+     * [preferences] are the carried language preferences (design doc B2.6). They apply only where the viewer made no
+     * choice of tracks, and only after resolving, because the indices are in the answer: the tracks they pick are asked
+     * for in a second `PlaybackInfo` call when they differ from what the server's defaults gave (the route and the
+     * delivery depend on the tracks), and not at all when they agree. A failed second call leaves the first answer.
      */
     @Suppress("LongParameterList") // One call's context.
     suspend fun resolve(
         session: Session,
         item: ItemId,
         start: Duration,
-        override: TrackOverride?,
+        choice: TrackChoice?,
         forceTranscode: Boolean = false,
-        prefer: MediaSourceId? = null,
+        preferences: TrackPreferences? = null,
     ): ServerResult<ResolvedPlayback> {
         val limits = capabilities()
-        val request = PlaybackRequest(limits, start, override?.audioIndex, override?.subtitleIndex, forceTranscode)
+        val first = resolveOnce(session, item, start, choice, forceTranscode, limits)
+        val played = (first as? ServerResult.Success)?.value ?: return first
+        return when {
+            choice?.tracks != null && played.sources.none { it.id == choice.source } -> {
+                resolve(session, item, start, null, forceTranscode, preferences)
+            }
+
+            choice?.tracks != null || preferences == null -> {
+                first
+            }
+
+            else -> {
+                carried(session, item, start, played, forceTranscode, limits, preferences) ?: first
+            }
+        }
+    }
+
+    @Suppress("LongParameterList") // One call's context, as in resolve and resolveOnce.
+    private suspend fun carried(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        played: ResolvedPlayback,
+        forceTranscode: Boolean,
+        limits: DeviceCapabilities,
+        preferences: TrackPreferences,
+    ): ServerResult<ResolvedPlayback>? {
+        val tracks = TrackCarry.tracksFor(preferences, played.media)
+        val override = TrackOverride(tracks.audioIndex, tracks.subtitles.toChoice())
+        if (tracks.isServerDefault || played.alreadyPlays(override)) return null
+        val second = resolveOnce(session, item, start, TrackChoice(played.media.id, override), forceTranscode, limits)
+        return second.takeIf { it is ServerResult.Success }
+    }
+
+    @Suppress("LongParameterList") // One call's context.
+    private suspend fun resolveOnce(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        choice: TrackChoice?,
+        forceTranscode: Boolean,
+        limits: DeviceCapabilities,
+    ): ServerResult<ResolvedPlayback> {
+        val override = choice?.tracks
+        val subtitleIndex =
+            when (val subtitle = override?.subtitle) {
+                null, SubtitleChoice.Default -> null
+                SubtitleChoice.Off -> PlaybackRequest.SUBTITLES_OFF
+                is SubtitleChoice.Track -> subtitle.index
+            }
+        val request = PlaybackRequest(limits, start, override?.audioIndex, subtitleIndex, forceTranscode)
         val inputs = ResolveInputs(limits, start, override, forceTranscode)
         return when (val answer = server.playbackInfo(session, item, request)) {
             is ServerResult.Failure -> answer
-            is ServerResult.Success -> resolveAnswer(answer.value, inputs, prefer)
+            is ServerResult.Success -> resolveAnswer(answer.value, inputs, choice?.source)
         }
     }
 
@@ -60,7 +120,9 @@ class PlaybackResolver(
         val sources = preferred.ifEmpty { info.sources }
         val candidates = sources.map { resolveSource(info, it, inputs) }
         val resolved = choose(candidates, inputs.limits)
-        return resolved?.let { ServerResult.Success(it) } ?: ServerResult.Failure(MediaServerError.NotFound())
+        // Every version the server offered, not only the preferred one: a version picker needs them all.
+        return resolved?.let { ServerResult.Success(it.copy(sources = info.sources)) }
+            ?: ServerResult.Failure(MediaServerError.NotFound())
     }
 
     /**
@@ -109,7 +171,7 @@ class PlaybackResolver(
                 ?: media.stream(StreamKind.AUDIO, media.defaultAudioIndex)
                 ?: media.streams.firstOrNull { it.kind == StreamKind.AUDIO }
         val audioIndex = audio?.index
-        val subtitleChoice = if (override != null) override.subtitleIndex else media.defaultSubtitleIndex
+        val subtitleChoice = subtitleIndexFor(media, override)
         val chosen = media.stream(StreamKind.SUBTITLE, subtitleChoice)
         val burnedIn = chosen?.delivery == SubtitleDelivery.BURNED_IN
         val route = route(media, limits, audio, burnedIn, forceTranscode)
@@ -153,7 +215,7 @@ class PlaybackResolver(
                 audioPick = audio?.pick(),
                 subtitlePick = subtitle?.takeIf { it.delivery == SubtitleDelivery.IN_STREAM }?.pick(),
             )
-        return ResolvedPlayback(source, route, info.playSessionId, media, audio, subtitle, start)
+        return ResolvedPlayback(source, route, info.playSessionId, media, audio, subtitle, start, limits = limits)
     }
 
     private fun route(
@@ -208,3 +270,33 @@ private data class ResolveInputs(
     val override: TrackOverride?,
     val forceTranscode: Boolean,
 )
+
+/** The subtitle stream [override] chooses on [media]: its own, none for off, else the source's default. */
+private fun subtitleIndexFor(
+    media: MediaSource,
+    override: TrackOverride?,
+): Int? =
+    when (val wanted = override?.subtitle) {
+        null, SubtitleChoice.Default -> media.defaultSubtitleIndex
+        SubtitleChoice.Off -> null
+        is SubtitleChoice.Track -> wanted.index
+    }
+
+private fun SubtitleCarry.toChoice(): SubtitleChoice =
+    when (this) {
+        SubtitleCarry.ServerDefault -> SubtitleChoice.Default
+        SubtitleCarry.Off -> SubtitleChoice.Off
+        is SubtitleCarry.Track -> SubtitleChoice.Track(index)
+    }
+
+/** True when the server's defaults already gave the tracks [override] asks for. */
+private fun ResolvedPlayback.alreadyPlays(override: TrackOverride): Boolean {
+    val audioSame = override.audioIndex == null || override.audioIndex == chosenAudio?.index
+    val subtitleSame =
+        when (val wanted = override.subtitle) {
+            SubtitleChoice.Default -> true
+            SubtitleChoice.Off -> chosenSubtitle == null
+            is SubtitleChoice.Track -> chosenSubtitle?.index == wanted.index
+        }
+    return audioSame && subtitleSame
+}

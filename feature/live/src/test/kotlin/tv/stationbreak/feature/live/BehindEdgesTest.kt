@@ -27,6 +27,9 @@ import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.SubtitleChoice
+import tv.stationbreak.core.playback.TrackChoice
+import tv.stationbreak.core.playback.TrackOverride
 import tv.stationbreak.feature.live.report.RecordingServer
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
@@ -593,6 +596,74 @@ class BehindEdgesTest {
             val nine = k.controls(itemOf(9)).single()
             assertTrue(nine.calls.toString(), nine.calls.none { it.startsWith("seek") })
             assertNull(k.transport)
+            k.finish()
+        }
+    // The viewer's choice is read when a retune fires, so a retry after an instant switch keeps it (concern 4).
+
+    private val chosen = TrackChoice(MediaSourceId("src1"), TrackOverride(2, SubtitleChoice.Off))
+
+    @Test
+    fun aRetryKeepsTheChoiceMadeAfterTheFirstTune() =
+        runTest {
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 12 * MIN)
+            val k = keys { tune.script(itemOf(1), tune.playsThenEnds(5.minutes, failed)) }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(MIN + upMs, LiveCommand.PlayPause)
+            // The viewer switches track in place (PR 4's instant switch) after the first tune, before it fails.
+            val sitting = checkNotNull(k.r.live.currentSitting())
+            sitting.onAirChoice = OnAirChoice(checkNotNull(sitting.heldBlockStartMs), itemOf(1), chosen)
+            k.r.at(5 * MIN + 100)
+            assertEquals(2, k.r.tunes.size)
+            assertNull(
+                "the first tune had no choice",
+                k.r.tunes
+                    .first()
+                    .choice,
+            )
+            assertEquals(
+                "the retry keeps it",
+                chosen,
+                k.r.tunes
+                    .last()
+                    .choice,
+            )
+            k.finish()
+        }
+
+    @Test
+    fun aChoiceMadeOnAnotherProgrammeIsNotApplied() =
+        runTest {
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 12 * MIN)
+            val k = keys { tune.script(itemOf(1), tune.playsThenEnds(5.minutes, failed)) }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(MIN + upMs, LiveCommand.PlayPause)
+            val sitting = checkNotNull(k.r.live.currentSitting())
+            sitting.onAirChoice = OnAirChoice(checkNotNull(sitting.heldBlockStartMs) - 1, itemOf(1), chosen)
+            k.r.at(5 * MIN + 100)
+            assertNull(
+                k.r.tunes
+                    .last()
+                    .choice,
+            )
+            k.finish()
+        }
+
+    @Test
+    fun aChoiceMadeOnAnotherItemOfTheSameBlockIsNotApplied() =
+        runTest {
+            val failed = PlaybackEnd.Failed("Boom", positionMs = 12 * MIN)
+            val k = keys { tune.script(itemOf(1), tune.playsThenEnds(5.minutes, failed)) }
+            k.pressAt(upMs, LiveCommand.PlayPause)
+            k.pressAt(MIN + upMs, LiveCommand.PlayPause)
+            val sitting = checkNotNull(k.r.live.currentSitting())
+            // Same block, but the choice's indices belong to item 2's tracks (a stand-in piece, say), not item 1's.
+            sitting.onAirChoice = OnAirChoice(checkNotNull(sitting.heldBlockStartMs), itemOf(2), chosen)
+            k.r.at(5 * MIN + 100)
+            assertNull(
+                k.r.tunes
+                    .last()
+                    .choice,
+            )
             k.finish()
         }
 }
