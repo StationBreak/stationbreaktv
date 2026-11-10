@@ -87,7 +87,7 @@ class StayCurrentAfterPassesTest {
         runBlocking {
             val settings = InMemoryServerSettings(ServerRecord(SyncWorld.session.address), emptySet())
             val rewalk = Rewalk(rig.repository, server, rig.clock) {}
-            val steps = SelectionSteps(settings, server, NO_LISTINGS, NO_EXPIRY, rewalk) { lines += it }
+            val steps = SelectionSteps(settings, NO_LISTINGS, NO_EXPIRY, rewalk) { lines += it }
 
             val walked = steps.rewalk(SyncWorld.session, ALICE, ServerResult.Success(listOf(SyncWorld.movies)))
 

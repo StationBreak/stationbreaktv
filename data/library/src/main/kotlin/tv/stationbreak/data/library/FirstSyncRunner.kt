@@ -4,17 +4,12 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
-import tv.stationbreak.core.domain.RestoreOutcome
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
-import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.selection.FirstSyncLibraries
 import tv.stationbreak.core.domain.selection.SelectionReady
-import tv.stationbreak.core.model.ServerId
-import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
 
 /**
@@ -56,27 +51,10 @@ class FirstSyncRunner(
         // Nothing stored, or nothing ticked yet: onboarding is not finished, so there is nothing to sync.
         val record = settings.load() ?: return SyncOutcome.Cancelled
         if (settings.loadLibraries().isNullOrEmpty()) return SyncOutcome.Cancelled
-        return when (val restored = sessions.verify(record.address)) {
-            is RestoreOutcome.Restored -> {
-                val session = restored.session
-                val account = LibraryAccount(session.server.id, session.userId)
-                // Signed out (or another account in) while the server was answering: nothing to sync.
-                val active = repository.dao.activeAccounts()
-                if (active != listOf(ActiveAccountEntity(account.server.value, account.user.value))) {
-                    SyncOutcome.Cancelled
-                } else {
-                    val engine = FirstSyncEngine(repository, server, clock, report = report)
-                    writing { engine.run(session, account, libraries) }
-                }
-            }
-
-            RestoreOutcome.SignedOut, is RestoreOutcome.Rejected -> {
-                SyncOutcome.Failed(SyncFailure.SessionExpired)
-            }
-
-            is RestoreOutcome.Unavailable -> {
-                unavailable(restored.error)
-            }
+        // Signed out (or another account in) while the server was answering: nothing to sync (Cancelled).
+        return sessions.verifiedRun(record.address, repository, unavailable = ::unavailable) { session, account ->
+            val engine = FirstSyncEngine(repository, server, clock, report = report)
+            writing { engine.run(session, account, libraries) }
         }
     }
 
@@ -98,10 +76,10 @@ class FirstSyncRunner(
     // The server could not be asked: the signed-in account keeps what it has, and the screen can say why.
     private suspend fun unavailable(error: MediaServerError): SyncOutcome {
         val failure = error.toSyncFailure()
-        val active = repository.dao.activeAccounts().singleOrNull()
+        val active = repository.activeAccounts().singleOrNull()
         if (active != null) {
             try {
-                repository.failSync(LibraryAccount(ServerId(active.serverId), UserId(active.userId)), failure)
+                repository.failSync(active, failure)
             } catch (_: AccountNotActiveException) {
                 // Signed out while this ran: there is nothing left to say it to.
             }

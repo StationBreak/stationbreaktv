@@ -3,13 +3,30 @@ package tv.stationbreak.data.library
 
 import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.LibraryAccount
-import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.selection.HoldExpiry
 import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.Session
+
+// What a run does for the server's listing after its passes: list it and hand it to the selection to follow
+// ([Follow]), or use the one its caller already listed and handed over ([Listed], null when there is none).
+internal sealed interface AfterPasses {
+    data object Follow : AfterPasses
+
+    data class Listed(
+        val listed: ServerResult<List<Library>>?,
+        val listedFor: LibraryAccount?,
+    ) : AfterPasses
+}
+
+// What the after-passes hook gave: the listing the rewalk walks on (null when there is none), or that a sign-out landed
+// inside it.
+internal class Hooked(
+    val listed: ServerResult<List<Library>>?,
+    val signedOut: Boolean = false,
+)
 
 /**
  * The steps of a stay-current run that reach the library selection (spec 26, Part 4 §4, D11 and D12), through its
@@ -20,26 +37,45 @@ import tv.stationbreak.core.model.Session
  */
 internal class SelectionSteps(
     private val settings: ServerSettings,
-    private val server: MediaServer,
     private val listings: ServerListings,
     private val holds: HoldExpiry,
     private val rewalkStep: Rewalk,
     private val report: (String) -> Unit,
 ) {
     /**
-     * After the passes (the runner decides when): the holds that ended expire, then the run's listing is followed.
-     * Gives the listing, or null only when reading it threw.
+     * The after-passes hook for [after] (the runner decides when): the holds that ended expire, then the run's
+     * [listing] is followed, or the one its caller already listed is used when it is for this [account] (a listing made
+     * for another account is not walked on, and the run is not failed for it). A sign-out that lands inside the hook
+     * skips what is left of it and says so in [Hooked.signedOut].
      */
-    suspend fun expireAndFollow(
-        session: Session,
+    suspend fun afterPasses(
+        after: AfterPasses,
         account: LibraryAccount,
-    ): ServerResult<List<Library>>? {
-        expire(account)
-        return follow(session, account)
-    }
+        listing: RunListing,
+    ): Hooked =
+        try {
+            when (after) {
+                AfterPasses.Follow -> {
+                    expire(account)
+                    Hooked(follow(account, listing))
+                }
+
+                is AfterPasses.Listed -> {
+                    expire(account)
+                    if (after.listedFor == null || after.listedFor == account) {
+                        Hooked(after.listed)
+                    } else {
+                        say("ListingAccountMismatch")
+                        Hooked(null)
+                    }
+                }
+            }
+        } catch (_: AccountNotActiveException) {
+            Hooked(null, signedOut = true)
+        }
 
     /** After the passes, for a run its caller already listed for (Sync now): only the holds that ended expire. */
-    suspend fun expire(account: LibraryAccount) {
+    private suspend fun expire(account: LibraryAccount) {
         guarded("HoldExpiry") { holds.expireHolds(account) }
     }
 
@@ -63,16 +99,16 @@ internal class SelectionSteps(
     }
 
     /**
-     * Lists the server's libraries once and hands the listing to the selection to follow (a failed listing too: the
-     * selection drops it). Gives the listing, or null only when reading it threw.
+     * Hands the run's [listing] to the selection to follow (a failed listing too: the selection drops it). The listing
+     * is the run's one: read now only if no pass has read it. Gives the listing, or null only when reading it threw.
      */
     suspend fun follow(
-        session: Session,
         account: LibraryAccount,
+        listing: RunListing,
     ): ServerResult<List<Library>>? {
         var listed: ServerResult<List<Library>>? = null
         guarded("Listing") {
-            val read = server.libraries(session)
+            val read = listing.get()
             listed = read
             listings.followServer(account, read)
         }

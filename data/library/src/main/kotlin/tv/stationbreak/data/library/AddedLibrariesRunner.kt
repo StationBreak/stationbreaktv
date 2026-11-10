@@ -4,7 +4,6 @@ package tv.stationbreak.data.library
 import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
-import tv.stationbreak.core.domain.RestoreOutcome
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
@@ -15,9 +14,7 @@ import tv.stationbreak.core.domain.selection.LandResult
 import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
-import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
-import tv.stationbreak.core.model.UserId
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -95,33 +92,11 @@ class AddedLibrariesRunner(
         ready.await()
         val record = settings.load() ?: return SyncOutcome.Cancelled
         // The adds are the selection's own, for the active account and only of its own choice: none, nothing to do.
-        val signedIn = repository.dao.activeAccounts().singleOrNull() ?: return SyncOutcome.Cancelled
-        val signedInAccount = LibraryAccount(ServerId(signedIn.serverId), UserId(signedIn.userId))
-        if (landings.pendingAdds(signedInAccount).isEmpty()) return SyncOutcome.Completed
-        return when (val restored = sessions.verify(record.address)) {
-            is RestoreOutcome.Restored -> {
-                val session = restored.session
-                val account = LibraryAccount(session.server.id, session.userId)
-                // Signed out (or another account in) while the server was answering: nothing to add.
-                val stillActive = ActiveAccountEntity(account.server.value, account.user.value)
-                if (repository.dao.activeAccounts() != listOf(stillActive)) {
-                    SyncOutcome.Cancelled
-                } else {
-                    try {
-                        Pass(session, account).run()
-                    } catch (_: AccountNotActiveException) {
-                        SyncOutcome.Cancelled
-                    }
-                }
-            }
-
-            RestoreOutcome.SignedOut, is RestoreOutcome.Rejected -> {
-                SyncOutcome.Failed(SyncFailure.SessionExpired)
-            }
-
-            is RestoreOutcome.Unavailable -> {
-                SyncOutcome.Failed(restored.error.toSyncFailure())
-            }
+        val signedIn = repository.activeAccounts().singleOrNull() ?: return SyncOutcome.Cancelled
+        if (landings.pendingAdds(signedIn).isEmpty()) return SyncOutcome.Completed
+        // Signed out (or another account in) while the server was answering: nothing to add (Cancelled).
+        return sessions.verifiedRun(record.address, repository) { session, account ->
+            cancelledOnSignOut { Pass(session, account).run() }
         }
     }
 
