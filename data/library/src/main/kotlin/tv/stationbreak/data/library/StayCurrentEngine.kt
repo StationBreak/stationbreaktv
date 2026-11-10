@@ -246,13 +246,14 @@ internal class StayCurrentEngine(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
+        listing: RunListing = RunListing { server.libraries(session) },
     ): StayResult<PassSummary> =
         try {
             val last = repository.lastSuccess(account)
             if (last == null) {
                 StayResult(SyncOutcome.Cancelled, PassSummary())
             } else {
-                Pass(session, account).incremental(chosen, last, clock.now())
+                Pass(session, account, listing).incremental(chosen, last, clock.now())
             }
         } catch (_: AccountNotActiveException) {
             StayResult(SyncOutcome.Cancelled, PassSummary())
@@ -272,6 +273,7 @@ internal class StayCurrentEngine(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
+        listing: RunListing = RunListing { server.libraries(session) },
     ): StayResult<PassSummary> =
         try {
             when {
@@ -284,7 +286,7 @@ internal class StayCurrentEngine(
                 }
 
                 else -> {
-                    Pass(session, account, backfilling = true).backfill(chosen)
+                    Pass(session, account, listing, backfilling = true).backfill(chosen)
                 }
             }
         } catch (_: AccountNotActiveException) {
@@ -306,9 +308,10 @@ internal class StayCurrentEngine(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
+        listing: RunListing = RunListing { server.libraries(session) },
     ): StayResult<ReconcileSummary> =
         try {
-            Pass(session, account).reconcile(chosen)
+            Pass(session, account, listing).reconcile(chosen)
         } catch (_: AccountNotActiveException) {
             StayResult(SyncOutcome.Cancelled, ReconcileSummary())
         }
@@ -333,6 +336,7 @@ internal class StayCurrentEngine(
     private inner class Pass(
         private val session: Session,
         private val account: LibraryAccount,
+        private val listing: RunListing,
         private val backfilling: Boolean = false,
     ) {
         private var skipped = 0
@@ -381,7 +385,7 @@ internal class StayCurrentEngine(
             // Each library's own coverage (a hold placed, an add or a rewalk that landed), read before the server.
             val coverage = repository.coveredFrom(account)
             val libraries =
-                when (val listed = server.libraries(session)) {
+                when (val listed = listing.get()) {
                     is ServerResult.Success -> listed.value.filter { it.id in walking }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), passed)
                 }
@@ -416,7 +420,7 @@ internal class StayCurrentEngine(
         suspend fun backfill(chosen: Set<ItemId>): StayResult<PassSummary> {
             val walking = walkable(chosen)
             val libraries =
-                when (val listed = server.libraries(session)) {
+                when (val listed = listing.get()) {
                     is ServerResult.Success -> listed.value.filter { it.id in walking }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), counted())
                 }
@@ -448,7 +452,7 @@ internal class StayCurrentEngine(
             // one still stamped or held: its rows are the add's or the hold's, not this pass's.
             val chosen = walkable(everyChosen)
             val libraries =
-                when (val listed = server.libraries(session)) {
+                when (val listed = listing.get()) {
                     is ServerResult.Success -> listed.value.filter { it.id in chosen }
                     is ServerResult.Failure -> return StayResult(fail(listed.error), reconciled)
                 }

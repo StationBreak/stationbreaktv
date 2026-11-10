@@ -161,7 +161,12 @@ class PagedMediaServer(
 
     val itemCalls: List<PagedCall> get() = calls.filter { !it.idsOnly && !it.series }
 
+    /** How many times [libraries] was asked, so a test can pin one listing per run. */
+    var librariesCount = 0
+        private set
+
     override suspend fun libraries(session: Session): ServerResult<List<Library>> {
+        librariesCount++
         librariesFailure?.let { return ServerResult.Failure(it) }
         return ServerResult.Success(libraries)
     }

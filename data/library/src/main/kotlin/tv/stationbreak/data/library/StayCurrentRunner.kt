@@ -19,9 +19,7 @@ import tv.stationbreak.core.domain.selection.SelectionReady
 import tv.stationbreak.core.domain.selection.ServerListings
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
-import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
-import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -97,7 +95,7 @@ class StayCurrentRunner(
     private val gate = Mutex()
     private val runningNow = MutableStateFlow(false)
     private val steps =
-        SelectionSteps(settings, server, listings, holds, Rewalk(repository, server, clock, report), report)
+        SelectionSteps(settings, listings, holds, Rewalk(repository, server, clock, report), report)
 
     // What a walk could not find, kept across runs in this process.
     private val unfindable = UnfindableIds()
@@ -221,12 +219,7 @@ class StayCurrentRunner(
     private suspend fun guarded(
         plan: SyncPlan,
         after: AfterPasses,
-    ): SyncOutcome =
-        try {
-            start(plan, after)
-        } catch (_: AccountNotActiveException) {
-            SyncOutcome.Cancelled
-        }
+    ): SyncOutcome = cancelledOnSignOut { start(plan, after) }
 
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
     private suspend fun start(
@@ -238,23 +231,25 @@ class StayCurrentRunner(
         settings.loadLibraries()?.takeIf { it.isNotEmpty() } ?: return report.skipped(plan, Skip.NoLibraries)
         val chosen = settings.loadPlayableLibraries()
         if (chosen?.isEmpty() == true) return report.skipped(plan, Skip.NoLibraries)
-        val accounts = repository.dao.activeAccounts()
-        val active = accounts.singleOrNull() ?: return report.skipped(plan, Skip.NoAccount, "accounts=${accounts.size}")
-        val account = LibraryAccount(ServerId(active.serverId), UserId(active.userId))
+        val accounts = repository.activeAccounts()
+        val account =
+            accounts.singleOrNull() ?: return report.skipped(plan, Skip.NoAccount, "accounts=${accounts.size}")
         // The first sync has not ended: it owns the library, and nothing here is a "top up" yet.
         val firstSyncOpen = repository.lastSuccess(account) == null || repository.isFirstSyncRunning(account)
         if (firstSyncOpen) return report.skipped(plan, Skip.FirstSyncOpen)
         return when (val restored = sessions.verify(record.address)) {
             is RestoreOutcome.Restored -> {
+                // The run's one listing of the server's libraries (#654): the passes, follow and re-read share it.
+                val listing = RunListing { server.libraries(restored.session) }
                 if (chosen != null) {
-                    safely(account) { passes(restored.session, account, chosen, plan, after) }
+                    safely(account) { passes(restored.session, account, chosen, plan, after, listing) }
                 } else if (!restored.session.isOf(account)) {
                     report.skipped(plan, Skip.AccountChanged)
                 } else {
                     // While the selection is gone (D11): no pass and no rewalk, as nothing chosen plays, but the
                     // server is still listed and followed, so a chosen library listed again ends the gone state
                     // (by this run, or by the caller that listed it already).
-                    if (after == AfterPasses.Follow) steps.follow(restored.session, account)
+                    if (after == AfterPasses.Follow) steps.follow(account, listing)
                     report.skipped(plan, Skip.Gone)
                 }
             }
@@ -282,6 +277,7 @@ class StayCurrentRunner(
         chosen: Set<ItemId>,
         plan: SyncPlan,
         after: AfterPasses,
+        listing: RunListing,
     ): SyncOutcome {
         // Signed out, or another account in, while the server was answering: nothing to sync.
         if (!session.isOf(account)) return report.skipped(plan, Skip.AccountChanged)
@@ -298,7 +294,7 @@ class StayCurrentRunner(
         report.say("StayCurrent incremental=${plan.incremental} reconcile=${plan.reconcile}")
         val generationBefore = repository.generationOrNull(account)
         val began = timeSource.markNow()
-        val ran = report.timed(began) { stayCurrent(engine, session, account, chosen, plan) }
+        val ran = report.timed(began) { stayCurrent(engine, session, account, chosen, plan, listing) }
         val outcome = ran.outcome
         report.say("StayCurrentDone ms=${began.elapsedNow().inWholeMilliseconds} ${outcome.label()}")
         report.say(wrote(generationBefore, repository.generationOrNull(account), ran))
@@ -311,7 +307,7 @@ class StayCurrentRunner(
         // passes ended it (as for the backfill). A listing made for another account than the run's is not walked on.
         val hooked =
             if (outcome == SyncOutcome.Completed || (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled)) {
-                afterPasses(after, session, account)
+                steps.afterPasses(after, account, listing)
             } else {
                 Hooked(null)
             }
@@ -319,35 +315,11 @@ class StayCurrentRunner(
             steps.rewalk(session, account, hooked.listed)?.let { lastRewalk = it }
         }
         // The re-read needs the incremental pass to have completed; a reconcile that failed is no reason to skip it.
-        if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) backfill(engine, session, account, chosen)
+        if (ran.incrementalCompleted && outcome != SyncOutcome.Cancelled) {
+            backfill(engine, session, account, chosen, listing)
+        }
         return outcome
     }
-
-    // The after-passes hook: the holds that ended expire and the run's listing is followed (or its caller's is used).
-    private suspend fun afterPasses(
-        after: AfterPasses,
-        session: Session,
-        account: LibraryAccount,
-    ): Hooked =
-        try {
-            when (after) {
-                AfterPasses.Follow -> {
-                    Hooked(steps.expireAndFollow(session, account))
-                }
-
-                is AfterPasses.Listed -> {
-                    steps.expire(account)
-                    if (after.listedFor == null || after.listedFor == account) {
-                        Hooked(after.listed)
-                    } else {
-                        report.say("ListingAccountMismatch")
-                        Hooked(null)
-                    }
-                }
-            }
-        } catch (_: AccountNotActiveException) {
-            Hooked(null, signedOut = true)
-        }
 
     @Suppress("ReturnCount") // Each early return is a pass that did not complete.
     private suspend fun stayCurrent(
@@ -356,12 +328,13 @@ class StayCurrentRunner(
         account: LibraryAccount,
         chosen: Set<ItemId>,
         plan: SyncPlan,
+        listing: RunListing,
     ): Ran {
         // The incremental pass records a new success; the purge's clock guard needs the one from before this run.
         val reference = repository.lastSuccess(account)
         var passed: PassSummary? = null
         if (plan.incremental) {
-            val incremental = engine.incremental(session, account, chosen)
+            val incremental = engine.incremental(session, account, chosen, listing)
             passed = incremental.summary
             if (incremental.outcome != SyncOutcome.Completed) {
                 return Ran(incremental.outcome, incrementalCompleted = false, passed = passed)
@@ -371,7 +344,7 @@ class StayCurrentRunner(
             val pass = collections(engine, session, account)
             return Ran(SyncOutcome.Completed, plan.incremental, passed, collections = pass.summary)
         }
-        val reconciled = engine.reconcile(session, account, chosen)
+        val reconciled = engine.reconcile(session, account, chosen, listing)
         var pass: CollectionResult? = null
         if (reconciled.outcome == SyncOutcome.Completed) {
             pass = collections(engine, session, account)
@@ -410,6 +383,7 @@ class StayCurrentRunner(
         session: Session,
         account: LibraryAccount,
         chosen: Set<ItemId>,
+        listing: RunListing,
     ) {
         val pending = repository.pendingOrNull(account)
         report.say("Backfill pending=${pending ?: "unknown"}")
@@ -417,7 +391,7 @@ class StayCurrentRunner(
         val began = timeSource.markNow()
         val result =
             try {
-                engine.backfill(session, account, chosen)
+                engine.backfill(session, account, chosen, listing)
             } catch (cancelled: CancellationException) {
                 if (pending != false) {
                     report.say("BackfillDone ms=${began.elapsedNow().inWholeMilliseconds} outcome=Cancelled")
@@ -492,24 +466,6 @@ class StayCurrentRunner(
         return SyncOutcome.Failed(failure)
     }
 }
-
-// What a run does for the server's listing after its passes: list it and hand it to the selection to follow
-// ([Follow]), or use the one its caller already listed and handed over ([Listed], null when there is none).
-private sealed interface AfterPasses {
-    data object Follow : AfterPasses
-
-    data class Listed(
-        val listed: ServerResult<List<Library>>?,
-        val listedFor: LibraryAccount?,
-    ) : AfterPasses
-}
-
-// What the after-passes hook gave: the listing the rewalk walks on (null when there is none), or that a sign-out landed
-// inside it.
-private class Hooked(
-    val listed: ServerResult<List<Library>>?,
-    val signedOut: Boolean = false,
-)
 
 // How the passes of a run ended, whether the incremental pass was in the plan and completed (the re-read's cue), and
 // what each pass that ran wrote (null for one that did not run).
