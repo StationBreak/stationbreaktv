@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -23,6 +24,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +32,7 @@ import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
@@ -75,8 +78,18 @@ class LiveScreenshotTest {
             next = NextProgram("Roman Holiday", now + 100 * MINUTE),
             actions = actions,
             hasLast = actions,
-            recipeKey = "date-night",
+            recipeKey = MARK_KEY,
         )
+
+    /** The logo is decoded off the main thread: wait for it, or a frame can show the initials in its place. */
+    @Before
+    fun warmTheMark() {
+        val cache = MarkCaches.get(InstrumentationRegistry.getInstrumentation().targetContext)
+        cache.request(listOf(MARK_KEY))
+        val deadline = SystemClock.uptimeMillis() + MARK_WAIT_MS
+        while (cache.peek(MARK_KEY) == null && SystemClock.uptimeMillis() < deadline) Thread.sleep(POLL_MS)
+        assertNotNull("the $MARK_KEY logo did not load", cache.peek(MARK_KEY))
+    }
 
     private fun shoot(
         name: String,
@@ -103,7 +116,7 @@ class LiveScreenshotTest {
 
     @Test
     fun theChannelFlip() {
-        val target = ChannelTag(162, "Date Night", "date-night")
+        val target = ChannelTag(162, "Date Night", MARK_KEY)
         shoot("live-flip.png", LiveState.Choosing(target, overPicture = true))
     }
 
@@ -179,6 +192,9 @@ class LiveScreenshotTest {
     }
 
     private companion object {
+        const val MARK_KEY = "date-night"
+        const val MARK_WAIT_MS = 10_000L
+        const val POLL_MS = 50L
         const val LOG_TAG = "LiveScreenshot"
 
         /** The folder the emulator job pulls (`pull-guide-screenshots.sh`); this test's files start with `live-`. */
