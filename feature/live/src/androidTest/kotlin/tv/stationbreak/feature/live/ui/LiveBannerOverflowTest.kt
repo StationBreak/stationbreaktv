@@ -12,6 +12,8 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -126,6 +128,23 @@ class LiveBannerOverflowTest {
         assertEllipsized(LiveTags.BANNER_SUBTITLE)
         assertInside(LiveTags.BANNER_SUBTITLE)
         assertInside(LiveTags.BANNER_SLOT)
+    }
+
+    @Test
+    fun theTitleIs18spBoldAndTheMetaLineStays11sp() {
+        show(LiveState.Watching(banner(longEpisode)))
+        val title = layout(compose.onNodeWithTag(LiveTags.BANNER_TITLE)).layoutInput.style
+        assertEquals(18.sp, title.fontSize)
+        assertEquals(FontWeight.Bold, title.fontWeight)
+        assertEquals(11.sp, layout(compose.onNodeWithTag(LiveTags.BANNER_SLOT)).layoutInput.style.fontSize)
+    }
+
+    @Test
+    fun theBannerStaysAtItsHeightWithTheBiggerTitle() {
+        show(LiveState.Watching(banner(longEpisode)))
+        val density = compose.activity.resources.displayMetrics.density
+        // The tagged node is inside the 1 dp border on each side of the 58 dp bar.
+        assertEquals((58f - 2f) * density, frame().tagged.getValue(LiveTags.BANNER).height, density)
     }
 
     @Test

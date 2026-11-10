@@ -12,12 +12,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.SourceFacts
+import tv.stationbreak.core.playback.StreamFacts
+import tv.stationbreak.core.playback.VideoFacts
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.NextProgram
 
 /** The live screen's states on the API 25 emulator: what each one puts on screen (spec 14). */
 @RunWith(AndroidJUnit4::class)
@@ -37,6 +43,8 @@ class LiveScreenTest {
         joinedMs: Long? = 12 * MINUTE,
         actions: Boolean = false,
         recipeKey: String? = null,
+        next: NextProgram? = null,
+        stream: StreamFacts? = null,
     ) = Banner(
         4,
         "Test Channel",
@@ -47,8 +55,15 @@ class LiveScreenTest {
         START + 30 * MINUTE,
         joinedMs,
         actions = actions,
+        next = next,
         recipeKey = recipeKey,
+        stream = stream,
     )
+
+    private val facts =
+        SourceFacts(MediaSourceId("src1"), null, VideoFacts(1920, 1080, "hevc"), emptyList(), emptyList()).let {
+            StreamFacts(Route.DIRECT_PLAY, it.id, null, null, listOf(it))
+        }
 
     private fun show(state: LiveState) {
         compose.setContent { StationBreakTheme { LiveScreen(state) {} } }
@@ -100,6 +115,24 @@ class LiveScreenTest {
     fun theSelectBannerHasNoHowFarIn() {
         show(LiveState.Watching(banner(BannerLabel.Now, actions = true)))
         compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertDoesNotExist()
+    }
+
+    @Test
+    fun theTuneBannersRightColumnIsTheNextLineAloneWhateverIsPlaying() {
+        val next = NextProgram("Test Movie B", START + 30 * MINUTE)
+        show(LiveState.Watching(banner(BannerLabel.Now, next = next, stream = facts)))
+        compose.onNodeWithTag(LiveTags.BANNER_NEXT).assertExists()
+        compose.onNodeWithText("1080p", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("HEVC", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun theSelectBannersRightColumnIsTheNextLineAloneWhateverIsPlaying() {
+        val next = NextProgram("Test Movie B", START + 30 * MINUTE)
+        show(LiveState.Watching(banner(BannerLabel.Now, actions = true, next = next, stream = facts)))
+        compose.onNodeWithTag(LiveTags.BANNER_NEXT).assertExists()
+        compose.onNodeWithText("1080p", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("HEVC", substring = true).assertDoesNotExist()
     }
 
     @Test

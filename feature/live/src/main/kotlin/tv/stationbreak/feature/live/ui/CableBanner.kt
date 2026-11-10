@@ -65,7 +65,7 @@ private val RowHeight = 54.dp
 private val SidePadding = 16.dp
 private val LabelSize = 8.5.sp
 private val NumberSize = 13.sp
-private val TitleSize = 15.sp
+private val TitleSize = 18.sp
 private val MetaSize = 11.sp
 private val FlipNumberSize = 20.sp
 private val FlipNameSize = 15.sp
@@ -222,7 +222,7 @@ private fun BannerStrip(
         } else {
             ProgressLine(banner.slotStartMs, banner.slotEndMs, programCopy, now)
         }
-        BannerRow(banner, BannerLines(episode, slot, next, rememberStreamLine(banner), joined), programCopy, now)
+        BannerRow(banner, BannerLines(episode, slot, next, joined), programCopy, now)
         if (banner.actions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
             ActionsRow(banner.hasLast, actions, behind, banner.stream, chipPlaced, banner.picker)
@@ -231,14 +231,13 @@ private fun BannerStrip(
 }
 
 /**
- * What the banner's row writes besides the title: the episode line (a film's year), the slot, the "Next" line, the
- * stream line (what plays: information only, not focusable), and "N min in" (the tune banner only).
+ * What the banner's row writes besides the title: the episode line (a film's year), the slot, the "Next" line, and
+ * "N min in" (the tune banner only).
  */
 private class BannerLines(
     val episode: String?,
     val slot: String,
     val next: String?,
-    val stream: String?,
     val joined: String?,
 )
 
@@ -281,7 +280,7 @@ private fun BannerRow(
                 Text(
                     text = it,
                     modifier = Modifier.fillMaxWidth().testTag(LiveTags.BANNER_TITLE),
-                    style = guideText(TitleSize, FontWeight.SemiBold),
+                    style = guideText(TitleSize, FontWeight.Bold),
                     color = colors.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -289,34 +288,23 @@ private fun BannerRow(
             }
             MetaLine(banner, lines, programCopy, now)
         }
-        val stream = lines.stream?.takeIf { it.isNotEmpty() }
-        if (lines.next != null || stream != null) {
-            Column(
-                Modifier.padding(start = SidePadding).widthIn(max = NextMaxWidth),
-                horizontalAlignment = Alignment.End,
-            ) {
-                lines.next?.let { RightLine(it, LiveTags.BANNER_NEXT) }
-                stream?.let { RightLine(it, LiveTags.BANNER_STREAM) }
-            }
+        // The right column is the "Next" line alone; what plays is on the Select banner's chips.
+        lines.next?.let {
+            Text(
+                text = it,
+                modifier =
+                    Modifier
+                        .padding(start = SidePadding)
+                        .widthIn(max = NextMaxWidth)
+                        .testTag(LiveTags.BANNER_NEXT),
+                style = guideText(MetaSize, FontWeight.Normal),
+                color = colors.textSecondary,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
-}
-
-/** One of the two right-aligned 11 sp lines of the row: the "Next" line, and the stream line under it. */
-@Composable
-private fun RightLine(
-    text: String,
-    tag: String,
-) {
-    Text(
-        text = text,
-        modifier = Modifier.testTag(tag),
-        style = guideText(MetaSize, FontWeight.Normal),
-        color = LocalGuideColors.current.textSecondary,
-        textAlign = TextAlign.End,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
 }
 
 /**

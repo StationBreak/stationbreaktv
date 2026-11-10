@@ -2,9 +2,6 @@
 package tv.stationbreak.feature.live.ui
 
 import android.content.res.Resources
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import tv.stationbreak.core.model.LanguageCodes
 import tv.stationbreak.core.model.TrackFlags
 import tv.stationbreak.core.playback.AudioFacts
@@ -14,7 +11,6 @@ import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.playback.SubtitleFacts
 import tv.stationbreak.core.playback.SubtitleForm
 import tv.stationbreak.core.playback.VideoFacts
-import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.PickerRow
 import tv.stationbreak.feature.live.R
 import java.util.Locale
@@ -62,19 +58,6 @@ internal class StreamCopy(
                 playing = resources.getString(R.string.live_picker_playing),
                 switchFailed = resources.getString(R.string.live_switch_failed),
             )
-    }
-}
-
-/**
- * The banner's stream line (what plays), or null when the tune had no facts to give. After a switch that did not take
- * it says so instead, for the one banner that follows (design doc B2.7).
- */
-@Composable
-internal fun rememberStreamLine(banner: Banner): String? {
-    val resources = LocalContext.current.resources
-    return remember(banner) {
-        val copy = StreamCopy.from(resources)
-        if (banner.switchFailed) copy.switchFailed else banner.stream?.let { StreamLabels.streamLine(it, copy) }
     }
 }
 
