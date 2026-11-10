@@ -11,6 +11,8 @@ import org.junit.Test
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.tracks.SubtitlePreference
+import tv.stationbreak.core.domain.tracks.TrackPreferences
 import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.DeviceCapabilities
 import tv.stationbreak.core.model.ItemId
@@ -18,6 +20,7 @@ import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
+import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.SubtitleDelivery
 import tv.stationbreak.core.playback.PlaybackTestData.audio
 import tv.stationbreak.core.playback.PlaybackTestData.insigniaLike
@@ -40,13 +43,15 @@ class PlaybackResolverTest {
             ServerResult.Success(PlaybackInfo(item, PlaySessionId("ps1"), media.toList(), urls))
     }
 
+    private fun onSrc1(tracks: TrackOverride) = TrackChoice(MediaSourceId("src1"), tracks)
+
     private suspend fun resolve(
         start: Duration = Duration.ZERO,
-        override: TrackOverride? = null,
+        choice: TrackChoice? = null,
         force: Boolean = false,
-        prefer: MediaSourceId? = null,
+        preferences: TrackPreferences? = null,
     ): ResolvedPlayback {
-        val result = resolver.resolve(PlaybackTestData.session, item, start, override, force, prefer)
+        val result = resolver.resolve(PlaybackTestData.session, item, start, choice, force, preferences)
         return assertIs<ServerResult.Success<ResolvedPlayback>>(result).value
     }
 
@@ -65,7 +70,7 @@ class PlaybackResolverTest {
     fun anOverrideIsSentAsExplicitIndices() =
         runTest {
             answer(source(streams = listOf(video(), audio(1), audio(2), subtitle(3))))
-            val played = resolve(override = TrackOverride(audioIndex = 2, subtitleIndex = 3))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 2, subtitle = SubtitleChoice.Track(3))))
             val request = server.playbackInfoCalls.single().second
             assertEquals(2, request.audioIndex)
             assertEquals(3, request.subtitleIndex)
@@ -96,7 +101,7 @@ class PlaybackResolverTest {
     fun anOverrideWithSubtitlesOffOverridesTheServerDefault() =
         runTest {
             answer(source(streams = listOf(video(), audio(1), subtitle(3)), defaultSubtitle = 3))
-            val played = resolve(override = TrackOverride(audioIndex = null, subtitleIndex = null))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = null, subtitle = SubtitleChoice.Off)))
             assertNull(played.chosenSubtitle)
             assertEquals(1, played.chosenAudio?.index)
         }
@@ -121,7 +126,7 @@ class PlaybackResolverTest {
         runTest {
             val second = audio(index = 2, codec = Codecs.AC3).copy(language = "fra", positionInKind = 1)
             answer(source(streams = listOf(video(), audio(), second)))
-            val played = resolve(override = TrackOverride(audioIndex = 2, subtitleIndex = null))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 2, subtitle = SubtitleChoice.Off)))
             assertEquals(TrackPick(1, "fra", Codecs.AC3), played.source.audioPick)
             assertNull(played.source.subtitlePick)
         }
@@ -295,7 +300,7 @@ class PlaybackResolverTest {
     fun anOverriddenAudioTrackIsTheOneChecked() =
         runTest {
             answer(source(streams = listOf(video(), audio(1, Codecs.AAC), audio(2, Codecs.DTS, 6))))
-            val played = resolve(override = TrackOverride(audioIndex = 2, subtitleIndex = null))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 2, subtitle = SubtitleChoice.Off)))
             assertTrue(played.source.isHls)
             assertEquals(2, urls.hlsCalls.single().audioIndex)
         }
@@ -304,7 +309,7 @@ class PlaybackResolverTest {
     fun anOverrideIndexThatIsNotInTheSourceFallsBackToTheDefault() =
         runTest {
             answer(source(directPlay = false, streams = listOf(video(), audio(1), audio(2)), defaultAudio = 2))
-            val played = resolve(override = TrackOverride(audioIndex = 9, subtitleIndex = null))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 9, subtitle = SubtitleChoice.Off)))
             assertEquals(2, played.chosenAudio?.index)
             assertEquals(2, played.source.audioIndex)
             assertEquals(2, urls.hlsCalls.single().audioIndex)
@@ -314,7 +319,7 @@ class PlaybackResolverTest {
     fun anOverrideIndexThatIsNotAudioFallsBackToTheDefault() =
         runTest {
             answer(source(directPlay = false, streams = listOf(video(), audio(1), subtitle(3)), defaultAudio = 1))
-            val played = resolve(override = TrackOverride(audioIndex = 3, subtitleIndex = null))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 3, subtitle = SubtitleChoice.Off)))
             assertEquals(1, played.chosenAudio?.index)
             assertEquals(1, urls.hlsCalls.single().audioIndex)
         }
@@ -323,7 +328,7 @@ class PlaybackResolverTest {
     fun withNoUsableDefaultTheFirstAudioStreamIsChosen() =
         runTest {
             answer(source(directPlay = false, streams = listOf(video(), audio(4), audio(5)), defaultAudio = null))
-            val played = resolve(override = TrackOverride(audioIndex = 9, subtitleIndex = null))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 9, subtitle = SubtitleChoice.Off)))
             assertEquals(4, played.chosenAudio?.index)
             assertEquals(4, urls.hlsCalls.single().audioIndex)
         }
@@ -332,7 +337,7 @@ class PlaybackResolverTest {
     fun theAudioCheckStillAppliesAfterTheFallback() =
         runTest {
             answer(source(streams = listOf(video(), audio(1, Codecs.DTS, 6)), defaultAudio = 1))
-            val played = resolve(override = TrackOverride(audioIndex = 9, subtitleIndex = null))
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 9, subtitle = SubtitleChoice.Off)))
             assertTrue(played.source.isHls)
             assertNotEquals(Route.DIRECT_PLAY, played.route)
         }
@@ -451,14 +456,14 @@ class PlaybackResolverTest {
     fun aPreferredVersionIsChosenEvenWhenAnotherDirectPlays() =
         runTest {
             answer(version("a"), version("b", directPlay = false))
-            assertEquals(MediaSourceId("b"), resolve(prefer = MediaSourceId("b")).media.id)
+            assertEquals(MediaSourceId("b"), resolve(choice = TrackChoice(MediaSourceId("b"))).media.id)
         }
 
     @Test
     fun aPreferredVersionThatIsNotInTheAnswerFallsBackToTheNormalChoice() =
         runTest {
             answer(version("a", directPlay = false), version("b"))
-            assertEquals(MediaSourceId("b"), resolve(prefer = MediaSourceId("x")).media.id)
+            assertEquals(MediaSourceId("b"), resolve(choice = TrackChoice(MediaSourceId("x"))).media.id)
         }
 
     @Test
@@ -496,5 +501,152 @@ class PlaybackResolverTest {
         runTest {
             answer(version("uhd", directPlay = false), version("hd"))
             assertEquals(MediaSourceId("uhd"), resolve(force = true).media.id)
+        }
+    // ---- the subtitle choice has three states (concern 2) ----
+
+    private val withTracks
+        get() = source(streams = listOf(video(), audio(1), audio(2), subtitle(3)), defaultSubtitle = 3)
+
+    @Test
+    fun aDefaultSubtitleChoiceSendsNoIndexAndPlaysTheServersDefault() =
+        runTest {
+            answer(withTracks)
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 2, subtitle = SubtitleChoice.Default)))
+            val request = server.playbackInfoCalls.single().second
+            assertEquals(2, request.audioIndex)
+            assertNull("the server applies the user's preferences", request.subtitleIndex)
+            assertEquals(3, played.chosenSubtitle?.index)
+        }
+
+    @Test
+    fun anOffSubtitleChoiceAsksTheServerForNoneAndPlaysNone() =
+        runTest {
+            answer(withTracks)
+            val played = resolve(choice = onSrc1(TrackOverride(audioIndex = 2, subtitle = SubtitleChoice.Off)))
+            assertEquals(
+                PlaybackRequest.SUBTITLES_OFF,
+                server.playbackInfoCalls
+                    .single()
+                    .second.subtitleIndex,
+            )
+            assertNull(played.chosenSubtitle)
+        }
+
+    @Test
+    fun aTrackSubtitleChoiceAsksForThatIndex() =
+        runTest {
+            answer(withTracks)
+            val played = resolve(choice = onSrc1(TrackOverride(null, SubtitleChoice.Track(3))))
+            assertEquals(
+                3,
+                server.playbackInfoCalls
+                    .single()
+                    .second.subtitleIndex,
+            )
+            assertEquals(3, played.chosenSubtitle?.index)
+        }
+
+    // ---- tracks travel with their source (concern 3) ----
+
+    private fun two() =
+        listOf(
+            source(streams = listOf(video(), audio(1), audio(2))),
+            source(streams = listOf(video(), audio(1))).copy(id = MediaSourceId("b")),
+        )
+
+    @Test
+    fun aChoiceWhoseSourceIsInTheAnswerAppliesItsTracksToThatSource() =
+        runTest {
+            answer(*two().toTypedArray())
+            val played = resolve(choice = TrackChoice(MediaSourceId("src1"), TrackOverride(2)))
+            assertEquals(MediaSourceId("src1"), played.media.id)
+            assertEquals(2, played.chosenAudio?.index)
+            assertEquals(1, server.playbackInfoCalls.size)
+        }
+
+    @Test
+    fun aChoiceWhoseSourceIsMissingDropsItsTracksInsteadOfApplyingThemToAnotherVersion() =
+        runTest {
+            answer(*two().toTypedArray())
+            val played = resolve(choice = TrackChoice(MediaSourceId("gone"), TrackOverride(2, SubtitleChoice.Track(9))))
+            // Resolved again as if nothing was chosen: the asked-for indices reach the server only on the first call.
+            assertEquals(2, server.playbackInfoCalls.size)
+            val second = server.playbackInfoCalls.last().second
+            assertNull(second.audioIndex)
+            assertNull(second.subtitleIndex)
+            assertEquals("the server's own default audio, not index 2", 1, played.chosenAudio?.index)
+        }
+
+    // ---- the carried language preferences are applied after resolving (concern 5, 6) ----
+
+    private val spanish =
+        source(
+            streams =
+                listOf(video(), audio(1), audio(2).copy(language = "spa"), subtitle(3), subtitle(4, language = "spa")),
+            defaultSubtitle = null,
+        )
+
+    @Test
+    fun aCarriedLanguagePicksItsIndicesAfterTheFirstAnswerAndAsksForThem() =
+        runTest {
+            answer(spanish)
+            val prefs = TrackPreferences(audioLanguage = "es", subtitles = SubtitlePreference.On("es"))
+            val played = resolve(preferences = prefs)
+            assertEquals(2, played.chosenAudio?.index)
+            assertEquals(4, played.chosenSubtitle?.index)
+            val calls = server.playbackInfoCalls.map { it.second }
+            assertEquals("the defaults first, then the carried tracks", 2, calls.size)
+            assertNull(calls[0].audioIndex)
+            assertEquals(2, calls[1].audioIndex)
+            assertEquals(4, calls[1].subtitleIndex)
+        }
+
+    @Test
+    fun aCarriedLanguageTheServerAlreadyPlaysCostsNoSecondCall() =
+        runTest {
+            answer(spanish)
+            resolve(preferences = TrackPreferences(audioLanguage = "en"))
+            assertEquals(1, server.playbackInfoCalls.size)
+        }
+
+    @Test
+    fun noMatchingTrackLeavesTheServersDefaultsAndOneCall() =
+        runTest {
+            answer(spanish)
+            val played = resolve(preferences = TrackPreferences(audioLanguage = "ja"))
+            assertEquals(1, played.chosenAudio?.index)
+            assertEquals(1, server.playbackInfoCalls.size)
+        }
+
+    @Test
+    fun aViewersChoiceOfTracksBeatsTheCarriedPreferences() =
+        runTest {
+            answer(spanish)
+            val choice = onSrc1(TrackOverride(audioIndex = 1, subtitle = SubtitleChoice.Off))
+            val played = resolve(choice = choice, preferences = TrackPreferences(audioLanguage = "es"))
+            assertEquals(1, played.chosenAudio?.index)
+            assertEquals(1, server.playbackInfoCalls.size)
+        }
+
+    @Test
+    fun aVersionChoiceAloneStillGetsTheCarriedTracksOnThatVersion() =
+        runTest {
+            answer(*two().toTypedArray(), spanish.copy(id = MediaSourceId("es-cut")))
+            val played = resolve(choice = TrackChoice(MediaSourceId("es-cut")), preferences = TrackPreferences("es"))
+            assertEquals(MediaSourceId("es-cut"), played.media.id)
+            assertEquals(2, played.chosenAudio?.index)
+        }
+
+    @Test
+    fun theCarriedSdhPreferenceTakesAnSdhTrackThenAPlainOne() =
+        runTest {
+            val sdh = subtitle(5).copy(title = "English SDH")
+            val tracks = source(streams = listOf(video(), audio(1), subtitle(3), sdh))
+            answer(tracks)
+            val sdhPref = TrackPreferences(subtitles = SubtitlePreference.On("en", hearingImpaired = true))
+            assertEquals(5, resolve(preferences = sdhPref).chosenSubtitle?.index)
+            val plainOnly = source(streams = listOf(video(), audio(1), subtitle(3)))
+            answer(plainOnly)
+            assertEquals(3, resolve(preferences = sdhPref).chosenSubtitle?.index)
         }
 }

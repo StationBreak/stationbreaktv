@@ -47,6 +47,7 @@ import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlayerEvent
+import tv.stationbreak.core.playback.TrackChoice
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -60,6 +61,7 @@ sealed interface Call {
         val item: ItemId,
         val start: Duration,
         override val at: Long,
+        val choice: TrackChoice? = null,
     ) : Call
 
     data class PreResolve(
@@ -176,8 +178,9 @@ class FakeTune(
         session: Session,
         item: ItemId,
         start: Duration,
+        choice: TrackChoice?,
     ): TuneOutcome {
-        calls += Call.Tune(item, start, now())
+        calls += Call.Tune(item, start, now(), choice)
         return outcomeFor(item, start)
     }
 
@@ -198,6 +201,7 @@ class FakeTune(
         session: Session,
         next: NextHandle,
         start: Duration?,
+        choice: TrackChoice?,
     ): TuneOutcome {
         val p = next.token as Prepared
         handleFates.getValue(p.id) += "tune"

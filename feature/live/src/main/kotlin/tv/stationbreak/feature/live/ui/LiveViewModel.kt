@@ -21,6 +21,7 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LastChannelStore
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -31,6 +32,7 @@ import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.domain.selection.LibrarySelectionView
+import tv.stationbreak.core.domain.tracks.TrackChoiceStore
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlaybackResolver
@@ -106,6 +108,7 @@ internal class ControllerTunerFactory
         // The same instances the player was built with (app DI), so both agree on whether warming is on.
         private val warm: WarmConfig,
         private val warmSwitches: WarmSwitches,
+        private val trackChoices: TrackChoiceStore,
     ) : TunerFactory {
         override fun create(
             player: VideoPlayer,
@@ -120,6 +123,8 @@ internal class ControllerTunerFactory
                     warmSwitches = warmSwitches,
                     clock = SystemClock::elapsedRealtime,
                 ),
+                // What the viewer chose before, for this account on this device (never from the server).
+                { trackChoices.preferences(LibraryAccount(it.server.id, it.userId)) },
             )
     }
 

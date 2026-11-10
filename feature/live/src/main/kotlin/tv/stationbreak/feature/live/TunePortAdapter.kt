@@ -2,15 +2,18 @@
 package tv.stationbreak.feature.live
 
 import kotlinx.coroutines.CancellationException
+import tv.stationbreak.core.domain.tracks.TrackPreferences
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.FallbackCause
 import tv.stationbreak.core.playback.Prepared
 import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.TuneFailure
 import tv.stationbreak.core.playback.TuneResult
+import tv.stationbreak.core.playback.facts
 import kotlin.time.Duration
 
 /**
@@ -22,12 +25,15 @@ import kotlin.time.Duration
 @Suppress("TooManyFunctions") // One override per port call, and the result mappers.
 class TunePortAdapter(
     private val controller: TuneController,
+    /** The carried language preferences of the session's account (design doc B2.6); never throws, null for none. */
+    private val preferences: suspend (Session) -> TrackPreferences? = { null },
 ) : TunePort {
     override suspend fun tune(
         session: Session,
         item: ItemId,
         start: Duration,
-    ): TuneOutcome = controller.tune(session, item, start, null).toOutcome()
+        choice: TrackChoice?,
+    ): TuneOutcome = controller.tune(session, item, start, choice, preferences(session)).toOutcome()
 
     /** Never throws, so a failed look-ahead is just "nothing prepared" and the next show is tuned the ordinary way. */
     @Suppress("TooGenericExceptionCaught") // Any failure of the look-ahead means no handle; cancellation still passes.
@@ -37,7 +43,7 @@ class TunePortAdapter(
         start: Duration,
     ): NextHandle? =
         try {
-            controller.preResolve(session, item, start)?.let(::NextHandle)
+            controller.preResolve(session, item, start, preferences(session))?.let(::NextHandle)
         } catch (e: CancellationException) {
             throw e
         } catch (
@@ -64,7 +70,8 @@ class TunePortAdapter(
         session: Session,
         next: NextHandle,
         start: Duration?,
-    ): TuneOutcome = controller.tune(session, next.prepared(), null, start).toOutcome()
+        choice: TrackChoice?,
+    ): TuneOutcome = controller.tune(session, next.prepared(), choice, start, preferences(session)).toOutcome()
 
     override suspend fun discard(
         session: Session,
@@ -110,7 +117,7 @@ class TunePortAdapter(
 
     private fun TuneResult.toOutcome(): TuneOutcome =
         when (this) {
-            is TuneResult.Played -> TuneOutcome.Playing(end, control, timings(), notes, reportFacts())
+            is TuneResult.Played -> TuneOutcome.Playing(end, control, timings(), notes, reportFacts(), resolved.facts())
             is TuneResult.SessionExpired -> TuneOutcome.Expired
             TuneResult.Superseded, TuneResult.Stopped -> TuneOutcome.Cancelled
             is TuneResult.Failed -> TuneOutcome.Dead(timedOut = reason == TuneFailure.TIMEOUT)

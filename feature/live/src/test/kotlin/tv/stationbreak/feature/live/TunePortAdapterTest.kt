@@ -26,6 +26,7 @@ import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.tracks.TrackPreferences
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.Codecs
 import tv.stationbreak.core.model.DeviceCapabilities
@@ -52,6 +53,10 @@ import tv.stationbreak.core.playback.PlaybackEnd
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.PlayerSource
+import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.SubtitleChoice
+import tv.stationbreak.core.playback.TrackChoice
+import tv.stationbreak.core.playback.TrackOverride
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.VideoPlayer
 import kotlin.time.Duration
@@ -526,5 +531,109 @@ class TunePortAdapterTest {
             assertTrue(job.isCancelled)
             assertEquals("a cancelled pre-resolve returns nothing", "not set", result)
             assertNotNull(rig)
+        }
+
+    private val second = playable.copy(id = MediaSourceId("src2"), name = "Director's Cut")
+
+    private fun answerBoth(rig: Rig) {
+        rig.fake.playbackInfoResult =
+            ServerResult.Success(PlaybackInfo(item, PlaySessionId("ps1"), listOf(playable, second), Urls()))
+    }
+
+    @Test
+    fun aPlayingTuneCarriesTheFactsOfWhatPlays() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val facts = checkNotNull((rig.port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing).facts)
+            assertEquals(Route.DIRECT_PLAY, facts.route)
+            assertEquals(MediaSourceId("src1"), facts.sourceId)
+            assertEquals(1, facts.audioIndex)
+            assertEquals(listOf(MediaSourceId("src1"), MediaSourceId("src2")), facts.sources.map { it.id })
+        }
+
+    @Test
+    fun theFactsAreThoseOfTheRouteAfterAFallback() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer()
+            rig.player.answerAt = Duration.ZERO // a miss twice over: the transcode is what ends up playing
+            val facts = checkNotNull((rig.port.tune(session, item, 30.seconds) as TuneOutcome.Playing).facts)
+            assertEquals(Route.TRANSCODE, facts.route)
+        }
+
+    @Test
+    fun aPreferredVersionAndAnOverrideReachTheController() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val choice = TrackChoice(MediaSourceId("src2"), TrackOverride(1, SubtitleChoice.Off))
+            val playing = rig.port.tune(session, item, Duration.ZERO, choice) as TuneOutcome.Playing
+            assertEquals(MediaSourceId("src2"), checkNotNull(playing.facts).sourceId)
+            assertEquals(MediaSourceId("src2"), playing.report?.sourceId)
+        }
+
+    @Test
+    fun aPreferredVersionDiscardsAHandleOfAnotherAndPlaysThePreferredOne() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val handle = checkNotNull(rig.port.preResolve(session, item, Duration.ZERO))
+            val choice = TrackChoice(MediaSourceId("src2"))
+            val playing = rig.port.tune(session, handle, Duration.ZERO, choice) as TuneOutcome.Playing
+            assertEquals(MediaSourceId("src2"), checkNotNull(playing.facts).sourceId)
+        }
+
+    private val spanishTrack =
+        stream(2, StreamKind.AUDIO, Codecs.AAC).copy(language = "spa", isDefault = false, positionInKind = 1)
+
+    private val bilingual =
+        playable.copy(
+            streams =
+                playable.streams +
+                    spanishTrack,
+        )
+
+    @Test
+    fun theCarriedPreferencesOfTheAccountChooseTheTracksOfEveryTune() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer(bilingual)
+            rig.player.answerAt = Duration.ZERO
+            val asked = mutableListOf<Session>()
+            val port =
+                TunePortAdapter(rig.controller) {
+                    asked += it
+                    TrackPreferences(audioLanguage = "es")
+                }
+            val playing = port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing
+            assertEquals("the Spanish track, not the server's default", 2, checkNotNull(playing.facts).audioIndex)
+            assertEquals(listOf(session), asked)
+        }
+
+    @Test
+    fun noPreferencesLeavesTheServersDefault() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer(bilingual)
+            rig.player.answerAt = Duration.ZERO
+            val playing = rig.port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing
+            assertEquals(1, checkNotNull(playing.facts).audioIndex)
+        }
+
+    @Test
+    fun thePreferencesAlsoShapeAPreResolvedHandle() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            rig.answer(bilingual)
+            rig.player.answerAt = Duration.ZERO
+            val port = TunePortAdapter(rig.controller) { TrackPreferences(audioLanguage = "es") }
+            val handle = checkNotNull(port.preResolve(session, item, Duration.ZERO))
+            val playing = port.tune(session, handle, Duration.ZERO) as TuneOutcome.Playing
+            assertEquals(2, checkNotNull(playing.facts).audioIndex)
+            assertEquals("the handle played: no second resolve", 2, rig.fake.playbackInfoCalls.size)
         }
 }

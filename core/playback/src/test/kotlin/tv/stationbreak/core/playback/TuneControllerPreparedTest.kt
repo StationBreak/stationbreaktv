@@ -23,14 +23,18 @@ import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.tracks.TrackPreferences
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.playback.PlaybackTestData.audio
 import tv.stationbreak.core.playback.PlaybackTestData.insigniaLike
 import tv.stationbreak.core.playback.PlaybackTestData.source
+import tv.stationbreak.core.playback.PlaybackTestData.video
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -193,8 +197,8 @@ class TuneControllerPreparedTest {
             val heldController = controllerOver(held)
             player.script = listOf(playing(1_300, Duration.ZERO))
             val prepared = checkNotNull(heldController.preResolve(session, item, Duration.ZERO))
-            val override = TrackOverride(audioIndex = 2, subtitleIndex = null)
-            val tuning = async { heldController.tune(session, prepared, override) }
+            val choice = TrackChoice(MediaSourceId("src1"), TrackOverride(2, SubtitleChoice.Off))
+            val tuning = async { heldController.tune(session, prepared, choice) }
             runCurrent()
             assertTrue("the fresh resolve is still waiting", tuning.isActive)
             val before = "stopped before the fresh resolve answers"
@@ -489,5 +493,124 @@ class TuneControllerPreparedTest {
             val notes = outcome.notes.toList()
             assertEquals(20, notes.filterIsInstance<PlayNote.Stall>().size)
             assertEquals(20, notes.filterIsInstance<PlayNote.Resumed>().size)
+        }
+
+    private val second get() = source().copy(id = MediaSourceId("src2"), name = "Second")
+
+    private fun answerBoth() {
+        server.playbackInfoResult =
+            ServerResult.Success(PlaybackInfo(item, PlaySessionId("ps1"), listOf(source(), second), urls))
+    }
+
+    @Test
+    fun aTuneThatPrefersAVersionPlaysThatVersion() =
+        runTest {
+            answerBoth()
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val choice = TrackChoice(MediaSourceId("src2"))
+            val played = controller.tune(session, item, Duration.ZERO, choice) as TuneResult.Played
+            assertEquals(MediaSourceId("src2"), played.resolved.media.id)
+            assertTrue(
+                player.played
+                    .single()
+                    .url
+                    .endsWith("src2"),
+            )
+        }
+
+    @Test
+    fun anOverrideWithPreferKeepsItsIndicesOnThePreferredVersion() =
+        runTest {
+            answerBoth()
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val choice = TrackChoice(MediaSourceId("src2"), TrackOverride(1, SubtitleChoice.Off))
+            val played = controller.tune(session, item, Duration.ZERO, choice) as TuneResult.Played
+            assertEquals(MediaSourceId("src2"), played.resolved.media.id)
+            assertEquals(listOf(MediaSourceId("src1"), MediaSourceId("src2")), played.resolved.sources.map { it.id })
+        }
+
+    @Test
+    fun aPreparedHandleOfAnotherVersionIsDiscardedForAPrefer() =
+        runTest {
+            answerBoth()
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO))
+            val played =
+                controller.tune(session, prepared, TrackChoice(MediaSourceId("src2"))) as TuneResult.Played
+            assertEquals(MediaSourceId("src2"), played.resolved.media.id)
+            assertEquals("a fresh resolve, not the handle", 2, server.playbackInfoCalls.size)
+        }
+
+    @Test
+    fun aPreparedHandleOfTheSameVersionIsKeptForAPrefer() =
+        runTest {
+            answerBoth()
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO))
+            val chosen = prepared.resolved.media.id
+            val played = controller.tune(session, prepared, TrackChoice(chosen)) as TuneResult.Played
+            assertEquals(chosen, played.resolved.media.id)
+            assertEquals("the handle played: no second resolve", 1, server.playbackInfoCalls.size)
+        }
+    // ---- the carried preferences and a prepared handle (review of #691) ----
+
+    private val spanishPrefs = TrackPreferences(audioLanguage = "es")
+    private val bilingual
+        get() = source(streams = listOf(video(), audio(1), audio(2).copy(language = "spa")))
+
+    @Test
+    fun aFallbackAfterAPreparedPlayStillCarriesTheLanguage() =
+        runTest {
+            answer(bilingual)
+            player.script = listOf(failed("ERROR_CODE_DECODING_FAILED"), playing(2_000, Duration.ZERO))
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO, spanishPrefs))
+            assertEquals("the handle itself carries the Spanish track", 2, prepared.resolved.chosenAudio?.index)
+            val outcome = controller.tune(session, prepared, null, preferences = spanishPrefs) as TuneResult.Played
+            assertEquals(Route.TRANSCODE, outcome.resolved.route)
+            assertEquals("the transcode after the fallback is still Spanish", 2, outcome.resolved.chosenAudio?.index)
+            assertEquals(
+                2,
+                server.playbackInfoCalls
+                    .last()
+                    .second.audioIndex,
+            )
+            assertEquals(2, urls.hlsCalls.last().audioIndex)
+        }
+
+    @Test
+    fun aHandleResolvedWithOtherPreferencesIsStaleAndIsDiscarded() =
+        runTest {
+            answer(bilingual)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO, spanishPrefs))
+            val callsBefore = server.playbackInfoCalls.size
+            // The viewer's language changed while the handle was held: English now.
+            val outcome =
+                controller.tune(session, prepared, null, preferences = TrackPreferences(audioLanguage = "en"))
+                    as TuneResult.Played
+            assertEquals("English, not the handle's Spanish", 1, outcome.resolved.chosenAudio?.index)
+            assertTrue("a fresh resolve, not the handle", server.playbackInfoCalls.size > callsBefore)
+        }
+
+    @Test
+    fun aHandleResolvedWithNoPreferencesIsStaleOnceOneIsSet() =
+        runTest {
+            answer(bilingual)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO))
+            val outcome = controller.tune(session, prepared, null, preferences = spanishPrefs) as TuneResult.Played
+            assertEquals(2, outcome.resolved.chosenAudio?.index)
+        }
+
+    @Test
+    fun aHandleResolvedWithTheSamePreferencesIsKept() =
+        runTest {
+            answer(bilingual)
+            player.script = listOf(playing(1_300, Duration.ZERO))
+            val prepared = checkNotNull(controller.preResolve(session, item, Duration.ZERO, spanishPrefs))
+            val callsBefore = server.playbackInfoCalls.size
+            val outcome = controller.tune(session, prepared, null, preferences = spanishPrefs) as TuneResult.Played
+            assertEquals(2, outcome.resolved.chosenAudio?.index)
+            assertEquals("the handle played: no resolve", callsBefore, server.playbackInfoCalls.size)
         }
 }

@@ -171,6 +171,39 @@ class PlaybackInfoTest {
     }
 
     @Test
+    fun aTrackCarriesTheServersTitleAndDisplayTitle() {
+        runBlocking {
+            val body =
+                """{"MediaSources":[{"Id":"src1","MediaStreams":[
+                |{"Index":1,"Type":"Audio","Codec":"ac3","Language":"eng","Title":"Director's Commentary",
+                |"DisplayTitle":"English - Commentary - AC3 - 5.1"},
+                |{"Index":2,"Type":"Audio","Codec":"aac","Title":"  "},
+                |{"Index":3,"Type":"Subtitle","Codec":"subrip","DisplayTitle":"English - SDH - SUBRIP",
+                |"IsHearingImpaired":true}]}],
+                |"PlaySessionId":"play-1"}
+                """.trimMargin().replace("\n", "")
+            jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(body) }
+
+            val streams =
+                testAdapter()
+                    .playbackInfo(testSession(jellyfin.address), ItemId("i1"))
+                    .getOrNull()!!
+                    .sources
+                    .single()
+                    .streams
+
+            assertEquals("Director's Commentary", streams[0].title)
+            assertEquals("English - Commentary - AC3 - 5.1", streams[0].displayTitle)
+            assertNull(streams[1].title, "a blank title is no title")
+            assertNull(streams[1].displayTitle)
+            assertNull(streams[2].title)
+            assertEquals("English - SDH - SUBRIP", streams[2].displayTitle)
+            assertTrue(streams[2].isHearingImpaired, "the server's own hearing-impaired flag")
+            assertFalse(streams[0].isHearingImpaired)
+        }
+    }
+
+    @Test
     fun eachEmbeddedStreamKnowsItsPositionWithinItsKind() {
         runBlocking {
             // Server indexes interleave the kinds and an external subtitle sits among them; positions count per kind.

@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSource
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.playback.PlaybackTestData.insigniaLike
@@ -321,7 +322,7 @@ class TuneControllerWarmTest {
             rig.player.script = listOf(playing())
             val a = rig.prepare("a")
             rig.controller.warmNext(a)
-            rig.controller.tune(session, a, TrackOverride(audioIndex = 1, subtitleIndex = null))
+            rig.controller.tune(session, a, TrackChoice(MediaSourceId("src1"), TrackOverride(1, SubtitleChoice.Off)))
             assertTrue("dropWarm:w1" in rig.player.calls)
             assertNull(
                 rig.player.played

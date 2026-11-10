@@ -67,7 +67,7 @@ of whatever URL it is given.
    player and its encode, so a caller need not call `stop()` after it.
 5. **Every encode we start is stopped.** `stopEncoding` sends `DELETE /Videos/ActiveEncodings?DeviceId=&PlaySessionId=`
    through `AuthorizedCall` on a fallback, a stop and a release. A 404 (already gone) is success.
-6. **Default tracks are the server's, and the HLS URL carries them.** The request body carries `UserId`, so Jellyfin
+6. **Default tracks are the server's, and the HLS URL carries them** (a viewer's own choice: see the update of 2026-11-09). The request body carries `UserId`, so Jellyfin
    applies that user's audio and subtitle preferences (including their own "play default audio track" setting; the
    client accepts the result). Explicit indices are sent only when a caller asks (a test override or a person's
    choice). The HLS URL is built from the track the server resolved: the audio index asked for, else the source's
@@ -265,3 +265,74 @@ An item can have several media sources (versions), and the player used to take t
 - **Not done here.** When no direct-play version fits the decoder, the first direct-play one is still tried and may
   cost an attempt before the transcode fallback. Preferring a transcode of a fitting version needs a measurement on
   older hardware first (#499).
+
+## Update 2026-11-09: a viewer's track and version choices (design doc B2.5, B2.6)
+
+Decision 6 says default tracks are the server's and explicit indices are sent only when a caller asks "a test override
+or a person's choice". The person's choice now exists (#497, #630; `docs/design/live-banner-and-tracks.md`). Decision 6
+stands for every tune that carries no choice, and these rules govern the ones that do.
+
+- **A choice is one value: `TrackChoice(source, tracks)`.** An override's indices are one source's stream indices, so
+  the tracks never travel without their source. `TuneController.tune` and `TunePort.tune` take a `TrackChoice?`; a
+  version change alone is a `TrackChoice` with no tracks. If the chosen source is **not in the server's answer**, the
+  tracks are dropped and the item is resolved again as if nothing was chosen (the indices reach the server only on the
+  first call), so they are never applied to another version. A prepared default-track handle serves a tune only when
+  there is no choice of tracks and no other version chosen; otherwise it is discarded (its encode stopped once, before
+  the fresh resolve).
+- **The subtitle choice has three states** (`SubtitleChoice`): `Default` (the server applies the user's preferences:
+  no `SubtitleStreamIndex` is sent, and the source's default subtitle plays), `Off` (`SubtitleStreamIndex=-1`, no
+  subtitle plays) and `Track(index)`. No null means two things. Before this, a null subtitle in a `TrackOverride` was
+  read as "off" by the resolver and as "the server's default" by the request.
+- **What carries to the next programme is the language, not the track.** The audio language and the subtitle choice
+  (off, or on in a language, with whether the chosen track was SDH) are kept per signed-in user on the device
+  (`TrackChoiceStore`, a file under `noBackupFilesDir`), across restarts. They are **never written back to Jellyfin**:
+  the server's own preferences are the viewer's other apps' too, and decision 6's "the server applies the user's
+  preferences" is unchanged for a viewer who has chosen nothing. A version is **stored now** per item (item id to media
+  source id, the most recent 200) and is **applied to the tune in the #630 PR** (the version picker), and then only
+  while the item still offers that source; nothing in this change reads it back.
+- **The carry rules run in core:playback, after resolving.** The indices of a carried language are only known from the
+  server's answer, so `TuneController.tune` and `preResolve` take the carried `TrackPreferences` and
+  `PlaybackResolver` picks the indices from the answer (`TrackCarry`, in core:domain, is the pure rule). The first
+  `PlaybackInfo` call is made with the server's defaults; **only when the carried tracks differ from what those gave**
+  is a second call made asking for them (the route and delivery depend on the tracks, so the first answer's flags
+  cannot be trusted for other tracks). A programme the server's defaults already serve, or one with no track in the
+  language, costs one call; a failed second call keeps the first answer. A viewer's own choice of tracks beats the
+  preferences; a version choice alone still gets the carried tracks on that version. The live screen's tuner supplies
+  the preferences of the session's account to every tune and pre-resolve. A prepared handle records the preferences
+  it was resolved with and serves a tune only when the tune's preferences are the same, so a preference changed while
+  the handle was held (mid-programme) discards it as stale; the same preferences ride along through a fallback after
+  the handle's play, whose fresh resolve must still carry the language.
+- **Carry-over rules.** The carried audio language picks the programme's track in it that is default-flagged, else the
+  first. **Commentary, forced and audio-description tracks never carry** (read from the server's forced flag and the
+  track's titles). A carried subtitle language picks a **text** subtitle only; it uses a picture subtitle only when
+  that is also the server's own default, so a preference never turns direct play into a transcode (decision 8).
+  **SDH carries** (owner decision): a subtitle preference is a language plus whether the chosen track was
+  hearing-impaired. With the flag set, the next programme prefers an SDH track in that language (the server's own
+  `IsHearingImpaired`, else the track's titles) and falls back to a plain track; without it, a plain track is preferred
+  and an SDH track in the language is the fallback (commentary, forced and audio-description tracks are never a
+  fallback). **Subtitles off does not remove a forced track** (owner decision): when the source's default subtitle is
+  forced, the server's default stands instead of Off, because a forced track carries only the foreign-language lines
+  that a viewer who turned subtitles off still needs. No match leaves the server's default, silently, and the banner's
+  stream line says what plays. Languages are compared after folding two- and three-letter and bibliographic and
+  terminologic spellings (`ger` and `deu`).
+- **Whether a change interrupts the picture is one function, and a screen never calls it.** `switchCost(playing,
+  target, capabilities)` is internal to core:playback. `ResolvedPlayback.facts()` puts its answer on every audio
+  track, subtitle track and version in `StreamFacts` (and `offCost` for subtitles off), so the picker's "restarts
+  picture" label and what then happens come from one place. Only direct play can switch while it plays (the player
+  holds the file's tracks): audio the device decodes, subtitles off, an embedded text subtitle, and a separate file only
+  if it was side-loaded at the start are instant. A picture subtitle, audio the device cannot decode (the route moves
+  to HLS, decision 8), any change on a direct stream or transcode, and every version change re-tune. Text subtitles
+  while transcoding stay a re-tune until the PR 4 spike measures otherwise.
+- **The sitting holds the viewer's choice for the programme on air.** A retune (a retry after a failure, a re-anchor of
+  a kept place) reads it from the sitting when it fires, not when it is built, so a retry after an instant switch keeps
+  the viewer's choice. A choice is keyed by its block and by the item playing in it, and is not applied to another
+  programme, or to a different item of the same block (a stand-in piece's tracks are not the choice's).
+- **The play's facts reach the screen.** `TuneResult.Played` becomes a `StreamFacts` (route, chosen source id, chosen
+  audio and subtitle indices, and a summary of every source's video, audio and subtitle tracks) on `TuneOutcome.Playing`
+  and the `Banner`: display text and numbers only, with no URL, path or player handle, so the decision-1 secrecy rule
+  is untouched. `MediaStreamInfo` now carries the server's `Title`, `DisplayTitle` and `IsHearingImpaired` (display text
+  and a flag, never logged), which is how Commentary and SDH are told apart.
+- **Not done here.** The instant switch in `Media3VideoPlayer`, the re-tune fallback and the pickers are PR 4.
+  Following Android's system caption setting is an open question for the owner (design doc, B2.2) and is not
+  implemented. The `SubtitleStreamIndex=-1` request for "off" is the Jellyfin convention; the contract suite should
+  exercise it on a live server before PR 4 relies on it.

@@ -40,4 +40,18 @@
         <item quantity="other">%1$d min behind</item>
     </plurals>
 
+    <!-- The stream line of the banner: what plays. "Transcoding" starts it while the server re-encodes; no word for direct play. -->
+    <string name="live_stream_transcoding">Transcoding</string>
+    <string name="live_stream_subtitles_off">Subtitles off</string>
+    <string name="live_stream_subtitles_none">No subtitles</string>
+    <string name="live_stream_subtitles">Subtitles %1$s</string>
+
+    <!-- The words of the audio, subtitle and version rows (design doc B2.8). -->
+    <string name="live_track_unknown">Unknown</string>
+    <string name="live_track_commentary">Commentary</string>
+    <string name="live_track_sdh">SDH</string>
+    <string name="live_track_forced">Forced</string>
+    <string name="live_track_text">Text</string>
+    <string name="live_track_picture">Picture</string>
+    <string name="live_track_off">Off</string>
 </resources>

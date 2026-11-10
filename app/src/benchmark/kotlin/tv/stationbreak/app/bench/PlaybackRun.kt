@@ -13,6 +13,8 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.PlayerEvent
 import tv.stationbreak.core.playback.ResolvedPlayback
 import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.TrackChoice
+import tv.stationbreak.core.playback.TrackOverride
 import tv.stationbreak.core.playback.TuneController
 import tv.stationbreak.core.playback.TuneResult
 import tv.stationbreak.core.playback.VideoPlayer
@@ -89,7 +91,7 @@ class PlaybackRun(
                         if (stopping.get() && it is PlayerEvent.AudioAdvanced) closing.complete(Unit)
                     }
                 }
-            val outcome = controller.tune(session, ItemId(play.item), play.startMs.milliseconds, play.override)
+            val outcome = tune(session, ItemId(play.item), play.startMs.milliseconds, play.override)
             if (outcome is TuneResult.Played) {
                 delay(window)
                 // Any other outcome has already stopped the player and the encode (TuneController).
@@ -105,6 +107,24 @@ class PlaybackRun(
             val oracle = (outcome as? TuneResult.Played)?.let { expected?.invoke(it.resolved) }
             PlaybackResult.from(section, outcome, watch, oracle, play.startMs)
         }
+
+    /**
+     * The benchmark's tracks are indices of whichever version the server's order picks, and a viewer's choice names its
+     * version, so with an override the item is resolved first to learn it (the override then discards that handle).
+     */
+    private suspend fun tune(
+        session: Session,
+        item: ItemId,
+        start: Duration,
+        tracks: TrackOverride?,
+    ): TuneResult {
+        val prepared = tracks?.let { controller.preResolve(session, item, start) }
+        return if (tracks != null && prepared != null) {
+            controller.tune(session, prepared, TrackChoice(prepared.sourceId, tracks), start)
+        } else {
+            controller.tune(session, item, start, null)
+        }
+    }
 
     private companion object {
         val CLOSING_SAMPLE_WAIT = 2.seconds

@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import tv.stationbreak.core.playback.SubtitleChoice
 import tv.stationbreak.core.playback.TrackOverride
 
 class RunArgsTest {
@@ -24,7 +25,7 @@ class RunArgsTest {
             )
         assertEquals(listOf("a", "b", "c"), args.plays.map { it.item })
         assertEquals(listOf(0L, 30_000L, 5L), args.plays.map { it.startMs })
-        assertEquals(TrackOverride(2, 5), args.plays[1].override)
+        assertEquals(TrackOverride(2, SubtitleChoice.Track(5)), args.plays[1].override)
         assertEquals("audio", args.section)
         assertEquals("r1", args.runId)
     }
@@ -69,7 +70,7 @@ class RunArgsTest {
     fun minusOneMeansNoOverride() {
         val withOverride = RunArgs.parse(arrayOf("a"), null, intArrayOf(-1), intArrayOf(-1), true, "s", "r")
         // Audio -1: the server's default. Subtitles -1 with the override on: subtitles off.
-        assertEquals(TrackOverride(null, null), withOverride.plays.single().override)
+        assertEquals(TrackOverride(null, SubtitleChoice.Off), withOverride.plays.single().override)
         // Without the override flag the arrays are ignored: the server's own choice.
         val without = RunArgs.parse(arrayOf("a"), null, intArrayOf(2), intArrayOf(3), false, "s", "r")
         assertNull(without.plays.single().override)

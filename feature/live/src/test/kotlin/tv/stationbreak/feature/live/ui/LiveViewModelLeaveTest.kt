@@ -15,6 +15,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.selection.FakeLibraryChoices
+import tv.stationbreak.core.domain.tracks.InMemoryTrackChoiceStore
 import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.PlaySessionId
@@ -64,6 +65,7 @@ class LiveViewModelLeaveTest {
                     server,
                     WarmConfig(),
                     WarmSwitches.None,
+                    InMemoryTrackChoiceStore(),
                 ),
                 VideoPlayerFactory { _, _ -> error("the test makes its own players") },
                 server,

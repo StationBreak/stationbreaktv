@@ -13,6 +13,8 @@ import tv.stationbreak.core.playback.LoadStats
 import tv.stationbreak.core.playback.PlayControl
 import tv.stationbreak.core.playback.PlayNote
 import tv.stationbreak.core.playback.PlaybackEnd
+import tv.stationbreak.core.playback.StreamFacts
+import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.core.playback.WarmUse
 import kotlin.time.Duration
 
@@ -76,6 +78,8 @@ sealed interface TuneOutcome {
      * is the transport handle of this play alone (pause, seek, position). [timings]
      * is what the controller measured. [notes] are the play's stalls and their ends (diagnostics, numbers only).
      * [report] is what the server should be told about the play (spec 16), null when the adapter had nothing.
+     * [facts] is what the banner may say about the route and the tracks that play, and the versions on offer (null
+     * when the adapter had nothing to say, which shows no stream line).
      */
     data class Playing(
         val end: Flow<PlaybackEnd>,
@@ -83,6 +87,7 @@ sealed interface TuneOutcome {
         val timings: TuneTimings = TuneTimings(),
         val notes: Flow<PlayNote> = emptyFlow(),
         val report: ReportFacts? = null,
+        val facts: StreamFacts? = null,
     ) : TuneOutcome
 
     /** Nothing plays: every route failed. [timedOut] is true when the failure was a timeout (it is not retried). */
@@ -103,10 +108,16 @@ sealed interface TuneOutcome {
  * handle only when it decides not to use it.
  */
 interface TunePort {
+    /**
+     * Tunes [item] from [start]. A viewer's version and tracks travel as one [choice] (an override's indices are one
+     * version's, so the two cannot be given apart: ADR-0016, update 2026-11-09). Null is no choice: the carried
+     * language preferences, then the server's own defaults.
+     */
     suspend fun tune(
         session: Session,
         item: ItemId,
         start: Duration,
+        choice: TrackChoice? = null,
     ): TuneOutcome
 
     suspend fun preResolve(
@@ -117,12 +128,14 @@ interface TunePort {
 
     /**
      * Plays [next] from [start] (the schedule's position now, as a handle held a while has gone stale), or from the
-     * start it was resolved with when null.
+     * start it was resolved with when null. A [choice] of tracks, or of another version than the handle's, discards the
+     * handle (it was resolved without it) and tunes the ordinary way.
      */
     suspend fun tune(
         session: Session,
         next: NextHandle,
         start: Duration? = null,
+        choice: TrackChoice? = null,
     ): TuneOutcome
 
     suspend fun discard(

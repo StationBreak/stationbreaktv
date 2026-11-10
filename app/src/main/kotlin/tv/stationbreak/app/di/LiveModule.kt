@@ -9,7 +9,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.LastChannelStore
+import tv.stationbreak.core.domain.tracks.TrackChoiceStore
 import tv.stationbreak.data.settings.lastchannel.FileLastChannelStore
+import tv.stationbreak.data.settings.tracks.FileTrackChoiceStore
 import tv.stationbreak.feature.live.LiveTimings
 import javax.inject.Singleton
 import kotlin.time.Duration.Companion.milliseconds
@@ -27,6 +29,13 @@ internal object LiveModule {
     fun lastChannelStore(
         @ApplicationContext context: Context,
     ): LastChannelStore = FileLastChannelStore(context)
+
+    /** What the viewer chose for audio, subtitles and version, kept on the device only (never sent to the server). */
+    @Provides
+    @Singleton
+    fun trackChoiceStore(
+        @ApplicationContext context: Context,
+    ): TrackChoiceStore = FileTrackChoiceStore(context)
 
     /**
      * The live screen's tunables (`LiveTimings`), built around this device's own key-repeat timeout, so a held flip

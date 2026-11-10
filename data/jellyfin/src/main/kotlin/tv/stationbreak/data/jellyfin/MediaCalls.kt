@@ -502,6 +502,9 @@ internal class MediaCalls(
             videoProfile = Codecs.normalize(dto.profile).takeIf { kind == StreamKind.VIDEO },
             videoLevel = number(dto.level).takeIf { kind == StreamKind.VIDEO },
             bitDepth = number(dto.bitDepth).takeIf { kind == StreamKind.VIDEO },
+            title = dto.title?.takeIf { it.isNotBlank() },
+            displayTitle = dto.displayTitle?.takeIf { it.isNotBlank() },
+            isHearingImpaired = dto.isHearingImpaired,
         )
     }
 

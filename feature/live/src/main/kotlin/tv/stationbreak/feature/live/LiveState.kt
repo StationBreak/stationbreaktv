@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live
 
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.core.playback.StreamFacts
 
 /** What the live screen shows (spec 14). The screen draws it; the machine in [LiveChannel] decides it. */
 sealed interface LiveState {
@@ -88,6 +89,8 @@ enum class BannerLabel {
  * program that follows, when one does. [actions] is true for the banner the viewer asked for (Select or Info), which
  * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go). [recipeKey] is
  * the channel's recipe key, which finds its logo for the mark (null for a channel with none: the mark is its initials).
+ * [stream] is what plays (route, tracks, the versions on offer), set once the picture is up and null before that and
+ * when the adapter had nothing to say: the stream line shows it.
  */
 data class Banner(
     val number: Int,
@@ -102,6 +105,7 @@ data class Banner(
     val actions: Boolean = false,
     val hasLast: Boolean = false,
     val recipeKey: String? = null,
+    val stream: StreamFacts? = null,
 )
 
 /** The program after the one a [Banner] names: its title as the banner shows it, and its start (UTC milliseconds). */
