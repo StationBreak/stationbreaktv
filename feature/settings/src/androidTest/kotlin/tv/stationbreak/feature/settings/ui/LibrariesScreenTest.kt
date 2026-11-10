@@ -47,7 +47,7 @@ class LibrariesScreenTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    // The ViewModel's own thread, as Dispatchers.Default would be in the app.
+    // A thread of its own for the ViewModel's work, standing in for the main thread it runs on in the app.
     private val pool = Executors.newSingleThreadExecutor()
     private val work = pool.asCoroutineDispatcher()
     private var done = 0

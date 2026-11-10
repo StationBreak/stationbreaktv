@@ -75,7 +75,12 @@ interface LibrarySelectionView {
     val selection: StateFlow<ChoiceView?>
 }
 
-/** How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. */
+/**
+ * How features show and change the chosen libraries after setup (spec 26, Part 4): no stamps, seqs or misses. Calls
+ * are made from Main (the screen's dispatcher). The file store switches to IO for its reads and writes, and the cache
+ * writes are suspend DAO calls, but the selection's own work (its decisions and bookkeeping) runs on the caller's
+ * dispatcher.
+ */
 interface LibraryChoices : LibrarySelectionView {
     /**
      * Asks the server for its libraries once, and answers as soon as it has, never waiting on a change. What it lists

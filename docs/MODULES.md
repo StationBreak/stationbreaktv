@@ -284,7 +284,7 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
     chosen one first, then one being added, then a held one), and a series row a live episode of a staying library
     names moves too.
   - **Coverage.** A library's `coveredFromMs` is the earliest moment its next incremental pass must read from (an add
-    or a rewalk that landed, a hold placed); the next incremental pass that walks the library clears it.
+    or a rewalk that landed, a hold placed); the next incremental pass clears it.
   - **The generation** moves when a library's rows are deleted (an untick, an expired hold, or an add dropped after
     its walk wrote rows; a library that holds no row goes without a bump), and for a page only for a field the scheduler or the rules read: an item's in a library that
     is not being added, and a series' in any library (episodes of other libraries read a series row by its id). A
