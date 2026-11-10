@@ -2,9 +2,11 @@
 package tv.stationbreak.core.domain.lineup.repair
 
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.lineup.ACCOUNT
@@ -143,5 +145,33 @@ internal class TodayRepairerPlanningTest : RepairTestBase() {
         assertEquals(4, RepairConfig(planThreads = 4).planThreads)
         assertFailsWith<IllegalArgumentException> { RepairConfig(planThreads = 0) }
         assertFailsWith<IllegalArgumentException> { RepairConfig(planThreads = 5) }
+    }
+
+    @Test
+    fun planPriority_defaultsToNormal_andIsHeldToAThreadPriority() {
+        assertEquals(Thread.NORM_PRIORITY, RepairConfig().planPriority)
+        assertEquals(Thread.MIN_PRIORITY, RepairConfig(planPriority = Thread.MIN_PRIORITY).planPriority)
+        assertEquals(Thread.MAX_PRIORITY, RepairConfig(planPriority = Thread.MAX_PRIORITY).planPriority)
+        assertFailsWith<IllegalArgumentException> { RepairConfig(planPriority = Thread.MIN_PRIORITY - 1) }
+        assertFailsWith<IllegalArgumentException> { RepairConfig(planPriority = Thread.MAX_PRIORITY + 1) }
+    }
+
+    @Test
+    fun aPlanningThread_hasTheConfiguredNameAndPriority_andIsADaemon() {
+        for (priority in listOf(Thread.MIN_PRIORITY, Thread.NORM_PRIORITY)) {
+            val planning = planningDispatcher(RepairConfig(planThreads = 2, planPriority = priority))
+            val seen =
+                runBlocking {
+                    withContext(planning) {
+                        val thread = Thread.currentThread()
+                        Triple(thread.name, thread.priority, thread.isDaemon)
+                    }
+                }
+            (planning as ExecutorCoroutineDispatcher).close()
+
+            assertTrue(Regex("repair-plan-[12]").matches(seen.first.substringBefore(" @")), "name: ${seen.first}")
+            assertEquals(priority, seen.second, "priority")
+            assertTrue(seen.third, "daemon")
+        }
     }
 }

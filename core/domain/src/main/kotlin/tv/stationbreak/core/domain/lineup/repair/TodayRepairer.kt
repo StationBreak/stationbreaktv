@@ -3,7 +3,6 @@ package tv.stationbreak.core.domain.lineup.repair
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
@@ -89,7 +88,8 @@ internal suspend fun refuseInTurn() {
  * The repair engine (spec 26): it writes the per-TV repair record (`LineupService.recordRepairs`) that the day build
  * follows. The tune path never runs it and reads only the record it writes. Use one instance per process: its calls
  * take turns (one `Mutex` around them all), and their work runs on [dispatcher] (the background-priority thread the
- * day saves use), never on the caller's.
+ * day saves use), never on the caller's, except a change's plan, which runs on [planning] (a small pool of its own,
+ * at the configured priority).
  *
  * - [selectionChanged] pins every channel's programme on air and records the rest of its day laid out again for the
  *   new selection.
@@ -134,8 +134,8 @@ class TodayRepairer internal constructor(
         successors,
         storedSeq,
         BackgroundSaves.dispatcher,
-        // Made once per repairer: planning runs on at most this many normal-priority threads, not the day-saves one.
-        Dispatchers.Default.limitedParallelism(service.repairConfig.planThreads),
+        // Made once per repairer: a pool of its own, at the configured priority, not the day-saves thread.
+        planningDispatcher(service.repairConfig),
     )
 
     // The service's own: one instance of the tunables for the record's saves and for the repair.

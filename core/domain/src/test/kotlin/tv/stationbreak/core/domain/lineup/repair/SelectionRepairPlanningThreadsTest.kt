@@ -1,35 +1,56 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.repair
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.lineup.repair.RepairMatrix.referenceOf
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * The equality matrix of #684 ([RepairMatrix], against the frozen reference) with the plan run, as `TodayRepairer`
- * runs it, through `withContext` on a normal-priority dispatcher of one thread and of four (`planThreads`' ends). The
- * frozen rig builds its repairer with the default of two (that run is [SelectionRepairEqualityTest]'s first test), so
- * these use the rig's planner seam: the plan goes through the same hop, in the rig's copy of the turn.
+ * The equality matrix of #684 ([RepairMatrix], against the frozen reference, which the golden digests of
+ * [SelectionRepairEqualityTest] pin) run through the real [TodayRepairer], built with its internal constructor and a
+ * planning pool of one thread and of four (`planThreads`' ends): every change goes through `selectionChanged`.
+ *
+ * The rig builds the repairer that way through its additive `planning` parameter; its scenario bodies run
+ * unchanged.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 internal class SelectionRepairPlanningThreadsTest {
-    @Suppress("InjectDispatcher") // The production dispatcher, as the repairer's public constructor makes it.
-    private fun planningOn(threads: Int): Planner {
-        val planning = Dispatchers.Default.limitedParallelism(threads)
-        return { inputs -> withContext(planning) { Planners.production(inputs) } }
+    private fun runWith(
+        scenario: Scenario,
+        threads: Int,
+    ): List<Step> {
+        val planning = planningDispatcher(RepairConfig(planThreads = threads))
+        try {
+            return runBlocking {
+                val world = RepairWorld(scenario.libs, scenario.shape, firstSeenFilter = true, planning = planning)
+                world.(scenario.body)()
+                world.steps
+            }
+        } finally {
+            (planning as ExecutorCoroutineDispatcher).close()
+        }
     }
 
+    private fun mismatches(threads: Int): List<String> =
+        RepairMatrix.scenarios().mapNotNull { scenario ->
+            val actual = runCatching { runWith(scenario, threads) }
+            when {
+                actual.isFailure -> "${scenario.name}: threw ${actual.exceptionOrNull()}"
+                actual.getOrThrow() != referenceOf(scenario.name) -> "${scenario.name}: differs from the reference"
+                else -> null
+            }
+        }
+
     @Test
-    fun onOneThread_theRepairRecordsWhatTheReferenceRecords() {
-        val failures = RepairMatrix.mismatches(planningOn(1))
+    fun onOnePlanningThread_theRepairerRecordsWhatTheReferenceRecords() {
+        val failures = mismatches(1)
         assertTrue(failures.isEmpty(), "one thread differs from the reference:\n${failures.joinToString("\n")}")
     }
 
     @Test
-    fun onFourThreads_theRepairRecordsWhatTheReferenceRecords() {
-        val failures = RepairMatrix.mismatches(planningOn(4))
+    fun onFourPlanningThreads_theRepairerRecordsWhatTheReferenceRecords() {
+        val failures = mismatches(4)
         assertTrue(failures.isEmpty(), "four threads differ from the reference:\n${failures.joinToString("\n")}")
     }
 }
