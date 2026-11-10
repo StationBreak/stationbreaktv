@@ -20,16 +20,45 @@ internal class Fills(
     private val account: LibraryAccount,
 ) {
     private val known = HashMap<CanonicalId, Boolean>()
+
+    // Answers of an early read ([prime]), kept apart from [known]: only [live] consults them, so every other reader of
+    // [known] sees exactly what it would without the early read.
+    private val primed = HashMap<CanonicalId, Boolean>()
     private val pools = HashMap<ChannelDay, List<ScheduleItem>>()
 
-    /** The ids of [ids] with a current row: one `currentIds` read of those not asked about yet, none if all were. */
+    /** How many ids [live] had to read after a [prime] that held answers: a guard, a miss still reads (#684). */
+    var primeMisses = 0
+        private set
+
+    /**
+     * Takes an early read's answers (#684): of each id of [asked], whether it is in [found] (it has a current row when
+     * the read ran). An id already primed keeps its first answer. [live] uses them for ids it has no answer of its own
+     * for; nothing else reads them.
+     */
+    fun prime(
+        asked: Collection<CanonicalId>,
+        found: Set<CanonicalId>,
+    ) {
+        for (id in asked) primed.putIfAbsent(id, id in found)
+    }
+
+    /** Lets the primed answers go: [live] reads again whatever it has no answer of its own for. */
+    fun dropPrimed() {
+        primed.clear()
+    }
+
+    /**
+     * The ids of [ids] with a current row: one `currentIds` read of those not asked about yet (and not primed), none if
+     * all were.
+     */
     suspend fun live(ids: Collection<CanonicalId>): Set<CanonicalId> {
-        val unknown = ids.filterTo(HashSet()) { it !in known }
+        val unknown = ids.filterTo(HashSet()) { it !in known && it !in primed }
         if (unknown.isNotEmpty()) {
+            if (primed.isNotEmpty()) primeMisses += unknown.size
             val found = library.currentIds(account, unknown)
             for (id in unknown) known[id] = id in found
         }
-        return ids.filterTo(HashSet()) { known[it] == true }
+        return ids.filterTo(HashSet()) { (known[it] ?: primed[it]) == true }
     }
 
     /** Whether [id] has a current row, as [live] last read it (false when it was never asked). */

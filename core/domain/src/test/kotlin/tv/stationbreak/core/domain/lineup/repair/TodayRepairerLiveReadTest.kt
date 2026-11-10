@@ -36,7 +36,8 @@ internal class TodayRepairerLiveReadTest : RepairTestBase() {
             }
 
         assertIs<RepairOutcome.Saved<SelectionRepaired>>(outcome)
-        // One read for the programmes in the kept windows, one for every channel's tail pool.
+        // One read for the programmes in the kept windows, and the early read of the new selection's items, which
+        // answers every channel's tail pool (#684).
         assertEquals(2, rig.library.currentIdsCalls - calls)
     }
 }

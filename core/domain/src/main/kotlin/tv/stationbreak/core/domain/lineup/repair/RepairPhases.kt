@@ -9,16 +9,23 @@ import kotlin.time.TimeSource
  * Where a selection change's repair went, in milliseconds (spec 26: the slow untick on older hardware). Numbers only:
  * never an ID or a name. -1 is "not measured": no repair ran, the step never ran, or the clock cannot tell. Each step
  * is its own time only (a step run inside another counts in its own field, never in both), so the steps add up to the
- * change's `record` time, give or take a millisecond each for rounding.
+ * change's `record` time, give or take a millisecond each for rounding, except the lane times below.
+ *
+ * The plan runs its independent steps in lanes beside the main path (#684). A lane's time is its own wall time and
+ * overlaps the main path, so it is in no sum: [snapsMs], [admittedMs], [beforeMs] and [liveMs] are lane wall times, and
+ * `record` is the main path's steps ([warmMs], [daysMs], [keptMs], [poolsMs], [layoutMs], [pinMs], [writeMs],
+ * [otherMs]) plus [lanesWaitMs].
  *
  * - [warmMs]: today's days under the current selection built before the turn is asked for (a day build when they
  *   were not built yet: after an earlier selection save, say), so the turn does not build them.
  * - [daysMs]: today's days read in the turn (`chosenDays`; a day build only when they moved on while it waited).
- * - [snapsMs]: the new selection's snapshot reads.
- * - [admittedMs] and [beforeMs]: what each channel admits of the new and of the current selection (a build each).
- * - [keptMs]: the kept windows (with any layout of today's days that forces).
- * - [poolsMs]: the tail pools (with their by-id reads on a repaired day).
- * - [liveMs]: which items have a current row (the `currentIds` reads, for the kept windows and the tail pools).
+ * - [snapsMs] (lane): the one walk of the library (the new selection's snapshot, with the current's and the removed's).
+ * - [admittedMs] and [beforeMs] (lanes): what each channel admits of the new and of the current selection (a build
+ *   each).
+ * - [keptMs]: the kept windows (with any layout of today's days that forces, and their current-row reads).
+ * - [poolsMs]: the tail pools (with their by-id reads on a repaired day, and the current-row read of their items,
+ *   which the early read answers when it can).
+ * - [liveMs] (lane): the early read of which items of the new selection's snapshots have a current row.
  * - [layoutMs]: the tails laid out (with their films and weights).
  * - [pinMs]: finding the pinned programme's library (with the removed libraries' reads).
  * - [writeMs]: the record's write.
@@ -30,6 +37,9 @@ import kotlin.time.TimeSource
  * - [walkTxMs]: the wall time the library walks' transactions held the writer connection (the reads of the new and,
  *   when needed, the current and the removed selections: one transaction per cut-off). It is part of [snapsMs] and is
  *   never added to it. -1 when the library reported none.
+ * - [lanesWaitMs]: the main path's time waiting for a lane to finish.
+ * - [buildCpuMs]: the CPU time of the build lanes ([admittedMs] and [beforeMs]), each on its own thread; -1 when a
+ *   thread's CPU time cannot be read. With [lanesWaitMs] and the lane walls it shows whether the lanes shared a core.
  */
 data class RepairPhases(
     val warmMs: Long = -1,
@@ -48,12 +58,14 @@ data class RepairPhases(
     val gcCount: Long = -1,
     val gcMs: Long = -1,
     val walkTxMs: Long = -1,
+    val lanesWaitMs: Long = -1,
+    val buildCpuMs: Long = -1,
 ) {
     /** These as the timing line's fields. */
     fun line(): String =
         "warm=$warmMs days=$daysMs snaps=$snapsMs admitted=$admittedMs before=$beforeMs kept=$keptMs pools=$poolsMs " +
             "live=$liveMs layout=$layoutMs pin=$pinMs write=$writeMs other=$otherMs cpu=$cpuMs gc=$gcCount " +
-            "gcMs=$gcMs walkTxMs=$walkTxMs"
+            "gcMs=$gcMs walkTxMs=$walkTxMs lanesWaitMs=$lanesWaitMs buildCpuMs=$buildCpuMs"
 
     companion object {
         /** Nothing measured: no repair ran. */
@@ -79,6 +91,9 @@ internal enum class RepairPhase {
     Write,
     Other,
     Save,
+
+    /** The main path waiting for a lane (#684); the lanes' own times are reported by [RepairClock.lane]. */
+    LanesWait,
 }
 
 /**
@@ -87,7 +102,7 @@ internal enum class RepairPhase {
  * every step is its own time only. Used by one change at a time, one step after another.
  */
 class RepairClock(
-    private val ticks: TimeSource = TimeSource.Monotonic,
+    internal val ticks: TimeSource = TimeSource.Monotonic,
 ) {
     // Nanoseconds, so many short steps add up exactly.
     private val nanos = LongArray(RepairPhase.entries.size)
@@ -102,6 +117,9 @@ class RepairClock(
     private var gcCount = 0L
     private var gcMs = 0L
     private var walkTxNanos = -1L
+    private var buildCpuNanos = 0L
+    private var buildCpuSeen = false
+    private var buildCpuUnknown = false
 
     /** What was timed; [RepairPhases.NONE] when no repair ran. */
     fun phases(): RepairPhases =
@@ -126,6 +144,8 @@ class RepairClock(
                 gcCount = gcCount,
                 gcMs = gcMs,
                 walkTxMs = if (walkTxNanos < 0) -1L else walkTxNanos / NANOS_PER_MS,
+                lanesWaitMs = ms[RepairPhase.LanesWait.ordinal],
+                buildCpuMs = if (!buildCpuSeen || buildCpuUnknown) -1L else buildCpuNanos / NANOS_PER_MS,
             )
         }
 
@@ -147,6 +167,25 @@ class RepairClock(
         ran[phase.ordinal] = true
         nanos[phase.ordinal] += total - nested
         if (inside.isNotEmpty()) inside[inside.lastIndex] += total
+    }
+
+    // A lane (#684) ran for [wallNanos] beside the main path: its own wall time, in no step's sum and in no `inside`
+    // stack.
+    // Only the main coroutine calls this, after it has awaited the lane: a lane never touches the clock.
+    internal fun lane(
+        phase: RepairPhase,
+        wallNanos: Long,
+    ) {
+        used = true
+        ran[phase.ordinal] = true
+        nanos[phase.ordinal] += wallNanos
+    }
+
+    // A build lane used [cpuNanos] of its thread's CPU time (-1: unknown, which makes the total unknown).
+    internal fun addBuildCpu(cpuNanos: Long) {
+        used = true
+        if (cpuNanos < 0) buildCpuUnknown = true else buildCpuNanos += cpuNanos
+        buildCpuSeen = true
     }
 
     // A library walk's transaction held the writer connection for [nanos] (part of the snaps step, so not a step).

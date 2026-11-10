@@ -56,20 +56,26 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
             timing.copy(repair = RepairPhases.NONE),
         )
         // The repair's own steps are reported too, on the same clock: the slow snapshot read is the current days'
-        // (a build, before the turn or in it) or the new selection's, and no other step took any time.
+        // (a build, before the turn or in it) or the new selection's (a lane the main path waits for), and no other
+        // step took any time.
         val phases = timing.repair
         assertNotEquals(RepairPhases.NONE, phases)
-        assertEquals(RECORD_MS, listOf(phases.warmMs, phases.daysMs, phases.snapsMs).filter { it > 0 }.sum())
-        val others = listOf(phases.admittedMs, phases.keptMs, phases.layoutMs, phases.pinMs, phases.writeMs)
+        assertEquals(
+            RECORD_MS,
+            listOf(phases.warmMs, phases.daysMs, phases.lanesWaitMs).filter { it > 0 }.sum(),
+            "the slow read is a wait for the walk lane: $phases",
+        )
+        val others = listOf(phases.keptMs, phases.layoutMs, phases.pinMs, phases.writeMs)
         assertTrue(others.all { it <= 0 }, "no other step took any time: $others")
     }
 
     @Test
     fun theRepairsSteps_addUpToItsRecordTime_eachCountedOnce() {
         val tv = Tv().ready(setOf(libA, libB))
-        // Time passes in many steps, some inside others: each snapshot read (in the days' build, the new selection's
-        // reads and the removed library's), each current-row read (inside the kept windows and the tail pools) and
-        // the save, which is not the repair's.
+        // Time passes in many steps, some inside others: each snapshot read (in the days' build and in the walk lane),
+        // each current-row read (in the kept windows, the early read's lane and the tail pools) and the save, which is
+        // not the repair's. The lanes' own times overlap the main path, so they are in no sum: the main path's steps
+        // and its waits for the lanes add up to the record.
         tv.rig.library.afterSnapshot = { tv.ticks += SNAPSHOT_MS.milliseconds }
         tv.rig.library.beforeCurrentIds = { tv.ticks += LIVE_MS.milliseconds }
         tv.settings.beforeSave = { tv.ticks += SAVE_MS.milliseconds }
@@ -82,18 +88,15 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
             listOf(
                 p.warmMs,
                 p.daysMs,
-                p.snapsMs,
-                p.admittedMs,
-                p.beforeMs,
                 p.keptMs,
                 p.poolsMs,
-                p.liveMs,
                 p.layoutMs,
                 p.pinMs,
                 p.writeMs,
                 p.otherMs,
+                p.lanesWaitMs,
             )
-        assertTrue(p.liveMs > 0 && p.snapsMs > 0, "time passed inside the steps: $p")
+        assertTrue(p.liveMs > 0 && p.snapsMs > 0, "time passed inside the lanes: $p")
         assertEquals(timing.recordMs, steps.filter { it > 0 }.sum(), "every millisecond counted once: $p")
     }
 
@@ -145,6 +148,8 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
                 gcCount = 17,
                 gcMs = 18,
                 walkTxMs = 20,
+                lanesWaitMs = 21,
+                buildCpuMs = 22,
             )
         val line =
             ChangeTiming(waitMs = 1, turnWaitMs = 2, recordMs = 3, saveMs = 4, cacheMs = 5, totalMs = 15, phases)
@@ -153,7 +158,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
         assertEquals(
             "SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15 warm=5 days=6 snaps=7 " +
                 "admitted=8 before=9 kept=10 pools=11 live=12 layout=13 pin=14 write=15 other=19 cpu=16 gc=17 " +
-                "gcMs=18 walkTxMs=20",
+                "gcMs=18 walkTxMs=20 lanesWaitMs=21 buildCpuMs=22",
             line,
         )
     }
@@ -165,7 +170,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
         assertEquals(
             "SelectionChangeTook wait=0 turnWait=0 record=0 save=0 cache=0 total=0 warm=-1 days=-1 snaps=-1 " +
                 "admitted=-1 before=-1 kept=-1 pools=-1 live=-1 layout=-1 pin=-1 write=-1 other=-1 cpu=-1 gc=-1 " +
-                "gcMs=-1 walkTxMs=-1",
+                "gcMs=-1 walkTxMs=-1 lanesWaitMs=-1 buildCpuMs=-1",
             line,
         )
     }

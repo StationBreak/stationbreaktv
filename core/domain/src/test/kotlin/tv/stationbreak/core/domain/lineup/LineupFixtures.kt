@@ -188,13 +188,28 @@ internal class CountingLibrary(
         delegate.setCollectionsSynced(ACCOUNT, true)
     }
 
-    val snapshotCutoffs = mutableListOf<Instant>()
+    val snapshotCutoffs: MutableList<Instant> = java.util.Collections.synchronizedList(mutableListOf())
     var scheduleItemsCalls = 0
     var programInfoCalls = 0
-    var currentIdsCalls = 0
+
+    // Read from lanes of a plan (#684) and the main path at once: atomic.
+    private val currentIdsCallCount =
+        java.util.concurrent.atomic
+            .AtomicInteger()
+    private val currentIdsAskedCount =
+        java.util.concurrent.atomic
+            .AtomicInteger()
+    var currentIdsCalls: Int
+        get() = currentIdsCallCount.get()
+        set(value) = currentIdsCallCount.set(value)
 
     /** How many ids the `currentIds` reads asked about, in all. */
-    var currentIdsAsked = 0
+    var currentIdsAsked: Int
+        get() = currentIdsAskedCount.get()
+        set(value) = currentIdsAskedCount.set(value)
+
+    /** The size of each `currentIds` read, in the order they started. */
+    val currentIdsSizes: MutableList<Int> = java.util.Collections.synchronizedList(mutableListOf())
     var scheduleItemsOfCalls = 0
 
     /** Run after each `ruleSnapshot` read returns: a test lands a sync while a read is in flight. */
@@ -208,6 +223,9 @@ internal class CountingLibrary(
      * seen before it (the in-memory fake filters on deletion alone): the equality matrix's snapshots differ by cut-off.
      */
     var createdBeforeCutoff = false
+
+    /** Run after each `currentIds` read returns, given how many ids it asked about: a sync lands after that read. */
+    var afterCurrentIds: (Int) -> Unit = {}
 
     /** Run as each `currentIds` read starts, given how many ids it asks about: the benchmark's read-latency model. */
     var currentIdsLatency: (Int) -> Unit = {}
@@ -228,14 +246,17 @@ internal class CountingLibrary(
         cutoff: Instant,
     ): List<RuleSnapshot> {
         snapshotCutoffs += cutoff
-        walks++
+        walkCount.incrementAndGet()
         walkSizes += selections.size
         return delegate.ruleSnapshots(account, selections, cutoff).map(::held).also { afterSnapshot() }
     }
 
     /** How many [ruleSnapshots] walks were made, and how many selections each read. */
-    var walks = 0
-    val walkSizes = mutableListOf<Int>()
+    private val walkCount =
+        java.util.concurrent.atomic
+            .AtomicInteger()
+    val walks: Int get() = walkCount.get()
+    val walkSizes: MutableList<Int> = java.util.Collections.synchronizedList(mutableListOf())
 
     private fun held(read: RuleSnapshot): RuleSnapshot =
         if (createdBeforeCutoff) {
@@ -265,11 +286,12 @@ internal class CountingLibrary(
         account: LibraryAccount,
         ids: Set<CanonicalId>,
     ): Set<CanonicalId> {
-        currentIdsCalls++
-        currentIdsAsked += ids.size
+        currentIdsCallCount.incrementAndGet()
+        currentIdsAskedCount.addAndGet(ids.size)
+        currentIdsSizes += ids.size
         beforeCurrentIds()
         currentIdsLatency(ids.size)
-        return delegate.currentIds(account, ids)
+        return delegate.currentIds(account, ids).also { afterCurrentIds(ids.size) }
     }
 
     override suspend fun scheduleItemsOf(
