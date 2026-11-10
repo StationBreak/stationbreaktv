@@ -33,6 +33,14 @@ data class ChangeTiming(
             "total=$totalMs ${repair.line()}"
 }
 
+// A plain save (no lineup) warms today's days before it finds there is nothing to repair: that alone is no repair, and
+// its line says what an add's does.
+// (the clock's process readings come with it).
+private fun RepairPhases.noRepairRan(): Boolean {
+    val bare = copy(warmMs = -1, cpuMs = -1, gcCount = -1, gcMs = -1)
+    return bare == RepairPhases.NONE
+}
+
 /** The steps of one change as it runs, on [ticks]: each adds what it took. Used under the selection's lock only. */
 internal class ChangeSteps(
     private val ticks: TimeSource,
@@ -89,7 +97,7 @@ internal class ChangeSteps(
             saveMs = saveMs,
             cacheMs = cacheMs,
             totalMs = began.elapsedNow().inWholeMilliseconds,
-            repair = repair.phases(),
+            repair = repair.phases().takeUnless { it.noRepairRan() } ?: RepairPhases.NONE,
         )
 
     private suspend fun <T> timed(

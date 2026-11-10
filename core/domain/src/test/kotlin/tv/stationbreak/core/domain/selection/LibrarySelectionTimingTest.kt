@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.selection
 
+import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.repair.RepairPhases
 import kotlin.test.Test
@@ -8,6 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * The time a change takes, by step (the Libraries screen's slow untick on a TV): the wait for the lock (`wait`), the
@@ -173,6 +175,18 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
                 "gcMs=-1 walkTxMs=-1 lanesWaitMs=-1 buildCpuMs=-1",
             line,
         )
+    }
+
+    @Test
+    fun aSaveWithNoLineup_logsTheSamePhasesAsAnAdd_notAWarmNumberAmongMinusOnes() {
+        val steps = ChangeSteps(TimeSource.Monotonic)
+        // A plain save still warms today's days first (the allocation cannot know there is no lineup); no repair runs.
+        runBlocking { steps.warming {} }
+
+        val line = steps.timing().line()
+
+        assertTrue(line.endsWith(" " + RepairPhases.NONE.line()), line)
+        assertTrue("warm=-1 " in line, line)
     }
 
     private companion object {

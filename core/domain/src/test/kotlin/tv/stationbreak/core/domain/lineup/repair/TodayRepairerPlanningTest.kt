@@ -90,7 +90,7 @@ internal class TodayRepairerPlanningTest : RepairTestBase() {
         val source = BuiltInScheduleSource(service, rig.library) { selectionOf(rig.chosen, rig.applied) }
         val repairer = TodayRepairer(service, source, rig.library, Successors.None, { rig.applied }, turn, planning)
         val saved = Collections.synchronizedList(mutableListOf<String>())
-        runBlocking { repairer.warmDays(ACCOUNT, checkNotNull(source.savedSelection()), atMs) }
+        runBlocking { repairer.warmDays(ACCOUNT, atMs) }
 
         val outcome =
             runBlocking {

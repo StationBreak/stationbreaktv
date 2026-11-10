@@ -76,8 +76,9 @@ internal class LibrarySelectionAddPassTest : SelectionTestBase() {
     @Test
     fun aLandingWhoseSelectionCannotBeRead_isFailed_notRetry() {
         val (tv, stamp) = adding()
-        // The landing reads the selection, then the repair reads it again: that second read fails.
-        tv.settings.unreadableLoad = tv.settings.loads.get() + 2
+        // The landing reads the selection, the warm-up of today's days reads it (through the source the repair reads),
+        // then the repair reads it again: that third read fails.
+        tv.settings.unreadableLoad = tv.settings.loads.get() + 3
 
         assertEquals(LandResult.Failed, runBlocking { tv.selection.passLanded(ACCOUNT, libB, stamp) })
 
