@@ -104,6 +104,9 @@ class LineupRefresher(
     private val selectionChanges: StateFlow<Long>,
     private val initialBackoffMs: Long = INITIAL_BACKOFF_MS,
     private val afterSync: suspend (LibraryAccount) -> Unit = {},
+    // The account whose choice the libraries are, or null when not known (an older build's record): see
+    // [SavedSelection.owner]. A selection owned by another account than the one refreshed is not refreshed from (#305).
+    private val selectionOwner: suspend () -> LibraryAccount? = { null },
     private val report: (LineupEvent) -> Unit,
 ) {
     private var started: Job? = null
@@ -294,6 +297,7 @@ class LineupRefresher(
             // this one, the libraries read may be the new account's, and nothing is refreshed or recorded.
             currentCoroutineContext().ensureActive()
             if (library.activeAccount().first() != account) return
+            if (selectionOwner()?.let { it != account } == true) return
             val held = service.loaded(account)
             val pass = library.collectionPassCompleted(account).first()
             if (!worthRefreshing(trigger, account, held, chosen, pass)) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.model.ItemId
@@ -19,12 +20,17 @@ import java.util.Objects
  *
  * [resetSeq] is the seq the last setup saved (the settings key `selectionResetSeq`), 0 for none: a selection repair of
  * a lower seq was recorded for a selection before that setup and never shows (`TodayRepairs.applied`). No default.
+ *
+ * [owner] is the account whose choice this is, or null when it is not known (a selection an older build saved: it is
+ * taken as the active account's). A reader that has an account checks it before using the libraries (#305): the stored
+ * selection can still be the previous account's for a moment after a switch. Never printed.
  */
 class SavedSelection(
     val libraries: Set<ItemId>,
     val seq: Long,
     playable: Set<ItemId>?,
     val resetSeq: Long,
+    val owner: LibraryAccount? = null,
 ) {
     /**
      * The playable libraries as given, less any that is not in [libraries]: this is read on the tune path, so a
@@ -37,9 +43,10 @@ class SavedSelection(
             libraries == other.libraries &&
             seq == other.seq &&
             playable == other.playable &&
-            resetSeq == other.resetSeq
+            resetSeq == other.resetSeq &&
+            owner == other.owner
 
-    override fun hashCode(): Int = Objects.hash(libraries, seq, playable, resetSeq)
+    override fun hashCode(): Int = Objects.hash(libraries, seq, playable, resetSeq, owner)
 
     /** Counts only: never a library id (a log line may print a selection). */
     override fun toString(): String {
@@ -61,4 +68,4 @@ fun savedSelectionOf(settings: ServerSettings): suspend () -> SavedSelection? {
 
 /** [this] as the saved selection the schedule source's provider gives for it. */
 internal fun StoredSelection.toSaved(): SavedSelection =
-    SavedSelection(chosen, seq = seq, playable = if (gone) null else chosen, resetSeq = resetSeq)
+    SavedSelection(chosen, seq = seq, playable = if (gone) null else chosen, resetSeq = resetSeq, owner = owner)

@@ -246,9 +246,11 @@ class LineupServiceTest {
             library.delegate.noteContentChange(ACCOUNT)
             service.refresh(ACCOUNT, unsyncedSelection)
             val generation = library.delegate.contentGeneration(ACCOUNT)
+            val before = checkNotNull(stored())
 
             service.refresh(ACCOUNT, LIBRARIES)
 
+            assertEquals(before.channels, stored()?.channels, "the channels come back as a normal plan leaves them")
             assertEquals(generation, storedMeta()?.plannedGeneration)
             assertEquals(LIBRARIES.map { it.value }.sorted(), storedMeta()?.plannedLibraries)
         }

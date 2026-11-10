@@ -363,21 +363,17 @@ class BuiltInScheduleSource(
         }
 
     // The account and its saved selection, read together once per call; null with no account or nothing chosen.
-    // The selection is not account-keyed, so it is read between two reads of the account: account, selection, account.
-    // If the account changed meanwhile the selection may be the other's, so it is read once more; if it changes again,
-    // there is no selection this call (#305).
+    // The stored selection is one record per server, not keyed by account: for a moment after a switch it can still be
+    // the previous account's. It says whose it is, so a selection owned by another account than the active one is no
+    // selection (null owner: saved by an older build, taken as the account's). An account that switches between the
+    // two reads shows the same way, as a mismatch (#305).
     private suspend fun signedIn(): Pair<LibraryAccount, SavedSelection>? {
-        var read: Pair<LibraryAccount, SavedSelection>? = null
-        var attempts = 0
-        while (read == null && attempts < SIGNED_IN_READS) {
-            attempts++
-            val account = library.activeAccount().first()
-            val chosen = saved()?.takeIf { it.libraries.isNotEmpty() }
-            if (account == null || chosen == null) break
-            if (library.activeAccount().first() == account) read = account to chosen
-        }
-        return read
+        val account = library.activeAccount().first()
+        val chosen = saved()?.takeIf { it.libraries.isNotEmpty() && it.owner.isNullOrSameAs(account) }
+        return if (account == null || chosen == null) null else account to chosen
     }
+
+    private fun LibraryAccount?.isNullOrSameAs(account: LibraryAccount?) = this == null || this == account
 
     override suspend fun onAir(
         channel: ChannelId,
@@ -1255,9 +1251,6 @@ class BuiltInScheduleSource(
     internal companion object {
         /** How many built sets of days are kept: today and tomorrow for a few revisions. */
         const val KEPT = 8
-
-        /** How many times [signedIn] reads the account with its selection: the read, and one retry (#305). */
-        const val SIGNED_IN_READS = 2
 
         /**
          * How long before a channel's day ends the day after it is built in the background. A build took up to 26 s on

@@ -275,16 +275,7 @@ class LineupService internal constructor(
         start: Start,
     ): Pair<Lineup, RefreshMeta> =
         readForPlan(account, libraries).let { read ->
-            val held = start.current
-            if (held != null && held.finalised && read.snapshot.items.isEmpty()) {
-                // #306: a finalised lineup is never shelved or reshaped from a snapshot with no items. That is a
-                // library not synced (yet), not an empty one: keep the lineup as rolled and the old meta, so the
-                // generation is not recorded and the next trigger plans again. A selection that really became empty
-                // is the selection-change repair's to handle, not the refresh's.
-                held.rolled(read.now.toEpochMilliseconds()) to start.meta
-            } else {
-                plannedFrom(owner, read, libraries, held, start.meta, newAccount = start.isNew)
-            }
+            plannedFrom(owner, read, libraries, start.current, start.meta, newAccount = start.isNew)
         }
 
     /** What the library says at the moment of a plan. */
@@ -336,6 +327,11 @@ class LineupService internal constructor(
         // What is past at the read is taken off first (`rolled`); the changes this plan makes start at the next day
         // boundary, worked out here with the lineup's own offset and passed in (the engine knows no scheduler).
         val rolled = current?.rolled(nowMs)
+        // #306: a finalised lineup is never shelved or reshaped from a snapshot with no items. That is a library not
+        // synced (yet), not an empty one: keep the lineup as rolled and the meta passed in, so the generation is not
+        // recorded and the next trigger plans again. A selection that really became empty is the selection-change
+        // repair's to handle, not a plan's. Every plan of a current lineup passes here (refresh and edit).
+        if (rolled != null && rolled.finalised && read.snapshot.items.isEmpty()) return rolled to before
         val planned =
             LineupPlanner.plan(
                 rolled,
