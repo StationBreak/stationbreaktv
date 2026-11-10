@@ -18,7 +18,7 @@ internal fun ChangeResult.notice(): Notice =
 /**
  * The rows of the Libraries screen in [phase]: the [listed] libraries in the server's order, then the stored ones it
  * left out (shown ticked until the selection confirms them missing: a design-partner placeholder). Read-only, the
- * stored ones alone, unless [listOf] is false (nobody signed in). [names] are the names earlier listings gave.
+ * stored ones alone, unless [signedIn] is false (nobody signed in). [names] are the names earlier listings gave.
  * A row is ticked as [wanted] says when a press asked for it, else when it is stored (chosen or being added). It is
  * pending while a press is not stored yet ([wanted] differs from the stored choice, or [sending] carries it), and
  * adding while its add is stored, out and not given up.
@@ -29,7 +29,7 @@ internal fun libraryRows(
     listed: List<Library>,
     view: ChoiceView?,
     names: Map<ItemId, String>,
-    listOf: Boolean,
+    signedIn: Boolean,
     wanted: Map<ItemId, Boolean> = emptyMap(),
     sending: Set<ItemId> = emptySet(),
 ): List<LibraryRow> {
@@ -65,7 +65,7 @@ internal fun libraryRows(
         }
 
         is LibrariesPhase.Unavailable -> {
-            if (listOf) (stored + shown).sortedWith(byName).map { row(it, names[it]) } else emptyList()
+            if (signedIn) (stored + shown).sortedWith(byName).map { row(it, names[it]) } else emptyList()
         }
     }
 }

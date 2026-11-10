@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -22,6 +23,7 @@ import tv.stationbreak.core.domain.selection.LibraryListing
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import javax.inject.Inject
+import kotlin.time.TimeSource
 
 /**
  * Holds the Libraries screen (spec 26): the server's libraries with their ticks, the focus, and the changes the viewer
@@ -49,12 +51,19 @@ internal class LibrariesSettingsViewModel
     internal constructor(
         private val choices: LibraryChoices,
         dispatcher: CoroutineDispatcher,
+        private val ticks: TimeSource = TimeSource.Monotonic,
+        private val log: (String) -> Unit = {},
     ) : ViewModel() {
         // The main thread, as a ViewModel's own work runs: it is light, and the selection moves its slow work to its
         // own threads. Not Dispatchers.Default, where the day builds a change sets off would hold up the end of a
         // change. Not Main.immediate: a change is launched under [lock], and must not start inside it.
         @Inject
-        constructor(choices: LibraryChoices) : this(choices, Dispatchers.Main)
+        constructor(choices: LibraryChoices) : this(
+            choices,
+            Dispatchers.Main,
+            TimeSource.Monotonic,
+            { runCatching { Log.i(LOG_TAG, it) } },
+        )
 
         /** What one visit knows beyond what [LibrariesSettingsState] shows. */
         private data class Model(
@@ -111,6 +120,9 @@ internal class LibrariesSettingsViewModel
         // The row focused when the screen last closed, for the ViewModel's life. Under [lock].
         private var closedOn: ItemId? = null
 
+        // A change failed while the screen was closed: the next visit says so, once. Under [lock].
+        private var missedFailure = false
+
         /** Between [open] and [close]: nothing is published outside it. */
         private var visible = false
         private val shown = MutableStateFlow(LibrariesSettingsState.Empty)
@@ -127,16 +139,27 @@ internal class LibrariesSettingsViewModel
                 session?.cancel()
                 generation = model.generation + 1
                 val known = lastListed
+                val notice = if (missedFailure) Notice.Failed else null
+                missedFailure = false
+                // The stored choice at once, so the rows never show unticked for a frame before the watch delivers it.
+                val view = choices.selection.value
                 model =
                     if (known != null) {
-                        Model(generation, LibrariesPhase.Listed, known, restoreFocus = closedOn)
+                        Model(
+                            generation,
+                            LibrariesPhase.Listed,
+                            known,
+                            view = view,
+                            restoreFocus = closedOn,
+                            notice = notice,
+                        )
                     } else {
-                        Model(generation, restoreFocus = closedOn)
+                        Model(generation, view = view, restoreFocus = closedOn, notice = notice)
                     }
                 visible = true
                 apply { it }
+                session = scope.launch { run(generation) }
             }
-            session = scope.launch { run(generation) }
         }
 
         /** The screen has gone: nothing is read or watched until the next [open], and nothing of this visit shows. */
@@ -198,9 +221,13 @@ internal class LibrariesSettingsViewModel
 
         /** Focus to the row above or below, stopping at the first and the last. */
         fun move(up: Boolean) {
-            // [apply] keeps it on a row. A move is the viewer's own choice, so the old row is no longer restored.
+            // [apply] keeps it on a row. A move is the viewer's own choice, so the old row is no longer restored, but
+            // not while there are no rows to move over: the restore waits for them.
             synchronized(lock) {
-                apply { it.copy(focus = if (up) it.focus - 1 else it.focus + 1, restoreFocus = null) }
+                apply {
+                    val restore = it.restoreFocus.takeIf { _ -> it.phase == LibrariesPhase.Loading }
+                    it.copy(focus = if (up) it.focus - 1 else it.focus + 1, restoreFocus = restore)
+                }
             }
         }
 
@@ -210,7 +237,7 @@ internal class LibrariesSettingsViewModel
          */
         fun select() {
             synchronized(lock) {
-                val row = rowsOf(model).getOrNull(model.focus)?.takeIf { model.phase == LibrariesPhase.Listed }
+                val row = rowsOf(model).getOrNull(model.focus)?.takeIf { phaseOf(model) == LibrariesPhase.Listed }
                 val view = model.view
                 if (row == null || view == null) return
                 val next = wanted + (row.id to !row.ticked)
@@ -239,7 +266,9 @@ internal class LibrariesSettingsViewModel
             // On the ViewModel's scope, not the visit's: it finishes when the screen closes.
             scope.launch {
                 val result = send(ticked)
+                val returned = ticks.markNow()
                 synchronized(lock) { settle(presses, result) }
+                log("SelectionChangeActed gap=${returned.elapsedNow().inWholeMilliseconds}")
             }
         }
 
@@ -256,6 +285,7 @@ internal class LibrariesSettingsViewModel
                     // Its rows go back as stored; a later press of another row is still sent.
                     wanted - sent.keys
                 }
+            if (!visible && result == ChangeResult.Failed) missedFailure = true
             sendNext()
             // The ticks follow the stored choice now, not when the watch next delivers it.
             val notice = result.notice()
@@ -318,11 +348,15 @@ internal class LibrariesSettingsViewModel
 
         private fun derive(m: Model): LibrariesSettingsState {
             val rows = rowsOf(m)
-            return LibrariesSettingsState(m.phase, rows, m.focus, m.notice)
+            return LibrariesSettingsState(phaseOf(m), rows, m.focus, m.notice)
         }
 
-        private fun rowsOf(m: Model): List<LibraryRow> {
-            val listOf = !m.signedOut
-            return libraryRows(m.phase, m.listed, m.view, names, listOf, wanted, sending?.keys.orEmpty())
-        }
+        // Listed with no stored choice (another account's) is the read-only state of a server that could not be asked.
+        private fun phaseOf(m: Model): LibrariesPhase =
+            if (m.phase == LibrariesPhase.Listed && m.view == null) LibrariesPhase.Unavailable(null) else m.phase
+
+        private fun rowsOf(m: Model): List<LibraryRow> =
+            libraryRows(phaseOf(m), m.listed, m.view, names, !m.signedOut, wanted, sending?.keys.orEmpty())
     }
+
+private const val LOG_TAG = "Lineup"
