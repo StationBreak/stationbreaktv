@@ -4,7 +4,6 @@ package tv.stationbreak.feature.settings.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -57,6 +55,7 @@ import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.keepVisible
 import tv.stationbreak.feature.settings.LibrariesPhase
 import tv.stationbreak.feature.settings.LibrariesSettingsState
 import tv.stationbreak.feature.settings.LibraryRow
@@ -190,55 +189,6 @@ private fun LazyListState.isOutOfView(index: Int): Boolean {
     val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return true
     return item.offset < info.viewportStartOffset || item.offset + item.size > info.viewportEndOffset
 }
-
-// Scrolls only when the focused row is not fully on screen.
-private suspend fun LazyListState.keepVisible(index: Int) {
-    val info = layoutInfo
-    val shown =
-        info.visibleItemsInfo.filter {
-            it.offset >= info.viewportStartOffset && it.offset + it.size <= info.viewportEndOffset
-        }
-    when {
-        shown.isEmpty() -> scrollToItem(index)
-        index < shown.first().index -> scrollToItem(index)
-        index > shown.last().index -> scrollToItem((index - shown.size + 1).coerceAtLeast(0))
-        else -> return
-    }
-    nudgeIntoView(index)
-}
-
-// Rows are not all one height (a status line adds one), so the estimate above can leave the row a little clipped: once
-// it is laid out, scroll by the clipped amount. Kept in step with the channel screen's own (a feature never depends on
-// another).
-private suspend fun LazyListState.nudgeIntoView(index: Int) {
-    repeat(NUDGE_PASSES) { _ ->
-        withFrameNanos { }
-        val info = layoutInfo
-        val shown = info.visibleItemsInfo
-        val item = shown.firstOrNull { it.index == index }
-        val half = (info.viewportEndOffset - info.viewportStartOffset) / 2f
-        when {
-            item == null -> {
-                val last = shown.lastOrNull() ?: return
-                if (index > last.index) scrollBy(half) else scrollBy(-half)
-            }
-
-            item.offset + item.size > info.viewportEndOffset -> {
-                scrollBy((item.offset + item.size - info.viewportEndOffset).toFloat())
-            }
-
-            item.offset < info.viewportStartOffset -> {
-                scrollBy((item.offset - info.viewportStartOffset).toFloat())
-            }
-
-            else -> {
-                return
-            }
-        }
-    }
-}
-
-private const val NUDGE_PASSES = 6
 
 @Composable
 private fun LibraryLine(

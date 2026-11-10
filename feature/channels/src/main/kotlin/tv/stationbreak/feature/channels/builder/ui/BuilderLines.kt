@@ -37,8 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.keepVisible
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
-import tv.stationbreak.feature.channels.ui.keepVisible
 
 private val LineGap = 2.dp
 
@@ -55,7 +55,7 @@ internal fun <T> FocusedLines(
     content: @Composable (T, Boolean) -> Unit,
 ) {
     val state = rememberLazyListState()
-    LaunchedEffect(focused, lines) { if (focused >= 0) state.keepVisible(focused) }
+    LaunchedEffect(focused, lines) { if (focused >= 0) state.keepVisible(focused, linesAbove = 1) }
     LazyColumn(modifier, state = state, verticalArrangement = Arrangement.spacedBy(LineGap)) {
         items(lines.size, key = { key(lines[it]) }) { i -> content(lines[i], i == focused) }
     }
