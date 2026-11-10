@@ -2,6 +2,9 @@
 package tv.stationbreak.feature.channels.ui
 
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -10,6 +13,11 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.node.RootForTest
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertIsOn
@@ -27,10 +35,11 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.core.view.children
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -94,7 +103,6 @@ import tv.stationbreak.feature.channels.builder.ui.BuilderTags
 import tv.stationbreak.feature.channels.choicesOf
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -247,9 +255,10 @@ class ChannelsScreenTest {
     private val library = InMemoryLibraryRepository()
     private val schedule = FakeSchedule()
 
-    // The ViewModel's own thread, as Dispatchers.Default would be in the app.
-    private val pool = Executors.newSingleThreadExecutor()
-    private val work = pool.asCoroutineDispatcher()
+    // The ViewModels' work runs in the main thread's message queue, so Compose's idle wait covers it and the
+    // assertions below, which read from this thread after an idle wait, do not meet a state change from another thread.
+    // The ViewModels' own thread safety is covered by their unit tests.
+    private val work = Handler(Looper.getMainLooper()).asCoroutineDispatcher()
     private val tuned = CopyOnWriteArrayList<ChannelId>()
     private var closed = 0
     private val showing = mutableStateOf(true)
@@ -311,7 +320,6 @@ class ChannelsScreenTest {
     @After
     fun tearDown() {
         if (::vm.isInitialized) vm.close()
-        pool.shutdownNow()
     }
 
     private fun press(vararg pads: Pad) {
@@ -337,19 +345,39 @@ class ChannelsScreenTest {
             Pad.Back -> Key.Back
         }
 
+    /**
+     * Waits for [condition], which runs on the main thread, between its other work. The semantics tree is read there
+     * ([nodes]) and never from this thread: a read here builds stale semantics configurations on this thread, and a
+     * recomposition on the main thread at that moment (a delayed ViewModel step, say, which Compose's idle wait does
+     * not cover) is refused by Compose ("Detected multithreaded access to SnapshotStateObserver").
+     */
     private fun until(condition: () -> Boolean) {
-        compose.waitUntil(TIMEOUT_MS, condition)
+        compose.waitUntil(TIMEOUT_MS) { compose.runOnUiThread(condition) }
         compose.waitForIdle()
     }
 
-    // The unmerged tree: a row speaks as one node (`clearAndSetSemantics`), so its reason lines are only found there.
-    private fun exists(tag: String): Boolean {
-        val nodes =
-            compose
-                .onAllNodes(hasTestTag(tag), useUnmergedTree = true)
-                .fetchSemanticsNodes(atLeastOneRootRequired = false)
-        return nodes.isNotEmpty()
+    private fun titleOf(node: SemanticsNode): String? =
+        node.config
+            .getOrNull(SemanticsProperties.Text)
+            ?.joinToString("") { it.text }
+
+    /** The nodes of the unmerged semantics tree that [matcher] matches. Main thread only. */
+    private fun nodes(matcher: SemanticsMatcher): List<SemanticsNode> {
+        val root =
+            generateSequence(listOf(compose.activity.window.decorView)) { views ->
+                views.filterIsInstance<ViewGroup>().flatMap { group -> group.children.toList() }
+            }.takeWhile { it.isNotEmpty() }
+                .flatten()
+                .filterIsInstance<RootForTest>()
+                .firstOrNull() ?: return emptyList()
+        val all =
+            generateSequence(listOf(root.semanticsOwner.unmergedRootSemanticsNode)) { level ->
+                level.flatMap { it.children }.takeIf { it.isNotEmpty() }
+            }
+        return all.flatten().filter(matcher::matches).toList()
     }
+
+    private fun exists(tag: String): Boolean = compose.runOnUiThread { nodes(hasTestTag(tag)).isNotEmpty() }
 
     @Test
     fun listShowsGroupsAndReasons() {
@@ -622,7 +650,7 @@ class ChannelsScreenTest {
         press(Pad.Select)
         until { lineup.changes.isNotEmpty() && !lineup.household.value }
         assertEquals(listOf<ChannelChange>(ChannelChange.UseMyCollections(false)), lineup.changes.toList())
-        until { compose.onAllNodes(hasTestTag(ChannelsTags.HOUSEHOLD) and isOff()).fetchSemanticsNodes().isNotEmpty() }
+        until { nodes(hasTestTag(ChannelsTags.HOUSEHOLD) and isOff()).isNotEmpty() }
         press(Pad.Select)
         until { lineup.household.value }
         compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertIsSelected()
@@ -667,7 +695,7 @@ class ChannelsScreenTest {
         // Watch, Switch off, Copy to customise.
         press(Pad.Select, Pad.Down, Pad.Down, Pad.Select)
         until { exists(BuilderTags.SCREEN) && !exists(ChannelsTags.PANEL) }
-        until { runCatching { compose.onNodeWithTag(BuilderTags.TITLE).assertTextContains("Alpha (copy)") }.isSuccess }
+        until { nodes(hasTestTag(BuilderTags.TITLE)).any { titleOf(it) == "Alpha (copy)" } }
         press(Pad.Back)
         until { !exists(BuilderTags.SCREEN) }
         compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
