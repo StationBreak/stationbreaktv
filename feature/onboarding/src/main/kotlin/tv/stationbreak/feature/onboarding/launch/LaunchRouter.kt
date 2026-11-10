@@ -66,7 +66,7 @@ internal class LaunchRouter
         private val sessions: SessionRepository,
         private val mediaServer: MediaServer,
         private val firstSync: FirstSync = FirstSync.Finished,
-        private val ready: SelectionReady = SelectionReady.Complete,
+        private val ready: SelectionReady,
     ) {
         suspend fun route(): LaunchRoute {
             val record = settings.load() ?: return LaunchRoute.NoServer

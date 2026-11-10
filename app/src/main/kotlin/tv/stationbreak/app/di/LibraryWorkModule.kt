@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.app.di
+
+import android.content.Context
+import android.util.Log
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import tv.stationbreak.core.domain.FirstSync
+import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.ServerSettings
+import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.selection.AddLandings
+import tv.stationbreak.core.domain.selection.FirstSyncLibraries
+import tv.stationbreak.core.domain.selection.LibraryPasses
+import tv.stationbreak.core.domain.selection.SelectionReady
+import tv.stationbreak.data.library.AddedLibrariesRunner
+import tv.stationbreak.data.library.FirstSyncRunner
+import tv.stationbreak.data.library.RoomLibraryRepository
+import tv.stationbreak.data.library.WorkManagerFirstSync
+import tv.stationbreak.data.library.WorkManagerLibraryPasses
+import javax.inject.Singleton
+import kotlin.time.Clock
+
+/**
+ * What runs the library's work (spec 06, spec 26): the first sync and the add pass on WorkManager, and the runners
+ * their workers ask the `Application` for. It is apart from [LibraryModule] so a test that scripts the sync replaces
+ * these and keeps the saved library.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+internal object LibraryWorkModule {
+    /**
+     * The first sync of the signed-in account (spec 06, Unit 3) on WorkManager: the progress screen and launch routing
+     * ask it for the saved library's status and to start or run again. `core:*` and the feature module never see
+     * WorkManager (checkArchitecture).
+     */
+    @Provides
+    @Singleton
+    fun firstSync(
+        @ApplicationContext context: Context,
+        repository: RoomLibraryRepository,
+    ): FirstSync = WorkManagerFirstSync.create(context, repository)
+
+    /**
+     * What the first-sync worker runs. WorkManager builds the worker itself, so the worker asks the `Application` for
+     * this (see [FirstSyncEntryPoint]). It reads the session from the secret store when it runs: nothing, and no token,
+     * is passed through WorkManager. It waits for the selection's resume, and its library set is the selection's,
+     * written under the selection's lock (spec 26).
+     */
+    @Provides
+    @Singleton
+    @Suppress("LongParameterList") // The stores it reads and the selection's two ports.
+    fun firstSyncRunner(
+        settings: ServerSettings,
+        sessions: SessionRepository,
+        server: MediaServer,
+        repository: RoomLibraryRepository,
+        libraries: FirstSyncLibraries,
+        ready: SelectionReady,
+    ): FirstSyncRunner {
+        val report: (String) -> Unit = { Log.i(SYNC_TAG, it) }
+        return FirstSyncRunner(settings, sessions, server, repository, libraries, ready, Clock.System, report)
+    }
+
+    /**
+     * The add pass on WorkManager (spec 26, Part 4): what the selection asks for when the libraries being added change.
+     * It only enqueues, replacing the add work queued or running. Building it starts nothing.
+     */
+    @Provides
+    @Singleton
+    fun libraryPasses(
+        @ApplicationContext context: Context,
+    ): LibraryPasses = WorkManagerLibraryPasses.create(context)
+
+    /**
+     * What the add worker runs (spec 26, Part 4). WorkManager builds the worker, which asks the `Application` for this,
+     * as for the first sync. It waits for the selection's resume, and hands each proved add to the selection to land
+     * ([AddLandings]). Its lines are names and counts only.
+     */
+    @Provides
+    @Singleton
+    @Suppress("LongParameterList") // The stores it reads and the selection's two ports.
+    fun addedLibrariesRunner(
+        settings: ServerSettings,
+        sessions: SessionRepository,
+        server: MediaServer,
+        repository: RoomLibraryRepository,
+        landings: AddLandings,
+        ready: SelectionReady,
+    ): AddedLibrariesRunner {
+        val report: (String) -> Unit = { Log.i(SYNC_TAG, it) }
+        val clock = Clock.System
+        return AddedLibrariesRunner(settings, sessions, server, repository, landings, ready, clock, report = report)
+    }
+
+    private const val SYNC_TAG = "Sync"
+}

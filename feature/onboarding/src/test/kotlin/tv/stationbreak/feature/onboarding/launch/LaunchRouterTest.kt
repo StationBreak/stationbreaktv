@@ -44,7 +44,10 @@ class LaunchRouterTest {
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
 
-    private fun router(settings: ServerSettings) = LaunchRouter(RecordingSettings(settings, events), sessions, server)
+    private fun router(settings: ServerSettings): LaunchRouter {
+        val recording = RecordingSettings(settings, events)
+        return launchRouterForTest(recording, sessions, server)
+    }
 
     private fun route(settings: ServerSettings): LaunchRoute = runBlocking { router(settings).route() }
 

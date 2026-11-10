@@ -75,7 +75,7 @@ class LaunchViewModelTest {
         settings: InMemoryServerSettings,
         server: MediaServer = fake,
     ) = LaunchViewModel(
-        LaunchRouter(settings, SessionRepository(store, server), server),
+        launchRouterForTest(settings, SessionRepository(store, server), server),
         serverHandOff,
         signedIn,
         CertificateTrust(server, settings, SessionRepository(store, server)),
