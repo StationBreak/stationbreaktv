@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live.ui
 
 import android.view.SurfaceView
+import androidx.media3.common.text.Cue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -74,6 +75,8 @@ internal class LivePeriod(
         override val events: SharedFlow<PlayerEvent> get() = inner.events
 
         override val videoAspect: StateFlow<Float?> get() = inner.videoAspect
+
+        override val cues: StateFlow<List<Cue>> get() = inner.cues
 
         // A play after the leave is dropped: its generation is one no event ever carries.
         override fun play(source: PlayerSource): Long = if (left.get()) NO_GENERATION else inner.play(source)

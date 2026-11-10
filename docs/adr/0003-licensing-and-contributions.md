@@ -73,3 +73,16 @@ the same owner decision and licence as the pack was.
   `scripts/channelmarks/fonts/`.
 - **Where things are.** The pipeline and how to refresh it are in `core/ui/CHANNELMARKS.md`; the file hashes are in
   `core/ui/channelmarks.sha256`.
+
+## Update 2026-11-10: Media3 UI ships for the captions (Apache-2.0)
+
+The live screen now draws the player's caption cues with `androidx.media3:media3-ui` (`SubtitleView`), added to
+`feature:live` at the Media3 version the player already uses (`gradle/libs.versions.toml`, `media3`).
+
+- **Licence.** Media3, `media3-ui` included, is Apache-2.0, which is on Licensee's allowlist (`LicenseePlugin`). It is a
+  Maven dependency, so Licensee checks it with the rest of `app`'s runtime classpath; no asset is vendored and nothing
+  is added to `core/ui/src/main/assets/licenses/`. Apache-2.0 asks for its licence text and any NOTICE with a
+  redistributed copy: the README's "Third-party software" section names Media3 and its licence.
+- **Verification.** The new artifacts (`media3-ui` and what it brings in) are in `gradle/verification-metadata.xml`,
+  each checksum compared with the one its publisher lists (CONTRIBUTING, "Dependency verification").
+- **Later.** If an in-app open-source licences screen is added, Media3 appears on it with the other dependencies.

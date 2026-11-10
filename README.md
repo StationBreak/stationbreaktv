@@ -36,6 +36,13 @@ and Space Mono Bold (both SIL OFL 1.1, from `github.com/google/fonts`). Both fon
 on-air look; their licences are in `core/ui/src/main/assets/licenses/` and their provenance is in
 `core/ui/FONTS.md`.
 
+## Third-party software
+
+The player and its captions use [AndroidX Media3](https://github.com/androidx/media) (ExoPlayer, the HLS module, the
+OkHttp data source and the UI module's `SubtitleView`), which is licensed under the Apache License 2.0 (the text is at
+<https://www.apache.org/licenses/LICENSE-2.0>). Every other library the app ships is checked by Licensee against the
+allowlist in `build-logic` ([ADR-0003](docs/adr/0003-licensing-and-contributions.md)).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions require a DCO sign-off (`git commit -s`). Everyone taking

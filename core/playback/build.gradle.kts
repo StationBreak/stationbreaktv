@@ -17,6 +17,8 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:model"))
     // The player. No OkHttp here: the app hands this module a Media3 DataSource.Factory.
+    // The caption cues (androidx.media3.common.text.Cue) are in this module's API: VideoPlayer.cues.
+    api(libs.androidx.media3.common)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.kotlinx.coroutines.core)

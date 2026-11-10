@@ -2,8 +2,11 @@
 package tv.stationbreak.core.playback
 
 import android.view.SurfaceView
+import androidx.media3.common.text.Cue
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.time.Duration
 
 /**
@@ -159,6 +162,14 @@ interface VideoPlayer {
     val videoAspect: StateFlow<Float?>
 
     /**
+     * The caption cues to draw over the picture now: the text (or picture) subtitle the player has selected and is
+     * showing at this moment, empty when none shows. It is cleared when a play starts, and when the player stops or
+     * is released, so one play's last line never stays up over the next. Media3's own cue type, because the view that
+     * draws them takes it. A player with no captions answers an empty list.
+     */
+    val cues: StateFlow<List<Cue>> get() = NO_CUES
+
+    /**
      * Starts [source], replacing what is playing, and returns the generation of this play. Every event the play
      * produces carries it, so a caller can ignore the events of an earlier play. Generations only increase.
      */
@@ -251,5 +262,8 @@ interface VideoPlayer {
     companion object {
         /** A warm handle no player issues (their counters start at 1): a play stamped with it is never warm. */
         const val NO_WARM_HANDLE = "w0"
+
+        /** What a player with no captions answers: no cues, for good. */
+        val NO_CUES: StateFlow<List<Cue>> = MutableStateFlow(emptyList<Cue>()).asStateFlow()
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.text.Cue
 import kotlin.math.roundToInt
 
 /**
@@ -20,18 +21,21 @@ import kotlin.math.roundToInt
  *
  * The same [surface] instance stays in the same place in the composition; only its modifier changes, so it is never
  * made again and the picture plays on. The aspect is rounded ([fitAspect]) so a hair's difference lays nothing out.
+ * The player's caption [cues] are drawn over the picture, in its rectangle, unless [captionsHidden] (guide open).
  */
 @Composable
 internal fun VideoFrame(
     surface: SurfaceView,
     aspect: Float?,
+    cues: List<Cue> = emptyList(),
+    captionsHidden: Boolean = false,
 ) {
     val fitted = fitAspect(aspect)
+    val fit = if (fitted != null) Modifier.aspectRatio(fitted) else Modifier.fillMaxSize()
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        AndroidView(
-            factory = { surface },
-            modifier = if (fitted != null) Modifier.aspectRatio(fitted) else Modifier.fillMaxSize(),
-        )
+        AndroidView(factory = { surface }, modifier = fit)
+        // After the picture, in the same rectangle: the captions are laid over it, inside its edges.
+        CaptionLayer(cues, captionsHidden, fit)
     }
 }
 

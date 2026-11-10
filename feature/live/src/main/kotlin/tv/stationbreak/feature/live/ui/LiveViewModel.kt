@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.SurfaceView
 import androidx.lifecycle.ViewModel
+import androidx.media3.common.text.Cue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -175,6 +176,11 @@ internal class LiveViewModel
          * never stretched in between.
          */
         val videoAspect: StateFlow<Float?> = shownAspect.asStateFlow()
+
+        private val shownCues = MutableStateFlow<List<Cue>>(emptyList())
+
+        /** The caption cues the current period's player is showing (empty when none); empty when no sitting runs. */
+        val cues: StateFlow<List<Cue>> = shownCues.asStateFlow()
 
         private val guide = GuideSwitch()
 
@@ -379,8 +385,10 @@ internal class LiveViewModel
                     // The real player never returns to null (it keeps the last shape); the filter is for fakes.
                     val aspectMirror =
                         launch { player.videoAspect.collect { size -> if (size != null) shownAspect.value = size } }
+                    val cuesMirror = launch { player.cues.collect { shownCues.value = it } }
                     machine.run(commands.receiveAsFlow(), resume)
                     // run() returns only when the session ended.
+                    cuesMirror.cancel()
                     mirror.cancel()
                     infoMirror.cancel()
                     transportMirror.cancel()
@@ -390,7 +398,10 @@ internal class LiveViewModel
                 if (!ended) shown.value = machine.state.value
             } finally {
                 // A newer sitting may already have taken these slots.
-                if (live === running.machine) live = null
+                if (live === running.machine) {
+                    live = null
+                    shownCues.value = emptyList()
+                }
                 // A sitting started after this one was cancelled may already have taken the slot.
                 if (period === running) period = null
                 withContext(NonCancellable) {

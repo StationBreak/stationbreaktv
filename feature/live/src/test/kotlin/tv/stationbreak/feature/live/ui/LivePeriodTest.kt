@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import androidx.media3.common.text.Cue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -127,6 +128,21 @@ class LivePeriodTest {
             assertEquals(afterLeave, inner.log)
             assertNull(period.player.position(3))
             assertFalse(period.player.seekable(3))
+        }
+
+    @Test
+    fun theGuardedPlayerShowsTheInnerPlayersCaptionCues() =
+        runTest {
+            val inner = RecordingPlayer()
+            val period = LivePeriod(inner, Job(), null) {}
+            assertEquals(emptyList<Cue>(), period.player.cues.value)
+
+            val line = Cue.Builder().setText("Hello").build()
+            inner.captions.value = listOf(line)
+            assertEquals("the guard forwards the cue stream, not a copy", listOf(line), period.player.cues.value)
+
+            inner.captions.value = emptyList()
+            assertEquals(emptyList<Cue>(), period.player.cues.value)
         }
 
     @Test
