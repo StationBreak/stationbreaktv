@@ -6,7 +6,8 @@ import tv.stationbreak.core.model.ItemId
 /**
  * A [ServerSettings] in memory for tests (ADR-0004). It can be told to fail, and it records every change, so a test can
  * prove that a pin was cleared or an address kept. Follows the port's contract: it never throws for a fault, and the
- * stored selection keeps the same rules as the file ([StoredSelection.mayReplace]; a clear keeps the seq).
+ * stored selection keeps the same rules as the file ([StoredSelection.mayReplace]; a clear keeps the seq; with nothing
+ * chosen only a setup's save is taken).
  */
 class InMemoryServerSettings(
     initial: ServerRecord? = null,
@@ -76,13 +77,14 @@ class InMemoryServerSettings(
 
     override suspend fun loadSelectionSeq(): Long? = if (record == null) null else seq
 
-    // [setup] is taken and not checked: the file store's rule for a save over nothing chosen is not modelled here.
+    // With nothing chosen only a setup's save is taken, as the file store takes it: a change never is, whatever its shape.
     override suspend fun saveSelection(
         selection: StoredSelection,
         setup: Boolean,
     ): Boolean {
         if (failSave || record == null) return false
         if (!selection.mayReplace(this.selection, seq, resetSeq)) return false
+        if (this.selection == null && !setup) return false
         keep(selection)
         savedSelections += selection
         return true

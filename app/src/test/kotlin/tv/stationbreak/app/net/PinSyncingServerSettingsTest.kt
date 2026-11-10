@@ -225,7 +225,7 @@ class PinSyncingServerSettingsTest {
                     listings = 1,
                     resetSeq = 1,
                 )
-            assertTrue(settings.saveSelection(selection))
+            assertTrue(settings.saveSelection(selection, setup = true))
             assertEquals(selection, settings.loadSelection())
             assertEquals(selection, stored.currentSelection)
             assertEquals(setOf(ItemId("movies")), settings.loadPlayableLibraries())
@@ -253,7 +253,7 @@ class PinSyncingServerSettingsTest {
     fun selectionReads_doNotWaitForTheLock() =
         runBlocking {
             stored.save(ServerRecord(address))
-            stored.saveSelection(StoredSelection(setOf(ItemId("movies")), seq = 1))
+            stored.saveSelection(StoredSelection(setOf(ItemId("movies")), seq = 1), setup = true)
             val entered = CompletableDeferred<Unit>()
             val gate = CompletableDeferred<Unit>()
             val stuck = PinSyncingServerSettings(StuckSave(stored, entered, gate), clients)

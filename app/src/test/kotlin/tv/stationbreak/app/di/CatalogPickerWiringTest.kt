@@ -54,7 +54,7 @@ class CatalogPickerWiringTest {
             val sessions = SessionRepository(InMemorySecretStore(), server)
             sessions.save(session)
             val settings = InMemoryServerSettings(ServerRecord(https))
-            assertTrue(settings.saveSelection(StoredSelection(setOf(chosen), seq = 1L, gone = true)))
+            assertTrue(settings.saveSelection(StoredSelection(setOf(chosen), seq = 1L, gone = true), setup = true))
 
             val picker = LineupModule.catalogPicker(InMemoryLibraryRepository(), sessions, server, settings)
 

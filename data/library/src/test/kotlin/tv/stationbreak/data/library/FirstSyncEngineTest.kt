@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -264,8 +265,11 @@ class FirstSyncEngineTest {
 
     // A first sync shaped like its unique work: ensureRunning keeps a run that is going; retry replaces it, and the new
     // run starts once the old one has unwound. Each run is the engine over the selection's library set.
+    // With [joinOld] false the replacing run does not wait for the old one: the two overlap, as when the old run cannot
+    // unwind at once.
     private class UniqueWork(
         private val scope: CoroutineScope,
+        private val joinOld: Boolean = true,
         private val run: suspend () -> SyncOutcome,
     ) : FirstSync {
         @Volatile var job: Job? = null
@@ -279,7 +283,7 @@ class FirstSyncEngineTest {
         override fun retry() {
             val old = job
             old?.cancel()
-            start(old)
+            start(old.takeIf { joinOld })
         }
 
         // A worker thread of its own, as WorkManager's: the test's thread stays free to set up meanwhile.
@@ -336,6 +340,63 @@ class FirstSyncEngineTest {
                 assertTrue("the new library is walked", row(extra)!!.fetched)
                 assertEquals(2, repository.stored(ALICE).count { it.library == extra })
                 assertNull("the dropped library's row went", row(SHOWS))
+                assertTrue("nothing of it is served", repository.stored(ALICE).none { it.library == SHOWS })
+                assertTrue(row(MOVIES)!!.fetched)
+                assertFalse(repository.isFirstSyncRunning(ALICE))
+            } finally {
+                release.countDown()
+                scope.cancel()
+            }
+        }
+
+    // R1, no join: the replacing run does not wait for the old one, which is still live (held on a page of the dropped
+    // library) after the setup. The new choice is walked meanwhile; when the old run is let go it must not bring the
+    // dropped library's rows back or leave the account's first sync marked running.
+    @Test
+    fun sameAccountSetup_whileTheOldRunIsStillLive_walksTheNewChoice_andTheOldRunLeavesNothingBehind() =
+        runBlocking {
+            val withExtra =
+                PagedMediaServer(
+                    listOf(movies, shows, extraLibrary),
+                    mapOf(MOVIES to films, SHOWS to episodes, extra to extras),
+                )
+            val stored = InMemoryServerSettings(ServerRecord(session.address))
+            val old = StoredSelection(setOf(MOVIES, SHOWS), seq = 1, resetSeq = 1, owner = ALICE)
+            assertTrue(stored.saveSelection(old, true))
+            val reached = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            withExtra.respond = { call ->
+                if (call.isItemPageOf(SHOWS) && reached.count > 0) {
+                    reached.countDown()
+                    release.await(WAIT_S, TimeUnit.SECONDS)
+                }
+                null
+            }
+            val scope = CoroutineScope(SupervisorJob())
+            lateinit var selection: LibrarySelection
+            val engine = SyncWorld.engine(repository, withExtra, clock)
+            val work = UniqueWork(scope, joinOld = false) { engine.run(session, ALICE, selection) }
+            selection = selectionOver(repository, stored, withExtra, clock, firstSync = work)
+            try {
+                selection.resumeAtStart()
+                assertTrue("the old run is walking SHOWS", reached.await(WAIT_S, TimeUnit.SECONDS))
+                val oldRun = checkNotNull(work.job)
+
+                assertTrue(selection.clear())
+                assertEquals(SetupResult.Saved, selection.choose(setOf(MOVIES, extra)))
+                val replacing = checkNotNull(work.job)
+                assertNotSame("the setup asked for a run of its own", oldRun, replacing)
+                withTimeout(WAIT_S * MS) { replacing.join() }
+                assertFalse("the old run is still live (cancelled, not unwound) after the setup", oldRun.isCompleted)
+                assertTrue("the new library is walked meanwhile", row(extra)!!.fetched)
+                assertNull("the dropped library's row went", row(SHOWS))
+
+                release.countDown()
+                withTimeout(WAIT_S * MS) { oldRun.join() }
+
+                assertTrue("the new library stays walked", row(extra)!!.fetched)
+                assertEquals(2, repository.stored(ALICE).count { it.library == extra })
+                assertNull("the dropped library's row stays gone", row(SHOWS))
                 assertTrue("nothing of it is served", repository.stored(ALICE).none { it.library == SHOWS })
                 assertTrue(row(MOVIES)!!.fetched)
                 assertFalse(repository.isFirstSyncRunning(ALICE))

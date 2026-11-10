@@ -14,3 +14,15 @@ suspend fun SelectionStore.storeChoice(ids: Set<ItemId>): Boolean {
     val listings = loadSelection()?.listings ?: 0L
     return saveSelection(StoredSelection(ids, seq = seq, listings = listings, resetSeq = seq), setup = true)
 }
+
+/**
+ * A stored selection for a test, through the store's own writes, as production makes one: a setup first (the store
+ * takes only a setup's save while nothing is chosen), then [selection] over it. Its seq must be above 1, as a real one
+ * after a setup is.
+ */
+suspend fun SelectionStore.seed(selection: StoredSelection): Boolean {
+    val setup = minOf(selection.resetSeq, selection.seq - 1)
+    if (setup < 1) return false
+    val first = StoredSelection(selection.chosen, seq = setup, listings = selection.listings, resetSeq = setup)
+    return saveSelection(first, setup = true) && saveSelection(selection)
+}

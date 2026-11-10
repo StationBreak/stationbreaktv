@@ -265,7 +265,7 @@ internal open class SelectionTestBase : RepairTestBase() {
 
         init {
             runBlocking {
-                if (stored != null) assertTrue(settings.inner.saveSelection(stored))
+                if (stored != null) assertTrue(settings.inner.saveSelection(stored, setup = true))
                 // A chosen library with rows is fetched in the fake (its rows are there before it is kept).
                 if (chosen.isNotEmpty()) fake.applySelection(ACCOUNT, chosen, nowMs = nowMs)
             }
