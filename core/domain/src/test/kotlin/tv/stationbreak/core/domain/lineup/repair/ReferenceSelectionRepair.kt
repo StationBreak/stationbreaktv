@@ -1,0 +1,323 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.core.domain.lineup.repair
+
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.lineup.Admitted
+import tv.stationbreak.core.domain.lineup.ChannelDay
+import tv.stationbreak.core.domain.lineup.Cut
+import tv.stationbreak.core.domain.lineup.DayCuration
+import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.LineupDays
+import tv.stationbreak.core.domain.lineup.Revisioned
+import tv.stationbreak.core.domain.lineup.Scheduled
+import tv.stationbreak.core.domain.lineup.snapshotsOf
+import tv.stationbreak.core.engine.lineup.curation.Homes
+import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.ScheduleBlock
+import tv.stationbreak.core.model.schedule.ScheduleContent
+import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.TitleWeights
+import tv.stationbreak.core.scheduler.layoutTail
+import kotlin.time.Instant
+
+// FROZEN at be035da2 (main, 2026-11-09): a copy of `SelectionRepair` as it was then, for #684's equality tests. DO NOT
+// EDIT. It is the oracle that later #684 PRs (planning dispatcher, one library walk, parallel lanes) are checked
+// against, byte for byte, so a change here would move the oracle with the code it judges.
+//
+// It still calls the live `LineupDays`, `KeptWindow`, `layoutTail`, `Fills` (and `Fills.live`), `snapshotsOf`,
+// `PlannedRepair` and `SelectionChange`, so PRs for #684 must not change those (`LineupDays`, `KeptWindow`,
+// `layoutTail`, `Fills.live`). Differences from the original, and only these: the class name, no `RepairClock`
+// parameter (timing changes nothing), and the KDoc is cut down.
+
+/**
+ * The reference repair of one selection change: [SelectionRepair] as it was at be035da2. See the note above.
+ */
+@Suppress(
+    "LongParameterList", // What it reads, and the change.
+    "TooManyFunctions", // One small step of the plan each, kept together.
+)
+internal class ReferenceSelectionRepair(
+    private val days: LineupDays,
+    private val library: LibraryRepository,
+    private val account: LibraryAccount,
+    private val held: Revisioned,
+    private val change: SelectionChange,
+    private val shared: SharedRead,
+) {
+    private val fills = Fills(library, account)
+    private val removed = change.before - change.after
+    private val added = (change.after - change.before).mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) }
+    private lateinit var plain: Map<Long, RuleSnapshot>
+    private lateinit var filtered: Map<Long, RuleSnapshot>
+    private lateinit var admitted: Admitted
+    private var admittedBefore: Admitted? = null
+    private val homes = HashMap<Pair<Cut, DayCuration>, Homes?>()
+    private val removedSnapshots = HashMap<Long, RuleSnapshot>()
+
+    // Per snapshot of the new selection (by cut-off and extras): every item id it holds, and those it adds.
+    private val presentBy = HashMap<Pair<Long, Boolean>, Set<CanonicalId>>()
+    private val addedBy = HashMap<Pair<Long, Boolean>, Set<CanonicalId>>()
+
+    /** The repairs of [today] (the days on air at the change, under the selection before it). */
+    suspend fun plan(today: List<ChannelDay>): PlannedRepair {
+        val atMs = change.atMs
+        val scheduled = days.scheduled(held.lineup, atMs, held.meta.extrasFromMs)
+        val byId = scheduled.associateBy { it.channel.id }
+        val pairs = today.mapNotNull { day -> byId[day.channel.id]?.let { day to it } }
+        val (p, f) = snapshotsOf(library, account, change.after, scheduled.map { it.cut }.distinct())
+        plain = p
+        filtered = f
+        admitted = days.admitted(held.lineup, scheduled, plain, filtered, change.after)
+        if (pairs.any { (day, _) -> day.record?.repair != null }) {
+            admittedBefore = admittedBefore(scheduled)
+        }
+        val titles = HashSet<CanonicalId>()
+        for ((day, _) in pairs) titles += ownTitles(day)
+        val shown = pairs.filter { (day, _) -> day.hiddenAt(atMs) == null }
+        val programmes = shown.flatMap { (day, _) -> KeptWindow.programmesOf(day, atMs) }
+        fills.live(programmes)
+        // Each day's kept window and tail pool first, then one read of which tail pool items have a current row, for
+        // every channel at once (the read answers the same whenever it is asked), then the tails.
+        val prepared = ArrayList<Prepared>(pairs.size)
+        for ((day, s) in pairs) {
+            // A day hidden at the change has nothing on the air to keep.
+            val kept = if (day.hiddenAt(atMs) == null) KeptWindow.of(day, atMs, change.seq, fills) else null
+            prepared += prepare(day, s, kept, titles)
+        }
+        val ids = HashSet<CanonicalId>()
+        for (p in prepared) p.pool?.mapTo(ids) { it.id }
+        val live = fills.live(ids)
+        val repairs = ArrayList<ChannelRepair>()
+        val fixes = ArrayList<LostFix>()
+        for (p in prepared) {
+            repairs += repairOf(p, live)
+            p.kept?.let { fixes += it.fixes }
+        }
+        val pins = repairs.mapNotNull { r -> r.pinLibrary?.takeIf { it in removed }?.let { Pin(it, r.pinEndMs) } }
+        return PlannedRepair(change.seq, repairs, fixes, pins)
+    }
+
+    // A day's kept window, where its repair starts and its tail, and its tail pool before the current-row check (none
+    // when the tail starts at the day's end).
+    private class Prepared(
+        val day: ChannelDay,
+        val s: Scheduled,
+        val snapshot: RuleSnapshot,
+        val kept: KeptWindow?,
+        val fromMs: Long,
+        val tailFromMs: Long,
+        val pool: List<ScheduleItem>?,
+    )
+
+    // [day] made ready for its repair: with no [kept] window (a day hidden at the change) its tail starts at the half
+    // hour.
+    private suspend fun prepare(
+        day: ChannelDay,
+        s: Scheduled,
+        kept: KeptWindow?,
+        today: Set<CanonicalId>,
+    ): Prepared {
+        // The snapshot of the new selection that [s]'s day reads (with the extras out, for a filtered day).
+        val snapshot = (if (s.extras) filtered else plain).getValue(s.cutoffMs)
+        val fromMs = kept?.fromMs ?: maxOf(day.epochStartMs, change.atMs - Math.floorMod(change.atMs, KEPT_STEP_MS))
+        val tailFromMs = kept?.pinEndMs ?: fromMs
+        val pool =
+            if (tailFromMs >= day.epochEndMs) {
+                null
+            } else {
+                tailPool(day, s, snapshot, day.record?.repair != null, today)
+            }
+        return Prepared(day, s, snapshot, kept, fromMs, tailFromMs, pool)
+    }
+
+    // [p]'s repair, its tail pool kept to the items in [live]. When the tail holds nothing either, a day hidden at the
+    // change is one slate all day, hidden with the new selection's reason.
+    private suspend fun repairOf(
+        p: Prepared,
+        live: Set<CanonicalId>,
+    ): ChannelRepair {
+        val day = p.day
+        val s = p.s
+        val snapshot = p.snapshot
+        val kept = p.kept
+        val fromMs = p.fromMs
+        val tail = tailOf(day, s, snapshot, p.pool?.filter { it.id in live }, p.tailFromMs, kept?.aired.orEmpty())
+        val nothing = tail.isNotEmpty() && tail.none { it.content is ScheduleContent.Program }
+        // Hidden at the change and after it: hidden all day, from its start, so no window ever shows it.
+        val offAir = kept == null && nothing
+        val start = if (offAir) day.epochStartMs else fromMs
+        val blocks =
+            if (offAir) {
+                listOf(KeptBlock(day.epochStartMs, day.epochEndMs, null, 0))
+            } else {
+                kept?.blocks.orEmpty() + tail.map { it.kept() }
+            }
+        val reason = admitted.days[day.channel.id]?.hidden ?: day.hiddenAt(change.atMs) ?: HiddenReason.EmptyToday
+        return ChannelRepair(
+            channel = day.channel.id,
+            n = day.n,
+            dayEndMs = day.epochEndMs,
+            atMs = change.atMs,
+            seq = change.seq,
+            libraries = change.after,
+            keptFromMs = start,
+            pinEndMs = kept?.pinEndMs ?: start,
+            pinLibrary = kept?.pinItem?.let { libraryOf(it, s, snapshot) },
+            blocks = blocks,
+            tailHidden = if (nothing) reason else null,
+        )
+    }
+
+    // The scheduler's tail of [day] from [fromMs] over its tail [pool], with [aired] left out; none at the day's end
+    // (where there is no pool).
+    @Suppress("LongParameterList") // The day, what it reads, and where the tail starts.
+    private fun tailOf(
+        day: ChannelDay,
+        s: Scheduled,
+        snapshot: RuleSnapshot,
+        pool: List<ScheduleItem>?,
+        fromMs: Long,
+        aired: Set<CanonicalId>,
+    ): List<ScheduleBlock> {
+        if (pool == null) return emptyList()
+        val repaired = day.record?.repair != null
+        val (films, weights) = sidesOf(day, pool, repaired, addedIn(s, snapshot))
+        return layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired)
+    }
+
+    // The tail pool of [day]: its base (the day pool as built; on a repaired day the record's tail pool and what the
+    // channel admits of the current selection, less what the record has airing before the change) without what the
+    // new selection lacks, and what it takes of the added libraries. The caller keeps only items with a current row:
+    // an item deleted since the cut-off is still in the snapshot, and a fresh tail never lays out one with no row.
+    private suspend fun tailPool(
+        day: ChannelDay,
+        s: Scheduled,
+        snapshot: RuleSnapshot,
+        repaired: Boolean,
+        today: Set<CanonicalId>,
+    ): List<ScheduleItem> {
+        val dayPool = fills.dayPool(day)
+        val base =
+            if (repaired) {
+                val aired = HashSet<CanonicalId>()
+                for (block in checkNotNull(day.record?.repair).blocks) {
+                    if (block.startMs < change.atMs) block.itemId?.let { aired += it }
+                }
+                // The record keeps only the tail's items: the rest of the day's pool comes from what the channel
+                // admits now, so a second change can lay out what the first tail did not.
+                val now = admittedBefore?.pool(day.channel.id).orEmpty()
+                val union = LinkedHashMap<CanonicalId, ScheduleItem>()
+                for (item in dayPool) union[item.id] = item
+                for (item in now) union.putIfAbsent(item.id, item)
+                union.values.filter { it.id !in aired }
+            } else {
+                dayPool
+            }
+        val present = presentBy.getOrPut(s.cutoffMs to s.extras) { snapshot.items.mapTo(HashSet()) { it.item.id } }
+        val addedIds = addedIn(s, snapshot)
+        val taken = admitted.pool(day.channel.id).filter { it.id in addedIds }
+        val own = ownTitles(day)
+        return days.tailPoolOf(s, base, present, taken, homesOf(s, snapshot), today, own)
+    }
+
+    // What each channel admits of the current selection, read through the source's shared snapshot reader (the days'
+    // own build has most likely read it already); its snapshots are let go as soon as the admitted pools are made.
+    private suspend fun admittedBefore(scheduled: List<Scheduled>): Admitted {
+        val (plainBefore, filteredBefore) = shared(change.before, scheduled.map { it.cut }.distinct())
+        return days.admitted(held.lineup, scheduled, plainBefore, filteredBefore, change.before)
+    }
+
+    // The titles of [day]'s pool today: its day pool, and on a repaired day what the channel admits now as well.
+    private suspend fun ownTitles(day: ChannelDay): Set<CanonicalId> {
+        val out = fills.dayPool(day).mapTo(HashSet()) { it.groupId }
+        if (day.record?.repair != null) admittedBefore?.pool(day.channel.id)?.mapTo(out) { it.groupId }
+        return out
+    }
+
+    // The items of [snapshot] (the one [s] reads) in the libraries the change adds.
+    private fun addedIn(
+        s: Scheduled,
+        snapshot: RuleSnapshot,
+    ): Set<CanonicalId> =
+        addedBy.getOrPut(s.cutoffMs to s.extras) {
+            snapshot.items.filter { it.libraryId in added }.mapTo(HashSet()) { it.item.id }
+        }
+
+    // The homes of [s]'s day over the new selection, once per cut and curation; none with nothing added.
+    private fun homesOf(
+        s: Scheduled,
+        snapshot: RuleSnapshot,
+    ): Homes? {
+        val curation = s.curation
+        return if (curation == null || added.isEmpty()) {
+            null
+        } else {
+            homes.getOrPut(s.cut to curation) { days.homesFor(held.lineup, s, snapshot) }
+        }
+    }
+
+    // The films and weights the tail is laid out with, only for what [pool] holds. On a day with no repair: the day's
+    // own (as built today) for everything it held, and the new selection's build only for the added films and new
+    // titles. Today's entry wins where both have one. On a repaired day, whose build is not today's: the new
+    // selection's build for all of the pool.
+    private fun sidesOf(
+        day: ChannelDay,
+        pool: List<ScheduleItem>,
+        repaired: Boolean,
+        addedIds: Set<CanonicalId>,
+    ): Pair<FilmCollections, TitleWeights> {
+        val ids = pool.mapTo(HashSet()) { it.id }
+        val titles = pool.mapTo(HashSet()) { it.groupId }
+        val newTitles = pool.filter { it.id in addedIds }.mapTo(HashSet()) { it.groupId }
+        val after = admitted.days[day.channel.id]
+        val films =
+            merged(if (repaired) emptyList() else day.films.entries, after?.films?.entries.orEmpty()) {
+                it in ids && (repaired || it in addedIds)
+            }
+        val weights =
+            merged(if (repaired) emptyList() else day.weights.entries, after?.weights?.entries.orEmpty()) {
+                it in titles && (repaired || it in newTitles)
+            }
+        val kept = films.filterKeys { it in ids }
+        return FilmCollections.of(kept) to TitleWeights.of(weights.filterKeys { it in titles })
+    }
+
+    // [own] then the entries of [after] that [takes] wants and [own] lacks.
+    private fun <V> merged(
+        own: List<Pair<CanonicalId, V>>,
+        after: List<Pair<CanonicalId, V>>,
+        takes: (CanonicalId) -> Boolean,
+    ): Map<CanonicalId, V> {
+        val out = HashMap<CanonicalId, V>()
+        for ((key, value) in own) out[key] = value
+        for ((key, value) in after) if (takes(key)) out.putIfAbsent(key, value)
+        return out
+    }
+
+    // The library of the pinned programme [item]: the new selection's, or else a removed library's (read for it).
+    private suspend fun libraryOf(
+        item: CanonicalId,
+        s: Scheduled,
+        snapshot: RuleSnapshot,
+    ): ItemId? {
+        val found =
+            snapshot.items.firstOrNull { it.item.id == item }?.libraryId
+                ?: removedAt(s.cutoffMs)?.items?.firstOrNull { it.item.id == item }?.libraryId
+                ?: return null
+        return (change.before + change.after).firstOrNull { CanonicalId.parseOrNull(it.value) == found }
+            ?: ItemId(found.value)
+    }
+
+    // The removed libraries as held before [cutoffMs], read once per cut-off; null when the change removes none.
+    private suspend fun removedAt(cutoffMs: Long): RuleSnapshot? {
+        if (removed.isEmpty()) return null
+        return removedSnapshots[cutoffMs]
+            ?: library.ruleSnapshot(account, removed, Instant.fromEpochMilliseconds(cutoffMs)).also {
+                removedSnapshots[cutoffMs] = it
+            }
+    }
+}

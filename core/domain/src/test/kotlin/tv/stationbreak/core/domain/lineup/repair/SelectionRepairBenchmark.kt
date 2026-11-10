@@ -21,17 +21,13 @@ import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
-import tv.stationbreak.core.model.ItemKind
-import tv.stationbreak.core.model.MediaItem
-import tv.stationbreak.core.model.RuleItem
-import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.schedule.ScheduleContent
-import tv.stationbreak.core.model.schedule.ScheduleItem
-import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.Source
-import tv.stationbreak.core.testing.SyntheticLibrary
 import java.lang.management.ManagementFactory
+import java.security.MessageDigest
 import java.util.Collections
+import java.util.HexFormat
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.time.Clock
@@ -44,29 +40,35 @@ import kotlin.time.TimeSource
  * whole starter catalog planned over them. Each scenario runs on a fresh lineup, source and repairer, three times to
  * warm up and five times measured, and prints the median of each step ([RepairPhases]) with the library reads. It
  * runs only with `STATIONBREAK_BENCH=1`, so a plain test run skips it. Synthetic data only; no server.
+ *
+ * Each scenario runs in two modes. `plain` reads the in-memory library as fast as it answers. `room-like` makes the
+ * reads take turns as on the device: one fair lock stands for the single Room writer connection, a snapshot read holds
+ * it about 330 ms and a liveness read about 8 microseconds an id (the numbers the timing line gave on the slow TV).
+ * Each run ends with the SHA-256 of the stored lineup file, and the summary says whether every run of both modes stored
+ * the same bytes (`sameBytes`): a faster repair that stores other bytes is not the same repair.
+ *
+ * It is not part of `check`: it is excluded from the module's `test` task and run on its own, from the repository root:
+ *
+ *     ./gradlew :core:domain:selectionRepairBenchmark
+ *
+ * (with the toolchain prefix in the builder checks; the task sets `STATIONBREAK_BENCH=1` and prints the output). Only
+ * the bytes are compared by a test (`SelectionRepairEqualityTest`); the times gate nothing.
  */
 internal class SelectionRepairBenchmark {
     private val minute = 60_000L
     private val atMs = NOON.toEpochMilliseconds() + 10 * minute
 
     // Library ids, and the digit each library's item and series ids start with (so ids never collide).
-    private val big = Lib(ItemId("d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"), '1', 20_000, 11)
-    private val mid = Lib(ItemId("d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"), '2', 15_000, 12)
-    private val small = Lib(ItemId("d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3"), '3', 5_000, 13)
-    private val niche = Lib(ItemId("d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"), '4', 2_000, 14, onlyGenre = "Documentary")
+    private val big = SyntheticLib(ItemId("d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"), '1', 20_000, 11)
+    private val mid = SyntheticLib(ItemId("d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"), '2', 15_000, 12)
+    private val small = SyntheticLib(ItemId("d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3"), '3', 5_000, 13)
+    private val niche =
+        SyntheticLib(ItemId("d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"), '4', 2_000, 14, onlyGenre = "Documentary")
     private val all = listOf(big, mid, small, niche)
     private val allIds = all.mapTo(LinkedHashSet()) { it.id }
 
-    private class Lib(
-        val id: ItemId,
-        val digit: Char,
-        val size: Int,
-        val seed: Long,
-        val onlyGenre: String? = null,
-    )
-
     // One library, seeded once for every scenario: nothing in a selection change writes to it.
-    private val library: CountingLibrary by lazy { seeded() }
+    private val library: CountingLibrary by lazy { seededLibrary(all) }
 
     @Test
     fun selectionChangeRepair() {
@@ -123,6 +125,7 @@ internal class SelectionRepairBenchmark {
         val emptied: Int,
         val buildMs: Long,
         val buildPoolsMs: Long,
+        val digest: String,
     )
 
     private class Reads(
@@ -136,14 +139,57 @@ internal class SelectionRepairBenchmark {
         name: String,
         body: suspend (Tv) -> Run?,
     ): String {
-        val runs = ArrayList<Run>()
-        repeat(WARM_UPS + MEASURED) { index ->
-            val run = runBlocking { body(Tv()) }
-            if (index >= WARM_UPS) runs += checkNotNull(run)
+        val lines = ArrayList<String>()
+        var plainDigests: Set<String>? = null
+        for (mode in Mode.entries) {
+            mode.install(library)
+            val runs = ArrayList<Run>()
+            try {
+                repeat(WARM_UPS + MEASURED) { index ->
+                    val run = runBlocking { body(Tv()) }
+                    if (index >= WARM_UPS) runs += checkNotNull(run)
+                }
+            } finally {
+                Mode.Plain.install(library)
+            }
+            val digests = runs.mapTo(HashSet()) { it.digest }
+            val first = plainDigests ?: digests.also { plainDigests = it }
+            val same = digests.size == 1 && digests == first
+            val shown = digests.first().take(DIGEST_SHOWN)
+            val line = "[${mode.label}] ${summary(name, runs)} | sameBytes=$same digest=$shown"
+            println("BENCH $line")
+            lines += line
         }
-        val line = summary(name, runs)
-        println("BENCH $line")
-        return line
+        return lines.joinToString("\nBENCH ")
+    }
+
+    /** How the library answers: at once, or with the reads taking turns as Room's one writer connection makes them. */
+    private enum class Mode(
+        val label: String,
+    ) {
+        Plain("plain"),
+        RoomLike("room-like"),
+        ;
+
+        fun install(library: CountingLibrary) {
+            if (this == Plain) {
+                library.afterSnapshot = {}
+                library.currentIdsLatency = {}
+                return
+            }
+            val room = ReentrantLock(true)
+
+            fun hold(ms: Long) {
+                room.lock()
+                try {
+                    Thread.sleep(ms)
+                } finally {
+                    room.unlock()
+                }
+            }
+            library.afterSnapshot = { hold(SNAPSHOT_MS) }
+            library.currentIdsLatency = { ids -> hold(ids * ID_MICROS / MICROS_PER_MS) }
+        }
     }
 
     private fun summary(
@@ -175,7 +221,8 @@ internal class SelectionRepairBenchmark {
             object : Clock {
                 override fun now(): Instant = NOON
             }
-        val service = LineupService(RecordingStore(), library, clock, { 0 }, {}, StarterCatalog)
+        val store = RecordingStore()
+        val service = LineupService(store, library, clock, { 0 }, {}, StarterCatalog)
         val source =
             BuiltInScheduleSource(service, library, built = { builds += it }) { selectionOf(chosen, applied) }
         val repairer = TodayRepairer(service, source, library) { applied }
@@ -269,6 +316,7 @@ internal class SelectionRepairBenchmark {
                     it.seq == seq && it.tailHidden != null
                 }
             if (!measured) return null
+            val digest = digestOf(checkNotNull(store.inner.peek(ACCOUNT)) { "the lineup file is stored" })
             return Run(
                 clock.phases(),
                 wallMs,
@@ -280,6 +328,7 @@ internal class SelectionRepairBenchmark {
                 emptied,
                 build?.ms ?: -1L,
                 build?.poolsMs ?: -1L,
+                digest,
             )
         }
 
@@ -314,91 +363,27 @@ internal class SelectionRepairBenchmark {
             )
     }
 
+    private fun digestOf(bytes: ByteArray): String {
+        val sha = MessageDigest.getInstance("SHA-256")
+        return HexFormat.of().formatHex(sha.digest(bytes))
+    }
+
     private fun gcNow(): Pair<Long, Long> {
         val beans = ManagementFactory.getGarbageCollectorMXBeans()
         return beans.sumOf { maxOf(it.collectionCount, 0L) } to beans.sumOf { maxOf(it.collectionTime, 0L) }
     }
-
-    private fun seeded(): CountingLibrary {
-        val library = CountingLibrary()
-        runBlocking { library.delegate.useAccount(ACCOUNT) }
-        for (lib in all) seed(library, lib)
-        return library
-    }
-
-    private fun seed(
-        library: CountingLibrary,
-        lib: Lib,
-    ) {
-        val synthetic = SyntheticLibrary(lib.size, seed = lib.seed, libraryId = lib.id)
-        val media =
-            synthetic.items
-                .filter { it.kind == ItemKind.Movie || it.kind == ItemKind.Episode }
-                .filter { (it.runtime?.inWholeMilliseconds ?: 0L) > 0L }
-                .toList()
-        val libraryId = CanonicalId.parse(lib.id.value)
-        library.seed(media.map { ruleItemOf(it, lib, libraryId) })
-        val bySeries = media.filter { it.seriesId != null }.groupBy { idOf(checkNotNull(it.seriesId), lib) }
-        library.delegate.seedSeries(
-            ACCOUNT,
-            *bySeries.map { (id, its) -> seriesOf(id, its.first(), lib) }.toTypedArray(),
-        )
-        // Every item has a current row, so it is live.
-        val rows = media.map { MediaItem(ItemId(idOf(it.id, lib).value), "Synthetic", ItemKind.Movie, null, null) }
-        library.delegate.seed(ACCOUNT, lib.id, *rows.toTypedArray())
-    }
-
-    // A synthetic id with the library's digit first: the libraries' own ids all start the same way.
-    private fun idOf(
-        id: ItemId,
-        lib: Lib,
-    ): CanonicalId = CanonicalId.parse(lib.digit + id.value.drop(1))
-
-    private fun genresOf(
-        media: MediaItem,
-        lib: Lib,
-    ): List<String> = lib.onlyGenre?.let { listOf(it) } ?: media.genres
-
-    private fun ruleItemOf(
-        media: MediaItem,
-        lib: Lib,
-        libraryId: CanonicalId,
-    ): RuleItem {
-        val episode = media.kind == ItemKind.Episode
-        return RuleItem(
-            item =
-                ScheduleItem(
-                    id = idOf(media.id, lib),
-                    kind = if (episode) ScheduleItemKind.Episode else ScheduleItemKind.Movie,
-                    runtimeMs = media.runtime?.inWholeMilliseconds ?: 0L,
-                    createdAtMs = checkNotNull(media.dateCreated).toEpochMilliseconds(),
-                    deletedAtMs = null,
-                    premiereDate = null,
-                    productionYear = media.productionYear,
-                    seriesId = media.seriesId?.let { idOf(it, lib) },
-                    seasonNumber = media.seasonNumber,
-                    episodeNumber = media.episodeNumber,
-                ),
-            libraryId = libraryId,
-            seasonId = null,
-            officialRating = media.officialRating,
-            genres = genresOf(media, lib),
-            tags = media.tags,
-        )
-    }
-
-    // A series takes its first episode's rating, genres and tags.
-    private fun seriesOf(
-        id: CanonicalId,
-        first: MediaItem,
-        lib: Lib,
-    ) = RuleSeries(id, first.officialRating, genresOf(first, lib), first.tags)
 
     private companion object {
         const val WARM_UPS = 3
         const val MEASURED = 5
         const val STARTERS_ON = 40
         const val CUSTOM_CHANNELS = 10
+
+        // The room-like reads: what a snapshot read and a liveness id cost on the slow TV, from its timing line.
+        const val SNAPSHOT_MS = 330L
+        const val ID_MICROS = 8L
+        const val MICROS_PER_MS = 1000L
+        const val DIGEST_SHOWN = 16
 
         // The synthetic library's genres (SyntheticLibrary.GENRES).
         val SyntheticGenres = listOf("Action", "Comedy", "Drama", "Documentary", "Horror", "Music", "Sci-Fi")

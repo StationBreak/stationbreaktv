@@ -203,6 +203,9 @@ internal class CountingLibrary(
     /** Run as each `currentIds` read starts: a test makes the reads take time. */
     var beforeCurrentIds: () -> Unit = {}
 
+    /** Run as each `currentIds` read starts, given how many ids it asks about: the benchmark's read-latency model. */
+    var currentIdsLatency: (Int) -> Unit = {}
+
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
@@ -236,6 +239,7 @@ internal class CountingLibrary(
         currentIdsCalls++
         currentIdsAsked += ids.size
         beforeCurrentIds()
+        currentIdsLatency(ids.size)
         return delegate.currentIds(account, ids)
     }
 
