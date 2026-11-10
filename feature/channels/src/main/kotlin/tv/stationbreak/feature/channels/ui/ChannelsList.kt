@@ -25,6 +25,7 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.keepVisible
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsFocus
@@ -73,7 +74,7 @@ internal fun ChannelList(
     val state = rememberLazyListState()
     val focus = ui.focus
     val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }
-    LaunchedEffect(focused, lines) { if (focused >= 0) state.keepVisible(focused) }
+    LaunchedEffect(focused, lines) { if (focused >= 0) state.keepVisible(focused, linesAbove = 1) }
     LazyColumn(
         modifier.fillMaxWidth().testTag(ChannelsTags.LIST),
         state = state,

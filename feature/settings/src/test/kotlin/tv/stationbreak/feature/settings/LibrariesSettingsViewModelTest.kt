@@ -7,6 +7,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -21,6 +22,8 @@ import tv.stationbreak.core.domain.selection.LibraryListing
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TestTimeSource
 
 private val ALPHA = Library(ItemId("lib-alpha"), "Alpha", LibraryKind.Movies)
 private val BRAVO = Library(ItemId("lib-bravo"), "Bravo", LibraryKind.TvShows)
@@ -626,5 +629,97 @@ class LibrariesSettingsViewModelTest {
             choices.selection.value = view(setOf(ALPHA.id, BRAVO.id))
             runCurrent()
             assertEquals(1, vm.now.focus)
+        }
+
+    // A move while the rows are still loading (nothing to move over) keeps the restore of the row closed on.
+    @Test
+    fun reopen_aMoveWhileLoading_keepsTheRestoreUntilRowsExist() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id, CHARLIE.id)), listOf(ALPHA, BRAVO, CHARLIE))
+            choices.answer = { LibraryListing.Unavailable(FakeLibraryChoices.timeout, choices.selection.value) }
+            val vm = open(choices)
+            vm.move(up = false)
+            assertEquals(listOf(ALPHA.id, CHARLIE.id), vm.now.rows.map { it.id })
+            vm.close()
+
+            val gate = CompletableDeferred<Unit>()
+            choices.listingGate = gate
+            choices.answer = { LibraryListing.Listed(choices.libraries, choices.selection.value) }
+            vm.open()
+            runCurrent()
+            assertEquals(LibrariesPhase.Loading, vm.now.phase)
+            vm.move(up = false)
+            gate.complete(Unit)
+            runCurrent()
+
+            assertEquals(CHARLIE.id, vm.now.rows[vm.now.focus].id)
+        }
+
+    // A change that failed while the screen was closed says so on the next open, once.
+    @Test
+    fun aFailureWhileClosed_isShownOnTheNextOpen_once() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO))
+            val vm = open(choices)
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            choices.result = ChangeResult.Failed
+            vm.move(up = false)
+            vm.select()
+            runCurrent()
+            vm.close()
+            gate.complete(Unit)
+            runCurrent()
+
+            vm.open()
+            runCurrent()
+            assertEquals(Notice.Failed, vm.now.notice)
+
+            vm.close()
+            vm.open()
+            runCurrent()
+            assertNull(vm.now.notice)
+        }
+
+    // Another account's stored choice: the server lists, but nothing is stored for this account. Read-only, no rows.
+    @Test
+    fun listedWithNoStoredChoice_isTheReadOnlyState_andSelectDoesNothing() =
+        runTest {
+            val choices = FakeLibraryChoices(null, listOf(ALPHA, BRAVO))
+            val vm = open(choices)
+
+            assertEquals(LibrariesPhase.Unavailable(null), vm.now.phase)
+            assertTrue(vm.now.rows.isEmpty())
+            vm.select()
+            runCurrent()
+            assertTrue(choices.changes.isEmpty())
+        }
+
+    // The gap runs from the change returning, off Main, to the ViewModel acting: a wait for Main shows in it.
+    @Test
+    fun aChange_gapIncludesTheWaitForMainAfterItReturned() =
+        runTest {
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO))
+            val gate = CompletableDeferred<Unit>()
+            choices.gate = gate
+            val lines = mutableListOf<String>()
+            val clock = TestTimeSource()
+            val main = StandardTestDispatcher(testScheduler)
+            val worker = UnconfinedTestDispatcher(testScheduler)
+            val made = LibrariesSettingsViewModel(choices, main, clock, worker) { lines += it }
+            vm = made
+            made.open()
+            runCurrent()
+            made.move(up = false)
+            made.select()
+            runCurrent()
+            assertTrue(lines.isEmpty())
+
+            // The change returns off Main; Main is busy for 5 ms before it runs the continuation.
+            gate.complete(Unit)
+            clock += 5.milliseconds
+            runCurrent()
+
+            assertEquals(listOf("SelectionChangeActed gap=5"), lines)
         }
 }

@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.channels.ui
+package tv.stationbreak.core.ui
 
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.withFrameNanos
 
 /**
- * Scrolls only when line [index] is not fully on screen: up so that the line above it (its heading, when it is the
- * first of a group) shows, down so that it is the last line shown. A move inside the screen scrolls nothing.
+ * Scrolls only when line [index] is not fully on screen: up so that it is the first line shown, with [linesAbove] more
+ * lines above it (its heading, when it is the first of a group), down so that it is the last line shown. A move
+ * inside the screen scrolls nothing.
  */
-internal suspend fun LazyListState.keepVisible(index: Int) {
+suspend fun LazyListState.keepVisible(
+    index: Int,
+    linesAbove: Int = 0,
+) {
     val info = layoutInfo
     val shown =
         info.visibleItemsInfo.filter {
@@ -17,7 +21,7 @@ internal suspend fun LazyListState.keepVisible(index: Int) {
         }
     when {
         shown.isEmpty() -> scrollToItem(index)
-        index < shown.first().index -> scrollToItem((index - 1).coerceAtLeast(0))
+        index < shown.first().index -> scrollToItem((index - linesAbove).coerceAtLeast(0))
         index > shown.last().index -> scrollToItem((index - shown.size + 1).coerceAtLeast(0))
         else -> return
     }
