@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.WalkClock
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
@@ -1398,6 +1399,50 @@ internal suspend fun snapshotsOf(
     // Two cuts that differ only in the day they start on read the same snapshot.
     for (cut in cuts.distinctBy { it.cutoffMs to it.extras }) {
         val read = library.ruleSnapshot(account, libraries, Instant.fromEpochMilliseconds(cut.cutoffMs))
+        if (cut.extras) filtered[cut.cutoffMs] = ExtrasFilter.filter(read).snapshot else plain[cut.cutoffMs] = read
+    }
+    return plain to filtered
+}
+
+/**
+ * The multi form of [snapshotsOf] (#684): per distinct cut-off of [cuts], one [LibraryRepository.ruleSnapshots] walk
+ * of every one of [selections], so all of them are of one state of the library. The result is by cut-off, then in the
+ * order of [selections], each snapshot as read (no extras filter: [splitByExtras] applies it per selection). A
+ * [walkClock] given is put in the walk's context, to be told how long its transaction took.
+ */
+internal suspend fun snapshotsOf(
+    library: LibraryRepository,
+    account: LibraryAccount,
+    selections: List<Set<ItemId>>,
+    cuts: Collection<Cut>,
+    walkClock: WalkClock? = null,
+): Map<Long, List<RuleSnapshot>> {
+    val out = HashMap<Long, List<RuleSnapshot>>()
+    for (cutoffMs in cuts.map { it.cutoffMs }.distinct()) {
+        val at = Instant.fromEpochMilliseconds(cutoffMs)
+        out[cutoffMs] =
+            if (walkClock == null) {
+                library.ruleSnapshots(account, selections, at)
+            } else {
+                withContext(walkClock) { library.ruleSnapshots(account, selections, at) }
+            }
+    }
+    return out
+}
+
+/**
+ * One selection's snapshots out of a [snapshotsOf] walk, as the single form gives them: the plain ones by cut-off for
+ * the cuts the extras filter does not apply to, and the filtered ones for the cuts it does ([raw] is the selection's
+ * snapshot per cut-off, as read).
+ */
+internal fun splitByExtras(
+    raw: Map<Long, RuleSnapshot>,
+    cuts: Collection<Cut>,
+): Pair<Map<Long, RuleSnapshot>, Map<Long, RuleSnapshot>> {
+    val plain = HashMap<Long, RuleSnapshot>()
+    val filtered = HashMap<Long, RuleSnapshot>()
+    for (cut in cuts.distinctBy { it.cutoffMs to it.extras }) {
+        val read = raw.getValue(cut.cutoffMs)
         if (cut.extras) filtered[cut.cutoffMs] = ExtrasFilter.filter(read).snapshot else plain[cut.cutoffMs] = read
     }
     return plain to filtered

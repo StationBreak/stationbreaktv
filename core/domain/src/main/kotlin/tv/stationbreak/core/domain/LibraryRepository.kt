@@ -240,6 +240,21 @@ interface LibraryRepository : AccountCache {
     ): RuleSnapshot
 
     /**
+     * [ruleSnapshot] of each of [selections] at [cutoff], from one walk of the library (#684): the result has one
+     * snapshot per selection, in order, and element i equals `ruleSnapshot(account, selections[i], cutoff)` as read at
+     * one state of the library (all of them, not a state per selection). A selection may be empty, and the same set
+     * may appear twice. The key contract of [ruleSnapshot] holds for each element: a caller that keeps one files it
+     * under the generation read *before* the walk, never one read after it (none does today: the repair's walk seeds no
+     * cache). There is no default (a loop of
+     * [ruleSnapshot] would be N walks): an implementation reads the library once and takes each selection from it.
+     */
+    suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot>
+
+    /**
      * The items [ids] as this TV held them before [cutoffMs] (spec 26), whatever library each is in: for each id the
      * version [scheduleItems] would take at that cut-off (the newest first seen before it, else the oldest held), left
      * out when that version was deleted before the cut-off, when the scheduler would refuse it (as [scheduleItems]

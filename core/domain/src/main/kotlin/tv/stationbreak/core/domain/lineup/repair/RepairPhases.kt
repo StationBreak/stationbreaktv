@@ -27,6 +27,9 @@ import kotlin.time.TimeSource
  * - [cpuMs]: the process's CPU time over the repair, before the save (the whole process, not the turn's thread: the
  *   plan runs on the planning dispatcher's threads, and other work of the process counts in it too); [gcCount] and
  *   [gcMs]: the process's collections and their blocking time over it. -1 when the process's CPU time cannot be read.
+ * - [walkTxMs]: the wall time the library walks' transactions held the writer connection (the reads of the new and,
+ *   when needed, the current and the removed selections: one transaction per cut-off). It is part of [snapsMs] and is
+ *   never added to it. -1 when the library reported none.
  */
 data class RepairPhases(
     val warmMs: Long = -1,
@@ -44,11 +47,13 @@ data class RepairPhases(
     val cpuMs: Long = -1,
     val gcCount: Long = -1,
     val gcMs: Long = -1,
+    val walkTxMs: Long = -1,
 ) {
     /** These as the timing line's fields. */
     fun line(): String =
         "warm=$warmMs days=$daysMs snaps=$snapsMs admitted=$admittedMs before=$beforeMs kept=$keptMs pools=$poolsMs " +
-            "live=$liveMs layout=$layoutMs pin=$pinMs write=$writeMs other=$otherMs cpu=$cpuMs gc=$gcCount gcMs=$gcMs"
+            "live=$liveMs layout=$layoutMs pin=$pinMs write=$writeMs other=$otherMs cpu=$cpuMs gc=$gcCount " +
+            "gcMs=$gcMs walkTxMs=$walkTxMs"
 
     companion object {
         /** Nothing measured: no repair ran. */
@@ -96,6 +101,7 @@ class RepairClock(
     private var cpuMs = 0L
     private var gcCount = 0L
     private var gcMs = 0L
+    private var walkTxNanos = -1L
 
     /** What was timed; [RepairPhases.NONE] when no repair ran. */
     fun phases(): RepairPhases =
@@ -119,6 +125,7 @@ class RepairClock(
                 cpuMs = cpuMs,
                 gcCount = gcCount,
                 gcMs = gcMs,
+                walkTxMs = if (walkTxNanos < 0) -1L else walkTxNanos / NANOS_PER_MS,
             )
         }
 
@@ -140,6 +147,12 @@ class RepairClock(
         ran[phase.ordinal] = true
         nanos[phase.ordinal] += total - nested
         if (inside.isNotEmpty()) inside[inside.lastIndex] += total
+    }
+
+    // A library walk's transaction held the writer connection for [nanos] (part of the snaps step, so not a step).
+    internal fun addWalkTx(nanos: Long) {
+        used = true
+        walkTxNanos = if (walkTxNanos < 0) nanos else walkTxNanos + nanos
     }
 
     // A reading that is unknown (-1) makes the total unknown.

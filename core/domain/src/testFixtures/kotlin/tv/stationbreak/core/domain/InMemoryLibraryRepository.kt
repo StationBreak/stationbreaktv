@@ -300,10 +300,34 @@ class InMemoryLibraryRepository : LibraryRepository {
         account: LibraryAccount,
         libraries: Set<ItemId>,
         cutoff: Instant,
+    ): RuleSnapshot = snapshotOf(account, libraries, cutoff, heldItems(account, libraries, cutoff))
+
+    /**
+     * [ruleSnapshot] of each of [selections] from one pass over the held items (of the union of the selections),
+     * filtered per selection: the shape of the Room walk. Element i is what [ruleSnapshot] gives for `selections[i]`.
+     */
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> {
+        val union = HashSet<ItemId>()
+        for (selection in selections) union.addAll(selection)
+        val all = heldItems(account, union, cutoff)
+        return selections.map { selection ->
+            snapshotOf(account, selection, cutoff, all.filter { it.library in selection })
+        }
+    }
+
+    private fun snapshotOf(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        cutoff: Instant,
+        entries: List<Held>,
     ): RuleSnapshot {
         val cutoffMs = cutoffMillis(cutoff)
         val items = ArrayList<RuleItem>()
-        for (entry in heldItems(account, libraries, cutoff)) {
+        for (entry in entries) {
             val library = requireNotNull(CanonicalId.parseOrNull(entry.library.value))
             val extras = entry.extras
             items +=

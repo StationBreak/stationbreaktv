@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain
 
 import tv.stationbreak.core.model.ItemId
+import kotlin.time.Instant
 
 /**
  * The contract of the library-row lifecycle on [LibraryRepository] (spec 26, schema 11), run by the tests of every
@@ -42,6 +43,7 @@ object LibraryRowsContract {
         revertUnprovenRevertsOnlyAnUnprovenAdd(fresh())
         revertUnprovenBumpsOnlyWhenTheLibraryHoldsRows(fresh())
         revertUnprovenOfAnAccountNotSignedInChangesNothing(fresh())
+        ruleSnapshotsAreOneRuleSnapshotPerSelection(fresh())
     }
 
     private fun stored(
@@ -167,6 +169,24 @@ object LibraryRowsContract {
         repo.applySelection(f.account, setOf(CHOSEN, ADDING), mapOf(ADDING to 7L), nowMs = NOW)
         f.signOut()
         expect(!repo.revertUnproven(f.account, ADDING, 7L), "an account that is not signed in reverts nothing")
+    }
+
+    // #684: the walk's list is one snapshot per selection, in order, each what `ruleSnapshot` gives for it (an empty
+    // selection and a repeated one included). The row data of the equality is the implementations' own property tests'.
+    private suspend fun ruleSnapshotsAreOneRuleSnapshotPerSelection(f: Fixture) {
+        val repo = f.repository
+        repo.applySelection(f.account, setOf(CHOSEN, HELD), nowMs = NOW)
+        val cutoff = Instant.fromEpochMilliseconds(NOW)
+        val selections = listOf(setOf(CHOSEN, HELD), setOf(CHOSEN), emptySet(), setOf(CHOSEN, HELD), setOf(HELD))
+
+        val walked = repo.ruleSnapshots(f.account, selections, cutoff)
+
+        expect(walked.size == selections.size, "one snapshot per selection, in order: ${walked.size}")
+        for ((i, selection) in selections.withIndex()) {
+            expect(walked[i] == repo.ruleSnapshot(f.account, selection, cutoff), "element $i is its own ruleSnapshot")
+        }
+        expect(walked[2].items.isEmpty() && walked[2].libraries.isEmpty(), "an empty selection holds nothing")
+        expect(repo.ruleSnapshots(f.account, emptyList(), cutoff).isEmpty(), "no selections, no snapshots")
     }
 
     private fun expect(

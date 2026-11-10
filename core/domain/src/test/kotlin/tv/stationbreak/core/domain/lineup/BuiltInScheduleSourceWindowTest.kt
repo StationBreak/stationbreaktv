@@ -42,6 +42,16 @@ class BuiltInScheduleSourceWindowTest {
             gate.await()
             return inner.ruleSnapshot(account, libraries, cutoff)
         }
+
+        override suspend fun ruleSnapshots(
+            account: LibraryAccount,
+            selections: List<Set<ItemId>>,
+            cutoff: Instant,
+        ): List<RuleSnapshot> {
+            entered.complete(Unit)
+            gate.await()
+            return inner.ruleSnapshots(account, selections, cutoff)
+        }
     }
 
     private val counting = CountingLibrary()

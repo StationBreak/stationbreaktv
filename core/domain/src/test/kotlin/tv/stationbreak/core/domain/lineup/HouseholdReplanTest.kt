@@ -181,6 +181,12 @@ class HouseholdReplanTest {
                         libraries: Set<ItemId>,
                         cutoff: Instant,
                     ): RuleSnapshot = error("library down")
+
+                    override suspend fun ruleSnapshots(
+                        account: LibraryAccount,
+                        selections: List<Set<ItemId>>,
+                        cutoff: Instant,
+                    ): List<RuleSnapshot> = error("library down")
                 }
             val broken = LineupService(store, failing, clock, { 0 }, {}, catalog)
             LineupRefresher(broken, failing, { LIBRARIES }, NOT_WRITING, NO_CHANGES, report = {})

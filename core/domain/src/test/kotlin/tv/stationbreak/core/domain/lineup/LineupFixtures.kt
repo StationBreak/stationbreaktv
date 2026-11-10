@@ -218,15 +218,31 @@ internal class CountingLibrary(
         cutoff: Instant,
     ): RuleSnapshot {
         snapshotCutoffs += cutoff
-        val read = delegate.ruleSnapshot(account, libraries, cutoff)
-        val held =
-            if (createdBeforeCutoff) {
-                read.copy(items = read.items.filter { it.item.createdAtMs < read.cutoffMs })
-            } else {
-                read
-            }
-        return held.also { afterSnapshot() }
+        return held(delegate.ruleSnapshot(account, libraries, cutoff)).also { afterSnapshot() }
     }
+
+    /** One walk of the selections (#684): counted as one read of the cut-off, each snapshot held as a single read's. */
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> {
+        snapshotCutoffs += cutoff
+        walks++
+        walkSizes += selections.size
+        return delegate.ruleSnapshots(account, selections, cutoff).map(::held).also { afterSnapshot() }
+    }
+
+    /** How many [ruleSnapshots] walks were made, and how many selections each read. */
+    var walks = 0
+    val walkSizes = mutableListOf<Int>()
+
+    private fun held(read: RuleSnapshot): RuleSnapshot =
+        if (createdBeforeCutoff) {
+            read.copy(items = read.items.filter { it.item.createdAtMs < read.cutoffMs })
+        } else {
+            read
+        }
 
     override suspend fun scheduleItems(
         account: LibraryAccount,

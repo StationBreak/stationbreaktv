@@ -832,4 +832,13 @@ internal class GatedLibrary(
         if (entered.complete(Unit)) release.await()
         return inner.ruleSnapshot(account, libraries, cutoff)
     }
+
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> {
+        if (entered.complete(Unit)) release.await()
+        return inner.ruleSnapshots(account, selections, cutoff)
+    }
 }

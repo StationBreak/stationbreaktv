@@ -153,8 +153,8 @@ class PortSignatureTest {
     @Test
     fun theRuleSnapshotCallAndItsTypesAreOnThePortAndUseOnlyDomainTypes() {
         // Spec 10, Unit 3: the snapshot is plain core:model Kotlin, so the port stays free of Room and Jellyfin types.
-        val calls = LibraryRepository::class.java.methods.filter { it.name == "ruleSnapshot" }
-        assertEquals(1, calls.size)
+        val calls = LibraryRepository::class.java.methods.filter { it.name in setOf("ruleSnapshot", "ruleSnapshots") }
+        assertEquals(2, calls.size)
         val types = calls.flatMap { it.genericParameterTypes.toList() + it.genericReturnType }
         assertEquals(emptyList(), disallowedIn(types))
         val snapshotTypes = listOf(RuleSnapshot::class, RuleItem::class, RuleSeries::class, RuleCollection::class)

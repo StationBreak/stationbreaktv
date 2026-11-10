@@ -144,6 +144,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
                 cpuMs = 16,
                 gcCount = 17,
                 gcMs = 18,
+                walkTxMs = 20,
             )
         val line =
             ChangeTiming(waitMs = 1, turnWaitMs = 2, recordMs = 3, saveMs = 4, cacheMs = 5, totalMs = 15, phases)
@@ -151,7 +152,8 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
 
         assertEquals(
             "SelectionChangeTook wait=1 turnWait=2 record=3 save=4 cache=5 total=15 warm=5 days=6 snaps=7 " +
-                "admitted=8 before=9 kept=10 pools=11 live=12 layout=13 pin=14 write=15 other=19 cpu=16 gc=17 gcMs=18",
+                "admitted=8 before=9 kept=10 pools=11 live=12 layout=13 pin=14 write=15 other=19 cpu=16 gc=17 " +
+                "gcMs=18 walkTxMs=20",
             line,
         )
     }
@@ -163,7 +165,7 @@ internal class LibrarySelectionTimingTest : SelectionTestBase() {
         assertEquals(
             "SelectionChangeTook wait=0 turnWait=0 record=0 save=0 cache=0 total=0 warm=-1 days=-1 snaps=-1 " +
                 "admitted=-1 before=-1 kept=-1 pools=-1 live=-1 layout=-1 pin=-1 write=-1 other=-1 cpu=-1 gc=-1 " +
-                "gcMs=-1",
+                "gcMs=-1 walkTxMs=-1",
             line,
         )
     }
