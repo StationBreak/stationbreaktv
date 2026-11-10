@@ -2,11 +2,14 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -130,9 +133,11 @@ class LiveScreenTest {
     fun theSelectBannersRightColumnIsTheNextLineAloneWhateverIsPlaying() {
         val next = NextProgram("Test Movie B", START + 30 * MINUTE)
         show(LiveState.Watching(banner(BannerLabel.Now, actions = true, next = next, stream = facts)))
-        compose.onNodeWithTag(LiveTags.BANNER_NEXT).assertExists()
-        compose.onNodeWithText("1080p", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("HEVC", substring = true).assertDoesNotExist()
+        // The stream facts are on the chips; the right column is the "Next" line and nothing else.
+        val node = compose.onNodeWithTag(LiveTags.BANNER_NEXT).fetchSemanticsNode()
+        val text = node.config[SemanticsProperties.Text].joinToString("") { it.text }
+        assertTrue(text, text.startsWith("Next: Test Movie B at "))
+        assertFalse(text, text.contains("1080p") || text.contains("HEVC"))
     }
 
     @Test
