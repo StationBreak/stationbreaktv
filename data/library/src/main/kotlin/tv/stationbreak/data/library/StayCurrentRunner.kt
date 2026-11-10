@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.RestoreOutcome
@@ -22,6 +23,7 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -161,16 +163,19 @@ class StayCurrentRunner(
      * libraries after its passes, nor while the selection is gone: its caller has already listed them once, and handed
      * the selection that listing to follow. The holds still expire, and the rewalk walks on [listed], that same listing
      * (with none, the rewalk is skipped). [listedFor] is the account that listing was made for, when the caller knows
-     * it: a listing for another account than the run's is not walked on (the run is not failed for it).
+     * it: a listing for another account than the run's is not walked on (the run is not failed for it). The wait for
+     * the selection's resume and for the gate gives up after [waitLimit] with a server failure; a run that holds the
+     * gate is never limited.
      */
     internal suspend fun runWaiting(
         plan: SyncPlan,
         followServer: Boolean,
         listed: ServerResult<List<Library>>? = null,
         listedFor: LibraryAccount? = null,
+        waitLimit: Duration = Duration.INFINITE,
     ): SyncOutcome {
         val after = if (followServer) AfterPasses.Follow else AfterPasses.Listed(listed, listedFor)
-        return gated(plan, wait = true, after)
+        return gated(plan, wait = true, after, waitLimit)
     }
 
     @Suppress("ReturnCount") // Each early return is a run that does nothing.
@@ -178,13 +183,28 @@ class StayCurrentRunner(
         plan: SyncPlan,
         wait: Boolean,
         after: AfterPasses,
+        waitLimit: Duration = Duration.INFINITE,
     ): SyncOutcome {
         if (plan.isEmpty) return report.skipped(plan, Skip.EmptyPlan)
         // The selection's resume at start comes first (spec 26), before the gate: a run waiting holds none.
-        ready.await()
-        if (wait) {
-            gate.lock()
-        } else if (!gate.tryLock()) {
+        // Only the waiting is limited (never the run once it holds the gate): a wait that outlasts [waitLimit] ends
+        // the call as a server failure, and a run holding the gate is not affected.
+        var held = false
+        val inTime =
+            withTimeoutOrNull(waitLimit) {
+                ready.await()
+                if (wait) {
+                    gate.lock()
+                    held = true
+                }
+                Unit
+            }
+        if (inTime == null) {
+            if (held) gate.unlock()
+            report.say("WaitTimedOut")
+            return SyncOutcome.Failed(SyncFailure.Server)
+        }
+        if (!wait && !gate.tryLock()) {
             return report.skipped(plan, Skip.Busy)
         }
         try {

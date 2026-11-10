@@ -3,7 +3,6 @@ package tv.stationbreak.data.library
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,9 +28,10 @@ import kotlin.time.Duration.Companion.minutes
  * passes' writes reach today's schedule the way any run's do: the lineup refresher repairs the blocks whose item left
  * the library after a run that wrote.
  *
- * A press that has not ended within [timeout] (a run that hangs and cannot be cancelled, say) ends as a server failure
- * and the work is cancelled, so the row never waits for ever. Work that does not stop is left behind, and the next
- * press waits behind it, as it does for any run under way.
+ * The [timeout] limits the waiting only: the listing, the selection's follow of it, the wait for the selection's resume
+ * and the wait for the gate behind a run under way. A wait that outlasts it ends the press as a server failure and
+ * leaves the run holding the gate alone. Once the press holds the gate, its own run is never timed out, however long
+ * it takes on slow hardware.
  *
  * Presses run on [scope]. [report] gets one numbers-only line per press: how it ended, never a name, an ID or a
  * message.
@@ -59,7 +59,7 @@ class RunnerSyncNow(
             if (shown.value == SyncNowState.Running) return false
             shown.value = SyncNowState.Running
         }
-        val job = scope.launch { end(press()) }
+        val job = scope.launch { end(sync()) }
         // A press stopped before it ended (its scope cancelled) leaves nothing running.
         job.invokeOnCompletion { cause -> if (cause != null) end(SyncNowState.Idle) }
         return true
@@ -71,18 +71,6 @@ class RunnerSyncNow(
                 (shown.value == SyncNowState.Running).also { if (it) shown.value = state }
             }
         if (ended) runCatching { report("SyncNowDone ${state.label()}") }
-    }
-
-    // The press, held to [timeout]: the work runs on its own, so a hang that cannot be cancelled still lets the press
-    // end. A press ending this way may have come after a write, so it never says nothing changed.
-    private suspend fun press(): SyncNowState {
-        val work = scope.async { sync() }
-        return try {
-            withTimeoutOrNull(timeout) { work.await() }
-                ?: SyncNowState.Failed(SyncFailure.Server, changedNothing = false)
-        } finally {
-            work.cancel()
-        }
     }
 
     // Anything unexpected is a server failure, never a crash; cancellation passes through. It may have come after a
@@ -99,7 +87,7 @@ class RunnerSyncNow(
 
     @Suppress("ReturnCount") // Each early return is a listing that ends the press.
     private suspend fun listThenSync(): SyncNowState {
-        val listing = choices.listing()
+        val listing = withTimeoutOrNull(timeout) { choices.listing() } ?: return beforeSyncing(SyncFailure.Server)
         var listedFor: LibraryAccount? = null
         val libraries =
             when (listing) {
@@ -120,13 +108,14 @@ class RunnerSyncNow(
         // An empty listing is the answer the selection does not trust (it changes nothing): neither does Sync now.
         if (libraries.isEmpty()) return beforeSyncing(SyncFailure.Suspect)
         // The run reads the choice this listing may change: it waits until the selection has followed it.
-        choices.followed()
+        withTimeoutOrNull(timeout) { choices.followed() } ?: return beforeSyncing(SyncFailure.Server)
         val outcome =
             runner.runWaiting(
                 SyncPlan.Both,
                 followServer = false,
                 listed = ServerResult.Success(libraries),
                 listedFor = listedFor,
+                waitLimit = timeout,
             )
         return when (outcome) {
             SyncOutcome.Completed -> SyncNowState.Done(clock.now().toEpochMilliseconds())
