@@ -108,6 +108,7 @@ class TunePortAdapter(
             skippedFrames = skippedFrames,
             loads = loads,
             av = av,
+            carriedMs = resolved.carriedMs,
             warm = warm,
         )
 

@@ -116,6 +116,7 @@ internal fun ProgressLine(
  * Live (while behind), Info, then Last (when there is a channel to go back to). Info has the focus as the row appears.
  * A 43 dp row under the banner's rule.
  */
+@Suppress("LongParameterList") // The buttons, what plays, where the chips sit and which picker is open.
 @Composable
 internal fun ActionsRow(
     hasLast: Boolean,
@@ -123,10 +124,19 @@ internal fun ActionsRow(
     behind: Boolean = false,
     stream: StreamFacts? = null,
     chipPlaced: (PickerKind, Float) -> Unit = { _, _ -> },
+    picker: PickerKind? = null,
 ) {
     val first = remember { FocusRequester() }
     val live = remember { FocusRequester() }
-    LaunchedEffect(Unit) { first.requestFocus() }
+    val chipFocus = remember { mapOf(PickerKind.Audio to FocusRequester(), PickerKind.Subtitles to FocusRequester()) }
+    // Info has the focus as the row appears, unless it came up with a picker open (a remote key): the picker has it.
+    LaunchedEffect(Unit) { if (picker == null) first.requestFocus() }
+    // Back, or a choice, closes the picker to the chip that opened it.
+    var opened by remember { mutableStateOf<PickerKind?>(null) }
+    LaunchedEffect(picker) {
+        if (picker == null) opened?.let { chipFocus.getValue(it).requestFocus() }
+        opened = picker
+    }
     // The Live button comes and goes with the transport. If the row had the focus and neither Info nor Last has it
     // once Live is gone, it was Live's: Info takes it. Losses are ignored once `behind` is false, so the row's last
     // state while Live was there is what is read (the detach of a focused Live reports a loss of its own).
@@ -167,7 +177,7 @@ internal fun ActionsRow(
             val last = Modifier.onFocusChanged { lastFocused = it.hasFocus }.testTag(LiveTags.BANNER_ACTION_LAST)
             ActionButton(R.string.live_action_last, actions.last, last)
         }
-        if (stream != null) Chips(stream, actions, chipPlaced)
+        if (stream != null) Chips(stream, actions, chipFocus, chipPlaced)
     }
 }
 
@@ -180,6 +190,7 @@ internal fun ActionsRow(
 private fun Chips(
     stream: StreamFacts,
     actions: Actions,
+    focus: Map<PickerKind, FocusRequester>,
     placed: (PickerKind, Float) -> Unit,
 ) {
     val context = LocalContext.current
@@ -193,6 +204,7 @@ private fun Chips(
             stream.canPick(PickerKind.Audio),
             actions.audio,
             Modifier
+                .focusRequester(focus.getValue(PickerKind.Audio))
                 .onGloballyPositioned { placed(PickerKind.Audio, it.positionInRoot().x) }
                 .testTag(LiveTags.BANNER_CHIP_AUDIO),
         )
@@ -203,6 +215,7 @@ private fun Chips(
         stream.canPick(PickerKind.Subtitles),
         actions.subtitles,
         Modifier
+            .focusRequester(focus.getValue(PickerKind.Subtitles))
             .onGloballyPositioned { placed(PickerKind.Subtitles, it.positionInRoot().x) }
             .testTag(LiveTags.BANNER_CHIP_SUBTITLES),
     )

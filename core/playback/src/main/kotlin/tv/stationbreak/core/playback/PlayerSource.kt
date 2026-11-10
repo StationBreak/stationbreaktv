@@ -118,7 +118,8 @@ data class PlayerSource(
  * The resolver's answer: what to play and why. [requested] is the start the caller asked for. [sources] are every
  * version the server offered for the item, in its order, the chosen [media] among them; empty when a result is built by
  * hand without them. [limits] are the device's capabilities the route was decided with (null for a result built by
- * hand): the facts' switch costs are decided against them.
+ * hand): the facts' switch costs are decided against them. [carriedMs] is how long the second `PlaybackInfo` call took
+ * (the one a carried preference makes after resolving, design doc B2.6), null when none was made.
  */
 @Suppress("LongParameterList") // One independent fact each.
 data class ResolvedPlayback(
@@ -131,4 +132,5 @@ data class ResolvedPlayback(
     val requested: Duration,
     val sources: List<MediaSource> = emptyList(),
     val limits: DeviceCapabilities? = null,
+    val carriedMs: Long? = null,
 )

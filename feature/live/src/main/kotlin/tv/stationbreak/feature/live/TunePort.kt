@@ -45,6 +45,8 @@ class NextHandle(
  * @property av when the audio and video start-up steps happened, ms since the play call, null if unknown.
  * @property warm what became of the warm standby for this tune (spec 24), null if the port did not say. A hand-over
  *   that then fell back still reports warm, so a flip counts as warm only with `fallback=none`.
+ * @property carriedMs how long the second `PlaybackInfo` call took, the one a carried track preference makes after
+ *   resolving (design doc B2.6); null when the tune made none.
  */
 data class TuneTimings(
     val firstFrameMs: Long? = null,
@@ -58,6 +60,7 @@ data class TuneTimings(
     val loads: LoadStats? = null,
     val av: AvTimings? = null,
     val warm: WarmUse? = null,
+    val carriedMs: Long? = null,
 )
 
 /**

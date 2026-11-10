@@ -332,7 +332,42 @@ stands for every tune that carries no choice, and these rules govern the ones th
   and the `Banner`: display text and numbers only, with no URL, path or player handle, so the decision-1 secrecy rule
   is untouched. `MediaStreamInfo` now carries the server's `Title`, `DisplayTitle` and `IsHearingImpaired` (display text
   and a flag, never logged), which is how Commentary and SDH are told apart.
-- **Not done here.** The instant switch in `Media3VideoPlayer`, the re-tune fallback and the pickers are PR 4.
-  Following Android's system caption setting is an open question for the owner (design doc, B2.2) and is not
+- **Not done here.** The instant switch in `Media3VideoPlayer`, the re-tune fallback and the pickers are PR 4 (the
+  update of 2026-11-10 below). Following Android's system caption setting is an open question for the owner (design doc, B2.2) and is not
   implemented. The `SubtitleStreamIndex=-1` request for "off" is the Jellyfin convention; the contract suite should
   exercise it on a live server before PR 4 relies on it.
+
+## Update 2026-11-10: choosing audio and subtitles while watching (design doc B2.4, B2.7, B2.8; #497)
+
+The pickers (PR 4) make the choices decision 6 and the 2026-11-09 update prepared for. Version choice is #630.
+
+- **An instant switch is the player's, on its looper, and verified.** `VideoPlayer.switchTracks(generation, switch)`
+  (default: cannot) puts a `TrackSwitch` (an audio `TrackPick`, and keep / off / a text `TrackPick` for subtitles) onto
+  the player's track selection the way `applyPicks` does at the start. An audio pick takes only when the track at that
+  position is the one the server named (language and codec, as `lastPickVerified`); otherwise nothing changes and the
+  caller re-tunes. The picks come from `StreamFacts` (`AudioFacts.pick`, `SubtitleFacts.pick`, from the stream's
+  position among its kind), so a screen never learns the file's layout. `LivePeriod`'s guarded player must override it
+  (its guard test fails otherwise): without it every in-place switch would silently be a re-tune.
+- **A viewer's switch enters the sitting as a transport op** (`TransportOp.Switch`), like Pause: it wakes the live
+  hold, and `BehindPlay` makes it, so a switch while paused or behind works the same. `switchTo` asks the facts' cost:
+  `Instant` and the control takes it, the play carries on with its facts updated; anything else is a **retune at the
+  place under the snow** (`Retune.switching`: banner `SWITCHING AUDIO` / `SWITCHING SUBTITLES`). A retune made for a
+  switch does **not** use the block's one retry (that is for failures). If it does not play, the previous choice is tuned
+  at the same place and the one banner that follows says "Couldn't switch" in the stream line's place; if that does not
+  play either, the item is dead for the block as for any failed retry. The retune carries the whole choice: changing
+  the audio keeps the subtitles as they were (a subtitle the viewer turned off stays off), and changing the subtitles
+  keeps the audio.
+- **A choice that took is the programme's and leaves its language behind.** The sitting's `OnAirChoice` is set (so a
+  stall retry of the live play, which now reads it as the behind play's retune already did, keeps it) and the adapter
+  keeps the language in the `TrackChoiceStore` through `TunePort.remember`: the audio language, or subtitles off, or
+  subtitles on in a language with the SDH bit. A commentary, forced or audio-description track plays but leaves nothing
+  for the next programme (they never carry). The Subtitles picker's last row, **Server default**, is the way back: it
+  always re-tunes with `SubtitleChoice.Default` and clears the stored subtitle choice (`saveSubtitles(account, null)`),
+  so the next programme is the server's again. Nothing is written to Jellyfin.
+- **The second `PlaybackInfo` call is timed.** `ResolvedPlayback.carriedMs` is how long the call a carried preference
+  makes took; it rides to the tune log line as ` carriedMs=<n>` (a tune with no second call has no field). The cost
+  on a TV has not been measured yet.
+- **Not done here.** The on-TV spike of whether a text subtitle can switch without a re-tune while transcoding has
+  **not been run**: those switches stay `Retune` (decision of `switchCost`), and this update records no result for it.
+  Version choice and applying the remembered version are #630. Following Android's system caption setting (B2.2) is
+  still the owner's open question and is not implemented.
