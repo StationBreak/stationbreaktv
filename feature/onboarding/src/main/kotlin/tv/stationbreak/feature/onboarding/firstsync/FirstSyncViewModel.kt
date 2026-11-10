@@ -143,7 +143,7 @@ internal class FirstSyncViewModel
                 when (failure) {
                     SyncFailure.Network -> MediaServerError.NetworkUnreachable()
                     SyncFailure.SessionExpired -> MediaServerError.SessionExpired()
-                    SyncFailure.Server, SyncFailure.Suspect -> MediaServerError.ServerError()
+                    SyncFailure.Server, SyncFailure.Suspect, SyncFailure.CacheRace -> MediaServerError.ServerError()
                 }
             return FirstSyncPhase.Failed(error, ErrorCopyTable.copyFor(error), failure == SyncFailure.SessionExpired)
         }

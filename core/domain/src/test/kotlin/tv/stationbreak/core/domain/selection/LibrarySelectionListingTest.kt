@@ -7,6 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import kotlin.test.Test
@@ -42,6 +43,7 @@ internal class LibrarySelectionListingTest : SelectionTestBase() {
 
                 val listed = assertIs<LibraryListing.Listed>(listing)
                 assertEquals(listOf(libA, libB, libC), listed.libraries.map { it.id })
+                assertEquals(LibraryAccount(session.server.id, session.userId), listed.account, "who it was listed for")
                 assertEquals(tv.selection.selection.value, listed.selection, "the stored choice, read without the lock")
                 assertEquals(1L, assertNotNull(tv.stored()).listings, "not followed while the change holds the lock")
             } finally {

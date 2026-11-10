@@ -48,7 +48,7 @@ internal object SyncRetryPolicy {
                         SyncVerdict.Failure
                     }
 
-                    SyncFailure.Server, SyncFailure.Suspect -> {
+                    SyncFailure.Server, SyncFailure.Suspect, SyncFailure.CacheRace -> {
                         if (attempt < MAX_SERVER_ATTEMPTS) SyncVerdict.Retry else SyncVerdict.Failure
                     }
                 }

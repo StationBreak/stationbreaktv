@@ -107,7 +107,7 @@ private fun nothingChangedLine(failure: SyncFailure): Int =
     when (failure) {
         SyncFailure.Network -> R.string.guide_sync_failed_network
         SyncFailure.SessionExpired -> R.string.guide_sync_failed_session
-        SyncFailure.Server -> R.string.guide_sync_failed_server
+        SyncFailure.Server, SyncFailure.CacheRace -> R.string.guide_sync_failed_server
         SyncFailure.Suspect -> R.string.guide_sync_failed_suspect
     }
 
@@ -116,7 +116,7 @@ private fun reasonLine(failure: SyncFailure): Int =
     when (failure) {
         SyncFailure.Network -> R.string.guide_sync_reason_network
         SyncFailure.SessionExpired -> R.string.guide_sync_reason_session
-        SyncFailure.Server -> R.string.guide_sync_reason_server
+        SyncFailure.Server, SyncFailure.CacheRace -> R.string.guide_sync_reason_server
         SyncFailure.Suspect -> R.string.guide_sync_reason_suspect
     }
 

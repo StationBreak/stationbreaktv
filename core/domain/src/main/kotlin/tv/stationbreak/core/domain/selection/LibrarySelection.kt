@@ -200,9 +200,10 @@ class LibrarySelection(
         refuseReentry()
         val held = session() ?: return LibraryListing.NotSignedIn(selection.value)
         val listed = server.libraries(held)
-        follow(LibraryAccount(held.server.id, held.userId), listed)
+        val account = LibraryAccount(held.server.id, held.userId)
+        follow(account, listed)
         return when (listed) {
-            is ServerResult.Success -> LibraryListing.Listed(listed.value, selection.value)
+            is ServerResult.Success -> LibraryListing.Listed(listed.value, selection.value, account)
             is ServerResult.Failure -> LibraryListing.Unavailable(listed.error, selection.value)
         }
     }

@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.selection
 
 import kotlinx.coroutines.flow.StateFlow
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -41,10 +42,14 @@ data class ChoiceView(
 
 /** One read of the server's libraries, with the stored selection after it was followed. */
 sealed interface LibraryListing {
-    /** The server listed [libraries]. */
+    /**
+     * The server listed [libraries], for the signed-in [account] when the listing knew it (null when it did not). A
+     * caller that acts on the listing for an account checks it against its own.
+     */
     data class Listed(
         val libraries: List<Library>,
         val selection: ChoiceView?,
+        val account: LibraryAccount? = null,
     ) : LibraryListing {
         override fun toString(): String = "Listed(libraries=${libraries.size}, selection=$selection)"
     }

@@ -78,6 +78,7 @@ class GuideSyncNowTest : GuideRig() {
                     SyncFailure.SessionExpired to R.string.guide_sync_failed_session,
                     SyncFailure.Server to R.string.guide_sync_failed_server,
                     SyncFailure.Suspect to R.string.guide_sync_failed_suspect,
+                    SyncFailure.CacheRace to R.string.guide_sync_failed_server,
                 )
             assertEquals(SyncFailure.entries.toSet(), expected.keys)
             for ((failure, line) in expected) {
@@ -98,6 +99,7 @@ class GuideSyncNowTest : GuideRig() {
                     SyncFailure.SessionExpired to R.string.guide_sync_reason_session,
                     SyncFailure.Server to R.string.guide_sync_reason_server,
                     SyncFailure.Suspect to R.string.guide_sync_reason_suspect,
+                    SyncFailure.CacheRace to R.string.guide_sync_reason_server,
                 )
             assertEquals(SyncFailure.entries.toSet(), expected.keys)
             for ((failure, line) in expected) {

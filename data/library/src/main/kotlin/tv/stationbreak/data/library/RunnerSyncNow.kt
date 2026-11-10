@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNow
@@ -14,6 +16,8 @@ import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.domain.selection.LibraryListing
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Sync now over the stay-current [runner] (spec 26, Task 5.1). A press lists the server's libraries once, through the
@@ -24,6 +28,11 @@ import kotlin.time.Clock
  * passes' writes reach today's schedule the way any run's do: the lineup refresher repairs the blocks whose item left
  * the library after a run that wrote.
  *
+ * The [timeout] limits the waiting only: the listing, the selection's follow of it, the wait for the selection's resume
+ * and the wait for the gate behind a run under way. A wait that outlasts it ends the press as a server failure and
+ * leaves the run holding the gate alone. Once the press holds the gate, its own run is never timed out, however long
+ * it takes on slow hardware.
+ *
  * Presses run on [scope]. [report] gets one numbers-only line per press: how it ended, never a name, an ID or a
  * message.
  */
@@ -32,6 +41,7 @@ class RunnerSyncNow(
     private val runner: StayCurrentRunner,
     private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
+    private val timeout: Duration = DEFAULT_TIMEOUT,
     private val report: (String) -> Unit = {},
 ) : SyncNow {
     private val shown = MutableStateFlow<SyncNowState>(SyncNowState.Idle)
@@ -39,12 +49,17 @@ class RunnerSyncNow(
 
     override val state: StateFlow<SyncNowState> = shown.asStateFlow()
 
+    companion object {
+        /** How long a press may take before it ends as a server failure. */
+        val DEFAULT_TIMEOUT: Duration = 15.minutes
+    }
+
     override fun start(): Boolean {
         synchronized(lock) {
             if (shown.value == SyncNowState.Running) return false
             shown.value = SyncNowState.Running
         }
-        val job = scope.launch { end(press()) }
+        val job = scope.launch { end(sync()) }
         // A press stopped before it ended (its scope cancelled) leaves nothing running.
         job.invokeOnCompletion { cause -> if (cause != null) end(SyncNowState.Idle) }
         return true
@@ -61,7 +76,7 @@ class RunnerSyncNow(
     // Anything unexpected is a server failure, never a crash; cancellation passes through. It may have come after a
     // write, so it never says nothing changed.
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun press(): SyncNowState =
+    private suspend fun sync(): SyncNowState =
         try {
             listThenSync()
         } catch (cancelled: CancellationException) {
@@ -72,20 +87,36 @@ class RunnerSyncNow(
 
     @Suppress("ReturnCount") // Each early return is a listing that ends the press.
     private suspend fun listThenSync(): SyncNowState {
+        val listing = withTimeoutOrNull(timeout) { choices.listing() } ?: return beforeSyncing(SyncFailure.Server)
+        var listedFor: LibraryAccount? = null
         val libraries =
-            when (val listed = choices.listing()) {
-                is LibraryListing.Listed -> listed.libraries
+            when (listing) {
+                is LibraryListing.Listed -> {
+                    listedFor = listing.account
+                    listing.libraries
+                }
 
-                is LibraryListing.Unavailable -> return beforeSyncing(listed.error.toSyncFailure())
+                is LibraryListing.Unavailable -> {
+                    return beforeSyncing(listing.error.toSyncFailure())
+                }
 
                 // Nobody signed in: the session is what is missing.
-                is LibraryListing.NotSignedIn -> return beforeSyncing(SyncFailure.SessionExpired)
+                is LibraryListing.NotSignedIn -> {
+                    return beforeSyncing(SyncFailure.SessionExpired)
+                }
             }
         // An empty listing is the answer the selection does not trust (it changes nothing): neither does Sync now.
         if (libraries.isEmpty()) return beforeSyncing(SyncFailure.Suspect)
         // The run reads the choice this listing may change: it waits until the selection has followed it.
-        choices.followed()
-        val outcome = runner.runWaiting(SyncPlan.Both, followServer = false, listed = ServerResult.Success(libraries))
+        withTimeoutOrNull(timeout) { choices.followed() } ?: return beforeSyncing(SyncFailure.Server)
+        val outcome =
+            runner.runWaiting(
+                SyncPlan.Both,
+                followServer = false,
+                listed = ServerResult.Success(libraries),
+                listedFor = listedFor,
+                waitLimit = timeout,
+            )
         return when (outcome) {
             SyncOutcome.Completed -> SyncNowState.Done(clock.now().toEpochMilliseconds())
 

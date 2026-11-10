@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -11,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -32,7 +36,9 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -243,6 +249,35 @@ class RunnerSyncNowTest {
             assertEquals(SyncNowState.Idle, ended())
         }
 
+    // Follow-up to #654: a listing made for another account than the run's is not walked on, and the press is not
+    // failed for it. (The listing the real selection gives carries its account.)
+    @Test
+    fun aListingForAnotherAccount_isNotRewalked_andThePressIsDone() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            choices.answer = LibraryListing.Listed(listOf(SyncWorld.movies), null, BOB)
+
+            assertTrue(syncNow.start())
+
+            assertTrue(ended() is SyncNowState.Done)
+            assertEquals(null, rig.runner.lastRewalk)
+            assertTrue(lines.any { "ListingAccountMismatch" in it })
+        }
+
+    @Test
+    fun aListingForTheRunsAccount_isRewalked() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            choices.answer = LibraryListing.Listed(listOf(SyncWorld.movies), null, ALICE)
+
+            assertTrue(syncNow.start())
+
+            assertTrue(ended() is SyncNowState.Done)
+            assertNotNull(rig.runner.lastRewalk)
+        }
+
     // An empty listing is the answer the selection does not trust: nothing runs.
     @Test
     fun emptyListing_failedSuspect_nothingRuns() =
@@ -276,4 +311,124 @@ class RunnerSyncNowTest {
     private companion object {
         val TIMEOUT = 10.seconds
     }
+
+    // --- The timeout covers the waiting phases only (fix round 1) ---------------------------------------------------
+
+    // The presses of these tests run on a scheduler driven by hand, so virtual time moves only when the test says so
+    // (the real work, Room's threads, goes on in real time between the steps).
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private class Driven {
+        val scheduler = TestCoroutineScheduler()
+        val scope = CoroutineScope(StandardTestDispatcher(scheduler) + SupervisorJob())
+
+        /** Runs the due tasks, in real time, until [done]. */
+        fun until(done: () -> Boolean) {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+            while (!done()) {
+                check(System.nanoTime() < deadline) { "timed out waiting for the test's condition" }
+                scheduler.runCurrent()
+                Thread.sleep(10)
+            }
+        }
+
+        fun advance(by: Duration) {
+            scheduler.advanceTimeBy(by)
+            scheduler.runCurrent()
+        }
+    }
+
+    // A press stuck in its waiting phases (here the follow of its listing never ends) ends at the limit as a server
+    // failure, with nothing written, and a press after it is accepted.
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun aPressStuckWaitingForTheFollow_endsAsAServerFailureAtTheLimit() {
+        val driven = Driven()
+        val hung = CountingChoices().also { it.followGate = CompletableDeferred() }
+        val limit = 5.minutes
+        val press = RunnerSyncNow(hung, rig.runner, driven.scope, rig.clock, limit)
+
+        assertTrue(press.start())
+        driven.until { hung.listings.get() == 1 }
+        driven.advance(limit - 1.seconds)
+        assertEquals("still waiting just before the limit", SyncNowState.Running, press.state.value)
+
+        driven.advance(2.seconds)
+
+        assertEquals(SyncNowState.Failed(SyncFailure.Server, changedNothing = true), press.state.value)
+        assertTrue("a new press is accepted", press.start())
+        driven.scope.cancel()
+    }
+
+    // A press that waits on the gate of a run that never returns fails at the limit, and the run holding the gate is
+    // left running.
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Suppress("InjectDispatcher") // A test: the holder needs a thread of its own while the press waits.
+    fun aPressWaitingOnAHeldGate_failsAtTheLimit_andLeavesTheHolderRunning() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            rig.onExpire = {
+                entered.complete(Unit)
+                release.await()
+            }
+            val holder = launch(Dispatchers.Default) { rig.runner.outcome(both) }
+            withTimeout(TIMEOUT) { entered.await() }
+            val driven = Driven()
+            val limit = 5.minutes
+            val press = RunnerSyncNow(choices, rig.runner, driven.scope, rig.clock, limit)
+
+            assertTrue(press.start())
+            driven.until { choices.listings.get() == 1 }
+            delay(200)
+            driven.scheduler.runCurrent()
+            driven.advance(limit - 1.seconds)
+            assertEquals("still waiting just before the limit", SyncNowState.Running, press.state.value)
+
+            driven.advance(2.seconds)
+
+            assertEquals(SyncNowState.Failed(SyncFailure.Server, changedNothing = false), press.state.value)
+            assertTrue("the holder is left running", holder.isActive)
+            release.complete(Unit)
+            withTimeout(TIMEOUT) { holder.join() }
+            driven.scope.cancel()
+        }
+
+    // A run that has started is not timed out, however long it takes: here it outlasts the limit several times over,
+    // in virtual time, and completes without being cancelled.
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun aRunThatStartedAndTakesLongerThanTheLimit_completesAndIsNotCancelled() =
+        runBlocking {
+            rig.firstSyncDone()
+            rig.clock.instant += 7.hours
+            val driven = Driven()
+            val limit = 5.minutes
+            val entered = CompletableDeferred<Unit>()
+            val cancelled = AtomicBoolean(false)
+            rig.onExpire = {
+                entered.complete(Unit)
+                try {
+                    delay(limit * 3)
+                } catch (e: CancellationException) {
+                    cancelled.set(true)
+                    throw e
+                }
+            }
+            val press = RunnerSyncNow(choices, rig.runner, driven.scope, rig.clock, limit)
+
+            assertTrue(press.start())
+            driven.until { entered.isCompleted }
+            driven.advance(limit * 2)
+            assertEquals("past the limit, still running", SyncNowState.Running, press.state.value)
+
+            driven.advance(limit * 2)
+            driven.until { press.state.value != SyncNowState.Running }
+
+            assertTrue(press.state.value is SyncNowState.Done)
+            assertFalse("the run was not cancelled", cancelled.get())
+            driven.scope.cancel()
+        }
 }
