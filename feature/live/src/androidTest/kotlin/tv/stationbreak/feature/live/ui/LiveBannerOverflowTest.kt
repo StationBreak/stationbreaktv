@@ -137,7 +137,8 @@ class LiveBannerOverflowTest {
 
     @Test
     fun aChannelWithAMarkHasNoNameOnTheTuneBannerSoTheTextKeepsItsRoom() {
-        show(LiveState.Watching(banner(longEpisode, channelName = "Test Channel $longWords", recipeKey = "little-farm")))
+        val marked = banner(longEpisode, channelName = "Test Channel $longWords", recipeKey = "little-farm")
+        show(LiveState.Watching(marked))
         compose.onNodeWithTag(LiveTags.BANNER_CHANNEL).assertDoesNotExist()
         assertEllipsized(LiveTags.BANNER_SUBTITLE)
         assertInside(LiveTags.BANNER_SUBTITLE)
