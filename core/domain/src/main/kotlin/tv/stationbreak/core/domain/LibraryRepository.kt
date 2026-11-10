@@ -35,6 +35,12 @@ enum class SyncFailure {
 
     /** The server's answer looked wrong (for example an empty library that had items), so nothing was changed. */
     Suspect,
+
+    /**
+     * A chosen library's writes were refused again and again by the cache (it was unticked, held or stamped meanwhile),
+     * or the choice went while the set was read again. Appended last: the saved library stores the ordinal.
+     */
+    CacheRace,
 }
 
 /** Where the saved library stands. */

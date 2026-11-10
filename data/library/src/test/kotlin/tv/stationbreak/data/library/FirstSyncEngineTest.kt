@@ -208,7 +208,7 @@ class FirstSyncEngineTest {
         }
 
     // Binding item 3: a library the cache keeps refusing while the selection still names it: no success is recorded,
-    // and the run fails as a server failure would (retried a few times, then the screen's Retry).
+    // and the run fails with its own reason, retried like a server failure (a few times, then the screen's Retry).
     @Test
     fun firstSync_refusedLibraryStillPending_isNotASuccess() =
         runBlocking {
@@ -226,10 +226,10 @@ class FirstSyncEngineTest {
 
             val outcome = engine().run(session, ALICE, stuck)
 
-            assertEquals(SyncOutcome.Failed(SyncFailure.Server), outcome)
+            assertEquals(SyncOutcome.Failed(SyncFailure.CacheRace), outcome)
             assertEquals(FirstSyncEngine.LIBRARY_SET_READS, reads)
             assertNull("no success recorded", repository.lastSuccess(ALICE))
-            assertEquals(SyncState.LastSyncFailed(SyncFailure.Server), repository.status(ALICE).first().state)
+            assertEquals(SyncState.LastSyncFailed(SyncFailure.CacheRace), repository.status(ALICE).first().state)
             assertTrue(row(MOVIES)!!.fetched)
             assertFalse(row(SHOWS)!!.fetched)
         }
@@ -246,7 +246,7 @@ class FirstSyncEngineTest {
 
             val outcome = engine().run(session, ALICE, choice)
 
-            assertEquals(SyncOutcome.Failed(SyncFailure.Server), outcome)
+            assertEquals(SyncOutcome.Failed(SyncFailure.CacheRace), outcome)
             assertFalse("no first sync left running", repository.isFirstSyncRunning(ALICE))
             assertNull(repository.lastSuccess(ALICE))
         }

@@ -56,6 +56,16 @@ class SyncRetryPolicyTest {
     }
 
     @Test
+    fun aCacheRaceRetriesLikeAServerFailure() {
+        val race = SyncOutcome.Failed(SyncFailure.CacheRace)
+        val verdicts = (0..SyncRetryPolicy.MAX_SERVER_ATTEMPTS + 1).map { SyncRetryPolicy.verdict(race, it) }
+        assertEquals(
+            List(SyncRetryPolicy.MAX_SERVER_ATTEMPTS) { SyncVerdict.Retry } + List(2) { SyncVerdict.Failure },
+            verdicts,
+        )
+    }
+
+    @Test
     fun aFinishedSyncIsSuccessAndACancelledOneIsNotRetried() {
         assertEquals(SyncVerdict.Success, SyncRetryPolicy.verdict(SyncOutcome.Completed, 0))
         assertEquals(SyncVerdict.Failure, SyncRetryPolicy.verdict(SyncOutcome.Cancelled, 0))

@@ -216,11 +216,11 @@ internal class FirstSyncEngine(
         }
 
         // A chosen library the cache kept refusing, or a choice gone while the set was read again (spec 26, Task 4.4b):
-        // not a success. Recorded as a server failure, so the worker retries it a few times and the screen then offers
-        // Retry.
+        // not a success. Recorded as a cache race, so the worker retries it a few times (as for a server failure) and
+        // the screen then offers Retry.
         private suspend fun failUnread(): SyncOutcome {
-            repository.failSync(account, SyncFailure.Server)
-            return SyncOutcome.Failed(SyncFailure.Server)
+            repository.failSync(account, SyncFailure.CacheRace)
+            return SyncOutcome.Failed(SyncFailure.CacheRace)
         }
     }
 
