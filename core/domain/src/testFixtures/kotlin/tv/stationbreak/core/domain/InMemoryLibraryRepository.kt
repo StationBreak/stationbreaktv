@@ -15,6 +15,7 @@ import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
+import tv.stationbreak.core.model.distinctByFold
 import tv.stationbreak.core.model.foldNameAscii
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -457,7 +458,7 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override suspend fun distinctStudios(account: LibraryAccount): List<String> = distinct(account, { it.studios }, { it.studios })
 
-    // The live items' and series' names, exact spelling, by folded name and then name.
+    // The live items' and series' names, one per folded name, as the real one.
     private fun distinct(
         account: LibraryAccount,
         ofItem: (MediaItem) -> List<String>,
@@ -465,7 +466,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     ): List<String> {
         val fromItems = rows.filter { it.account == account && !it.tombstoned }.flatMap { ofItem(it.item) }
         val fromSeries = seriesRows.filter { it.account == account && it.deletedAtMs == null }.flatMap { ofSeries(it.series) }
-        return (fromItems + fromSeries).filter { it.isNotEmpty() }.distinct().sortedWith(compareBy({ foldNameAscii(it) }, { it }))
+        return (fromItems + fromSeries).let(::distinctByFold)
     }
 
     /** Finds the live movies saved with [seed] and the series named with [seedSeriesName], as the real one does. */

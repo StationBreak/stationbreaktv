@@ -396,7 +396,12 @@ internal class BuilderViewModel
                 if (genre == null) {
                     m
                 } else {
-                    val next = if (genre.key in genres) genres - genre.key else genres + genre.key
+                    val next =
+                        if (genres.any { sameName(it, genre.key) }) {
+                            genres.filterNot { sameName(it, genre.key) }
+                        } else {
+                            genres + genre.key
+                        }
                     m.copy(draft = m.draft.copy(filters = m.draft.filters.copy(genres = next)))
                 }
             }

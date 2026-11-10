@@ -293,8 +293,9 @@ interface LibraryRepository : AccountCache {
     ): Map<CanonicalId, ProgramInfo>
 
     /**
-     * The genres of [account]'s live items and series (the channel builder's picker), exact spelling, sorted by folded
-     * name and then name. No row cap: the screen lists them lazily. Current state, never for building a day.
+     * The genres of [account]'s live items and series (the channel builder's picker), one per folded name (the first
+     * spelling in plain `String` order), sorted by folded name. No row cap: the screen lists them lazily. Current
+     * state, never for building a day.
      */
     suspend fun distinctGenres(account: LibraryAccount): List<String>
 

@@ -4,7 +4,7 @@ package tv.stationbreak.data.library
 import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.TitleKind
 import tv.stationbreak.core.model.CanonicalId
-import tv.stationbreak.core.model.foldNameAscii
+import tv.stationbreak.core.model.distinctByFold
 
 // What the channel builder's pickers read (spec 22): the current state of the saved library, never for building a day.
 // No schema change and no index: the genres and tags of items are rows, those of series one packed column each.
@@ -38,9 +38,11 @@ internal fun likePattern(text: String): String {
     return "%$escaped%"
 }
 
-private val BY_FOLDED_NAME: Comparator<String> = compareBy<String>({ foldNameAscii(it) }, { it })
-
-/** The distinct genres of the live items and series, in their exact spelling, by folded name and then name. */
+/**
+ * The distinct genres of the live items and series, one per folded name (the fold the rules match by), by folded name.
+ * A group is shown under its first spelling in plain `String` order: the reads are distinct texts, so a per-spelling
+ * item count is not at hand.
+ */
 internal suspend fun distinctGenres(
     dao: LibraryDao,
     series: SeriesDao,
@@ -77,7 +79,7 @@ private fun packedNames(
             continue
         }
     }
-    return names.filter { it.isNotEmpty() }.sortedWith(BY_FOLDED_NAME)
+    return distinctByFold(names)
 }
 
 /** Up to [limit] live shows and films whose name contains [text], by name and then ID. */

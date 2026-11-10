@@ -89,4 +89,11 @@ class NameFoldTest {
         assertSame(plain, foldNames(plain))
         assertEquals(emptyList(), foldNames(emptyList()))
     }
+
+    @Test
+    fun distinctByFoldKeepsTheFirstSpellingInStringOrderOfEachGroup() {
+        val names = listOf("action", "Drama", "ACTION", "Action", "", "drama", "Caf\u00E9", "caf\u00E9")
+        assertEquals(listOf("ACTION", "Caf\u00E9", "Drama"), distinctByFold(names))
+        assertEquals(distinctByFold(names), distinctByFold(names.reversed()))
+    }
 }
