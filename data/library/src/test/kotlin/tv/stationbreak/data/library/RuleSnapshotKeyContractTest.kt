@@ -135,9 +135,9 @@ class RuleSnapshotKeyContractTest {
             assertEquals(6, states.map { it.pass }.distinct().size)
         }
 
-    // #684: a walk's snapshots stand on the same key as `ruleSnapshot`'s. Under one generation every element of a walk
-    // is the same, and is what a single read gives, so a caller that keeps one under the generation read before the walk
-    // (the only key a walk's snapshot may be kept under) never serves a state the generation did not name.
+    // #684: a walk's snapshots stand on the same key as `ruleSnapshot`'s. Under one generation every element of a
+    // walk is the same, and is what a single read gives, so a caller that keeps one under the generation read before
+    // the walk (the only key a walk's snapshot may be kept under) never serves a state the generation did not name.
     @Test
     fun theWalksSnapshotsStandOnTheSameGenerationKey() =
         runBlocking {

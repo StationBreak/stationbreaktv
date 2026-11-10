@@ -187,7 +187,8 @@ class RuleSnapshotsOneWalkPropertyTest {
         assertTrue("some reads span more than one chunk of ${CHUNKS.min()}", counts.multiChunk > 0)
         assertTrue("edge cut-offs were read (${counts.edges})", counts.edges > 0)
         println(
-            "RuleSnapshotsOneWalkPropertyTest: ${counts.walks} walks, ${counts.elements} snapshots, ${counts.items} items",
+            "RuleSnapshotsOneWalkPropertyTest: ${counts.walks} walks, ${counts.elements} snapshots, " +
+                "${counts.items} items",
         )
     }
 
