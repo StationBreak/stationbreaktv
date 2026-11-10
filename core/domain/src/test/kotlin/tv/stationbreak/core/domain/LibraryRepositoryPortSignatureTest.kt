@@ -77,6 +77,7 @@ class LibraryRepositoryPortSignatureTest {
                     "snapshot",
                     "scheduleItems",
                     "ruleSnapshot",
+                    "ruleSnapshots",
                     "status",
                     "activeStatus",
                     "activeAccount",

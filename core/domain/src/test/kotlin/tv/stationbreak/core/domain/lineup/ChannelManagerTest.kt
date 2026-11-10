@@ -142,6 +142,12 @@ class ChannelManagerTest {
                         libraries: Set<ItemId>,
                         cutoff: Instant,
                     ): RuleSnapshot = error("library unreadable")
+
+                    override suspend fun ruleSnapshots(
+                        account: LibraryAccount,
+                        selections: List<Set<ItemId>>,
+                        cutoff: Instant,
+                    ): List<RuleSnapshot> = error("library unreadable")
                 }
             val failing = LineupService(store, broken, clock, { 0 }, { events += it }, TestCatalog)
 

@@ -47,6 +47,19 @@ class BuiltInScheduleSourceSnapshotTest {
             }
             return inner.ruleSnapshot(account, libraries, cutoff)
         }
+
+        override suspend fun ruleSnapshots(
+            account: LibraryAccount,
+            selections: List<Set<ItemId>>,
+            cutoff: Instant,
+        ): List<RuleSnapshot> {
+            val held = gate
+            if (held != null && cutoff != NOON) {
+                entered.complete(Unit)
+                held.await()
+            }
+            return inner.ruleSnapshots(account, selections, cutoff)
+        }
     }
 
     private val counting = CountingLibrary()

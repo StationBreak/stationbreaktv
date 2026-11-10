@@ -44,7 +44,8 @@ internal class SelectionRepairMutantsTest {
         shared: SharedRead,
     ) = PlanInputs(inputs.days, inputs.library, inputs.account, inputs.held, inputs.change, shared, inputs.today)
 
-    // The library, with a snapshot of the removed libraries read as [asked] says (the selection to read instead).
+    // The library, with a snapshot of the removed libraries read as [asked] says (the selection to read instead). The
+    // repair reads all its selections in one walk now (#684), so it is the walk's removed element that is swapped.
     private fun readingRemovedAs(
         inputs: PlanInputs,
         asked: (SelectionChange) -> Set<ItemId>,
@@ -59,8 +60,33 @@ internal class SelectionRepairMutantsTest {
                 val read = if (libraries == removed) asked(inputs.change) else libraries
                 return inputs.library.ruleSnapshot(account, read, cutoff)
             }
+
+            override suspend fun ruleSnapshots(
+                account: LibraryAccount,
+                selections: List<Set<ItemId>>,
+                cutoff: Instant,
+            ): List<RuleSnapshot> =
+                inputs.library.ruleSnapshots(
+                    account,
+                    selections.map { if (it == removed) asked(inputs.change) else it },
+                    cutoff,
+                )
         }
     }
+
+    // The library, with the walk's list of snapshots put through [reorder]: a position of the walk (the new selection,
+    // the current one, the removed libraries) read for another.
+    private fun walkReordered(
+        inputs: PlanInputs,
+        reorder: (List<RuleSnapshot>) -> List<RuleSnapshot>,
+    ): LibraryRepository =
+        object : LibraryRepository by inputs.library {
+            override suspend fun ruleSnapshots(
+                account: LibraryAccount,
+                selections: List<Set<ItemId>>,
+                cutoff: Instant,
+            ): List<RuleSnapshot> = reorder(inputs.library.ruleSnapshots(account, selections, cutoff))
+        }
 
     private fun assertFails(
         what: String,
@@ -89,24 +115,62 @@ internal class SelectionRepairMutantsTest {
     }
 
     @Test
-    fun theSharedReadOfTheOldSelectionAnsweredWithTheRemovedFailsTheMatrix() {
-        // On a repaired day `SelectionRepair` reads what the channel admits of the selection before the change, through
-        // the source's shared reader: answered here for the removed libraries alone.
+    fun theSharedReadOfTheOldSelectionAnsweredWithTheRemovedIsNotReadAnyMore() {
+        // Before #684's one walk, a repaired day read what the channel admits of the selection before the change
+        // through the source's shared reader. The walk reads it now, so this variant changes nothing: it is printed,
+        // and the walk's own variants below are what fail the matrix instead.
         val mutant =
             Planners.mutated { inputs ->
                 val removed = inputs.change.before - inputs.change.after
                 sharedOf(inputs) { _, cuts -> inputs.shared(removed, cuts) }
             }
 
-        assertFails("shared read of before answered with removed", mutant)
+        val failures = RepairMatrix.mismatches(mutant)
+
+        println("MUTANT shared read of before answered with removed fails ${failures.size} (0: the reader is unused)")
+    }
+
+    @Test
+    fun theWalksNewAndCurrentSnapshotsSwappedFailTheMatrix() {
+        assertFails(
+            "walk position after<->before swapped",
+            Planners.mutated { inputs ->
+                libraryOf(inputs, walkReordered(inputs) { if (it.size >= 2) listOf(it[1], it[0]) + it.drop(2) else it })
+            },
+        )
+    }
+
+    @Test
+    fun theWalksCurrentAndRemovedSnapshotsSwappedFailTheMatrix() {
+        // The walk's list is [after, before, removed] when a day is repaired and a programme is on air.
+        assertFails(
+            "walk position before<->removed swapped",
+            Planners.mutated { inputs ->
+                libraryOf(inputs, walkReordered(inputs) { if (it.size == THREE) listOf(it[0], it[2], it[1]) else it })
+            },
+        )
+    }
+
+    @Test
+    fun theWalksNewSnapshotReadAsEmptyFailsTheMatrix() {
+        assertFails(
+            "walk after read as empty",
+            Planners.mutated { inputs ->
+                libraryOf(
+                    inputs,
+                    walkReordered(inputs) { listOf(it[0].copy(items = emptyList())) + it.drop(1) },
+                )
+            },
+        )
     }
 
     /**
      * The removed snapshot read as `before` is an equivalent mutant of today's code: the removed libraries' snapshot is
      * read only to name the library of a pinned programme, and `libraryOf` looks in the new selection's snapshot first.
      * The fallback to the removed snapshot reaches only items of the removed libraries, which `before` holds too, with
-     * the same library each. So the repair is the same. It is printed, not asserted; a later PR that reads `removed`
-     * from one shared walk is the one where this variant could matter (add it to this class as a failing one then).
+     * the same library each. So the repair is the same, and it stays so now that `removed` is read in the one walk
+     * (#684 PR 4): the walk's variants that do fail the matrix are the position swaps above. It is printed, not
+     * asserted.
      */
     @Test
     fun theRemovedSnapshotReadFromTheOldSelectionIsEquivalentToday() {
@@ -140,5 +204,6 @@ internal class SelectionRepairMutantsTest {
 
     private companion object {
         const val MAX_SHOWN = 160
+        const val THREE = 3
     }
 }

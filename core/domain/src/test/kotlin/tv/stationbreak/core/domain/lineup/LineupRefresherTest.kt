@@ -1046,6 +1046,15 @@ private class FailingPlanningRead(
         check(failed.getAndIncrement() > 0) { "the planning read failed" }
         return inner.ruleSnapshot(account, libraries, cutoff)
     }
+
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> {
+        check(failed.getAndIncrement() > 0) { "the planning read failed" }
+        return inner.ruleSnapshots(account, selections, cutoff)
+    }
 }
 
 /** A library whose planning read takes a moment, and notes how many run at once. */
@@ -1065,6 +1074,21 @@ private class SlowLibrary(
         try {
             delay(SLOW_MS)
             return inner.ruleSnapshot(account, libraries, cutoff)
+        } finally {
+            inFlight.decrementAndGet()
+            completed.incrementAndGet()
+        }
+    }
+
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> {
+        maxInFlight.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
+        try {
+            delay(SLOW_MS)
+            return inner.ruleSnapshots(account, selections, cutoff)
         } finally {
             inFlight.decrementAndGet()
             completed.incrementAndGet()
@@ -1134,6 +1158,15 @@ private class RecordingLibrary(
     ): RuleSnapshot {
         reads += account to libraries
         return inner.ruleSnapshot(account, libraries, cutoff)
+    }
+
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> {
+        for (selection in selections) reads += account to selection
+        return inner.ruleSnapshots(account, selections, cutoff)
     }
 }
 

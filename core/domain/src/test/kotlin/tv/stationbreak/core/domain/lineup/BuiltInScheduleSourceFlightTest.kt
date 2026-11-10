@@ -48,6 +48,20 @@ class BuiltInScheduleSourceFlightTest {
             if (cancelNext) throw CancellationException("the build was cancelled")
             return inner.ruleSnapshot(account, libraries, cutoff)
         }
+
+        // A repair's walk is a read as well (#684): it waits and fails as a single read does, and counts once.
+        override suspend fun ruleSnapshots(
+            account: LibraryAccount,
+            selections: List<Set<ItemId>>,
+            cutoff: Instant,
+        ): List<RuleSnapshot> {
+            reads.incrementAndGet()
+            entered.complete(Unit)
+            gate.await()
+            check(!failNext) { "read failed" }
+            if (cancelNext) throw CancellationException("the build was cancelled")
+            return inner.ruleSnapshots(account, selections, cutoff)
+        }
     }
 
     private val counting = CountingLibrary()

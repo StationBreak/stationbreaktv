@@ -135,6 +135,44 @@ class RuleSnapshotKeyContractTest {
             assertEquals(6, states.map { it.pass }.distinct().size)
         }
 
+    // #684: a walk's snapshots stand on the same key as `ruleSnapshot`'s. Under one generation every element of a walk
+    // is the same, and is what a single read gives, so a caller that keeps one under the generation read before the walk
+    // (the only key a walk's snapshot may be kept under) never serves a state the generation did not name.
+    @Test
+    fun theWalksSnapshotsStandOnTheSameGenerationKey() =
+        runBlocking {
+            repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)
+            val cutoff = Instant.fromEpochMilliseconds(rig.clock.nowMs + FAR_MS)
+            val walks = mutableListOf<Pair<Long, List<RuleSnapshot>>>()
+
+            suspend fun walk() {
+                val generation = repository.contentGeneration(ALICE)
+                val walked = repository.ruleSnapshots(ALICE, listOf(setOf(MOVIES), emptySet(), setOf(MOVIES)), cutoff)
+                val single = repository.ruleSnapshot(ALICE, setOf(MOVIES), cutoff)
+                assertEquals("an element is a single read's", single, walked[0])
+                assertEquals("a repeated selection is the same snapshot", walked[0], walked[2])
+                assertEquals("the walk did not move the generation", generation, repository.contentGeneration(ALICE))
+                walks += generation to walked
+            }
+            walk()
+            rig.run()
+            walk()
+            rig.clock.stepMs(HALF_HOUR_MS)
+            rig.serve(1, *rig.movies(10))
+            rig.run()
+            walk()
+            rig.clock.stepMs(HALF_HOUR_MS)
+            rig.run()
+            walk()
+
+            for ((generation, walked) in walks) {
+                for ((other, again) in walks) {
+                    if (generation == other) assertEquals("same generation, same walk", walked, again)
+                }
+            }
+            assertTrue("the generation moved between walks", walks.map { it.first }.distinct().size >= 3)
+        }
+
     @Test
     fun anotherChoiceOfLibrariesIsAnotherSnapshotUnderTheSameGenerationAndPass() =
         runBlocking {

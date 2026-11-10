@@ -408,4 +408,17 @@ private class RunBeginsInRefresh(
         }
         return inner.ruleSnapshot(account, libraries, cutoff)
     }
+
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> {
+        if (armed) {
+            armed = false
+            writing.value = true
+            began.complete(Unit)
+        }
+        return inner.ruleSnapshots(account, selections, cutoff)
+    }
 }

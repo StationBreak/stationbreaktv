@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.room.RoomDatabase
 import androidx.room.useReaderConnection
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -18,6 +19,7 @@ import tv.stationbreak.core.domain.StoredLibrary
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.domain.TitleHit
+import tv.stationbreak.core.domain.WalkClock
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.repair.DEFAULT_PAUSE_HOLD
 import tv.stationbreak.core.model.CanonicalId
@@ -26,12 +28,14 @@ import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.MediaItem
+import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.SeriesInfo
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import java.util.IdentityHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -138,11 +142,14 @@ class RoomLibraryRepository internal constructor(
     internal var faultBetweenCollectionAndMembers: (() -> Unit)? = null
 
     /**
-     * Test seam: runs inside [ruleSnapshot]'s transaction after the items are read and before the series and the
+     * Test seam: runs inside [ruleSnapshots]' transaction after the items are read and before the series and the
      * collections are, so a test can write there and prove the snapshot does not see it (one transaction, one state).
      * Null in the app.
      */
     internal var faultDuringRuleSnapshot: (() -> Unit)? = null
+
+    /** Test seam: hears each step of a [ruleSnapshots] walk ("items", "series" per selection, "mapper" per one). */
+    internal var traceWalk: ((String) -> Unit)? = null
 
     /** Test seam: hears each read [successors] makes ("series", "live:narrowed", "live:all"). Null in the app. */
     internal var traceSuccessors: ((String) -> Unit)? = null
@@ -252,20 +259,64 @@ class RoomLibraryRepository internal constructor(
 
     /**
      * The rule engine's input as held before [cutoff] (spec 10, Unit 3), read in one transaction
-     * ([CacheTransactionDao.ruleSnapshot]) so the items, the series and the collections are one state. The items are
+     * ([CacheTransactionDao.ruleSnapshots]) so the items, the series and the collections are one state. The items are
      * made from the same rows as [scheduleItems], by [ScheduleInputs.read], so `items.map { it.item }` is what
      * [scheduleItems] returns. An item whose library is not a canonical ID has no place in the snapshot, and nor has a
-     * series or collection whose own ID is not one. Everything is in canonical-ID order, with no duplicates.
+     * series or collection whose own ID is not one. Everything is in canonical-ID order, with no duplicates. It is
+     * [ruleSnapshots] of one selection, so there is one way to read and assemble a snapshot.
      */
     override suspend fun ruleSnapshot(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         cutoff: Instant,
-    ): RuleSnapshot {
+    ): RuleSnapshot = ruleSnapshots(account, listOf(libraries), cutoff).single()
+
+    /**
+     * [ruleSnapshot] of each of [selections] from one walk: one transaction of raw reads
+     * ([CacheTransactionDao.ruleSnapshots]), then, after it commits, one assembly per distinct selection
+     * (`ScheduleInputs.read`, a `RuleItemMapper`, `RuleInputs`), the same for every selection.
+     */
+    override suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+    ): List<RuleSnapshot> = ruleSnapshots(account, selections, cutoff, AS_OF_CHUNK)
+
+    /** [ruleSnapshots] reading the items [itemChunk] at a time (a test seam: the app reads in chunks of 500). */
+    internal suspend fun ruleSnapshots(
+        account: LibraryAccount,
+        selections: List<Set<ItemId>>,
+        cutoff: Instant,
+        itemChunk: Int,
+    ): List<RuleSnapshot> {
+        if (selections.isEmpty()) return emptyList()
         val (server, user) = account.keys()
         val cutoffMs = cutoff.ceilingMillis()
-        val wanted = libraries.mapTo(HashSet()) { it.value }
-        val rows = transactions.ruleSnapshot(server, user, cutoffMs, AS_OF_CHUNK, wanted, faultDuringRuleSnapshot)
+        val wanted = selections.map { selection -> selection.mapTo(HashSet()) { it.value } }
+        val walkClock = currentCoroutineContext()[WalkClock]
+        val began = System.nanoTime()
+        val rows =
+            transactions.ruleSnapshots(server, user, cutoffMs, itemChunk, wanted, faultDuringRuleSnapshot, traceWalk)
+        walkClock?.addTx(System.nanoTime() - began)
+        // After the commit. A selection given twice shares its rows, and so its snapshot.
+        val assembled = IdentityHashMap<RuleRows, RuleSnapshot>()
+        // The collections are library-independent: every selection's rows share one list, built into one map.
+        val collections = RuleInputs.collections(rows.first().collections)
+        val out = ArrayList<RuleSnapshot>(selections.size)
+        for ((i, selection) in selections.withIndex()) {
+            val one = rows[i]
+            out += assembled.getOrPut(one) { assemble(one, selection, cutoffMs, collections) }
+        }
+        return out
+    }
+
+    private fun assemble(
+        rows: RuleRows,
+        libraries: Set<ItemId>,
+        cutoffMs: Long,
+        collections: Map<CanonicalId, RuleCollection>,
+    ): RuleSnapshot {
+        traceWalk?.invoke("mapper")
         val read = ScheduleInputs.read(rows.items)
         val mapper = RuleItemMapper()
         val items = ArrayList<RuleItem>(read.accepted.size)
@@ -275,7 +326,7 @@ class RoomLibraryRepository internal constructor(
             libraries = libraries.mapNotNullTo(HashSet()) { CanonicalId.parseOrNull(it.value) },
             items = items,
             series = RuleInputs.series(items, rows.series, mapper.folds),
-            collections = RuleInputs.collections(rows.collections),
+            collections = collections,
             collectionsSynced = rows.collectionsSynced,
         )
     }

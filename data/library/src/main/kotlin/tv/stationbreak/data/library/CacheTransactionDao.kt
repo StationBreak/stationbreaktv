@@ -29,9 +29,9 @@ internal sealed interface PageResult {
 }
 
 /**
- * What [CacheTransactionDao.ruleSnapshot] read in its one transaction: the [items] (the rows of the as-of read), the
- * [series] the episodes among them point to, the [collections] held with their members, and whether a full collection
- * pass has succeeded ([collectionsSynced]). Plain lists, built before the transaction ends.
+ * What [CacheTransactionDao.ruleSnapshots] read for one selection in its one transaction: the [items] (the rows of the
+ * as-of read), the [series] the episodes among them point to, the [collections] held with their members, and whether a
+ * full collection pass has succeeded ([collectionsSynced]). Plain lists, built before the transaction ends.
  */
 internal class RuleRows(
     val items: List<HeldRow>,
@@ -732,42 +732,66 @@ internal abstract class CacheTransactionDao(
     }
 
     /**
-     * The rule snapshot's reads, in one transaction so they are one state (spec 10, Unit 3, Granny M1): the items held
-     * before [cutoffMs] ([ItemHistoryDao.heldAsOf], in chunks of [itemChunk], selected from [libraries]), the series
-     * that an episode among them points to ([SeriesDao.heldAsOf]), the collections with their members
-     * ([CollectionDao.heldAsOf], whatever the libraries are) and the collection pass's last full re-list. A write that
-     * lands while this runs is not seen by a later part. Each part is read into a list; no lambda goes into a DAO loop
-     * (#264). It holds the writer lock for the whole read, so the sync's writes queue behind it for up to about 3 s on
-     * the slowest device, once a day; that is accepted (Vimes). [betweenItemsAndSeries] runs after the items are read
-     * and before the rest (a test seam; null in the app).
+     * The rule snapshot's reads for one or more selections, in one transaction so they are one state (spec 10, Unit 3,
+     * Granny M1; #684). One [ItemHistoryDao.heldAsOf] reads the union of the [selections]' libraries, in chunks of
+     * [itemChunk]. Its rows are then kept per selection by their library: the held version is chosen before the
+     * library is tested, so a selection's rows are those a read of it alone gives, in the same order. Each selection
+     * has its own series set and [SeriesDao.heldAsOf]. The collections ([CollectionDao.heldAsOf]) and the collection
+     * pass's last full re-list are library-independent, so they are read once and shared.
+     *
+     * Element i is the rows of `selections[i]`; a selection given twice gets the same [RuleRows]. A write that lands
+     * while this runs is not seen by a later part. Each part is read into a list; no lambda goes into a DAO loop
+     * (#264). Only raw reads are made here: the caller assembles after the commit, so the writer lock is held for the
+     * reads alone, for up to about 3 s per walk on the slowest device (accepted, Vimes). [betweenItemsAndSeries] and
+     * [trace] are test seams (null in the app): the first runs after the items are read, the second hears "items" once
+     * and "series" per distinct selection.
      */
     @Transaction
-    @Suppress("LongParameterList") // One cohesive call: the account, the cut-off, the libraries and the test seam.
-    open suspend fun ruleSnapshot(
+    @Suppress("LongParameterList") // One cohesive call: the account, the cut-off, the chunk, the selections and seams.
+    open suspend fun ruleSnapshots(
         serverId: String,
         userId: String,
         cutoffMs: Long,
         itemChunk: Int,
-        libraries: Set<String>,
+        selections: List<Set<String>>,
         betweenItemsAndSeries: (() -> Unit)?,
-    ): RuleRows {
+        trace: ((String) -> Unit)?,
+    ): List<RuleRows> {
         val strings = Interner()
-        val items =
-            if (libraries.isEmpty()) {
+        val union = HashSet<String>()
+        for (selection in selections) union.addAll(selection)
+        val held =
+            if (union.isEmpty()) {
                 emptyList()
             } else {
-                history.heldAsOf(serverId, userId, cutoffMs, itemChunk, libraries, strings)
+                history.heldAsOf(serverId, userId, cutoffMs, itemChunk, union, strings)
             }
+        trace?.invoke("items")
         betweenItemsAndSeries?.invoke()
-        val seriesIds = TreeSet<String>()
-        for (row in items) {
-            val seriesId = row.seriesId
-            if (row.kind == EPISODE_KIND && seriesId != null) seriesIds.addAll(idSpellings(seriesId))
-        }
-        val heldSeries = series.heldAsOf(serverId, userId, cutoffMs, seriesIds.toList(), strings)
         val heldCollections = collections.heldAsOf(serverId, userId, cutoffMs, COLLECTION_CHUNK)
         val synced = collections.syncRow(serverId, userId)?.lastRelistMs != null
-        return RuleRows(items, heldSeries, heldCollections, synced)
+        val perSelection = HashMap<Set<String>, RuleRows>()
+        val out = ArrayList<RuleRows>(selections.size)
+        for (selection in selections) {
+            val seen = perSelection[selection]
+            if (seen != null) {
+                out += seen
+                continue
+            }
+            val items = ArrayList<HeldRow>()
+            for (row in held) if (row.libraryId in selection) items += row
+            val seriesIds = TreeSet<String>()
+            for (row in items) {
+                val seriesId = row.seriesId
+                if (row.kind == EPISODE_KIND && seriesId != null) seriesIds.addAll(idSpellings(seriesId))
+            }
+            trace?.invoke("series")
+            val heldSeries = series.heldAsOf(serverId, userId, cutoffMs, seriesIds.toList(), strings)
+            val rows = RuleRows(items, heldSeries, heldCollections, synced)
+            perSelection[selection] = rows
+            out += rows
+        }
+        return out
     }
 
     /** The collections the account held before [cutoffMs], with their members: [CollectionDao.heldAsOf]. */
