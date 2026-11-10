@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live.ui
 
 import android.view.SurfaceView
+import androidx.media3.common.text.Cue
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,6 +22,11 @@ internal class RecordingPlayer : VideoPlayer {
     val aspect = MutableStateFlow<Float?>(null)
 
     override val videoAspect: StateFlow<Float?> = aspect
+
+    /** The caption cues the player is showing; a test sets them. */
+    val captions = MutableStateFlow<List<Cue>>(emptyList())
+
+    override val cues: StateFlow<List<Cue>> = captions
 
     override fun play(source: PlayerSource): Long {
         log += "play"

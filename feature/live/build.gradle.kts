@@ -20,6 +20,8 @@ dependencies {
     // PlaybackEnd, the one core:playback type the machine's port speaks. The TuneController itself stays behind TunePort.
     implementation(project(":core:playback"))
     implementation(libs.kotlinx.coroutines.core)
+    // SubtitleView draws the player's caption cues over the picture (the system caption style).
+    implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.hilt.navigation.compose)

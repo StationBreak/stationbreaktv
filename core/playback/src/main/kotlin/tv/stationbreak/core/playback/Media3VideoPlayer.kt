@@ -17,6 +17,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -26,8 +27,10 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
@@ -157,6 +160,9 @@ class Media3VideoPlayer internal constructor(
     private val aspect = VideoAspectHolder()
     override val videoAspect: StateFlow<Float?> = aspect.aspect
 
+    private val captionCues = MutableStateFlow<List<Cue>>(emptyList())
+    override val cues: StateFlow<List<Cue>> = captionCues.asStateFlow()
+
     private val nextGeneration = AtomicLong()
 
     /** The source of the warm handles ([warm]): `w1`, `w2`, ... */
@@ -255,6 +261,8 @@ class Media3VideoPlayer internal constructor(
             // The new front's shape, if it already knows it; else the last one stays until it reports one.
             if (swap != null) aspect.onVideoSize(exo.videoSize)
             active = generation
+            // The last play's caption must not stay up over this one.
+            captionCues.value = emptyList()
             // In the same step as `active`, so a reader on another thread never sees the old play under the new number.
             published = Published(generation, source.playerStart.inWholeMilliseconds, false)
             // The play's first event: a hand-over's start may report others at once. `published` is this play's.
@@ -298,6 +306,7 @@ class Media3VideoPlayer internal constructor(
                 emit(PlayerEvent.AudioAdvanced(exo.currentPosition.milliseconds, active))
             }
             active = 0L
+            captionCues.value = emptyList()
             seeking = false
             exo.stop()
             exo.clearMediaItems()
@@ -420,6 +429,7 @@ class Media3VideoPlayer internal constructor(
             released = true
             current = null
             active = 0L
+            captionCues.value = emptyList()
             seeking = false
             published = Published.NONE
             memory.stop()
@@ -599,6 +609,8 @@ class Media3VideoPlayer internal constructor(
             eventTime: AnalyticsListener.EventTime,
             cueGroup: CueGroup,
         ) {
+            // Only the play on the player draws: a late group from a play that has ended must not show.
+            if (active != 0L) captionCues.value = cueGroup.cues
             emit(PlayerEvent.Cues(cueGroup.cues.size, active))
         }
 

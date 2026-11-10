@@ -91,6 +91,7 @@ internal fun LiveRoot(
     val transport by viewModel.transport.collectAsStateWithLifecycle()
     val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
     val aspect by viewModel.videoAspect.collectAsStateWithLifecycle()
+    val cues by viewModel.cues.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -129,7 +130,7 @@ internal fun LiveRoot(
         },
         // The machine's own clock, which the transport view's times are in.
         nowMs = viewModel::nowMs,
-    ) { VideoFrame(surface, aspect) }
+    ) { VideoFrame(surface, aspect, cues, captionsHidden = guideOpen) }
 }
 
 /**
