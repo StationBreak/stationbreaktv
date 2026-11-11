@@ -40,6 +40,7 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.PictureLabel
 import tv.stationbreak.feature.live.TransportView
 
 /**
@@ -92,6 +93,7 @@ internal fun LiveRoot(
     val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
     val aspect by viewModel.videoAspect.collectAsStateWithLifecycle()
     val cues by viewModel.cues.collectAsStateWithLifecycle()
+    val pictureLabel by viewModel.pictureLabel.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -130,6 +132,7 @@ internal fun LiveRoot(
         },
         // The machine's own clock, which the transport view's times are in.
         nowMs = viewModel::nowMs,
+        pictureLabel = pictureLabel,
     ) { VideoFrame(surface, aspect, cues, captionsHidden = guideOpen) }
 }
 
@@ -155,6 +158,7 @@ internal fun LiveKeysRoot(
     onGuide: (open: Boolean) -> Unit = {},
     guide: @Composable (pictureHole: DpRect, onTune: (ChannelId) -> Unit) -> Unit = { _, _ -> },
     nowMs: () -> Long = System::currentTimeMillis,
+    pictureLabel: PictureLabel? = null,
     video: @Composable () -> Unit,
 ) {
     val command by rememberUpdatedState(onCommand)
@@ -189,7 +193,7 @@ internal fun LiveKeysRoot(
             }.focusable(),
     ) {
         val shown: (@Composable (DpRect) -> Unit)? = if (guideOpen) ({ hole -> guide(hole, tune) }) else null
-        LiveScreen(state, info, onCommand, shown, transport, nowMs, video)
+        LiveScreen(state, info, onCommand, shown, transport, nowMs, pictureLabel, video)
     }
 }
 

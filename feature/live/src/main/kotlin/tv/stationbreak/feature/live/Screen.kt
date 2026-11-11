@@ -33,6 +33,7 @@ internal class Screen(
     val hasLast: () -> Boolean = { false },
 ) {
     private val out = MutableStateFlow(initial)
+    private val labelOut = MutableStateFlow(pictureLabelOf(initial, null))
     private var shown = initial
     private var choosing: LiveState.Choosing? = null
     private var committed = false
@@ -48,6 +49,18 @@ internal class Screen(
 
     /** What the screen shows, [LiveState.Choosing] included. */
     val flow: StateFlow<LiveState> = out.asStateFlow()
+
+    /**
+     * What the label on the guide's picture says (#722): kept with [flow], and from what is playing, so it still names
+     * the show once the banner has gone.
+     */
+    val pictureLabel: StateFlow<PictureLabel?> = labelOut.asStateFlow()
+
+    // Publishes [state] with the label that goes with it. Under the lock, like every write.
+    private fun publish(state: LiveState) {
+        out.value = state
+        labelOut.value = pictureLabelOf(state, playing?.banner)
+    }
 
     /** The program info overlay, when one is open. A new state from the sitting or a flip closes it. */
     val info: StateFlow<LiveInfo?> = infoOut.asStateFlow()
@@ -70,7 +83,7 @@ internal class Screen(
                     stale = false
                     handedOver = false
                 }
-                if (choosing == null) out.value = next
+                if (choosing == null) publish(next)
             }
 
     /** The picture plays: [next] is its banner state, and [what] the program on (for the overlays). */
@@ -80,6 +93,8 @@ internal class Screen(
     ) = synchronized(this) {
         value = next
         playing = what
+        // The state above was labelled before the playing show was set, which a banner-less Watching needs.
+        labelOut.value = pictureLabelOf(out.value, what.banner)
     }
 
     // How many times the viewer has touched the actions banner (a key, a picker opening): the clock of a banner that
@@ -127,7 +142,7 @@ internal class Screen(
             val banner = (state as? LiveState.Watching)?.banner
             if (banner != null && !banner.actions) {
                 shown = LiveState.Watching(banner.copy(next = next))
-                if (choosing == null) out.value = shown
+                if (choosing == null) publish(shown)
             }
         }
     }
@@ -145,7 +160,7 @@ internal class Screen(
         playing = Playing(now.banner.copy(stream = facts), now.itemId, now.channel, now.block, now.token)
         val banner = (shown as? LiveState.Watching)?.banner ?: return
         shown = LiveState.Watching(banner.copy(stream = facts))
-        if (choosing == null) out.value = shown
+        if (choosing == null) publish(shown)
     }
 
     /** Hides the actions banner when its clock runs out, unless a picker is open over it (its clock is suspended). */
@@ -159,7 +174,7 @@ internal class Screen(
     fun overlay(next: LiveState.Watching) =
         synchronized(this) {
             shown = next
-            if (choosing == null) out.value = next
+            if (choosing == null) publish(next)
         }
 
     /** Opens, replaces or (null) closes the info overlay. */
@@ -195,7 +210,7 @@ internal class Screen(
             choosing = state
             committed = false
             infoOut.value = null
-            out.value = state
+            publish(state)
         }
 
     /** A commit: keep the number up, over snow, until the new sitting's first state replaces it. */
@@ -206,7 +221,7 @@ internal class Screen(
             infoOut.value = null
             stale = true
             handedOver = false
-            out.value = state
+            publish(state)
         }
 
     /** The new sitting has started: its next write replaces a commit's hold. A newer press is left alone. */
@@ -224,6 +239,6 @@ internal class Screen(
         synchronized(this) {
             choosing = null
             committed = false
-            out.value = shown
+            publish(shown)
         }
 }
