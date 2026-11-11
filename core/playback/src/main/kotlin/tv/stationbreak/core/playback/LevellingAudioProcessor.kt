@@ -83,6 +83,9 @@ class LevellingAudioProcessor(
     private var smoothPos = 0
     private var smoothSum = 0.0
     private var wasEnabled = true
+
+    // Levelled audio of this stream is still in the delay line: the end of the stream lets it out, once.
+    private var held = false
     private var frame = DoubleArray(0)
 
     /** The largest output magnitude before the final guard clamp (for tests: it must stay at the ceiling). */
@@ -100,6 +103,13 @@ class LevellingAudioProcessor(
     }
 
     override fun onFlush() {
+        held = false
+        // The pipeline flushes every processor it holds, one with no format too (after a reset): nothing to set up.
+        if (!isActive) {
+            sampleRate = 0
+            channels = 0
+            return
+        }
         sampleRate = inputAudioFormat.sampleRate
         channels = inputAudioFormat.channelCount
         float = inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
@@ -144,6 +154,7 @@ class LevellingAudioProcessor(
         limiter = 1.0
         sampleRate = 0
         channels = 0
+        held = false
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -171,18 +182,23 @@ class LevellingAudioProcessor(
             step(out)
         }
         out.flip()
+        if (frames > 0) held = true
     }
 
     // Off: unity gain, the audio passes as it came.
     private fun bypass(inputBuffer: ByteBuffer) {
         wasEnabled = false
+        held = false
         val out = replaceOutputBuffer(inputBuffer.remaining())
         out.put(inputBuffer)
         out.flip()
     }
 
     override fun onQueueEndOfStream() {
-        if (!wasEnabled || channels == 0) return
+        // Media3's pipeline asks again on every pass once the processor before this one has ended: the tail leaves
+        // once, or the stream never ends. Off, or with nothing levelled since the flush, there is no tail.
+        if (!held) return
+        held = false
         // The frames still in the delay line leave through the same path, behind [lookahead] - 1 frames of silence.
         val bytes = if (float) Float.SIZE_BYTES else Short.SIZE_BYTES
         val out = replaceOutputBuffer((lookahead - 1) * channels * bytes)
