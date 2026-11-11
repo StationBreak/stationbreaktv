@@ -233,7 +233,17 @@ private fun BannerStrip(
         BannerRow(banner, BannerLines(episode, slot, next, joined), programCopy, now)
         if (banner.actions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
-            ActionsRow(banner.hasLast, actions, behind, banner.stream, chipPlaced, banner.picker, banner.programNames)
+            ActionsRow(
+                banner.hasLast,
+                actions,
+                behind,
+                banner.stream,
+                chipPlaced,
+                banner.picker,
+                banner.chip,
+                banner.switchFailed,
+                banner.programNames,
+            )
         }
     }
 }

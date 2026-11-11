@@ -117,8 +117,9 @@ internal fun ProgressLine(
 }
 
 /**
- * Live (while behind), Info, then Last (when there is a channel to go back to). Info has the focus as the row appears.
- * A 43 dp row under the banner's rule.
+ * Live (while behind), Info, then Last (when there is a channel to go back to). Info has the focus as the row appears,
+ * unless a switch that re-tuned reopened the row on [chip]: the chip used has it, and with [failed] that chip's value
+ * reads "Couldn't switch" (design doc B2.7). A 43 dp row under the banner's rule.
  */
 @Suppress("LongParameterList") // The buttons, what plays, where the chips sit and which picker is open.
 @Composable
@@ -129,6 +130,8 @@ internal fun ActionsRow(
     stream: StreamFacts? = null,
     chipPlaced: (PickerKind, Float) -> Unit = { _, _ -> },
     picker: PickerKind? = null,
+    chip: PickerKind? = null,
+    failed: Boolean = false,
     names: List<String> = emptyList(),
 ) {
     val first = remember { FocusRequester() }
@@ -142,7 +145,7 @@ internal fun ActionsRow(
             )
         }
     // Info has the focus as the row appears, unless it came up with a picker open (a remote key): the picker has it.
-    LaunchedEffect(Unit) { if (picker == null) first.requestFocus() }
+    FocusOnAppear(first, chip?.takeIf { stream.canPick(it) }?.let { chipFocus.getValue(it) }, picker)
     // Back, or a choice, closes the picker to the chip that opened it.
     var opened by remember { mutableStateOf<PickerKind?>(null) }
     LaunchedEffect(picker) {
@@ -156,10 +159,7 @@ internal fun ActionsRow(
     var rowFocused by remember { mutableStateOf(false) }
     var infoFocused by remember { mutableStateOf(false) }
     var lastFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(behind) {
-        val onLive = rowFocused && !infoFocused && !lastFocused
-        if (!behind && onLive) first.requestFocus()
-    }
+    InfoTakesOverFromLive(behind, first) { rowFocused && !infoFocused && !lastFocused }
     Row(
         Modifier
             .fillMaxWidth()
@@ -189,7 +189,40 @@ internal fun ActionsRow(
             val last = Modifier.onFocusChanged { lastFocused = it.hasFocus }.testTag(LiveTags.BANNER_ACTION_LAST)
             ActionButton(R.string.live_action_last, actions.last, last)
         }
-        if (stream != null) Chips(stream, actions, chipFocus, chipPlaced, names)
+        if (stream != null) Chips(stream, actions, chipFocus, chipPlaced, chip.takeIf { failed }, names)
+    }
+}
+
+/**
+ * When the Live button goes away while it had the focus ([onLive]), Info takes it. Only when Live was there: a row that
+ * appears without it (a switch's reopened banner, focused on a chip) has no Live button to have lost.
+ */
+@Composable
+private fun InfoTakesOverFromLive(
+    behind: Boolean,
+    info: FocusRequester,
+    onLive: () -> Boolean,
+) {
+    val hadLive = remember { booleanArrayOf(behind) }
+    val liveFocused by rememberUpdatedState(onLive)
+    LaunchedEffect(behind) {
+        if (hadLive[0] && !behind && liveFocused()) info.requestFocus()
+        hadLive[0] = behind
+    }
+}
+
+/** The focus as the row appears: the chip a switch used, else Info, unless a picker came up with it (it has it). */
+@Composable
+private fun FocusOnAppear(
+    info: FocusRequester,
+    used: FocusRequester?,
+    picker: PickerKind?,
+) {
+    LaunchedEffect(Unit) {
+        when {
+            used != null -> used.requestFocus()
+            picker == null -> info.requestFocus()
+        }
     }
 }
 
@@ -214,12 +247,14 @@ private val TranscodingSize = 11.sp
  * no subtitle tracks, and one version. While the route is a transcode, the
  * row ends with a right-aligned "Transcoding".
  */
+@Suppress("LongParameterList") // The stream, the actions, where chips sit, the failed chip, the titles.
 @Composable
 private fun RowScope.Chips(
     stream: StreamFacts,
     actions: Actions,
     focus: Map<PickerKind, FocusRequester>,
     placed: (PickerKind, Float) -> Unit,
+    failed: PickerKind?,
     names: List<String>,
 ) {
     val context = LocalContext.current
@@ -229,7 +264,7 @@ private fun RowScope.Chips(
     if (audio != null) {
         Chip(
             R.string.live_chip_audio,
-            audio,
+            ChipFace(audio, failed == PickerKind.Audio),
             stream.canPick(PickerKind.Audio),
             actions.audio,
             Modifier
@@ -240,7 +275,7 @@ private fun RowScope.Chips(
     }
     Chip(
         R.string.live_chip_subtitles,
-        StreamLabels.subtitlesChip(stream, copy),
+        ChipFace(StreamLabels.subtitlesChip(stream, copy), failed == PickerKind.Subtitles),
         stream.canPick(PickerKind.Subtitles),
         actions.subtitles,
         Modifier
@@ -248,32 +283,47 @@ private fun RowScope.Chips(
             .onGloballyPositioned { placed(PickerKind.Subtitles, it.positionInRoot().x) }
             .testTag(LiveTags.BANNER_CHIP_SUBTITLES),
     )
-    StreamLabels.versionChip(stream, copy, names)?.let { value ->
+    StreamLabels.versionChip(stream, copy, names)?.let { version ->
         val tag =
             Modifier
                 .focusRequester(focus.getValue(PickerKind.Version))
                 .onGloballyPositioned { placed(PickerKind.Version, it.positionInRoot().x) }
                 .testTag(LiveTags.BANNER_CHIP_VERSION)
-        Chip(R.string.live_chip_version, value, stream.canPick(PickerKind.Version), actions.version, tag)
+        val face = ChipFace(version, failed == PickerKind.Version)
+        Chip(R.string.live_chip_version, face, stream.canPick(PickerKind.Version), actions.version, tag)
     }
     if (stream.route == Route.TRANSCODE) TranscodingLabel(Modifier.weight(1f))
 }
+
+/** What a chip says: the value of the fact it stands for, and whether the last switch from it did not take. */
+private class ChipFace(
+    val value: String,
+    val failed: Boolean = false,
+)
 
 /** One chip: a button when it can open a picker, else the same look with no focus and no click. */
 @Composable
 private fun Chip(
     label: Int,
-    value: String,
+    face: ChipFace,
     focusable: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
     val colors = LocalGuideColors.current
     val name = stringResource(label)
-    val description = stringResource(R.string.live_chip_description, name, value)
+    val value = face.value
+    // A switch that did not take: the chip says so in its normal text colour, and still names what plays.
+    val shown = if (face.failed) stringResource(R.string.live_switch_failed) else value
+    val description =
+        if (face.failed) {
+            stringResource(R.string.live_chip_description_failed, name, value)
+        } else {
+            stringResource(R.string.live_chip_description, name, value)
+        }
     if (focusable) {
         val merged = modifier.semantics(mergeDescendants = true) { contentDescription = description }
-        ActionButton(label, onClick, merged, value)
+        ActionButton(label, onClick, merged, shown)
     } else {
         Row(
             modifier

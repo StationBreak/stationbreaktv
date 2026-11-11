@@ -93,6 +93,15 @@ enum class BannerLabel {
 /** The pickers the actions banner opens over its chips (design doc B2.4). */
 enum class PickerKind { Audio, Subtitles, Version }
 
+/** The chip a switch's banner label belongs to; null for a label that is no switch. */
+internal fun chipOf(label: BannerLabel): PickerKind? =
+    when (label) {
+        BannerLabel.SwitchingAudio -> PickerKind.Audio
+        BannerLabel.SwitchingSubtitles -> PickerKind.Subtitles
+        BannerLabel.SwitchingVersion -> PickerKind.Version
+        else -> null
+    }
+
 /**
  * The cable-box banner: all values are the schedule's own answer for the moment it was made (design goal 7). Times are
  * UTC milliseconds; the screen converts them to wall-clock time. [title] is the movie's or the series' name; [info]
@@ -102,9 +111,10 @@ enum class PickerKind { Audio, Subtitles, Version }
  * carries the Info and Last buttons ([hasLast]: a previous channel exists, so Last has somewhere to go). [recipeKey] is
  * the channel's recipe key, which finds its logo for the mark (null for a channel with none: the mark is its initials).
  * [stream] is what plays (route, tracks, the versions on offer), set once the picture is up and null before that and
- * when the adapter had nothing to say: the stream line shows it. [picker] is the picker open over the actions banner's
- * chips, if any. [switchFailed] is true for the one banner that follows a switch that did not take: it says so in the
- * stream line's place, and the picture is the previous choice's.
+ * when the adapter had nothing to say: the chips show it. [picker] is the picker open over the actions banner's
+ * chips, if any. [chip] is set on the banner of a switch that needed a re-tune: the Select banner reopens when the
+ * picture is back, with the focus on that chip. [switchFailed] is true when that switch did not take: the chip's value
+ * reads "Couldn't switch" for that one banner (design doc B2.7), and the picture is the previous choice's.
  */
 data class Banner(
     val number: Int,
@@ -121,6 +131,7 @@ data class Banner(
     val recipeKey: String? = null,
     val stream: StreamFacts? = null,
     val picker: PickerKind? = null,
+    val chip: PickerKind? = null,
     val switchFailed: Boolean = false,
 ) {
     /** The titles of what plays: the banner's and the program's own, which a version's name must not repeat. */

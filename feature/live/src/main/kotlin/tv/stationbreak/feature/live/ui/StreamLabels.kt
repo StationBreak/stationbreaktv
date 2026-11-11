@@ -37,7 +37,6 @@ internal class StreamCopy(
     val serverDefault: String,
     val restarts: String,
     val playing: String,
-    val switchFailed: String,
 ) {
     companion object {
         fun from(resources: Resources) =
@@ -57,7 +56,6 @@ internal class StreamCopy(
                 serverDefault = resources.getString(R.string.live_picker_server_default),
                 restarts = resources.getString(R.string.live_picker_restarts),
                 playing = resources.getString(R.string.live_picker_playing),
-                switchFailed = resources.getString(R.string.live_switch_failed),
             )
     }
 }

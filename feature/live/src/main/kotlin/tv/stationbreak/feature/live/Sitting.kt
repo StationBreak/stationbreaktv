@@ -626,14 +626,35 @@ internal class Sitting(
 
                 else -> banner.label
             }
-        val shown = banner.copy(label = label)
-        val playing = Playing(shown, block.airing.itemId(), channel, block)
-        state.watching(LiveState.Watching(shown), playing)
-        lingering =
-            scope.launch {
-                delay(timings.bannerLinger)
-                state.hideBanner(playing.token)
-            }
+        // The banner the overlays keep for a later Select press is the plain one: a switch's chip and its "Couldn't
+        // switch" belong to the one banner that follows the switch, not to the next press.
+        val plain = banner.copy(label = label, chip = null, switchFailed = false)
+        val playing = Playing(plain, block.airing.itemId(), channel, block)
+        val chip = banner.chip
+        if (chip == null) {
+            state.watching(LiveState.Watching(plain), playing)
+            lingering =
+                scope.launch {
+                    delay(timings.bannerLinger)
+                    state.hideBanner(playing.token)
+                }
+        } else {
+            // A switch that needed a re-tune: the Select banner reopens now the picture is back, on the chip used.
+            val reopened =
+                plain.copy(
+                    actions = true,
+                    hasLast = state.hasLast(),
+                    chip = chip,
+                    switchFailed = banner.switchFailed,
+                )
+            state.watching(LiveState.Watching(reopened), playing)
+            val touched = state.touches
+            lingering =
+                scope.launch {
+                    delay(timings.actionsLinger)
+                    state.hideReopened(playing.token, touched)
+                }
+        }
         return playing
     }
 

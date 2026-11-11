@@ -353,7 +353,7 @@ The pickers (PR 4) make the choices decision 6 and the 2026-11-09 update prepare
   `Instant` and the control takes it, the play carries on with its facts updated; anything else is a **retune at the
   place under the snow** (`Retune.switching`: banner `SWITCHING AUDIO` / `SWITCHING SUBTITLES`). A retune made for a
   switch does **not** use the block's one retry (that is for failures). If it does not play, the previous choice is tuned
-  at the same place and the one banner that follows says "Couldn't switch" in the stream line's place; if that does not
+  at the same place and the Select banner that reopens when the picture is back says "Couldn't switch" on the chip that was used (design doc B2.7); if that does not
   play either, the item is dead for the block as for any failed retry. The retune carries the whole choice: changing
   the audio keeps the subtitles as they were (a subtitle the viewer turned off stays off), and changing the subtitles
   keeps the audio.

@@ -68,6 +68,8 @@
     <string name="live_chip_version">Version</string>
     <string name="live_chip_none">None</string>
     <string name="live_chip_description">%1$s: %2$s</string>
+    <!-- A chip after a switch that did not take, read as: Audio, couldn't switch, still English 5.1 -->
+    <string name="live_chip_description_failed">%1$s, couldn\'t switch, still %2$s</string>
     <string name="live_picker_restarts">brief pause</string>
     <string name="live_picker_server_default">Server default</string>
     <string name="live_picker_playing">playing now</string>
