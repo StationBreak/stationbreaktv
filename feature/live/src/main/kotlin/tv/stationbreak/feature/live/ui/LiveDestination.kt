@@ -229,22 +229,32 @@ internal fun KeepScreenOn(
 ) {
     val view = LocalView.current
     val keepNow by rememberUpdatedState(keep)
+    val logging = remember(view) { keepOnLogging(view.context) }
+
+    // Every write of the view's flag, with a line that says why (debug builds, or the log.tag switch).
+    fun write(
+        reason: String,
+        value: Boolean,
+    ) {
+        view.keepScreenOn = value
+        if (logging) Log.i(KEEP_ON_TAG, keepOnLine(reason, value, owner.lifecycle.currentState, view))
+    }
     DisposableEffect(view, owner) {
         val observer =
             LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_START) view.keepScreenOn = keepNow
-                if (event == Lifecycle.Event.ON_STOP) view.keepScreenOn = false
+                if (event == Lifecycle.Event.ON_START) write("ON_START", keepNow)
+                if (event == Lifecycle.Event.ON_STOP) write("ON_STOP", false)
             }
-        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = keepNow
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) write("initial", keepNow)
         owner.lifecycle.addObserver(observer)
         onDispose {
             owner.lifecycle.removeObserver(observer)
-            view.keepScreenOn = false
+            write("dispose", false)
         }
     }
     // A pause or a play while the screen is up; a stopped screen stays off.
     DisposableEffect(view, owner, keep) {
-        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) view.keepScreenOn = keep
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) write("keep=$keep", keep)
         onDispose {}
     }
 }
