@@ -234,7 +234,8 @@ class LiveScreenshotTest {
                         state = LiveState.Watching(null),
                         nowMs = { now },
                         guide = { hole -> GuideStandIn(hole, colors.page) },
-                        pictureLabel = title?.let { PictureLabel(162, "Date Night", MARK_KEY, PictureLead.NowPlaying, it) },
+                        pictureLabel =
+                            title?.let { PictureLabel(162, "Date Night", MARK_KEY, PictureLead.NowPlaying, it) },
                     ) { BrightPicture() }
                 }
             }
