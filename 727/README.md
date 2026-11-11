@@ -1,0 +1,1 @@
+Frames for PR 727 (label on the guide picture): LiveScreenshotTest on an Amazon AFTJMST12 (API 25). The guide is a stand-in page (its Dark or Light page colour with a hole), as feature:live cannot depend on feature:guide. Before is main (645e537a) with the label lines stripped from the test; after is the PR head.
