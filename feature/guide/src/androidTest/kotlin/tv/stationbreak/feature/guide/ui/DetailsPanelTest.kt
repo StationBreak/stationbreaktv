@@ -272,11 +272,14 @@ class DetailsPanelTest {
         assertOverviewEndsInsidePanel()
     }
 
-    private fun rich(logo: ImageBitmap? = null): CellDetails {
+    private fun rich(
+        logo: ImageBitmap? = null,
+        overview: String = "A description. ".repeat(40),
+    ): CellDetails {
         val item =
             ItemDetails(
                 ItemId("item-rich"),
-                "A description. ".repeat(40),
+                overview,
                 2018,
                 listOf("Animation", "Family"),
                 22.minutes,
@@ -322,7 +325,7 @@ class DetailsPanelTest {
     @Test
     fun theDescriptionTakesEveryWholeLineTheHeightLeftHoldsAndEndsInAnEllipsis() {
         height.value = 300
-        show(rich())
+        show(rich(overview = "A description. ".repeat(400)))
         compose.mainClock.advanceTimeBy(SETTLED_MS)
 
         val layouts = mutableListOf<TextLayoutResult>()
