@@ -25,9 +25,16 @@ import kotlin.math.tan
  * down before it comes instead of being clipped. The ramp is a moving average of a sliding minimum, which keeps the
  * result at or under the ceiling for every sample; the release is [LIMITER_RELEASE_SEC].
  *
- * The gain is shared through a [LoudnessLevel]: the processor of the audible player ([leading]) writes it as it learns;
- * any other follows it, so a standby that becomes the front already has the front's gain. [enabled] is asked for each
- * buffer: off, audio passes unchanged (unity gain) and nothing is measured.
+ * Each item is levelled from its own gain (#498): [itemKey] is the item the player gave this slot, taken at a flush. A
+ * new key starts from the gain the [LoudnessLevel] remembers for it, or from 0 dB, never from the last channel's; and
+ * for its first [SETTLE_SEC] of audible audio (also after a re-enable) it measures over the [MOMENTARY_WINDOW_SEC]
+ * window and moves up to [FAST_SLEW_DB_PER_SEC], so a flip settles in about a second; then the 3 s window and
+ * [MAX_SLEW_DB_PER_SEC] again. With no key (null) the gain carries over between items, as before.
+ *
+ * The processor of the audible player ([leading]) shares its gain through [LoudnessLevel.gainDb] and remembers it
+ * for its item (every [REMEMBER_EVERY_SEC], at a new item and at the end of a stream). A standby levels its own item
+ * for itself and writes nothing, so at a hand-over it carries on from the gain it learned for that item. [enabled] is
+ * asked for each buffer: off, audio passes unchanged (unity gain) and nothing is measured.
  *
  * Only 16-bit and float PCM are handled; any other encoding leaves the processor inactive. Passthrough audio (AC3,
  * E-AC3, DTS, TrueHD) never reaches an audio processor: the sink skips the chain for encoded audio.
@@ -36,8 +43,8 @@ import kotlin.math.tan
  * gain is held, so pauses and gaps do not wind it up to the boost cap. (Gating the whole 3 s window instead lets a
  * show's tail drain out of it and raises the gain by about 3 dB.)
  *
- * `flush` (an item boundary or a seek) and `reset` keep the gain, clear the measurement and the limiter, so the next
- * item starts at the last gain and the limiter catches a loud one while the gain catches up.
+ * `flush` within an item (a seek) and `reset` keep the gain, clear the measurement and the limiter; the limiter
+ * catches a loud start while the gain settles.
  */
 @UnstableApi
 @Suppress("TooManyFunctions")
@@ -45,6 +52,7 @@ class LevellingAudioProcessor(
     private val level: LoudnessLevel = LoudnessLevel(),
     private val leading: () -> Boolean = { true },
     private val enabled: () -> Boolean = { true },
+    private val itemKey: () -> String? = { null },
 ) : BaseAudioProcessor() {
     private var sampleRate = 0
     private var channels = 0
@@ -68,6 +76,13 @@ class LevellingAudioProcessor(
     private var gainStep = 0.0
     private var limiter = 1.0
     private var releaseCoef = 0.0
+
+    // The item this processor is levelling (the key the player gave its slot, taken at a flush), the audible blocks
+    // left in its settle phase, and whether its gain has moved, as the front's, since it was last remembered.
+    private var key: String? = null
+    private var settleLeft = 0
+    private var unsaved = false
+    private var sinceRemembered = 0
 
     // The look-ahead: [delay] holds the last [lookahead] gained frames; the deque (two ring arrays) is the sliding
     // minimum of the reduction each frame needs; [smooth] holds its last [lookahead] values for the moving average.
@@ -138,14 +153,40 @@ class LevellingAudioProcessor(
         ringCount = 0
         ringPos = 0
         ringSum = 0.0
-        // The gain is kept (see the class comment); one that is not leading takes the shared one.
-        if (!leading()) gainDb = level.gainDb
+        // Within an item the gain is kept (a seek); a new item starts from its own (see the class comment).
+        adoptItem()
         gainStep = 0.0
         gainLin = dbToLin(gainDb)
         limiter = 1.0
         releaseCoef = 1.0 - exp(-1.0 / (LIMITER_RELEASE_SEC * sampleRate))
         resetLookahead()
         frame = DoubleArray(channels)
+    }
+
+    /**
+     * A new item key since the last flush: the last item's gain is remembered, and the new one starts from the gain
+     * it had (or from 0 dB), in the settle phase. Taken only at a flush, where the old item's audio has left the
+     * pipeline, so its tail is never measured as the new item's.
+     */
+    private fun adoptItem() {
+        val next = itemKey()
+        if (next == key) return
+        if (unsaved) rememberGain()
+        key = next
+        val remembered = next?.let(level::recall)
+        gainDb = remembered ?: 0.0
+        settleLeft = SETTLE_BLOCKS
+        sinceRemembered = 0
+        if (leading()) level.gainDb = gainDb
+        if (PlaybackLog.on) {
+            PlaybackLog.line("levelling item remembered=${remembered != null} leading=${leading()} gainDb=$gainDb")
+        }
+    }
+
+    private fun rememberGain() {
+        key?.let { level.remember(it, gainDb) }
+        unsaved = false
+        sinceRemembered = 0
     }
 
     private fun resetLookahead() {
@@ -184,12 +225,11 @@ class LevellingAudioProcessor(
         logPath(PATH_LEVELLING)
         if (!wasEnabled) {
             // Back on after a stretch off: nothing stale in the delay line, the limiter or the window, and the gain
-            // starts from 0 dB, not from what an earlier show learned (the slew then moves it).
-            if (leading()) {
-                gainDb = 0.0
-                level.gainDb = 0.0
-            }
+            // starts from 0 dB, not from what an earlier show learned, in the settle phase.
+            gainDb = 0.0
+            if (leading()) level.gainDb = 0.0
             onFlush()
+            settleLeft = SETTLE_BLOCKS
             wasEnabled = true
         }
         val bytes = if (float) Float.SIZE_BYTES else Short.SIZE_BYTES
@@ -227,6 +267,8 @@ class LevellingAudioProcessor(
     override fun onQueueEndOfStream() {
         // Media3's pipeline asks again on every pass once the processor before this one has ended: the tail leaves
         // once, or the stream never ends. Off, or with nothing levelled since the flush, there is no tail.
+        // The item has ended: its gain is remembered.
+        if (unsaved) rememberGain()
         if (!held) return
         held = false
         // The frames still in the delay line leave through the same path, behind [lookahead] - 1 frames of silence.
@@ -300,12 +342,6 @@ class LevellingAudioProcessor(
         val energy = blockEnergy / blockFrames
         blockEnergy = 0.0
         blockFill = 0
-        if (!leading()) {
-            // Not the audible player: it measures nothing and follows the shared gain.
-            gainDb = level.gainDb
-            gainStep = (dbToLin(gainDb) - gainLin) / blockFrames
-            return
-        }
         // The ring holds the energy of the last 30 blocks; a block under the silence gate is kept out of the average
         // (marked GATED), so a show's tail draining out of the window cannot pull the loudness down and the gain up.
         val old = ring[ringPos]
@@ -313,7 +349,8 @@ class LevellingAudioProcessor(
             ringSum -= old
             ringCount--
         }
-        if (lkfs(energy) > SILENCE_GATE_LKFS) {
+        val audible = lkfs(energy) > SILENCE_GATE_LKFS
+        if (audible) {
             ring[ringPos] = energy
             ringSum += energy
             ringCount++
@@ -321,15 +358,40 @@ class LevellingAudioProcessor(
             ring[ringPos] = GATED
         }
         ringPos = (ringPos + 1) % WINDOW_BLOCKS
-        if (ringCount > 0) {
-            val loudness = lkfs(max(ringSum, 0.0) / ringCount)
+        // Settling: the momentary window and the fast slew. After it: the short-term window and the slow slew.
+        val settling = settleLeft > 0
+        val loudness = if (settling) momentaryLoudness() else shortTermLoudness()
+        if (loudness != null) {
             val target = (TARGET_LKFS - loudness).coerceIn(-MAX_CUT_DB, MAX_BOOST_DB)
-            val maxMove = MAX_SLEW_DB_PER_SEC / BLOCKS_PER_SEC
+            val maxMove = (if (settling) FAST_SLEW_DB_PER_SEC else MAX_SLEW_DB_PER_SEC) / BLOCKS_PER_SEC
             gainDb += (target - gainDb).coerceIn(-maxMove, maxMove)
-            level.gainDb = gainDb
+            if (audible && settling) settleLeft--
+            // Only the audible player's gain is shared and remembered; a standby learns its own item for itself.
+            if (leading()) {
+                level.gainDb = gainDb
+                unsaved = true
+                if (++sinceRemembered >= REMEMBER_EVERY_BLOCKS) rememberGain()
+            }
         }
         // Ramp the linear gain across the next block so a step is never heard.
         gainStep = (dbToLin(gainDb) - gainLin) / blockFrames
+    }
+
+    /** The loudness of the ungated blocks of the short-term window, or null with none. */
+    private fun shortTermLoudness(): Double? = if (ringCount > 0) lkfs(max(ringSum, 0.0) / ringCount) else null
+
+    /** The loudness of the ungated blocks of the momentary window (the last [MOMENTARY_BLOCKS]), or null with none. */
+    private fun momentaryLoudness(): Double? {
+        var sum = 0.0
+        var count = 0
+        for (i in 1..MOMENTARY_BLOCKS) {
+            val e = ring[(ringPos - i + WINDOW_BLOCKS) % WINDOW_BLOCKS]
+            if (e != GATED) {
+                sum += e
+                count++
+            }
+        }
+        return if (count > 0) lkfs(sum / count) else null
     }
 
     /** One biquad section in transposed direct form II; state lives in the caller's array. */
@@ -386,6 +448,18 @@ class LevellingAudioProcessor(
         const val MAX_BOOST_DB = 12.0
         const val MAX_CUT_DB = 12.0
         const val MAX_SLEW_DB_PER_SEC = 1.0
+
+        /** The settle phase of a new item (or of a re-enable): this long of audible audio, ... */
+        const val SETTLE_SEC = 6.0
+
+        /** ... measured over the EBU momentary window ... */
+        const val MOMENTARY_WINDOW_SEC = 0.4
+
+        /** ... and steered this fast. */
+        const val FAST_SLEW_DB_PER_SEC = 8.0
+
+        /** How often the audible item's gain is remembered while it plays. */
+        const val REMEMBER_EVERY_SEC = 2.0
         const val CEILING_DBFS = -1.0
         const val LIMITER_RELEASE_SEC = 0.1
 
@@ -411,6 +485,9 @@ class LevellingAudioProcessor(
         private const val LFE = 3
         private const val SURROUND_GAIN = 1.41
         private val CEILING_LIN = dbToLin(CEILING_DBFS)
+        private val SETTLE_BLOCKS = (SETTLE_SEC * BLOCKS_PER_SEC).roundToInt()
+        private val MOMENTARY_BLOCKS = (MOMENTARY_WINDOW_SEC * BLOCKS_PER_SEC).roundToInt()
+        private val REMEMBER_EVERY_BLOCKS = (REMEMBER_EVERY_SEC * BLOCKS_PER_SEC).roundToInt()
 
         private fun dbToLin(db: Double) = 10.0.pow(db / AMPLITUDE_DB)
 

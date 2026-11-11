@@ -27,6 +27,12 @@ internal class Slot(
     val holding: AtomicBoolean,
 ) {
     val skips = SkippedFrames(exo)
+
+    /**
+     * The item this slot plays, for volume levelling ([PlayerSource.levelKey]): set on the looper before the item is
+     * set, read by the slot's levelling processor on the audio thread at its next flush.
+     */
+    @Volatile var levelKey: String? = null
 }
 
 /** What [StandbySlots] needs of the player it serves. Called on the player's looper. */
@@ -247,6 +253,7 @@ internal class StandbySlots(
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                 .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !audioOn)
                 .build()
+        slot.levelKey = source.levelKey
         slot.exo.setMediaItem(mediaItem(source, WARM_ID + epoch), source.playerStart.inWholeMilliseconds)
         slot.exo.prepare()
         scheduleCheck()

@@ -93,17 +93,19 @@ class LevellingSharedLevelTest {
     }
 
     @Test
-    fun aStandbyFollowsTheSharedGainAndNeverWritesIt() {
+    fun aStandbyLevelsItsOwnAudioAndNeverWritesTheSharedGain() {
+        // Since the fast settle (#498) a standby learns its own item instead of following the front's gain.
         val level = LoudnessLevel()
         val standby = processor(level, leading = { false })
-        // Loud audio on a standby measures nothing: it does not move the shared gain.
+        // Loud audio on a standby turns its own gain down; the shared gain does not move.
         run(standby, sine(-10.0, 5.0))
         assertEquals(0.0, level.gainDb, 0.0)
-        // The front learns; the standby takes it over within a block, whatever it is fed.
+        assertTrue(standby.currentGainDb < -2.0)
+        // The front learns; the standby keeps its own gain, whatever the front's is.
+        val own = standby.currentGainDb
         run(processor(level), sine(-30.0, 10.0))
-        run(standby, sine(-10.0, 0.5))
         assertTrue(level.gainDb > 4.0)
-        assertEquals(level.gainDb, standby.currentGainDb, 0.0)
+        assertEquals(own, standby.currentGainDb, 0.0)
     }
 
     @Test

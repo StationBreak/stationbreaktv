@@ -96,7 +96,8 @@ data class SeparateSubtitle(
  * own track selection applies (direct play only); then [audioPick] and [subtitlePick] name the tracks to pick.
  * A null [subtitlePick] with no [subtitles] means no subtitle. [warmKey] is the handle [VideoPlayer.warm] returned for
  * this source (spec 24), stamped on by the caller: a play with it swaps to that standby when it is ready. It is not
- * shown by [toString] either.
+ * shown by [toString] either. [levelKey] names the item for volume levelling (its media source id, never a title or a
+ * URL): a new key starts from that item's own gain (#498); null carries the gain over. Not shown by [toString].
  */
 @Suppress("LongParameterList") // One independent fact each; the player reads them all.
 data class PlayerSource(
@@ -110,6 +111,7 @@ data class PlayerSource(
     val audioPick: TrackPick? = null,
     val subtitlePick: TrackPick? = null,
     val warmKey: String? = null,
+    val levelKey: String? = null,
 ) {
     override fun toString(): String = "PlayerSource(hls=$isHls, url=<not shown>, subtitles=${subtitles.size})"
 }
