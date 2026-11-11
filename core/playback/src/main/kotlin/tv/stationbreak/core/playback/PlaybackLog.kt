@@ -32,6 +32,9 @@ internal object PlaybackLog {
 
     private const val MAX_MESSAGE = 200
 
+    /** How many frames a runtime fault from outside the allowlist logs. */
+    private const val RUNTIME_FRAMES = 3
+
     /** Where an IllegalState, IllegalArgument or IndexOutOfBounds is from the codec or audio-processor path. */
     private val CODEC_PATHS =
         listOf(
@@ -71,7 +74,8 @@ internal object PlaybackLog {
     /**
      * The error as `code=NAME` (never the top-level message: it can quote a track label), the renderer's format
      * fields when it names one, then each cause as its class name. Only decoder, audio-sink and audio-processor
-     * causes keep a message (redacted, cut), and for them the top stack frame of the deepest cause is added.
+     * causes keep a message (redacted, cut), and for them the top stack frame of the deepest cause is added; any other
+     * runtime fault as the deepest cause adds its top three frames (class.method:line, never a message).
      * IOException, ParserException and HTTP causes are class names only (plus the status of an invalid response).
      */
     fun failureText(error: Throwable): String {
@@ -80,11 +84,17 @@ internal object PlaybackLog {
         val format = renderer?.rendererFormat?.let { " format=${formatFields(it)}" }.orEmpty()
         val causes = generateSequence(error.cause) { it.cause }.take(MAX_CAUSES - 1).toList()
         val chain = causes.joinToString("") { " <- ${describe(it)}" }
+        val deepest = causes.lastOrNull() ?: error
+        val allowlisted = (listOf(error) + causes).any { keepsMessage(it) || structured(it) != null }
         val frame =
-            if ((listOf(error) + causes).any { keepsMessage(it) || structured(it) != null }) {
-                " at=${topFrame(causes.lastOrNull() ?: error)}"
-            } else {
-                ""
+            when {
+                allowlisted -> " at=${topFrames(deepest, 1)}"
+
+                // A runtime fault from outside the allowlist (java.nio, another Media3 package): no message, but where
+                // it was thrown, so the next device report names the site.
+                deepest is RuntimeException -> " at=${topFrames(deepest, RUNTIME_FRAMES)}"
+
+                else -> ""
             }
         return top + format + chain + frame
     }
@@ -125,8 +135,15 @@ internal object PlaybackLog {
             }
         }
 
-    private fun topFrame(error: Throwable): String =
-        error.stackTrace.firstOrNull()?.let { "${it.className}.${it.methodName}:${it.lineNumber}" } ?: "none"
+    /** The top [count] frames, class.method:line only, joined by `>`. */
+    private fun topFrames(
+        error: Throwable,
+        count: Int,
+    ): String =
+        error.stackTrace
+            .take(count)
+            .joinToString(">") { "${it.className}.${it.methodName}:${it.lineNumber}" }
+            .ifEmpty { "none" }
 
     /** A codec or audio-processor failure whose message is the codec's or ours, not the network's or a format's. */
     internal fun keepsMessage(error: Throwable): Boolean =
