@@ -27,11 +27,13 @@ import tv.stationbreak.core.playback.SubtitleSwitch
 import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.core.playback.TrackOverride
 import tv.stationbreak.core.playback.TrackSwitch
+import tv.stationbreak.feature.live.SwitchFixtures.ALT
 import tv.stationbreak.feature.live.SwitchFixtures.ENGLISH_SUBS
 import tv.stationbreak.feature.live.SwitchFixtures.FRENCH
 import tv.stationbreak.feature.live.SwitchFixtures.SOURCE
 import tv.stationbreak.feature.live.SwitchFixtures.SPANISH
 import tv.stationbreak.feature.live.SwitchFixtures.facts
+import tv.stationbreak.feature.live.SwitchFixtures.twoVersions
 import tv.stationbreak.feature.live.report.RecordingServer
 import kotlin.time.Duration.Companion.minutes
 
@@ -151,6 +153,63 @@ class TrackSwitchTest {
             assertFalse(checkNotNull(k.banner).switchFailed)
             assertEquals(FRENCH.index, k.banner?.stream?.audioIndex)
             assertEquals(listOf<Remembered>(Remembered.AudioLanguage("fr")), k.r.tune.remembered)
+        }
+
+    @Test
+    fun anotherVersionRetunesAtThePlaceNamingTheVersionAndRemembersIt() =
+        runTest {
+            val k = keys(withFacts(twoVersions()), withFacts(twoVersions().copy(sourceId = ALT)))
+            k.r.atMin(1)
+            k.press(LiveCommand.Choose(TrackSelection.Version(ALT)))
+            k.settle()
+            assertEquals(2, k.tunesOfOne.size)
+            assertEquals(TrackChoice(ALT, null), k.tunesOfOne.last().choice)
+            assertEquals(
+                "at the place, not the start",
+                11 * MIN,
+                k.tunesOfOne
+                    .last()
+                    .start.inWholeMilliseconds,
+            )
+            val labels =
+                k.r.seen
+                    .filterIsInstance<LiveState.Tuning>()
+                    .map { it.banner.label }
+            assertTrue("under the snow, switching version", BannerLabel.SwitchingVersion in labels)
+            assertEquals(BannerLabel.Now, k.banner?.label)
+            assertEquals(ALT, k.banner?.stream?.sourceId)
+            assertEquals(listOf<Remembered>(Remembered.Version(itemOf(1), ALT)), k.r.tune.remembered)
+        }
+
+    @Test
+    fun aVersionThatDoesNotPlayGoesBackToThePreviousOneAndSaysSoAndRemembersNothing() =
+        runTest {
+            val k = keys(withFacts(twoVersions()), FakeTune.dead(), withFacts(twoVersions()))
+            k.r.atMin(1)
+            k.press(LiveCommand.Choose(TrackSelection.Version(ALT)))
+            k.settle()
+            assertEquals(3, k.tunesOfOne.size)
+            assertEquals(TrackChoice(ALT, null), k.tunesOfOne[1].choice)
+            assertNull("back to the version that was playing", k.tunesOfOne[2].choice)
+            assertTrue(checkNotNull(k.banner).switchFailed)
+            assertTrue(
+                k.r.tune.remembered
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun choosingTheVersionThatPlaysTunesNothing() =
+        runTest {
+            val k = keys(withFacts(twoVersions()))
+            k.r.atMin(1)
+            k.press(LiveCommand.Choose(TrackSelection.Version(SOURCE)))
+            k.settle()
+            assertEquals(1, k.tunesOfOne.size)
+            assertTrue(
+                k.r.tune.remembered
+                    .isEmpty(),
+            )
         }
 
     @Test

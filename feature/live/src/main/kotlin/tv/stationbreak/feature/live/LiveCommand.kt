@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live
 
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.playback.SubtitleChoice
 
 /** What the viewer asks of the live channel (spec 15, F1.4). The screen sends these; [LiveChannel.run] follows them. */
@@ -84,7 +85,10 @@ sealed interface LiveCommand {
     data object GoLive : LiveCommand
 }
 
-/** What the viewer picked in a picker: the audio track by its server [index], or what to do about subtitles. */
+/**
+ * What the viewer picked in a picker: the audio track by its server [Audio.index], what to do about subtitles, or
+ * another [Version] of the item by the server's id for it.
+ */
 sealed interface TrackSelection {
     data class Audio(
         val index: Int,
@@ -93,5 +97,10 @@ sealed interface TrackSelection {
     /** [SubtitleChoice.Default] hands the decision back to the server (and forgets the viewer's subtitle choice). */
     data class Subtitles(
         val choice: SubtitleChoice,
+    ) : TrackSelection
+
+    /** Another version of the item (#630). Its tracks are chosen again by the carried preferences, not kept. */
+    data class Version(
+        val source: MediaSourceId,
     ) : TrackSelection
 }

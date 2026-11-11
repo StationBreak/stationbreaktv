@@ -121,7 +121,8 @@ data class WarmUse(
  * ADR-0016 (pre-resolve); it goes stale when the item's block ends.
  */
 class Prepared internal constructor(
-    internal val item: ItemId,
+    /** The item this handle resolved (the live machine asks it which version the viewer remembers for it). */
+    val item: ItemId,
     internal val start: Duration,
     internal val resolved: ResolvedPlayback,
     /** The carried preferences this handle was resolved with: a tune with other preferences cannot use it. */

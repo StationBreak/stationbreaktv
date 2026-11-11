@@ -85,10 +85,13 @@ enum class BannerLabel {
 
     /** The viewer chose other subtitles and the picture restarts. */
     SwitchingSubtitles,
+
+    /** The viewer chose another version of the item and the picture restarts (#630). */
+    SwitchingVersion,
 }
 
 /** The pickers the actions banner opens over its chips (design doc B2.4). */
-enum class PickerKind { Audio, Subtitles }
+enum class PickerKind { Audio, Subtitles, Version }
 
 /**
  * The cable-box banner: all values are the schedule's own answer for the moment it was made (design goal 7). Times are

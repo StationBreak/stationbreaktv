@@ -136,6 +136,20 @@ class LiveScreenshotTest {
             offCost = SwitchCost.Instant,
         )
 
+    /** The same play where the server offers a second version: the Version chip is a button, and has a picker. */
+    private val twoVersions =
+        facts.copy(
+            sources =
+                facts.sources +
+                    SourceFacts(
+                        MediaSourceId("frame-theatrical"),
+                        "Theatrical Cut",
+                        VideoFacts(1280, 720, "h264"),
+                        audio = emptyList(),
+                        subtitles = emptyList(),
+                    ),
+        )
+
     @Suppress("LongParameterList") // One frame's choices: which banner, what plays, what is open, what it says.
     private fun banner(
         actions: Boolean,
@@ -228,6 +242,20 @@ class LiveScreenshotTest {
         shoot(
             "live-picker-subtitles.png",
             LiveState.Watching(banner(actions = true, stream = facts, picker = PickerKind.Subtitles)),
+        )
+
+    @Test
+    fun theVersionPicker() =
+        shoot(
+            "live-picker-version.png",
+            LiveState.Watching(banner(actions = true, stream = twoVersions, picker = PickerKind.Version)),
+        )
+
+    @Test
+    fun switchingVersionUnderTheSnow() =
+        shoot(
+            "live-switching-version.png",
+            LiveState.Tuning(banner(actions = false, stream = twoVersions, label = BannerLabel.SwitchingVersion)),
         )
 
     @Test

@@ -203,6 +203,15 @@ class StreamLabelsTest {
 
     // --- twin rows ---
 
+    @Test
+    fun versionsThatReadTheSameAreNumberedFromTheSecond() {
+        val picture = VideoFacts(1920, 1080, "hevc")
+
+        fun version(id: String) = SourceFacts(MediaSourceId(id), null, picture, emptyList(), emptyList())
+        val rows = listOf("a", "b").map { PickerRow.Version(version(it), playing = false) }
+        assertEquals(listOf("1080p · HEVC", "1080p · HEVC · 2"), StreamLabels.pickerTexts(rows, copy, language))
+    }
+
     private fun subtitleTexts(vararg tracks: SubtitleFacts): List<String> =
         StreamLabels.pickerTexts(tracks.map { PickerRow.Subtitle(it, playing = false) }, copy, language)
 

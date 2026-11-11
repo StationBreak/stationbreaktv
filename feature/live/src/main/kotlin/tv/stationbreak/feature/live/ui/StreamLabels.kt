@@ -181,6 +181,7 @@ internal object StreamLabels {
             is PickerRow.Off -> offRow(copy)
             is PickerRow.Subtitle -> subtitleRow(row.track, copy, language)
             is PickerRow.ServerDefault -> copy.serverDefault
+            is PickerRow.Version -> versionRow(row.source, copy)
         }
 
     /**

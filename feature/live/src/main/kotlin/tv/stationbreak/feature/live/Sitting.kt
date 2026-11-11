@@ -618,7 +618,12 @@ internal class Sitting(
         // Once the picture plays, "Tuning in" (or a switch's "Switching ...") becomes "Now" (R22). Filling in stays.
         val label =
             when (banner.label) {
-                BannerLabel.TuningIn, BannerLabel.SwitchingAudio, BannerLabel.SwitchingSubtitles -> BannerLabel.Now
+                BannerLabel.TuningIn,
+                BannerLabel.SwitchingAudio,
+                BannerLabel.SwitchingSubtitles,
+                BannerLabel.SwitchingVersion,
+                -> BannerLabel.Now
+
                 else -> banner.label
             }
         val shown = banner.copy(label = label)

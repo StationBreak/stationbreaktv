@@ -67,6 +67,7 @@ internal class Actions(
     val live: () -> Unit = {},
     val audio: () -> Unit = {},
     val subtitles: () -> Unit = {},
+    val version: () -> Unit = {},
 )
 
 /**
@@ -131,7 +132,14 @@ internal fun ActionsRow(
 ) {
     val first = remember { FocusRequester() }
     val live = remember { FocusRequester() }
-    val chipFocus = remember { mapOf(PickerKind.Audio to FocusRequester(), PickerKind.Subtitles to FocusRequester()) }
+    val chipFocus =
+        remember {
+            mapOf(
+                PickerKind.Audio to FocusRequester(),
+                PickerKind.Subtitles to FocusRequester(),
+                PickerKind.Version to FocusRequester(),
+            )
+        }
     // Info has the focus as the row appears, unless it came up with a picker open (a remote key): the picker has it.
     LaunchedEffect(Unit) { if (picker == null) first.requestFocus() }
     // Back, or a choice, closes the picker to the chip that opened it.
@@ -202,7 +210,7 @@ private val TranscodingSize = 11.sp
 /**
  * The Audio, Subtitles and Version chips (design doc B1, B2.8), after a 1 dp divider: each `Label  Value`, the value
  * the same fact the stream line states. A chip with nothing to choose from shows but takes no focus: one audio track,
- * no subtitle tracks, and the Version chip until the version picker comes (#630). While the route is a transcode, the
+ * no subtitle tracks, and one version. While the route is a transcode, the
  * row ends with a right-aligned "Transcoding".
  */
 @Composable
@@ -238,9 +246,13 @@ private fun RowScope.Chips(
             .onGloballyPositioned { placed(PickerKind.Subtitles, it.positionInRoot().x) }
             .testTag(LiveTags.BANNER_CHIP_SUBTITLES),
     )
-    StreamLabels.versionChip(stream, copy)?.let {
-        val tag = Modifier.testTag(LiveTags.BANNER_CHIP_VERSION)
-        Chip(R.string.live_chip_version, it, focusable = false, onClick = {}, modifier = tag)
+    StreamLabels.versionChip(stream, copy)?.let { value ->
+        val tag =
+            Modifier
+                .focusRequester(focus.getValue(PickerKind.Version))
+                .onGloballyPositioned { placed(PickerKind.Version, it.positionInRoot().x) }
+                .testTag(LiveTags.BANNER_CHIP_VERSION)
+        Chip(R.string.live_chip_version, value, stream.canPick(PickerKind.Version), actions.version, tag)
     }
     if (stream.route == Route.TRANSCODE) TranscodingLabel(Modifier.weight(1f))
 }

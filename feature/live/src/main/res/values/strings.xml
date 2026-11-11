@@ -26,6 +26,7 @@
     <string name="live_label_filling_in">Filling in</string>
     <string name="live_label_switching_audio">Switching audio</string>
     <string name="live_label_switching_subtitles">Switching subtitles</string>
+    <string name="live_label_switching_version">Switching version</string>
 
     <!-- The actions banner's buttons (Select on the picture): the program's info, and the channel before this one. -->
     <string name="live_action_info">Info</string>
