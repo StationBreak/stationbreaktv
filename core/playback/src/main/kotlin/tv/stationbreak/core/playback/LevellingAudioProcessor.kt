@@ -28,8 +28,10 @@ import kotlin.math.tan
  * Each item is levelled from its own gain (#498): [itemKey] is the item the player gave this slot, taken at a flush. A
  * new key starts from the gain the [LoudnessLevel] remembers for it, or from 0 dB, never from the last channel's; and
  * for its first [SETTLE_SEC] of audible audio (also after a re-enable) it measures over the [MOMENTARY_WINDOW_SEC]
- * window and moves up to [FAST_SLEW_DB_PER_SEC], so a flip settles in about a second; then the 3 s window and
- * [MAX_SLEW_DB_PER_SEC] again. With no key (null) the gain carries over between items, as before.
+ * window: it cuts at up to [FAST_CUT_DB_PER_SEC], so a loud flip settles in about a second, and boosts at no more than
+ * [FAST_BOOST_DB_PER_SEC], counting only blocks above [BOOST_FLOOR_LKFS] and within [BOOST_RELATIVE_GATE_LU] of the
+ * item's loudest so far, so a quiet opening is not wound up before the dialogue. Then the 3 s window and
+ * [MAX_SLEW_DB_PER_SEC] both ways again. With no key (null) a processor carries its gain over between items.
  *
  * The processor of the audible player ([leading]) shares its gain through [LoudnessLevel.gainDb] and remembers it
  * for its item (every [REMEMBER_EVERY_SEC], at a new item and at the end of a stream). A standby levels its own item
@@ -81,6 +83,9 @@ class LevellingAudioProcessor(
     // left in its settle phase, and whether its gain has moved, as the front's, since it was last remembered.
     private var key: String? = null
     private var settleLeft = 0
+
+    // The loudest ungated block of the item so far, in LKFS: the settle phase's boost gate is relative to it.
+    private var itemLoudest = -Double.MAX_VALUE
     private var unsaved = false
     private var sinceRemembered = 0
 
@@ -175,12 +180,17 @@ class LevellingAudioProcessor(
         key = next
         val remembered = next?.let(level::recall)
         gainDb = remembered ?: 0.0
-        settleLeft = SETTLE_BLOCKS
+        startSettle()
         sinceRemembered = 0
         if (leading()) level.gainDb = gainDb
         if (PlaybackLog.on) {
             PlaybackLog.line("levelling item remembered=${remembered != null} leading=${leading()} gainDb=$gainDb")
         }
+    }
+
+    private fun startSettle() {
+        settleLeft = SETTLE_BLOCKS
+        itemLoudest = -Double.MAX_VALUE
     }
 
     private fun rememberGain() {
@@ -229,7 +239,7 @@ class LevellingAudioProcessor(
             gainDb = 0.0
             if (leading()) level.gainDb = 0.0
             onFlush()
-            settleLeft = SETTLE_BLOCKS
+            startSettle()
             wasEnabled = true
         }
         val bytes = if (float) Float.SIZE_BYTES else Short.SIZE_BYTES
@@ -358,13 +368,12 @@ class LevellingAudioProcessor(
             ring[ringPos] = GATED
         }
         ringPos = (ringPos + 1) % WINDOW_BLOCKS
-        // Settling: the momentary window and the fast slew. After it: the short-term window and the slow slew.
+        if (audible) itemLoudest = max(itemLoudest, lkfs(energy))
+        // Settling: the momentary window, a fast cut and a gentle, gated boost. After it: the short-term window and
+        // the slow slew both ways.
         val settling = settleLeft > 0
-        val loudness = if (settling) momentaryLoudness() else shortTermLoudness()
-        if (loudness != null) {
-            val target = (TARGET_LKFS - loudness).coerceIn(-MAX_CUT_DB, MAX_BOOST_DB)
-            val maxMove = (if (settling) FAST_SLEW_DB_PER_SEC else MAX_SLEW_DB_PER_SEC) / BLOCKS_PER_SEC
-            gainDb += (target - gainDb).coerceIn(-maxMove, maxMove)
+        val moved = if (settling) settleStep() else slowStep()
+        if (moved) {
             if (audible && settling) settleLeft--
             // Only the audible player's gain is shared and remembered; a standby learns its own item for itself.
             if (leading()) {
@@ -377,16 +386,45 @@ class LevellingAudioProcessor(
         gainStep = (dbToLin(gainDb) - gainLin) / blockFrames
     }
 
-    /** The loudness of the ungated blocks of the short-term window, or null with none. */
-    private fun shortTermLoudness(): Double? = if (ringCount > 0) lkfs(max(ringSum, 0.0) / ringCount) else null
+    /** After the settle phase: the short-term window, [MAX_SLEW_DB_PER_SEC] both ways. False with nothing measured. */
+    private fun slowStep(): Boolean {
+        if (ringCount == 0) return false
+        val target = targetFor(lkfs(max(ringSum, 0.0) / ringCount))
+        val maxMove = MAX_SLEW_DB_PER_SEC / BLOCKS_PER_SEC
+        gainDb += (target - gainDb).coerceIn(-maxMove, maxMove)
+        return true
+    }
 
-    /** The loudness of the ungated blocks of the momentary window (the last [MOMENTARY_BLOCKS]), or null with none. */
-    private fun momentaryLoudness(): Double? {
+    /**
+     * In the settle phase, over the momentary window: every ungated block may cut, at up to [FAST_CUT_DB_PER_SEC]. A
+     * boost, at up to [FAST_BOOST_DB_PER_SEC], counts only blocks above [BOOST_FLOOR_LKFS] and within
+     * [BOOST_RELATIVE_GATE_LU] of the item's loudest block so far, so room tone or a quiet fade-in at a show's start
+     * does not wind the gain up before the dialogue arrives. False with nothing measured.
+     */
+    private fun settleStep(): Boolean {
+        val all = momentaryLoudness(SILENCE_GATE_LKFS) ?: return false
+        val cutTarget = targetFor(all)
+        if (cutTarget < gainDb) {
+            gainDb -= min(gainDb - cutTarget, FAST_CUT_DB_PER_SEC / BLOCKS_PER_SEC)
+        } else {
+            val boostTarget =
+                momentaryLoudness(max(BOOST_FLOOR_LKFS, itemLoudest - BOOST_RELATIVE_GATE_LU))?.let(::targetFor)
+            if (boostTarget != null && boostTarget > gainDb) {
+                gainDb += min(boostTarget - gainDb, FAST_BOOST_DB_PER_SEC / BLOCKS_PER_SEC)
+            }
+        }
+        return true
+    }
+
+    private fun targetFor(loudness: Double) = (TARGET_LKFS - loudness).coerceIn(-MAX_CUT_DB, MAX_BOOST_DB)
+
+    /** The loudness of the momentary window's blocks (the last [MOMENTARY_BLOCKS]) above [gate], or null with none. */
+    private fun momentaryLoudness(gate: Double): Double? {
         var sum = 0.0
         var count = 0
         for (i in 1..MOMENTARY_BLOCKS) {
             val e = ring[(ringPos - i + WINDOW_BLOCKS) % WINDOW_BLOCKS]
-            if (e != GATED) {
+            if (e != GATED && lkfs(e) > gate) {
                 sum += e
                 count++
             }
@@ -455,8 +493,17 @@ class LevellingAudioProcessor(
         /** ... measured over the EBU momentary window ... */
         const val MOMENTARY_WINDOW_SEC = 0.4
 
-        /** ... and steered this fast. */
-        const val FAST_SLEW_DB_PER_SEC = 8.0
+        /** ... and cut this fast, ... */
+        const val FAST_CUT_DB_PER_SEC = 8.0
+
+        /** ... but boosted no faster than this: a loud jump is what is noticed, a quiet start corrects gently. */
+        const val FAST_BOOST_DB_PER_SEC = 2.0
+
+        /** Settling, only a block louder than this counts toward a boost (not room tone or a fade-in), ... */
+        const val BOOST_FLOOR_LKFS = -40.0
+
+        /** ... and only one within this of the item's loudest block so far (an EBU-style relative gate). */
+        const val BOOST_RELATIVE_GATE_LU = 10.0
 
         /** How often the audible item's gain is remembered while it plays. */
         const val REMEMBER_EVERY_SEC = 2.0

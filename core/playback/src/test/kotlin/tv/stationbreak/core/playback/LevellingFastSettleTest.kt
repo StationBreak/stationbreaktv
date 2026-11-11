@@ -158,6 +158,34 @@ class LevellingFastSettleTest {
     }
 
     @Test
+    fun roomToneAtAShowsStartDoesNotWindTheGainUpBeforeTheDialogue() {
+        // A fresh item (0 dB): 3 s of room tone at about -48 LKFS, above the silence gate, then speech level.
+        val r = rig()
+        val gains = mutableListOf<Double>()
+        feed(r, sine(-48.0, 3.0), gains)
+        assertTrue("gain during room tone ${gains.min()}..${gains.max()}", gains.all { abs(it) <= 1.0 })
+        val input = sine(-24.0, 4.0)
+        val output = feed(r, input)
+        val settled = LevellingAudioProcessor.TARGET_LKFS + 24.0
+        val t = settleSeconds(input, output, settled, LU_TOLERANCE)
+        println("levelling room tone then speech: $t s")
+        assertTrue("speech settled after $t s", t <= SPEECH_LIMIT_SEC)
+    }
+
+    @Test
+    fun aQuietItemThatNeedsABoostGetsItWithinSixSeconds() {
+        // About -32 LKFS: it needs +8 dB, reached at the gentle boost.
+        val r = rig()
+        val input = sine(-32.0, 15.0)
+        val output = feed(r, input)
+        val settled = r.levelling.currentGainDb
+        assertEquals(8.0, settled, 0.5)
+        val t = settleSeconds(input, output, settled, LU_TOLERANCE)
+        println("levelling quiet item +8 dB: $t s")
+        assertTrue("settled after $t s", t <= QUIET_LIMIT_SEC)
+    }
+
+    @Test
     fun returningToAnItemStartsAtTheGainItLearned() {
         val r = rig()
         feed(r, sine(-30.0, 10.0))
@@ -254,5 +282,7 @@ class LevellingFastSettleTest {
     private companion object {
         const val LU_TOLERANCE = 2.0
         const val SETTLE_LIMIT_SEC = 3.0
+        const val SPEECH_LIMIT_SEC = 1.0
+        const val QUIET_LIMIT_SEC = 6.0
     }
 }

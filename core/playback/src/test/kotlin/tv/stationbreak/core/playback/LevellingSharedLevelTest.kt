@@ -151,10 +151,11 @@ class LevellingSharedLevelTest {
     fun turningItOnAndOffTakesEffectWithoutReconfiguring() {
         var on = false
         val p = processor(enabled = { on })
-        val before = run(p, sine(-40.0, 5.0))
+        // Above the settle phase's boost floor (BOOST_FLOOR_LKFS): a re-enable settles from 0 dB.
+        val before = run(p, sine(-34.0, 5.0))
         assertEquals(0.0, p.currentGainDb, 0.0)
         on = true
-        val after = run(p, sine(-40.0, 10.0))
+        val after = run(p, sine(-34.0, 10.0))
         assertTrue(p.currentGainDb > 5.0)
         assertTrue(lufsOfTail(after, 1.0) > lufsOfTail(before, 1.0) + 5.0)
         on = false
