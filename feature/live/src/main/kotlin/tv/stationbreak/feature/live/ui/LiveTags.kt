@@ -12,8 +12,6 @@ object LiveTags {
     const val BANNER_MARK = "live:banner:mark"
     const val BANNER_JOINED = "live:banner:joined"
 
-    /** The stream line: what plays, or "Couldn't switch" for one linger after a switch that did not take. */
-    const val BANNER_STREAM = "live:banner:stream"
     const val BANNER_CHOOSING = "live:banner:choosing"
     const val BANNER_PROGRESS = "live:banner:progress"
     const val BANNER_NEXT = "live:banner:next"
