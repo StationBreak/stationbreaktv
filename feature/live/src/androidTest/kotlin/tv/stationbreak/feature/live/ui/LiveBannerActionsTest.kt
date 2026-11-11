@@ -392,7 +392,7 @@ class LiveBannerActionsTest {
     fun theChipsNeverFailWithoutASwitchAndOnlyTheUsedOneFails() {
         show(selectBanner(Route.DIRECT_PLAY).copy(chip = PickerKind.Audio, switchFailed = true))
         assertTrue("Couldn't switch" !in chipText(LiveTags.BANNER_CHIP_SUBTITLES))
-        assertEquals("Subtitles: Off", chipDescription(LiveTags.BANNER_CHIP_SUBTITLES))
+        assertEquals("Subtitles: None", chipDescription(LiveTags.BANNER_CHIP_SUBTITLES))
     }
 
     @Test

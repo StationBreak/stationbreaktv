@@ -150,9 +150,13 @@ internal fun ActionsRow(
     var rowFocused by remember { mutableStateOf(false) }
     var infoFocused by remember { mutableStateOf(false) }
     var lastFocused by remember { mutableStateOf(false) }
+    // Only when Live was there: a row that appears without it (a switch's reopened banner, focused on a chip) has no
+    // Live button to have lost.
+    var hadLive by remember { mutableStateOf(behind) }
     LaunchedEffect(behind) {
         val onLive = rowFocused && !infoFocused && !lastFocused
-        if (!behind && onLive) first.requestFocus()
+        if (hadLive && !behind && onLive) first.requestFocus()
+        hadLive = behind
     }
     Row(
         Modifier

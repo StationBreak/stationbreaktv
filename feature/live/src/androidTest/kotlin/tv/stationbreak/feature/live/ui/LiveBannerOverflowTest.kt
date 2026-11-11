@@ -207,7 +207,7 @@ class LiveBannerOverflowTest {
         compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertExists()
         for (tag in WIDE_ROW) assertInside(tag)
         for (text in listOf("Couldn't switch", LONGEST_VERSION, "English", "Transcoding")) {
-            val node = compose.onNode(hasText(text), useUnmergedTree = true)
+            val node = compose.onNode(hasText(text, substring = true), useUnmergedTree = true)
             val result = layout(node)
             assertTrue("$text is not clipped: width overflow", !result.didOverflowWidth)
             assertTrue("$text is not clipped: no visual overflow", !result.hasVisualOverflow)
