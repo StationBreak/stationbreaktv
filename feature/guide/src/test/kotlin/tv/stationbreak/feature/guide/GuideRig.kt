@@ -43,10 +43,7 @@ import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 
 /** A schedule that lets a test change the lineup as the guide asks for it. */
 internal class HookedSchedule(
@@ -162,17 +159,6 @@ open class GuideRig {
     /** The logos the guide's panel is offered; none unless a test brings some. */
     internal var logos: GuideLogos = GuideLogos.None
 
-    /** A time source that reads the test's virtual time, so "within 150 ms" can be asked of it exactly. */
-    internal fun TestScope.virtualTime(): TimeSource =
-        object : TimeSource {
-            override fun markNow(): TimeMark {
-                val at = testScheduler.currentTime
-                return object : TimeMark {
-                    override fun elapsedNow() = (testScheduler.currentTime - at).milliseconds
-                }
-            }
-        }
-
     internal fun TestScope.clock(startMin: Long) =
         object : Clock {
             override fun now(): Instant {
@@ -200,7 +186,6 @@ open class GuideRig {
             selection = choices.selection,
             sync = syncNow,
             logos = logos,
-            timeSource = virtualTime(),
         )
     }
 

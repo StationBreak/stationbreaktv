@@ -118,6 +118,12 @@ class LogoCache(
             }
         }
 
+    /**
+     * An opaque name for the signed-in account (a hash: never the server, the address or the user), or null when none
+     * is signed in. It changes with the account, so whoever holds logos of its own can tell they are another's.
+     */
+    fun account(): String? = sessions.current.value?.let(::accountOf)
+
     /** Deletes every logo held and cancels every request in flight; their callers get null. */
     fun clear() = retainOnly(null)
 

@@ -11,9 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +21,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.SyncNow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.LogoCache
@@ -44,12 +41,9 @@ import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.ui.ProgramText
 import javax.inject.Inject
 import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 
 /**
  * Holds the program guide (spec 17): loads the schedule window, keeps focus and the viewport, fetches the details of
@@ -89,8 +83,6 @@ internal class GuideViewModel
         private val sync: SyncNow = SyncNow.None,
         /** The details panel's logos (#723): decoded, or null for none. */
         private val logos: GuideLogos = GuideLogos.None,
-        /** Measures how long a logo took after the focus rested; a test brings its own. */
-        private val timeSource: TimeSource = TimeSource.Monotonic,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -122,7 +114,10 @@ internal class GuideViewModel
         /** The grid and its focus, always consistent with each other. */
         val snapshot: StateFlow<GuideSnapshot> = shownSnapshot.asStateFlow()
 
-        /** The details of the focused cell, filled in after [DWELL_MS] of staying on it; its logo, in time or never. */
+        /**
+         * The details of the focused cell, filled in after [DWELL_MS] of staying on it, unless they are held. Its logo
+         * comes with them at once when the logo is held decoded too, else whenever it arrives while the focus stays.
+         */
         val panel: StateFlow<CellDetails?> = shownPanel.asStateFlow()
 
         /** Where Sync now stands, for the line beside the Settings panel's row (spec 26, Part 5). */
@@ -987,19 +982,25 @@ internal class GuideViewModel
             val id = cell.detailsId()
             val cached = id?.let(details::cached)
             val waiting = id != null && cached == null
-            shownPanel.value = CellDetails(cell, row.number, row.name, cached, waiting)
-            dwellJob = if (id != null) session?.launch { restOn(id, cached, focus) } else null
+            // Details held and the logo decoded and held: the whole panel at once, no rest and no text title first.
+            val held = cached?.logo?.let(logos::cached)
+            if (cached != null && held != null) {
+                shownPanel.value = CellDetails(cell, row.number, row.name, cached, loading = false, logo = held)
+                dwellJob = null
+            } else {
+                shownPanel.value = CellDetails(cell, row.number, row.name, cached, waiting)
+                dwellJob = if (id != null) session?.launch { restOn(id, cached, focus) } else null
+            }
         }
 
-        // After the focus has rested on the cell for [DWELL_MS]: its details if they are not held, then its logo. Both
-        // are for the focused cell alone, so a move on cancels this, and the cache cancels what nobody waits on.
+        // After the focus has rested on the cell for [DWELL_MS]: its details if they are not held, then its logo. The
+        // details are for the focused cell alone, so a move on cancels this and the cache cancels what nobody waits on.
         private suspend fun restOn(
             id: CanonicalId,
             cached: ItemDetails?,
             focus: GuideFocus,
         ) {
             delay(DWELL_MS.milliseconds)
-            val settled = timeSource.markNow()
             val item =
                 cached
                     ?: fetch(id).also { fetched ->
@@ -1007,21 +1008,18 @@ internal class GuideViewModel
                             if (isOn(focus)) shownPanel.value = shownPanel.value?.copy(item = fetched, loading = false)
                         }
                     }
-            item?.logo?.let { showLogo(it, focus, settled) }
+            item?.logo?.let { fetchLogo(it, focus) }
         }
 
-        // The logo replaces the text title only if it is in hand within [LOGO_WINDOW_MS] of the highlight settling (a
-        // held one is, in a few milliseconds): a logo that comes later is finished and kept for next time, and never
-        // swapped in under the viewer. The request is left running past the window, but only while the focus stays.
-        private suspend fun showLogo(
+        // The logo is asked for once the focus has rested and the details are in, and shown whenever it arrives while
+        // the focus is still on its cell. It is a request of its own, not the move's: one that arrives after the focus
+        // has gone is kept in the loader's memory for the next visit and shown to no one.
+        private fun fetchLogo(
             logo: ItemLogo,
             focus: GuideFocus,
-            settled: TimeMark,
-        ) = coroutineScope {
-            val loading = async { loadLogo(logo) }
-            val left = LOGO_WINDOW_MS.milliseconds - settled.elapsedNow()
-            val image = if (left > Duration.ZERO) withTimeoutOrNull(left) { loading.await() } else null
-            if (image != null) {
+        ) {
+            session?.launch {
+                val image = loadLogo(logo) ?: return@launch
                 synchronized(lock) { if (isOn(focus)) shownPanel.value = shownPanel.value?.copy(logo = image) }
             }
         }
@@ -1062,9 +1060,6 @@ internal class GuideViewModel
         private companion object {
             /** How long the focus rests on a cell before its details and logo are asked for. */
             const val DWELL_MS = 200L
-
-            /** How long after the focus has rested a logo may still replace the text title. */
-            const val LOGO_WINDOW_MS = 150L
             const val LOADING_AFTER_MS = 400L
             const val NEVER = Long.MIN_VALUE
             const val NO_MEASURE = -1L

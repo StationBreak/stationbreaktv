@@ -207,7 +207,9 @@ private fun PanelLines(
             overflow = TextOverflow.Ellipsis,
         )
     }
-    Slot(PanelSlot.Title) { PanelTitle(cellTitle(cell, copy), details.logo, colors) }
+    Slot(PanelSlot.Title) {
+        PanelTitle(details.channelNumber to cell.startMs, cellTitle(cell, copy), details.logo, colors)
+    }
     episode?.let {
         Slot(PanelSlot.Episode) {
             Text(

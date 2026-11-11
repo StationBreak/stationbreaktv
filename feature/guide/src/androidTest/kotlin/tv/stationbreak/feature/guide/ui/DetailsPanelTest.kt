@@ -392,6 +392,53 @@ class DetailsPanelTest {
         assertEquals(6f, logo.top.value - box.top.value, 0.5f)
     }
 
+    private fun metaTop() = meta().getBoundsInRoot().top.value
+
+    private fun tagsTop() = tag(0).getBoundsInRoot().top.value
+
+    @Test
+    fun theLinesBelowTheTitleDoNotMoveWhenALogoTakesItsPlace() {
+        for (scheme in listOf(GuideColors.Dark, GuideColors.Light)) {
+            colors.value = scheme
+            panel.value = null
+            show(rich())
+            compose.mainClock.advanceTimeBy(SETTLED_MS)
+            val metaWithText = metaTop()
+            val tagsWithText = tagsTop()
+
+            // The same cell gets its logo, of three shapes: the title block is 46 dp tall for each, plate or not.
+            for (logo in listOf(art(600, 300), art(4000, 100), art(40, 20))) {
+                show(rich(logo = logo))
+                compose.mainClock.advanceTimeBy(SETTLED_MS)
+                compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).assertIsDisplayed()
+                assertEquals("meta line, ${logo.width} px logo", metaWithText, metaTop(), 0.5f)
+                assertEquals("tags, ${logo.width} px logo", tagsWithText, tagsTop(), 0.5f)
+            }
+
+            // And a cell shown with its logo from the first frame has them in the same place.
+            panel.value = null
+            show(rich(logo = art(600, 300)))
+            assertEquals("first shown with a logo", metaWithText, metaTop(), 0.5f)
+        }
+    }
+
+    @Test
+    fun aLogoThatArrivesForTheCellOnShowFadesInOverTheTextTitle() {
+        show(rich())
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        assertEquals("Program 0", text(GuideTags.PANEL_TITLE))
+
+        show(rich(logo = art(600, 300)))
+        compose.mainClock.advanceTimeBy(60)
+        // Mid-fade: the logo is the title node, and the text under it is not a second one.
+        compose.onAllNodesWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).assertCountEquals(1)
+        compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).assertExists()
+
+        compose.mainClock.advanceTimeBy(200)
+        compose.onAllNodesWithText("Program 0", useUnmergedTree = true).assertCountEquals(0)
+        compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).assertIsDisplayed()
+    }
+
     private companion object {
         // The guide's panel on a 960 x 540 dp screen: the band left of the picture, less the menu row (a 40 dp button
         // and the gap above it).
