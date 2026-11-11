@@ -287,6 +287,15 @@ class LiveScreenshotTest {
 
     /** The widest row: Live (behind), Info, Last, a subtitle in use, a transcode, and "Couldn't switch" on the chip. */
     @Test
+    fun theBannerAfterAVersionThatDidNotTake() =
+        shoot(
+            "live-switch-failed-version.png",
+            LiveState.Watching(
+                banner(actions = true, stream = twoVersions, chip = PickerKind.Version, switchFailed = true),
+            ),
+        )
+
+    @Test
     fun theBannerAfterAFailedSwitchAtItsWidest() {
         val transcoding = facts.copy(route = Route.TRANSCODE, subtitleIndex = 4)
         shoot(
