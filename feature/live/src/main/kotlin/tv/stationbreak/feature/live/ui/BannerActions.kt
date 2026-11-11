@@ -129,6 +129,7 @@ internal fun ActionsRow(
     stream: StreamFacts? = null,
     chipPlaced: (PickerKind, Float) -> Unit = { _, _ -> },
     picker: PickerKind? = null,
+    names: List<String> = emptyList(),
 ) {
     val first = remember { FocusRequester() }
     val live = remember { FocusRequester() }
@@ -188,7 +189,7 @@ internal fun ActionsRow(
             val last = Modifier.onFocusChanged { lastFocused = it.hasFocus }.testTag(LiveTags.BANNER_ACTION_LAST)
             ActionButton(R.string.live_action_last, actions.last, last)
         }
-        if (stream != null) Chips(stream, actions, chipFocus, chipPlaced)
+        if (stream != null) Chips(stream, actions, chipFocus, chipPlaced, names)
     }
 }
 
@@ -219,6 +220,7 @@ private fun RowScope.Chips(
     actions: Actions,
     focus: Map<PickerKind, FocusRequester>,
     placed: (PickerKind, Float) -> Unit,
+    names: List<String>,
 ) {
     val context = LocalContext.current
     val copy = remember(context) { StreamCopy.from(context.resources) }
@@ -246,7 +248,7 @@ private fun RowScope.Chips(
             .onGloballyPositioned { placed(PickerKind.Subtitles, it.positionInRoot().x) }
             .testTag(LiveTags.BANNER_CHIP_SUBTITLES),
     )
-    StreamLabels.versionChip(stream, copy)?.let { value ->
+    StreamLabels.versionChip(stream, copy, names)?.let { value ->
         val tag =
             Modifier
                 .focusRequester(focus.getValue(PickerKind.Version))

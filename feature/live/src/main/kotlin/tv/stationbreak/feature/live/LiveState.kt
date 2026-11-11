@@ -122,7 +122,10 @@ data class Banner(
     val stream: StreamFacts? = null,
     val picker: PickerKind? = null,
     val switchFailed: Boolean = false,
-)
+) {
+    /** The titles of what plays: the banner's and the program's own, which a version's name must not repeat. */
+    val programNames: List<String> get() = listOfNotNull(title, info?.title, info?.seriesName).distinct()
+}
 
 /** The program after the one a [Banner] names: its title as the banner shows it, and its start (UTC milliseconds). */
 data class NextProgram(
