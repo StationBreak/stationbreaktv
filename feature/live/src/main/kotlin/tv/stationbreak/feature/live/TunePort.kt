@@ -185,4 +185,10 @@ sealed interface Remembered {
     data class Subtitles(
         val preference: SubtitlePreference?,
     ) : Remembered
+
+    /** The version the viewer chose for [item]; it plays again whenever the item does and still offers it (#630). */
+    data class Version(
+        val item: ItemId,
+        val source: MediaSourceId,
+    ) : Remembered
 }

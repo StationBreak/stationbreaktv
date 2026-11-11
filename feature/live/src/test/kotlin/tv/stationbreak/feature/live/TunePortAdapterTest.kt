@@ -636,4 +636,76 @@ class TunePortAdapterTest {
             assertEquals(2, checkNotNull(playing.facts).audioIndex)
             assertEquals("the handle played: no second resolve", 2, rig.fake.playbackInfoCalls.size)
         }
+
+    private fun remembering(
+        rig: Rig,
+        source: String?,
+        asked: MutableList<ItemId> = mutableListOf(),
+    ): TunePort {
+        val lookup: suspend (Session, ItemId) -> MediaSourceId? = { _, of ->
+            asked += of
+            source?.let(::MediaSourceId)
+        }
+        return TunePortAdapter(rig.controller, version = lookup)
+    }
+
+    @Test
+    fun theVersionTheViewerRememberedForTheItemPlaysWhenTheItemOffersIt() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val asked = mutableListOf<ItemId>()
+            val port = remembering(rig, "src2", asked)
+            val facts = checkNotNull((port.tune(session, item, Duration.ZERO) as TuneOutcome.Playing).facts)
+            assertEquals("the remembered version, not the server's first", MediaSourceId("src2"), facts.sourceId)
+            assertEquals(listOf(item), asked)
+            assertEquals("every version is still listed", 2, facts.sources.size)
+        }
+
+    @Test
+    fun aRememberedVersionTheItemNoLongerOffersLeavesTheServersDefault() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val played = remembering(rig, "gone").tune(session, item, Duration.ZERO) as TuneOutcome.Playing
+            val facts = checkNotNull(played.facts)
+            assertEquals(MediaSourceId("src1"), facts.sourceId)
+        }
+
+    @Test
+    fun aChoiceMadeOnTheProgrammeBeatsTheRememberedVersion() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val chose = TrackChoice(MediaSourceId("src1"), null)
+            val port = remembering(rig, "src2")
+            val facts = checkNotNull((port.tune(session, item, Duration.ZERO, chose) as TuneOutcome.Playing).facts)
+            assertEquals(MediaSourceId("src1"), facts.sourceId)
+        }
+
+    @Test
+    fun aRememberedVersionAlsoPlaysWhenTheNextShowWasPreResolved() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val port = remembering(rig, "src2")
+            val handle = checkNotNull(port.preResolve(session, item, Duration.ZERO))
+            val facts = checkNotNull((port.tune(session, handle, Duration.ZERO) as TuneOutcome.Playing).facts)
+            assertEquals(MediaSourceId("src2"), facts.sourceId)
+        }
+
+    @Test
+    fun noRememberedVersionLeavesTheServersDefault() =
+        kotlinx.coroutines.test.runTest {
+            val rig = Rig(this)
+            answerBoth(rig)
+            rig.player.answerAt = Duration.ZERO
+            val played = remembering(rig, null).tune(session, item, Duration.ZERO) as TuneOutcome.Playing
+            val facts = checkNotNull(played.facts)
+            assertEquals(MediaSourceId("src1"), facts.sourceId)
+        }
 }

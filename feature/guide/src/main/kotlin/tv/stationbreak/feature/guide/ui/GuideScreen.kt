@@ -170,6 +170,7 @@ internal fun GuideScreen(
     themeChoice: GuideTheme = GuideTheme.Dark,
     modifier: Modifier = Modifier,
     syncNow: SyncNowState = SyncNowState.Idle,
+    levelling: Boolean = true,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
@@ -219,7 +220,8 @@ internal fun GuideScreen(
                 // The menu row takes the foot of that band, so the grid and the picture stay where they are.
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 val kind = guidePanelOf(info != null, settings != null, noLibraries, onChannel)
-                TopPanel(kind, TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow), panelSize)
+                val parts = TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling)
+                TopPanel(kind, parts, panelSize)
                 GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(

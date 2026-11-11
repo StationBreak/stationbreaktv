@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -288,6 +289,23 @@ class LiveBannerActionsTest {
     }
 
     @Test
+    fun aChipKeepsTheFocusWhenLiveGoes() {
+        var transport by mutableStateOf<TransportView?>(view(paused = true))
+        compose.setContent {
+            StationBreakTheme {
+                val state = LiveState.Watching(selectBanner(Route.DIRECT_PLAY))
+                LiveScreen(state, null, {}, null, transport) {}
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).performSemanticsAction(SemanticsActions.RequestFocus)
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+        compose.runOnIdle { transport = null }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+    }
+
+    @Test
     fun liveSendsGoLive() {
         showKeysRoot(transport = view(paused = false))
         press(Key.DirectionCenter)
@@ -355,6 +373,52 @@ class LiveBannerActionsTest {
         secondAudio: SwitchCost = SwitchCost.Retune,
     ) = banner(actions = true).copy(stream = facts(route, secondAudio), picker = picker)
 
+    private fun chipText(tag: String): String =
+        compose
+            .onNodeWithTag(tag)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.Text]
+            .joinToString("") { it.text }
+
+    private fun chipDescription(tag: String): String =
+        compose
+            .onNodeWithTag(tag)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.ContentDescription]
+            .joinToString("")
+
+    @Test
+    fun aSwitchThatReopenedTheBannerHasTheFocusOnTheChipUsed() {
+        show(selectBanner(Route.DIRECT_PLAY).copy(chip = PickerKind.Audio))
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsNotFocused()
+        assertTrue(chipText(LiveTags.BANNER_CHIP_AUDIO), "English 5.1" in chipText(LiveTags.BANNER_CHIP_AUDIO))
+    }
+
+    @Test
+    fun afterAFailedSwitchTheChipReadsCouldntSwitchAndNamesWhatStillPlays() {
+        show(selectBanner(Route.DIRECT_PLAY).copy(chip = PickerKind.Audio, switchFailed = true))
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+        val text = chipText(LiveTags.BANNER_CHIP_AUDIO)
+        assertTrue(text, "Couldn't switch" in text)
+        assertTrue("the value is replaced, not joined: $text", "English" !in text)
+        assertEquals("Audio, couldn't switch, still English 5.1", chipDescription(LiveTags.BANNER_CHIP_AUDIO))
+    }
+
+    @Test
+    fun theChipsNeverFailWithoutASwitchAndOnlyTheUsedOneFails() {
+        show(selectBanner(Route.DIRECT_PLAY).copy(chip = PickerKind.Audio, switchFailed = true))
+        assertTrue("Couldn't switch" !in chipText(LiveTags.BANNER_CHIP_SUBTITLES))
+        assertEquals("Subtitles: None", chipDescription(LiveTags.BANNER_CHIP_SUBTITLES))
+    }
+
+    @Test
+    fun anOrdinaryActionsBannerKeepsTheFocusOnInfoAndSaysNothingFailed() {
+        show(selectBanner(Route.DIRECT_PLAY))
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        assertEquals("Audio: English 5.1", chipDescription(LiveTags.BANNER_CHIP_AUDIO))
+    }
+
     @Test
     fun transcodingIsSaidAtTheEndOfTheChipsRowOnlyForATranscode() {
         show(selectBanner(Route.TRANSCODE))
@@ -369,6 +433,42 @@ class LiveBannerActionsTest {
         // At the right end of the row: past the last chip.
         val chip = compose.onNodeWithTag(LiveTags.BANNER_CHIP_SUBTITLES).fetchSemanticsNode().boundsInRoot
         assertTrue(label.fetchSemanticsNode().boundsInRoot.left >= chip.right)
+    }
+
+    private fun withSecondVersion(facts: StreamFacts): StreamFacts {
+        val first = facts.sources.single()
+        val other = first.copy(id = MediaSourceId("other"), name = "Theatrical")
+        return facts.copy(sources = listOf(first, other))
+    }
+
+    private fun twoVersions(picker: PickerKind? = null): Banner {
+        val banner = selectBanner(Route.DIRECT_PLAY, picker)
+        return banner.copy(stream = withSecondVersion(checkNotNull(banner.stream)))
+    }
+
+    private fun versionChipConfig() = compose.onNodeWithTag(LiveTags.BANNER_CHIP_VERSION).fetchSemanticsNode().config
+
+    @Test
+    fun withOneVersionTheVersionChipIsShownButNotAButton() {
+        show(selectBanner(Route.DIRECT_PLAY))
+        assertTrue(SemanticsActions.OnClick !in versionChipConfig())
+    }
+
+    @Test
+    fun withTwoVersionsTheVersionChipOpensItsPicker() {
+        show(twoVersions())
+        assertTrue(SemanticsActions.OnClick in versionChipConfig())
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_VERSION).performSemanticsAction(SemanticsActions.OnClick)
+        compose.waitForIdle()
+        assertEquals(listOf<LiveCommand>(LiveCommand.OpenPicker(PickerKind.Version)), sent.toList())
+    }
+
+    @Test
+    fun theVersionPickerListsEveryVersionAndSaysTheBriefPauseOnce() {
+        show(twoVersions(PickerKind.Version))
+        compose.onNodeWithTag(LiveTags.PICKER_ROW + 0).assertExists()
+        compose.onNodeWithTag(LiveTags.PICKER_ROW + 1).assertExists()
+        compose.onNodeWithTag(LiveTags.PICKER_HEADING).assertExists()
     }
 
     @Test

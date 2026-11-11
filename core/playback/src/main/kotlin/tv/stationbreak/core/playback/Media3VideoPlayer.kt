@@ -22,9 +22,11 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.DecoderCounters
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.math.abs
 import kotlin.time.Duration
@@ -75,6 +78,8 @@ class Media3VideoPlayer internal constructor(
     private val warmSwitches: WarmSwitches,
     // Whether this device may warm: the process's one (DeviceWarmth.of) outside tests, which need a fresh one each.
     device: DeviceWarmth,
+    // Automatic volume levelling (#498): null leaves audio alone. Both slots share its one level.
+    private val volumeLevelling: VolumeLevelling? = null,
 ) : VideoPlayer {
     constructor(
         context: Context,
@@ -83,7 +88,8 @@ class Media3VideoPlayer internal constructor(
         buffering: PlaybackBuffering = PlaybackBuffering(),
         warm: WarmConfig = WarmConfig(),
         warmSwitches: WarmSwitches = WarmSwitches.None,
-    ) : this(context, dataSource, clock, buffering, warm, warmSwitches, DeviceWarmth.of(context))
+        volumeLevelling: VolumeLevelling? = null,
+    ) : this(context, dataSource, clock, buffering, warm, warmSwitches, DeviceWarmth.of(context), volumeLevelling)
 
     init {
         // Before ExoPlayer exists: Media3's own error logs can quote a playlist line with a token.
@@ -212,13 +218,38 @@ class Media3VideoPlayer internal constructor(
         val holding = AtomicBoolean(false)
         val loadControl =
             HoldingLoadControl(buffering.toLoadControl(allocator), warm.warmHoldBufferMs * US_PER_MS) { holding.get() }
+        // The slot's processor is the leading one while this slot is the front: only then does it update the level.
+        val built = AtomicReference<Slot?>(null)
         val exo =
             ExoPlayer
-                .Builder(context)
+                .Builder(context, renderersFactory { slots.front === built.get() })
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(CountingMediaSourceFactory(dataSource, loadCounter))
                 .build()
-        return Slot(exo, allocator, loadCounter, holding)
+        return Slot(exo, allocator, loadCounter, holding).also { built.set(it) }
+    }
+
+    /**
+     * The default renderers; with [volumeLevelling] the audio sink gets one [LevellingAudioProcessor], tied to the
+     * shared [LoudnessLevel] ([leading] says whether this slot is the audible one). Bitstream audio (AC3, E-AC3, DTS,
+     * TrueHD) never reaches the processor and the audio capabilities are the defaults.
+     */
+    private fun renderersFactory(leading: () -> Boolean): DefaultRenderersFactory {
+        val levelling = volumeLevelling ?: return DefaultRenderersFactory(context)
+        return object : DefaultRenderersFactory(context) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean,
+            ): AudioSink =
+                DefaultAudioSink
+                    .Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(
+                        arrayOf(LevellingAudioProcessor(levelling.level, leading, levelling.enabled)),
+                    ).build()
+        }
     }
 
     override fun attach(surface: SurfaceView?) =

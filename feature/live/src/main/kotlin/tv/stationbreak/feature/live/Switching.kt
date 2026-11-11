@@ -5,6 +5,7 @@ import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.tracks.SubtitlePreference
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.LanguageCodes
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.playback.SourceFacts
 import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.playback.SubtitleChoice
@@ -57,6 +58,7 @@ internal fun planSwitch(
     selection: TrackSelection,
     facts: StreamFacts,
     now: TrackOverride?,
+    item: ItemId,
 ): SwitchPlan? {
     val source = facts.playing ?: return null
     val audio = now?.audioIndex ?: facts.audioIndex
@@ -64,7 +66,29 @@ internal fun planSwitch(
     return when (selection) {
         is TrackSelection.Audio -> planAudio(selection.index, facts, source, subtitle)
         is TrackSelection.Subtitles -> planSubtitles(selection.choice, facts, audio, source.subtitles)
+        is TrackSelection.Version -> planVersion(selection.source, facts, item)
     }
+}
+
+/**
+ * Another version (#630): always a retune, with the version named and no tracks, so the new version's own tracks are
+ * chosen again by the carried language preferences (the old version's indices mean nothing there). Choosing the
+ * version that plays, or one the item does not have, is no plan.
+ */
+private fun planVersion(
+    id: MediaSourceId,
+    facts: StreamFacts,
+    item: ItemId,
+): SwitchPlan? {
+    val target = facts.sources.firstOrNull { it.id == id }?.takeIf { it.id != facts.sourceId } ?: return null
+    return SwitchPlan(
+        choice = TrackChoice(target.id, null),
+        inPlace = null,
+        cost = SwitchCost.Retune,
+        label = BannerLabel.SwitchingVersion,
+        facts = facts,
+        remember = Remembered.Version(item, target.id),
+    )
 }
 
 private fun planAudio(
@@ -153,7 +177,7 @@ internal suspend fun Sitting.switchTo(
     onPlaying: (TuneOutcome.Playing) -> Unit,
 ): Switched {
     val before = choiceFor(block, item)
-    val plan = play.facts?.let { planSwitch(selection, it, before?.tracks) } ?: return Switched.Done(play)
+    val plan = play.facts?.let { planSwitch(selection, it, before?.tracks, item) } ?: return Switched.Done(play)
     val inPlace = plan.inPlace
     if (plan.cost == SwitchCost.Instant && inPlace != null && play.control.switchTracks(inPlace)) {
         took(plan, block, item)

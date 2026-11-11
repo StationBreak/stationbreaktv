@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live
 import kotlinx.coroutines.CancellationException
 import tv.stationbreak.core.domain.tracks.TrackPreferences
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaSourceId
 import tv.stationbreak.core.model.PlayMethod
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.playback.FallbackCause
@@ -27,6 +28,8 @@ class TunePortAdapter(
     private val controller: TuneController,
     /** Keeps a viewer's choice for the account (the track choice store): it never throws, and a failed save is lost. */
     private val keep: suspend (Session, Remembered) -> Unit = { _, _ -> },
+    /** The version the account last chose for an item (#630); never throws, null for none. */
+    private val version: suspend (Session, ItemId) -> MediaSourceId? = { _, _ -> null },
     /** The carried language preferences of the session's account (design doc B2.6); never throws, null for none. */
     private val preferences: suspend (Session) -> TrackPreferences? = { null },
 ) : TunePort {
@@ -35,7 +38,20 @@ class TunePortAdapter(
         item: ItemId,
         start: Duration,
         choice: TrackChoice?,
-    ): TuneOutcome = controller.tune(session, item, start, choice, preferences(session)).toOutcome()
+    ): TuneOutcome {
+        val asked = choice ?: remembered(session, item)
+        return controller.tune(session, item, start, asked, preferences(session)).toOutcome()
+    }
+
+    /**
+     * The viewer's remembered version of [item] as a choice of version alone, for a tune that has no choice of its own
+     * (a choice made on this programme names its version already). The resolver plays it only while the item still
+     * offers it; otherwise the server's default version plays, silently.
+     */
+    private suspend fun remembered(
+        session: Session,
+        item: ItemId,
+    ): TrackChoice? = version(session, item)?.let { TrackChoice(it, null) }
 
     /** Never throws, so a failed look-ahead is just "nothing prepared" and the next show is tuned the ordinary way. */
     @Suppress("TooGenericExceptionCaught") // Any failure of the look-ahead means no handle; cancellation still passes.
@@ -73,7 +89,11 @@ class TunePortAdapter(
         next: NextHandle,
         start: Duration?,
         choice: TrackChoice?,
-    ): TuneOutcome = controller.tune(session, next.prepared(), choice, start, preferences(session)).toOutcome()
+    ): TuneOutcome {
+        val handle = next.prepared()
+        val asked = choice ?: remembered(session, handle.item)
+        return controller.tune(session, handle, asked, start, preferences(session)).toOutcome()
+    }
 
     override suspend fun discard(
         session: Session,

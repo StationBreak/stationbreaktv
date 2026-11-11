@@ -136,6 +136,20 @@ class LiveScreenshotTest {
             offCost = SwitchCost.Instant,
         )
 
+    /** The same play where the server offers a second version: the Version chip is a button, and has a picker. */
+    private val twoVersions =
+        facts.copy(
+            sources =
+                facts.sources +
+                    SourceFacts(
+                        MediaSourceId("frame-theatrical"),
+                        "Theatrical Cut",
+                        VideoFacts(1280, 720, "h264"),
+                        audio = emptyList(),
+                        subtitles = emptyList(),
+                    ),
+        )
+
     @Suppress("LongParameterList") // One frame's choices: which banner, what plays, what is open, what it says.
     private fun banner(
         actions: Boolean,
@@ -144,6 +158,7 @@ class LiveScreenshotTest {
         stream: StreamFacts? = null,
         picker: PickerKind? = null,
         label: BannerLabel = BannerLabel.Now,
+        chip: PickerKind? = null,
         switchFailed: Boolean = false,
     ) = Banner(
         number = 162,
@@ -160,6 +175,7 @@ class LiveScreenshotTest {
         recipeKey = recipeKey,
         stream = stream,
         picker = picker,
+        chip = chip,
         switchFailed = switchFailed,
     )
 
@@ -231,18 +247,65 @@ class LiveScreenshotTest {
         )
 
     @Test
+    fun theVersionPicker() =
+        shoot(
+            "live-picker-version.png",
+            LiveState.Watching(banner(actions = true, stream = twoVersions, picker = PickerKind.Version)),
+        )
+
+    @Test
+    fun switchingVersionUnderTheSnow() =
+        shoot(
+            "live-switching-version.png",
+            LiveState.Tuning(banner(actions = false, stream = twoVersions, label = BannerLabel.SwitchingVersion)),
+        )
+
+    @Test
     fun switchingAudioUnderTheSnow() =
         shoot(
             "live-switching.png",
             LiveState.Tuning(banner(actions = false, label = BannerLabel.SwitchingAudio)),
         )
 
+    /** The Select banner reopened after a re-tune that took: the chip used has the focus and shows the new value. */
+    @Test
+    fun theBannerAfterASwitchThatTook() =
+        shoot(
+            "live-switch-took.png",
+            LiveState.Watching(banner(actions = true, stream = facts, chip = PickerKind.Audio)),
+        )
+
+    /** The same banner after a re-tune that fell back: the chip reads "Couldn't switch" in its normal text colour. */
     @Test
     fun theBannerAfterASwitchThatDidNotTake() =
         shoot(
             "live-switch-failed.png",
-            LiveState.Watching(banner(actions = false, stream = facts, switchFailed = true)),
+            LiveState.Watching(
+                banner(actions = true, stream = facts, chip = PickerKind.Audio, switchFailed = true),
+            ),
         )
+
+    /** The widest row: Live (behind), Info, Last, a subtitle in use, a transcode, and "Couldn't switch" on the chip. */
+    @Test
+    fun theBannerAfterAVersionThatDidNotTake() =
+        shoot(
+            "live-switch-failed-version.png",
+            LiveState.Watching(
+                banner(actions = true, stream = twoVersions, chip = PickerKind.Version, switchFailed = true),
+            ),
+        )
+
+    @Test
+    fun theBannerAfterAFailedSwitchAtItsWidest() {
+        val transcoding = facts.copy(route = Route.TRANSCODE, subtitleIndex = 4)
+        shoot(
+            "live-switch-failed-widest.png",
+            LiveState.Watching(
+                banner(actions = true, stream = transcoding, chip = PickerKind.Audio, switchFailed = true),
+            ),
+            behindView(),
+        )
+    }
 
     @Test
     fun theChannelFlip() {
@@ -255,19 +318,22 @@ class LiveScreenshotTest {
         shoot(
             "live-transport.png",
             LiveState.Watching(null),
-            TransportView(
-                paused = true,
-                seeking = false,
-                seekable = true,
-                visible = true,
-                mediaMs = 10 * MINUTE,
-                targetMs = null,
-                asOfMs = now,
-                blockStartMs = now - 15 * MINUTE,
-                inPointMs = 0,
-                cutMs = 60 * MINUTE,
-                driftMs = 0,
-            ),
+            behindView(),
+        )
+
+    private fun behindView() =
+        TransportView(
+            paused = true,
+            seeking = false,
+            seekable = true,
+            visible = true,
+            mediaMs = 10 * MINUTE,
+            targetMs = null,
+            asOfMs = now,
+            blockStartMs = now - 15 * MINUTE,
+            inPointMs = 0,
+            cutMs = 60 * MINUTE,
+            driftMs = 0,
         )
 
     /** A warm vignette, so the banner's surface and text are judged over a picture and not over black. */

@@ -54,6 +54,7 @@ internal class TopPanelParts(
     val themeChoice: GuideTheme,
     val fit: ScreenFit,
     val syncNow: SyncNowState,
+    val levelling: Boolean = true,
 )
 
 /** The top-left panel of [kind], in [modifier]'s place; [GuidePanelKind.Empty] keeps the place and draws nothing. */
@@ -70,7 +71,7 @@ internal fun TopPanel(
 
         GuidePanelKind.Settings -> {
             val open = checkNotNull(parts.settings)
-            GuideSettingsPanel(parts.themeChoice, parts.fit, open.row, modifier, parts.syncNow)
+            GuideSettingsPanel(parts.themeChoice, parts.fit, open.row, modifier, parts.syncNow, parts.levelling)
         }
 
         GuidePanelKind.Channel -> {

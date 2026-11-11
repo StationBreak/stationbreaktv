@@ -8,10 +8,13 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -20,12 +23,24 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.TrackFlags
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.playback.AudioFacts
+import tv.stationbreak.core.playback.Route
+import tv.stationbreak.core.playback.SourceFacts
+import tv.stationbreak.core.playback.StreamFacts
+import tv.stationbreak.core.playback.SubtitleFacts
+import tv.stationbreak.core.playback.SubtitleForm
+import tv.stationbreak.core.playback.SwitchCost
+import tv.stationbreak.core.playback.VideoFacts
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.PickerKind
+import tv.stationbreak.feature.live.TransportView
 
 /**
  * Long text in the banners (spec 14, device finding): every single-line text is one line that ends in an ellipsis, and
@@ -129,6 +144,23 @@ class LiveBannerOverflowTest {
     }
 
     @Test
+    fun theTitleIs18spBoldAndTheMetaLineStays11sp() {
+        show(LiveState.Watching(banner(longEpisode)))
+        val title = layout(compose.onNodeWithTag(LiveTags.BANNER_TITLE)).layoutInput.style
+        assertEquals(18.sp, title.fontSize)
+        assertEquals(FontWeight.Bold, title.fontWeight)
+        assertEquals(11.sp, layout(compose.onNodeWithTag(LiveTags.BANNER_SLOT)).layoutInput.style.fontSize)
+    }
+
+    @Test
+    fun theBannerStaysAtItsHeightWithTheBiggerTitle() {
+        show(LiveState.Watching(banner(longEpisode)))
+        val density = compose.activity.resources.displayMetrics.density
+        // The tagged node is inside the 1 dp border on each side of the 58 dp bar.
+        assertEquals((58f - 2f) * density, frame().tagged.getValue(LiveTags.BANNER).height, density)
+    }
+
+    @Test
     fun aLongSeriesTitleEndsInAnEllipsisInsideTheBanner() {
         show(LiveState.Watching(banner(longSeries)))
         assertEllipsized(LiveTags.BANNER_TITLE)
@@ -161,7 +193,80 @@ class LiveBannerOverflowTest {
         assertInside(LiveTags.BANNER_CHANNEL)
     }
 
+    /**
+     * The widest the chips row gets (design doc B2.7): the Live button (behind), Info, Last, a transcode's
+     * "Transcoding", the longest Version value in the fixtures, a subtitle in use, and the used chip saying "Couldn't
+     * switch". At the Safe screen fit (the default). Every text is whole, and every node ends inside the banner and
+     * the safe area.
+     */
+    @Test
+    fun theChipsRowAfterAFailedSwitchFitsAtTheSafeScreenFitWithLiveAndTheLongestVersion() {
+        val state = LiveState.Watching(failedChipBanner())
+        compose.setContent { StationBreakTheme { LiveScreen(state, transport = behindView()) {} } }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertExists()
+        for (tag in WIDE_ROW) assertInside(tag)
+        for (text in listOf("Couldn't switch", LONGEST_VERSION, "English", "Transcoding")) {
+            val node = compose.onNode(hasText(text, substring = true), useUnmergedTree = true)
+            val result = layout(node)
+            assertTrue("$text is not clipped: width overflow", !result.didOverflowWidth)
+            assertTrue("$text is not clipped: no visual overflow", !result.hasVisualOverflow)
+        }
+        // Nothing underneath another: each node starts where the one before it ends, or later.
+        val bounds = frame().tagged
+        val order = listOf(LiveTags.BANNER_CHIP_AUDIO, LiveTags.BANNER_CHIP_SUBTITLES, LiveTags.BANNER_CHIP_VERSION)
+        for ((left, right) in order.zipWithNext()) {
+            assertTrue("$left ends before $right starts", bounds.getValue(left).right <= bounds.getValue(right).left)
+        }
+    }
+
+    private fun failedChipBanner(): Banner {
+        val audio =
+            listOf(
+                AudioFacts(1, "eng", "ac3", 6, null, true, TrackFlags(), SwitchCost.Instant),
+                AudioFacts(2, "spa", "ac3", 6, null, false, TrackFlags(), SwitchCost.Retune),
+            )
+        val subtitles =
+            listOf(SubtitleFacts(4, "eng", "subrip", SubtitleForm.Text, null, false, false, TrackFlags()))
+        val source = SourceFacts(SOURCE, "Director's Cut", VideoFacts(1920, 1080, "hevc"), audio, subtitles)
+        val facts = StreamFacts(Route.TRANSCODE, SOURCE, audioIndex = 1, subtitleIndex = 4, sources = listOf(source))
+        return banner(longEpisode).copy(
+            actions = true,
+            hasLast = true,
+            stream = facts,
+            chip = PickerKind.Audio,
+            switchFailed = true,
+        )
+    }
+
+    private fun behindView() =
+        TransportView(
+            paused = true,
+            seeking = false,
+            seekable = true,
+            visible = true,
+            mediaMs = 10 * MINUTE,
+            targetMs = null,
+            asOfMs = START,
+            blockStartMs = START - 15 * MINUTE,
+            inPointMs = 0,
+            cutMs = 60 * MINUTE,
+            driftMs = 0,
+        )
+
     private companion object {
+        val SOURCE = MediaSourceId("src1")
+        const val LONGEST_VERSION = "1080p · HEVC · Director's Cut"
+        val WIDE_ROW =
+            listOf(
+                LiveTags.BANNER_ACTION_LIVE,
+                LiveTags.BANNER_ACTION_INFO,
+                LiveTags.BANNER_ACTION_LAST,
+                LiveTags.BANNER_CHIP_AUDIO,
+                LiveTags.BANNER_CHIP_SUBTITLES,
+                LiveTags.BANNER_CHIP_VERSION,
+                LiveTags.BANNER_TRANSCODING,
+            )
         const val MINUTE = 60_000L
         const val START = 1_800_000_000_000L
         const val SAFE = 0.05f

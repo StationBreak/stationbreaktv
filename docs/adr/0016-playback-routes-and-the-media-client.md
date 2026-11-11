@@ -353,7 +353,7 @@ The pickers (PR 4) make the choices decision 6 and the 2026-11-09 update prepare
   `Instant` and the control takes it, the play carries on with its facts updated; anything else is a **retune at the
   place under the snow** (`Retune.switching`: banner `SWITCHING AUDIO` / `SWITCHING SUBTITLES`). A retune made for a
   switch does **not** use the block's one retry (that is for failures). If it does not play, the previous choice is tuned
-  at the same place and the one banner that follows says "Couldn't switch" in the stream line's place; if that does not
+  at the same place and the Select banner that reopens when the picture is back says "Couldn't switch" on the chip that was used (design doc B2.7); if that does not
   play either, the item is dead for the block as for any failed retry. The retune carries the whole choice: changing
   the audio keeps the subtitles as they were (a subtitle the viewer turned off stays off), and changing the subtitles
   keeps the audio.
@@ -377,3 +377,23 @@ The pickers (PR 4) make the choices decision 6 and the 2026-11-09 update prepare
   subtitle in the container switches in place and its captions are drawn (#706). Version choice and applying the
   remembered version are #630. Following Android's system caption setting (B2.2) is still the owner's open question and
   is not implemented.
+
+## Update 2026-11-11: choosing a version while watching (#630)
+
+The Version chip is a picker when the item has more than one version, and the version a viewer chooses is remembered
+per item and applied the next time the item plays.
+
+- **A version choice is a retune that names the version and no tracks.** `TrackChoice(source, null)` already meant
+  "this version, tracks decided by the resolver": the resolver plays a preferred source that the answer contains and
+  otherwise the server's default, then applies the carried language preferences to it. A version's audio and subtitle
+  indices differ from another's, so nothing of the old version's track choice is kept. It is always `Retune`
+  (`switchCost`), labelled `SWITCHING VERSION`, and on a failed retune the previous choice is tuned again.
+- **The remembered version is applied by the live tune port, to a tune with no choice of its own.** `TunePortAdapter`
+  reads `TrackChoiceStore.version` (a local file read, like the carried preferences) and passes it as the choice;
+  a choice made on the programme on air wins. The resolver's rule above is the "only while the item still offers it"
+  check, so no separate lookup is needed and a remembered version the server dropped is only ignored.
+- **A pre-resolved next programme is served only when its default version is the remembered one.** `Prepared.serves`
+  refuses a choice of another version, so such a tune is cold and resolves again; an item with no remembered version
+  keeps the warm path. `Prepared.item` is public so the port can ask about the right item.
+- **Not covered:** the remembered version is not used to pre-resolve or warm the next programme, so the first flip to
+  an item whose remembered version is not its default is not warm.

@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -27,11 +28,14 @@ import tv.stationbreak.core.playback.SubtitleSwitch
 import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.core.playback.TrackOverride
 import tv.stationbreak.core.playback.TrackSwitch
+import tv.stationbreak.feature.live.SwitchFixtures.ALT
 import tv.stationbreak.feature.live.SwitchFixtures.ENGLISH_SUBS
 import tv.stationbreak.feature.live.SwitchFixtures.FRENCH
 import tv.stationbreak.feature.live.SwitchFixtures.SOURCE
 import tv.stationbreak.feature.live.SwitchFixtures.SPANISH
+import tv.stationbreak.feature.live.SwitchFixtures.SPANISH_PICTURE
 import tv.stationbreak.feature.live.SwitchFixtures.facts
+import tv.stationbreak.feature.live.SwitchFixtures.twoVersions
 import tv.stationbreak.feature.live.report.RecordingServer
 import kotlin.time.Duration.Companion.minutes
 
@@ -86,6 +90,7 @@ class TrackSwitchTest {
 
     private companion object {
         const val SETTLE_MS = 2_000L
+        const val AFTER_LINGER_MS = 10_000L
         val REPORT_FACTS = ReportFacts(MediaSourceId("src"), PlaySessionId("ps"), PlayMethod.DirectPlay, 50.minutes)
     }
 
@@ -149,8 +154,68 @@ class TrackSwitchTest {
             assertTrue("under the snow, switching", BannerLabel.SwitchingAudio in labels)
             assertEquals("then it plays, as Now", BannerLabel.Now, k.banner?.label)
             assertFalse(checkNotNull(k.banner).switchFailed)
+            assertTrue("the Select banner reopens", checkNotNull(k.banner).actions)
+            assertEquals("on the chip that was used", PickerKind.Audio, k.banner?.chip)
             assertEquals(FRENCH.index, k.banner?.stream?.audioIndex)
             assertEquals(listOf<Remembered>(Remembered.AudioLanguage("fr")), k.r.tune.remembered)
+        }
+
+    @Test
+    fun anotherVersionRetunesAtThePlaceNamingTheVersionAndRemembersIt() =
+        runTest {
+            val k = keys(withFacts(twoVersions()), withFacts(twoVersions().copy(sourceId = ALT)))
+            k.r.atMin(1)
+            k.press(LiveCommand.Choose(TrackSelection.Version(ALT)))
+            k.settle()
+            assertEquals(2, k.tunesOfOne.size)
+            assertEquals(TrackChoice(ALT, null), k.tunesOfOne.last().choice)
+            assertEquals(
+                "at the place, not the start",
+                11 * MIN,
+                k.tunesOfOne
+                    .last()
+                    .start.inWholeMilliseconds,
+            )
+            val labels =
+                k.r.seen
+                    .filterIsInstance<LiveState.Tuning>()
+                    .map { it.banner.label }
+            assertTrue("under the snow, switching version", BannerLabel.SwitchingVersion in labels)
+            assertEquals(BannerLabel.Now, k.banner?.label)
+            assertEquals(ALT, k.banner?.stream?.sourceId)
+            assertEquals(listOf<Remembered>(Remembered.Version(itemOf(1), ALT)), k.r.tune.remembered)
+        }
+
+    @Test
+    fun aVersionThatDoesNotPlayGoesBackToThePreviousOneAndSaysSoAndRemembersNothing() =
+        runTest {
+            val k = keys(withFacts(twoVersions()), FakeTune.dead(), withFacts(twoVersions()))
+            k.r.atMin(1)
+            k.press(LiveCommand.Choose(TrackSelection.Version(ALT)))
+            k.settle()
+            assertEquals(3, k.tunesOfOne.size)
+            assertEquals(TrackChoice(ALT, null), k.tunesOfOne[1].choice)
+            assertNull("back to the version that was playing", k.tunesOfOne[2].choice)
+            assertTrue(checkNotNull(k.banner).switchFailed)
+            assertEquals("on the chip that was used", PickerKind.Version, k.banner?.chip)
+            assertTrue(
+                k.r.tune.remembered
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun choosingTheVersionThatPlaysTunesNothing() =
+        runTest {
+            val k = keys(withFacts(twoVersions()))
+            k.r.atMin(1)
+            k.press(LiveCommand.Choose(TrackSelection.Version(SOURCE)))
+            k.settle()
+            assertEquals(1, k.tunesOfOne.size)
+            assertTrue(
+                k.r.tune.remembered
+                    .isEmpty(),
+            )
         }
 
     @Test
@@ -208,11 +273,60 @@ class TrackSwitchTest {
             )
             assertNull("the previous choice: none was made", k.tunesOfOne[2].choice)
             assertTrue("one banner says it", checkNotNull(k.banner).switchFailed)
+            assertTrue("it is the Select banner", checkNotNull(k.banner).actions)
+            assertEquals("on the chip that was used", PickerKind.Audio, k.banner?.chip)
+            assertNotEquals("the chip says what plays: the old track", FRENCH.index, k.banner?.stream?.audioIndex)
             assertTrue(
                 "a failed choice leaves nothing behind",
                 k.r.tune.remembered
                     .isEmpty(),
             )
+        }
+
+    @Test
+    fun aSubtitleSwitchThatNeededARetuneReopensOnTheSubtitlesChip() =
+        runTest {
+            val k = keys(withFacts(), withFacts(facts(subtitleIndex = SPANISH_PICTURE.index)))
+            k.r.atMin(1)
+            k.press(subtitles(SubtitleChoice.Track(SPANISH_PICTURE.index)))
+            k.settle()
+            assertEquals(2, k.tunesOfOne.size)
+            assertEquals(PickerKind.Subtitles, k.banner?.chip)
+            assertFalse(checkNotNull(k.banner).switchFailed)
+        }
+
+    @Test
+    fun theFailedNoteLastsOneBannerThenTheNextOneShowsWhatPlays() =
+        runTest {
+            val k = keys(withFacts(), FakeTune.dead(), withFacts())
+            k.r.atMin(1)
+            k.press(audio(FRENCH.index))
+            k.settle()
+            val shownAt = k.r.scope.currentTime
+            assertTrue(checkNotNull(k.banner).switchFailed)
+            k.r.at(shownAt + AFTER_LINGER_MS)
+            assertNull("the banner has closed", k.banner)
+            k.press(LiveCommand.ShowBanner)
+            assertTrue("the next Select banner is a plain one", checkNotNull(k.banner).actions)
+            assertFalse(checkNotNull(k.banner).switchFailed)
+            assertNull(k.banner?.chip)
+            assertNotEquals("what plays: the previous choice", FRENCH.index, k.banner?.stream?.audioIndex)
+        }
+
+    @Test
+    fun aReopenedBannerTheViewerTouchesKeepsItsOwnClockNotTheFirstOne() =
+        runTest {
+            val k = keys(withFacts(), withFacts(facts(audioIndex = FRENCH.index)))
+            k.r.atMin(1)
+            k.press(audio(FRENCH.index))
+            k.settle()
+            val shownAt = k.r.scope.currentTime
+            k.r.at(shownAt + 1_000)
+            k.press(LiveCommand.ShowBanner)
+            k.r.at(shownAt + 4_500)
+            assertTrue("the first clock must not close a banner the viewer touched", checkNotNull(k.banner).actions)
+            k.r.at(shownAt + AFTER_LINGER_MS)
+            assertNull(k.banner)
         }
 
     @Test
