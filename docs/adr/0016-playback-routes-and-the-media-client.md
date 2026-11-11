@@ -365,9 +365,15 @@ The pickers (PR 4) make the choices decision 6 and the 2026-11-09 update prepare
   always re-tunes with `SubtitleChoice.Default` and clears the stored subtitle choice (`saveSubtitles(account, null)`),
   so the next programme is the server's again. Nothing is written to Jellyfin.
 - **The second `PlaybackInfo` call is timed.** `ResolvedPlayback.carriedMs` is how long the call a carried preference
-  makes took; it rides to the tune log line as ` carriedMs=<n>` (a tune with no second call has no field). The cost
-  on a TV has not been measured yet.
-- **Text subtitles while transcoding: to be measured on the TV.** Whether a text subtitle can switch without a re-tune
-  on a direct stream or a transcode is not known yet. Until it is measured, those switches stay `Retune` (`switchCost`),
-  and the result is to be recorded here by the owner. Version choice and applying the remembered version are #630. Following Android's system caption setting (B2.2) is
-  still the owner's open question and is not implemented.
+  makes took; it rides to the tune log line as ` carriedMs=<n>` (a tune with no second call has no field). Measured
+  on a Firestick AFTKRT (2026-11-10, testing session): 12 neighbour flips with a warm connection took 28 to 190 ms
+  (median about 71 ms), and the first flip after an app restart took 281 ms.
+- **Text subtitles while transcoding: measured, and it re-tunes.** On a Firestick AFTKRT (2026-11-10, testing session,
+  CI debug APKs `8eef10f3` then `936571b1`), switching a text subtitle on a transcode re-tuned every time: Off to Text
+  took `firstFrameMs` 837, and Text to Off 748 to 5556 over the runs, with the text showing as soon as the picture
+  returned. The build never switched in place on an HLS route, so those switches stay `Retune` (`switchCost`) and the
+  rule stands. A direct stream (as opposed to direct play or a transcode) is **not measured**: no item in that
+  library took the `route=stream` path, so the question is open there and stays `Retune`. On direct play a text
+  subtitle in the container switches in place and its captions are drawn (#706). Version choice and applying the
+  remembered version are #630. Following Android's system caption setting (B2.2) is still the owner's open question and
+  is not implemented.
