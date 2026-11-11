@@ -6,6 +6,7 @@ import androidx.media3.common.ParserException
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -38,11 +39,11 @@ class PlaybackLogTest {
     }
 
     @Test
-    fun `an audio sink cause keeps a redacted message and the top frame of the deepest cause`() {
+    fun `an audio sink write fault logs fields and the top frame, not a message`() {
         val write = AudioSink.WriteException(7, Format.Builder().build(), false)
         write.stackTrace = arrayOf(StackTraceElement("tv.stationbreak.Foo", "write", "Foo.kt", 42))
         val text = PlaybackLog.failureText(playbackError(write))
-        assertTrue(text, text.contains("androidx.media3.exoplayer.audio.AudioSink\$WriteException: "))
+        assertTrue(text, text.contains("AudioSink\$WriteException errorCode=7 recoverable=false"))
         assertTrue(text, text.endsWith(" at=tv.stationbreak.Foo.write:42"))
     }
 
@@ -75,5 +76,29 @@ class PlaybackLogTest {
         val b = RuntimeException("b", a)
         a.initCause(b)
         assertEquals(PlaybackLog.MAX_CAUSES, PlaybackLog.failureText(b).split(" <- ").size)
+    }
+
+    private val titled =
+        Format
+            .Builder()
+            .setLabel("Secret Title")
+            .setId("Secret Title")
+            .setSampleMimeType("audio/mp4a-latm")
+            .build()
+
+    @Test
+    fun `a decoder init fault does not log the format's title`() {
+        val fault = MediaCodecRenderer.DecoderInitializationException(titled, RuntimeException("x"), false, -1)
+        val text = PlaybackLog.failureText(playbackError(fault))
+        assertFalse(text, text.contains("Secret Title"))
+        assertTrue(text, text.contains("mime=audio/mp4a-latm"))
+    }
+
+    @Test
+    fun `an audio sink init fault does not log the format's title`() {
+        val fault = AudioSink.InitializationException("init failed $titled", 0, titled, true, null)
+        val text = PlaybackLog.failureText(playbackError(fault))
+        assertFalse(text, text.contains("Secret Title"))
+        assertTrue(text, text.contains("audioTrackState=0 recoverable=true mime=audio/mp4a-latm"))
     }
 }

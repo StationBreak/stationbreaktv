@@ -81,7 +81,7 @@ internal object PlaybackLog {
         val causes = generateSequence(error.cause) { it.cause }.take(MAX_CAUSES - 1).toList()
         val chain = causes.joinToString("") { " <- ${describe(it)}" }
         val frame =
-            if ((listOf(error) + causes).any(::keepsMessage)) {
+            if ((listOf(error) + causes).any { keepsMessage(it) || structured(it) != null }) {
                 " at=${topFrame(causes.lastOrNull() ?: error)}"
             } else {
                 ""
@@ -96,18 +96,41 @@ internal object PlaybackLog {
     private fun describe(error: Throwable): String {
         val status = (error as? HttpDataSource.InvalidResponseCodeException)?.let { " status=${it.responseCode}" }
         val message = if (keepsMessage(error)) error.message?.let { ": ${scrub(it)}" } else null
-        return error.javaClass.name + status.orEmpty() + message.orEmpty()
+        val fields = structured(error)?.let { " $it" }
+        return error.javaClass.name + status.orEmpty() + fields.orEmpty() + message.orEmpty()
     }
+
+    /**
+     * Fields for the sink and decoder faults, whose messages embed Format.toString() (a track label or id can be a
+     * title): only explicit, non-free-text fields. Null for any other throwable.
+     */
+    private fun structured(error: Throwable): String? =
+        when (error) {
+            is MediaCodecRenderer.DecoderInitializationException -> {
+                "mime=${error.mimeType} codec=${error.codecInfo?.name} secure=${error.secureDecoderRequired} " +
+                    "diag=${error.diagnosticInfo?.let(::scrub)}"
+            }
+
+            is AudioSink.InitializationException -> {
+                "audioTrackState=${error.audioTrackState} recoverable=${error.isRecoverable} " +
+                    formatFields(error.format)
+            }
+
+            is AudioSink.WriteException -> {
+                "errorCode=${error.errorCode} recoverable=${error.isRecoverable}"
+            }
+
+            else -> {
+                null
+            }
+        }
 
     private fun topFrame(error: Throwable): String =
         error.stackTrace.firstOrNull()?.let { "${it.className}.${it.methodName}:${it.lineNumber}" } ?: "none"
 
-    /** A decoder, audio-sink or audio-processor failure: its message is ours or the codec's, not the network's. */
+    /** A codec or audio-processor failure whose message is the codec's or ours, not the network's or a format's. */
     internal fun keepsMessage(error: Throwable): Boolean =
         when (error) {
-            is AudioSink.InitializationException,
-            is AudioSink.WriteException,
-            is MediaCodecRenderer.DecoderInitializationException,
             is MediaCodec.CodecException,
             -> {
                 true
