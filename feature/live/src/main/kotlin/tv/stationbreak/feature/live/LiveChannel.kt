@@ -126,6 +126,9 @@ class LiveChannel(
     /** What the screen shows of the transport while the viewer is behind or paused; null while live (spec 20). */
     val transport: StateFlow<TransportView?> = screen.transport
 
+    /** What the label on the guide's picture says (#722): the channel and what is on, or coming on. */
+    val pictureLabel: StateFlow<PictureLabel?> = screen.pictureLabel
+
     /** The channel tuned last (the one playing, or being tuned); null before the first. The guide opens on it. */
     val playingChannel: ChannelId? get() = tuned.playing?.id
 

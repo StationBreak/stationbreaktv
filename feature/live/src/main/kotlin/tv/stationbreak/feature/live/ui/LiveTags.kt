@@ -26,6 +26,9 @@ object LiveTags {
     /** "Transcoding", right-aligned after the chips, only while the route is a transcode. Not focusable. */
     const val BANNER_TRANSCODING = "live:banner:transcoding"
 
+    /** The label along the top of the picture while the guide is open (#722). */
+    const val PICTURE_LABEL = "live:picture:label"
+
     /** A picker over the chips; its rows are tagged [PICKER_ROW] plus the row's index. */
     const val PICKER = "live:picker"
     const val PICKER_ROW = "live:picker:row:"

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.Measurable
@@ -34,6 +35,7 @@ import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.PictureLabel
 import tv.stationbreak.feature.live.TransportView
 import java.time.ZoneId
 
@@ -54,7 +56,9 @@ import java.time.ZoneId
  * (`ScreenLayout.pictureRect` of the safe area): the guide is told that rectangle and leaves it clear. The surface
  * stays where it is in the composition and only its modifier changes, so the one surface is never made again and the
  * picture plays on. What stands in for a picture (snow, the cards) is drawn in the corner too, cut to it; the banners
- * and the info overlay make way for the guide, which says the same.
+ * and the info overlay make way for the guide, which says the same. [pictureLabel] is the one thing drawn over that
+ * picture for the guide: a bar along its top edge that says which channel it is and what is on (#722), since the
+ * guide's panel describes whatever is highlighted, not what plays. Captions stay hidden in the corner.
  */
 @Suppress("LongParameterList") // The state, its overlays, the transport and its clock, and the surface.
 @Composable
@@ -65,6 +69,7 @@ internal fun LiveScreen(
     guide: (@Composable (pictureHole: DpRect) -> Unit)? = null,
     transport: TransportView? = null,
     nowMs: () -> Long = System::currentTimeMillis,
+    pictureLabel: PictureLabel? = null,
     surface: @Composable () -> Unit,
 ) {
     // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
@@ -74,7 +79,10 @@ internal fun LiveScreen(
         val corner = remember(maxWidth, maxHeight, fit) { pictureCorner(DpSize(maxWidth, maxHeight), fit) }
         Box(if (guide != null) Modifier.inRect(corner) else Modifier.fillMaxSize()) { surface() }
         if (guide != null) {
-            Box(Modifier.inRect(corner).clipToBounds()) { PictureLayers(state) }
+            Box(Modifier.inRect(corner).clipToBounds()) {
+                PictureLayers(state)
+                pictureLabel?.let { PictureLabelBar(it, Modifier.align(Alignment.TopStart)) }
+            }
             guide(corner)
         } else {
             LiveLayers(state, info, onCommand, behind = transport != null)

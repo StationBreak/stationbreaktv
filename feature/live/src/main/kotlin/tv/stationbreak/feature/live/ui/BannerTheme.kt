@@ -51,12 +51,13 @@ internal fun Modifier.chromeSurface(colors: GuideColors): Modifier =
 internal fun ChannelMarkBox(
     recipeKey: String?,
     channelName: String,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val cache = remember(context) { MarkCaches.get(context) }
     LaunchedEffect(cache, recipeKey) { recipeKey?.let { cache.request(listOf(it), MarkVariant.Colour) } }
     val initials = remember(channelName) { markInitialsOf(channelName) }
     CompositionLocalProvider(LocalMarkCache provides cache) {
-        Box(Modifier.testTag(LiveTags.BANNER_MARK)) { ChannelMark(recipeKey, initials) }
+        Box(Modifier.testTag(LiveTags.BANNER_MARK)) { ChannelMark(recipeKey, initials, modifier) }
     }
 }

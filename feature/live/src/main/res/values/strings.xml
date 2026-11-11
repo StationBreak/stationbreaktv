@@ -28,6 +28,15 @@
     <string name="live_label_switching_subtitles">Switching subtitles</string>
     <string name="live_label_switching_version">Switching version</string>
 
+    <!-- The label along the top of the picture while the guide is open (#722): the word before what is on. -->
+    <string name="live_picture_now_playing">Now playing:</string>
+    <string name="live_picture_tuning_in">Tuning in:</string>
+    <string name="live_picture_up_next">Up next:</string>
+    <string name="live_picture_filling_in">Filling in:</string>
+    <string name="live_picture_switching_audio">Switching audio:</string>
+    <string name="live_picture_switching_subtitles">Switching subtitles:</string>
+    <string name="live_picture_switching_version">Switching version:</string>
+
     <!-- The actions banner's buttons (Select on the picture): the program's info, and the channel before this one. -->
     <string name="live_action_info">Info</string>
     <string name="live_action_last">Last</string>

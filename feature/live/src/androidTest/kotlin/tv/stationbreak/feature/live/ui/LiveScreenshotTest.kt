@@ -11,13 +11,20 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -41,6 +48,7 @@ import tv.stationbreak.core.playback.SubtitleFacts
 import tv.stationbreak.core.playback.SubtitleForm
 import tv.stationbreak.core.playback.SwitchCost
 import tv.stationbreak.core.playback.VideoFacts
+import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.feature.live.Banner
@@ -49,6 +57,8 @@ import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.NextProgram
 import tv.stationbreak.feature.live.PickerKind
+import tv.stationbreak.feature.live.PictureLabel
+import tv.stationbreak.feature.live.PictureLead
 import tv.stationbreak.feature.live.TransportView
 import java.io.File
 
@@ -204,6 +214,80 @@ class LiveScreenshotTest {
         compose.waitForIdle()
         Thread.sleep(FRAME_WAIT_MS)
         save(name)
+    }
+
+    /**
+     * The guide open over live TV: a stand-in for the guide's page (its real [GuideColors] ground, with a hole where
+     * the picture goes) over a bright picture, which is the hardest ground for the label's scrim. [title] is what the
+     * label says is playing; null draws no label, as before #722. (Live cannot depend on the guide module, so the
+     * page is a stand-in; the real guide's frames are `GuideScreenshotTest`'s.)
+     */
+    private fun shootGuide(
+        name: String,
+        colors: GuideColors,
+        title: String?,
+    ) {
+        compose.setContent {
+            StationBreakTheme {
+                Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)) {
+                    LiveScreen(
+                        state = LiveState.Watching(null),
+                        nowMs = { now },
+                        guide = { hole -> GuideStandIn(hole, colors.page) },
+                        pictureLabel = title?.let { PictureLabel(162, "Date Night", MARK_KEY, PictureLead.NowPlaying, it) },
+                    ) { BrightPicture() }
+                }
+            }
+        }
+        compose.waitForIdle()
+        Thread.sleep(FRAME_WAIT_MS)
+        save(name)
+    }
+
+    @Test
+    fun theGuideWithTheLabel() = shootGuide("live-guide-label.png", GuideColors.Dark, "Pride & Prejudice")
+
+    @Test
+    fun theGuideWithTheLabelLight() = shootGuide("live-guide-label-light.png", GuideColors.Light, "Pride & Prejudice")
+
+    @Test
+    fun theGuideWithALongTitleOnTheLabel() =
+        shootGuide(
+            "live-guide-label-long.png",
+            GuideColors.Dark,
+            "The Late Late Picture Show With a Title Long Enough to Reach the Picture's Edge",
+        )
+
+    @Test
+    fun theGuideWithoutALabel() = shootGuide("live-guide-nolabel.png", GuideColors.Dark, null)
+
+    @Test
+    fun theGuideWithoutALabelLight() = shootGuide("live-guide-nolabel-light.png", GuideColors.Light, null)
+
+    @Composable
+    private fun GuideStandIn(
+        hole: DpRect,
+        page: Color,
+    ) {
+        Box(
+            Modifier.fillMaxSize().drawBehind {
+                val cut =
+                    Path().apply {
+                        addRect(Rect(hole.left.toPx(), hole.top.toPx(), hole.right.toPx(), hole.bottom.toPx()))
+                    }
+                clipPath(cut, ClipOp.Difference) { drawRect(page) }
+            },
+        )
+    }
+
+    /** A pale sky over a darker ground: light at the top edge, where the label sits, so its scrim is what is tested. */
+    @Composable
+    private fun BrightPicture() {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFFE3EDF6), Color(0xFF8FB0CF), Color(0xFF47627A)))),
+        )
     }
 
     @Test
