@@ -212,15 +212,15 @@ class GuideFocusTest {
     fun rightOntoACellBeyondTheEdgeSnapsToItsSlot() {
         val wide =
             buildGuideModel(
-                ScheduleWindow(listOf(row(CH5, 5, program(60, 170, 1), program(170, 200, 2))), complete = true),
+                ScheduleWindow(listOf(row(CH5, 5, program(60, 200, 1), program(200, 230, 2))), complete = true),
                 now,
             )
         val onto = wide.move(checkNotNull(wide.initialFocus(CH5, now)), GuideDirection.Right)
-        assertEquals(min(170), onto.cellStartMs)
-        // The viewport covers 60..150: the new cell is entirely outside, so it snaps to the 150 slot.
-        assertEquals(min(150), viewportStartFor(onto, wide, min(60), GuideDirection.Right))
+        assertEquals(min(200), onto.cellStartMs)
+        // The viewport covers 60..180: the new cell is entirely outside, so it snaps to the 180 slot.
+        assertEquals(min(180), viewportStartFor(onto, wide, min(60), GuideDirection.Right))
         // Partly visible: unchanged.
-        assertEquals(min(120), viewportStartFor(onto, wide, min(120), GuideDirection.Right))
+        assertEquals(min(150), viewportStartFor(onto, wide, min(150), GuideDirection.Right))
     }
 
     @Test
@@ -282,8 +282,8 @@ class GuideFocusTest {
             )
         val down = long.move(GuideFocus(CH5, min(100), min(400)), GuideDirection.Down)
         assertEquals(min(350), down.cellStartMs)
-        // The viewport is far from the anchor (400); the cell holds it, so it is shown in whole slots: 330..420.
-        assertEquals(min(330), viewportStartFor(down, long, min(60), GuideDirection.Down))
+        // The viewport is far from the anchor (400); the cell holds it, so it is shown in whole slots: 300..420.
+        assertEquals(min(300), viewportStartFor(down, long, min(60), GuideDirection.Down))
     }
 
     @Test

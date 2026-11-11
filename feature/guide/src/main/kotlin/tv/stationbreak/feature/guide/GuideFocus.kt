@@ -6,7 +6,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /** How much time the grid shows at once: the one span that scrolling and the clock tick both go by. */
-internal val GUIDE_VIEWPORT_SPAN: Duration = 90.minutes
+internal val GUIDE_VIEWPORT_SPAN: Duration = 120.minutes
 
 internal enum class GuideDirection { Up, Down, Left, Right }
 

@@ -63,8 +63,8 @@ import java.time.ZoneId
 internal val CellInset = 0.5.dp
 private val MinCellWidth = 20.dp
 
-// A 6-minute cell (kids' shorts) keeps its title: 780 dp over 90 minutes is 8.67 dp a minute, so it is 52 dp wide;
-// a 5-minute cell (43.3 dp) is compact.
+// An 8-minute cell keeps its title: 780 dp over 120 minutes is 6.5 dp a minute, so it is 52 dp wide; a 7-minute one
+// (45.5 dp) and anything shorter, such as a 5-minute filler (32.5 dp), is compact.
 private val CompactBelow = 48.dp
 
 /**
