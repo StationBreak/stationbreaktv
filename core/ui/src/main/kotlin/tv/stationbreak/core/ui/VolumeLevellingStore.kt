@@ -45,8 +45,7 @@ object VolumeLevellings {
     private var store: VolumeLevellingStore? = null
 
     @Synchronized
-    fun get(context: Context): VolumeLevellingStore =
-        store ?: SharedPrefsVolumeLevellingStore(context).also { store = it }
+    fun get(context: Context): VolumeLevellingStore = store ?: SharedPrefsVolumeLevellingStore(context).also { store = it }
 }
 
 @Composable

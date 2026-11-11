@@ -365,8 +365,7 @@ class LevellingAudioProcessor(
 
         private fun dbToLin(db: Double) = 10.0.pow(db / AMPLITUDE_DB)
 
-        private fun lkfs(meanSquare: Double) =
-            if (meanSquare <= 0.0) -Double.MAX_VALUE else LKFS_OFFSET + DB_PER_DECADE * log10(meanSquare)
+        private fun lkfs(meanSquare: Double) = if (meanSquare <= 0.0) -Double.MAX_VALUE else LKFS_OFFSET + DB_PER_DECADE * log10(meanSquare)
 
         /** BS.1770 weights for Android's order (L R C LFE Ls Rs ...): LFE counts nothing, surrounds 1.41. */
         private fun channelWeights(count: Int): DoubleArray =

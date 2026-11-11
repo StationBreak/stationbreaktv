@@ -4,6 +4,9 @@ package tv.stationbreak.core.playback
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.util.UnstableApi
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.PI
@@ -11,9 +14,6 @@ import kotlin.math.abs
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sin
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
 
 /** The shared level across slots, the on/off switch and the limiter's look-ahead. */
 @UnstableApi
