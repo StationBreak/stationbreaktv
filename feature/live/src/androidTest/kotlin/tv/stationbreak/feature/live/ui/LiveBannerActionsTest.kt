@@ -289,6 +289,23 @@ class LiveBannerActionsTest {
     }
 
     @Test
+    fun aChipKeepsTheFocusWhenLiveGoes() {
+        var transport by mutableStateOf<TransportView?>(view(paused = true))
+        compose.setContent {
+            StationBreakTheme {
+                val state = LiveState.Watching(selectBanner(Route.DIRECT_PLAY))
+                LiveScreen(state, null, {}, null, transport) {}
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).performSemanticsAction(SemanticsActions.RequestFocus)
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+        compose.runOnIdle { transport = null }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+    }
+
+    @Test
     fun liveSendsGoLive() {
         showKeysRoot(transport = view(paused = false))
         press(Key.DirectionCenter)

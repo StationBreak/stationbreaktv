@@ -152,20 +152,17 @@ internal fun ActionsRow(
         if (picker == null) opened?.let { chipFocus.getValue(it).requestFocus() }
         opened = picker
     }
-    // The Live button comes and goes with the transport. If the row had the focus and neither Info nor Last has it
-    // once Live is gone, it was Live's: Info takes it. Losses are ignored once `behind` is false, so the row's last
-    // state while Live was there is what is read (the detach of a focused Live reports a loss of its own).
+    // The Live button comes and goes with the transport. Only a focused Live hands its focus to Info when it goes: a
+    // chip (or Info, or Last) that has the focus keeps it. Losses are ignored once `behind` is false, so the state
+    // read is Live's last while it was there (the detach of a focused Live reports a loss of its own).
     val behindNow by rememberUpdatedState(behind)
-    var rowFocused by remember { mutableStateOf(false) }
-    var infoFocused by remember { mutableStateOf(false) }
-    var lastFocused by remember { mutableStateOf(false) }
-    InfoTakesOverFromLive(behind, first) { rowFocused && !infoFocused && !lastFocused }
+    var liveFocused by remember { mutableStateOf(false) }
+    InfoTakesOverFromLive(behind, first) { liveFocused }
     Row(
         Modifier
             .fillMaxWidth()
             .height(ACTION_ROW_HEIGHT)
             .padding(horizontal = 16.dp)
-            .onFocusChanged { if (behindNow || it.hasFocus) rowFocused = it.hasFocus }
             .testTag(LiveTags.BANNER_ACTIONS),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -175,6 +172,7 @@ internal fun ActionsRow(
                 Modifier
                     .focusRequester(live)
                     .focusProperties { right = first }
+                    .onFocusChanged { if (behindNow) liveFocused = it.hasFocus }
                     .testTag(LiveTags.BANNER_ACTION_LIVE)
             ActionButton(R.string.live_action_live, actions.live, modifier)
         }
@@ -182,11 +180,10 @@ internal fun ActionsRow(
             Modifier
                 .focusRequester(first)
                 .focusProperties { if (behind) left = live }
-                .onFocusChanged { infoFocused = it.hasFocus }
                 .testTag(LiveTags.BANNER_ACTION_INFO)
         ActionButton(R.string.live_action_info, actions.info, info)
         if (hasLast) {
-            val last = Modifier.onFocusChanged { lastFocused = it.hasFocus }.testTag(LiveTags.BANNER_ACTION_LAST)
+            val last = Modifier.testTag(LiveTags.BANNER_ACTION_LAST)
             ActionButton(R.string.live_action_last, actions.last, last)
         }
         if (stream != null) Chips(stream, actions, chipFocus, chipPlaced, chip.takeIf { failed }, names)
