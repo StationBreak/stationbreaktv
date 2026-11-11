@@ -94,6 +94,7 @@ class Media3VideoPlayer internal constructor(
     init {
         // Before ExoPlayer exists: Media3's own error logs can quote a playlist line with a token.
         silenceMedia3Logging()
+        PlaybackLog.configure(context)
     }
 
     /** The front role's events: on the front ExoPlayer only (StandbySlots moves it at a hand-over). */
@@ -236,6 +237,9 @@ class Media3VideoPlayer internal constructor(
      */
     private fun renderersFactory(leading: () -> Boolean): DefaultRenderersFactory {
         val levelling = volumeLevelling ?: return DefaultRenderersFactory(context)
+        if (PlaybackLog.on) {
+            PlaybackLog.line("levelling build storeEnabled=${levelling.enabled()} gainDb=${levelling.level.gainDb}")
+        }
         return object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(
                 context: Context,
@@ -767,6 +771,7 @@ class Media3VideoPlayer internal constructor(
         ) {
             // The play ends here: a pending seek will not finish, and says nothing.
             seeking = false
+            PlaybackLog.playerError(error) { "playerError role=front generation=$active posMs=${exo.currentPosition}" }
             emit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
         }
     }
