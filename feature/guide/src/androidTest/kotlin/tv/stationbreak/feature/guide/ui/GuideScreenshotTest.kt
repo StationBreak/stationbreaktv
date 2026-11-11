@@ -20,10 +20,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -37,6 +39,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -56,10 +59,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeMediaServer
+import tv.stationbreak.core.domain.FakeSyncNow
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
@@ -138,6 +144,11 @@ class GuideScreenshotTest {
     /** One content for both themes: the rule's activity accepts setContent once. */
     private val theme = mutableStateOf(GuideTheme.Dark)
     private val fit = mutableStateOf(ScreenFit.Safe)
+
+    // The text size the host draws at (the TV's own font scale), and the longest Sync now line the guide has.
+    private val fontScale = mutableFloatStateOf(1f)
+    private val syncNow =
+        FakeSyncNow(SyncNowState.Failed(SyncFailure.Suspect, changedNothing = true))
     private val openedAt = mutableLongStateOf(1L)
     private var composed = false
 
@@ -205,7 +216,7 @@ class GuideScreenshotTest {
         shoot("$INFO_FRAME$suffix.png")
     }
 
-    /** The Settings panel with its Screen fit row: its last row (Even out volume) must end above the menu row. */
+    /** The Settings panel with its five rows: the last (Even out volume) must end above the menu row. */
     @Test
     fun theSettingsPanel() = shootSettings(GuideTheme.Dark, suffix = "")
 
@@ -213,11 +224,29 @@ class GuideScreenshotTest {
     @Test
     fun theSettingsPanelLight() = shootSettings(GuideTheme.Light, suffix = "-light")
 
+    // All five rows clear of the menu row at both screen fits and at the font scales a TV is set to, with the Sync now
+    // line as long as it gets (and room for it on two lines).
+    @Test
+    fun theSettingsPanelFitsAtSafeAndFontScale1() = shootSettings(GuideTheme.Dark, "-safe-1", ScreenFit.Safe, 1f)
+
+    @Test
+    fun theSettingsPanelFitsAtSafeAndFontScale115() = shootSettings(GuideTheme.Dark, "-safe-115", ScreenFit.Safe, 1.15f)
+
+    @Test
+    fun theSettingsPanelFitsAtEdgeAndFontScale1() = shootSettings(GuideTheme.Dark, "-edge-1", ScreenFit.Edge, 1f)
+
+    @Test
+    fun theSettingsPanelFitsAtEdgeAndFontScale115() = shootSettings(GuideTheme.Dark, "-edge-115", ScreenFit.Edge, 1.15f)
+
     private fun shootSettings(
         shown: GuideTheme,
         suffix: String,
+        chosen: ScreenFit = ScreenFit.Safe,
+        scale: Float = 1f,
     ) {
         theme.value = shown
+        fit.value = chosen
+        fontScale.floatValue = scale
         showReady(CH7)
         back()
         channels().assertIsSelected()
@@ -226,11 +255,33 @@ class GuideScreenshotTest {
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
         }
-        val last = compose.onNodeWithTag(GuideTags.LEVELLING_ON).fetchSemanticsNode().boundsInRoot
-        val menu = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).fetchSemanticsNode().boundsInRoot
-        assertTrue("Even out volume (${last.bottom}) runs into the menu row (${menu.top})", last.bottom <= menu.top)
-        compose.onNodeWithTag(GuideTags.FIT_SAFE).assertIsSelected()
+        val menuTop = bounds(GuideTags.CHANNELS_BUTTON).top
+        // The longest Sync now line the guide has is one line at this width, so a line more is added to each row's
+        // bottom: the fit holds when the line wraps too.
+        val status = bounds(GuideTags.SETTINGS_SYNC_STATUS)
+        val wrapExtra = if (lineCount(GuideTags.SETTINGS_SYNC_STATUS) >= 2) 0f else status.height
+        for (tag in PANEL_ROW_TAGS) {
+            val rect = bounds(tag)
+            assertTrue("$tag was squeezed out of the panel ($rect)", rect.height > 0f)
+            val bottom = rect.bottom + wrapExtra
+            assertTrue("$tag (bottom $bottom) runs into the menu row (top $menuTop)", bottom <= menuTop)
+        }
+        val picked = if (chosen == ScreenFit.Safe) GuideTags.FIT_SAFE else GuideTags.FIT_EDGE
+        compose.onNodeWithTag(picked).assertIsSelected()
         shoot("$SETTINGS_FRAME$suffix.png")
+    }
+
+    private fun bounds(tag: String) = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+
+    private fun lineCount(tag: String): Int {
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose
+            .onNodeWithTag(tag, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        return layouts.single().lineCount
     }
 
     // The panel's title starts at the fit's safe left edge, not at the screen's.
@@ -368,7 +419,7 @@ class GuideScreenshotTest {
         if (!composed) {
             signIn()
             val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-            vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
+            vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup, sync = syncNow)
             compose.setContent { GuideHost(current) }
             composed = true
         } else {
@@ -394,6 +445,7 @@ class GuideScreenshotTest {
                 LocalScreenFit provides fit.value,
                 LocalGuideColors provides theme.value.colors,
                 LocalMarkCache provides marks,
+                LocalDensity provides Density(LocalDensity.current.density, fontScale.floatValue),
             ) {
                 Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
                     GuideRoot(
@@ -575,6 +627,15 @@ class GuideScreenshotTest {
         const val PNG_QUALITY = 100
         const val FRAME_WAIT_MS = 500L
         const val FIT_FRAME = "guide-fit"
+        val PANEL_ROW_TAGS =
+            listOf(
+                GuideTags.THEME_DARK,
+                GuideTags.FIT_EDGE,
+                GuideTags.SETTINGS_LIBRARIES,
+                GuideTags.SETTINGS_SYNC_NOW,
+                GuideTags.SETTINGS_SYNC_STATUS,
+                GuideTags.LEVELLING_ON,
+            )
         const val SETTINGS_FRAME = "guide-settings"
         const val TITLE_SLACK_PX = 2f
         const val EDGE_PROBE_PX = 3
