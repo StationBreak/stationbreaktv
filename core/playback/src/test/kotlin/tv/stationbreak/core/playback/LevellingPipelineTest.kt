@@ -257,6 +257,37 @@ class LevellingPipelineTest {
     }
 
     @Test
+    fun offTakesAnEmptyInputBeforeAnyAudio() {
+        // The sink asks the pipeline for output before it queues a buffer: the pipeline then hands each processor the
+        // shared empty buffer, which a fresh (or reset) processor still holds as its own output buffer.
+        for (case in cases) {
+            val (p, levelling) = configured(case) { false }
+            p.getOutput()
+            levelling.queueInput(AudioProcessor.EMPTY_BUFFER)
+        }
+    }
+
+    @Test
+    fun offTakesAnEmptyInputAfterFlushesAndAReset() {
+        // The device's order: configure, audio, flush, flush, then the next pass with nothing queued; and a reset.
+        for (case in cases) {
+            val (p, _) = configured(case) { false }
+            drive(p, pcm(case, 0.1), chunk = case.frameSize * 512, endStream = false)
+            p.flush()
+            p.flush()
+            p.getOutput()
+            drive(p, pcm(case, 0.1), chunk = case.frameSize * 512)
+            p.reset()
+            p.configure(AudioFormat(rate, case.channels, case.encoding))
+            p.flush()
+            p.getOutput()
+            val input = pcm(case, 0.1)
+            val out = drive(p, input, chunk = case.frameSize * 512)
+            assertEquals("$case", if (case.encoding == C.ENCODING_PCM_FLOAT) input.size / 2 else input.size, out.size)
+        }
+    }
+
+    @Test
     fun aFlushBeforeAnyFormatDoesNotThrow() {
         // The pipeline flushes every processor it holds, active or not, and a reset leaves them without a format.
         for (enabled in listOf(false, true)) {
