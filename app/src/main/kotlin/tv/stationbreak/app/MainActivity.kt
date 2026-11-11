@@ -2,6 +2,7 @@
 package tv.stationbreak.app
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
@@ -18,6 +19,7 @@ import tv.stationbreak.core.ui.StationBreakTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleLine("onCreate restored=${savedInstanceState != null}")
         setContent {
             // The viewer's screen fit (Settings, Appearance): live TV's picture and every screen lay out with it.
             val fit by ScreenFits.get(this).fit.collectAsState()
@@ -27,5 +29,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        lifecycleLine("onStart")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        lifecycleLine("onStop")
+    }
+
+    // Debug builds only: diagnosing the screen-on flag on a device. Silent in release.
+    private fun lifecycleLine(what: String) {
+        if (BuildConfig.DEBUG) Log.i("SBLIVE", "activity $what task=$taskId")
     }
 }
