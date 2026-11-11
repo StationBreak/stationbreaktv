@@ -144,6 +144,7 @@ class LiveScreenshotTest {
         stream: StreamFacts? = null,
         picker: PickerKind? = null,
         label: BannerLabel = BannerLabel.Now,
+        chip: PickerKind? = null,
         switchFailed: Boolean = false,
     ) = Banner(
         number = 162,
@@ -160,6 +161,7 @@ class LiveScreenshotTest {
         recipeKey = recipeKey,
         stream = stream,
         picker = picker,
+        chip = chip,
         switchFailed = switchFailed,
     )
 
@@ -237,11 +239,22 @@ class LiveScreenshotTest {
             LiveState.Tuning(banner(actions = false, label = BannerLabel.SwitchingAudio)),
         )
 
+    /** The Select banner reopened after a re-tune that took: the chip used has the focus and shows the new value. */
+    @Test
+    fun theBannerAfterASwitchThatTook() =
+        shoot(
+            "live-switch-took.png",
+            LiveState.Watching(banner(actions = true, stream = facts, chip = PickerKind.Audio)),
+        )
+
+    /** The same banner after a re-tune that fell back: the chip reads "Couldn't switch" in its normal text colour. */
     @Test
     fun theBannerAfterASwitchThatDidNotTake() =
         shoot(
             "live-switch-failed.png",
-            LiveState.Watching(banner(actions = false, stream = facts, switchFailed = true)),
+            LiveState.Watching(
+                banner(actions = true, stream = facts, chip = PickerKind.Audio, switchFailed = true),
+            ),
         )
 
     @Test

@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -354,6 +355,52 @@ class LiveBannerActionsTest {
         picker: PickerKind? = null,
         secondAudio: SwitchCost = SwitchCost.Retune,
     ) = banner(actions = true).copy(stream = facts(route, secondAudio), picker = picker)
+
+    private fun chipText(tag: String): String =
+        compose
+            .onNodeWithTag(tag)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.Text]
+            .joinToString("") { it.text }
+
+    private fun chipDescription(tag: String): String =
+        compose
+            .onNodeWithTag(tag)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.ContentDescription]
+            .joinToString("")
+
+    @Test
+    fun aSwitchThatReopenedTheBannerHasTheFocusOnTheChipUsed() {
+        show(selectBanner(Route.DIRECT_PLAY).copy(chip = PickerKind.Audio))
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsNotFocused()
+        assertTrue(chipText(LiveTags.BANNER_CHIP_AUDIO), "English 5.1" in chipText(LiveTags.BANNER_CHIP_AUDIO))
+    }
+
+    @Test
+    fun afterAFailedSwitchTheChipReadsCouldntSwitchAndNamesWhatStillPlays() {
+        show(selectBanner(Route.DIRECT_PLAY).copy(chip = PickerKind.Audio, switchFailed = true))
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+        val text = chipText(LiveTags.BANNER_CHIP_AUDIO)
+        assertTrue(text, "Couldn't switch" in text)
+        assertTrue("the value is replaced, not joined: $text", "English" !in text)
+        assertEquals("Audio, couldn't switch, still English 5.1", chipDescription(LiveTags.BANNER_CHIP_AUDIO))
+    }
+
+    @Test
+    fun theChipsNeverFailWithoutASwitchAndOnlyTheUsedOneFails() {
+        show(selectBanner(Route.DIRECT_PLAY).copy(chip = PickerKind.Audio, switchFailed = true))
+        assertTrue("Couldn't switch" !in chipText(LiveTags.BANNER_CHIP_SUBTITLES))
+        assertEquals("Subtitles: Off", chipDescription(LiveTags.BANNER_CHIP_SUBTITLES))
+    }
+
+    @Test
+    fun anOrdinaryActionsBannerKeepsTheFocusOnInfoAndSaysNothingFailed() {
+        show(selectBanner(Route.DIRECT_PLAY))
+        compose.onNodeWithTag(LiveTags.BANNER_ACTION_INFO).assertIsFocused()
+        assertEquals("Audio: English 5.1", chipDescription(LiveTags.BANNER_CHIP_AUDIO))
+    }
 
     @Test
     fun transcodingIsSaidAtTheEndOfTheChipsRowOnlyForATranscode() {

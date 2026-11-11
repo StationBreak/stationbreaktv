@@ -128,6 +128,7 @@ internal class Overlays(
         val shown = shownWatching()
         val playing = screen.nowPlaying
         if (shown == null || playing == null || !playing.banner.stream.canPick(kind)) return
+        screen.touch()
         timer?.cancel()
         val raised = playing.banner.copy(actions = true, hasLast = tuned.previous != null)
         val base = shown.banner?.takeIf { it.actions } ?: raised
@@ -162,6 +163,7 @@ internal class Overlays(
 
     /** Starts the actions banner's clock again from now; it hides the banner unless a picker is open by then. */
     private fun arm(scope: CoroutineScope) {
+        screen.touch()
         timer?.cancel()
         timer =
             scope.launch {

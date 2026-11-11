@@ -29,6 +29,8 @@ internal class Playing(
 @Suppress("TooManyFunctions") // One lock over what the screen shows: each way it changes is a function.
 internal class Screen(
     initial: LiveState,
+    /** True when a previous channel exists for Last to go to (the actions banner's [Banner.hasLast]). */
+    val hasLast: () -> Boolean = { false },
 ) {
     private val out = MutableStateFlow(initial)
     private var shown = initial
@@ -78,6 +80,26 @@ internal class Screen(
     ) = synchronized(this) {
         value = next
         playing = what
+    }
+
+    // How many times the viewer has touched the actions banner (a key, a picker opening): the clock of a banner that
+    // reopened by itself lapses only if nothing touched it since.
+    private var touched = 0
+
+    /** The count of touches so far; read when a reopened banner's clock starts. */
+    val touches: Int get() = synchronized(this) { touched }
+
+    /** The viewer touched the actions banner: its own clock has taken over from a reopened banner's. */
+    fun touch() = synchronized(this) { touched++ }
+
+    /** Hides the actions banner a switch reopened, once its clock runs out: not with a picker open or after a touch. */
+    fun hideReopened(
+        token: Any,
+        since: Int,
+    ) = synchronized(this) {
+        val banner = (shown as? LiveState.Watching)?.banner
+        val idle = touched == since && banner?.picker == null
+        if (playing?.token === token && banner?.actions == true && idle) overlay(LiveState.Watching(null))
     }
 
     /** Hides the plain tune banner of the showing [token] (the linger ran out). */
