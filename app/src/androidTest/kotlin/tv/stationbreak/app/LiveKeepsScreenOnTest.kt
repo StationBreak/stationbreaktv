@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
+import android.content.Intent
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.Module
@@ -222,5 +225,163 @@ class LiveKeepsScreenOnTest {
 
     private companion object {
         const val TIMEOUT_MS = 10_000L
+    }
+}
+
+/**
+ * The real MainActivity: the screen stays on after it is stopped and started again (a dream or Home, then back) and
+ * after it is recreated from saved state, which is what a relaunch into the same task after process death does.
+ */
+@HiltAndroidTest
+@UninstallModules(MediaServerModule::class, PlayerModule::class)
+@RunWith(AndroidJUnit4::class)
+class LiveKeepsScreenOnRestoreTest {
+    @get:Rule(order = 0)
+    val hilt = HiltAndroidRule(this)
+
+    @get:Rule(order = 1)
+    val selection = SelectionResumeRule(atStart = false)
+
+    @Module
+    @InstallIn(SingletonComponent::class)
+    object RestoreModule {
+        @Provides
+        @Singleton
+        fun mediaServer(): MediaServer = KeepOnWorld.server
+
+        @Provides
+        @Singleton
+        fun secretStore(): SecretStore = KeepOnWorld.store
+
+        @Provides
+        @Singleton
+        fun serverSettings(): ServerSettings = KeepOnWorld.settings
+
+        @Provides
+        fun selectionStore(): SelectionStore = KeepOnWorld.settings
+
+        @Provides
+        @Singleton
+        fun sessions(
+            store: SecretStore,
+            server: MediaServer,
+            library: AccountCache,
+        ): SessionRepository = SessionRepository(store, server, library)
+
+        @Provides
+        fun clock(): Clock = Clock.System
+
+        @Provides
+        fun players(): VideoPlayerFactory = LiveTestBindings.players
+    }
+
+    private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
+    private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
+    private val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
+    private val movies = Library(ItemId("movies"), "Movies", LibraryKind.Movies)
+
+    @Before
+    fun script() {
+        KeepOnWorld.settings = InMemoryServerSettings()
+        with(KeepOnWorld.server) {
+            resumeResult = ServerResult.Success(session)
+            librariesResult = ServerResult.Success(listOf(movies))
+            withEmptyLibraries()
+        }
+        runBlocking {
+            KeepOnWorld.store
+                .snapshot()
+                .keys
+                .forEach { KeepOnWorld.store.clear(it) }
+        }
+        hilt.inject()
+        forgetTheActiveAccounts()
+        signInAsTheAppDoes(KeepOnWorld.store, KeepOnWorld.server, session)
+        KeepOnWorld.settings = choiceOf(ServerRecord(https), setOf(movies.id), session.account())
+        runTheFirstSyncAsTheWorkerDoes(KeepOnWorld.settings, KeepOnWorld.store, KeepOnWorld.server)
+        selection.resume()
+    }
+
+    private fun mainActivityKeepsScreenOn(): Boolean {
+        val dump =
+            InstrumentationRegistry
+                .getInstrumentation()
+                .uiAutomation
+                .executeShellCommand("dumpsys window windows")
+                .let { FileInputStream(it.fileDescriptor).bufferedReader().readText() }
+        return dump
+            .split("Window #")
+            .filter { it.lineSequence().firstOrNull()?.contains("tv.stationbreak.app.MainActivity") == true }
+            .any { block -> block.lineSequence().any { "fl=" in it && flagIn(it) } }
+    }
+
+    private fun flagIn(line: String): Boolean {
+        val flags = line.substringAfter("fl=", "").substringBefore(" ")
+        val bit = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.toLong()
+        return if (flags.startsWith("#")) flags.drop(1).toLong(16) and bit != 0L else "KEEP_SCREEN_ON" in line
+    }
+
+    private fun awaitKeptOn(step: String) {
+        val end = System.currentTimeMillis() + TIMEOUT_MS
+        while (!mainActivityKeepsScreenOn() && System.currentTimeMillis() < end) Thread.sleep(POLL_MS)
+        assertTrue("$step: MainActivity's window lacks KEEP_SCREEN_ON", mainActivityKeepsScreenOn())
+    }
+
+    @Test
+    fun theScreenStaysOnAfterStopAndStart() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            awaitKeptOn("cold start")
+            scenario.moveToState(Lifecycle.State.CREATED)
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            awaitKeptOn("after stop and start")
+        }
+    }
+
+    @Test
+    fun theScreenStaysOnAfterTheActivityIsRecreatedFromSavedState() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            awaitKeptOn("cold start")
+            scenario.recreate()
+            awaitKeptOn("after recreate")
+        }
+    }
+
+    private fun shell(command: String) {
+        InstrumentationRegistry
+            .getInstrumentation()
+            .uiAutomation
+            .executeShellCommand(command)
+            .use { FileInputStream(it.fileDescriptor).readBytes() }
+    }
+
+    @Test
+    fun theScreenStaysOnAfterTheDeviceSleepsAndWakes() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            awaitKeptOn("cold start")
+            shell("input keyevent KEYCODE_SLEEP")
+            Thread.sleep(SETTLE_MS)
+            shell("input keyevent KEYCODE_WAKEUP")
+            Thread.sleep(SETTLE_MS)
+            awaitKeptOn("after sleep and wake")
+        }
+    }
+
+    @Test
+    fun theScreenStaysOnAfterHomeAndARelaunchFromTheLauncher() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            awaitKeptOn("cold start")
+            shell("input keyevent KEYCODE_HOME")
+            Thread.sleep(SETTLE_MS)
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            context.startActivity(launch?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            awaitKeptOn("after Home and a relaunch")
+        }
+    }
+
+    private companion object {
+        const val SETTLE_MS = 2_000L
+        const val TIMEOUT_MS = 10_000L
+        const val POLL_MS = 100L
     }
 }
