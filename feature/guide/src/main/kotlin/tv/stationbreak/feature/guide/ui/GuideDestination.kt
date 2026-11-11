@@ -237,7 +237,6 @@ internal fun GuideRoot(
     val chooseTheme = rememberUpdatedState(onTheme)
     val chooseFit = rememberUpdatedState(onFit)
     val chooseLevelling = rememberUpdatedState(onLevelling)
-    val levellingNow = rememberUpdatedState(levelling)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             handleGuideEvent(
@@ -301,7 +300,6 @@ internal fun GuideRoot(
                                 }
                                 step.fit?.let { next -> chooseFit.value(next) }
                                 step.levelling?.let { next -> chooseLevelling.value(next) }
-                                if (step.toggleLevelling) chooseLevelling.value(!levellingNow.value)
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },

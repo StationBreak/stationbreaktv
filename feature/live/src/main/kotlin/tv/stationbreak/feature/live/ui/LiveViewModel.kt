@@ -48,6 +48,7 @@ import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.LiveTimings
+import tv.stationbreak.feature.live.PictureLabel
 import tv.stationbreak.feature.live.Remembered
 import tv.stationbreak.feature.live.TransportView
 import tv.stationbreak.feature.live.TunePort
@@ -166,6 +167,11 @@ internal class LiveViewModel
 
         /** The program info overlay (spec 17), while one is open. */
         val info: StateFlow<LiveInfo?> = shownInfo.asStateFlow()
+
+        private val shownLabel = MutableStateFlow<PictureLabel?>(null)
+
+        /** What the label on the guide's picture says (#722); null until a channel is named. */
+        val pictureLabel: StateFlow<PictureLabel?> = shownLabel.asStateFlow()
 
         private val shownTransport = MutableStateFlow<TransportView?>(null)
 
@@ -310,6 +316,7 @@ internal class LiveViewModel
             val before = shown.value.javaClass.logName()
             shown.value = LiveState.Ident(null)
             shownInfo.value = null
+            shownLabel.value = null
             shownTransport.value = null
             val session = sessions.current.value
             drainStalePresses(commands, before, session == null, log)
@@ -385,6 +392,7 @@ internal class LiveViewModel
                     // SignedOut is held back: the screen must not navigate away before the session is cleared.
                     val mirror = launch { machine.state.collect { if (it != LiveState.SignedOut) shown.value = it } }
                     val infoMirror = launch { machine.info.collect { shownInfo.value = it } }
+                    val labelMirror = launch { machine.pictureLabel.collect { shownLabel.value = it } }
                     val transportMirror = launch { machine.transport.collect { shownTransport.value = it } }
                     // The real player never returns to null (it keeps the last shape); the filter is for fakes.
                     val aspectMirror =
@@ -395,6 +403,7 @@ internal class LiveViewModel
                     cuesMirror.cancel()
                     mirror.cancel()
                     infoMirror.cancel()
+                    labelMirror.cancel()
                     transportMirror.cancel()
                     aspectMirror.cancel()
                 }

@@ -54,6 +54,12 @@ class KeptPlaceTest {
 
         val transport: TransportView? get() = r.live.transport.value
 
+        /** The item of the last tune, by number or by a handle resolved ahead (a flip's). */
+        fun lastTuned() =
+            r.tune.calls
+                .last { it is Call.Tune || it is Call.TuneHandle }
+                .let { (it as? Call.Tune)?.item ?: (it as Call.TuneHandle).item }
+
         /** Ends the run, then checks every handle made was tuned or discarded, exactly once. */
         fun finish() {
             job.cancel()
@@ -325,6 +331,81 @@ class KeptPlaceTest {
                     .calls,
             )
             assertFalse(checkNotNull(k.transport).paused)
+            k.finish()
+        }
+
+    // A kept place resumed paused: every way off it to live must clear the paused transport, or the screen would stay
+    // released (keepsScreenOn reads it) for the rest of the sitting.
+    private suspend fun TestScope.pausedAtAKeptPlace(setup: Rig.() -> Unit = {}): Keys {
+        val k =
+            keys(startMin = 30, resume = kept(one, 20 * MIN)) {
+                schedule.channel(CH5, 5, listOf(program(0, 600, 5)))
+                setup()
+            }
+        k.r.at(1_000)
+        assertTrue(checkNotNull(k.transport).paused)
+        return k
+    }
+
+    @Test
+    fun aFlipFromAKeptPausedPlaceClearsTheTransport() =
+        runTest {
+            val k = pausedAtAKeptPlace()
+            k.r.at(2_000)
+            k.press(LiveCommand.Flip(FlipDirection.Down))
+            k.press(LiveCommand.FlipReleased)
+            k.r.at(10_000)
+            assertEquals(itemOf(5), k.lastTuned())
+            assertNull(k.transport)
+            k.finish()
+        }
+
+    @Test
+    fun aGuideTuneFromAKeptPausedPlaceClearsTheTransport() =
+        runTest {
+            val k = pausedAtAKeptPlace()
+            k.press(LiveCommand.Tune(CH5))
+            k.r.at(10_000)
+            assertEquals(itemOf(5), k.lastTuned())
+            assertNull(k.transport)
+            k.finish()
+        }
+
+    @Test
+    fun goLiveFromAKeptPausedPlaceClearsTheTransport() =
+        runTest {
+            val k = pausedAtAKeptPlace()
+            k.press(LiveCommand.GoLive)
+            k.r.at(10_000)
+            assertNull(k.transport)
+            k.finish()
+        }
+
+    @Test
+    fun playingOnFromAKeptPlaceTillTheItemEndsClearsTheTransport() =
+        runTest {
+            val k = pausedAtAKeptPlace()
+            k.press(LiveCommand.PlayPause)
+            // The block's cut is at minute 60 of media: 40 minutes on from the place, the item ends and what is on
+            // now plays live, with no transport.
+            k.r.atMin(30 + 41)
+            assertNull(k.transport)
+            k.finish()
+        }
+
+    @Test
+    fun aFlipFromADeadKeptPlaceClearsTheTransport() =
+        runTest {
+            val k =
+                keys(startMin = 30, resume = kept(one, 20 * MIN)) {
+                    schedule.channel(CH5, 5, listOf(program(0, 600, 5)))
+                    tune.script(itemOf(1), FakeTune.dead())
+                }
+            k.r.at(1_000)
+            assertTrue(checkNotNull(k.transport).paused)
+            k.press(LiveCommand.Tune(CH5))
+            k.r.at(10_000)
+            assertNull(k.transport)
             k.finish()
         }
 }

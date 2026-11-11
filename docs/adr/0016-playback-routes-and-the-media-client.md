@@ -100,6 +100,9 @@ of whatever URL it is given.
    every build (`Log.setLogLevel(LOG_LEVEL_OFF)`, set before the player is built), because it logs player errors with
    their full cause chains, which can quote a playlist line carrying `api_key` (decision 1). Our own events carry the
    diagnostics instead: the stable error code name and the HTTP status.
+   *Amended 2026-11-11:* our own gated diagnostic log (tag `SBLIVE`, on in a debuggable build or with
+   `setprop log.tag.SBLIVE DEBUG`) may log a player error as its class names, error codes and format fields, and a
+   redacted message only for a decoder, audio-sink or audio-processor cause; never a URI, a host or a title.
 10. **Measure, don't grade, on the Insignia.** The Insignia is slow by nature. Its playback numbers are recorded, not
     scored, and the Phase 1 gate stays as it was (Phil, 2026-10-20). Wasted work is still removed.
     *Amended 2026-10-24:* the Phase 1 gate itself changed to a two-tier gate, a 2 s bar on the Firestick 4K and a

@@ -12,6 +12,7 @@ import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN
 import tv.stationbreak.feature.guide.GUIDE_VISIBLE_ROWS
+import tv.stationbreak.feature.guide.SLOT_MS
 
 /** The guide lays its panel and grid out around the hole live TV gives it; it does not work out where that is. */
 class GuideGeometryTest {
@@ -32,6 +33,16 @@ class GuideGeometryTest {
         assertEquals(864f - 84f, geometry.viewportWidth.value, EPS)
         assertEquals(84f, ChannelColumnWidth.value, EPS)
         assertEquals(GUIDE_VIEWPORT_SPAN.inWholeMilliseconds, geometry.spanMs)
+    }
+
+    @Test
+    fun theGridShowsTwoHoursAt6Point5DpAMinute() {
+        val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
+        assertEquals(120L * 60_000L, geometry.spanMs)
+        // 780 dp over 120 minutes; each half-hour tick (four of them) is 195 dp from the last.
+        assertEquals(6.5f, geometry.widthOf(60_000L).value, EPS)
+        assertEquals(195f, geometry.widthOf(SLOT_MS).value, EPS)
+        assertEquals(geometry.viewportWidth.value, geometry.widthOf(geometry.spanMs).value, EPS)
     }
 
     @Test

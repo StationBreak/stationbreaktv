@@ -230,10 +230,10 @@ class GuideNoLibrariesUiTest {
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
     }
 
-    // Even out volume (#498), the panel's last row: Down stops on it, Left and Right pick Off and On, Select flips it,
-    // and the setting the host holds follows, with the panel staying open.
+    // Even out volume (#498), the panel's last row: Down stops on it, Left and Right pick Off and On,
+    // and the setting the host holds follows. Select closes the panel keeping the pick, as the other choice rows do.
     @Test
-    fun evenOutVolumeRow_leftRightPickAndSelectFlips() {
+    fun evenOutVolumeRow_leftRightPickAndSelectClosesKeepingThePick() {
         showGone()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(TIMEOUT_MS) {
@@ -256,14 +256,14 @@ class GuideNoLibrariesUiTest {
         awaitSelected(GuideTags.LEVELLING_ON)
         assertEquals(true, levelling.value)
 
-        // Select flips it, each time, and the panel stays open.
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        // Select on Off closes the panel and keeps Off: it does not flip it.
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
         awaitSelected(GuideTags.LEVELLING_OFF)
-        assertEquals(false, levelling.value)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitSelected(GuideTags.LEVELLING_ON)
-        assertEquals(true, levelling.value)
-        compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertExists()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isEmpty()
+        }
+        assertEquals(false, levelling.value)
     }
 
     private fun summary(

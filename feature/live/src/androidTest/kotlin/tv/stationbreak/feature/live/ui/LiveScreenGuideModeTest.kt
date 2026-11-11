@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -31,6 +32,8 @@ import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.PictureLabel
+import tv.stationbreak.feature.live.PictureLead
 
 /**
  * Live TV with the guide open (spec 17, Task 10): the picture goes to the guide's corner through the surface's
@@ -55,6 +58,7 @@ class LiveScreenGuideModeTest {
         info: LiveInfo? = null,
         guideOpen: Boolean = true,
         direction: LayoutDirection = LayoutDirection.Ltr,
+        label: PictureLabel? = null,
     ) {
         shown.value = state
         compose.setContent {
@@ -73,6 +77,7 @@ class LiveScreenGuideModeTest {
                                 } else {
                                     null
                                 },
+                            pictureLabel = label,
                         ) { Box(Modifier.fillMaxSize().testTag(SURFACE)) }
                     }
                 }
@@ -161,6 +166,47 @@ class LiveScreenGuideModeTest {
         show(LiveState.NoChannels)
         compose.onNodeWithTag(GUIDE).assertExists()
         assertRect(corner, compose.onNodeWithTag(LiveTags.TEST_CARD).bounds())
+    }
+
+    private val nowPlaying = PictureLabel(4, "Test Channel", null, PictureLead.NowPlaying, "Test Movie A")
+
+    @Test
+    fun theLabelIsAlongTheTopOfThePictureAndAsWide() {
+        show(LiveState.Watching(null), label = nowPlaying)
+        val label = compose.onNodeWithTag(LiveTags.PICTURE_LABEL)
+        // 32 dp tall, from the corner's top edge, across all of its width: nothing near the bottom, where captions go.
+        assertRect(DpRect(corner.left, corner.top, corner.right, corner.top + 32.dp), label.bounds())
+        label.assertTextContains("Now playing:", substring = true)
+        label.assertTextContains("Test Movie A", substring = true)
+    }
+
+    @Test
+    fun theLabelIsInTheTopRightCornerInARightToLeftLayoutToo() {
+        show(LiveState.Watching(null), direction = LayoutDirection.Rtl, label = nowPlaying)
+        assertRect(
+            DpRect(corner.left, corner.top, corner.right, corner.top + 32.dp),
+            compose.onNodeWithTag(LiveTags.PICTURE_LABEL).bounds(),
+        )
+    }
+
+    @Test
+    fun aChannelAloneIsNamedWithoutALead() {
+        show(LiveState.Watching(null), label = nowPlaying.copy(lead = null, title = null))
+        val label = compose.onNodeWithTag(LiveTags.PICTURE_LABEL)
+        label.assertTextContains("Test Channel", substring = true)
+    }
+
+    @Test
+    fun noLabelIsDrawnWithoutOne() {
+        show(LiveState.Watching(null))
+        compose.onNodeWithTag(LiveTags.PICTURE_LABEL).assertDoesNotExist()
+    }
+
+    @Test
+    fun noLabelIsDrawnWhenTheGuideIsClosed() {
+        // The full-screen picture has its own banners; the label is the guide's.
+        show(LiveState.Watching(null), guideOpen = false, label = nowPlaying)
+        compose.onNodeWithTag(LiveTags.PICTURE_LABEL).assertDoesNotExist()
     }
 
     private companion object {

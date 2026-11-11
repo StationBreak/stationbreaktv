@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -49,7 +50,7 @@ internal enum class SettingsRow {
     /** Select syncs with the server now (spec 26, Part 5); the line beside it says how that stands. */
     SyncNow,
 
-    /** Off and On (volume levelling, #498): Left and Right pick one, Select flips it; the panel stays open. */
+    /** Off and On (volume levelling, #498): Left and Right pick one; Select closes the panel keeping the pick. */
     VolumeLevelling,
 }
 
@@ -75,7 +76,6 @@ internal data class SettingsStep(
     val syncNow: Boolean = false,
     val fit: ScreenFit? = null,
     val levelling: Boolean? = null,
-    val toggleLevelling: Boolean = false,
 )
 
 /** The line beside Sync now: the string [text], with the [time] it synced at for the one that has it. */
@@ -130,9 +130,9 @@ private fun reasonLine(failure: SyncFailure): Int =
  * Select and Back are all kept, so the grid never moves under the panel.
  *
  * Up and Down move between the rows (on every press, and stop at the ends). On Appearance, Left and Right pick Dark
- * and Light; on Screen fit, Safe and Edge. Select, on its first press: on Appearance and Screen fit it closes the
- * panel, on Libraries it shows the Libraries screen,
- * and on Sync now it asks for a sync and leaves the panel open, so the line beside the row can say how it goes.
+ * and Light; on Screen fit, Safe and Edge; on Even out volume, Off and On. Select, on its first press: on those three
+ * choice rows it closes the panel keeping the pick, on Libraries it shows the Libraries screen, and on Sync now it
+ * asks for a sync and leaves the panel open, so the line beside the row can say how it goes.
  * Back closes the panel at its release, as the guide's own Back does. While the Libraries screen shows, every key is
  * kept and does nothing: that screen has the keys, as channel management has them over the guide.
  */
@@ -181,10 +181,9 @@ internal fun settingsStep(
 // Select on the panel's row, once per press.
 private fun SettingsPanel.selected(): SettingsStep =
     when (row) {
-        SettingsRow.Appearance, SettingsRow.ScreenFit -> SettingsStep(null)
+        SettingsRow.Appearance, SettingsRow.ScreenFit, SettingsRow.VolumeLevelling -> SettingsStep(null)
         SettingsRow.Libraries -> SettingsStep(copy(librariesShown = true))
         SettingsRow.SyncNow -> SettingsStep(this, syncNow = true)
-        SettingsRow.VolumeLevelling -> SettingsStep(this, toggleLevelling = true)
     }
 
 // Up and Down move between the rows and stop at the ends; Left and Right leave the row where it is.
@@ -208,6 +207,11 @@ private fun SettingsPanel.themeFor(direction: GuideDirection): GuideTheme? =
         else -> null
     }
 
+// The gap between the panel's rows. INTERIM, pending the design pass: the band above the menu row is fixed, and the
+// five rows with their title do not fit it with the 8 dp gaps they had (the last row ran under the menu row). The tabs
+// keep their own 6 dp of underline room, so the rows still read apart.
+private val PanelRowGap = 0.dp
+
 /**
  * The Settings panel, in the details band while the Settings entry is open: Appearance (Dark and Light), Libraries and
  * Sync now, drawn as the menu row's text tabs are ([tabLook]). [row] is the one under the D-pad and [choice] the theme
@@ -227,7 +231,10 @@ internal fun GuideSettingsPanel(
 ) {
     val colors = LocalGuideColors.current
     val onAppearance = row == SettingsRow.Appearance
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier.wrapContentHeight(Alignment.Top, unbounded = true),
+        verticalArrangement = Arrangement.spacedBy(PanelRowGap),
+    ) {
         Text(
             text = stringResource(R.string.guide_settings_button),
             style = guideText(28.sp, FontWeight.SemiBold),

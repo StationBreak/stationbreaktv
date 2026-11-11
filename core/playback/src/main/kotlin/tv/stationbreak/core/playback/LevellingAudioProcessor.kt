@@ -83,7 +83,11 @@ class LevellingAudioProcessor(
     private var smoothPos = 0
     private var smoothSum = 0.0
     private var wasEnabled = true
+
+    // Levelled audio of this stream is still in the delay line: the end of the stream lets it out, once.
+    private var held = false
     private var frame = DoubleArray(0)
+    private var lastPath = PATH_NONE
 
     /** The largest output magnitude before the final guard clamp (for tests: it must stay at the ceiling). */
     internal var maxPreClamp = 0.0
@@ -96,10 +100,30 @@ class LevellingAudioProcessor(
         val pcm =
             inputAudioFormat.encoding == C.ENCODING_PCM_16BIT || inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
         val ok = pcm && inputAudioFormat.channelCount > 0 && inputAudioFormat.sampleRate > 0
+        if (PlaybackLog.on) {
+            PlaybackLog.line(
+                "levelling configure encoding=${inputAudioFormat.encoding} channels=${inputAudioFormat.channelCount} " +
+                    "rate=${inputAudioFormat.sampleRate} active=$ok enabled=${enabled()} leading=${leading()} " +
+                    "wasEnabled=$wasEnabled",
+            )
+        }
         return if (ok) inputAudioFormat else AudioFormat.NOT_SET
     }
 
     override fun onFlush() {
+        if (PlaybackLog.on) {
+            PlaybackLog.line(
+                "levelling flush enabled=${enabled()} leading=${leading()} wasEnabled=$wasEnabled gainDb=$gainDb",
+            )
+        }
+        lastPath = PATH_NONE
+        held = false
+        // The pipeline flushes every processor it holds, one with no format too (after a reset): nothing to set up.
+        if (!isActive) {
+            sampleRate = 0
+            channels = 0
+            return
+        }
         sampleRate = inputAudioFormat.sampleRate
         channels = inputAudioFormat.channelCount
         float = inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
@@ -144,13 +168,16 @@ class LevellingAudioProcessor(
         limiter = 1.0
         sampleRate = 0
         channels = 0
+        held = false
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         if (!enabled()) {
+            logPath(PATH_BYPASS)
             bypass(inputBuffer)
             return
         }
+        logPath(PATH_LEVELLING)
         if (!wasEnabled) {
             // Back on after a stretch off: nothing stale in the delay line, the limiter or the window, and the gain
             // starts from 0 dB, not from what an earlier show learned (the slew then moves it).
@@ -171,18 +198,33 @@ class LevellingAudioProcessor(
             step(out)
         }
         out.flip()
+        if (frames > 0) held = true
+    }
+
+    // One line per change of path (and the first after a flush), never per buffer; nothing is built while off.
+    private fun logPath(path: Int) {
+        if (path == lastPath || !PlaybackLog.on) return
+        lastPath = path
+        PlaybackLog.line(
+            "levelling path=${if (path == PATH_BYPASS) "bypass" else "levelling"} enabled=${enabled()} " +
+                "leading=${leading()} wasEnabled=$wasEnabled gainDb=$gainDb",
+        )
     }
 
     // Off: unity gain, the audio passes as it came.
     private fun bypass(inputBuffer: ByteBuffer) {
         wasEnabled = false
+        held = false
         val out = replaceOutputBuffer(inputBuffer.remaining())
         out.put(inputBuffer)
         out.flip()
     }
 
     override fun onQueueEndOfStream() {
-        if (!wasEnabled || channels == 0) return
+        // Media3's pipeline asks again on every pass once the processor before this one has ended: the tail leaves
+        // once, or the stream never ends. Off, or with nothing levelled since the flush, there is no tail.
+        if (!held) return
+        held = false
         // The frames still in the delay line leave through the same path, behind [lookahead] - 1 frames of silence.
         val bytes = if (float) Float.SIZE_BYTES else Short.SIZE_BYTES
         val out = replaceOutputBuffer((lookahead - 1) * channels * bytes)
@@ -349,6 +391,9 @@ class LevellingAudioProcessor(
         /** A window quieter than this holds the gain. */
         const val SILENCE_GATE_LKFS = -60.0
 
+        private const val PATH_NONE = 0
+        private const val PATH_BYPASS = 1
+        private const val PATH_LEVELLING = 2
         private const val GATED = -1.0
         private const val HP_B1 = 2.0
         private const val AMPLITUDE_DB = 20.0

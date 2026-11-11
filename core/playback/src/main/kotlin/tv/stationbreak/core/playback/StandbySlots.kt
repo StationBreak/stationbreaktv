@@ -457,7 +457,13 @@ internal class StandbySlots(
             eventTime: AnalyticsListener.EventTime,
             error: PlaybackException,
         ) {
-            epochOf(eventTime)?.let { onStandbyError(it, error) }
+            val epoch = epochOf(eventTime)
+            if (epoch != null) {
+                PlaybackLog.playerError(error) {
+                    "playerError role=standby epoch=$epoch audioError=${isAudioError(error)}"
+                }
+            }
+            epoch?.let { onStandbyError(it, error) }
         }
     }
 
