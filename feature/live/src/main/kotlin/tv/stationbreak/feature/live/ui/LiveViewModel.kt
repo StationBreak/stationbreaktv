@@ -128,6 +128,8 @@ internal class ControllerTunerFactory
                 keep = { who, what -> keepChoice(trackChoices, LibraryAccount(who.server.id, who.userId), what) },
                 // What the viewer chose before, for this account on this device (never from the server).
                 preferences = { trackChoices.preferences(LibraryAccount(it.server.id, it.userId)) },
+                // The version the viewer chose for an item, played again while the item still offers it (#630).
+                version = { who, item -> trackChoices.version(LibraryAccount(who.server.id, who.userId), item) },
             )
     }
 
@@ -434,5 +436,6 @@ private suspend fun keepChoice(
     when (what) {
         is Remembered.AudioLanguage -> store.saveAudioLanguage(account, what.language)
         is Remembered.Subtitles -> store.saveSubtitles(account, what.preference)
+        is Remembered.Version -> store.saveVersion(account, what.item, what.source)
     }
 }

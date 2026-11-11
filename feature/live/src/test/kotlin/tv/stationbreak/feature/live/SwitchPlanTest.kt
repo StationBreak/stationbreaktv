@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.tracks.SubtitlePreference
 import tv.stationbreak.core.playback.SubtitleChoice
 import tv.stationbreak.core.playback.SubtitleSwitch
@@ -12,6 +13,7 @@ import tv.stationbreak.core.playback.SwitchCost
 import tv.stationbreak.core.playback.TrackChoice
 import tv.stationbreak.core.playback.TrackOverride
 import tv.stationbreak.core.playback.TrackSwitch
+import tv.stationbreak.feature.live.SwitchFixtures.ALT
 import tv.stationbreak.feature.live.SwitchFixtures.COMMENTARY
 import tv.stationbreak.feature.live.SwitchFixtures.ENGLISH_SDH
 import tv.stationbreak.feature.live.SwitchFixtures.ENGLISH_SUBS
@@ -20,14 +22,17 @@ import tv.stationbreak.feature.live.SwitchFixtures.SOURCE
 import tv.stationbreak.feature.live.SwitchFixtures.SPANISH
 import tv.stationbreak.feature.live.SwitchFixtures.SPANISH_PICTURE
 import tv.stationbreak.feature.live.SwitchFixtures.facts
+import tv.stationbreak.feature.live.SwitchFixtures.twoVersions
 
 /** What a choice means: the choice to tune with, the in-place switch, its cost, and what it leaves behind. */
 class SwitchPlanTest {
+    private val item = itemOf(1)
+
     private fun plan(
         selection: TrackSelection,
         now: TrackOverride? = null,
         facts: tv.stationbreak.core.playback.StreamFacts = facts(),
-    ) = checkNotNull(planSwitch(selection, facts, now))
+    ) = checkNotNull(planSwitch(selection, facts, now, item))
 
     @Test
     fun anInstantAudioSwitchNamesTheTrackToPickAndKeepsTheSubtitlesAsTheyArePlaying() {
@@ -105,7 +110,40 @@ class SwitchPlanTest {
 
     @Test
     fun aTrackThePlayingVersionDoesNotHaveIsNoPlan() {
-        assertNull(planSwitch(TrackSelection.Audio(99), facts(), null))
-        assertNull(planSwitch(TrackSelection.Subtitles(SubtitleChoice.Track(99)), facts(), null))
+        assertNull(planSwitch(TrackSelection.Audio(99), facts(), null, item))
+        assertNull(planSwitch(TrackSelection.Subtitles(SubtitleChoice.Track(99)), facts(), null, item))
+    }
+
+    @Test
+    fun anotherVersionRetunesWithTheVersionNamedNoTracksAndIsRemembered() {
+        val p = plan(TrackSelection.Version(ALT), facts = twoVersions())
+        assertEquals(SwitchCost.Retune, p.cost)
+        assertNull(p.inPlace)
+        // The version alone: the new version's tracks come from the carried preferences.
+        assertEquals(TrackChoice(ALT, null), p.choice)
+        assertEquals(BannerLabel.SwitchingVersion, p.label)
+        assertEquals(Remembered.Version(item, ALT), p.remember)
+    }
+
+    @Test
+    fun anOldAudioChoiceIsNotCarriedToAnotherVersion() {
+        val chose = TrackOverride(SPANISH.index, SubtitleChoice.Track(ENGLISH_SUBS.index))
+        assertNull(plan(TrackSelection.Version(ALT), now = chose, facts = twoVersions()).choice.tracks)
+    }
+
+    @Test
+    fun theVersionThatPlaysOrOneTheItemLacksIsNoPlan() {
+        assertNull(planSwitch(TrackSelection.Version(SOURCE), twoVersions(), null, item))
+        assertNull(
+            planSwitch(
+                TrackSelection.Version(
+                    tv.stationbreak.core.model
+                        .MediaSourceId("gone"),
+                ),
+                twoVersions(),
+                null,
+                item,
+            ),
+        )
     }
 }

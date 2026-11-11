@@ -102,7 +102,14 @@ internal fun CableBanner(
             BannerStrip(
                 banner,
                 Modifier.align(Alignment.BottomCenter).padding(start = safe.left, end = safe.left, bottom = safe.top),
-                Actions(onInfo, onLast, onLive, { onPicker(PickerKind.Audio) }, { onPicker(PickerKind.Subtitles) }),
+                Actions(
+                    onInfo,
+                    onLast,
+                    onLive,
+                    { onPicker(PickerKind.Audio) },
+                    { onPicker(PickerKind.Subtitles) },
+                    { onPicker(PickerKind.Version) },
+                ),
                 behind,
                 clock,
                 chipPlaced = { kind, x -> chips = chips + (kind to x) },
@@ -116,6 +123,7 @@ internal fun CableBanner(
                     open,
                     facts,
                     onChoose,
+                    banner.programNames,
                     Modifier
                         .align(Alignment.BottomStart)
                         .padding(bottom = safe.top + SelectHeight + 4.dp)
@@ -234,6 +242,7 @@ private fun BannerStrip(
                 banner.picker,
                 banner.chip,
                 banner.switchFailed,
+                banner.programNames,
             )
         }
     }
@@ -399,4 +408,5 @@ private fun labelText(label: BannerLabel) =
         BannerLabel.FillingIn -> R.string.live_label_filling_in
         BannerLabel.SwitchingAudio -> R.string.live_label_switching_audio
         BannerLabel.SwitchingSubtitles -> R.string.live_label_switching_subtitles
+        BannerLabel.SwitchingVersion -> R.string.live_label_switching_version
     }

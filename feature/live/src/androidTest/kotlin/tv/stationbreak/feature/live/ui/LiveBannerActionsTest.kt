@@ -289,6 +289,23 @@ class LiveBannerActionsTest {
     }
 
     @Test
+    fun aChipKeepsTheFocusWhenLiveGoes() {
+        var transport by mutableStateOf<TransportView?>(view(paused = true))
+        compose.setContent {
+            StationBreakTheme {
+                val state = LiveState.Watching(selectBanner(Route.DIRECT_PLAY))
+                LiveScreen(state, null, {}, null, transport) {}
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).performSemanticsAction(SemanticsActions.RequestFocus)
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+        compose.runOnIdle { transport = null }
+        compose.waitForIdle()
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_AUDIO).assertIsFocused()
+    }
+
+    @Test
     fun liveSendsGoLive() {
         showKeysRoot(transport = view(paused = false))
         press(Key.DirectionCenter)
@@ -416,6 +433,42 @@ class LiveBannerActionsTest {
         // At the right end of the row: past the last chip.
         val chip = compose.onNodeWithTag(LiveTags.BANNER_CHIP_SUBTITLES).fetchSemanticsNode().boundsInRoot
         assertTrue(label.fetchSemanticsNode().boundsInRoot.left >= chip.right)
+    }
+
+    private fun withSecondVersion(facts: StreamFacts): StreamFacts {
+        val first = facts.sources.single()
+        val other = first.copy(id = MediaSourceId("other"), name = "Theatrical")
+        return facts.copy(sources = listOf(first, other))
+    }
+
+    private fun twoVersions(picker: PickerKind? = null): Banner {
+        val banner = selectBanner(Route.DIRECT_PLAY, picker)
+        return banner.copy(stream = withSecondVersion(checkNotNull(banner.stream)))
+    }
+
+    private fun versionChipConfig() = compose.onNodeWithTag(LiveTags.BANNER_CHIP_VERSION).fetchSemanticsNode().config
+
+    @Test
+    fun withOneVersionTheVersionChipIsShownButNotAButton() {
+        show(selectBanner(Route.DIRECT_PLAY))
+        assertTrue(SemanticsActions.OnClick !in versionChipConfig())
+    }
+
+    @Test
+    fun withTwoVersionsTheVersionChipOpensItsPicker() {
+        show(twoVersions())
+        assertTrue(SemanticsActions.OnClick in versionChipConfig())
+        compose.onNodeWithTag(LiveTags.BANNER_CHIP_VERSION).performSemanticsAction(SemanticsActions.OnClick)
+        compose.waitForIdle()
+        assertEquals(listOf<LiveCommand>(LiveCommand.OpenPicker(PickerKind.Version)), sent.toList())
+    }
+
+    @Test
+    fun theVersionPickerListsEveryVersionAndSaysTheBriefPauseOnce() {
+        show(twoVersions(PickerKind.Version))
+        compose.onNodeWithTag(LiveTags.PICKER_ROW + 0).assertExists()
+        compose.onNodeWithTag(LiveTags.PICKER_ROW + 1).assertExists()
+        compose.onNodeWithTag(LiveTags.PICKER_HEADING).assertExists()
     }
 
     @Test

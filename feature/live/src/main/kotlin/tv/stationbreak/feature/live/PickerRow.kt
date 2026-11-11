@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live
 
 import tv.stationbreak.core.playback.AudioFacts
+import tv.stationbreak.core.playback.SourceFacts
 import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.playback.SubtitleChoice
 import tv.stationbreak.core.playback.SubtitleFacts
@@ -51,17 +52,27 @@ internal sealed interface PickerRow {
         // What the server would show may differ from what plays, so it is a restart unless nothing would change.
         override val restarts: Boolean = true
     }
+
+    /** One version of the item (#630): choosing another one always re-tunes ([SourceFacts.cost]). */
+    data class Version(
+        val source: SourceFacts,
+        override val playing: Boolean,
+    ) : PickerRow {
+        override val selection: TrackSelection = TrackSelection.Version(source.id)
+        override val restarts: Boolean = source.cost == SwitchCost.Retune
+    }
 }
 
 /**
- * True when the chip for [kind] can open a picker (design doc B2.8): more than one audio track to choose from, or any
- * subtitle track at all. With one audio track, or none, the chip shows but is not focusable.
+ * True when the chip for [kind] can open a picker (design doc B2.8): more than one audio track to choose from, any
+ * subtitle track at all, or more than one version. With nothing to choose, the chip shows but is not focusable.
  */
 internal fun StreamFacts?.canPick(kind: PickerKind): Boolean {
-    val source = this?.playing ?: return false
+    val facts = this ?: return false
     return when (kind) {
-        PickerKind.Audio -> source.audio.size > 1
-        PickerKind.Subtitles -> source.subtitles.isNotEmpty()
+        PickerKind.Audio -> (facts.playing?.audio?.size ?: 0) > 1
+        PickerKind.Subtitles -> facts.playing?.subtitles?.isNotEmpty() == true
+        PickerKind.Version -> facts.sources.size > 1
     }
 }
 
@@ -80,6 +91,12 @@ internal fun StreamFacts.subtitleRows(): List<PickerRow> =
         add(PickerRow.ServerDefault())
     }
 
+/** The version rows: every version the server offered, in its order; the playing one is marked. */
+internal fun StreamFacts.versionRows(): List<PickerRow> {
+    val now = sourceId
+    return sources.map { PickerRow.Version(it, playing = it.id == now) }
+}
+
 /** The rows of [kind]'s picker for [facts]. */
 internal fun pickerRows(
     facts: StreamFacts,
@@ -88,4 +105,5 @@ internal fun pickerRows(
     when (kind) {
         PickerKind.Audio -> facts.audioRows()
         PickerKind.Subtitles -> facts.subtitleRows()
+        PickerKind.Version -> facts.versionRows()
     }

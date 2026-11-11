@@ -160,6 +160,94 @@ class StreamLabelsTest {
         assertEquals("Theatrical", StreamLabels.versionRow(version(video = null, name = "Theatrical"), copy))
     }
 
+    private fun named(
+        name: String?,
+        titles: List<String> = emptyList(),
+    ) = StreamLabels.versionRow(version(name = name), copy, titles)
+
+    @Test
+    fun aNameThatOnlyRepeatsThePictureIsLeftOut() {
+        assertEquals("1080p · HEVC", named("1080p"))
+        assertEquals("1080p · HEVC", named("HEVC"))
+        assertEquals("1080p · HEVC", named("1080P hevc"))
+    }
+
+    @Test
+    fun aNameThatIsTheProgrammesOrTheEpisodesTitleIsLeftOut() {
+        val titles = listOf("Jingle All the Way", "Pilot")
+        assertEquals("1080p · HEVC", named("Jingle All The Way", titles))
+        assertEquals("1080p · HEVC", named("jingle all the way!", titles))
+        assertEquals("1080p · HEVC", named("PILOT", titles))
+        assertEquals("1080p · HEVC · Pilot Extended", named("Pilot Extended", titles))
+    }
+
+    @Test
+    fun aNameThatIsAFileNameIsLeftOut() {
+        listOf(
+            "Show_S01E02_[720p]_xvid",
+            "Movie [1080p]",
+            "Movie.Name.2019.1080p.BluRay",
+            "Movie Name.2019.1080p",
+            "movie.mkv",
+            "A very long name that goes on well past the limit",
+        ).forEach { assertEquals(it, "1080p · HEVC", named(it)) }
+    }
+
+    @Test
+    fun anEditionNameStays() {
+        assertEquals("1080p · HEVC · Director's Cut", named("Director's Cut"))
+        assertEquals("1080p · HEVC · Extended Edition", named("Extended Edition"))
+        assertEquals("1080p · HEVC · Remux H.264", named("Remux H.264"))
+        assertEquals("1080p · HEVC · Ed. 2", named("Ed. 2"))
+    }
+
+    @Test
+    fun theChipDropsTheSameNames() {
+        val facts = facts(version(name = "Pilot"))
+        assertEquals("1080p · HEVC", StreamLabels.versionChip(facts, copy, listOf("Pilot")))
+    }
+
+    @Test
+    fun versionsThatStillReadTheSameTakeTheirBitrateThenAPlace() {
+        val picture = VideoFacts(1920, 1080, "hevc")
+
+        fun rate(
+            id: String,
+            bps: Int?,
+        ) = SourceFacts(MediaSourceId(id), null, picture, emptyList(), emptyList(), bitrate = bps).let {
+            PickerRow.Version(it, playing = false)
+        }
+        val rows = listOf(rate("a", 8_000_000), rate("b", 12_400_000), rate("c", 8_000_000), rate("d", null))
+        assertEquals(
+            listOf(
+                "1080p · HEVC · 8 Mbps",
+                "1080p · HEVC · 12 Mbps",
+                "1080p · HEVC · 8 Mbps · 2",
+                "1080p · HEVC",
+            ),
+            StreamLabels.pickerTexts(rows, copy, language),
+        )
+        val three = listOf(rate("a", 8_000_000), rate("b", 8_000_000), rate("c", 8_000_000))
+        assertEquals(
+            listOf("1080p · HEVC · 8 Mbps", "1080p · HEVC · 8 Mbps · 2", "1080p · HEVC · 8 Mbps · 3"),
+            StreamLabels.pickerTexts(three, copy, language),
+        )
+        val unique = listOf(rate("a", 8_000_000), rate("b", 4_000_000))
+        assertEquals(
+            listOf("1080p · HEVC · 8 Mbps", "1080p · HEVC · 4 Mbps"),
+            StreamLabels.pickerTexts(unique, copy, language),
+        )
+    }
+
+    @Test
+    fun aBitrateIsInMegabitsWithOneDecimalUnderTen() {
+        assertEquals("8 Mbps", StreamFigures.bitrate(8_000_000))
+        assertEquals("8.4 Mbps", StreamFigures.bitrate(8_400_000))
+        assertEquals("12 Mbps", StreamFigures.bitrate(12_400_000))
+        assertNull(StreamFigures.bitrate(null))
+        assertNull(StreamFigures.bitrate(0))
+    }
+
     // --- the figures ---
 
     @Test
@@ -202,6 +290,15 @@ class StreamLabelsTest {
     }
 
     // --- twin rows ---
+
+    @Test
+    fun versionsThatReadTheSameAreNumberedFromTheSecond() {
+        val picture = VideoFacts(1920, 1080, "hevc")
+
+        fun version(id: String) = SourceFacts(MediaSourceId(id), null, picture, emptyList(), emptyList())
+        val rows = listOf("a", "b").map { PickerRow.Version(version(it), playing = false) }
+        assertEquals(listOf("1080p · HEVC", "1080p · HEVC · 2"), StreamLabels.pickerTexts(rows, copy, language))
+    }
 
     private fun subtitleTexts(vararg tracks: SubtitleFacts): List<String> =
         StreamLabels.pickerTexts(tracks.map { PickerRow.Subtitle(it, playing = false) }, copy, language)

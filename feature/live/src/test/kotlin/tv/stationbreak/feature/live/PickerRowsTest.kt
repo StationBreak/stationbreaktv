@@ -10,6 +10,7 @@ import tv.stationbreak.feature.live.SwitchFixtures.ENGLISH_SDH
 import tv.stationbreak.feature.live.SwitchFixtures.FRENCH
 import tv.stationbreak.feature.live.SwitchFixtures.SPANISH
 import tv.stationbreak.feature.live.SwitchFixtures.facts
+import tv.stationbreak.feature.live.SwitchFixtures.twoVersions
 
 /** What a picker lists, whether its chip can open, and which rows restart the picture (design doc B2.8, B3). */
 class PickerRowsTest {
@@ -64,5 +65,21 @@ class PickerRowsTest {
     fun theRowsOfAnotherVersionAreNotListed() {
         val rows = facts(audio = listOf(FRENCH, SPANISH)).audioRows()
         assertEquals(2, rows.size)
+    }
+
+    @Test
+    fun theVersionChipOpensOnlyWhenTheItemHasMoreThanOneVersion() {
+        assertFalse("one version", facts().canPick(PickerKind.Version))
+        assertTrue(twoVersions().canPick(PickerKind.Version))
+    }
+
+    @Test
+    fun theVersionRowsAreEveryVersionInServerOrderAndEachRestartsThePicture() {
+        val rows = pickerRows(twoVersions(), PickerKind.Version)
+        val ids = rows.map { (it as PickerRow.Version).source.id }
+        assertEquals(listOf(SwitchFixtures.SOURCE, SwitchFixtures.ALT), ids)
+        assertEquals(listOf(true, false), rows.map { it.playing })
+        assertTrue(rows.all { it.restarts })
+        assertEquals(TrackSelection.Version(SwitchFixtures.ALT), rows[1].selection)
     }
 }

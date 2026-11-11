@@ -36,7 +36,10 @@ data class StreamFacts(
     val subtitle: SubtitleFacts? get() = playing?.subtitles?.firstOrNull { it.index == subtitleIndex }
 }
 
-/** One version of the item: [name] is the server's name for it (its edition, often), [video] its picture. */
+/**
+ * One version of the item: [name] is the server's name for it (its edition, often), [video] its picture, [bitrate] the
+ * file's overall bits per second when the server says.
+ */
 data class SourceFacts(
     val id: MediaSourceId,
     val name: String?,
@@ -44,6 +47,7 @@ data class SourceFacts(
     val audio: List<AudioFacts>,
     val subtitles: List<SubtitleFacts>,
     val cost: SwitchCost = SwitchCost.Retune,
+    val bitrate: Int? = null,
 )
 
 /** A version's video: the picture [width] by [height] and its [codec] (the vocabulary's name), each null if unknown. */
@@ -124,6 +128,7 @@ private fun MediaSource.summary(
                 it.subtitleFacts(trackCost(SwitchTarget.Subtitle(it)))
             },
         cost = cost(SwitchTarget.Version(id)),
+        bitrate = bitrate?.takeIf { it > 0 },
     )
 }
 

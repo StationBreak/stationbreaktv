@@ -67,6 +67,7 @@ internal class Actions(
     val live: () -> Unit = {},
     val audio: () -> Unit = {},
     val subtitles: () -> Unit = {},
+    val version: () -> Unit = {},
 )
 
 /**
@@ -131,10 +132,18 @@ internal fun ActionsRow(
     picker: PickerKind? = null,
     chip: PickerKind? = null,
     failed: Boolean = false,
+    names: List<String> = emptyList(),
 ) {
     val first = remember { FocusRequester() }
     val live = remember { FocusRequester() }
-    val chipFocus = remember { mapOf(PickerKind.Audio to FocusRequester(), PickerKind.Subtitles to FocusRequester()) }
+    val chipFocus =
+        remember {
+            mapOf(
+                PickerKind.Audio to FocusRequester(),
+                PickerKind.Subtitles to FocusRequester(),
+                PickerKind.Version to FocusRequester(),
+            )
+        }
     // Info has the focus as the row appears, unless it came up with a picker open (a remote key): the picker has it.
     FocusOnAppear(first, chip?.takeIf { stream.canPick(it) }?.let { chipFocus.getValue(it) }, picker)
     // Back, or a choice, closes the picker to the chip that opened it.
@@ -143,20 +152,17 @@ internal fun ActionsRow(
         if (picker == null) opened?.let { chipFocus.getValue(it).requestFocus() }
         opened = picker
     }
-    // The Live button comes and goes with the transport. If the row had the focus and neither Info nor Last has it
-    // once Live is gone, it was Live's: Info takes it. Losses are ignored once `behind` is false, so the row's last
-    // state while Live was there is what is read (the detach of a focused Live reports a loss of its own).
+    // The Live button comes and goes with the transport. Only a focused Live hands its focus to Info when it goes: a
+    // chip (or Info, or Last) that has the focus keeps it. Losses are ignored once `behind` is false, so the state
+    // read is Live's last while it was there (the detach of a focused Live reports a loss of its own).
     val behindNow by rememberUpdatedState(behind)
-    var rowFocused by remember { mutableStateOf(false) }
-    var infoFocused by remember { mutableStateOf(false) }
-    var lastFocused by remember { mutableStateOf(false) }
-    InfoTakesOverFromLive(behind, first) { rowFocused && !infoFocused && !lastFocused }
+    var liveFocused by remember { mutableStateOf(false) }
+    InfoTakesOverFromLive(behind, first) { liveFocused }
     Row(
         Modifier
             .fillMaxWidth()
             .height(ACTION_ROW_HEIGHT)
             .padding(horizontal = 16.dp)
-            .onFocusChanged { if (behindNow || it.hasFocus) rowFocused = it.hasFocus }
             .testTag(LiveTags.BANNER_ACTIONS),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -166,6 +172,7 @@ internal fun ActionsRow(
                 Modifier
                     .focusRequester(live)
                     .focusProperties { right = first }
+                    .onFocusChanged { if (behindNow) liveFocused = it.hasFocus }
                     .testTag(LiveTags.BANNER_ACTION_LIVE)
             ActionButton(R.string.live_action_live, actions.live, modifier)
         }
@@ -173,14 +180,13 @@ internal fun ActionsRow(
             Modifier
                 .focusRequester(first)
                 .focusProperties { if (behind) left = live }
-                .onFocusChanged { infoFocused = it.hasFocus }
                 .testTag(LiveTags.BANNER_ACTION_INFO)
         ActionButton(R.string.live_action_info, actions.info, info)
         if (hasLast) {
-            val last = Modifier.onFocusChanged { lastFocused = it.hasFocus }.testTag(LiveTags.BANNER_ACTION_LAST)
+            val last = Modifier.testTag(LiveTags.BANNER_ACTION_LAST)
             ActionButton(R.string.live_action_last, actions.last, last)
         }
-        if (stream != null) Chips(stream, actions, chipFocus, chipPlaced, chip.takeIf { failed })
+        if (stream != null) Chips(stream, actions, chipFocus, chipPlaced, chip.takeIf { failed }, names)
     }
 }
 
@@ -235,9 +241,10 @@ private val TranscodingSize = 11.sp
 /**
  * The Audio, Subtitles and Version chips (design doc B1, B2.8), after a 1 dp divider: each `Label  Value`, the value
  * the same fact the stream line states. A chip with nothing to choose from shows but takes no focus: one audio track,
- * no subtitle tracks, and the Version chip until the version picker comes (#630). While the route is a transcode, the
+ * no subtitle tracks, and one version. While the route is a transcode, the
  * row ends with a right-aligned "Transcoding".
  */
+@Suppress("LongParameterList") // The stream, the actions, where chips sit, the failed chip, the titles.
 @Composable
 private fun RowScope.Chips(
     stream: StreamFacts,
@@ -245,6 +252,7 @@ private fun RowScope.Chips(
     focus: Map<PickerKind, FocusRequester>,
     placed: (PickerKind, Float) -> Unit,
     failed: PickerKind?,
+    names: List<String>,
 ) {
     val context = LocalContext.current
     val copy = remember(context) { StreamCopy.from(context.resources) }
@@ -272,9 +280,14 @@ private fun RowScope.Chips(
             .onGloballyPositioned { placed(PickerKind.Subtitles, it.positionInRoot().x) }
             .testTag(LiveTags.BANNER_CHIP_SUBTITLES),
     )
-    StreamLabels.versionChip(stream, copy)?.let {
-        val tag = Modifier.testTag(LiveTags.BANNER_CHIP_VERSION)
-        Chip(R.string.live_chip_version, ChipFace(it), focusable = false, onClick = {}, modifier = tag)
+    StreamLabels.versionChip(stream, copy, names)?.let { version ->
+        val tag =
+            Modifier
+                .focusRequester(focus.getValue(PickerKind.Version))
+                .onGloballyPositioned { placed(PickerKind.Version, it.positionInRoot().x) }
+                .testTag(LiveTags.BANNER_CHIP_VERSION)
+        val face = ChipFace(version, failed == PickerKind.Version)
+        Chip(R.string.live_chip_version, face, stream.canPick(PickerKind.Version), actions.version, tag)
     }
     if (stream.route == Route.TRANSCODE) TranscodingLabel(Modifier.weight(1f))
 }

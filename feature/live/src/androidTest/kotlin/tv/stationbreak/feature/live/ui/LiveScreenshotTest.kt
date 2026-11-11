@@ -136,6 +136,20 @@ class LiveScreenshotTest {
             offCost = SwitchCost.Instant,
         )
 
+    /** The same play where the server offers a second version: the Version chip is a button, and has a picker. */
+    private val twoVersions =
+        facts.copy(
+            sources =
+                facts.sources +
+                    SourceFacts(
+                        MediaSourceId("frame-theatrical"),
+                        "Theatrical Cut",
+                        VideoFacts(1280, 720, "h264"),
+                        audio = emptyList(),
+                        subtitles = emptyList(),
+                    ),
+        )
+
     @Suppress("LongParameterList") // One frame's choices: which banner, what plays, what is open, what it says.
     private fun banner(
         actions: Boolean,
@@ -233,6 +247,20 @@ class LiveScreenshotTest {
         )
 
     @Test
+    fun theVersionPicker() =
+        shoot(
+            "live-picker-version.png",
+            LiveState.Watching(banner(actions = true, stream = twoVersions, picker = PickerKind.Version)),
+        )
+
+    @Test
+    fun switchingVersionUnderTheSnow() =
+        shoot(
+            "live-switching-version.png",
+            LiveState.Tuning(banner(actions = false, stream = twoVersions, label = BannerLabel.SwitchingVersion)),
+        )
+
+    @Test
     fun switchingAudioUnderTheSnow() =
         shoot(
             "live-switching.png",
@@ -258,6 +286,15 @@ class LiveScreenshotTest {
         )
 
     /** The widest row: Live (behind), Info, Last, a subtitle in use, a transcode, and "Couldn't switch" on the chip. */
+    @Test
+    fun theBannerAfterAVersionThatDidNotTake() =
+        shoot(
+            "live-switch-failed-version.png",
+            LiveState.Watching(
+                banner(actions = true, stream = twoVersions, chip = PickerKind.Version, switchFailed = true),
+            ),
+        )
+
     @Test
     fun theBannerAfterAFailedSwitchAtItsWidest() {
         val transcoding = facts.copy(route = Route.TRANSCODE, subtitleIndex = 4)

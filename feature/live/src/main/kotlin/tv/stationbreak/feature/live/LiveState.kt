@@ -85,16 +85,20 @@ enum class BannerLabel {
 
     /** The viewer chose other subtitles and the picture restarts. */
     SwitchingSubtitles,
+
+    /** The viewer chose another version of the item and the picture restarts (#630). */
+    SwitchingVersion,
 }
 
 /** The pickers the actions banner opens over its chips (design doc B2.4). */
-enum class PickerKind { Audio, Subtitles }
+enum class PickerKind { Audio, Subtitles, Version }
 
 /** The chip a switch's banner label belongs to; null for a label that is no switch. */
 internal fun chipOf(label: BannerLabel): PickerKind? =
     when (label) {
         BannerLabel.SwitchingAudio -> PickerKind.Audio
         BannerLabel.SwitchingSubtitles -> PickerKind.Subtitles
+        BannerLabel.SwitchingVersion -> PickerKind.Version
         else -> null
     }
 
@@ -129,7 +133,10 @@ data class Banner(
     val picker: PickerKind? = null,
     val chip: PickerKind? = null,
     val switchFailed: Boolean = false,
-)
+) {
+    /** The titles of what plays: the banner's and the program's own, which a version's name must not repeat. */
+    val programNames: List<String> get() = listOfNotNull(title, info?.title, info?.seriesName).distinct()
+}
 
 /** The program after the one a [Banner] names: its title as the banner shows it, and its start (UTC milliseconds). */
 data class NextProgram(

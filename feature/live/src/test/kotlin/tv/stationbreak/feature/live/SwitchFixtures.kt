@@ -66,6 +66,16 @@ internal object SwitchFixtures {
             SwitchCost.Retune,
         )
 
+    /** A second version of the item, as the server lists it: another picture, another name. */
+    val ALT = MediaSourceId("alt")
+
+    /** The playing version [SOURCE] and the item's other version [ALT], each with its own tracks. */
+    fun twoVersions(): StreamFacts {
+        val playing = facts()
+        val other = SourceFacts(ALT, "Theatrical", VideoFacts(1280, 720, "h264"), listOf(ENGLISH), emptyList())
+        return playing.copy(sources = playing.sources + other)
+    }
+
     fun facts(
         audioIndex: Int? = 1,
         subtitleIndex: Int? = null,
