@@ -195,8 +195,9 @@ class GuideScreenshotTest {
     }
 
     /**
-     * The details panel carrying the detail (#723): the item's logo for its title, then the meta line, the tags (rating,
-     * resolution, audio, CC, both scores), the progress and times, and a description that takes the height that is left.
+     * The details panel carrying the detail (#723): the item's logo for its title, then the meta line, the tags
+     * (rating, resolution, audio, CC, both scores), the progress and times, and a description that takes the height
+     * that is left.
      * Dark then Light, where the logo sits on a dark plate. The logo is drawn here (the guide never sees a server).
      */
     @Test
@@ -227,7 +228,10 @@ class GuideScreenshotTest {
             compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            compose
+                .onAllNodesWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
         }
         assertEquals(
             listOf("TV-PG", "HD", "5.1", "CC", "Critics 68%", "Audience 6.6"),
@@ -235,8 +239,15 @@ class GuideScreenshotTest {
         )
         compose.onNodeWithTag(GuideTags.PANEL_TAGS, useUnmergedTree = true).assertIsDisplayed()
         val panel = compose.onNodeWithTag(GuideTags.PANEL).fetchSemanticsNode().boundsInRoot
-        val overview = compose.onNodeWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertTrue("the description ends at ${overview.bottom}, past the panel's ${panel.bottom}", overview.bottom <= panel.bottom)
+        val overview =
+            compose
+                .onNodeWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .boundsInRoot
+        assertTrue(
+            "the description ends at ${overview.bottom}, past the panel's ${panel.bottom}",
+            overview.bottom <= panel.bottom,
+        )
         shoot("$frame$suffix.png")
     }
 
@@ -673,7 +684,8 @@ class GuideScreenshotTest {
         const val FOCUSED_ITEM = 102
         const val OVERVIEW = "A test episode about nothing in particular, long enough to fill a line of the panel."
         const val LONG_OVERVIEW =
-            "Four astronauts returning from a first mission to Mars enter a time warp and crash on a far-future Earth " +
+            "Four astronauts returning from a first mission to Mars enter a time warp and crash on a far-future " +
+                "Earth " +
                 "devastated by atomic war. At first unaware of where they are, but finding the surface overrun by " +
                 "mutants, they discover an underground civilisation whose men have grown timid and whose leaders are " +
                 "suspicious of the surface-dwellers and what they might have brought with them from the sky."

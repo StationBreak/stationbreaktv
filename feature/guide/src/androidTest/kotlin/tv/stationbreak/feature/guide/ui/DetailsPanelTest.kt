@@ -294,7 +294,11 @@ class DetailsPanelTest {
 
     private fun tag(index: Int) = compose.onNodeWithTag("${GuideTags.PANEL_TAG}$index", useUnmergedTree = true)
 
-    private fun tagText(index: Int): String = tag(index).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("") { it.text }
+    private fun tagText(index: Int): String =
+        tag(index)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.Text]
+            .joinToString("") { it.text }
 
     @Test
     fun theTagsFollowTheMetaLineInTheSetOrderAndOmitWhatIsUnknown() {
@@ -310,7 +314,8 @@ class DetailsPanelTest {
         assertTrue("the tags (${tags.top}) sit below the meta line (${meta.bottom})", tags.top >= meta.bottom)
 
         // An item with only some facts has only those tags, in the same order.
-        val partial = ItemDetails(ItemId("p"), null, null, emptyList(), null, officialRating = "NR", communityRating = 7.0)
+        val partial =
+            ItemDetails(ItemId("p"), null, null, emptyList(), null, officialRating = "NR", communityRating = 7.0)
         show(withItem(partial))
         assertEquals(listOf("NR", "Audience 7.0"), (0..1).map(::tagText))
         compose.onAllNodesWithTag("${GuideTags.PANEL_TAG}2", useUnmergedTree = true).assertCountEquals(0)

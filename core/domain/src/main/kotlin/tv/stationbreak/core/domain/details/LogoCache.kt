@@ -23,6 +23,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.Session
 import java.security.MessageDigest
+import java.util.Locale
 
 /**
  * Item logos (images) for the guide's details panel, kept on disk by their tag and fetched on demand with the
@@ -198,6 +199,9 @@ class LogoCache(
         const val LOGO_HEIGHT_PX = 192
 
         private fun sha256(text: String): String =
-            MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+            MessageDigest
+                .getInstance("SHA-256")
+                .digest(text.toByteArray())
+                .joinToString("") { "%02x".format(Locale.ROOT, it) }
     }
 }
