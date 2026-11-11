@@ -43,7 +43,7 @@ slf4j = "2.0.20"
 # Hilt 2.60.1 and KSP 2.3.12 build and run with AGP 9.4.1 and Kotlin 2.4.21 (spiked 2026-10-14, F0.3 task 3.1). KSP,
 # not kapt: AGP 9's built-in Kotlin doesn't support kapt. Hilt is for `app` only (MODULES.md, "Hilt in pure modules").
 hilt = "2.60.1"
-ksp = "2.3.13"
+ksp = "2.3.12"
 # Test only, for the container contract suite (`contractTest`). 2.0.5 is the latest stable (checked 2026-10-14); the
 # 2.x line works with current Docker engines. Core module only: the suite manages its containers itself.
 testcontainers = "2.0.5"
