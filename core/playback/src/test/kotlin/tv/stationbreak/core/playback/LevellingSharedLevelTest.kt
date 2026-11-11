@@ -1,0 +1,188 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.core.playback
+
+import androidx.media3.common.C
+import androidx.media3.common.audio.AudioProcessor.AudioFormat
+import androidx.media3.common.util.UnstableApi
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.log10
+import kotlin.math.pow
+import kotlin.math.sin
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** The shared level across slots, the on/off switch and the limiter's look-ahead. */
+@UnstableApi
+class LevellingSharedLevelTest {
+    private val rate = 48_000
+    private val ceiling = 10.0.pow(LevellingAudioProcessor.CEILING_DBFS / 20.0)
+    private val lsb = 1.0 / 32768.0
+
+    private fun processor(
+        level: LoudnessLevel = LoudnessLevel(),
+        leading: () -> Boolean = { true },
+        enabled: () -> Boolean = { true },
+    ): LevellingAudioProcessor {
+        val p = LevellingAudioProcessor(level, leading, enabled)
+        p.configure(AudioFormat(rate, 2, C.ENCODING_PCM_16BIT))
+        p.flush()
+        return p
+    }
+
+    private fun sine(
+        lufs: Double,
+        seconds: Double,
+    ): ShortArray {
+        val amp = 10.0.pow(lufs / 20.0)
+        return ShortArray((seconds * rate).toInt() * 2) { i ->
+            (amp * sin(2 * PI * 997.0 * (i / 2) / rate) * 32768.0).toInt().coerceIn(-32768, 32767).toShort()
+        }
+    }
+
+    /** [frames] stereo frames of the constant [value], as 16-bit PCM. */
+    private fun constant(
+        value: Double,
+        frames: Int,
+    ): ShortArray = ShortArray(frames * 2) { (value * 32768.0).toInt().toShort() }
+
+    private fun run(
+        p: LevellingAudioProcessor,
+        input: ShortArray,
+    ): ShortArray {
+        val out = ArrayList<Short>(input.size)
+        val chunk = rate / 50 * 2
+        var at = 0
+        while (at < input.size) {
+            val n = minOf(chunk, input.size - at)
+            val buf = ByteBuffer.allocateDirect(n * 2).order(ByteOrder.nativeOrder())
+            for (i in 0 until n) buf.putShort(input[at + i])
+            buf.flip()
+            p.queueInput(buf)
+            val o = p.getOutput()
+            while (o.hasRemaining()) out.add(o.getShort())
+            at += n
+        }
+        return out.toShortArray()
+    }
+
+    private fun lufsOfTail(
+        pcm: ShortArray,
+        seconds: Double,
+    ): Double {
+        val n = (seconds * rate).toInt() * 2
+        var sum = 0.0
+        for (i in pcm.size - n until pcm.size) sum += (pcm[i] / 32768.0).pow(2)
+        return 10 * log10(2 * sum / n)
+    }
+
+    private fun left(pcm: ShortArray): List<Double> = (0 until pcm.size / 2).map { pcm[it * 2] / 32768.0 }
+
+    @Test
+    fun aStandbyCreatedAfterTheFrontConvergedStartsAtTheFrontsGain() {
+        val level = LoudnessLevel()
+        val front = processor(level)
+        run(front, sine(-30.0, 15.0))
+        assertTrue(front.currentGainDb > 5.0)
+
+        val standby = processor(level, leading = { false })
+        assertEquals(front.currentGainDb, standby.currentGainDb, 0.0)
+    }
+
+    @Test
+    fun aStandbyFollowsTheSharedGainAndNeverWritesIt() {
+        val level = LoudnessLevel()
+        val standby = processor(level, leading = { false })
+        // Loud audio on a standby measures nothing: it does not move the shared gain.
+        run(standby, sine(-10.0, 5.0))
+        assertEquals(0.0, level.gainDb, 0.0)
+        // The front learns; the standby takes it over within a block, whatever it is fed.
+        run(processor(level), sine(-30.0, 10.0))
+        run(standby, sine(-10.0, 0.5))
+        assertTrue(level.gainDb > 4.0)
+        assertEquals(level.gainDb, standby.currentGainDb, 0.0)
+    }
+
+    @Test
+    fun theLimiterAttackIsARampNotAStep() {
+        // +12 dB already learned (as a front's would be), a quiet constant, then a jump that needs a lot of reduction.
+        val level = LoudnessLevel().apply { gainDb = LevellingAudioProcessor.MAX_BOOST_DB }
+        val quiet = 0.01
+        val out = run(processor(level), constant(quiet, rate / 2) + constant(0.5, rate / 2))
+        assertTrue(out.maxOf { abs(it.toInt()) } * lsb <= ceiling + lsb)
+        val l = left(out)
+        val settled = quiet * 10.0.pow(LevellingAudioProcessor.MAX_BOOST_DB / 20.0)
+        // From the middle of the quiet part (after the look-ahead's initial silence).
+        val first = (rate / 4) + l.drop(rate / 4).indexOfFirst { abs(it - settled) > settled * 0.05 }
+        val last = l.indexOfFirst { it > ceiling * 0.95 }
+        assertTrue("first $first last $last", first in 1 until last)
+        assertTrue("the output rose over ${last - first} frames", last - first >= rate / 1000)
+    }
+
+    @Test
+    fun aHardJumpIsReducedBeforeItArrives() {
+        val level = LoudnessLevel().apply { gainDb = LevellingAudioProcessor.MAX_BOOST_DB }
+        val quietFrames = rate / 2
+        val out = run(processor(level), constant(0.01, quietFrames) + constant(0.5, rate / 10))
+        val l = left(out)
+        // Nothing the output holds is above the ceiling, from the first loud frame on.
+        assertTrue(l.all { it <= ceiling + lsb })
+        // The reduction has begun before the loud audio reaches the output (the output is the input delayed).
+        val lookahead = (LevellingAudioProcessor.LOOKAHEAD_SEC * rate).toInt()
+        val quietLevel = l[quietFrames / 2]
+        assertTrue(l[quietFrames + lookahead - 2] < quietLevel * 0.6)
+    }
+
+    @Test
+    fun offPassesAudioUnchangedAndLeavesTheSharedGainAlone() {
+        val level = LoudnessLevel()
+        val input = sine(-40.0, 5.0)
+        val out = run(processor(level, enabled = { false }), input)
+        assertTrue(input.contentEquals(out))
+        assertEquals(0.0, level.gainDb, 0.0)
+    }
+
+    @Test
+    fun turningItOnAndOffTakesEffectWithoutReconfiguring() {
+        var on = false
+        val p = processor(enabled = { on })
+        val before = run(p, sine(-40.0, 5.0))
+        assertEquals(0.0, p.currentGainDb, 0.0)
+        on = true
+        val after = run(p, sine(-40.0, 10.0))
+        assertTrue(p.currentGainDb > 5.0)
+        assertTrue(lufsOfTail(after, 1.0) > lufsOfTail(before, 1.0) + 5.0)
+        on = false
+        val again = sine(-40.0, 1.0)
+        assertTrue(again.contentEquals(run(p, again)))
+    }
+
+    @Test
+    fun theEndOfAStreamLeavesTheDelayedTail() {
+        val p = processor()
+        val input = constant(0.1, rate / 10)
+        val out = run(p, input)
+        // The first frames out are the look-ahead's silence, so the last of the input is still inside.
+        assertEquals(input.size, out.size)
+        p.queueEndOfStream()
+        val tail = p.getOutput()
+        val lookahead = (LevellingAudioProcessor.LOOKAHEAD_SEC * rate).toInt()
+        assertEquals((lookahead - 1) * 2 * 2, tail.remaining())
+        var last = 0
+        while (tail.hasRemaining()) last = tail.getShort().toInt()
+        // The tail ends with the input's last frame (a constant, at unity gain).
+        assertEquals(0.1 * 32768.0, last.toDouble(), 2.0)
+    }
+
+    @Test
+    fun resetKeepsTheGain() {
+        val p = processor()
+        run(p, sine(-30.0, 15.0))
+        val before = p.currentGainDb
+        p.reset()
+        assertEquals(before, p.currentGainDb, 0.0)
+    }
+}
