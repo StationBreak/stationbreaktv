@@ -771,12 +771,7 @@ class Media3VideoPlayer internal constructor(
         ) {
             // The play ends here: a pending seek will not finish, and says nothing.
             seeking = false
-            if (PlaybackLog.on) {
-                PlaybackLog.line(
-                    "playerError role=front generation=$active code=${error.errorCodeName} " +
-                        "posMs=${exo.currentPosition} err=${PlaybackLog.failureText(error)}",
-                )
-            }
+            PlaybackLog.playerError(error) { "playerError role=front generation=$active posMs=${exo.currentPosition}" }
             emit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
         }
     }

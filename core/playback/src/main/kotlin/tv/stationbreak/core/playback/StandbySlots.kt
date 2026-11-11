@@ -458,11 +458,10 @@ internal class StandbySlots(
             error: PlaybackException,
         ) {
             val epoch = epochOf(eventTime)
-            if (epoch != null && PlaybackLog.on) {
-                PlaybackLog.line(
-                    "playerError role=standby epoch=$epoch code=${error.errorCodeName} " +
-                        "audioError=${isAudioError(error)} err=${PlaybackLog.failureText(error)}",
-                )
+            if (epoch != null) {
+                PlaybackLog.playerError(error) {
+                    "playerError role=standby epoch=$epoch audioError=${isAudioError(error)}"
+                }
             }
             epoch?.let { onStandbyError(it, error) }
         }
