@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -16,6 +17,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -91,6 +93,9 @@ class GuideNoLibrariesUiTest {
     private val pool = Executors.newSingleThreadExecutor()
     private val choices = FakeLibraryChoices(ChoiceView(setOf(ItemId("lib-a")), emptySet(), gone = true))
     private val syncNow = FakeSyncNow()
+
+    // The Even out volume setting the host holds (on by default, as the store is).
+    private val levelling = mutableStateOf(true)
     private lateinit var vm: GuideViewModel
 
     // The way out the slot was given, and the keys that got past the guide to its host.
@@ -129,6 +134,8 @@ class GuideNoLibrariesUiTest {
                         onTune = {},
                         channels = { _, _, _, _ -> },
                         libraries = { _, onDone -> Slot(onDone) },
+                        levelling = levelling.value,
+                        onLevelling = { levelling.value = it },
                     )
                 }
             }
@@ -207,10 +214,8 @@ class GuideNoLibrariesUiTest {
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
         compose.onNodeWithTag(GuideTags.NO_LIBRARIES).assertExists()
 
-        // Down is Sync now, and Down again stays there. Select starts one sync, the panel stays open, and the line
-        // beside the row says it is syncing; a held Select starts no other.
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
+        // Down is Sync now. Select starts one sync, the panel stays open, and the line beside the row says it is
+        // syncing; a held Select starts no other.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -223,6 +228,42 @@ class GuideNoLibrariesUiTest {
         // Up is Libraries again.
         press(KeyEvent.KEYCODE_DPAD_UP)
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
+    }
+
+    // Even out volume (#498), the panel's last row: Down stops on it, Left and Right pick Off and On, Select flips it,
+    // and the setting the host holds follows, with the panel staying open.
+    @Test
+    fun evenOutVolumeRow_leftRightPickAndSelectFlips() {
+        showGone()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isNotEmpty()
+        }
+        // Screen fit, Libraries, Sync now, then the new row; one more Down stays on it.
+        repeat(ROWS_TO_LEVELLING) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        // On is the default.
+        awaitSelected(GuideTags.LEVELLING_ON)
+        compose.onNodeWithTag(GuideTags.LEVELLING_OFF).assertIsNotSelected()
+        assertEquals(true, levelling.value)
+
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        awaitSelected(GuideTags.LEVELLING_OFF)
+        compose.onNodeWithTag(GuideTags.LEVELLING_ON).assertIsNotSelected()
+        assertEquals(false, levelling.value)
+
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        awaitSelected(GuideTags.LEVELLING_ON)
+        assertEquals(true, levelling.value)
+
+        // Select flips it, each time, and the panel stays open.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitSelected(GuideTags.LEVELLING_OFF)
+        assertEquals(false, levelling.value)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitSelected(GuideTags.LEVELLING_ON)
+        assertEquals(true, levelling.value)
+        compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertExists()
     }
 
     private fun summary(
@@ -289,6 +330,9 @@ class GuideNoLibrariesUiTest {
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L
+
+        // Down presses from Appearance to the Even out volume row: Screen fit, Libraries, Sync now, it.
+        const val ROWS_TO_LEVELLING = 4
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
     }
 }

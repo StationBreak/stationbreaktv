@@ -41,6 +41,11 @@
     <string name="guide_settings_screen_fit">Screen fit</string>
     <string name="guide_fit_safe">Safe</string>
     <string name="guide_fit_edge">Edge</string>
+    <!-- INTERIM copy, pending the design pass (#498). The Settings panel's volume levelling row. Its summary ("Keeps
+         quiet and loud shows at a similar level") is left out until the panel has room for one line under each row. -->
+    <string name="guide_settings_levelling">Even out volume</string>
+    <string name="guide_levelling_off">Off</string>
+    <string name="guide_levelling_on">On</string>
     <!-- placeholder: design partner. The Settings panel's row that opens Settings, Libraries (spec 26). -->
     <string name="guide_settings_libraries">Libraries</string>
     <!-- placeholder: design partner. The Settings panel's row that syncs with the server now (spec 26), and the line

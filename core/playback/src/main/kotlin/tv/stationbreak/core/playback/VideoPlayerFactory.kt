@@ -33,9 +33,11 @@ class Media3VideoPlayerFactory(
     private val buffering: PlaybackBuffering = PlaybackBuffering(),
     private val warm: WarmConfig = WarmConfig(),
     private val warmSwitches: WarmSwitches = WarmSwitches.None,
+    // Automatic volume levelling (#498); null leaves audio alone. Every player this builds shares its one level.
+    private val volumeLevelling: VolumeLevelling? = null,
 ) : VideoPlayerFactory {
     override fun create(
         context: Context,
         clock: () -> Long,
-    ): VideoPlayer = Media3VideoPlayer(context, dataSource, clock, buffering, warm, warmSwitches)
+    ): VideoPlayer = Media3VideoPlayer(context, dataSource, clock, buffering, warm, warmSwitches, volumeLevelling)
 }

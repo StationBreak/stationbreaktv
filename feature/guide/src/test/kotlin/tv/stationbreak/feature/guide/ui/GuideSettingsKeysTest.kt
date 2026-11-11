@@ -35,8 +35,11 @@ class GuideSettingsKeysTest {
         assertEquals(SettingsRow.Libraries, libraries?.row)
         val syncNow = libraries!!.press(Key.DirectionDown, repeat = 2).panel
         assertEquals(SettingsRow.SyncNow, syncNow?.row)
-        assertEquals(SettingsStep(syncNow), syncNow!!.press(Key.DirectionDown))
-        assertEquals(SettingsStep(syncNow), syncNow.press(Key.DirectionDown, repeat = 3))
+        // Then Even out volume (#498), the last row: Down stops there.
+        val levelling = syncNow!!.press(Key.DirectionDown).panel
+        assertEquals(SettingsRow.VolumeLevelling, levelling?.row)
+        assertEquals(SettingsStep(levelling), levelling!!.press(Key.DirectionDown))
+        assertEquals(SettingsStep(levelling), levelling.press(Key.DirectionDown, repeat = 3))
         // Left and Right on Libraries and on Sync now are kept, and do nothing.
         assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionLeft))
         assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionRight))
@@ -52,6 +55,19 @@ class GuideSettingsKeysTest {
 
         // The media keys are not the panel's.
         assertNull(settingsStep(opened, Key.MediaPlayPause, KeyEventType.KeyDown, 0))
+    }
+
+    @Test
+    fun volumeLevelling_leftPicksOff_rightPicksOn_selectFlipsIt_andNothingElseDoes() {
+        val onLevelling = SettingsPanel(SettingsRow.VolumeLevelling)
+        assertEquals(SettingsStep(onLevelling, levelling = false), onLevelling.press(Key.DirectionLeft))
+        assertEquals(SettingsStep(onLevelling, levelling = true), onLevelling.press(Key.DirectionRight))
+        // Select flips it and the panel stays open; a held press flips once.
+        assertEquals(SettingsStep(onLevelling, toggleLevelling = true), onLevelling.press(Key.DirectionCenter))
+        assertEquals(SettingsStep(onLevelling), onLevelling.press(Key.DirectionCenter, repeat = 1))
+        assertNull(SettingsPanel(SettingsRow.ScreenFit).press(Key.DirectionRight).levelling)
+        assertNull(SettingsPanel(SettingsRow.SyncNow).press(Key.DirectionLeft).levelling)
+        assertEquals(SettingsStep(null), onLevelling.release(Key.Back))
     }
 
     @Test

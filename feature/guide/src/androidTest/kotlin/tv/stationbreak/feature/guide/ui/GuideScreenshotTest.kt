@@ -205,7 +205,7 @@ class GuideScreenshotTest {
         shoot("$INFO_FRAME$suffix.png")
     }
 
-    /** The Settings panel with its Screen fit row: its last row must end above the menu row. */
+    /** The Settings panel with its Screen fit row: its last row (Even out volume) must end above the menu row. */
     @Test
     fun theSettingsPanel() = shootSettings(GuideTheme.Dark, suffix = "")
 
@@ -226,9 +226,9 @@ class GuideScreenshotTest {
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
         }
-        val last = compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).fetchSemanticsNode().boundsInRoot
+        val last = compose.onNodeWithTag(GuideTags.LEVELLING_ON).fetchSemanticsNode().boundsInRoot
         val menu = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).fetchSemanticsNode().boundsInRoot
-        assertTrue("Sync now (${last.bottom}) runs into the menu row (${menu.top})", last.bottom <= menu.top)
+        assertTrue("Even out volume (${last.bottom}) runs into the menu row (${menu.top})", last.bottom <= menu.top)
         compose.onNodeWithTag(GuideTags.FIT_SAFE).assertIsSelected()
         shoot("$SETTINGS_FRAME$suffix.png")
     }

@@ -48,6 +48,9 @@ internal enum class SettingsRow {
 
     /** Select syncs with the server now (spec 26, Part 5); the line beside it says how that stands. */
     SyncNow,
+
+    /** Off and On (volume levelling, #498): Left and Right pick one, Select flips it; the panel stays open. */
+    VolumeLevelling,
 }
 
 /**
@@ -71,6 +74,8 @@ internal data class SettingsStep(
     val theme: GuideTheme? = null,
     val syncNow: Boolean = false,
     val fit: ScreenFit? = null,
+    val levelling: Boolean? = null,
+    val toggleLevelling: Boolean = false,
 )
 
 /** The line beside Sync now: the string [text], with the [time] it synced at for the one that has it. */
@@ -155,7 +160,12 @@ internal fun settingsStep(
         }
 
         direction != null -> {
-            SettingsStep(panel.moved(direction), panel.themeFor(direction), fit = panel.fitFor(direction))
+            SettingsStep(
+                panel.moved(direction),
+                panel.themeFor(direction),
+                fit = panel.fitFor(direction),
+                levelling = panel.levellingFor(direction),
+            )
         }
 
         repeatCount > 0 -> {
@@ -174,6 +184,7 @@ private fun SettingsPanel.selected(): SettingsStep =
         SettingsRow.Appearance, SettingsRow.ScreenFit -> SettingsStep(null)
         SettingsRow.Libraries -> SettingsStep(copy(librariesShown = true))
         SettingsRow.SyncNow -> SettingsStep(this, syncNow = true)
+        SettingsRow.VolumeLevelling -> SettingsStep(this, toggleLevelling = true)
     }
 
 // Up and Down move between the rows and stop at the ends; Left and Right leave the row where it is.
@@ -204,6 +215,7 @@ private fun SettingsPanel.themeFor(direction: GuideDirection): GuideTheme? =
  * D-pad focus), and off it the 1 dp quiet one. Libraries and Sync now have the accent underline while focused. Beside
  * Sync now, a quiet line says how [sync] stands. Nothing scales or draws a ring.
  */
+@Suppress("LongParameterList") // One value for each row the panel shows.
 @Composable
 internal fun GuideSettingsPanel(
     choice: GuideTheme,
@@ -211,6 +223,7 @@ internal fun GuideSettingsPanel(
     row: SettingsRow,
     modifier: Modifier = Modifier,
     sync: SyncNowState = SyncNowState.Idle,
+    levelling: Boolean = true,
 ) {
     val colors = LocalGuideColors.current
     val onAppearance = row == SettingsRow.Appearance
@@ -256,6 +269,7 @@ internal fun GuideSettingsPanel(
             )
             SyncStatus(sync)
         }
+        LevellingRow(levelling, focused = row == SettingsRow.VolumeLevelling)
     }
 }
 
