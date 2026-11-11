@@ -257,6 +257,19 @@ class LiveScreenshotTest {
             ),
         )
 
+    /** The widest row: Live (behind), Info, Last, a subtitle in use, a transcode, and "Couldn't switch" on the chip. */
+    @Test
+    fun theBannerAfterAFailedSwitchAtItsWidest() {
+        val transcoding = facts.copy(route = Route.TRANSCODE, subtitleIndex = 4)
+        shoot(
+            "live-switch-failed-widest.png",
+            LiveState.Watching(
+                banner(actions = true, stream = transcoding, chip = PickerKind.Audio, switchFailed = true),
+            ),
+            behindView(),
+        )
+    }
+
     @Test
     fun theChannelFlip() {
         val target = ChannelTag(162, "Date Night", MARK_KEY)
@@ -268,19 +281,22 @@ class LiveScreenshotTest {
         shoot(
             "live-transport.png",
             LiveState.Watching(null),
-            TransportView(
-                paused = true,
-                seeking = false,
-                seekable = true,
-                visible = true,
-                mediaMs = 10 * MINUTE,
-                targetMs = null,
-                asOfMs = now,
-                blockStartMs = now - 15 * MINUTE,
-                inPointMs = 0,
-                cutMs = 60 * MINUTE,
-                driftMs = 0,
-            ),
+            behindView(),
+        )
+
+    private fun behindView() =
+        TransportView(
+            paused = true,
+            seeking = false,
+            seekable = true,
+            visible = true,
+            mediaMs = 10 * MINUTE,
+            targetMs = null,
+            asOfMs = now,
+            blockStartMs = now - 15 * MINUTE,
+            inPointMs = 0,
+            cutMs = 60 * MINUTE,
+            driftMs = 0,
         )
 
     /** A warm vignette, so the banner's surface and text are judged over a picture and not over black. */
