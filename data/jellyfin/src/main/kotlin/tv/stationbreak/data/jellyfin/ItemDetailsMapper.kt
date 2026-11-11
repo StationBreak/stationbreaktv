@@ -56,11 +56,11 @@ internal object ItemDetailsMapper {
         return runCatching {
             when {
                 own != null -> {
-                    ItemLogo(itemId, own.content)
+                    ItemLogo(itemId, safeTag(own.content))
                 }
 
                 dto.parentLogoItemId != null && dto.parentLogoImageTag != null -> {
-                    ItemLogo(ItemId(dto.parentLogoItemId), dto.parentLogoImageTag)
+                    ItemLogo(ItemId(dto.parentLogoItemId), safeTag(dto.parentLogoImageTag))
                 }
 
                 else -> {
@@ -69,6 +69,11 @@ internal object ItemDetailsMapper {
             }
         }.getOrNull() // A blank or unsafe ID or tag is no logo.
     }
+
+    // The tag travels as a query value: a short run of the characters a Jellyfin tag is made of, or no logo.
+    private fun safeTag(tag: String): String = tag.also { require(TAG.matches(it)) { "Not an image tag" } }
+
+    private val TAG = Regex("[A-Za-z0-9_-]{1,64}")
 
     // The first media source's tracks: the first picture, the audio the player would pick, and any subtitles.
     private fun media(dto: ItemDetailsDto): MediaSummary? {

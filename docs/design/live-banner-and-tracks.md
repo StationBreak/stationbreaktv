@@ -42,7 +42,7 @@ The tune banner plus a 44 dp row under a 1 dp `line`: **102 dp** total. Buttons 
 
 - **Channel flip** (`ChannelBanner`): same 58 dp bar: mark, number 20 sp SemiBold `textPrimary`, channel name 15 sp SemiBold.
 - **Transport strip**: same position; `page` @ 92 %, 1 dp `line`, 2 dp radius, 12 sp Medium Manrope; spinner unchanged.
-- **Info overlay** (`ProgramInfoOverlay`, shared with the guide): move to the same tokens: `page` @ 96 %, channel line 11 sp `textSecondary`, title 24 sp SemiBold, body 13 sp / 18 sp line height, details 11 sp.
+- **Info overlay** (`ProgramInfoOverlay`; the guide no longer opens it, #723): move to the same tokens: `page` @ 96 %, channel line 11 sp `textSecondary`, title 24 sp SemiBold, body 13 sp / 18 sp line height, details 11 sp.
 - **Slates and snow stay as they are** (`BroadcastStyle`); they belong to the brand work in `docs/design/brand/`.
 
 ## Part B — stream details, and choosing audio, subtitles and version

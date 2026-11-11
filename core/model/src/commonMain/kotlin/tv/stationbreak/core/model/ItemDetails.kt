@@ -33,16 +33,7 @@ data class ItemDetails(
 data class ItemLogo(
     val owner: ItemId,
     val tag: String,
-) {
-    init {
-        // The tag travels as a query value: a short run of the characters the server's own tags are made of.
-        require(TAG.matches(tag)) { "An image tag is letters, digits, '-' and '_', at most 64 of them" }
-    }
-
-    private companion object {
-        val TAG = Regex("[A-Za-z0-9_-]{1,64}")
-    }
-}
+)
 
 /**
  * What the first media source of an item is, for the details panel's tags: the picture's size in pixels, the channel

@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Path
@@ -41,14 +40,10 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
@@ -63,7 +58,6 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
-import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.guideText
@@ -78,7 +72,6 @@ import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.indexOf
 import tv.stationbreak.feature.guide.isAwayFrom
-import java.time.ZoneId
 import kotlin.math.abs
 
 // The guide's layout in dp (the guide UX notes, on a 960 x 540 dp screen with a 5% safe area).

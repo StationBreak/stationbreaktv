@@ -4,6 +4,7 @@ package tv.stationbreak.feature.guide.ui
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -52,6 +53,8 @@ class DetailsPanelTest {
     val compose = createComposeRule()
 
     private val panel = MutableStateFlow<CellDetails?>(null)
+    private val colors = mutableStateOf(GuideColors.Dark)
+    private val height = mutableStateOf(PANEL_HEIGHT_DP)
 
     private fun details(
         startMin: Long,
@@ -67,7 +70,9 @@ class DetailsPanelTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             StationBreakTheme {
-                DetailsPanel(panel, nowOf = { 0L }, modifier = Modifier.size(PANEL_WIDTH_DP.dp, PANEL_HEIGHT_DP.dp))
+                CompositionLocalProvider(LocalGuideColors provides colors.value) {
+                    DetailsPanel(panel, nowOf = { 0L }, modifier = Modifier.size(PANEL_WIDTH_DP.dp, height.value.dp))
+                }
             }
         }
     }
@@ -316,6 +321,7 @@ class DetailsPanelTest {
 
     @Test
     fun theDescriptionTakesEveryWholeLineTheHeightLeftHoldsAndEndsInAnEllipsis() {
+        height.value = 300
         show(rich())
         compose.mainClock.advanceTimeBy(SETTLED_MS)
 
@@ -372,19 +378,9 @@ class DetailsPanelTest {
 
     @Test
     fun inLightTheLogoSitsOnADarkPlateInsideTheSameBox() {
-        compose.mainClock.autoAdvance = true
-        compose.setContent {
-            StationBreakTheme {
-                CompositionLocalProvider(LocalGuideColors provides GuideColors.Light) {
-                    DetailsPanel(
-                        MutableStateFlow(rich(logo = art(600, 300))),
-                        nowOf = { 0L },
-                        modifier = Modifier.size(PANEL_WIDTH_DP.dp, PANEL_HEIGHT_DP.dp),
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
+        colors.value = GuideColors.Light
+        show(rich(logo = art(600, 300)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
         val box = compose.onNodeWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).getBoundsInRoot()
         val logo = compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).getBoundsInRoot()
         // The plate (the box) is at most 46 dp tall with the logo 6 dp inside it all round.

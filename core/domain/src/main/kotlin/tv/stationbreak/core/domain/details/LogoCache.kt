@@ -57,8 +57,10 @@ class LogoCache(
     private data class Key(
         val account: String,
         val logo: ItemLogo,
+        val height: Int,
     ) {
-        val name: String get() = sha256("${logo.owner.value}|${logo.tag}|v1")
+        // The height is part of the name: the same image at another size is another file.
+        val name: String get() = sha256("${logo.owner.value}|${logo.tag}|h$height")
     }
 
     /** One shared request and how many callers are waiting on it. */
@@ -88,7 +90,7 @@ class LogoCache(
      */
     suspend fun logo(logo: ItemLogo): ByteArray? {
         val session = sessions.current.value ?: return null
-        val key = Key(accountOf(session), logo)
+        val key = Key(accountOf(session), logo, maxHeight)
         return withContext(disk) { store.get(key.account, key.name) } ?: fetchShared(session, key)
     }
 

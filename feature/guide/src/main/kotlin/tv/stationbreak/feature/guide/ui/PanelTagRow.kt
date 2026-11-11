@@ -53,7 +53,7 @@ internal fun tagCopy(): PanelTagCopy =
 internal fun TagRow(tags: List<PanelTag>) {
     Layout(
         content = {
-            tags.forEachIndexed { index, tag -> Tag(tag, Modifier.testTag("${GuideTags.PANEL_TAG}$index")) }
+            tags.forEachIndexed { index, tag -> Tag(tag, "${GuideTags.PANEL_TAG}$index") }
         },
         modifier = Modifier.fillMaxWidth().testTag(GuideTags.PANEL_TAGS),
     ) { measurables, constraints ->
@@ -77,7 +77,7 @@ internal fun TagRow(tags: List<PanelTag>) {
 @Composable
 private fun Tag(
     tag: PanelTag,
-    modifier: Modifier,
+    testTag: String,
 ) {
     val colors = LocalGuideColors.current
     val label =
@@ -97,7 +97,7 @@ private fun Tag(
             }
         }
     Box(
-        modifier
+        Modifier
             .height(TagHeight)
             .border(TagStroke, colors.keyCapStroke, RoundedCornerShape(TagRadius))
             .padding(horizontal = TagPadding),
@@ -105,6 +105,7 @@ private fun Tag(
     ) {
         Text(
             text = label,
+            modifier = Modifier.testTag(testTag),
             style = guideFigures(TAG_SP.sp, FontWeight.SemiBold),
             color = colors.textPrimary,
             maxLines = 1,

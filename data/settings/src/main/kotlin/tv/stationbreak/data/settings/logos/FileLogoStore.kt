@@ -78,7 +78,10 @@ class FileLogoStore(
 
     // Under the lock. The files of every account, oldest use first, until what is left fits.
     private fun evict() {
-        val files = dir.walkTopDown().filter { it.isFile && !it.name.endsWith(PART) }.toList()
+        val all = dir.walkTopDown().filter { it.isFile }.toList()
+        // A temporary file a write left when the app died is never wanted: it goes, and is not counted.
+        all.filter { it.name.endsWith(PART) }.forEach { it.delete() }
+        val files = all.filterNot { it.name.endsWith(PART) }
         var total = files.sumOf { it.length() }
         if (total <= maxBytes) return
         for (file in files.sortedBy { it.lastModified() }) {
