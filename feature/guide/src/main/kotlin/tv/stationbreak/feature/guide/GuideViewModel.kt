@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide
 
 import android.util.Log
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -10,7 +11,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +23,10 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.SyncNow
 import tv.stationbreak.core.domain.SyncNowState
+import tv.stationbreak.core.domain.details.LogoCache
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.PlayKey
@@ -35,12 +40,16 @@ import tv.stationbreak.core.domain.selection.LibrarySelectionView
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.ui.ProgramText
 import javax.inject.Inject
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /**
  * Holds the program guide (spec 17): loads the schedule window, keeps focus and the viewport, fetches the details of
@@ -49,8 +58,8 @@ import kotlin.time.Instant
  * What the grid draws is one [GuideSnapshot]: the [GuideState] and the focus, replaced together in a single assignment,
  * so a collector that conflates (a Compose frame) can never read a model from one moment and a focus from another. A
  * screen reads [snapshot] and derives each cell's "focused" from it. The focus is by identity ([GuideFocus]), and a
- * published one always resolves with `indexOf` in the snapshot's model. The details [panel] and the [info] overlay are
- * flows of their own, so a key press does not recompose the grid.
+ * published one always resolves with `indexOf` in the snapshot's model. The details [panel] is a flow of its own, so a
+ * key press does not recompose the grid.
  *
  * Each [open] starts a session that [close] (or the next [open]) ends; the session owns the clock tick, the fill-in,
  * the extensions and every details request, so nothing runs while the guide is closed. State is changed under [lock],
@@ -78,6 +87,10 @@ internal class GuideViewModel
         private val selection: StateFlow<ChoiceView?> = MutableStateFlow(null),
         /** Sync now (spec 26, Part 5), which the Settings panel's row starts and whose state it shows. */
         private val sync: SyncNow = SyncNow.None,
+        /** The details panel's logos (#723): decoded, or null for none. */
+        private val logos: GuideLogos = GuideLogos.None,
+        /** Measures how long a logo took after the focus rested; a test brings its own. */
+        private val timeSource: TimeSource = TimeSource.Monotonic,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -88,6 +101,7 @@ internal class GuideViewModel
             @GuideMeasured measure: Boolean,
             choices: LibrarySelectionView,
             syncNow: SyncNow,
+            logos: LogoCache,
         ) : this(
             schedule,
             details,
@@ -98,21 +112,18 @@ internal class GuideViewModel
             { Log.w(LOG_TAG, it) },
             choices.selection,
             syncNow,
+            CachedGuideLogos(logos),
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
-        private val shownInfo = MutableStateFlow<CellDetails?>(null)
         private val eventChannel = Channel<GuideEvent>(Channel.BUFFERED)
 
         /** The grid and its focus, always consistent with each other. */
         val snapshot: StateFlow<GuideSnapshot> = shownSnapshot.asStateFlow()
 
-        /** The details of the focused cell, filled in after [DWELL_MS] of staying on it. */
+        /** The details of the focused cell, filled in after [DWELL_MS] of staying on it; its logo, in time or never. */
         val panel: StateFlow<CellDetails?> = shownPanel.asStateFlow()
-
-        /** The info overlay, while one is open. */
-        val info: StateFlow<CellDetails?> = shownInfo.asStateFlow()
 
         /** Where Sync now stands, for the line beside the Settings panel's row (spec 26, Part 5). */
         val syncNowState: StateFlow<SyncNowState> = sync.state
@@ -137,11 +148,6 @@ internal class GuideViewModel
         private var loaded = false
         private var tickJob: Job? = null
         private var dwellJob: Job? = null
-        private var infoJob: Job? = null
-        private var infoOf: Pair<ChannelId, Long>? = null
-
-        // The info overlay's cell across a reload, until the new grid says whether it is still there.
-        private var infoKept: Pair<ChannelId, Long>? = null
         private var extensionJob: Job? = null
         private var extendedFrom = NEVER
         private var scrollAsked: Pair<ChannelId, Long>? = null
@@ -195,7 +201,6 @@ internal class GuideViewModel
                 synchronized(lock) {
                     val current = shownSnapshot.value
                     if (session === s) {
-                        if (gone) closeInfoForGone()
                         shownSnapshot.value =
                             when {
                                 gone && current.menu == null -> current.toSettings().copy(noLibraries = true)
@@ -204,15 +209,6 @@ internal class GuideViewModel
                     }
                 }
             }
-        }
-
-        // No programme is shown without libraries: the info overlay closes, and a reload must not restore it. Under [lock].
-        private fun closeInfoForGone() {
-            infoJob?.cancel()
-            infoJob = null
-            infoOf = null
-            infoKept = null
-            shownInfo.value = null
         }
 
         // The one value: the flag the snapshot carries, set by [followSelection] and nowhere else.
@@ -263,9 +259,8 @@ internal class GuideViewModel
         }
 
         /**
-         * One step of focus. Ignored while the info overlay is open, which owns the keys. Scrolling toward the end of
-         * what is loaded asks for more of what is already built, as the clock does; so does a key that cannot move on
-         * at the end of a row, since more may have been built since.
+         * One step of focus. Scrolling toward the end of what is loaded asks for more of what is already built, as the
+         * clock does; so does a key that cannot move on at the end of a row, since more may have been built since.
          */
         fun move(
             direction: GuideDirection,
@@ -274,7 +269,6 @@ internal class GuideViewModel
         ) {
             synchronized(lock) {
                 val current = shownSnapshot.value
-                if (shownInfo.value != null) return
                 when {
                     // A cell of a grid that is not shown is never moved to: the menu row takes the focus.
                     current.menu == null && noLibraries() -> shownSnapshot.value = current.toSettings()
@@ -381,15 +375,16 @@ internal class GuideViewModel
         }
 
         /**
-         * Select on the focused cell: tunes its channel when it is on air now (a slate too: that is changing channel),
-         * otherwise opens the info overlay for a program (also one that has already ended but is still on the grid),
-         * fetching the details at once. A later slate has nothing to tell, so Select does nothing there.
+         * Select on the focused cell: tunes its channel. On a cell on air now (a slate too) that is changing channel;
+         * on a program that has not begun, or has ended but is still on the grid, it is the same: the channel plays
+         * what is on it now (the hint says "Watch channel"), and the details panel already carries what Select once
+         * opened. A later slate or unavailable cell has nothing to watch, so Select does nothing there.
          */
         fun select() {
             synchronized(lock) {
                 val current = shownSnapshot.value
                 when {
-                    current.menu != null -> if (shownInfo.value == null) selectOnMenu(current.menu)
+                    current.menu != null -> selectOnMenu(current.menu)
 
                     // No grid is shown without libraries: there is no cell or channel to act on.
                     !noLibraries() -> selectOnGrid(current)
@@ -401,7 +396,7 @@ internal class GuideViewModel
         private fun selectOnGrid(current: GuideSnapshot) {
             val ready = current.state as? GuideState.Ready
             val located = current.focus?.let { ready?.model?.indexOf(it) }
-            if (ready == null || located == null || shownInfo.value != null) return
+            if (ready == null || located == null) return
             val row = ready.model.rows[located.first]
             if (current.onChannel) {
                 eventChannel.trySend(GuideEvent.OpenChannelProperties(row.channel))
@@ -417,9 +412,8 @@ internal class GuideViewModel
             now: Long,
         ) {
             when {
-                cell.startMs <= now && now < cell.endMs -> eventChannel.trySend(GuideEvent.Tune(row.channel))
-                cell.kind != CellKind.Program -> Unit
-                else -> openInfo(row, cell)
+                cell.kind != CellKind.Program && !(cell.startMs <= now && now < cell.endMs) -> Unit
+                else -> eventChannel.trySend(GuideEvent.Tune(row.channel))
             }
         }
 
@@ -435,10 +429,10 @@ internal class GuideViewModel
         }
 
         /**
-         * Back with the info overlay closed, one step outwards: from a cell that is not the playing channel's cell on
+         * Back, one step outwards: from a cell that is not the playing channel's cell on
          * air now to that cell, with the grid back at now and that row at the top, as when the guide opened; from that
          * cell (or when there is none to go to) to the menu row, on Channels. True when it moved. False on the menu
-         * row, while the guide loads, when the overlay is open and when there is no grid or menu to go to: Back then
+         * row, while the guide loads and when there is no grid or menu to go to: Back then
          * leaves live TV. Nothing is added for a screen reader: the jump changes the focused cell or entry, so the
          * details panel's polite live region reads the playing program as it does after any move.
          */
@@ -450,7 +444,7 @@ internal class GuideViewModel
                 val focus = current.focus
                 val showsMenu = ready != null || current.state == GuideState.Empty
                 when {
-                    shownInfo.value != null || current.menu != null -> {
+                    current.menu != null -> {
                         false
                     }
 
@@ -491,18 +485,6 @@ internal class GuideViewModel
             val shown = ready.copy(viewportStartMs = viewport, firstVisibleRow = 0)
             publish(shown.copy(firstVisibleRow = shown.openingRowFor(target)), target, menu = null)
         }
-
-        /** Closes the info overlay; true when there was one to close (so Back stops there). */
-        fun closeInfo(): Boolean =
-            synchronized(lock) {
-                if (shownInfo.value == null) return false
-                infoJob?.cancel()
-                infoJob = null
-                infoOf = null
-                infoKept = null
-                shownInfo.value = null
-                true
-            }
 
         /**
          * Channel management opens over the guide: the session stays, the clock stops ticking under it, and a change
@@ -623,7 +605,6 @@ internal class GuideViewModel
             val old = session ?: return
             old.coroutineContext[Job]?.cancel()
             val fresh = newSession()
-            infoKept = if (shownInfo.value != null) infoOf else null
             resetLoadState()
             lineupWatch = null
             lineupAtOpen = lineupNow
@@ -647,8 +628,6 @@ internal class GuideViewModel
             loaded = false
             tickJob = null
             dwellJob = null
-            infoJob = null
-            infoOf = null
             extensionJob = null
             extendedFrom = NEVER
             scrollAsked = null
@@ -672,8 +651,6 @@ internal class GuideViewModel
                 // Dropped: a Tune from this session must not fire in the next.
             }
             shownPanel.value = null
-            shownInfo.value = null
-            infoKept = null
             shownSnapshot.value = GuideSnapshot.Closed
         }
 
@@ -712,7 +689,6 @@ internal class GuideViewModel
                 val cached = windowOrNull(origin, ScheduleBuild.CachedOnly, onFailure = nothing)
                 slow.cancel()
                 if (showCached(s, cached, keepsGrid)) fillIn(s, origin, keepsGrid)
-                settleInfo(s)
             } finally {
                 slow.cancel()
                 synchronized(lock) { if (session === s && loadId == id) loaded = true }
@@ -754,8 +730,6 @@ internal class GuideViewModel
             synchronized(lock) {
                 val finalEmpty = keepsGrid && filled != null
                 if (session === s && (finalEmpty || shownSnapshot.value.state !is GuideState.Ready)) {
-                    infoKept = null
-                    shownInfo.value = null
                     shownSnapshot.value = snapshotOf(GuideState.Empty, null)
                 }
             }
@@ -970,34 +944,6 @@ internal class GuideViewModel
             publish(ready.copy(firstVisibleRow = rows), focus)
         }
 
-        // An info overlay open across a reload stays when its cell is in the new grid (and fetches again, as its fetch
-        // went with the old scope); otherwise it closes. Settled once the load is done, not on the partial grid the
-        // first read may show: the cell may only be in the finished one.
-        private fun settleInfo(s: CoroutineScope) {
-            synchronized(lock) {
-                if (session !== s || infoKept == null) return
-                val model = (shownSnapshot.value.state as? GuideState.Ready)?.model
-                if (model == null) {
-                    infoKept = null
-                    shownInfo.value = null
-                } else {
-                    keepInfoAfterReload(model)
-                }
-            }
-        }
-
-        private fun keepInfoAfterReload(model: GuideModel) {
-            val kept = infoKept ?: return
-            infoKept = null
-            val at = model.indexOf(GuideFocus(kept.first, kept.second, kept.second))
-            if (at == null) {
-                shownInfo.value = null
-            } else {
-                val row = model.rows[at.first]
-                openInfo(row, row.cells[at.second])
-            }
-        }
-
         // One assignment, so the grid and its focus change together; then the panel follows the focus. A focus that
         // does not resolve in the model is a bug in the steps above, never something for the screen to cope with.
         private fun publish(
@@ -1042,48 +988,58 @@ internal class GuideViewModel
             val cached = id?.let(details::cached)
             val waiting = id != null && cached == null
             shownPanel.value = CellDetails(cell, row.number, row.name, cached, waiting)
-            dwellJob =
-                if (id != null && waiting) {
-                    session?.launch {
-                        delay(DWELL_MS.milliseconds)
-                        val item = fetch(id)
-                        synchronized(lock) {
-                            val now = shownSnapshot.value.focus
-                            if (now?.channel == focus.channel && now.cellStartMs == focus.cellStartMs) {
-                                shownPanel.value = shownPanel.value?.copy(item = item, loading = false)
-                            }
-                        }
-                    }
-                } else {
-                    null
-                }
+            dwellJob = if (id != null) session?.launch { restOn(id, cached, focus) } else null
         }
 
-        private fun openInfo(
-            row: GuideRow,
-            cell: GuideCell,
+        // After the focus has rested on the cell for [DWELL_MS]: its details if they are not held, then its logo. Both
+        // are for the focused cell alone, so a move on cancels this, and the cache cancels what nobody waits on.
+        private suspend fun restOn(
+            id: CanonicalId,
+            cached: ItemDetails?,
+            focus: GuideFocus,
         ) {
-            infoJob?.cancel()
-            val id = cell.detailsId()
-            val cached = id?.let(details::cached)
-            val waiting = id != null && cached == null
-            val target = row.channel to cell.startMs
-            infoOf = target
-            shownInfo.value = CellDetails(cell, row.number, row.name, cached, waiting)
-            infoJob =
-                if (id != null && waiting) {
-                    session?.launch {
-                        val item = fetch(id)
+            delay(DWELL_MS.milliseconds)
+            val settled = timeSource.markNow()
+            val item =
+                cached
+                    ?: fetch(id).also { fetched ->
                         synchronized(lock) {
-                            val open = shownInfo.value
-                            if (open != null && infoOf == target) {
-                                shownInfo.value = open.copy(item = item, loading = false)
-                            }
+                            if (isOn(focus)) shownPanel.value = shownPanel.value?.copy(item = fetched, loading = false)
                         }
                     }
-                } else {
-                    null
-                }
+            item?.logo?.let { showLogo(it, focus, settled) }
+        }
+
+        // The logo replaces the text title only if it is in hand within [LOGO_WINDOW_MS] of the highlight settling (a
+        // held one is, in a few milliseconds): a logo that comes later is finished and kept for next time, and never
+        // swapped in under the viewer. The request is left running past the window, but only while the focus stays.
+        private suspend fun showLogo(
+            logo: ItemLogo,
+            focus: GuideFocus,
+            settled: TimeMark,
+        ) = coroutineScope {
+            val loading = async { loadLogo(logo) }
+            val left = LOGO_WINDOW_MS.milliseconds - settled.elapsedNow()
+            val image = if (left > Duration.ZERO) withTimeoutOrNull(left) { loading.await() } else null
+            if (image != null) {
+                synchronized(lock) { if (isOn(focus)) shownPanel.value = shownPanel.value?.copy(logo = image) }
+            }
+        }
+
+        private suspend fun loadLogo(logo: ItemLogo): ImageBitmap? =
+            try {
+                logos.load(logo)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // "No logo", whatever went wrong: the text title is there.
+                null
+            }
+
+        // Under the lock: the focus is still on [focus]'s cell.
+        private fun isOn(focus: GuideFocus): Boolean {
+            val now = shownSnapshot.value.focus
+            return now?.channel == focus.channel && now.cellStartMs == focus.cellStartMs
         }
 
         private suspend fun fetch(id: CanonicalId): ItemDetails? =
@@ -1104,7 +1060,11 @@ internal class GuideViewModel
         private fun originMs(): Long = nowMs().let { it - it.mod(SLOT_MS) }
 
         private companion object {
-            const val DWELL_MS = 500L
+            /** How long the focus rests on a cell before its details and logo are asked for. */
+            const val DWELL_MS = 200L
+
+            /** How long after the focus has rested a logo may still replace the text title. */
+            const val LOGO_WINDOW_MS = 150L
             const val LOADING_AFTER_MS = 400L
             const val NEVER = Long.MIN_VALUE
             const val NO_MEASURE = -1L

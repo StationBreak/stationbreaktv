@@ -463,8 +463,8 @@ class GuideScreenTest {
         cell(CH7, 90).assertIsSelected()
         cell(CH7, 60).assertIsNotSelected()
         assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
-        // A later cell: OK opens its info rather than tuning.
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Info"))
+        // A later cell: OK tunes its channel, and the hint says so.
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch channel"))
         press(Key.DirectionUp)
         cell(CH5, 60).assertIsSelected()
         assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
@@ -660,49 +660,28 @@ class GuideScreenTest {
     }
 
     @Test
-    fun backClosesInfoOverlayFirst() {
-        showReady(CH7)
-        press(Key.DirectionRight)
-        press(Key.DirectionCenter)
-        compose.onNodeWithTag(GuideTags.INFO).assertExists()
-        assertEquals("Test Movie 103", text(ProgramInfoTags.TITLE))
-        back()
-        compose.onNodeWithTag(GuideTags.INFO).assertDoesNotExist()
-        assertEquals(0, exits)
-        // The overlay is gone: the next Back returns to the playing cell, then the menu row, and the one after is the
-        // activity's.
-        back()
-        cell(CH7, 60).assertIsSelected()
-        back()
-        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
-        assertEquals(0, exits)
-        back()
-        assertEquals(1, exits)
-    }
-
-    @Test
-    fun infoOverlayHidesTheGuidesOwnPanel() {
-        showReady(CH7)
-        press(Key.DirectionRight)
-        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
-        press(Key.DirectionCenter)
-        compose.onNodeWithTag(GuideTags.INFO).assertExists()
-        // The title and the time once, in the overlay: not again in the panel underneath it.
-        compose.onNodeWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).assertDoesNotExist()
-        compose.onAllNodesWithText("Test Movie 103", useUnmergedTree = true).assertCountEquals(2) // overlay + cell
-        back()
-        compose.onNodeWithTag(GuideTags.INFO).assertDoesNotExist()
-        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
-    }
-
-    @Test
     fun selectOnNowCellAsksToTuneItsChannel() {
         showReady(CH7)
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
         compose.waitUntil(TIMEOUT_MS) { tuned.isNotEmpty() }
         assertEquals(listOf(CH9), tuned.toList())
-        compose.onNodeWithTag(GuideTags.INFO).assertDoesNotExist()
+    }
+
+    @Test
+    fun selectOnALaterProgramTunesItsChannelAndOpensNothing() {
+        showReady(CH7)
+        press(Key.DirectionRight)
+        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
+        // The hint says what OK will do on a program that has not begun.
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch channel"))
+
+        press(Key.DirectionCenter)
+
+        compose.waitUntil(TIMEOUT_MS) { tuned.isNotEmpty() }
+        assertEquals(listOf(CH7), tuned.toList())
+        // The panel carries the detail: nothing opens over the guide, and the panel is still there.
+        assertEquals("Test Movie 103", text(GuideTags.PANEL_TITLE))
     }
 
     @Test
@@ -719,7 +698,7 @@ class GuideScreenTest {
     @Test
     fun aMoveRecomposesTheTwoCellsThePanelAndTheHintOnly() {
         showReady(CH7)
-        // Right (a later cell: the hint changes to Info), then Down (on to channel 9, still in the window: no row
+        // Right (a later cell: the hint changes to Watch channel), then Down (on to channel 9, still in the window: no row
         // moves).
         for ((key, to) in listOf(Key.DirectionRight to cell(CH7, 90), Key.DirectionDown to cell(CH9, 0))) {
             val traced = traceComposition { press(key) }

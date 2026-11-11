@@ -10,6 +10,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import tv.stationbreak.core.domain.DeviceIdProvider
+import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.AccessToken
@@ -54,7 +55,26 @@ internal class Transport(
         address: ServerAddress,
         endpoint: Endpoint,
         token: AccessToken? = null,
-    ): ServerResult<String> {
+    ): ServerResult<String> = execute(address, endpoint, token, "application/json", ::readLimited)
+
+    /**
+     * Sends one request for an image and reads the answer as bytes: at most [MAX_LOGO_BYTES], and only when the server
+     * says it is an image (an `image` content type). Anything else is a server error and nothing is kept: the bytes are
+     * untrusted, and a caller decodes them with bounds of its own.
+     */
+    suspend fun sendImage(
+        address: ServerAddress,
+        endpoint: Endpoint,
+        token: AccessToken? = null,
+    ): ServerResult<ByteArray> = execute(address, endpoint, token, "image/*", ::readImage)
+
+    private suspend fun <T> execute(
+        address: ServerAddress,
+        endpoint: Endpoint,
+        token: AccessToken?,
+        accept: String,
+        body: (Response) -> ServerResult<T>,
+    ): ServerResult<T> {
         val url =
             address.baseUrl
                 .toHttpUrlOrNull()
@@ -67,7 +87,7 @@ internal class Transport(
             Request
                 .Builder()
                 .url(url)
-                .header("Accept", "application/json")
+                .header("Accept", accept)
                 .tag(AuthTag::class.java, AuthTag(deviceIds.deviceId(), token))
                 .method(endpoint.method, requestBody(endpoint))
                 .build()
@@ -77,7 +97,7 @@ internal class Transport(
                 clients.credentialed
                     .newCall(request)
                     .await()
-                    .use { read(it, tokenBearing = token != null) }
+                    .use { read(it, tokenBearing = token != null, body) }
             }
         } catch (error: IOException) {
             val secure = address.scheme == Scheme.Https
@@ -88,15 +108,27 @@ internal class Transport(
     private fun requestBody(endpoint: Endpoint) =
         if (endpoint.method == "GET") null else (endpoint.body ?: ByteArray(0)).toRequestBody(JSON)
 
-    private fun read(
+    private fun <T> read(
         response: Response,
         tokenBearing: Boolean,
-    ): ServerResult<String> =
+        body: (Response) -> ServerResult<T>,
+    ): ServerResult<T> =
         when {
             response.code in REDIRECTS -> ServerResult.Failure(MediaServerError.Redirected())
             !response.isSuccessful -> ServerResult.Failure(ErrorMapper.fromStatus(response.code, tokenBearing))
-            else -> readLimited(response)
+            else -> body(response)
         }
+
+    private fun readImage(response: Response): ServerResult<ByteArray> {
+        if (response.body.contentType()?.type != "image") return ServerResult.Failure(MediaServerError.ServerError())
+        val source = response.body.source()
+        source.request(MediaServer.MAX_LOGO_BYTES + 1L)
+        return if (source.buffer.size > MediaServer.MAX_LOGO_BYTES) {
+            ServerResult.Failure(MediaServerError.ServerError())
+        } else {
+            ServerResult.Success(source.buffer.readByteArray())
+        }
+    }
 
     private fun readLimited(response: Response): ServerResult<String> {
         val source = response.body.source()

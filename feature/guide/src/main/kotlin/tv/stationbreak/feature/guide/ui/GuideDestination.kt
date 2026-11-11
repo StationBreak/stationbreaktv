@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -59,8 +58,9 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * rectangle clear and lays its panel and grid out around it. [openedAtNanos] is when the key that opened the guide
  * arrived (`System.nanoTime`), for the guide's open-time measurement.
  *
- * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back closes
- * the info overlay when one is open and is otherwise left to the activity, which leaves live TV. Select on the Channels
+ * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back walks
+ * the focus outwards and from the menu row is left to the activity, which leaves live TV. Select on a program tunes its
+ * channel, and the details panel carries what an info overlay once did. Select on the Channels
  * button above the grid shows [channels] over the guide (channel management, which `app` hands in); the guide's own
  * keys and Back stand down while it shows. Left from a row's first cell moves the focus to its channel; Select there
  * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way. Select on
@@ -208,8 +208,8 @@ internal fun GuideRoot(
         withFrameNanos { }
         measurement?.gridShown()
     }
-    // A Tune is acted on as it is received, never right after Select: the guide may refuse a Select (info open, focus
-    // gone), and a session that ends drops its queued events.
+    // A Tune is acted on as it is received, never right after Select: the guide may refuse a Select (focus gone), and
+    // a session that ends drops its queued events.
     val tune by rememberUpdatedState(onTune)
     // When the viewer opened channel management (a fresh value per opening, for the slot), or 0 while it is not
     // showing. It starts over with each showing of the guide.
@@ -263,12 +263,10 @@ internal fun GuideRoot(
             )
         }
     }
-    val info by viewModel.info.collectAsStateWithLifecycle()
     val syncNow by viewModel.syncNowState.collectAsStateWithLifecycle()
-    // Back over the info overlay closes it; with none open, Back walks the focus outwards (to what is playing, then to
-    // the menu row), and from the menu row it is the activity's and leaves live TV. While a screen covers the
-    // guide (channel management, the properties sheet, Settings, Libraries), it is that screen's.
-    BackHandler(enabled = info != null && !covered) { viewModel.closeInfo() }
+    // Back walks the focus outwards (to what is playing, then to the menu row), and from the menu row it is the
+    // activity's and leaves live TV. While a screen covers the guide (channel management, the properties sheet,
+    // Settings, Libraries), it is that screen's.
     val keys = remember { FocusRequester() }
     // The guide takes the key focus when it shows, and takes it back when the screen that covered it has gone.
     LaunchedEffect(keys, covered) { if (!covered) keys.requestFocus() }
@@ -279,7 +277,6 @@ internal fun GuideRoot(
         GuideScreen(
             snapshot = viewModel.snapshot,
             panel = viewModel.panel,
-            info = info,
             current = current,
             pictureHole = pictureHole,
             settings = settings,
@@ -424,8 +421,8 @@ private fun guideRootKey(
  * so holding a direction scrolls; a held Down pauses at the last row before it wraps, and a held Up at the top row
  * before it wraps) and Select acts on the focused cell once per press. Their releases are consumed too.
  *
- * Back is handed to [back] on its release, as the activity itself would: the info overlay's BackHandler closes it,
- * with none open the focus goes to what is playing, then to the menu row, and from there the activity leaves live TV.
+ * Back is handed to [back] on its release, as the activity itself would: the focus goes to what is playing, then to
+ * the menu row, and from there the activity leaves live TV.
  * Left unconsumed, Compose would spend it on moving the focus out of the guide to live TV's root ("exit"), and the
  * viewer would have to press Back twice. The media keys are not the guide's.
  */

@@ -280,7 +280,6 @@ class GuideSessionTest : GuideRig() {
             vm.select()
 
             assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH9)), events)
-            assertNull(vm.info.value)
         }
 
     @Test
@@ -296,7 +295,6 @@ class GuideSessionTest : GuideRig() {
             vm.select()
             runCurrent()
 
-            assertNull(vm.info.value)
             assertTrue(events.isEmpty())
         }
 }

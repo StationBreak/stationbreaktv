@@ -12,6 +12,13 @@ object GuideTags {
     const val PANEL = "guide:panel"
     const val PANEL_CHANNEL = "guide:panel:channel"
     const val PANEL_TITLE = "guide:panel:title"
+
+    /** The logo that stands for the title when the item has one in time (#723); [PANEL_TITLE] is then its box. */
+    const val PANEL_LOGO = "guide:panel:logo"
+
+    /** The row of outlined tags under the meta line, and each tag in it by its index. */
+    const val PANEL_TAGS = "guide:panel:tags"
+    const val PANEL_TAG = "guide:panel:tag:"
     const val PANEL_EPISODE = "guide:panel:episode"
     const val PANEL_META = "guide:panel:meta"
     const val PANEL_TIME = "guide:panel:time"
@@ -28,7 +35,6 @@ object GuideTags {
 
     /** The line where the grid goes when none of this TV's libraries is available (spec 26). */
     const val NO_LIBRARIES = "guide:noLibraries"
-    const val INFO = "guide:info"
 
     /** The Channels entry of the menu row above the grid. */
     const val CHANNELS_BUTTON = "guide:channelsButton"

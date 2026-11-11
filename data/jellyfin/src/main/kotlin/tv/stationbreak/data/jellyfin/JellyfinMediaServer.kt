@@ -22,6 +22,7 @@ import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
+import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
@@ -299,6 +300,12 @@ class JellyfinMediaServer internal constructor(
         session: Session,
         itemId: ItemId,
     ): ServerResult<ItemDetails> = media.itemDetails(session, itemId)
+
+    override suspend fun logo(
+        session: Session,
+        logo: ItemLogo,
+        maxHeight: Int,
+    ): ServerResult<ByteArray> = media.logo(session, logo, maxHeight)
 
     override suspend fun markPlayed(
         session: Session,

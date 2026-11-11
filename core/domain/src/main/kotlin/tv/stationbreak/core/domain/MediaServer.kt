@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
+import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
@@ -302,14 +303,28 @@ interface MediaServer {
     ): ServerResult<UserItemState>
 
     /**
-     * The overview, year, genres and runtime of [itemId] for the signed-in user (`GET /Items/{itemId}`), fetched when a
-     * screen asks. The text is untrusted server input: the adapter strips markup, control and direction characters and
-     * caps the lengths before it crosses the port.
+     * The overview, year, genres, runtime, parental rating, scores, logo and media summary of [itemId] for the
+     * signed-in user (`GET /Items/{itemId}`), fetched when a screen asks, in one call. The text is untrusted server
+     * input: the adapter strips markup, control and direction characters and caps the lengths before it crosses the
+     * port, and drops a number outside its range or an image tag that is not a short run of safe characters.
      */
     suspend fun itemDetails(
         session: Session,
         itemId: ItemId,
     ): ServerResult<ItemDetails>
+
+    /**
+     * The image of [logo] as the signed-in user, scaled by the server to at most [maxHeight] pixels tall
+     * (`GET /Items/{owner}/Images/Logo?tag=&maxHeight=`). The bytes are untrusted: the adapter answers at most
+     * [MAX_LOGO_BYTES] of them and never an answer that is not an image, and the caller decodes them with bounds of its
+     * own. The request carries the session's token like every other call; the bytes, the URL and the tag are never
+     * logged.
+     */
+    suspend fun logo(
+        session: Session,
+        logo: ItemLogo,
+        maxHeight: Int,
+    ): ServerResult<ByteArray>
 
     /** Marks [itemId] played for the signed-in user (`POST /UserPlayedItems/{itemId}`). */
     suspend fun markPlayed(
@@ -320,5 +335,8 @@ interface MediaServer {
     companion object {
         /** The most items one [items] call may ask for, so an answer stays well inside the adapter's size limit. */
         const val MAX_PAGE_SIZE = 200
+
+        /** The most bytes of a [logo] the adapter will hand back: a logo scaled to a panel is a few kilobytes. */
+        const val MAX_LOGO_BYTES = 1 shl 20
     }
 }

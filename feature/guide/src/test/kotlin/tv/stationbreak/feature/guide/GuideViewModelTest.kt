@@ -119,17 +119,17 @@ class GuideViewModelTest : GuideRig() {
         }
 
     @Test
-    fun detailsWaitForHalfSecondOfFocus() =
+    fun detailsWaitForTheFocusToRest() =
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            after(200)
+            after(100)
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            after(200)
+            after(100)
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            // Moves at 0, 200 and 400 ms: nothing is asked until 900.
-            after(499)
+            // Moves at 0, 100 and 200 ms, each inside the 200 ms rest: nothing is asked until 400.
+            after(199)
             assertEquals(0, server.itemDetailsCalls.size)
             assertTrue(vm.panel.value?.loading == true)
 
@@ -358,14 +358,13 @@ class GuideViewModelTest : GuideRig() {
             vm.open(CH7)
             runCurrent()
             // The grid shows 65 minutes: the cell from 60 to 90 is on now and the hint says "OK Watch". A clock that
-            // reads past its end before the tick has shown that must not turn the same OK into "Info".
+            // reads past its end before the tick has shown that must not turn the same OK into a later cell's.
             lagNextReadMs = -30 * MIN
 
             vm.select()
             runCurrent()
 
             assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH7)), events)
-            assertNull(vm.info.value)
         }
 
     @Test
@@ -430,16 +429,8 @@ class GuideViewModelTest : GuideRig() {
         }
 
     @Test
-    fun backWithTheInfoOverlayOpenOrNoGridIsNotTheGuides() =
+    fun backWithNoGridIsNotTheGuides() =
         guideTest { vm ->
-            assertFalse(vm.back())
-            vm.open(CH7)
-            runCurrent()
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            vm.select()
-            runCurrent()
-            assertNotNull(vm.info.value)
             assertFalse(vm.back())
         }
 
@@ -501,51 +492,24 @@ class GuideViewModelTest : GuideRig() {
             vm.select()
 
             assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH7)), events)
-            assertNull(vm.info.value)
         }
 
     @Test
-    fun selectFutureCellOpensInfo() =
+    fun selectFutureCellTunesItsChannelAndOpensNothing() =
         guideTest { vm ->
             val events = mutableListOf<GuideEvent>()
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.toList(events) }
             vm.open(CH7)
             runCurrent()
             vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            val gate = CompletableDeferred<Unit>()
-            server.itemDetailsGate = gate
+            assertEquals(min(90), vm.focused().cellStartMs)
 
             vm.select()
             runCurrent()
 
-            // Fetched at once, not after the dwell: the request is out and the overlay shows it is loading.
-            assertEquals(1, server.itemDetailsCalls.size)
-            val loading = checkNotNull(vm.info.value)
-            assertTrue(loading.loading)
-            assertEquals(min(90), loading.cell.startMs)
-            gate.complete(Unit)
-            runCurrent()
-            val loaded = checkNotNull(vm.info.value)
-            assertFalse(loaded.loading)
-            assertNotNull(loaded.item)
-            assertEquals(7, loaded.channelNumber)
-            assertTrue(events.isEmpty())
-        }
-
-    @Test
-    fun closeInfoReturnsTrueOnlyWithOverlay() =
-        guideTest { vm ->
-            vm.open(CH7)
-            runCurrent()
-            assertFalse(vm.closeInfo())
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            vm.select()
-            runCurrent()
-            assertNotNull(vm.info.value)
-
-            assertTrue(vm.closeInfo())
-            assertNull(vm.info.value)
-            assertFalse(vm.closeInfo())
+            // The panel already carries the detail, so OK is only "Watch channel": it tunes what is on that channel.
+            assertEquals(listOf<GuideEvent>(GuideEvent.Tune(CH7)), events)
+            assertEquals("no details are asked for by Select", 0, server.itemDetailsCalls.size)
         }
 
     @Test
@@ -553,7 +517,7 @@ class GuideViewModelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            after(200)
+            after(100)
             vm.close()
             val calls = fake.scheduleCalls.size
 
@@ -581,7 +545,6 @@ class GuideViewModelTest : GuideRig() {
 
             assertEquals(CH5, vm.focused().channel)
             assertEquals(min(60), vm.focused().anchorMs)
-            assertNull(vm.info.value)
             assertEquals(min(60), vm.ready().viewportStartMs)
             assertEquals(min(65), vm.ready().nowMs)
         }

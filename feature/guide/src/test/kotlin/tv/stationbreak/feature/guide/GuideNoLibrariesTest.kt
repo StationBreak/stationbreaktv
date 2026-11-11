@@ -179,17 +179,15 @@ class GuideNoLibrariesTest : GuideRig() {
     @Test
     fun thePanel_showsNoProgrammeWhileGone() {
         fun panel(
-            info: Boolean = false,
             settings: Boolean = false,
             gone: Boolean = false,
             onChannel: Boolean = false,
-        ) = guidePanelOf(info = info, settings = settings, noLibraries = gone, onChannel = onChannel)
+        ) = guidePanelOf(settings = settings, noLibraries = gone, onChannel = onChannel)
 
         assertEquals(GuidePanelKind.Details, panel())
         assertEquals(GuidePanelKind.Empty, panel(gone = true))
         assertEquals(GuidePanelKind.Empty, panel(gone = true, onChannel = true))
         assertEquals(GuidePanelKind.Settings, panel(gone = true, settings = true))
-        assertEquals(GuidePanelKind.Empty, panel(info = true))
         assertEquals(GuidePanelKind.Channel, panel(onChannel = true))
     }
 
@@ -215,30 +213,6 @@ class GuideNoLibrariesTest : GuideRig() {
             runCurrent()
             assertTrue("the grid was not read again when Libraries closed", schedule.calls > calls)
             assertEquals(GuideMenuEntry.Settings, vm.menu())
-        }
-
-    // The info overlay names a programme: it goes when the selection does, and a reload does not bring it back.
-    @Test
-    fun selectionGoneWithTheInfoOpen_closesIt_andAReloadKeepsItClosed() =
-        guideTest { vm ->
-            choices.selection.value = kept
-            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7))
-            vm.open(CH7)
-            runCurrent()
-            vm.move(GuideDirection.Right, false, 0)
-            vm.select()
-            runCurrent()
-            assertNotNull(vm.info.value)
-
-            choices.selection.value = gone
-            runCurrent()
-            assertNull(vm.info.value)
-
-            val calls = schedule.calls
-            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
-            runCurrent()
-            assertTrue("the grid was not read again", schedule.calls > calls)
-            assertNull(vm.info.value)
         }
 
     @Test

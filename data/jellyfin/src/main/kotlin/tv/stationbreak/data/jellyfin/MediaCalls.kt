@@ -23,6 +23,7 @@ import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
 import tv.stationbreak.core.model.ItemKind
+import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
@@ -401,18 +402,23 @@ internal class MediaCalls(
         session: Session,
         itemId: ItemId,
     ): ServerResult<ItemDetails> {
-        val query = listOf("userId" to session.userId.value, "fields" to "Overview,Genres")
+        // One call: the tracks ride on it as MediaSources, so the panel never makes a second request. The rating, the
+        // scores and the image tags come with every item, as OfficialRating does for the sync's own call, so none is
+        // named here: a name the server did not know could cost the whole answer.
+        val fields = "Overview,Genres,MediaSources"
+        val query = listOf("userId" to session.userId.value, "fields" to fields)
         return calls.send(session, Endpoint.get("Items/${itemId.value}", query)).flatMap { text ->
-            Wire.parse(text, ItemDetailsDto.serializer()).map { dto ->
-                ItemDetails(
-                    id = itemId,
-                    overview = ServerText.overview(dto.overview),
-                    year = dto.productionYear,
-                    genres = ServerText.genres(dto.genres),
-                    runtime = dto.runTimeTicks?.let(::duration),
-                )
-            }
+            Wire.parse(text, ItemDetailsDto.serializer()).map { dto -> ItemDetailsMapper.map(itemId, dto, ::duration) }
         }
+    }
+
+    suspend fun logo(
+        session: Session,
+        logo: ItemLogo,
+        maxHeight: Int,
+    ): ServerResult<ByteArray> {
+        val query = listOf("tag" to logo.tag, "maxHeight" to maxHeight.coerceIn(1, MAX_LOGO_HEIGHT).toString())
+        return calls.sendImage(session, Endpoint.get("Items/${logo.owner.value}/Images/Logo", query))
     }
 
     suspend fun markPlayed(
@@ -537,6 +543,9 @@ internal class MediaCalls(
          * the movies whatever the setting.
          */
         val COLLAPSE_BOX_SETS_OFF = "collapseBoxSetItems" to "false"
+
+        /** The tallest logo a caller may ask the server for, so a bad value cannot ask for a huge image. */
+        const val MAX_LOGO_HEIGHT = 1024
 
         /** The video kinds the cache holds (spec 06): never series, seasons, folders or collections. */
         const val CACHED_TYPES = "Movie,Episode,Video,MusicVideo"

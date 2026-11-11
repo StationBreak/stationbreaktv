@@ -4,7 +4,10 @@ package tv.stationbreak.feature.guide.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
@@ -23,6 +26,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -78,6 +83,9 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
+import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ItemLogo
+import tv.stationbreak.core.model.MediaSummary
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -176,33 +184,84 @@ class GuideScreenshotTest {
     }
 
     /**
-     * The info overlay of a later program (OK on a cell after the playing one), with the details in: overview, year,
-     * genres and runtime. One test a theme, as the settings panel is: the overlay's state is the activity's.
+     * The details panel carrying the detail (#723): the item's logo for its title, then the meta line, the tags (rating,
+     * resolution, audio, CC, both scores), the progress and times, and a description that takes the height that is left.
+     * Dark then Light, where the logo sits on a dark plate. The logo is drawn here (the guide never sees a server).
      */
     @Test
-    fun theInfoPanel() = shootInfo(GuideTheme.Dark, suffix = "")
+    fun theDetailsPanel() {
+        server.itemDetailsResult = ServerResult.Success(richDetails(withLogo = true))
+        shootDetails(GuideTheme.Dark, suffix = "")
+        shootDetails(GuideTheme.Light, suffix = "-light")
+    }
 
+    /** The same panel for an item with no logo: the text title, as before, and the same tags and description. */
     @Test
-    fun theInfoPanelLight() = shootInfo(GuideTheme.Light, suffix = "-light")
+    fun theDetailsPanelWithoutALogo() {
+        server.itemDetailsResult = ServerResult.Success(richDetails(withLogo = false))
+        shootDetails(GuideTheme.Dark, suffix = "", frame = DETAILS_TEXT_FRAME)
+        shootDetails(GuideTheme.Light, suffix = "-light", frame = DETAILS_TEXT_FRAME)
+    }
 
-    private fun shootInfo(
+    private fun shootDetails(
         shown: GuideTheme,
         suffix: String,
+        frame: String = DETAILS_FRAME,
     ) {
         theme.value = shown
-        showReady(CH7)
-        press(Key.DirectionRight)
-        press(Key.DirectionCenter)
+        showReady(CH7, fill = ::fillLineupKeepingDetails)
+        val expectsLogo = server.itemDetailsResult.let { it is ServerResult.Success && it.value.logo != null }
         compose.waitUntil(TIMEOUT_MS) {
-            compose
-                .onAllNodesWithTag(ProgramInfoTags.OVERVIEW, useUnmergedTree = true)
-                .fetchSemanticsNodes()
-                .isNotEmpty()
+            val tag = if (expectsLogo) GuideTags.PANEL_LOGO else GuideTags.PANEL_OVERVIEW
+            compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag(GuideTags.INFO).assertIsDisplayed()
-        assertEquals(OVERVIEW, text(ProgramInfoTags.OVERVIEW))
-        assertEquals("2018 · Animation, Family · 22 min", text(ProgramInfoTags.DETAILS))
-        shoot("$INFO_FRAME$suffix.png")
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(
+            listOf("TV-PG", "HD", "5.1", "CC", "Critics 68%", "Audience 6.6"),
+            (0..5).map { text("${GuideTags.PANEL_TAG}$it") },
+        )
+        compose.onNodeWithTag(GuideTags.PANEL_TAGS, useUnmergedTree = true).assertIsDisplayed()
+        val panel = compose.onNodeWithTag(GuideTags.PANEL).fetchSemanticsNode().boundsInRoot
+        val overview = compose.onNodeWithTag(GuideTags.PANEL_OVERVIEW, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue("the description ends at ${overview.bottom}, past the panel's ${panel.bottom}", overview.bottom <= panel.bottom)
+        shoot("$frame$suffix.png")
+    }
+
+    private fun richDetails(withLogo: Boolean) =
+        ItemDetails(
+            itemOf(FOCUSED_ITEM),
+            LONG_OVERVIEW,
+            YEAR,
+            listOf("Animation", "Family"),
+            RUNTIME_MIN.minutes,
+            officialRating = "TV-PG",
+            criticRating = 68,
+            communityRating = 6.6,
+            logo = if (withLogo) ItemLogo(ItemId("series-art"), "frame-logo") else null,
+            media = MediaSummary(1920, 1080, 6, hasSubtitles = true),
+        )
+
+    // The same lineup, with the details this test set rather than the default ones.
+    private fun fillLineupKeepingDetails() {
+        val keep = server.itemDetailsResult
+        fillLineup()
+        server.itemDetailsResult = keep
+    }
+
+    /** Light lettering with an orange outline of its own: a stand-in for a real logo, which is usually light. */
+    private fun logoArt(): ImageBitmap {
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFF28A2E.toInt()
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                textSize = 64f
+            }
+        val label = "TEST SERIES"
+        val bitmap = Bitmap.createBitmap(paint.measureText(label).toInt() + 8, 96, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).drawText(label, 4f, 70f, paint)
+        return bitmap.asImageBitmap()
     }
 
     /** The Settings panel with its Screen fit row: its last row (Even out volume) must end above the menu row. */
@@ -368,7 +427,7 @@ class GuideScreenshotTest {
         if (!composed) {
             signIn()
             val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-            vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup)
+            vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), ScreenshotLineup, logos = { logoArt() })
             compose.setContent { GuideHost(current) }
             composed = true
         } else {
@@ -552,6 +611,11 @@ class GuideScreenshotTest {
         const val OTHER_SERIES = "Test Series Two"
         const val FOCUSED_ITEM = 102
         const val OVERVIEW = "A test episode about nothing in particular, long enough to fill a line of the panel."
+        const val LONG_OVERVIEW =
+            "Four astronauts returning from a first mission to Mars enter a time warp and crash on a far-future Earth " +
+                "devastated by atomic war. At first unaware of where they are, but finding the surface overrun by " +
+                "mutants, they discover an underground civilisation whose men have grown timid and whose leaders are " +
+                "suspicious of the surface-dwellers and what they might have brought with them from the sky."
         const val YEAR = 2018
         const val RUNTIME_MIN = 22
         const val LONG_TITLE = "The Late Late Picture Show With a Title Long Enough to Reach the Cell's End"
@@ -562,7 +626,8 @@ class GuideScreenshotTest {
         const val FOCUSED_MENU = "guide-focused-menu"
         const val OFF_AIR = "guide-off-air.png"
         const val MARKS_FRAME = "guide-marks"
-        const val INFO_FRAME = "guide-info"
+        const val DETAILS_FRAME = "guide-details"
+        const val DETAILS_TEXT_FRAME = "guide-details-text"
         val MARK_FARM = ChannelId("ch-marks-farm")
         val MARK_ROBOTS = ChannelId("ch-marks-robots")
         val MARK_LONG = ChannelId("ch-marks-long")

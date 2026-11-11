@@ -55,12 +55,23 @@ internal class AuthorizedCall(
     suspend fun send(
         session: Session,
         endpoint: Endpoint,
-    ): ServerResult<String> {
+    ): ServerResult<String> = guarded(session) { transport.send(session.address, endpoint, session.token) }
+
+    /** [send] for an image: the same checks before the token goes, and the bytes of the answer (size-capped). */
+    suspend fun sendImage(
+        session: Session,
+        endpoint: Endpoint,
+    ): ServerResult<ByteArray> = guarded(session) { transport.sendImage(session.address, endpoint, session.token) }
+
+    private suspend fun <T> guarded(
+        session: Session,
+        call: suspend () -> ServerResult<T>,
+    ): ServerResult<T> {
         val blocked = CleartextGate.check(session.address, session.acknowledgement) ?: ensureBound(session)
         return if (blocked != null) {
             ServerResult.Failure(blocked)
         } else {
-            transport.send(session.address, endpoint, session.token).also {
+            call().also {
                 if (it is ServerResult.Failure && it.error is MediaServerError.SessionExpired) forget(session)
             }
         }

@@ -63,7 +63,6 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
-import tv.stationbreak.core.ui.ProgramInfoOverlay
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
@@ -163,7 +162,6 @@ internal class GuideGeometry(
 internal fun GuideScreen(
     snapshot: StateFlow<GuideSnapshot>,
     panel: StateFlow<CellDetails?>,
-    info: CellDetails?,
     current: ChannelId?,
     pictureHole: DpRect,
     settings: SettingsPanel? = null,
@@ -215,11 +213,9 @@ internal fun GuideScreen(
                     .offset(geometry.safe.left, geometry.safe.top)
                     .width(geometry.safe.right - geometry.safe.left),
             ) {
-                // The info overlay says what the panel would, so the panel makes way while it is open: the title and
-                // the time are shown once. Its place is kept, so the grid does not move.
                 // The menu row takes the foot of that band, so the grid and the picture stay where they are.
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
-                val kind = guidePanelOf(info != null, settings != null, noLibraries, onChannel)
+                val kind = guidePanelOf(settings != null, noLibraries, onChannel)
                 val parts = TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling)
                 TopPanel(kind, parts, panelSize)
                 GuideMenu(menuOf)
@@ -234,7 +230,6 @@ internal fun GuideScreen(
                 Spacer(Modifier.height(HintGap))
                 HintRow(snapshotOf, current)
             }
-            info?.let { GuideInfoOverlay(it, nowOf) }
         }
     }
 }
@@ -388,7 +383,7 @@ private fun GuideSnapshot.isAtPlaying(current: ChannelId?): Boolean =
     (state is GuideState.Ready || state == GuideState.Empty) && menu == null && !isAwayFrom(current)
 
 /** Which hint the focused cell calls for: what OK does on it, as `GuideViewModel.select` does it. */
-internal enum class HintKind { Watch, Info, Properties, BackOnly }
+internal enum class HintKind { Watch, WatchChannel, Properties, BackOnly }
 
 internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
     val ready = snapshot.state as? GuideState.Ready
@@ -404,14 +399,16 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
 
         cell.kind != CellKind.Program -> HintKind.BackOnly
 
-        else -> HintKind.Info
+        // A program that has not begun (or has ended but is still on the grid): OK tunes its channel, to what is on.
+        else -> HintKind.WatchChannel
     }
 }
 
 /**
  * The keys that matter here, short and following the focus: "OK Watch" on a cell on now (a slate too: OK changes to
- * its channel), "OK Info" on a later program, nothing for OK on a later slate or unavailable cell, and "Back Exit
- * live TV", since leaving from the guide is the one thing no one would guess, which becomes "Back To what's playing"
+ * its channel), "OK Watch channel" on a later program (OK tunes its channel), nothing for OK on a later slate or
+ * unavailable cell, and "Back Exit live TV", since leaving from the guide is the one thing no one would guess, which
+ * becomes "Back To what's playing"
  * while the focus is off the playing channel's cell and "Back To the menu" on it. Key names sit on the key pill; what
  * they do is secondary. Recomposes only when the kind of the focused cell changes.
  */
@@ -441,7 +438,7 @@ private fun HintRow(
     val action =
         when (kind) {
             HintKind.Watch -> stringResource(R.string.guide_hint_watch)
-            HintKind.Info -> stringResource(R.string.guide_hint_info)
+            HintKind.WatchChannel -> stringResource(R.string.guide_hint_watch_channel)
             HintKind.Properties -> stringResource(R.string.guide_hint_properties)
             HintKind.BackOnly -> null
         }
@@ -500,32 +497,5 @@ private fun HintKey(
         style = guideText(10.sp, FontWeight.SemiBold),
         color = colors.textPrimary,
         maxLines = 1,
-    )
-}
-
-/** The info overlay of a later program: the shared overlay, its slot with the weekday when it is not today. */
-@Composable
-private fun GuideInfoOverlay(
-    info: CellDetails,
-    nowOf: () -> Long?,
-) {
-    val copy = programCopy()
-    val cell = info.cell
-    val zone = remember { ZoneId.systemDefault() }
-    val is24h = is24Hour()
-    val now by remember(nowOf) { derivedStateOf(nowOf) }
-    val today = now ?: cell.startMs
-    val item = info.item
-    ProgramInfoOverlay(
-        channel = channelLine(info.channelNumber, info.channelName),
-        title = cellTitle(cell, copy),
-        episodeLine = episodeLine(cell, copy),
-        slot = ProgramText.slotOn(cell.startMs, cell.endMs, today, zone, is24h),
-        overview = item?.overview,
-        year = item?.year,
-        genres = item?.genres.orEmpty(),
-        runtimeMinutes = item?.runtime?.inWholeMinutes?.toInt(),
-        loading = info.loading,
-        modifier = Modifier.testTag(GuideTags.INFO),
     )
 }
