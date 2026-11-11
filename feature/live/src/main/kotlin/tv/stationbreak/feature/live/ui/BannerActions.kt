@@ -150,14 +150,7 @@ internal fun ActionsRow(
     var rowFocused by remember { mutableStateOf(false) }
     var infoFocused by remember { mutableStateOf(false) }
     var lastFocused by remember { mutableStateOf(false) }
-    // Only when Live was there: a row that appears without it (a switch's reopened banner, focused on a chip) has no
-    // Live button to have lost.
-    var hadLive by remember { mutableStateOf(behind) }
-    LaunchedEffect(behind) {
-        val onLive = rowFocused && !infoFocused && !lastFocused
-        if (hadLive && !behind && onLive) first.requestFocus()
-        hadLive = behind
-    }
+    InfoTakesOverFromLive(behind, first) { rowFocused && !infoFocused && !lastFocused }
     Row(
         Modifier
             .fillMaxWidth()
@@ -188,6 +181,24 @@ internal fun ActionsRow(
             ActionButton(R.string.live_action_last, actions.last, last)
         }
         if (stream != null) Chips(stream, actions, chipFocus, chipPlaced, chip.takeIf { failed })
+    }
+}
+
+/**
+ * When the Live button goes away while it had the focus ([onLive]), Info takes it. Only when Live was there: a row that
+ * appears without it (a switch's reopened banner, focused on a chip) has no Live button to have lost.
+ */
+@Composable
+private fun InfoTakesOverFromLive(
+    behind: Boolean,
+    info: FocusRequester,
+    onLive: () -> Boolean,
+) {
+    val hadLive = remember { booleanArrayOf(behind) }
+    val liveFocused by rememberUpdatedState(onLive)
+    LaunchedEffect(behind) {
+        if (hadLive[0] && !behind && liveFocused()) info.requestFocus()
+        hadLive[0] = behind
     }
 }
 
