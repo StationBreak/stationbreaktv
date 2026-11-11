@@ -1,0 +1,1 @@
+Frames for PR 729 (guide info panel): GuideScreenshotTest on an Amazon AFTJMST12 (API 25). Before is main (645e537a), unchanged; after is the PR head. The logo is drawn by the test (a stand-in, not real art).
