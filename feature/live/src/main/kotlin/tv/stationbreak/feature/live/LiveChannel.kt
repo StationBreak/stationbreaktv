@@ -84,8 +84,8 @@ class LiveChannel(
     private val selection: StateFlow<ChoiceView?>? = null,
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
-    private val screen = Screen(LiveState.Ident(null))
     private val tuned = Tuned()
+    private val screen = Screen(LiveState.Ident(null)) { tuned.previous != null }
     private val overlays = Overlays(screen, timings, tuned, details)
 
     // The channel last saved as the last channel, and the account it is saved for: shared by the sittings of one run.

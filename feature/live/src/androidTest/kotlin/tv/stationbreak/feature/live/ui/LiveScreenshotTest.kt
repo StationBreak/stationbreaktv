@@ -144,6 +144,7 @@ class LiveScreenshotTest {
         stream: StreamFacts? = null,
         picker: PickerKind? = null,
         label: BannerLabel = BannerLabel.Now,
+        chip: PickerKind? = null,
         switchFailed: Boolean = false,
     ) = Banner(
         number = 162,
@@ -160,6 +161,7 @@ class LiveScreenshotTest {
         recipeKey = recipeKey,
         stream = stream,
         picker = picker,
+        chip = chip,
         switchFailed = switchFailed,
     )
 
@@ -237,12 +239,36 @@ class LiveScreenshotTest {
             LiveState.Tuning(banner(actions = false, label = BannerLabel.SwitchingAudio)),
         )
 
+    /** The Select banner reopened after a re-tune that took: the chip used has the focus and shows the new value. */
+    @Test
+    fun theBannerAfterASwitchThatTook() =
+        shoot(
+            "live-switch-took.png",
+            LiveState.Watching(banner(actions = true, stream = facts, chip = PickerKind.Audio)),
+        )
+
+    /** The same banner after a re-tune that fell back: the chip reads "Couldn't switch" in its normal text colour. */
     @Test
     fun theBannerAfterASwitchThatDidNotTake() =
         shoot(
             "live-switch-failed.png",
-            LiveState.Watching(banner(actions = false, stream = facts, switchFailed = true)),
+            LiveState.Watching(
+                banner(actions = true, stream = facts, chip = PickerKind.Audio, switchFailed = true),
+            ),
         )
+
+    /** The widest row: Live (behind), Info, Last, a subtitle in use, a transcode, and "Couldn't switch" on the chip. */
+    @Test
+    fun theBannerAfterAFailedSwitchAtItsWidest() {
+        val transcoding = facts.copy(route = Route.TRANSCODE, subtitleIndex = 4)
+        shoot(
+            "live-switch-failed-widest.png",
+            LiveState.Watching(
+                banner(actions = true, stream = transcoding, chip = PickerKind.Audio, switchFailed = true),
+            ),
+            behindView(),
+        )
+    }
 
     @Test
     fun theChannelFlip() {
@@ -255,19 +281,22 @@ class LiveScreenshotTest {
         shoot(
             "live-transport.png",
             LiveState.Watching(null),
-            TransportView(
-                paused = true,
-                seeking = false,
-                seekable = true,
-                visible = true,
-                mediaMs = 10 * MINUTE,
-                targetMs = null,
-                asOfMs = now,
-                blockStartMs = now - 15 * MINUTE,
-                inPointMs = 0,
-                cutMs = 60 * MINUTE,
-                driftMs = 0,
-            ),
+            behindView(),
+        )
+
+    private fun behindView() =
+        TransportView(
+            paused = true,
+            seeking = false,
+            seekable = true,
+            visible = true,
+            mediaMs = 10 * MINUTE,
+            targetMs = null,
+            asOfMs = now,
+            blockStartMs = now - 15 * MINUTE,
+            inPointMs = 0,
+            cutMs = 60 * MINUTE,
+            driftMs = 0,
         )
 
     /** A warm vignette, so the banner's surface and text are judged over a picture and not over black. */

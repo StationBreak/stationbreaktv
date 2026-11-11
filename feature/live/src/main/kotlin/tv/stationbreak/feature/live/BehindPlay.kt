@@ -34,9 +34,9 @@ internal fun interface Retune {
     ): TuneOutcome
 
     /**
-     * The same tune for a viewer's switch (design doc B2.7): the banner says [label] under the snow, and one that
-     * follows a switch that did not take ([failed]) says so in the stream line's place. A retune with no such text
-     * (a test's) is just the ordinary one.
+     * The same tune for a viewer's switch (design doc B2.7): the banner says [label] under the snow, and when the
+     * picture is back the Select banner reopens on the chip that was used; after a switch that did not take
+     * ([failed]) that chip says so. A retune with no such text (a test's) is just the ordinary one.
      */
     suspend fun switching(
         mediaMs: Long,
@@ -95,7 +95,7 @@ internal fun Sitting.retuneAt(
             val position = mediaMs.milliseconds
             val banner =
                 bannerFor(onAir.channel, block, label, mediaMs, driftMs, onAir.nextProgram())
-                    .copy(switchFailed = failed)
+                    .copy(chip = chipOf(label), switchFailed = failed)
             val what = TuneWhat(kind, block, position)
             val outcome =
                 tuneAndShow(scope, banner, snow = true, what = what, onAir = onAir, onPlaying = onPlaying) {
