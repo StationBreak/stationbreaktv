@@ -85,6 +85,10 @@ class LevellingAudioProcessor(
     private var wasEnabled = true
     private var frame = DoubleArray(0)
 
+    /** The largest output magnitude before the final guard clamp (for tests: it must stay at the ceiling). */
+    internal var maxPreClamp = 0.0
+        private set
+
     /** The gain now, in dB (for tests). */
     internal val currentGainDb: Double get() = gainDb
 
@@ -148,7 +152,12 @@ class LevellingAudioProcessor(
             return
         }
         if (!wasEnabled) {
-            // Back on after a stretch off: nothing stale in the delay line, the limiter or the window.
+            // Back on after a stretch off: nothing stale in the delay line, the limiter or the window, and the gain
+            // starts from 0 dB, not from what an earlier show learned (the slew then moves it).
+            if (leading()) {
+                gainDb = 0.0
+                level.gainDb = 0.0
+            }
             onFlush()
             wasEnabled = true
         }
@@ -201,7 +210,10 @@ class LevellingAudioProcessor(
         val readAt = ((delayPos + 1) % lookahead) * channels
         val writeAt = delayPos * channels
         for (c in 0 until channels) {
-            val v = (delay[readAt + c] * limiter).coerceIn(-CEILING_LIN, CEILING_LIN)
+            val raw = delay[readAt + c] * limiter
+            // The limiter alone must hold the ceiling; the clamp below is a last guard, and a test asserts it is idle.
+            maxPreClamp = max(maxPreClamp, abs(raw))
+            val v = raw.coerceIn(-CEILING_LIN, CEILING_LIN)
             if (float) {
                 out.putFloat(v.toFloat())
             } else {
@@ -216,15 +228,16 @@ class LevellingAudioProcessor(
 
     // The smallest of the last [lookahead] reductions, by a monotonic deque.
     private fun slidingMin(need: Double): Double {
+        // Entries older than the window go first, so the push below can never land on a live one.
+        while (minSize > 0 && minIdx[minHead] <= frameNo - lookahead) {
+            minHead = (minHead + 1) % lookahead
+            minSize--
+        }
         while (minSize > 0 && minVal[(minHead + minSize - 1) % lookahead] >= need) minSize--
         val tail = (minHead + minSize) % lookahead
         minIdx[tail] = frameNo
         minVal[tail] = need
         minSize++
-        while (minIdx[minHead] <= frameNo - lookahead) {
-            minHead = (minHead + 1) % lookahead
-            minSize--
-        }
         frameNo++
         return minVal[minHead]
     }

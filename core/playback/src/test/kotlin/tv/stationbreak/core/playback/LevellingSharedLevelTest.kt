@@ -177,6 +177,64 @@ class LevellingSharedLevelTest {
         assertEquals(0.1 * 32768.0, last.toDouble(), 2.0)
     }
 
+    /** A [hz] sine of peak [amp], the same on both channels. */
+    private fun tone(
+        hz: Double,
+        amp: Double,
+        seconds: Double,
+    ): ShortArray =
+        ShortArray((seconds * rate).toInt() * 2) { i ->
+            (amp * sin(2 * PI * hz * (i / 2) / rate) * 32768.0).toInt().coerceIn(-32768, 32767).toShort()
+        }
+
+    // The limiter must hold the ceiling by itself: the final clamp is only a guard. A slow tone whose gained peak is
+    // about twice the ceiling needs the sliding minimum to hold its reduction for longer than the look-ahead.
+    private fun assertLimiterHoldsWithoutTheClamp(hz: Double) {
+        val level = LoudnessLevel().apply { gainDb = LevellingAudioProcessor.MAX_BOOST_DB }
+        val p = processor(level)
+        run(p, tone(hz, 0.5, 3.0))
+        assertTrue("$hz Hz: pre-clamp ${p.maxPreClamp}", p.maxPreClamp <= ceiling + lsb)
+    }
+
+    @Test
+    fun aTwentyHertzTone_atTwiceTheCeiling_isLimitedWithoutTheClamp() = assertLimiterHoldsWithoutTheClamp(20.0)
+
+    @Test
+    fun aTwentyFiveHertzTone_atTwiceTheCeiling_isLimitedWithoutTheClamp() = assertLimiterHoldsWithoutTheClamp(25.0)
+
+    @Test
+    fun aQuietToLoudStep_isLimitedWithoutTheClamp() {
+        val level = LoudnessLevel().apply { gainDb = LevellingAudioProcessor.MAX_BOOST_DB }
+        val p = processor(level)
+        run(p, constant(0.01, rate / 2) + constant(0.5, rate / 2))
+        assertTrue("pre-clamp ${p.maxPreClamp}", p.maxPreClamp <= ceiling + lsb)
+    }
+
+    @Test
+    fun aQuietShowWithAHotPeakEverySecond_isLimitedWithoutTheClamp() {
+        val p = processor()
+        val base = sine(-34.0, 30.0)
+        for (s in 0 until 30) for (i in 0 until 480) base[(s * rate + i) * 2] = 30_000
+        run(p, base)
+        assertTrue("pre-clamp ${p.maxPreClamp}", p.maxPreClamp <= ceiling + lsb)
+    }
+
+    @Test
+    fun turningItBackOnStartsFromZeroDb_notFromWhatAnEarlierShowLearned() {
+        val level = LoudnessLevel()
+        var on = true
+        val p = processor(level, enabled = { on })
+        run(p, sine(-40.0, 25.0))
+        assertTrue(p.currentGainDb > 11.0)
+        on = false
+        run(p, sine(-10.0, 5.0))
+        on = true
+        // The first buffer after it comes back on is 20 ms: the gain is 0 dB, give or take one slew step.
+        run(p, sine(-10.0, 0.02))
+        assertEquals(0.0, p.currentGainDb, 0.15)
+        assertEquals(0.0, level.gainDb, 0.15)
+    }
+
     @Test
     fun resetKeepsTheGain() {
         val p = processor()

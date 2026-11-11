@@ -2,7 +2,6 @@
 package tv.stationbreak.feature.guide.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,32 +24,24 @@ internal fun SettingsPanel.levellingFor(direction: GuideDirection): Boolean? =
         else -> null
     }
 
-// Even out volume: its label, then Off and On as the screen fit's two are drawn, and a line saying what it does. The
-// label is primary while the row has the D-pad.
+// Even out volume: its label, then Off and On as the screen fit's two are drawn. The label is primary while the row has
+// the D-pad.
 @Composable
 internal fun LevellingRow(
     enabled: Boolean,
     focused: Boolean,
 ) {
     val colors = LocalGuideColors.current
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.guide_settings_levelling),
-                style = guideText(13.sp, FontWeight.Normal),
-                color = if (focused) colors.textPrimary else colors.textSecondary,
-                maxLines = 1,
-            )
-            val off = !enabled
-            PanelTab(R.string.guide_levelling_off, GuideTags.LEVELLING_OFF, tabLook(off && focused, off, colors), off)
-            val on = enabled
-            PanelTab(R.string.guide_levelling_on, GuideTags.LEVELLING_ON, tabLook(on && focused, on, colors), on)
-        }
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = stringResource(R.string.guide_settings_levelling_summary),
+            text = stringResource(R.string.guide_settings_levelling),
             style = guideText(13.sp, FontWeight.Normal),
-            color = colors.textSecondary,
+            color = if (focused) colors.textPrimary else colors.textSecondary,
             maxLines = 1,
         )
+        val off = !enabled
+        PanelTab(R.string.guide_levelling_off, GuideTags.LEVELLING_OFF, tabLook(off && focused, off, colors), off)
+        val on = enabled
+        PanelTab(R.string.guide_levelling_on, GuideTags.LEVELLING_ON, tabLook(on && focused, on, colors), on)
     }
 }
