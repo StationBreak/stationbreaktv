@@ -44,6 +44,10 @@ object GuideTags {
     const val FIT_SAFE = "guide:fit:safe"
     const val FIT_EDGE = "guide:fit:edge"
 
+    /** The Off and On choices of the Settings panel's Even out volume row (#498). */
+    const val LEVELLING_OFF = "guide:levelling:off"
+    const val LEVELLING_ON = "guide:levelling:on"
+
     /** The Libraries row of the Settings panel: Select shows Settings, Libraries (spec 26). */
     const val SETTINGS_LIBRARIES = "guide:settings:libraries"
 

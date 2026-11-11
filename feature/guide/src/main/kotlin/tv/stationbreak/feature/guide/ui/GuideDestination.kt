@@ -43,6 +43,7 @@ import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.mark.LocalMarkCache
 import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.core.ui.rememberScreenFitStore
+import tv.stationbreak.core.ui.rememberVolumeLevellingStore
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
 import tv.stationbreak.feature.guide.GuideState
@@ -82,6 +83,9 @@ fun GuideDestination(
     val theme by themes.theme.collectAsStateWithLifecycle()
     // The screen fit is the app's one choice, shared with live TV's picture: the guide only sets it.
     val fits = rememberScreenFitStore()
+    // Volume levelling (#498) is the TV's own choice, read by the player; the guide only sets it.
+    val levellings = rememberVolumeLevellingStore()
+    val levelling by levellings.enabled.collectAsStateWithLifecycle()
     CompositionLocalProvider(
         LocalGuideColors provides theme.colors,
         LocalPanelColors provides theme.colors.panel,
@@ -100,6 +104,8 @@ fun GuideDestination(
             fits::choose,
             properties,
             libraries,
+            levelling = levelling,
+            onLevelling = levellings::choose,
         )
     }
 }
@@ -161,6 +167,8 @@ internal fun GuideRoot(
     onFit: (ScreenFit) -> Unit = {},
     properties: PropertiesSlot = NoProperties,
     libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
+    levelling: Boolean = true,
+    onLevelling: (Boolean) -> Unit = {},
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -228,6 +236,8 @@ internal fun GuideRoot(
     LaunchedEffect(theme) { themeChoice = theme }
     val chooseTheme = rememberUpdatedState(onTheme)
     val chooseFit = rememberUpdatedState(onFit)
+    val chooseLevelling = rememberUpdatedState(onLevelling)
+    val levellingNow = rememberUpdatedState(levelling)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             handleGuideEvent(
@@ -275,6 +285,7 @@ internal fun GuideRoot(
             settings = settings,
             themeChoice = themeChoice,
             syncNow = syncNow,
+            levelling = levelling,
             modifier =
                 Modifier
                     // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
@@ -292,6 +303,8 @@ internal fun GuideRoot(
                                     chooseTheme.value(next)
                                 }
                                 step.fit?.let { next -> chooseFit.value(next) }
+                                step.levelling?.let { next -> chooseLevelling.value(next) }
+                                if (step.toggleLevelling) chooseLevelling.value(!levellingNow.value)
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },
