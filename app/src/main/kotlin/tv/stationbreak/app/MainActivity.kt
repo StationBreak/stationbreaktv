@@ -13,6 +13,8 @@ import tv.stationbreak.app.nav.AppNavHost
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenFits
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.live.ui.KEEP_ON_TAG
+import tv.stationbreak.feature.live.ui.keepOnLogging
 
 /** Launch activity. Hosts the navigation graph, which opens on the server screen. */
 @AndroidEntryPoint
@@ -41,8 +43,9 @@ class MainActivity : ComponentActivity() {
         lifecycleLine("onStop")
     }
 
-    // Debug builds only: diagnosing the screen-on flag on a device. Silent in release.
+    // Diagnosing the screen-on flag on a device, under the same gate as the flag's own lines: a debuggable build, or
+    // log.tag.SBLIVE set to DEBUG. Silent otherwise.
     private fun lifecycleLine(what: String) {
-        if (BuildConfig.DEBUG) Log.i("SBLIVE", "activity $what task=$taskId")
+        if (keepOnLogging(this)) Log.i(KEEP_ON_TAG, "activity $what task=$taskId")
     }
 }
