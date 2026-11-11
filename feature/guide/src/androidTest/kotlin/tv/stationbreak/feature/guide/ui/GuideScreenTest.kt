@@ -778,35 +778,36 @@ class GuideScreenTest {
     @Test
     fun aCellPagedOutOfViewDoesNotLayItsTitleOut() {
         showReady(CH7)
-        // Channel 9's first program (0 to 150 minutes) shows its title from 60 to 150; a page to 150 leaves none of it
-        // in view, so it is compact there and its title is not measured at all (not measured to no width).
-        repeat(2) { press(Key.DirectionRight) }
+        // Channel 9's first program (0 to 150 minutes) shows its title from 60 to 150 on the two-hour page (60 to 180);
+        // a page to 180 leaves none of it in view, so it is compact there and its title is not measured at all (not
+        // measured to no width). Channel 7's cells at 90, 120 and 150 are still on the first page; the one at 180 pages.
+        repeat(3) { press(Key.DirectionRight) }
         val title = laidOut().entries.single { it.value.first == GuideTags.cellText(CH9, min(0)) }.key
         val paragraphs = laidOut().getValue(title).second
         assertNotNull("laid out while in view", paragraphs)
+        assertEquals(min(60), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
         press(Key.DirectionRight)
-        assertEquals(min(150), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+        assertEquals(min(180), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
         assertTrue("laid out again", laidOut().getValue(title).second === paragraphs)
     }
 
     @Test
     fun horizontalPageRecomposesNoCells() {
         showReady(CH7)
-        // 60 -> 90 -> 120 stay in the first 90 minutes; the cell at 150 starts past them, so that move pages.
-        press(Key.DirectionRight)
-        press(Key.DirectionRight)
-        cell(CH7, 120).assertIsSelected()
+        // 60 -> 90 -> 120 -> 150 stay on the first page (60 to 180); the cell at 180 starts past it, so that move pages.
+        repeat(3) { press(Key.DirectionRight) }
+        cell(CH7, 150).assertIsSelected()
         assertEquals(min(60), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
         composed.clear()
 
         press(Key.DirectionRight)
 
-        assertEquals(min(150), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
-        cell(CH7, 150).assertIsSelected()
+        assertEquals(min(180), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
+        cell(CH7, 180).assertIsSelected()
         // Only the two cells whose focus changed; every other cell of every row kept its composition, and none was
         // brought into it: the page moved the rows in the layout phase. Not the grid's body either: a page is the same
         // grid frame.
-        assertEquals(mapOf("${CH7.value}@${min(120)}" to 1, "${CH7.value}@${min(150)}" to 1), composed.toMap())
+        assertEquals(mapOf("${CH7.value}@${min(150)}" to 1, "${CH7.value}@${min(180)}" to 1), composed.toMap())
     }
 
     /** Logos known to [known], each decoded only once [release] is counted down: the test says when one "arrives". */
