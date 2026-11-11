@@ -759,8 +759,8 @@ class GuideScreenTest {
         showReady(CH7)
         // Channel 9's first program (0 to 150 minutes) shows its title from 60 to 150 on the two-hour page (60 to 180);
         // a page to 180 leaves none of it in view, so it is compact there and its title is not measured at all (not
-        // measured to no width). Channel 7's cells at 90, 120 and 150 are still on the first page; the one at 180
-        // pages.
+        // measured to no width). Channel 7's cells at 90, 120 and 150 are still on the first page;
+        // the one at 180 pages.
         repeat(3) { press(Key.DirectionRight) }
         val title = laidOut().entries.single { it.value.first == GuideTags.cellText(CH9, min(0)) }.key
         val paragraphs = laidOut().getValue(title).second
@@ -774,8 +774,8 @@ class GuideScreenTest {
     @Test
     fun horizontalPageRecomposesNoCells() {
         showReady(CH7)
-        // 60 -> 90 -> 120 -> 150 stay on the first page (60 to 180); the cell at 180 starts past it, so that move
-        // pages.
+        // 60 -> 90 -> 120 -> 150 stay on the first page (60 to 180); the cell at 180 starts past it,
+        // so that move pages.
         repeat(3) { press(Key.DirectionRight) }
         cell(CH7, 150).assertIsSelected()
         assertEquals(min(60), (vm.snapshot.value.state as GuideState.Ready).viewportStartMs)
