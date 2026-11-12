@@ -71,6 +71,27 @@ class PlaybackLogTest {
     }
 
     @Test
+    fun `a runtime fault from elsewhere logs its top three frames, not its message`() {
+        val error = IllegalArgumentException("host nas.home.lan")
+        error.stackTrace =
+            arrayOf(
+                StackTraceElement("java.nio.ByteBuffer", "put", "B.java", 1),
+                StackTraceElement("tv.stationbreak.Foo", "bypass", "F.kt", 2),
+                StackTraceElement("tv.stationbreak.Foo", "queueInput", "F.kt", 3),
+                StackTraceElement("tv.stationbreak.Foo", "deeper", "F.kt", 4),
+            )
+        val text = PlaybackLog.failureText(playbackError(error))
+        assertFalse(text, text.contains("nas.home.lan"))
+        assertTrue(
+            text,
+            text.endsWith(
+                "java.lang.IllegalArgumentException at=java.nio.ByteBuffer.put:1>tv.stationbreak.Foo.bypass:2>" +
+                    "tv.stationbreak.Foo.queueInput:3",
+            ),
+        )
+    }
+
+    @Test
     fun `stops at eight throwables even when the chain loops`() {
         val a = RuntimeException("a")
         val b = RuntimeException("b", a)

@@ -172,6 +172,10 @@ class LevellingAudioProcessor(
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
+        // Nothing to take, nothing to give: Media3's pipeline hands every processor the shared EMPTY_BUFFER when no
+        // audio is queued, and a fresh or reset processor still holds that same buffer as its output, so copying it
+        // would be ByteBuffer.put(itself), which throws IllegalArgumentException (#498: levelling off failed tunes).
+        if (!inputBuffer.hasRemaining()) return
         if (!enabled()) {
             logPath(PATH_BYPASS)
             bypass(inputBuffer)
