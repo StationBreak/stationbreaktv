@@ -60,8 +60,14 @@ class GuideSettingsKeysTest {
     @Test
     fun volumeLevelling_leftPicksOff_rightPicksOn_selectClosesKeepingThePick_andNothingElsePicksIt() {
         val onLevelling = SettingsPanel(SettingsRow.VolumeLevelling)
-        assertEquals(SettingsStep(onLevelling, levelling = false), onLevelling.press(Key.DirectionLeft))
-        assertEquals(SettingsStep(onLevelling, levelling = true), onLevelling.press(Key.DirectionRight))
+        assertEquals(
+            SettingsStep(onLevelling, levelling = false, levellingFrom = "settingsLeft"),
+            onLevelling.press(Key.DirectionLeft),
+        )
+        assertEquals(
+            SettingsStep(onLevelling, levelling = true, levellingFrom = "settingsRight"),
+            onLevelling.press(Key.DirectionRight),
+        )
         // Select closes the panel and picks nothing, as on Appearance and Screen fit; a held press does nothing.
         assertEquals(SettingsStep(null), onLevelling.press(Key.DirectionCenter))
         assertEquals(SettingsStep(onLevelling), onLevelling.press(Key.DirectionCenter, repeat = 1))
