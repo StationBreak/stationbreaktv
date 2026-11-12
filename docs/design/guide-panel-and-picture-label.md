@@ -31,7 +31,7 @@ Three changes from TV use, each its own issue and PR. Owner decisions are marked
 | Block | Spec |
 |---|---|
 | Channel line | unchanged: 11 sp `textSecondary` |
-| **Title** | the item's **logo** when Jellyfin has one, else the text title (24 sp SemiBold, as now). Logo box: max 46 dp tall, max 70 % of the panel width, left-aligned, scaled to fit. **Owner decision: the logo replaces the text title.** The title text stays as the node's content description. |
+| **Title** | the item's **logo** when Jellyfin has one, else the text title (24 sp SemiBold, as now). The title block is a fixed 46 dp tall whether it holds the text or a logo; its content is left-aligned and vertically centred in it, so nothing below it moves on a swap. Logo: max 46 dp tall (plate included), max 70 % of the panel width, scaled to fit. **Owner decision: the logo replaces the text title.** The title text stays as the node's content description. |
 | Meta line | unchanged: `ON NOW` · year · runtime · genres (episode line for an episode) |
 | **Tags** | one row of outlined tags, in this order, each omitted when unknown: parental rating (`PG-13`), resolution class (`SD` / `HD` / `4K`), audio layout (`Mono` / `Stereo` / `5.1` / `7.1`), `CC` when any subtitle track exists, `Critics 68%`, `Audience 6.6`. **Owner decision: both scores.** |
 | Progress and times | unchanged |
@@ -43,8 +43,10 @@ Tag style: 9 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radius
 ### Logo rules
 
 - Shown on a dark plate in the Light theme (logos are usually light): `#0E0F11` at 92 %, 2 dp radius, 6 dp padding. In Dark, no plate.
-- The text title is drawn first. The logo replaces it only if it is already cached or arrives within 150 ms of the highlight settling; a late logo is cached for next time and does not swap in under the viewer.
-- A highlight that moves on cancels its fetch.
+- The title block is 46 dp tall for the text title and for a logo alike (the Light plate inside it), so the meta line, the tags and everything under them stay where they are when one replaces the other.
+- The guide keeps a small in-memory cache of decoded logos (about 24, least recently used), cleared when the account changes. When a cell is highlighted, its details are cached and its logo is in that cache, the panel is published with the logo at once: no rest, and no text title first.
+- Otherwise the text title is drawn first, and the logo is asked for once the highlight has rested and the details are in. There is no time window: a logo that arrives while the highlight is still on its cell is shown, with a 120 ms fade; one that arrives after the highlight has moved is only cached, for the next visit, and is never shown on another cell.
+- A highlight that moves on does not cancel a logo request already running: it finishes and is cached.
 
 ### Data (facts from the code)
 
@@ -70,7 +72,7 @@ Tag style: 9 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radius
 
 - [ ] With the guide open, the picture shows the playing channel's mark, number and title along its top edge, and it changes when the channel or programme does; it does not cover the film's subtitles.
 - [ ] The description fills the panel's free height; no empty band above the tabs for a long description.
-- [ ] A logo appears for an item that has one and the text title for one that does not; scrolling quickly through cells never shows a logo belonging to another cell and never swaps title for logo after 150 ms.
+- [ ] A logo appears for an item that has one and the text title for one that does not; scrolling quickly through cells never shows a logo belonging to another cell; a cell seen again whose logo is cached shows it at once; the lines below the title do not move when a logo replaces the text.
 - [ ] Tags show only known facts; an item with no scores shows none.
 - [ ] OK on a later programme tunes to its channel; the info overlay no longer opens from the guide.
 - [ ] The grid spans two hours; focus, paging and the now-line are correct.

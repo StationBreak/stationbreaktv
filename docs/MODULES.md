@@ -56,7 +56,7 @@ stationbreaktv/
 │   │                            `SyntheticLibrary`.)
 │   │                            (Port fakes live in core:domain testFixtures.)
 │   ├── ui/             [Android] Compose for TV theme + design tokens (incl. retro), shared composables, D-pad helpers;
-│   │                            the program text and info overlay live TV and the guide share, the guide's geometry and
+│   │                            the program text and info overlay live TV shares with the program text of the guide, the guide's geometry and
 │   │                            the one safe area everything lays out in (spec 17); the guide's colour tokens (`GuideColors`, `LocalGuideColors`),
 │   │                            its type helpers (`guideText`, `guideFigures`) and the channel marks (`ChannelMark`, `MarkCache`,
 │   │                            `MarkCaches`, and the bundled logos in `assets/channelmarks/`), public so live TV draws with them
@@ -196,6 +196,15 @@ Since spec 12, `data:settings` also holds `FileLineupStore` (the `LineupStore` i
 account, `lineup/<server>/<user>.json` under `filesDir`, replaced atomically. It keeps opaque bytes and knows nothing of
 their format; the codec is in `core:domain`. A path is built only from canonical IDs, a file over 1 MiB reads as a fault, and
 an unreadable file is moved to `<name>.unreadable.<timestamp>`, of which the newest three are kept.
+
+Since #723, `data:settings` also holds `FileLogoStore` (the `LogoStore` port in `core:domain`): the item logos the guide's
+details panel shows, one file per logo under `cacheDir/logos/<account>/`, both names hashes (account: server, address and
+user; logo: owner, tag and height) so no ID or server text is in a path. Capped at 30 MB, least recently used first, and
+deleted for every account but the signed-in one when the account changes. It is a cache: Android may clear it, it is not
+backed up, and a miss only costs a fetch. `LogoCache` (`core:domain`) fetches through `MediaServer.logo` with the
+session's own token and keeps one request per logo. It is our own small loader, not an image library: the adapter's client
+is the one place that decides who may be sent the token and which certificates are trusted. If posters or backdrops
+come to want images too, revisit Coil over `JellyfinMediaServer.mediaCallFactory`. `app` binds both in `DetailsModule`.
 
 Since spec 14, `data:settings` also holds `FileLastChannelStore` (the `LastChannelStore` implementation in `core:domain`):
 one small file per account under `noBackupFilesDir/lastchannel`, named by a hash of the account so no server or user ID

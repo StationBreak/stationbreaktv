@@ -139,13 +139,43 @@ internal class ItemDto(
     @SerialName("IndexNumber") val episodeNumber: Int? = null,
 )
 
-/** The fields the details call reads; nothing else can fail it. */
+/**
+ * The fields the details call reads; nothing else can fail it. The ones a server could word oddly (ratings, the image
+ * tags, a track's numbers) are read as JSON values and made sense of in [ItemDetailsMapper], so one odd value drops
+ * that detail and never the whole answer.
+ */
 @Serializable
+@Suppress("LongParameterList") // One property per wire field.
 internal class ItemDetailsDto(
     @SerialName("Overview") val overview: String? = null,
     @SerialName("ProductionYear") val productionYear: Int? = null,
     @SerialName("Genres") val genres: List<String>? = null,
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
+    @SerialName("OfficialRating") val officialRating: String? = null,
+    @SerialName("CriticRating") val criticRating: JsonElement? = null,
+    @SerialName("CommunityRating") val communityRating: JsonElement? = null,
+    // A dictionary of image kind to tag; only "Logo" is read.
+    @SerialName("ImageTags") val imageTags: JsonElement? = null,
+    // On an episode, the logo of the series (the nearest parent that has one).
+    @SerialName("ParentLogoItemId") val parentLogoItemId: String? = null,
+    @SerialName("ParentLogoImageTag") val parentLogoImageTag: String? = null,
+    @SerialName("MediaSources") val mediaSources: List<DetailsSourceDto>? = null,
+)
+
+/** One media source of the item, for its tracks only. */
+@Serializable
+internal class DetailsSourceDto(
+    @SerialName("MediaStreams") val mediaStreams: List<DetailsStreamDto>? = null,
+)
+
+/** One track of the details call: its kind, and the numbers the tags use, each read as a JSON value. */
+@Serializable
+internal class DetailsStreamDto(
+    @SerialName("Type") val type: String? = null,
+    @SerialName("Width") val width: JsonElement? = null,
+    @SerialName("Height") val height: JsonElement? = null,
+    @SerialName("Channels") val channels: JsonElement? = null,
+    @SerialName("IsDefault") val isDefault: JsonElement? = null,
 )
 
 /** A page of series: only what `SeriesInfo` holds is read, so no other field can fail the page. */

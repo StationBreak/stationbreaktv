@@ -12,11 +12,18 @@
     <!-- placeholder: design partner. Every library this TV chose is gone from the server (spec 26). -->
     <string name="guide_no_libraries">None of this TV\'s libraries are available. Choose them in Settings, Libraries.</string>
 
-    <!-- The hint row: a key name, then what it does. OK tunes what is on now and opens the info of a later program. -->
+    <!-- The tags under the details panel's meta line (#723). SD, HD, 4K, 5.1 and 7.1 are the same in every language. -->
+    <string name="guide_tag_mono">Mono</string>
+    <string name="guide_tag_stereo">Stereo</string>
+    <string name="guide_tag_cc">CC</string>
+    <string name="guide_tag_critics">Critics</string>
+    <string name="guide_tag_audience">Audience</string>
+
+    <!-- The hint row: a key name, then what it does. OK tunes what is on now, and the channel of a later program. -->
     <string name="guide_key_ok">OK</string>
     <string name="guide_key_back">Back</string>
     <string name="guide_hint_watch">Watch</string>
-    <string name="guide_hint_info">Info</string>
+    <string name="guide_hint_watch_channel">Watch channel</string>
     <!-- On the channel column (#631): OK opens the channel's properties, Right or Back returns to the programs. -->
     <string name="guide_key_right">▸</string>
     <string name="guide_hint_properties">About this channel</string>

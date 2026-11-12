@@ -12,7 +12,7 @@ import tv.stationbreak.feature.guide.GuideSnapshot
 
 /** What the top-left panel shows. */
 internal enum class GuidePanelKind {
-    /** Nothing, its place kept: the info overlay says it already, or no grid is shown. */
+    /** Nothing, its place kept: no grid is shown. */
     Empty,
 
     /** The Settings panel. */
@@ -26,18 +26,15 @@ internal enum class GuidePanelKind {
 }
 
 /**
- * Which panel the top-left shows: Settings wins when it is open (its rows are reached with no libraries too); the
- * info overlay makes the panel make way; with no libraries ([noLibraries], from the snapshot) no programme or channel
- * is shown, as no grid is.
+ * Which panel the top-left shows: Settings wins when it is open (its rows are reached with no libraries too); with no
+ * libraries ([noLibraries], from the snapshot) no programme or channel is shown, as no grid is.
  */
 internal fun guidePanelOf(
-    info: Boolean,
     settings: Boolean,
     noLibraries: Boolean,
     onChannel: Boolean,
 ): GuidePanelKind =
     when {
-        info -> GuidePanelKind.Empty
         settings -> GuidePanelKind.Settings
         noLibraries -> GuidePanelKind.Empty
         onChannel -> GuidePanelKind.Channel

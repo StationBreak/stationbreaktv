@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import androidx.compose.ui.graphics.ImageBitmap
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
 
@@ -76,9 +77,10 @@ internal enum class GuideMenuEntry {
 }
 
 /**
- * A [cell] on its channel and what the server says about its item: what the details panel shows for the focused cell,
- * and the info overlay for the cell Select opened it on. [loading] is true while the details are on their way; if they
- * never come, [item] stays null and [loading] goes false.
+ * A [cell] on its channel and what the server says about its item: what the details panel shows for the focused cell.
+ * [loading] is true while the details are on their way; if they never come, [item] stays null and [loading] goes
+ * false. [logo] is the item's logo once it is in hand in time to replace the text title (the viewer is never shown a
+ * swap later than that), else null.
  */
 internal data class CellDetails(
     val cell: GuideCell,
@@ -86,6 +88,7 @@ internal data class CellDetails(
     val channelName: String,
     val item: ItemDetails?,
     val loading: Boolean,
+    val logo: ImageBitmap? = null,
 )
 
 /** One-off things the guide asks of its screen. */

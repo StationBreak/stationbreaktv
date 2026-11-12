@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -50,6 +50,7 @@ import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.R
+import tv.stationbreak.feature.guide.panelTagsOf
 import java.time.ZoneId
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -58,12 +59,8 @@ private val ProgressRadius = 1.dp
 private val LineGap = 3.dp
 private val MetaGap = 8.dp
 
-/** The title's letter-spacing, in em: -0.015. */
-private const val TITLE_TRACKING = -0.015f
-
-// Two lines at most, fewer when the lines above leave less room: a text that ends in an ellipsis reads better than one
-// clipped mid-line.
-private const val OVERVIEW_LINES = 2
+// The description takes every whole line the height left over holds (four to six on the reference panel): a text that
+// ends in an ellipsis reads better than one clipped mid-line.
 private val OVERVIEW_LINE_HEIGHT = 15.sp
 
 /** ON NOW: 10 sp, not the spec's 8.5, which is under the 10 sp floor the guide holds; bold, tracked +6%. */
@@ -122,9 +119,12 @@ private fun restedOn(cell: Pair<Int, Long>): Boolean {
     return rested == cell
 }
 
-private enum class PanelSlot { Channel, Title, Episode, Meta, Progress, Time, Overview }
+private enum class PanelSlot { Channel, Title, Episode, Meta, Tags, Progress, Time, Overview }
 
-/** What drops first when the band is short: the last of these goes first, whole, never clipped through its glyphs. */
+/**
+ * What drops first when the band is short: the last of these goes first, whole, never clipped through its glyphs. The
+ * description gives way before any of them (it takes only what is left), then the tags.
+ */
 private val DropOrder =
     listOf(
         PanelSlot.Channel,
@@ -133,6 +133,7 @@ private val DropOrder =
         PanelSlot.Progress,
         PanelSlot.Episode,
         PanelSlot.Meta,
+        PanelSlot.Tags,
     )
 
 @Composable
@@ -207,14 +208,7 @@ private fun PanelLines(
         )
     }
     Slot(PanelSlot.Title) {
-        Text(
-            text = cellTitle(cell, copy),
-            modifier = Modifier.fillMaxWidth().testTag(GuideTags.PANEL_TITLE),
-            style = guideText(24.sp, FontWeight.SemiBold).copy(letterSpacing = TITLE_TRACKING.em),
-            color = colors.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        PanelTitle(details.channelNumber to cell.startMs, cellTitle(cell, copy), details.logo, colors)
     }
     episode?.let {
         Slot(PanelSlot.Episode) {
@@ -230,26 +224,26 @@ private fun PanelLines(
     }
     val onNow = cell.startMs <= nowMs && nowMs < cell.endMs
     if (onNow || meta != null) Slot(PanelSlot.Meta) { MetaRow(onNow, meta) }
+    val tagCopy = tagCopy()
+    val tags = remember(item, tagCopy) { item?.let { panelTagsOf(it, tagCopy) }.orEmpty() }
+    if (tags.isNotEmpty()) Slot(PanelSlot.Tags) { TagRow(tags) }
     if (onNow && cell.kind == CellKind.Program) Slot(PanelSlot.Progress) { Progress(cell.startMs, cell.endMs, nowMs) }
     Slot(PanelSlot.Time) { TimeRow(cell, nowMs, onNow, copy) }
     details.item?.overview?.takeIf { describe }?.let {
-        Slot(PanelSlot.Overview) { Overview(it, OVERVIEW_LINES) }
+        Slot(PanelSlot.Overview) { Overview(it) }
     }
 }
 
 /**
- * The overview takes the height the lines above it leave, up to [maxLines], and ends in an ellipsis on the last line
- * that fits; with room for no whole line it is not drawn. The panel clips at its bounds, and a line cut through its
+ * The overview takes the height the lines above it leave, as many whole lines as that holds, and ends in an ellipsis
+ * on the last; with room for no whole line it is not drawn. The panel clips at its bounds, and a line cut through its
  * glyphs reads worse than a shorter text.
  */
 @Composable
-private fun Overview(
-    text: String,
-    maxLines: Int,
-) {
+private fun Overview(text: String) {
     val lineHeight = with(LocalDensity.current) { OVERVIEW_LINE_HEIGHT.toDp() }
     BoxWithConstraints {
-        val lines = minOf(maxLines, (maxHeight / lineHeight).toInt())
+        val lines = (maxHeight / lineHeight).toInt()
         if (lines > 0) {
             Text(
                 text = text,

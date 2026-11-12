@@ -46,7 +46,7 @@ class GuideUnavailableCellTest : GuideRig() {
         }
 
     @Test
-    fun unavailableCell_okDoesNotOpenInfo_whenNotOnNow() =
+    fun unavailableCell_okDoesNothing_whenNotOnNow() =
         guideTest { vm ->
             goneAt90()
             val events = mutableListOf<GuideEvent>()
@@ -59,7 +59,6 @@ class GuideUnavailableCellTest : GuideRig() {
             vm.select()
             runCurrent()
 
-            assertNull(vm.info.value)
             assertEquals(0, server.itemDetailsCalls.size)
             assertTrue(events.isEmpty())
         }

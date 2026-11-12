@@ -16,10 +16,12 @@ import tv.stationbreak.core.model.cleanStudioName
  * Code points are written as numbers, not `\u` escapes, because the formatter rewrites an escape into the raw
  * (invisible) character, which a reader can't see in the source.
  */
+@Suppress("TooManyFunctions") // One cleaner for each kind of text the server sends, over one shared scrubber.
 internal object ServerText {
     const val OVERVIEW_MAX = 1_500
     const val GENRES_MAX = 5
     const val GENRE_MAX = 40
+    const val RATING_MAX = 12
     const val MARKS_MAX = 4
 
     // How much raw text is looked at before the cap: room for markup and entities, but bounded.
@@ -41,6 +43,14 @@ internal object ServerText {
         val bounded = bound(raw ?: return null, OVERVIEW_MAX)
         return clean(bounded, multiline = true, max = OVERVIEW_MAX)
     }
+
+    /**
+     * A parental rating ("PG-13", "TV-MA"): safe, single-line, and no more than [RATING_MAX] characters. A longer one
+     * is not a rating and is dropped, not cut: half a rating would read as another.
+     */
+    fun rating(raw: String?): String? =
+        clean(bound(raw ?: return null, RATING_MAX), multiline = false, max = RATING_MAX + 1)
+            ?.takeIf { it.length <= RATING_MAX }
 
     /** At most [GENRES_MAX] genres, each safe, single-line and at most [GENRE_MAX] characters; blanks dropped. */
     fun genres(raw: List<String>?): List<String> =

@@ -47,8 +47,8 @@ class HintKindTest {
     }
 
     @Test
-    fun aLaterProgramIsInfo() {
-        assertEquals(HintKind.Info, hintKindOf(snapshotAt(nowMin = 65, focusMin = 210)))
+    fun aLaterProgramWatchesItsChannel() {
+        assertEquals(HintKind.WatchChannel, hintKindOf(snapshotAt(nowMin = 65, focusMin = 210)))
     }
 
     @Test

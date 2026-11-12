@@ -1,16 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
@@ -23,6 +34,9 @@ import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.MediaSummary
+import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
@@ -39,6 +53,8 @@ class DetailsPanelTest {
     val compose = createComposeRule()
 
     private val panel = MutableStateFlow<CellDetails?>(null)
+    private val colors = mutableStateOf(GuideColors.Dark)
+    private val height = mutableStateOf(PANEL_HEIGHT_DP)
 
     private fun details(
         startMin: Long,
@@ -54,7 +70,9 @@ class DetailsPanelTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             StationBreakTheme {
-                DetailsPanel(panel, nowOf = { 0L }, modifier = Modifier.size(PANEL_WIDTH_DP.dp, PANEL_HEIGHT_DP.dp))
+                CompositionLocalProvider(LocalGuideColors provides colors.value) {
+                    DetailsPanel(panel, nowOf = { 0L }, modifier = Modifier.size(PANEL_WIDTH_DP.dp, height.value.dp))
+                }
             }
         }
     }
@@ -252,6 +270,178 @@ class DetailsPanelTest {
         show(longTitled(episode = true, overview = "A long description. ".repeat(30)))
         compose.mainClock.advanceTimeBy(SETTLED_MS)
         assertOverviewEndsInsidePanel()
+    }
+
+    private fun rich(
+        logo: ImageBitmap? = null,
+        overview: String = "A description. ".repeat(40),
+    ): CellDetails {
+        val item =
+            ItemDetails(
+                ItemId("item-rich"),
+                overview,
+                2018,
+                listOf("Animation", "Family"),
+                22.minutes,
+                officialRating = "TV-PG",
+                criticRating = 68,
+                communityRating = 6.6,
+                media = MediaSummary(1920, 1080, 6, hasSubtitles = true),
+            )
+        val cell = GuideCell(0, 30 * MIN, CellKind.Program, "Program 0", null, null)
+        return CellDetails(cell, 7, "Seven", item, loading = false, logo = logo)
+    }
+
+    private fun tag(index: Int) = compose.onNodeWithTag("${GuideTags.PANEL_TAG}$index", useUnmergedTree = true)
+
+    private fun tagText(index: Int): String =
+        tag(index)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.Text]
+            .joinToString("") { it.text }
+
+    @Test
+    fun theTagsFollowTheMetaLineInTheSetOrderAndOmitWhatIsUnknown() {
+        show(rich())
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+
+        assertEquals(
+            listOf("TV-PG", "HD", "5.1", "CC", "Critics 68%", "Audience 6.6"),
+            (0..5).map(::tagText),
+        )
+        val meta = meta().getBoundsInRoot()
+        val tags = compose.onNodeWithTag(GuideTags.PANEL_TAGS, useUnmergedTree = true).getBoundsInRoot()
+        assertTrue("the tags (${tags.top}) sit below the meta line (${meta.bottom})", tags.top >= meta.bottom)
+
+        // An item with only some facts has only those tags, in the same order.
+        val partial =
+            ItemDetails(ItemId("p"), null, null, emptyList(), null, officialRating = "NR", communityRating = 7.0)
+        show(withItem(partial))
+        assertEquals(listOf("NR", "Audience 7.0"), (0..1).map(::tagText))
+        compose.onAllNodesWithTag("${GuideTags.PANEL_TAG}2", useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun anItemWithNoFactsHasNoTagRow() {
+        show(withItem(ItemDetails(ItemId("bare"), "About", 2018, listOf("Drama"), null)))
+        compose.onAllNodesWithTag(GuideTags.PANEL_TAGS, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun theDescriptionTakesEveryWholeLineTheHeightLeftHoldsAndEndsInAnEllipsis() {
+        height.value = 300
+        show(rich(overview = "A description. ".repeat(400)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+
+        val layouts = mutableListOf<TextLayoutResult>()
+        overview()
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        val layout = layouts.single()
+        assertTrue("only ${layout.lineCount} lines: the description is still capped", layout.lineCount > 2)
+        assertTrue("the last line is cut with an ellipsis", layout.isLineEllipsized(layout.lineCount - 1))
+        assertOverviewEndsInsidePanel()
+    }
+
+    private fun art(
+        width: Int,
+        height: Int,
+    ): ImageBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).asImageBitmap()
+
+    @Test
+    fun aLogoStandsForTheTitleAndTheTitleStaysItsDescription() {
+        show(rich(logo = art(600, 300)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+
+        compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).assertIsDisplayed()
+        val title = compose.onNodeWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals(listOf("Program 0"), title.config[SemanticsProperties.ContentDescription])
+        // No text title is drawn: the picture is it.
+        compose.onAllNodesWithText("Program 0", useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aTallLogoIsScaledToFortySixDpAndAWideOneToSeventyPercentOfThePanel() {
+        show(rich(logo = art(600, 300)))
+        val tall = compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(46f, tall.height.value, 0.5f)
+        assertEquals(92f, tall.width.value, 0.5f)
+        assertEquals("left-aligned", 0f, tall.left.value, 0.5f)
+
+        show(rich(logo = art(4000, 100)))
+        val wide = compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).getBoundsInRoot()
+        assertEquals(PANEL_WIDTH_DP * 0.7f, wide.width.value, 0.5f)
+        assertTrue("a wide logo is shorter than the cap (${wide.height})", wide.height.value < 46f)
+    }
+
+    @Test
+    fun aLogoIsNeverScaledUp() {
+        show(rich(logo = art(40, 20)))
+        val small = compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).getBoundsInRoot()
+        // At its own size in dp, whatever the density, which is at most 40 px wide.
+        assertTrue("${small.width} dp wide", small.width.value <= 40f)
+    }
+
+    @Test
+    fun inLightTheLogoSitsOnADarkPlateInsideTheSameBox() {
+        colors.value = GuideColors.Light
+        show(rich(logo = art(600, 300)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        val box = compose.onNodeWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).getBoundsInRoot()
+        val logo = compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).getBoundsInRoot()
+        // The plate (the box) is at most 46 dp tall with the logo 6 dp inside it all round.
+        assertTrue("the box is ${box.height} tall", box.height.value <= 46.5f)
+        assertEquals(6f, logo.left.value - box.left.value, 0.5f)
+        assertEquals(6f, logo.top.value - box.top.value, 0.5f)
+    }
+
+    private fun metaTop() = meta().getBoundsInRoot().top.value
+
+    private fun tagsTop() = tag(0).getBoundsInRoot().top.value
+
+    @Test
+    fun theLinesBelowTheTitleDoNotMoveWhenALogoTakesItsPlace() {
+        for (scheme in listOf(GuideColors.Dark, GuideColors.Light)) {
+            colors.value = scheme
+            panel.value = null
+            show(rich())
+            compose.mainClock.advanceTimeBy(SETTLED_MS)
+            val metaWithText = metaTop()
+            val tagsWithText = tagsTop()
+
+            // The same cell gets its logo, of three shapes: the title block is 46 dp tall for each, plate or not.
+            for (logo in listOf(art(600, 300), art(4000, 100), art(40, 20))) {
+                show(rich(logo = logo))
+                compose.mainClock.advanceTimeBy(SETTLED_MS)
+                compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).assertIsDisplayed()
+                assertEquals("meta line, ${logo.width} px logo", metaWithText, metaTop(), 0.5f)
+                assertEquals("tags, ${logo.width} px logo", tagsWithText, tagsTop(), 0.5f)
+            }
+
+            // And a cell shown with its logo from the first frame has them in the same place.
+            panel.value = null
+            show(rich(logo = art(600, 300)))
+            assertEquals("first shown with a logo", metaWithText, metaTop(), 0.5f)
+        }
+    }
+
+    @Test
+    fun aLogoThatArrivesForTheCellOnShowFadesInOverTheTextTitle() {
+        show(rich())
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        assertEquals("Program 0", text(GuideTags.PANEL_TITLE))
+
+        show(rich(logo = art(600, 300)))
+        compose.mainClock.advanceTimeBy(60)
+        // Mid-fade: the logo is the title node, and the text under it is not a second one.
+        compose.onAllNodesWithTag(GuideTags.PANEL_TITLE, useUnmergedTree = true).assertCountEquals(1)
+        compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).assertExists()
+
+        compose.mainClock.advanceTimeBy(200)
+        compose.onAllNodesWithText("Program 0", useUnmergedTree = true).assertCountEquals(0)
+        compose.onNodeWithTag(GuideTags.PANEL_LOGO, useUnmergedTree = true).assertIsDisplayed()
     }
 
     private companion object {

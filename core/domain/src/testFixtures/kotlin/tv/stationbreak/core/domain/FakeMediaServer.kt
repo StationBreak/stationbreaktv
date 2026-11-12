@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.CollectionPage
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
+import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
@@ -78,6 +79,15 @@ class FakeMediaServer : MediaServer {
 
     /** How many [itemDetails] calls were cancelled while waiting at the gate. */
     var itemDetailsCancelled = 0
+
+    /** What [logo] answers; null answers a plain success with [LOGO_BYTES]. */
+    var logoResult: ServerResult<ByteArray>? = null
+
+    /** When set, [logo] records the call and then waits for it, to hold a request open. */
+    var logoGate: CompletableDeferred<Unit>? = null
+
+    /** How many [logo] calls were cancelled while waiting at the gate. */
+    var logoCancelled = 0
     var markPlayedResult: ServerResult<Unit> = ServerResult.Success(Unit)
 
     /** Runs when [revoke] is called, before it answers. */
@@ -135,6 +145,10 @@ class FakeMediaServer : MediaServer {
 
     /** Every [itemDetails] call's item, in order. */
     val itemDetailsCalls = mutableListOf<ItemId>()
+
+    /** Every [logo] call's logo, in order, and the height each asked for. */
+    val logoCalls = mutableListOf<ItemLogo>()
+    val logoHeights = mutableListOf<Int>()
     val markPlayedCalls = mutableListOf<ItemId>()
     val quickConnectCalls = mutableListOf<Pair<ServerAddress, CleartextAcknowledgement?>>()
 
@@ -366,6 +380,22 @@ class FakeMediaServer : MediaServer {
             ?: ServerResult.Success(ItemDetails(itemId, "About it.", 2001, listOf("Drama"), null))
     }
 
+    override suspend fun logo(
+        session: Session,
+        logo: ItemLogo,
+        maxHeight: Int,
+    ): ServerResult<ByteArray> {
+        logoCalls += logo
+        logoHeights += maxHeight
+        try {
+            logoGate?.await()
+        } catch (e: CancellationException) {
+            logoCancelled++
+            throw e
+        }
+        return logoResult ?: ServerResult.Success(LOGO_BYTES.copyOf())
+    }
+
     override suspend fun markPlayed(
         session: Session,
         itemId: ItemId,
@@ -380,5 +410,10 @@ class FakeMediaServer : MediaServer {
     ): ServerResult<Unit> {
         reports += name to report
         return reportResult
+    }
+
+    companion object {
+        /** What [logo] answers when no result is set: a few bytes, enough to tell one copy from none. */
+        val LOGO_BYTES = byteArrayOf(1, 2, 3, 4)
     }
 }
