@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+-->
+<resources>
+    <!-- The tag key under which a view carries its keep-screen-on slot (#744). -->
+    <item name="keep_on_slot" type="id" />
+</resources>

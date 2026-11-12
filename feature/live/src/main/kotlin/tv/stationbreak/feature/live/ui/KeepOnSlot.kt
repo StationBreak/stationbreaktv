@@ -2,7 +2,7 @@
 package tv.stationbreak.feature.live.ui
 
 import android.view.View
-import java.util.WeakHashMap
+import tv.stationbreak.feature.live.R
 
 /**
  * Who may write one view's keep-screen-on flag (#744, #377). A relaunch into the old task composes the screen a second
@@ -46,20 +46,18 @@ internal class KeepOnSlot(
     }
 
     companion object {
-        private val slots = WeakHashMap<View, KeepOnSlot>()
-
-        /** The slot of [view], shared by every composition on it. */
-        fun of(view: View): KeepOnSlot =
-            slots.getOrPut(view) {
-                KeepOnSlot(
-                    object : Flag {
-                        override var value: Boolean
-                            get() = view.keepScreenOn
-                            set(v) {
-                                view.keepScreenOn = v
-                            }
-                    },
-                )
-            }
+        /** The slot of [view], kept in a tag on the view itself so it lives and dies with the view. */
+        fun of(view: View): KeepOnSlot {
+            (view.getTag(R.id.keep_on_slot) as? KeepOnSlot)?.let { return it }
+            val flag =
+                object : Flag {
+                    override var value: Boolean
+                        get() = view.keepScreenOn
+                        set(v) {
+                            view.keepScreenOn = v
+                        }
+                }
+            return KeepOnSlot(flag).also { view.setTag(R.id.keep_on_slot, it) }
+        }
     }
 }
