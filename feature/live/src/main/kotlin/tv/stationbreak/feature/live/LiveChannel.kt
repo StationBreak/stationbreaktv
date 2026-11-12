@@ -370,7 +370,7 @@ class LiveChannel(
                     refresher()
                     // Saved when a channel is chosen, not per block: a boundary cut is not a new channel (and the save
                     // is a synced file write that must not sit in the cut).
-                    if (id != saved) lastChannel.save(acct, id)
+                    if (id != saved) lastChannel.save(acct, id, first.channel.number)
                     saved = id
                     val next = newSitting(session, first, flip, neighbours, reporter)
                     flip = null
@@ -782,20 +782,22 @@ class LiveChannel(
     }
 
     /**
-     * The `neighbourOf` answer for the channel [gone], among [unhidden], by the number the lineup still has for it;
-     * null when it has none (the channel was deleted) or no other channel airs.
+     * The `neighbourOf` answer for the channel [gone], among [unhidden], by the number the lineup still has for it,
+     * else the number saved with it (it was deleted, or shelved without one). Null when neither is known (a save from
+     * before the number was kept) or no other channel airs.
      */
     private suspend fun neighbourOfGone(
         account: LibraryAccount,
         gone: ChannelId,
         unhidden: List<ChannelAiring>,
     ): ChannelAiring? {
-        val number =
+        val listed =
             channels
                 .channels(account)
                 .first()
                 .firstOrNull { it.id == gone }
-                ?.number ?: return null
+                ?.number
+        val number = listed ?: lastChannel.loadNumber(account) ?: return null
         val id = unhidden.map { it.id to it.number }.neighbourOf(number)
         return unhidden.firstOrNull { it.id == id }
     }

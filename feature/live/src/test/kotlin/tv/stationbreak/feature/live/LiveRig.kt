@@ -408,13 +408,16 @@ class CountingLastChannel(
 
     override suspend fun load(account: LibraryAccount): ChannelId? = inner.load(account)
 
+    override suspend fun loadNumber(account: LibraryAccount): Int? = inner.loadNumber(account)
+
     override suspend fun save(
         account: LibraryAccount,
         channel: ChannelId,
+        number: Int?,
     ): Boolean {
         kotlinx.coroutines.delay(saveDelayMs)
         saves++
-        return inner.save(account, channel)
+        return inner.save(account, channel, number)
     }
 }
 
@@ -428,6 +431,9 @@ class FakeChannels : ChannelRepository {
     /** Channels switched on for a later boundary: their `onSince`, a time ahead. */
     val startsAt = mutableMapOf<ChannelId, Long>()
 
+    /** Channels that are in the lineup list but not On (switched off, hidden, shelved), with the number they have. */
+    val notOn = mutableMapOf<ChannelId, Pair<ChannelStatus, Int?>>()
+
     fun publish(vararg ids: Pair<ChannelId, Int>) {
         flow.value =
             ids.map { (id, number) ->
@@ -439,6 +445,21 @@ class FakeChannels : ChannelRepository {
                     ChannelStatus.On,
                     ChannelKind.Starter,
                     since,
+                    defaultNumber = number,
+                    kid = false,
+                    optIn = false,
+                    playKey = PlayKey("test"),
+                )
+            } +
+            notOn.map { (id, off) ->
+                val (status, number) = off
+                ChannelSummary(
+                    id,
+                    number,
+                    "Test Channel",
+                    status,
+                    ChannelKind.Starter,
+                    Instant.fromEpochMilliseconds(T0),
                     defaultNumber = number,
                     kid = false,
                     optIn = false,

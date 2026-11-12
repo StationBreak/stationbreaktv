@@ -97,4 +97,37 @@ class FileLastChannelStoreTest {
             assertTrue(Regex("[0-9a-f]{64}").containsMatchIn(name))
             assertFalse(name.contains("server-a") || name.contains("user-a"))
         }
+
+    @Test
+    fun theNumberIsSavedWithTheChannel() =
+        runBlocking {
+            store.save(account, channel, 7)
+            assertEquals(channel, store.load(account))
+            assertEquals(7, store.loadNumber(account))
+        }
+
+    @Test
+    fun aFileFromBeforeNumbersHasNone() =
+        runBlocking {
+            store.save(account, channel)
+            assertEquals(channel, store.load(account))
+            assertNull(store.loadNumber(account))
+        }
+
+    @Test
+    fun aSaveWithoutANumberClearsTheOldOne() =
+        runBlocking {
+            store.save(account, channel, 7)
+            store.save(account, ChannelId("channel-2"))
+            assertNull(store.loadNumber(account))
+        }
+
+    @Test
+    fun aGarbledNumberLoadsAsNullAndKeepsTheChannel() =
+        runBlocking {
+            store.save(account, channel, 7)
+            files.values.single().text = "${channel.value}\nseven"
+            assertEquals(channel, store.load(account))
+            assertNull(store.loadNumber(account))
+        }
 }

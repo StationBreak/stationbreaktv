@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -170,21 +171,28 @@ class LiveChannelLeavesLineupTest {
             assertEquals(CH7, r.lastChannel.load(r.account))
         }
 
+    // Live is shown again with [id] gone from what airs; the lineup list still has it as [how], or not at all (null).
+    private fun Rig.gone(
+        id: ChannelId,
+        how: Pair<ChannelStatus, Int?>?,
+    ) {
+        schedule.channels.remove(id)
+        how?.let { channels.notOn[id] = it }
+    }
+
     @Test
     fun aChannelTheViewerSwitchedOffIsLeftForItsNeighbourWithNoNote() =
         runTest {
             val r = Rig(this)
-            // Channel 7 is off (hidden here) when live is shown again; its number is still the lineup's.
             r.lineup(CH5 to 5, CH7 to 7, CH9 to 9)
-            r.schedule.channels
-                .getValue(CH7)
-                .hidden = HiddenReason.EmptyToday
-            r.lastChannel.save(r.account, CH7)
+            r.gone(CH7, ChannelStatus.UserHidden to 7)
+            r.lastChannel.save(r.account, CH7, 7)
             r.start()
 
-            assertEquals(itemOf(9), r.tunes.first().item)
+            assertEquals(itemOf(9), r.allTuned().first())
             assertTrue(r.notes().isEmpty())
             assertEquals(CH9, r.lastChannel.load(r.account))
+            assertEquals(9, r.lastChannel.loadNumber(r.account))
         }
 
     @Test
@@ -192,13 +200,50 @@ class LiveChannelLeavesLineupTest {
         runTest {
             val r = Rig(this)
             r.lineup(CH5 to 5, CH7 to 7, CH9 to 9)
-            r.schedule.channels
-                .getValue(CH9)
-                .hidden = HiddenReason.EmptyToday
-            r.lastChannel.save(r.account, CH9)
+            r.gone(CH9, ChannelStatus.UserHidden to 9)
+            r.lastChannel.save(r.account, CH9, 9)
             r.start()
 
-            assertEquals(itemOf(7), r.tunes.first().item)
+            assertEquals(itemOf(7), r.allTuned().first())
+            assertTrue(r.notes().isEmpty())
+        }
+
+    @Test
+    fun aDeletedChannelIsLeftForTheNeighbourOfItsSavedNumber() =
+        runTest {
+            val r = Rig(this)
+            r.lineup(CH5 to 5, CH9 to 9)
+            // Absent from the lineup list altogether: only the number saved with it is left.
+            r.lastChannel.save(r.account, CH7, 7)
+            r.start()
+
+            assertEquals(itemOf(9), r.allTuned().first())
+            assertTrue(r.notes().isEmpty())
+        }
+
+    @Test
+    fun aShelvedChannelWithNoNumberIsLeftForTheNeighbourOfItsSavedNumber() =
+        runTest {
+            val r = Rig(this)
+            r.lineup(CH5 to 5, CH9 to 9)
+            r.gone(CH7, ChannelStatus.Shelf to null)
+            r.lastChannel.save(r.account, CH7, 7)
+            r.start()
+
+            assertEquals(itemOf(9), r.allTuned().first())
+            assertTrue(r.notes().isEmpty())
+        }
+
+    @Test
+    fun aSaveFromBeforeNumbersWereKeptFallsBackToTheOldChoice() =
+        runTest {
+            val r = Rig(this)
+            r.lineup(CH5 to 5, CH9 to 9)
+            // No number anywhere: the neighbour of 7 would be 9, the old rule picks the lowest.
+            r.lastChannel.save(r.account, CH7)
+            r.start()
+
+            assertEquals(itemOf(5), r.allTuned().first())
             assertTrue(r.notes().isEmpty())
         }
 }

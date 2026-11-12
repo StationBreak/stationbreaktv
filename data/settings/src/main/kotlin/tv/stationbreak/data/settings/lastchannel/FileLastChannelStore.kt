@@ -18,7 +18,8 @@ import java.security.MessageDigest
 
 /**
  * The [LastChannelStore] on one small file per account in `noBackupFilesDir/lastchannel`, holding only the channel
- * ID, replaced atomically (spec 14). The file is named by the SHA-256 of `server/user`, so no server or user ID
+ * ID and, on a second line, its number when the save had one (#562; a file from before has the ID alone), replaced
+ * atomically (spec 14). The file is named by the SHA-256 of `server/user`, so no server or user ID
  * appears in a path. Sign-out leaves the file: it holds a channel ID and nothing else. A value that is blank or
  * implausibly long reads as absent. Faults come back as `null` or `false`, never as an exception, and the store logs
  * nothing.
@@ -38,21 +39,32 @@ class FileLastChannelStore internal constructor(
     private val lock = Mutex()
 
     override suspend fun load(account: LibraryAccount): ChannelId? =
+        lines(account)
+            ?.first()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() && it.length <= MAX_LENGTH }
+            ?.let(::ChannelId)
+
+    override suspend fun loadNumber(account: LibraryAccount): Int? = lines(account)?.getOrNull(1)?.trim()?.toIntOrNull()
+
+    // The file's lines, null when it is absent or unreadable.
+    private suspend fun lines(account: LibraryAccount): List<String>? =
         locked {
             try {
-                open(fileName(account)).read()?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_LENGTH }
+                open(fileName(account)).read()?.lines()
             } catch (_: IOException) {
                 null
-            }?.let(::ChannelId)
+            }
         }
 
     override suspend fun save(
         account: LibraryAccount,
         channel: ChannelId,
+        number: Int?,
     ): Boolean =
         locked {
             try {
-                open(fileName(account)).write(channel.value)
+                open(fileName(account)).write(if (number == null) channel.value else "${channel.value}\n$number")
                 true
             } catch (_: IOException) {
                 false
