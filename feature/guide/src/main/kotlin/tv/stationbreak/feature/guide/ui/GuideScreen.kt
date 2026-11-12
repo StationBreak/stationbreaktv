@@ -95,7 +95,10 @@ private val KeyStroke = 1.dp
 private val KeyRadius = 3.dp
 private val KeyPadding = 6.dp
 private val KeyRoundPadding = 4.dp
-private val PanelGap = 12.dp
+
+// The clear space between the panel's content and the picture's left edge: the panel is narrowed by it, the picture
+// does not move.
+private val PanelGap = 24.dp
 private const val HINT_SPACE = "   "
 
 // How far (dp) the hole may sit from the safe area's top and right edges: rounding, not placement.

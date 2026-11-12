@@ -21,9 +21,26 @@ class GuideGeometryTest {
     @Test
     fun thePanelFillsTheBandBesideTheCornerPicture() {
         val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
-        // Safe area from 48 dp; the picture from 497.28 dp, 233.28 dp tall from 27 dp; 12 dp between panel and picture.
-        assertEquals(437.28f, geometry.panelWidth.value, EPS)
+        // Safe area from 48 dp; the picture from 497.28 dp, 233.28 dp tall from 27 dp; 24 dp between panel and picture.
+        assertEquals(425.28f, geometry.panelWidth.value, EPS)
         assertEquals(233.28f, geometry.topHeight.value, EPS)
+    }
+
+    @Test
+    fun thePanelEndsExactly24DpBeforeThePicture() {
+        // The panel's content runs to its right edge, so this is the clear space between the text and the picture. The
+        // hole is where ScreenLayout puts the picture, not moved to make room: only the panel is narrower.
+        listOf(
+            DpSize(960.dp, 540.dp) to ScreenFit.Safe,
+            DpSize(960.dp, 540.dp) to ScreenFit.Edge,
+            DpSize(1280.dp, 720.dp) to ScreenFit.Safe,
+            DpSize(600.dp, 360.dp) to ScreenFit.Safe,
+        ).forEach { (size, fit) ->
+            val hole = ScreenLayout.pictureRect(ScreenLayout.safeArea(size, fit))
+            val geometry = GuideGeometry(size, hole, fit)
+            val panelRight = geometry.safe.left + geometry.panelWidth
+            assertEquals("$size $fit", 24f, (hole.left - panelRight).value, EPS)
+        }
     }
 
     @Test
@@ -50,7 +67,7 @@ class GuideGeometryTest {
         // Live is the one that says where the picture is: a hole elsewhere moves the panel's edge and the grid's top.
         val hole = DpRect(left = 600.dp, top = 27.dp, right = 912.dp, bottom = 200.dp)
         val geometry = GuideGeometry(screen, hole)
-        assertEquals(600f - 48f - 12f, geometry.panelWidth.value, EPS)
+        assertEquals(600f - 48f - 24f, geometry.panelWidth.value, EPS)
         assertEquals(200f - 27f, geometry.topHeight.value, EPS)
     }
 
