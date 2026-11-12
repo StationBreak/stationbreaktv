@@ -76,6 +76,7 @@ internal data class SettingsStep(
     val syncNow: Boolean = false,
     val fit: ScreenFit? = null,
     val levelling: Boolean? = null,
+    val levellingFrom: String? = null,
 )
 
 /** The line beside Sync now: the string [text], with the [time] it synced at for the one that has it. */
@@ -165,6 +166,7 @@ internal fun settingsStep(
                 panel.themeFor(direction),
                 fit = panel.fitFor(direction),
                 levelling = panel.levellingFor(direction),
+                levellingFrom = panel.levellingSourceFor(direction),
             )
         }
 

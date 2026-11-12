@@ -135,7 +135,7 @@ class GuideNoLibrariesUiTest {
                         channels = { _, _, _, _ -> },
                         libraries = { _, onDone -> Slot(onDone) },
                         levelling = levelling.value,
-                        onLevelling = { levelling.value = it },
+                        onLevelling = { enabled, _ -> levelling.value = enabled },
                     )
                 }
             }

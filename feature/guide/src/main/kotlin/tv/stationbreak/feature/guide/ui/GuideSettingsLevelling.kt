@@ -15,6 +15,14 @@ import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.R
 
+/** The log name of the path that picked [direction] on the row: Left saves Off, Right saves On. */
+internal fun SettingsPanel.levellingSourceFor(direction: GuideDirection): String? =
+    when {
+        levellingFor(direction) == null -> null
+        direction == GuideDirection.Left -> "settingsLeft"
+        else -> "settingsRight"
+    }
+
 // On Even out volume, Left picks Off and Right picks On; nothing else picks it.
 internal fun SettingsPanel.levellingFor(direction: GuideDirection): Boolean? =
     when {

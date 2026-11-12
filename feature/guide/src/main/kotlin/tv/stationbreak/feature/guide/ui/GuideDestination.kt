@@ -105,7 +105,7 @@ fun GuideDestination(
             properties,
             libraries,
             levelling = levelling,
-            onLevelling = levellings::choose,
+            onLevelling = { enabled, from -> levellings.choose(enabled, from) },
         )
     }
 }
@@ -168,7 +168,7 @@ internal fun GuideRoot(
     properties: PropertiesSlot = NoProperties,
     libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
     levelling: Boolean = true,
-    onLevelling: (Boolean) -> Unit = {},
+    onLevelling: (Boolean, String) -> Unit = { _, _ -> },
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -299,7 +299,9 @@ internal fun GuideRoot(
                                     chooseTheme.value(next)
                                 }
                                 step.fit?.let { next -> chooseFit.value(next) }
-                                step.levelling?.let { next -> chooseLevelling.value(next) }
+                                step.levelling?.let { next ->
+                                    chooseLevelling.value(next, step.levellingFrom.orEmpty())
+                                }
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },

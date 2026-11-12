@@ -2,6 +2,7 @@
 package tv.stationbreak.core.ui
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -16,7 +17,11 @@ import kotlinx.coroutines.flow.asStateFlow
 interface VolumeLevellingStore {
     val enabled: StateFlow<Boolean>
 
-    fun choose(enabled: Boolean)
+    /** Saves the choice; [from] names the path that made it (a short word such as `settingsLeft`), for the log. */
+    fun choose(
+        enabled: Boolean,
+        from: String,
+    )
 }
 
 /** A preference file of its own, next to the screen fit one. */
@@ -26,14 +31,30 @@ internal class SharedPrefsVolumeLevellingStore(
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val state = MutableStateFlow(prefs.getBoolean(KEY, DEFAULT))
 
+    init {
+        val stored = if (prefs.contains(KEY)) prefs.getBoolean(KEY, DEFAULT).toString() else "absent"
+        log("levelling store read enabled=${state.value} stored=$stored")
+    }
+
     override val enabled: StateFlow<Boolean> = state.asStateFlow()
 
-    override fun choose(enabled: Boolean) {
+    override fun choose(
+        enabled: Boolean,
+        from: String,
+    ) {
+        log("levelling choose enabled=$enabled was=${state.value} from=$from")
         prefs.edit().putBoolean(KEY, enabled).apply()
         state.value = enabled
     }
 
+    // Deliberately always on (not gated on a debuggable build or log.tag): the line carries only the viewer's own
+    // setting and its source, so a setting that changed between runs can be traced on any build.
+    private fun log(line: String) {
+        Log.i(TAG, line)
+    }
+
     private companion object {
+        const val TAG = "SBLIVE"
         const val PREFS = "volume-levelling"
         const val KEY = "enabled"
         const val DEFAULT = true
