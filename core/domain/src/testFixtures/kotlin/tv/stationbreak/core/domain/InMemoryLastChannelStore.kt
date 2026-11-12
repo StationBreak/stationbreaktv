@@ -7,16 +7,22 @@ import tv.stationbreak.core.model.ChannelId
 class InMemoryLastChannelStore : LastChannelStore {
     private val channels = mutableMapOf<LibraryAccount, ChannelId>()
 
+    private val numbers = mutableMapOf<LibraryAccount, Int>()
+
     var failSave = false
 
     override suspend fun load(account: LibraryAccount): ChannelId? = channels[account]
 
+    override suspend fun loadNumber(account: LibraryAccount): Int? = numbers[account]
+
     override suspend fun save(
         account: LibraryAccount,
         channel: ChannelId,
+        number: Int?,
     ): Boolean {
         if (failSave) return false
         channels[account] = channel
+        if (number != null) numbers[account] = number else numbers.remove(account)
         return true
     }
 }
