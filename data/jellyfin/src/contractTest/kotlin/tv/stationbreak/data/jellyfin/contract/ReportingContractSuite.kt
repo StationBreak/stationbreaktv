@@ -473,6 +473,17 @@ abstract class ReportingContractSuite {
                     )
                 }
 
+                V12_4 -> {
+                    assertTrue(
+                        second.isAfter(first),
+                        "12.4 moves LastPlayedDate on a check-in (#511): if this fails, recheck #511",
+                    )
+                    assertTrue(
+                        third.isAfter(second),
+                        "12.4 moves LastPlayedDate on a paused check-in (#511): if this fails, recheck #511",
+                    )
+                }
+
                 else -> {
                     fail("record this version's LastPlayedDate behaviour (#511)")
                 }
@@ -548,6 +559,7 @@ abstract class ReportingContractSuite {
         val LAST_PLAYED_GAP = 2.seconds
         val V12_1 = Pair(12, 1)
         val V12_2 = Pair(12, 2)
+        val V12_4 = Pair(12, 4)
     }
 }
 

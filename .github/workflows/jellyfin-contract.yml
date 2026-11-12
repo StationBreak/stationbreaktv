@@ -6,7 +6,7 @@ name: Jellyfin contract
 # Docker is needed, which `check` deliberately does not require (F0.3 D2, D7).
 #
 # Two jobs:
-#   jellyfin-contract         the oldest supported 12.x and the latest, each pinned by digest. Runs on PRs that touch
+#   jellyfin-contract         the two newest 12.x minors (ADR-0006), each pinned by digest. Runs on PRs that touch
 #                             the adapter, its inputs or this file, and by hand.
 #   jellyfin-contract-latest  the floating `latest` tag, weekly and by hand, to catch drift before users do.
 #
@@ -52,8 +52,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { tag: "12.1", digest: "sha256:008ec8024bdaaa6f0a3f0de468e185633eeba9d67c56936e8dbf5ef6b8d6200f" }
           - { tag: "12.2", digest: "sha256:c3efa69a22f2691fc88d6bb035e87a8560e395a6047f062fb381c61c3185e8f5" }
+          - { tag: "12.4", digest: "sha256:fea863d0cd9ec445985d9c75fc6ed64e38a1d2766cf0c250a33d553f4fc1b771" }
     env:
       JELLYFIN_IMAGE: ghcr.io/jellyfin/jellyfin@${{ matrix.digest }}
       # The runner's VM is discarded after the job, so Testcontainers' reaper container isn't needed (F0.3 D4, R14).
