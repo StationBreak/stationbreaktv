@@ -1994,6 +1994,67 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
     passes `0`, `600`, `1200` and `1800`. A `curated` day starts at its first run, each day, and its repeat gap restarts at the
     start of each day.
 
+## A reference lineup fixture
+
+`docs/rules-format/fixtures/synthetic-lineup.json` lets you check the planning of a channel lineup, and the building of its
+days, against this app, for a library made up of nothing real. The other files check one rule at a time; this one checks the
+whole path from a library to a day's blocks, and shows which versions of the catalog and of the engine's rules produced it.
+
+**What is in it.** One JSON object, with its keys in this order:
+
+- `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
+- `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `3`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-3`), `grownUpHold` (`grown-up-hold-2`),
+  `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
+  give the same lineup or the same days;
+- `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
+  `standardOffsetMinutes` (`0`), `nowMs` (the moment of the first setup: a fixed instant, not a clock), `days` (how many
+  days are written out) and `planner`: no current lineup (`current` null, so a first choice), the "Use my collections" flag on,
+  collections not skipped, no kept channels and the starter catalog of the version in `versions.catalog`;
+- `snapshot`: the library as the planner reads it. `libraryId`, `collectionsSynced` (true), `collections` (none), `series`
+  (each `id`, `rating`, `genres` and `tags`: a series takes its first episode's) and `items`, in ascending ID order, each
+  `{id, kind (movie or episode), runtimeMs, createdAtMs, productionYear, rating, genres, tags, seriesId, season,
+  episode}` with a member left out when the item has none. Every item is in the one library. The generator makes
+  videos and music videos too, and some items with no runtime or a zero one; the app's planning reads neither, so they are
+  not in the file. Items are not named: a name is never an input;
+- `lineup`: what the planner chose, as it comes out of `LineupPlanner`: `serverId`, `userId`, `catalogVersion`,
+  `utcOffsetMinutes`, `finalised`, `useMyCollections` and `channels` in the planner's order, each
+  `{id, number, source, state, shelfReason, onSinceMs, seed, rules, previousRules}`. `source` is `{kind: "starter",
+  recipeKey, edited}`, `{kind: "leftovers", recipeKey, maxRating}` or `{kind: "custom", recipeKey: null}` (the planner
+  makes no custom channel here, but a lineup can hold one). `state` is `On`, `Shelf` or `UserHidden`. `seed` is the channel's
+  seed as the canonical decimal text, and `rules` is the channel's rules as the exact text the app writes (the form
+  described under JSON profile: fixed field order, two-space indent, a closing newline), both null for a leftovers
+  channel, whose pool is worked out from the other channels' and has no rules of its own. `previousRules` is the same text
+  for the rules in force before a change that waits for the day boundary, or null;
+- `days`: one entry per broadcast day, `{index, atMs, channels}`. Day `0` is the broadcast day that holds `inputs.nowMs`;
+  day `i` is the one that holds `nowMs` plus `i` times 24 hours. `channels` has every switched-on channel, in number order,
+  as `{id, number, name, n, epochStartMs, epochEndMs, ordering, seed, ceilingRank, hidden, blocks}`: the epoch number `n`
+  and the epoch's start and end, the ordering mode and seed the day was built with, the tier of the rating ceiling (or
+  null), why the day is empty (a `HiddenReason` name, or null) and `blocks`, the whole day in order. A block is
+  `{startMs, endMs, itemId, mediaStartOffsetMs}` for a program or `{startMs, endMs, slate: true}`; it is half-open, and the
+  blocks tile `[epochStartMs, epochEndMs)` as the Building the schedule section says. Every millisecond count (and `n`)
+  is decimal text.
+
+**How the app makes it.** The test in `core:domain` runs the app's own code, with no copy of it: the lineup comes from
+`LineupService.refresh`, which calls `LineupPlanner.plan`, and the days from `BuiltInScheduleSource.channelDays`, which builds
+each switched-on channel's pool and lays out its day with the same engine and scheduler the app plays from. The channel
+names are the catalog's.
+
+**How it is checked.** `SyntheticLineupFixtureTest` builds the text again and requires it to equal the committed file byte
+for byte, so any change to the planner, the catalog, the pools or the scheduler that changes a lineup or a day fails
+until the file is rewritten and the change reviewed. Its members are written in a fixed order and the file has no time of
+writing, machine or path in it. To check your own client, read `snapshot` and `inputs`, plan the lineup and compare it with
+`lineup`, then build each day of `days` from your lineup and compare the blocks. Compare the seeds and rules text first: a
+lineup that differs there will differ everywhere after.
+
+**To rewrite it** (after a change that is meant to move a lineup or a day), run:
+
+```bash
+./gradlew :core:domain:test --tests '*SyntheticLineupFixtureTest' -PupdateFixtures=true
+```
+
+and review the diff. Run the same command without the property to check it.
+
 ## Files
 
 Everything below is in this repository, under `docs/`:
@@ -2027,6 +2088,8 @@ Everything below is in this repository, under `docs/`:
   the list, a `start` off the half hour, an upper-case ordering mode, a kebab-case filler mode, a name of 101 code
   points, `betweenEveryN` without `every`, a `blockLength` of 0 or 101, a `null` `maxRating`, an `alignToGrid` that is a
   string).
+- `docs/rules-format/fixtures/synthetic-lineup.json`: a reference lineup for a made-up library and the days of its switched-on
+  channels, checked against the app by a test (see A reference lineup fixture).
 - `docs/rules-format/vectors/`: test vectors, computed with an independent reference (not with the code that is tested):
   `splitmix64.json`, `fnv1a64.json`, `canonical-id.json`, `auto-seed.json`, `rating.json` (the ladder, the normalisation, the
   filter and the series rule, built on Jellyfin 12.1's own table), `epoch-seed.json` (`seed_n`, including negative `n`) and

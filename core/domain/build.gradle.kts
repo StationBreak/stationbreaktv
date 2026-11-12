@@ -41,6 +41,25 @@ tasks.withType<Test>().configureEach {
     systemProperty("stationbreak.channelmarks", channelMarks.asFile.absolutePath)
 }
 
+// The published reference fixture (docs/rules-format/fixtures/) is checked against what the app builds, and rewritten
+// with -PupdateFixtures=true. A rewrite is never cached or skipped as up to date, or the file would not be written.
+val rulesFormatDir = rootProject.layout.projectDirectory.dir("docs/rules-format")
+val updateFixtures = providers.gradleProperty("updateFixtures").orElse("false")
+tasks.withType<Test>().configureEach {
+    systemProperty("rulesFormat.dir", rulesFormatDir.asFile.absolutePath)
+    systemProperty("updateFixtures", updateFixtures.get())
+    inputs
+        .files(
+            rulesFormatDir.dir("fixtures").asFileTree,
+        ).withPropertyName("rulesFormatFixtures")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property("updateFixtures", updateFixtures)
+    if (updateFixtures.get() == "true") {
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+    }
+}
+
 // The repair benchmark is a wall-clock measurement, so it never gates anything: it is left out of `test` (and so of
 // `check`) and runs only through `./gradlew :core:domain:selectionRepairBenchmark` (as core/scheduler does).
 val benchmarkClasses = listOf("*SelectionRepairBenchmark")
