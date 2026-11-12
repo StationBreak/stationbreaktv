@@ -26,12 +26,16 @@ Three changes from TV use, each its own issue and PR. Owner decisions are marked
 
 **Why.** The panel stops at two lines of description with a third of its height empty, and the only way to learn more about a later programme is the info overlay on OK.
 
+### Width: 24 dp clear of the picture
+
+The panel's content runs to the panel's right edge, and that edge is **24 dp** short of the picture's left edge (it was 12 dp, which read as crowded: the description lines, the end time and the progress bar ran almost up to the picture). The panel is the band from the safe area's left edge to the picture, less that 24 dp, so on a 960 dp screen it is 425.28 dp wide (it was 437.28). The picture does not move or change size: `ScreenLayout.pictureRect` and `PICTURE_WIDTH_FRACTION` are as they were, and only the panel's content is narrowed. Everything in the column below takes its width from this narrower panel, the logo's 70 % included.
+
 ### Layout (top to bottom, in the panel's existing column)
 
 | Block | Spec |
 |---|---|
 | Channel line | unchanged: 11 sp `textSecondary` |
-| **Title** | the item's **logo** when Jellyfin has one, else the text title (24 sp SemiBold, as now). The title block is a fixed 46 dp tall whether it holds the text or a logo; its content is left-aligned and vertically centred in it, so nothing below it moves on a swap. Logo: max 46 dp tall (plate included), max 70 % of the panel width, scaled to fit. **Owner decision: the logo replaces the text title.** The title text stays as the node's content description. |
+| **Title** | the item's **logo** when Jellyfin has one, else the text title (24 sp SemiBold, as now). The title block is a fixed 46 dp tall whether it holds the text or a logo; its content is left-aligned and vertically centred in it, so nothing below it moves on a swap. Logo: max 46 dp tall (plate included), max 70 % of the panel width (the narrower column above), scaled to fit. **Owner decision: the logo replaces the text title.** The title text stays as the node's content description. |
 | Meta line | unchanged: `ON NOW` · year · runtime · genres (episode line for an episode) |
 | **Tags** | one row of outlined tags, in this order, each omitted when unknown: parental rating (`PG-13`), resolution class (`SD` / `HD` / `4K`), audio layout (`Mono` / `Stereo` / `5.1` / `7.1`), `CC` when any subtitle track exists, `Critics 68%`, `Audience 6.6`. **Owner decision: both scores.** |
 | Progress and times | unchanged |
@@ -73,6 +77,7 @@ Tag style: 9 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radius
 - [ ] With the guide open, the picture shows the playing channel's mark, number and title along its top edge, and it changes when the channel or programme does; it does not cover the film's subtitles.
 - [ ] The description fills the panel's free height; no empty band above the tabs for a long description.
 - [ ] A logo appears for an item that has one and the text title for one that does not; scrolling quickly through cells never shows a logo belonging to another cell; a cell seen again whose logo is cached shows it at once; the lines below the title do not move when a logo replaces the text.
+- [ ] The panel's content ends 24 dp before the picture's left edge, and the picture has not moved or changed size.
 - [ ] Tags show only known facts; an item with no scores shows none.
 - [ ] OK on a later programme tunes to its channel; the info overlay no longer opens from the guide.
 - [ ] The grid spans two hours; focus, paging and the now-line are correct.

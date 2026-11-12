@@ -455,6 +455,19 @@ class GuideScreenTest {
     }
 
     @Test
+    fun thePanelsContentEnds24DpBeforeThePicture() {
+        // The panel's content runs to the panel's right edge, so that edge is the clear space to the picture (the hole
+        // does not move: it is ScreenLayout's); the progress bar, which fills the panel's width, ends there too.
+        showReady(CH7)
+        val screen = compose.onNodeWithTag(GuideTags.SCREEN).getBoundsInRoot()
+        val panelRight = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot().right - screen.left
+        val progressRight = compose.onNodeWithTag(GuideTags.PANEL_PROGRESS).getBoundsInRoot().right - screen.left
+
+        assertEquals("panel right to the picture", 24f, (HOLE.left - panelRight).value, 0.5f)
+        assertEquals("progress bar right to the picture", 24f, (HOLE.left - progressRight).value, 0.5f)
+    }
+
+    @Test
     fun dpadMovesFocusAndPanelFollows() {
         showReady(CH7)
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch"))
