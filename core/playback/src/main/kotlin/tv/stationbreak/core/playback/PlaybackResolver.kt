@@ -217,6 +217,7 @@ class PlaybackResolver(
                 directPlayTracks = route == Route.DIRECT_PLAY,
                 audioPick = audio?.pick(),
                 subtitlePick = subtitle?.takeIf { it.delivery == SubtitleDelivery.IN_STREAM }?.pick(),
+                levelKey = media.id.value,
             )
         return ResolvedPlayback(source, route, info.playSessionId, media, audio, subtitle, start, limits = limits)
     }

@@ -67,6 +67,14 @@ class PlaybackResolverTest {
         }
 
     @Test
+    fun theSourceNamesItsItemForLevellingByTheMediaSourceId() =
+        runTest {
+            answer(source())
+            val played = resolve()
+            assertEquals(played.media.id.value, played.source.levelKey)
+        }
+
+    @Test
     fun anOverrideIsSentAsExplicitIndices() =
         runTest {
             answer(source(streams = listOf(video(), audio(1), audio(2), subtitle(3))))

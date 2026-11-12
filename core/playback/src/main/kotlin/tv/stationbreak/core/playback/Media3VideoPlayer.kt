@@ -223,7 +223,7 @@ class Media3VideoPlayer internal constructor(
         val built = AtomicReference<Slot?>(null)
         val exo =
             ExoPlayer
-                .Builder(context, renderersFactory { slots.front === built.get() })
+                .Builder(context, renderersFactory({ slots.front === built.get() }, { built.get()?.levelKey }))
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(CountingMediaSourceFactory(dataSource, loadCounter))
                 .build()
@@ -233,9 +233,13 @@ class Media3VideoPlayer internal constructor(
     /**
      * The default renderers; with [volumeLevelling] the audio sink gets one [LevellingAudioProcessor], tied to the
      * shared [LoudnessLevel] ([leading] says whether this slot is the audible one). Bitstream audio (AC3, E-AC3, DTS,
-     * TrueHD) never reaches the processor and the audio capabilities are the defaults.
+     * TrueHD) never reaches the processor and the audio capabilities are the defaults. [itemKey] is the item the slot
+     * plays ([Slot.levelKey]).
      */
-    private fun renderersFactory(leading: () -> Boolean): DefaultRenderersFactory {
+    private fun renderersFactory(
+        leading: () -> Boolean,
+        itemKey: () -> String?,
+    ): DefaultRenderersFactory {
         val levelling = volumeLevelling ?: return DefaultRenderersFactory(context)
         if (PlaybackLog.on) {
             PlaybackLog.line("levelling build storeEnabled=${levelling.enabled()} gainDb=${levelling.level.gainDb}")
@@ -251,7 +255,7 @@ class Media3VideoPlayer internal constructor(
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .setAudioProcessors(
-                        arrayOf(LevellingAudioProcessor(levelling.level, leading, levelling.enabled)),
+                        arrayOf(LevellingAudioProcessor(levelling.level, leading, levelling.enabled, itemKey)),
                     ).build()
         }
     }
@@ -323,6 +327,8 @@ class Media3VideoPlayer internal constructor(
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                         .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                         .build()
+                // Levelling starts this item from its own gain at the flush the new item brings (#498).
+                slots.front.levelKey = source.levelKey
                 exo.setMediaItem(mediaItem(source, playId), source.playerStart.inWholeMilliseconds)
                 exo.prepare()
                 exo.playWhenReady = true
