@@ -156,7 +156,16 @@ data class LiveInfo(
 )
 
 /** Why an ident card is up, when the card says so (spec 26, #633). */
-enum class CardNote {
+sealed interface CardNote {
     /** The programme on now left the library and nothing fills its slot. */
-    NotInLibrary,
+    data object NotInLibrary : CardNote
+
+    /**
+     * The playing channel left the lineup (shelved by a refresh, or empty for today) and its show ended (#562): live
+     * moves to channel [nowOn], the lineup's neighbour of [channelName].
+     */
+    data class OffTheAir(
+        val channelName: String,
+        val nowOn: Int,
+    ) : CardNote
 }

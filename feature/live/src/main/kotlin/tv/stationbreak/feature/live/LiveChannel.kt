@@ -43,6 +43,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.neighbourOf
 import tv.stationbreak.core.domain.lineup.onLineup
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.domain.selection.ChoiceView
@@ -168,6 +169,56 @@ class LiveChannel(
         val key = program?.let { AiringKey(place.channel, place.block.startMs, ItemId(it.itemId.value)) }
         // Capped at the place: a pause the reporter has not handled yet must not count the time since as watched.
         return Kept(place, reporting?.snapshot(atMostMs = place.mediaMs)?.takeIf { it.key == key }, behind.untended)
+    }
+
+    /** Where live goes when its channel has left the lineup: [neighbour] is the lineup's `neighbourOf` answer. */
+    private class Departure(
+        val neighbour: ChannelId,
+        val note: CardNote,
+    )
+
+    /**
+     * Null while [gone] is still in the lineup (its show just ended: look again as before). Otherwise it left (switched
+     * off, shelved by a refresh, or empty for today), and its show has now ended: the neighbour is the next higher
+     * number among the channels that can air, else the next lower, never the lowest (#562). Null too when no other
+     * channel airs: the empty-lineup behaviour stands.
+     */
+    private suspend fun departure(gone: ChannelAiring): Departure? {
+        val airing =
+            try {
+                schedule.airings(clock.now()).filter { it.hidden == null }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught", "SwallowedException") e: Exception,
+            ) {
+                emptyList()
+            }
+        val neighbour =
+            airing.takeIf { list -> list.none { it.id == gone.id } }?.let { list ->
+                list.map { it.id to it.number }.neighbourOf(gone.number)?.let { id -> list.first { it.id == id } }
+            }
+        return neighbour?.let { Departure(it.id, CardNote.OffTheAir(gone.name, it.number)) }
+    }
+
+    /**
+     * The channel stopped airing: the ident card for [LiveTimings.slateHold], then look again. A channel that left the
+     * lineup (#562) moves on to its neighbour, and the card says why; the request returned lands there.
+     */
+    private suspend fun holdLostCard(
+        gone: ChannelAiring,
+        neighbours: Neighbours,
+    ): SitRequest? {
+        val left = departure(gone)
+        screen.value = LiveState.Ident(null, note = left?.note)
+        // A flip off the card is as likely as one off a picture: look ahead while it waits.
+        coroutineScope {
+            lookAhead(this, neighbours, gone, picture = false)
+            delay(timings.slateHold)
+            coroutineContext[Job]?.cancelChildren()
+        }
+        val onAir = left?.let { schedule.onAir(it.neighbour, clock.now(), Sitting.WINDOW) }
+        return onAir?.let { SitRequest(it, null) }
     }
 
     /**
@@ -335,14 +386,7 @@ class LiveChannel(
                     next.release()
                     tuner.stop(session)
                     if (exit == Exit.Lost) {
-                        // The channel stopped airing: the card, then look again.
-                        screen.value = LiveState.Ident(null)
-                        // A flip off the card is as likely as one off a picture: look ahead while it waits.
-                        coroutineScope {
-                            lookAhead(this, neighbours, first.channel, picture = false)
-                            delay(timings.slateHold)
-                            coroutineContext[Job]?.cancelChildren()
-                        }
+                        landing = holdLostCard(first.channel, neighbours)
                     } else {
                         // The tuner was stopped under a live run (R24): re-anchor to the clock with a fresh sitting,
                         // under the snow of its tune. The pause only keeps a tuner that stays stopped from spinning
@@ -726,13 +770,34 @@ class LiveChannel(
         val now = clock.now()
         val unhidden = schedule.airings(now).filter { it.hidden == null }
         val saved = lastChannel.load(account)
+        // A saved channel that has left the lineup (the viewer switched it off, say) lands on its neighbour first.
+        val near = saved?.takeIf { s -> unhidden.none { it.id == s } }?.let { neighbourOfGone(account, it, unhidden) }
         // The sort is stable, so each group stays in number order.
-        val rest = unhidden.filter { it.id != saved }.sortedBy { firstOpenGroup(it.ceilingRank) }
-        val ordered = unhidden.filter { it.id == saved } + rest
+        val rest = unhidden.filter { it.id != saved && it.id != near?.id }.sortedBy { firstOpenGroup(it.ceilingRank) }
+        val ordered = listOfNotNull(near) + unhidden.filter { it.id == saved } + rest
         for (airing in ordered) {
             schedule.onAir(airing.id, now, Sitting.WINDOW)?.let { return it }
         }
         return null
+    }
+
+    /**
+     * The `neighbourOf` answer for the channel [gone], among [unhidden], by the number the lineup still has for it;
+     * null when it has none (the channel was deleted) or no other channel airs.
+     */
+    private suspend fun neighbourOfGone(
+        account: LibraryAccount,
+        gone: ChannelId,
+        unhidden: List<ChannelAiring>,
+    ): ChannelAiring? {
+        val number =
+            channels
+                .channels(account)
+                .first()
+                .firstOrNull { it.id == gone }
+                ?.number ?: return null
+        val id = unhidden.map { it.id to it.number }.neighbourOf(number)
+        return unhidden.firstOrNull { it.id == id }
     }
 
     /** 0 for the PG tier, 1 for a ceiling below PG, 2 for a higher ceiling or none. */

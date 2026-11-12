@@ -380,7 +380,7 @@ class CatchUpTest {
             k.pressAt(10 * MIN, LiveCommand.PlayPause)
             // Nine minutes behind from media 11: the cut is at test minute 29.
             k.r.at(29 * MIN + 1_000)
-            assertEquals(LiveState.Ident(null), k.r.state)
+            assertEquals(LiveState.Ident(null, null, CardNote.OffTheAir("Test Channel 7", 9)), k.r.state)
             k.r.at(29 * MIN + 10_000)
             val next = k.r.tuned().last()
             assertEquals(itemOf(9), next.item)

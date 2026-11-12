@@ -91,7 +91,7 @@ internal fun IdentSlate(
     Box(Modifier.fillMaxSize()) {
         TestCard(tvY = IDENT_TV_Y) { card ->
             Wordmark(card, LiveTags.IDENT)
-            if (note != null) NoteLine(card, stringResource(noteText(note)))
+            if (note != null) NoteLine(card, noteText(note))
         }
         CardBanner(upNext, channel)
     }
@@ -110,9 +110,11 @@ private fun CardBanner(
     }
 }
 
-private fun noteText(note: CardNote): Int =
+@Composable
+private fun noteText(note: CardNote): String =
     when (note) {
-        CardNote.NotInLibrary -> R.string.live_card_not_in_library
+        CardNote.NotInLibrary -> stringResource(R.string.live_card_not_in_library)
+        is CardNote.OffTheAir -> stringResource(R.string.live_card_off_air, note.channelName, note.nowOn)
     }
 
 /** Signed in, but no channel is on the air: the ident card with one line, and nothing else. */
