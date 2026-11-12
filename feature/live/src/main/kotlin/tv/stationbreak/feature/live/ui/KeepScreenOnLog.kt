@@ -21,13 +21,16 @@ fun keepOnLogging(context: Context): Boolean =
 
 /**
  * The line for one write of the view's keep-screen-on flag: the [reason], the [written] value, the owner's lifecycle
- * [state], and what the view says right after the write. Numbers, flags and fixed names only.
+ * [state], what the view says right after the write, and `ignored=notOwner` when an older composition's write was
+ * dropped (#744). Numbers, flags and fixed names only.
  */
 internal fun keepOnLine(
     reason: String,
     written: Boolean,
     state: Lifecycle.State,
     view: View,
+    ignored: Boolean = false,
 ): String =
     "keepScreenOn reason=$reason wrote=$written state=$state view=${System.identityHashCode(view)} " +
-        "attached=${view.isAttachedToWindow} windowVisibility=${view.windowVisibility} viewNow=${view.keepScreenOn}"
+        "attached=${view.isAttachedToWindow} windowVisibility=${view.windowVisibility} viewNow=${view.keepScreenOn}" +
+        if (ignored) " ignored=notOwner" else ""

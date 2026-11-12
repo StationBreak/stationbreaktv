@@ -235,15 +235,20 @@ internal fun KeepScreenOn(
     val keepNow by rememberUpdatedState(keep)
     val logging = remember(view) { keepOnLogging(view.context) }
 
-    // Every write of the view's flag, with a line that says why (debug builds, or the log.tag switch).
+    val slot = remember(view) { KeepOnSlot.of(view) }
+    val token = remember(view) { Any() }
+
+    // Every write of the view's flag, with a line that says why (debug builds, or the log.tag switch). Only the newest
+    // composition on the view owns the flag: an older one's late write or dispose changes nothing (#744).
     fun write(
         reason: String,
         value: Boolean,
     ) {
-        view.keepScreenOn = value
-        if (logging) Log.i(KEEP_ON_TAG, keepOnLine(reason, value, owner.lifecycle.currentState, view))
+        val wrote = slot.write(token, value)
+        if (logging) Log.i(KEEP_ON_TAG, keepOnLine(reason, value, owner.lifecycle.currentState, view, ignored = !wrote))
     }
     DisposableEffect(view, owner) {
+        slot.claim(token)
         val observer =
             LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_START) write("ON_START", keepNow)
@@ -253,7 +258,11 @@ internal fun KeepScreenOn(
         owner.lifecycle.addObserver(observer)
         onDispose {
             owner.lifecycle.removeObserver(observer)
-            write("dispose", false)
+            val restored = slot.release(token)
+            if (logging) {
+                val state = owner.lifecycle.currentState
+                Log.i(KEEP_ON_TAG, keepOnLine("dispose", view.keepScreenOn, state, view, ignored = !restored))
+            }
         }
     }
     // A pause or a play while the screen is up; a stopped screen stays off.
