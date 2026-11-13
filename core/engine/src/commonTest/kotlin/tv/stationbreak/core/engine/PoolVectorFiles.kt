@@ -11692,7 +11692,7 @@ internal object PoolVectorFiles {
         """
         {
           "description": "The version 4 pool (docs/adr/0026-studio-fold-2.md), in the pool-v3.json case shape (see its description), for studio sources, studio exclusions and the studios filter only. 'expected' is the pool of the case's rules in a file that says formatVersion 4: names match by their studio fold 2 key (see studio-fold-2.json); a studio source or a studios filter name whose key is empty matches nothing; a studio exclusion whose key is empty matches every item that has, or whose series has, a studio whose key is empty. 'expectedV3' is the pool of the same rules in a file that says formatVersion 3: studio fold 1 (docs/rules-format.md, Studio names), exactly as pool-v3.json. There is no films or franchises map here. Whitespace, control and format characters are written as JSON escapes so that they can be seen; this file is all ASCII.",
-          "source": "Computed with an independent Python reference (scripts/rules-format/studio_fold_2_vectors.py) written from ADR-0026 alone; it checks list 2 of D against Unicode 15.1.0 DerivedCoreProperties.txt (Default_Ignorable_Code_Point, less U+200C and U+200D) before writing.",
+          "source": "Computed with scripts/rules-format/studio_fold_2_vectors.py: written from ADR-0026; the pool model was written after reading SourceMatcher. The folds it uses are the independent ones of studio-fold-2.json.",
           "cases": [
             {
               "name": "studio source: look-alikes of the name match under fold 2 (4), only the fold 1 twins under fold 1 (3)",
@@ -13632,6 +13632,96 @@ internal object PoolVectorFiles {
                 "00000000000000000000000000000102"
               ],
               "expected": []
+            },
+            {
+              "name": "a studio source and a studio exclusion cancel under fold 2 (4) but not under fold 1 (3)",
+              "note": "Under fold 1 the source keeps ...0101 and the exclusion removes only ...0103, which the source does not select; under fold 2 both name the key waltdisney, so every Walt Disney spelling is selected and removed.",
+              "libraries": [
+                "00000000000000000000000000001001"
+              ],
+              "items": [
+                {
+                  "id": "00000000000000000000000000000101",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": [
+                    "Walt Disney"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000102",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": [
+                    "Walt\u000bDisney"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000103",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": [
+                    "Walt\u3000Disney"
+                  ]
+                },
+                {
+                  "id": "00000000000000000000000000000104",
+                  "kind": "movie",
+                  "libraryId": "00000000000000000000000000001001",
+                  "seriesId": null,
+                  "seasonId": null,
+                  "productionYear": null,
+                  "officialRating": null,
+                  "genres": [],
+                  "tags": [],
+                  "studios": [
+                    "Pixar"
+                  ]
+                }
+              ],
+              "series": [],
+              "collections": [],
+              "sources": [
+                {
+                  "type": "studio",
+                  "name": "Walt Disney"
+                },
+                {
+                  "type": "studio",
+                  "name": "Pixar"
+                }
+              ],
+              "exclusions": [
+                {
+                  "type": "studio",
+                  "name": "Walt\u3000Disney"
+                }
+              ],
+              "expectedV3": [
+                "00000000000000000000000000000101",
+                "00000000000000000000000000000104"
+              ],
+              "expected": [
+                "00000000000000000000000000000104"
+              ]
             },
             {
               "name": "joiners: removed after a gap even after a non-Latin letter; kept between a non-Latin letter and a Latin one (a known residual gap)",

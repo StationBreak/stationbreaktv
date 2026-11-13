@@ -1937,9 +1937,10 @@ U+3164 alone, is still a studio of the item; so an exclusion never matches less 
 
 **Writing version 4.** A file that says 3 is still valid with a studio feature (version 3 is the lowest version that has
 it), is read as it is, and is matched under studio fold 1. A client writes 4 only after a release gate: every client
-that shares rules files with it (each port of the app) has released a version that reads 4. Until then a writer writes
-a file with a studio feature at the version it said (so a file that says 4 is **never** written back as 3), and a new
-one at 3. Once the gate has passed, a writer writes every file with a studio feature as 4, and every file that says 3
+that shares rules files with it (each port of the app) has released a version that reads 4. Until then, when the rules
+being written hold a studio source, studio exclusion or studios filter, a writer writes them at the version the file
+said (so a file that says 4 is **never** written back as 3), and new ones at 3; rules that no longer hold one are
+written at the lowest version they need. Once the gate has passed, a writer writes every file with a studio feature as 4, and every file that says 3
 with a studio feature that it reads, imports, restores or saves comes out as 4 with nothing else changed (unknown fields
 kept). A file that says 1 or 2 is never upgraded (a `studio` source there is an unknown kind), a file without a studio
 feature keeps the lowest version it needs, and a file already at 4 is left alone, so two clients doing this at once
@@ -2198,12 +2199,14 @@ Everything below is in this repository, under `docs/`:
   walk-through table of the ADR, with the fold 1 answer of each and the sets themselves) and `kid-hold-4.json` (titles
   whose studio is a kid studio spelled with a look-alike: made for kids under `kid-hold-4` and not under `kid-hold-3`,
   and dropped from a grown-up channel by `grown-up-hold-3`). They are computed with an independent reference,
-  `scripts/rules-format/studio_fold_2_vectors.py`, written from ADR-0026 alone. The holds use studio fold 2 from
+  `scripts/rules-format/studio_fold_2_vectors.py`, written from ADR-0026 alone (its fold and hold parts). The holds use studio fold 2 from
   `kid-hold-4` (see Studio names, Studio fold 2), whatever a channel's `formatVersion`.
 
 - `docs/rules-format/vectors/` (version 4): `pool-v4.json` (the pool of `studio` sources, `studio` exclusions and the
   `studios` filter with look-alike names, the empty-key rule and the joiner cases, as `expected` for a file that says 4
-  and `expectedV3` for the same rules in a file that says 3), computed by the same script; and `upgrade-v4.json`
+  and `expectedV3` for the same rules in a file that says 3), computed by the same script: written from ADR-0026, but
+  its pool model was written after reading the app's `SourceMatcher`, so it is less independent than the fold vectors;
+  and `upgrade-v4.json`
   (hand-written from ADR-0026, Versioning: a file read, or saved unedited, before and after the gate). The version 1 to 3
   vectors are unchanged.
 

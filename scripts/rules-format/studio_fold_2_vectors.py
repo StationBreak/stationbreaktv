@@ -3,8 +3,9 @@
 """Independent reference for studio fold 2 (docs/adr/0026-studio-fold-2.md).
 
 Writes docs/rules-format/vectors/studio-fold-2.json, kid-hold-4.json and pool-v4.json (the pool of a file that says
-formatVersion 3 and of one that says 4). Written from the ADR's text alone (The sets, The pass, Tests), not from the
-Kotlin code it checks. Fold 1 is written from docs/rules-format.md, Studio names.
+formatVersion 3 and of one that says 4). The folds and the holds are written from the ADR's text alone (The sets, The
+pass, Tests), not from the Kotlin code they check. Fold 1 is written from docs/rules-format.md, Studio names. The pool
+model of pool-v4.json is written from ADR-0026, but after reading the app's SourceMatcher, so it is less independent.
 
 Usage:
     studio_fold_2_vectors.py DerivedCoreProperties-15.1.0.txt OUT_DIR
@@ -551,6 +552,18 @@ def pool_v4_cases():
                   blank, [library], series=blank_shows, filters={"studios": [cps(0x3164)]}, note=blank_note),
     ]
 
+    cancel = [
+        pool_item(0x101, ["Walt Disney"]),
+        pool_item(0x102, ["Walt" + cps(0x000B) + "Disney"]),
+        pool_item(0x103, ["Walt" + cps(0x3000) + "Disney"]),
+        pool_item(0x104, ["Pixar"]),
+    ]
+    cases.append(pool_case(
+        "a studio source and a studio exclusion cancel under fold 2 (4) but not under fold 1 (3)",
+        cancel, [studio("Walt Disney"), studio("Pixar")], [studio("Walt" + cps(0x3000) + "Disney")],
+        note=("Under fold 1 the source keeps ...0101 and the exclusion removes only ...0103, which the source does not "
+              "select; under fold 2 both name the key waltdisney, so every Walt Disney spelling is selected and removed.")))
+
     toei = [
         pool_item(0x101, [cps(0x6771, 0x6620, 0x3000, 0x200D) + "Animation"]),
         pool_item(0x102, [cps(0x6771, 0x6620, 0x200D) + "Animation"]),
@@ -567,6 +580,10 @@ def pool_v4_cases():
     return cases
 
 
+POOL_V4_SOURCE = (
+    "Computed with scripts/rules-format/studio_fold_2_vectors.py: written from ADR-0026; the pool model was written"
+    " after reading SourceMatcher. The folds it uses are the independent ones of studio-fold-2.json."
+)
 POOL_V4_DESCRIPTION = (
     "The version 4 pool (docs/adr/0026-studio-fold-2.md), in the pool-v3.json case shape (see its description), for "
     "studio sources, studio exclusions and the studios filter only. 'expected' is the pool of the case's rules in a "
@@ -605,7 +622,7 @@ def main() -> None:
         if fold2(case["key"]) != case["key"] or fold2(case["fold1"]) != case["key"]:
             sys.exit(f"{case['name']}: a property fails")
     hold = {"description": HOLD_DESCRIPTION, "source": SOURCE, "kidStudios": KID_STUDIOS_USED, "cases": hold_cases()}
-    pool4 = {"description": POOL_V4_DESCRIPTION, "source": SOURCE, "cases": pool_v4_cases()}
+    pool4 = {"description": POOL_V4_DESCRIPTION, "source": POOL_V4_SOURCE, "cases": pool_v4_cases()}
     for name, data in (("studio-fold-2.json", fold), ("kid-hold-4.json", hold), ("pool-v4.json", pool4)):
         text = json.dumps(data, indent=2, ensure_ascii=True) + "\n"
         (out / name).write_text(text, encoding="ascii")

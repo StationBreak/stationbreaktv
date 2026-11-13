@@ -191,9 +191,9 @@ it is. Every current call site of `cleanStudioName`, and of the fold-1 keys buil
 | `ChannelRules` init check (`ChannelRules.kt`, `formatVersion in 1..SUPPORTED_FORMAT_VERSION`) | rejects rules at a version the app does not read | follows `SUPPORTED_FORMAT_VERSION`, so rules at 4 can be built in the release that reads 4 |
 | `RulesReader` version gate (`RulesReader.kt`, `value > SUPPORTED_FORMAT_VERSION`) | turns a newer file into "update required" | follows `SUPPORTED_FORMAT_VERSION`: a 4 file is read, not "update required", from the release that reads 4 |
 | `ChannelRules.requiredVersion` (`ChannelRules.kt`) | the lowest version a file must say to be valid (`require(formatVersion >= requiredVersion)`, which `RulesReader` turns into Invalid) | unchanged: 3 for a studio source, studio exclusion or `studios` filter, before and after the gate. It must not become 4, or every studio file that says 3 would be rejected as invalid before it could be rewritten |
-| `ChannelRules.writeVersion` (new) and `ChannelRules.normalised` | the version the app writes | `writeVersion` is `requiredVersion`, except that for a file with a studio source, studio exclusion or `studios` filter it is 4 once the gate has passed, and it is never lower than the file's previous `formatVersion` when that file holds those features. `normalised` writes at `writeVersion` (see Versioning) |
+| `ChannelRules.writeVersion` (new) and `ChannelRules.normalised` | the version the app writes | `writeVersion` is `requiredVersion`, except that for a file with a studio source, studio exclusion or `studios` filter it is 4 once the gate has passed, and it is never lower than the file's previous `formatVersion` when the rules being written hold a studio source, studio exclusion or `studios` filter (rules that no longer hold one are written at `requiredVersion`). `normalised` writes at `writeVersion` (see Versioning) |
 | `DraftRules.toRules` (builder, `DraftRules.kt`) | the rules a builder save writes, tried at version 3, then 2, then 1 | the first attempt is made at the write version, not at a fixed `FORMAT_3`, and must branch on "requires 3 or more", not "requires exactly 3" (today `v3.requiredVersion == FORMAT_3`), or a studio channel falls to the version-2 path and drops carried version-3 data such as a `curated` order. The never-lower rule reads `previous`, not `carry` (which is null when `draft.kept` is null) |
-| `RecipeResolver` (`RecipeResolver.kt`: `LATEST_FORMAT` at line 82, `fitted.copy(formatVersion = fitted.requiredVersion)` at line 94) | the version a resolved starter is built and written at | `LATEST_FORMAT` follows the write version, and line 94 writes at `writeVersion`: 4 for a starter with a studio source or exclusion once the gate has passed, 3 before. On a re-resolve (`LineupPlanner.kt`, line 374) the higher of the stored and the written version is kept |
+| `RecipeResolver` (`RecipeResolver.kt`: `LATEST_FORMAT` at line 82, `fitted.copy(formatVersion = fitted.requiredVersion)` at line 94) | the version a resolved starter is built and written at | `LATEST_FORMAT` follows the write version, and line 94 writes at `writeVersion`: 4 for a starter with a studio source or exclusion once the gate has passed, 3 before. On a re-resolve (`LineupPlanner.kt`, line 374, and a shelved starter switched on) the higher of the stored and the written version is kept when the resolved rules hold a studio feature |
 | Rules read and import: `RulesReader.read` through `LineupCodec` (a channel's rules and its previous rules), and any import or restore of a rules file | where a stored, imported or restored file enters the app | a `formatVersion` 3 file is read, and matched under fold 1, as it is; once the gate has passed one with a studio feature is written back as 4 (see Versioning) |
 | `GroupCollections.isBoxSet` | box-set detection (`docs/rules-format.md`, the name ends in U+0020 `collection`) | fold 1. It needs the space; a change changes which collections group and would need its own version |
 
@@ -248,7 +248,8 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
     was updated later: no save by a release that writes 4 writes a studio file below 4.
   - **Never lower a file that says 4.** The release that reads 4 ships before the gate, while `writeVersion` is still 3
     for studio features. It must not write a file that says 4 back as 3: `writeVersion` is never lower than the file's
-    previous `formatVersion` when the file holds a `studio` source, a `studio` exclusion or a `studios` filter, and
+    previous `formatVersion` when the rules being written hold a `studio` source, a `studio` exclusion or a `studios`
+    filter, and
     `normalised`, `DraftRules.toRules` (reading `previous`, which is set even when nothing was carried) and a
     re-resolved starter keep it. (Today `DraftRules.toRules` tries version 3 by a fixed `FORMAT_3` and `normalised` sets
     the version to `requiredVersion`, which can lower it; both change in that release.)
@@ -307,6 +308,10 @@ dropped, mapped and trimmed sets are inside R, and the `PersistedDays` hold name
 - Names that differ only in spacing match under fold 2, for rules and holds alike.
 - Older apps say "update required" for a format-4 file, the existing behaviour for a newer version.
 - Every day built under the old hold names is rebuilt once.
+- Until the gate passes, the planner ranks starters and works out what opt-in starters withhold from the rules as a fresh
+  resolve writes them (format 3, studio fold 1), even for a starter whose stored rules say 4. Only which starters are
+  switched on and what the leftovers hold can differ; what a channel airs and what its exclusions remove is decided by
+  its stored rules, so this has no safety effect, and it ends when the gate flips.
 
 ## Owner decisions (2026-11-13)
 
