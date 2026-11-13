@@ -1,6 +1,6 @@
 # ADR-0026: Studio fold 2 (closing look-alike gaps in studio matching)
 
-**Status:** Proposed. Owner decisions recorded; revised 2026-11-13 after the security review (round 1); awaiting
+**Status:** Proposed. Owner decisions recorded; revised 2026-11-13 after security review rounds 1 and 2; awaiting
 security re-review. Nothing is implemented yet.
 
 **Date:** 2026-11-12 (revised 2026-11-13)
@@ -78,21 +78,30 @@ fixed list of code points, never a platform's idea of whitespace, control, forma
   and D are named apart so a reader can check each against its source.
 - **Latin range L**: U+0000 to U+024F (Basic Latin, Latin-1 Supplement, Latin Extended-A and -B) and U+0300 to U+036F
   (Combining Diacritical Marks).
+- **Gap set G**: the code points that show as a space or a blank and that fold 1 keeps (as themselves or as U+0020):
+  all of S, and U+0009, U+000A, U+000D, U+2028, U+2029, U+115F, U+1160, U+2800, U+3164, U+FFA0. That is S together with
+  the members of B that are not in fold 1's dropped set. The other members of B (U+000B, U+000C, U+001C to U+001F,
+  U+0085) and the members of D that are not listed here are **not** in G, because fold 1 removes them, and a fold-1
+  name must give the same key as the raw name (see Properties).
 
 ### The pass
 
-Read the name by code point, from the start, with a variable **last kept** that is empty at the start. For each code
-point c, apply the first rule that fits:
+Read the name by code point, from the start, with a variable **last kept** that is empty at the start and a flag
+**gap** that is off at the start. For each code point c, apply the first rule that fits:
 
 1. c is a surrogate that is not half of a pair: **remove** it.
-2. c is in R: **remove** it.
-3. c is U+200C or U+200D: if last kept is empty or is in L, **remove** c; otherwise **keep** c and set last kept to c.
-4. Otherwise **keep** c, written as its ASCII fold (`A` to `Z` become `a` to `z`; nothing else changes), and set last
-   kept to c.
+2. c is in R: **remove** it; if c is in G, set gap on.
+3. c is U+200C or U+200D: if last kept is empty, or last kept is in L, or gap is on, **remove** c; otherwise **keep** c,
+   set last kept to c and set gap off.
+4. Otherwise **keep** c, written as its ASCII fold (`A` to `Z` become `a` to `z`; nothing else changes), set last kept
+   to c and set gap off.
 
 A removed code point never becomes last kept, so a joiner is judged by the last code point that is actually in the key,
-after every removal. The key is the kept code points in order. A name whose key is empty is **dropped**: an item has no
-such studio, and a rules name with an empty key matches nothing. No Unicode normalisation and no locale are used.
+after every removal, and by whether a space or blank stood between them. A joiner never joins across a space, in any
+script. The key is the kept code points in order. A rules name or a studio name whose key is empty is **empty**:
+under `formatVersion` 4, a `studio` source or a `studios` filter name that is empty matches nothing, and a `studio`
+exclusion that is empty matches every item that has, or whose series has, a studio whose key is empty (see Properties
+for why). No Unicode normalisation and no locale are used.
 
 Because every space and blank is removed, names that differ only in spacing match: `Walt Disney`, `Walt  Disney`,
 `Walt` U+3000 `Disney`, `Walt` U+3164 `Disney` and `WaltDisney` all have the key `waltdisney`. A false merge of two real
@@ -112,37 +121,57 @@ studios whose names differ only by a space is accepted as negligible.
 | `Pathe` U+0301 U+200D (decomposed `Pathé`) | last kept is U+0301 (in L), so U+200D removed | `pathe` U+0301 |
 | `Dis` U+200D U+200C U+200D `ney` | each joiner sees last kept `s`, all removed | `disney` |
 | `Pixars` U+034F U+200D | U+034F removed; last kept `s`, U+200D removed | `pixars` |
-| U+0915 U+094D U+200D U+0937 (Devanagari) | last kept U+094D, not in L: U+200D kept | unchanged |
+| U+0915 U+094D U+200D U+0937 (Devanagari) | last kept U+094D, not in L, gap off: U+200D kept | unchanged |
+| `東映` U+3000 U+200D `Animation` | U+3000 removed, gap on; last kept `映` is not in L, but gap is on: U+200D removed | `東映animation` |
+| `東` U+000B U+200D `x` | U+000B removed but not in G, gap off; last kept `東`: U+200D kept | `東` U+200D `x` |
+| `東映` U+200D (trailing) | last kept `映`, gap off: U+200D kept | `東映` U+200D (a residual gap) |
 
 The exclusion `Walt Disney` has the key `waltdisney`, so the first five rows are excluded by it, and every
 multi-word kid-list entry is matched the same way.
 
 ### Properties
 
-Three facts about the pass give the properties below: (a) whether a code point is removed depends only on that code
-point and on last kept; (b) a removed code point never changes last kept; (c) the ASCII fold maps a kept code point to
-one in the same class (`A` to `Z` and `a` to `z` are all in L and none is in R or a joiner).
+Four facts about the pass give the properties below: (a) whether a code point is kept depends only on that code point,
+on last kept and on gap; (b) a removed code point never changes last kept, and changes gap only by setting it on when
+it is in G; (c) every keep sets gap off, so gap only says whether a code point of G was removed since the last keep;
+(d) the ASCII fold maps a kept code point to one in the same class (`A` to `Z` and `a` to `z` are all in L and none is
+in R, in G or a joiner).
 
-- **Idempotent: fold2(fold2(x)) = fold2(x).** The key holds no surrogate half and nothing in R, so rules 1 and 2 remove
-  nothing from it, and rule 4 keeps every non-joiner. Each joiner in the key was kept because its last kept code point
-  was outside L; in the second pass the code point before it in the key is that same code point (ASCII-folded, same
-  class by (c)), so it is kept again. Example: the key of `Walt` U+3000 U+200D `Disney` is `waltdisney`; fold 2 of
-  `waltdisney` is `waltdisney`.
-- **Fold 2 of fold 1 is fold 2: fold2(fold1(x)) = fold2(x).** Fold 1 only removes lone surrogates and code points of its
-  dropped set, writes U+0009, U+000A, U+000D, U+2028 and U+2029 as U+0020, trims S from the ends and ASCII-folds. Every
-  code point it removes or writes is a lone surrogate or in R (its dropped set is part 1 of D, its mapped code points
-  are in B, U+0020 and the trimmed set are S), and it never removes or alters a joiner or any other code point. So x and
-  fold1(x) have the same kept code points in the same order, up to ASCII case, and by (a) to (c) the same key. Example:
-  fold 1 of U+3000 U+200D `Disney` trims the U+3000 and gives U+200D `disney`; fold 2 of that removes the leading
-  U+200D (last kept empty): `disney`, as fold 2 of the original. This is why fold 2 can be
+- **Idempotent: fold2(fold2(x)) = fold2(x).** The key holds no surrogate half and nothing in R (so nothing in G), so in
+  the second pass rules 1 and 2 remove nothing, gap is never set on, and rule 4 keeps every non-joiner. Each joiner in
+  the key was kept because its last kept code point was outside L and gap was off; in the second pass the code point
+  before it in the key is that same code point (ASCII-folded, same class by (d)) and gap is off, so it is kept again.
+  Example: the key of `東映` U+3000 U+200D `Animation` is `東映animation`, and fold 2 of that is the same.
+- **Fold 2 of fold 1 is fold 2: fold2(fold1(x)) = fold2(x).** Fold 1 does four things, and none changes the key:
+  1. it removes lone surrogates and the code points of its dropped set: all are removed by fold 2 too (its dropped set
+     is part 1 of D), and none is in G, so in x they neither change last kept nor set gap;
+  2. it writes U+0009, U+000A, U+000D, U+2028 and U+2029 as U+0020: both the original and U+0020 are in G, so fold 2
+     removes either and sets gap on either way;
+  3. it trims S from both ends. A leading run sets gap on in x only before anything is kept, when every joiner is
+     removed anyway (last kept empty), and the first keep sets gap off. A trailing run is followed in x only by code
+     points of fold 1's dropped set (else it would not be trailing after step 1), none of which is a joiner or kept;
+  4. it ASCII-folds, which by (d) changes no decision.
+
+  Fold 1 never removes or alters a joiner or any other code point. So, by (a) to (d), every decision of fold 2 is the
+  same on x and on fold1(x), and so is the key. This is why U+000B and the other B members fold 1 removes are kept out
+  of G: `東` U+000B U+200D `x` becomes `東` U+200D `x` under fold 1, so counting U+000B as a gap would give the raw
+  name and its fold-1 form different keys. Example: fold 1 of U+3000 U+200D `Disney` trims the U+3000 and gives
+  U+200D `disney`; fold 2 of either removes the U+200D (last kept empty) and gives `disney`. This is why fold 2 can be
   applied at match time to names the sync stored after fold 1, and to the fold-1 keys a resolved starter writes into
   its rules as `studio` source names.
-- **Fold 2 never splits what fold 1 joins.** If fold1(a) = fold1(b), then fold2(a) = fold2(fold1(a)) = fold2(fold1(b))
-  = fold2(b). Moving a file from fold 1 to fold 2 can only add matches: an exclusion excludes at least what it did, a
-  source and the `studios` filter take at least what they did.
+- **Fold 2 never splits what fold 1 joins, for an exclusion.** If fold1(a) = fold1(b), then fold2(a) = fold2(fold1(a))
+  = fold2(fold1(b)) = fold2(b). When that shared key is non-empty, the match survives under fold 2. When it is empty
+  (a name made only of code points in R that fold 1 keeps, such as U+3164), an empty key on its own would match
+  nothing, and the match would be lost. The empty-key rule for exclusions covers that case: an exclusion whose key is
+  empty matches every item with a studio whose key is empty. The sync drops only names that are empty under fold 1
+  (`ServerText.studioName`), so a studio such as U+3164 is stored and can be matched this way. The snapshot records,
+  per item and series, whether it has a studio with an empty fold-2 key. So moving a file from fold 1 to fold 2
+  never loses an exclusion match: an exclusion excludes at least what it did. A `studio` source and the `studios`
+  filter keep the plain rule (an empty name matches nothing); they lose a match only for names made entirely of
+  invisible or blank code points, which only makes the pool smaller and so is safe.
 
-The table invariant behind the second property (fold 1's dropped, mapped and trimmed sets are all inside R) is checked
-by a test in every port.
+The table invariants behind the second property (fold 1's dropped, mapped and trimmed sets are all inside R; G contains
+fold 1's mapped and trimmed sets and nothing from fold 1's dropped set) are checked by a test in every port.
 
 ### Where each fold is used
 
@@ -157,6 +186,9 @@ it is. Every current call site of `cleanStudioName`, and of the fold-1 keys buil
 | `KidHold.isMadeForKids`, `KidHold.isSeriesMadeForKids` (the `KID_STUDIOS` set), and through them `GrownUpHold` and the kid test in curation `Titles` | the holds | fold 2 (`kid-hold-4`, `grown-up-hold-3`) |
 | `Theme.NameMatcher.fold` (catalog studio anchors), `LibraryNames` studio keys, `RecipeResolver`, `CurationLanes` studio anchors, curation `Titles` against `CurationTables` | catalog and curation | fold 1. `NameMatcher` matches whole words, which needs the spaces; a change is a new catalog or curation version, not part of this ADR |
 | `CatalogPicker.studios` | the spelling shown for a stored studio | fold 1 (display only) |
+| `DraftReader.spelled` and `DraftReader.withStudioNames` (builder), `BuiltInChannelProperties` (channel properties), both through the `StudioNames` lookup (`CatalogPicker.studios`) | the spelling shown for a studio source or exclusion the rules hold | fold 1 (display only). A format-4 exclusion whose name has no fold-1 twin in the library shows its stored spelling; what it matches is unchanged |
+| `ChannelRules.requiredVersion` (`core/rules`, `ChannelRules.kt`) and `ChannelRules.normalised` | the lowest version a file's features need, which every save writes | 3 for a studio source, studio exclusion or `studios` filter until the gate has passed, then 4 (see Versioning) |
+| Rules read and import: `RulesReader.read` through `LineupCodec` (a channel's rules and its previous rules), and any import or restore of a rules file | where a stored, imported or restored file enters the app | a `formatVersion` 3 file with a studio feature is written back as 4 once the gate has passed (see Versioning) |
 | `GroupCollections.isBoxSet` | box-set detection (`docs/rules-format.md`, the name ends in U+0020 `collection`) | fold 1. It needs the space; a change changes which collections group and would need its own version |
 
 A snapshot therefore holds fold-2 studio keys alongside the fold-1 ones for every item and series: the holds read fold 2
@@ -166,7 +198,7 @@ measured on the older device before the change merges.
 
 Within one kid channel the hold and a `formatVersion` 3 studio exclusion then use different folds: the hold can call a
 title made for kids under fold 2 while the file's exclusion misses the same name under fold 1. That window closes with
-the one-time rewrite below.
+the upgrade to format 4 below.
 
 ### Versioning
 
@@ -194,14 +226,22 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
   version and `rulesFormat` are on the app's diagnostics screen), and only then is the release that writes 4 shipped.
   A TV that missed the update (automatic updates off) or was downgraded reads a format-4 file as "update required":
   that channel is not scheduled, so the excluded titles do not air. It fails closed.
-- **One-time rewrite.** The release that writes 4 rewrites, once, every rules file that says `formatVersion` 3 and holds
-  a `studio` source, a `studio` exclusion or a `studios` filter: `formatVersion` becomes 4 and nothing else changes
-  (unknown fields are written back as the JSON profile says). A file that says 1 or 2 is not rewritten: a studio
-  source there is an unknown kind, and rewriting it would make an unsupported channel supported. A file already at 4 is
-  left alone, so a second TV doing the same rewrite changes nothing. After the rewrite no TV can read such a file under
-  fold 1, and by "fold 2 never splits what fold 1 joins" no rewritten channel loses a match it had. With one household
-  using the app today, a format change of this kind costs nothing in practice; the gate above is still the rule for
-  later households. From that release on, every writer writes 4.
+- **Upgrade to 4: a one-time rewrite, kept as an invariant.** In the release that ships after the gate has passed:
+  - **The rewrite.** On its first start the app rewrites, once, every rules file that says `formatVersion` 3 and holds
+    a `studio` source, a `studio` exclusion or a `studios` filter: `formatVersion` becomes 4 and nothing else changes
+    (unknown fields are written back as the JSON profile says).
+  - **The invariant.** From then on, whenever the app reads, imports or saves a rules file that says `formatVersion` 3
+    and holds one of those features, it writes it back as 4, the same way. That covers a file restored from a backup,
+    imported from an older TV or from another household, and a file an older TV that missed the gate saves as 3 after
+    the rewrite (that TV reads it under fold 1 until a newer app next reads it, which is the existing behaviour of an
+    old app). `ChannelRules.requiredVersion` returns 4 for those features, so `normalised` and every save write 4.
+  - The upgrade is idempotent: a file already at 4 is left alone, so two TVs doing it at once write the same file.
+    A file that says 1 or 2 is never upgraded: a studio source there is an unknown kind, and upgrading it would make an
+    unsupported channel supported.
+
+  After the upgrade no up-to-date TV reads such a file under fold 1, and by "fold 2 never splits what fold 1 joins" no
+  upgraded exclusion loses a match it had. With one household using the app today, a format change of this kind costs
+  nothing in practice; the gate above is still the rule for later households.
 
 ### Tests
 
@@ -214,11 +254,19 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
 - ZWJ and ZWNJ: inside a Latin word; at the start; after a code point of S and between two of them; after a dropped
   code point (`s` U+034F U+200D); a run of joiners inside a Latin word; after a combining mark (U+0301, U+036F); after
   U+024F and after U+0250, after U+036F and after U+0370 (the boundaries); after a non-Latin letter (kept); a run after
-  a non-Latin letter (kept);
+  a non-Latin letter (kept); after a non-Latin letter and a code point of G (`東映` U+3000 U+200D `Animation`, removed,
+  key `東映animation`); after a non-Latin letter and a member of B that is not in G (`東` U+000B U+200D `x`, kept, and
+  the same key as fold 1 of it); at the end after a non-Latin letter (`東映` U+200D, kept);
 - the walk-through table above;
-- a name whose key is empty;
+- a name whose key is empty; under `formatVersion` 4, an exclusion named U+3164 excludes an item whose only studio is
+  U+2800 U+3164, and a `studio` source named U+3164 matches nothing;
 - for **every** vector: fold2(fold2(x)) = fold2(x) and fold2(fold1(x)) = fold2(x);
 - `formatVersion` 3 files giving the fold-1 answer for the same names, and `formatVersion` 4 files the fold-2 answer.
+
+`docs/rules-format/vectors/upgrade-v4.json`, shared by all ports: a `formatVersion` 3 file with a studio source, one
+with a studio exclusion and one with a `studios` filter, each read or imported after the gate, come out as
+`formatVersion` 4 with nothing else changed; the same file read twice is written once; a `formatVersion` 3 file
+without those features and a `formatVersion` 1 or 2 file come out unchanged.
 
 `docs/rules-format/vectors/kid-hold-4.json`, shared by all ports: titles whose studio is a `KID_STUDIOS` entry spelled
 with each kind of look-alike above, made for kids under `kid-hold-4` and not under `kid-hold-3`, and moved off a
@@ -244,7 +292,8 @@ dropped, mapped and trimmed sets are inside R, and the `PersistedDays` hold name
    above. Fixing fold 1 in place was declined: during an update window two TVs in one household could build different
    lineups from the same file. Once every port reads `formatVersion` 4, the app rewrites, once, every rules file that
    holds a studio source, studio exclusion or studios filter to `formatVersion` 4, so no TV can then read it
-   differently. (This replaces the first draft's "upgrade on save", which could leave an exclusion on fold 1 for good.)
+   differently. (This replaces the first draft's "upgrade on save", which could leave an exclusion on fold 1 for good.
+   The read, import and save upgrade in Versioning keeps this true for files that arrive or are saved as 3 later.)
 2. **Joiners: Latin only**, as in rule 3 of the pass, with the Latin range including the combining marks U+0300 to
    U+036F. Adding Greek or Cyrillic buys almost nothing, because their look-alike letters (a Cyrillic `а` for a Latin
    `a`) already evade the fold with or without a joiner.
@@ -264,5 +313,7 @@ own version to close:
   Letters (U+02B0 to U+02FF), Latin Extended Additional (U+1E00 to U+1EFF, for example a precomposed `ḟ`), the other
   Latin Extended blocks, fullwidth Latin, and combining marks outside U+0300 to U+036F (U+1AB0 to U+1AFF, U+1DC0 to
   U+1DFF, U+20D0 to U+20FF, U+FE20 to U+FE2F). A name using those letters can carry an invisible joiner.
+- **A trailing joiner after a non-Latin letter** is kept (`東映` U+200D does not match `東映`). Dropping it would need
+  the pass to look ahead; it is invisible only at the end of a name, so it is left for a later version.
 - **Other code points that render as nothing in some fonts** but are not in R, such as U+16FE4 (Khitan small script
   filler), and code points that a later Unicode version makes default-ignorable.
