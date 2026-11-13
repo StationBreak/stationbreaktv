@@ -1,6 +1,6 @@
 # Channel rules format
 
-> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged (see Format version). Version 3 (2026-11-03): it adds features to version 2 and leaves versions 1 and 2 unchanged. Any later change that alters a lineup needs `formatVersion` 4.
+> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged (see Format version). Version 3 (2026-11-03): it adds features to version 2 and leaves versions 1 and 2 unchanged. Version 4 (2026-11-13): it adds no field and changes only how a studio name matches (studio fold 2, see Studio names). Any later change that alters a lineup needs `formatVersion` 5.
 
 This document defines the file that describes one StationBreak channel. It is written for a developer who has never seen
 this repository and who wants to build another client (Roku, Apple TV, a web tool) that shows the same lineup as the
@@ -103,7 +103,7 @@ holds a secret and never causes a client to fetch a URL.
 
 ## Format version
 
-`formatVersion` is a whole number of 1 or more. This document defines versions `1`, `2` and `3`.
+`formatVersion` is a whole number of 1 or more. This document defines versions `1`, `2`, `3` and `4`.
 
 **Version 2 is final** (2026-11-02), with its independently computed vectors. The owner accepted the one known cost of its
 layout, that the planned end of a day may be played again at the start of the next (issue #546), rather than change the layout
@@ -115,7 +115,14 @@ and exclusion `studio`; the filters `tags`, `studios` and `notGenres`; a runtime
 `ordering.repeatGapMinutes` and `ordering.pairUpToMinutes`; and, for the building of a day, two side inputs and one pool
 rule, the trim window (see The pool of an epoch). The trim window and the weights act only when a client gives the
 scheduler a non-empty `keeps` or `weights`, which no version 1 or version 2 client does, so a version 1 or 2 lineup is the
-same in a version 3 client. A later change that alters a lineup needs `formatVersion` 4.
+same in a version 3 client. (Such a change is version 4, below.)
+
+**Version 4** (2026-11-13, `docs/adr/0026-studio-fold-2.md`) has exactly the fields of version 3. It changes one thing: in
+a file that says `4`, a `studio` source, a `studio` exclusion and the `studios` filter match studio names under **studio
+fold 2** (see Studio names, Studio fold 2), which closes look-alike spellings (spaces, blanks and invisible code points
+inside a name) that studio fold 1 lets through. A file that says `1` to `3` keeps studio fold 1 exactly, so every client
+agrees on every existing file. A file that uses no studio feature is the same in version 3 and 4.
+A later change that alters a lineup needs `formatVersion` 5.
 
 **A writer that creates or edits rules writes the lowest version whose features the rules use.** A file that uses nothing
 from version 2 or 3 says `1`. A file that is read and written back unchanged keeps the version it had. The presence of `filters`
@@ -123,7 +130,9 @@ from version 2 or 3 says `1`. A file that is read and written back unchanged kee
 as using version 3: a `studio` source or exclusion; a `tags`, `studios` or `notGenres` filter; a `runtime.episode` or
 `runtime.movie` window; the mode `curated`; an `ordering.repeatGapMinutes` or `ordering.pairUpToMinutes` (even beside a
 mode that ignores them). A builder that edits a file moves it to version 3 when it adds one of these, and back down to the
-lowest version the rules need when it removes the last one.
+lowest version the rules need when it removes the last one. Rules that hold a `studio` source, a `studio` exclusion or a
+`studios` filter are the one exception: they are written at their **write version** (see Studio fold 2, Writing version
+4), which is never below the version the file said and is 4 once every client reads 4.
 **A reader that supports version 2 reads a version 1 file unchanged, and a reader that supports version 3 reads version 1
 and version 2 files unchanged.** Version 2 adds, and changes nothing in version 1:
 the orders `rotation` and `inOrder`, `ordering.caps`, the `item` source and exclusion, and `filters`. Versions 1, 2 and 3
@@ -135,7 +144,7 @@ coexist, and no file is migrated.
   **unsupported** (see Unknown fields and unsupported kinds);
 - `filters` and `ordering.caps` are unknown fields: they are kept and ignored.
 
-**Version 3 features are read only in a file that says `formatVersion` 3.** In a file that says `1` or `2`:
+**Version 3 features are read only in a file that says `formatVersion` 3 or 4.** In a file that says `1` or `2`:
 
 - the source and exclusion `type` `studio` and the ordering `mode` `curated` are unknown kinds, so the channel is
   **unsupported** (see Unknown fields and unsupported kinds);
@@ -148,7 +157,7 @@ coexist, and no file is migrated.
 rest of the file is unreadable. The only things checked before it are the input limits (see Limits) and the JSON profile
 (see JSON profile): a file over a limit, or one that breaks the profile, is invalid even when its `formatVersion` is newer.
 
-- If `formatVersion` is higher than the highest version the reader supports (4 or more, for a reader of this document),
+- If `formatVersion` is higher than the highest version the reader supports (5 or more, for a reader of this document),
   the reader must **not** schedule the
   channel, must not try to read the rest, and should tell the user that an update is required. It must never play a
   best-effort lineup from a newer file.
@@ -222,7 +231,9 @@ JSON value, not as the same bytes: an escape may be written differently, and a n
 
 **A writer that creates or edits rules must write the lowest `formatVersion` whose features they use.** Rules that only use
 version 1 features say `1`, even when the writer also knows version 2 or 3. That keeps older apps working for as long as
-possible. (A file read and written back unchanged keeps its version.)
+possible. (A file read and written back unchanged keeps its version.) The one exception is a file with a studio feature
+(a `studio` source, a `studio` exclusion or a `studios` filter): it is never written below the version it said, and is
+written as version 4 once every client reads 4 (see Studio names, Studio fold 2).
 
 **A change needs a new `formatVersion` when it could change which items air, or in what order.** That includes:
 
@@ -258,7 +269,7 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    - `yearRange`: if the item's **own** production year is in the range. An item with no production year is **not**
      included. A client must not guess a year from the series;
    - `studio` (version 3): if the item has a studio whose name equals the source's `name` under the **studio fold** (see
-     String matching), **or if it is an episode and its series has one**. Jellyfin keeps studios on the series, so an
+     String matching; studio fold 2 in a file that says 4), **or if it is an episode and its series has one**. Jellyfin keeps studios on the series, so an
      episode takes its series' studios as it takes its series' genres and tags.
 3. **Union, then exclusions.** The pool starts as every item that matches **any** source. An item that matches several
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
@@ -368,8 +379,8 @@ Each kind has its own example file:
 - `docs/rules-format/examples/year-range.json` selects the years 1990 to 1999.
 - `docs/rules-format/examples/series.json` selects one series.
 
-`studio` (version 3) matches an item that has a studio whose name equals `name` under the studio fold, and an episode whose
-series has one. It is a source and an exclusion like `genre` and `tag`. `docs/rules-format/examples/v3/studio.json` has a
+`studio` (version 3) matches an item that has a studio whose name equals `name` under the studio fold (studio fold 2 in a
+file that says 4), and an episode whose series has one. It is a source and an exclusion like `genre` and `tag`. `docs/rules-format/examples/v3/studio.json` has a
 `studio` source and a `studio` exclusion:
 
 ```jsonc
@@ -396,8 +407,9 @@ rules file that names a library, collection or series by ID only makes sense on 
 ## Exclusions
 
 `exclusions` is an optional list of up to 256 objects. It uses **the same kinds as sources**, with the same fields. That
-includes `item` in a file of version 2 or 3, which removes one movie or one episode, and `studio` in a version 3 file, which
-removes every item of that studio and every episode of a series of that studio.
+includes `item` in a file of version 2 to 4, which removes one movie or one episode, and `studio` in a version 3 or 4 file,
+which removes every item of that studio and every episode of a series of that studio (in a version 4 file, with the
+empty-key rule of Studio fold 2).
 
 How they combine: first take the union of all `sources`. Then remove every item that matches **any** exclusion. An item
 that is excluded cannot be brought back by any source. The rating ceiling is applied on top: an item has to pass both.
@@ -1594,7 +1606,9 @@ The anchors for this section are in `docs/rules-format/vectors/`: `epoch-math.js
 and `lineup-v3.json`, of the same shapes as the version 1 and 2 files with the franchise map (`franchises`), the weights,
 the keeps, the two tunables (`repeatGapMs` and `pairUpToMs`) and the per-kind runtime windows. They were computed with a reference that was
 written from this text alone, not with the code that is tested. Version 1 is final (amended once, on 2026-10-19), so a wrong
-vector now means version 2, and for version 2 now means version 3.
+vector now means version 2, and for version 2 now means version 3. Version 4 adds `pool-v4.json` (the pool of studio
+sources, exclusions and the `studios` filter in a file that says 4 and in one that says 3) and `upgrade-v4.json` (what a
+client writes back for a file before and after the gate); the scheduler's vectors are unchanged.
 
 ## Filler
 
@@ -1852,7 +1866,9 @@ IDs are.
 
 ### Studio names
 
-(Version 3.) A `studio` source or exclusion and the `studios` filter match a studio name under the **studio fold**, which
+(Version 3.) In a file that says `formatVersion` 3, a `studio` source or exclusion and the `studios` filter match a
+studio name under the **studio fold** described here (**studio fold 1**); in a file that says 4 they use studio fold 2
+(next subsection). Studio fold 1 is not changed by version 4. The studio fold
 is applied to the name in the rules **and** to each studio name of the item or series, and then the two results are compared
 as exact sequences of Unicode code points. The studio fold is **clean**, then fold:
 
@@ -1876,6 +1892,62 @@ as exact sequences of Unicode code points. The studio fold is **clean**, then fo
 So the rules name `Studio A` matches the studios `STUDIO A`, `studio a` and `Studio A` followed by a no-break space (U+00A0),
 and does not match `Studio  A` (two spaces) or `Studiö A`. A client **must not** use a platform's `trim`, whitespace test or
 case function for this: they differ between platforms.
+
+### Studio fold 2
+
+(Version 4, `docs/adr/0026-studio-fold-2.md`.) In a file that says `formatVersion` 4, a `studio` source, a `studio`
+exclusion and the `studios` filter match by **studio fold 2**: the rules name and every studio name of the item (and, for
+an episode, of its series) are each turned into a **key**, and two names match when their keys are equal code point for
+code point. The sets and the pass are copied here from the ADR, which is the authority for them and also has the
+reasoning, a walk-through table and the properties (fold 2 is idempotent, fold 2 of a fold 1 name is fold 2 of the raw
+name, and so fold 2 never splits what fold 1 joins for an exclusion). Every set is a fixed list of code points, never a
+platform's idea of whitespace, control, format, letter or case.
+
+- **Space set S**: U+0020, U+00A0, U+1680, U+2000 to U+200A, U+202F, U+205F, U+3000.
+- **Blank and break set B**: U+0009, U+000A, U+000B, U+000C, U+000D, U+001C to U+001F, U+0085, U+2028, U+2029, U+115F,
+  U+1160, U+2800, U+3164, U+FFA0.
+- **Dropped set D**: the union of (1) studio fold 1's dropped set (above); (2) the Default_Ignorable_Code_Point set of
+  Unicode 15.1.0, reserved code points included, except U+200C and U+200D: U+00AD, U+034F, U+061C, U+115F to U+1160,
+  U+17B4 to U+17B5, U+180B to U+180D, U+180E, U+180F, U+200B, U+200E to U+200F, U+202A to U+202E, U+2060 to U+2064,
+  U+2065, U+2066 to U+206F, U+3164, U+FE00 to U+FE0F, U+FEFF, U+FFA0, U+FFF0 to U+FFF8, U+1BCA0 to U+1BCA3, U+1D173 to
+  U+1D17A, U+E0000, U+E0001, U+E0002 to U+E001F, U+E0020 to U+E007F, U+E0080 to U+E00FF, U+E0100 to U+E01EF, U+E01F0 to
+  U+E0FFF; and (3) U+2800. The list is frozen: a later Unicode version changes nothing until a new version says so.
+- **Removed set R** = S, B and D together.
+- **Gap set G**: all of S, and U+0009, U+000A, U+000D, U+2028, U+2029, U+115F, U+1160, U+2800, U+3164, U+FFA0 (the code
+  points that show as a space or a blank and that studio fold 1 keeps).
+- **Latin range L**: U+0000 to U+024F and U+0300 to U+036F.
+
+**The pass.** Read the name by code point, from the start, with **last kept** empty and **gap** off. For each code point
+c, apply the first rule that fits:
+
+1. c is a surrogate that is not half of a pair: remove it.
+2. c is in R: remove it; if c is in G, set gap on.
+3. c is U+200C or U+200D: if last kept is empty, or last kept is in L, or gap is on, remove c; otherwise keep c, set last
+   kept to c and set gap off.
+4. Otherwise keep c written as its ASCII fold (`A` to `Z` become `a` to `z`; nothing else changes), set last kept to c and
+   set gap off.
+
+The key is the kept code points in order: no trim, no collapse, no normalisation, no locale. So `Walt Disney`,
+`Walt  Disney`, `Walt` U+3000 `Disney`, `Walt` U+3164 `Disney` and `WaltDisney` all have the key `waltdisney`.
+
+**The empty-key rule.** A name whose key is empty is **empty**. In a file that says 4, a `studio` source or a `studios`
+filter name that is empty matches nothing, and a `studio` exclusion that is empty matches every item that has, or whose
+series has, a studio whose key is empty. (A studio name that studio fold 1 keeps but whose fold 2 key is empty, such as
+U+3164 alone, is still a studio of the item; so an exclusion never matches less under fold 2 than under fold 1.)
+
+**Writing version 4.** A file that says 3 is still valid with a studio feature (version 3 is the lowest version that has
+it), is read as it is, and is matched under studio fold 1. A client writes 4 only after a release gate: every client
+that shares rules files with it (each port of the app) has released a version that reads 4. Until then a writer writes
+a file with a studio feature at the version it said (so a file that says 4 is **never** written back as 3), and a new
+one at 3. Once the gate has passed, a writer writes every file with a studio feature as 4, and every file that says 3
+with a studio feature that it reads, imports, restores or saves comes out as 4 with nothing else changed (unknown fields
+kept). A file that says 1 or 2 is never upgraded (a `studio` source there is an unknown kind), a file without a studio
+feature keeps the lowest version it needs, and a file already at 4 is left alone, so two clients doing this at once
+write the same file. A client that reads only up to 3 sees a file that says 4 as "update required" and does not schedule
+it, so the excluded titles do not air.
+
+`docs/rules-format/vectors/pool-v4.json` gives the pool of the same rules in a file that says 3 and in one that says 4,
+and `docs/rules-format/vectors/upgrade-v4.json` what a client writes back for a file before and after the gate.
 
 ## Unknown fields and unsupported kinds
 
@@ -1903,7 +1975,8 @@ Unknown fields are data, not instructions. A reader never executes or fetches an
 The version 1 JSON Schema describes version 1 only, so it rejects an unknown kind. The version 2 schema describes
 version 2, and it also rejects a version 2 mode or source in a file that says `formatVersion` 1. The version 3 schema
 describes version 3, and it also rejects a version 3 mode or source in a file that says `formatVersion` 1 or 2 and a
-version 2 mode or source in a file that says `formatVersion` 1. Readers rely on the rules above, not on the schemas.
+version 2 mode or source in a file that says `formatVersion` 1. The version 4 schema is the version 3 schema with
+`formatVersion` 4 allowed, and the version 3 parts allowed in it. Readers rely on the rules above, not on the schemas.
 
 ## Limits
 
@@ -1944,7 +2017,7 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
    allowed.
 8. **Names.** A `name` of 100 emoji is accepted, and one of 101 is rejected (`name-100-code-points.json` and
    `invalid/name-101-code-points.json`).
-9. **Version gate.** A file with `formatVersion` 4 is not scheduled, even when the rest of it is unreadable.
+9. **Version gate.** A file with `formatVersion` 5 is not scheduled, even when the rest of it is unreadable.
 10. **JSON profile.** A repeated member name (also in an unknown field), a byte-order mark, `01`, `1.0` or `1e2` where a whole
     number is expected, and `NaN` are all rejected.
 11. **Automatic seed.** For server ID `11111111111111111111111111111111` and the library
@@ -1993,6 +2066,10 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
 22. **`curated`.** The worked example in `curated` gives the cycle `[a1 a2] [b1] [c1] [d] [a3 a4] [b2] [c2]`, with the starting
     passes `0`, `600`, `1200` and `1800`. A `curated` day starts at its first run, each day, and its repeat gap restarts at the
     start of each day.
+23. **Studio fold 2.** In a file that says `formatVersion` 4, the `studio` exclusion `Walt Disney` removes an item whose
+    studio is `Walt` U+3000 `Disney` or `Walt` U+000B `Disney`, and the same file saying 3 does not (`pool-v4.json`); an exclusion named U+3164 removes an item whose only studio is U+2800 U+3164,
+    and a `studio` source named U+3164 matches nothing. A file that says 4 and has a studio source is written back as 4,
+    never 3 (`upgrade-v4.json`).
 
 ## A reference lineup fixture
 
@@ -2060,6 +2137,9 @@ and review the diff. Run the same command without the property to check it.
 Everything below is in this repository, under `docs/`:
 
 - `docs/rules-format.md`: this document.
+- `docs/rules-format/channel-rules.v4.schema.json`: a JSON Schema (draft 2020-12) for version 4: the version 3 schema
+  with `formatVersion` 4 allowed and the version 3 parts allowed in a file that says 4. Version 4 changes only how studio
+  names match, which a schema does not check.
 - `docs/rules-format/channel-rules.v3.schema.json`: a JSON Schema (draft 2020-12) for version 3. Like the earlier schemas, it
   checks shape, leaves every object open to extra fields, and is for tests and tools. It also rejects a version 3 mode or
   source (and the version 3 filter and ordering fields' ranges) in a file that says `formatVersion` 1 or 2, and a version 2 mode
@@ -2119,8 +2199,13 @@ Everything below is in this repository, under `docs/`:
   whose studio is a kid studio spelled with a look-alike: made for kids under `kid-hold-4` and not under `kid-hold-3`,
   and dropped from a grown-up channel by `grown-up-hold-3`). They are computed with an independent reference,
   `scripts/rules-format/studio_fold_2_vectors.py`, written from ADR-0026 alone. The holds use studio fold 2 from
-  `kid-hold-4` (defined in `docs/adr/0026-studio-fold-2.md`, The sets and The pass, until a Studio fold 2 subsection
-  is added here); the rules format still uses studio fold 1 (Studio names) in every version this document defines.
+  `kid-hold-4` (see Studio names, Studio fold 2), whatever a channel's `formatVersion`.
+
+- `docs/rules-format/vectors/` (version 4): `pool-v4.json` (the pool of `studio` sources, `studio` exclusions and the
+  `studios` filter with look-alike names, the empty-key rule and the joiner cases, as `expected` for a file that says 4
+  and `expectedV3` for the same rules in a file that says 3), computed by the same script; and `upgrade-v4.json`
+  (hand-written from ADR-0026, Versioning: a file read, or saved unedited, before and after the gate). The version 1 to 3
+  vectors are unchanged.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

@@ -14,11 +14,14 @@ import tv.stationbreak.core.rules.AutoSeedKind
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Ordering
+import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.RulesWriter
 import tv.stationbreak.core.rules.Source
+import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 
-private const val LATEST_FORMAT = 3
+// The newest version this app reads: the rules are built at it and then written at their write version.
+private const val LATEST_FORMAT = RulesLimits.SUPPORTED_FORMAT_VERSION.toInt()
 
 // The two quotes around a JSON string.
 private const val QUOTES = 2
@@ -60,15 +63,18 @@ object RecipeResolver {
      * and films that match a title anchor, or a studio source; then a studio source for each studio of [names] a theme
      * studio matches. Anchors come before theme studios so the cap never cuts an anchor first. A source already present
      * is dropped (studio sources by folded name), and the first ones that fit [MAX_STARTER_SOURCES] and [STARTER_RULES_BUDGET_BYTES]
-     * are kept (so theme studios are cut first). Its ordering is curated. The format version is the lowest the rules
-     * need.
+     * are kept (so theme studios are cut first). Its ordering is curated. The format version is the rules' write
+     * version (`ChannelRules.writeVersion`, ADR-0026): the lowest the rules need, or 4 for a starter with a studio
+     * source or exclusion once the gate ([gatePassed]) has passed.
      */
+    @Suppress("LongParameterList") // The recipe's context, and the format 4 gate, which tests set.
     fun resolve(
         recipe: Recipe,
         serverId: CanonicalId,
         utcOffsetMinutes: Int,
         collections: CollectionNames,
         names: LibraryNames,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
     ): ChannelRules {
         val theme = recipe.theme
         val candidates =
@@ -91,7 +97,7 @@ object RecipeResolver {
                 filters = recipe.filters,
             )
         val fitted = rules.copy(sources = withinBudget(rules, candidates))
-        return fitted.copy(formatVersion = fitted.requiredVersion)
+        return fitted.copy(formatVersion = fitted.writeVersion(previousVersion = null, gatePassed = gatePassed))
     }
 
     // The leading [candidates] that fit [MAX_STARTER_SOURCES] and [STARTER_RULES_BUDGET_BYTES], always at least the

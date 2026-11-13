@@ -13,7 +13,9 @@ import tv.stationbreak.core.rules.FilterKind
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.OrderingCaps
+import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
+import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 import tv.stationbreak.core.rules.normalised
 
@@ -26,32 +28,43 @@ import tv.stationbreak.core.rules.normalised
  * draft's [KeptSettings] is set. "Use the builder's settings instead" replaces only what the builder has controls for
  * (the play order and the caps: a kept order, a kept uncapped Shuffle, a day cut shorter than 24 hours); the rest stays
  * kept, so it is still carried over (see [ChannelDraft.keepsReplaceable]). A decade copy's year range stays its pool.
- * Without [KeptSettings] none of it is written. The version is always the lowest that holds the rules, so an edited
- * version 2 file that uses only version 1 features is written as version 1 (by design).
+ * Without [KeptSettings] none of it is written. The version is the rules' write version (`ChannelRules.writeVersion`,
+ * ADR-0026): the lowest that holds the rules, so an edited version 2 file that uses only version 1 features is written
+ * as version 1 (by design), except that rules with a studio feature are never written below the version `previous`
+ * said, and are written at 4 once the gate has passed.
  */
 @Suppress("TooManyFunctions") // One step of the draft to rules and back, each.
 internal object DraftRules {
     private const val EPOCH_HOURS = 24
     private const val FORMAT_3 = 3
+    private val NEWEST = RulesLimits.SUPPORTED_FORMAT_VERSION.toInt()
     private val NO_EXTRAS = JsonObject(emptyMap())
 
-    /** The rules of [draft], under the lineup's [utcOffsetMinutes]. [previous] is the stored rules of an edit. */
+    /**
+     * The rules of [draft], under the lineup's [utcOffsetMinutes]. [previous] is the stored rules of an edit, and
+     * [gatePassed] the format 4 gate (`StudioFold2Gate`).
+     */
     fun toRules(
         draft: ChannelDraft,
         utcOffsetMinutes: Int,
         previous: ChannelRules? = null,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
     ): ChannelRules {
         require(draft.kept == null || previous != null) { "Kept settings come from the rules they were read from" }
         val carry = previous.takeIf { draft.kept != null }
-        // Version 3 first: a copy's studio sources, theme filters and curated order are carried, and the file says 3
-        // only when they are still in the rules.
-        val carry3 = carry?.withVersion(FORMAT_3)
-        val v3 = assemble(draft, utcOffsetMinutes, FORMAT_3, carry3)
-        if (v3.requiredVersion == FORMAT_3) return v3.normalised()
+        // The newest version first (it knows every field of version 3): a copy's studio sources, theme filters and
+        // curated order are carried, and the rules need 3 or more only when they are still in them. They are then
+        // written at their write version, which reads `previous` (set even when nothing is carried), so a studio file
+        // that says 4 stays at 4.
+        val carryNewest = carry?.withVersion(NEWEST)
+        val newest = assemble(draft, utcOffsetMinutes, NEWEST, carryNewest)
+        if (newest.requiredVersion >= FORMAT_3) {
+            return newest.withVersion(newest.writeVersion(previous?.formatVersion, gatePassed))
+        }
         // Version 2 next, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
         // `caps` extra makes room for the real ones). A carry that needed 3 has lost it by now (the viewer took the
-        // builder's order), so it is read at 3.
-        val carry2 = if (carry != null && carry.requiredVersion == FORMAT_3) carry3 else carry?.withVersion(2)
+        // builder's order), so it is read at the newest version.
+        val carry2 = if (carry != null && carry.requiredVersion >= FORMAT_3) carryNewest else carry?.withVersion(2)
         val v2 = assemble(draft, utcOffsetMinutes, 2, carry2)
         val staysV1 = carry != null && carry.formatVersion == 1 && v2.requiredVersion == 1
         return if (staysV1) assemble(draft, utcOffsetMinutes, 1, carry) else v2.normalised()

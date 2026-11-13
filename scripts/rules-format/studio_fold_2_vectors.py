@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 """Independent reference for studio fold 2 (docs/adr/0026-studio-fold-2.md).
 
-Writes docs/rules-format/vectors/studio-fold-2.json and kid-hold-4.json. Written from the ADR's text alone (The sets,
-The pass, Tests), not from the Kotlin code it checks. Fold 1 is written from docs/rules-format.md, Studio names.
+Writes docs/rules-format/vectors/studio-fold-2.json, kid-hold-4.json and pool-v4.json (the pool of a file that says
+formatVersion 3 and of one that says 4). Written from the ADR's text alone (The sets, The pass, Tests), not from the
+Kotlin code it checks. Fold 1 is written from docs/rules-format.md, Studio names.
 
 Usage:
     studio_fold_2_vectors.py DerivedCoreProperties-15.1.0.txt OUT_DIR
@@ -378,6 +379,206 @@ HOLD_DESCRIPTION = (
 )
 
 
+# --- pool-v4.json ----------------------------------------------------------------------------------------------------
+# The pool of a rules file under studio fold 1 (formatVersion 3) and studio fold 2 (formatVersion 4), for studio sources,
+# studio exclusions and the studios filter (ADR-0026, The pass and Where each fold is used). Only what these cases use is
+# modelled: library and studio sources, studio exclusions, the studios filter; an episode also takes its series'
+# studios when its series is in the snapshot.
+
+LIBRARY = "00000000000000000000000000001001"
+
+
+def canon(n: int) -> str:
+    return f"{n:032x}"
+
+
+def pool_item(n, studios, kind="movie", series=None):
+    return {
+        "id": canon(n),
+        "kind": kind,
+        "libraryId": LIBRARY,
+        "seriesId": canon(series) if series is not None else None,
+        "seasonId": None,
+        "productionYear": None,
+        "officialRating": None,
+        "genres": [],
+        "tags": [],
+        "studios": studios,
+    }
+
+
+def pool_series(n, studios):
+    return {"id": canon(n), "officialRating": None, "genres": [], "tags": [], "studios": studios}
+
+
+def studio_names(item, by_id):
+    names = list(item["studios"])
+    series = by_id.get(item["seriesId"]) if item["kind"] == "episode" else None
+    return names, (series["studios"] if series is not None else [])
+
+
+def matches_name(name, item, by_id, fold):
+    key = fold(name)
+    if key == "":
+        return False
+    own, inherited = studio_names(item, by_id)
+    return any(fold(n) == key for n in own + inherited)
+
+
+def has_empty_key2(item, by_id):
+    own, inherited = studio_names(item, by_id)
+    return any(fold2(n) == "" for n in own) or any(fold2(n) == "" for n in inherited)
+
+
+def matches_entry(entry, item, by_id, fold, exclusion):
+    if entry["type"] == "library":
+        return item["libraryId"] == entry["id"]
+    name = entry["name"]
+    if fold is fold2 and exclusion and fold2(name) == "":
+        return has_empty_key2(item, by_id)
+    return matches_name(name, item, by_id, fold)
+
+
+def pool_of(case, fold):
+    by_id = {s["id"]: s for s in case["series"]}
+    out = []
+    for item in case["items"]:
+        if not any(matches_entry(e, item, by_id, fold, False) for e in case["sources"]):
+            continue
+        if any(matches_entry(e, item, by_id, fold, True) for e in case["exclusions"]):
+            continue
+        studios = (case.get("filters") or {}).get("studios")
+        if studios is not None and not any(matches_name(n, item, by_id, fold) for n in studios):
+            continue
+        out.append(item["id"])
+    return sorted(out)
+
+
+def pool_case(name, items, sources, exclusions=(), series=(), filters=None, note=None):
+    case = {"name": name}
+    if note:
+        case["note"] = note
+    case.update({
+        "libraries": [LIBRARY],
+        "items": items,
+        "series": list(series),
+        "collections": [],
+        "sources": list(sources),
+        "exclusions": list(exclusions),
+    })
+    if filters is not None:
+        case["filters"] = filters
+    case["expectedV3"] = pool_of(case, fold1)
+    case["expected"] = pool_of(case, fold2)
+    return case
+
+
+def pool_v4_cases():
+    library = {"type": "library", "id": LIBRARY}
+
+    def studio(name):
+        return {"type": "studio", "name": name}
+
+    look_alikes = [
+        "Walt Disney",
+        "WALT DISNEY",
+        "Walt" + cps(0x00A0) + "Disney",
+        "Walt" + cps(0x2009) + "Disney",
+        "Walt" + cps(0x3000) + "Disney",
+        "Walt  Disney",
+        "WaltDisney",
+        "Walt" + cps(0x3164) + "Disney",
+        "Walt" + cps(0x115F) + "Disney",
+        "Walt" + cps(0x2800) + "Disney",
+        "Walt" + cps(0x000B) + "Disney",
+        "Walt" + cps(0x0085) + "Disney",
+        "Walt" + cps(0x2009, 0x200D) + "Disney",
+        "Walt Dis" + cps(0x200D) + "ney",
+        "Walt Dis" + cps(0x200C, 0x200D) + "ney",
+        "Walt Dis" + cps(0xE0002) + "ney",
+        "Walt Dis" + cps(0x034F) + "ney",
+        "Walt Disne" + cps(0xFE0F) + "y",
+        cps(0x3000, 0x200D) + "Walt Disney",
+        "Walt Disney" + cps(0x200B),
+        "Pixar",
+        "Walt Disnay",
+    ]
+    items = [pool_item(0x101 + i, [name]) for i, name in enumerate(look_alikes)]
+    note = ("One movie per spelling, in this order: " + ", ".join(json.dumps(n, ensure_ascii=True) for n in look_alikes)
+            + ". Only the last two are other studios.")
+    cases = [
+        pool_case("studio source: look-alikes of the name match under fold 2 (4), only the fold 1 twins under fold 1 (3)",
+                  items, [studio("Walt Disney")], note=note),
+        pool_case("studio exclusion: look-alikes are excluded under fold 2 (4), only the fold 1 twins under fold 1 (3)",
+                  items, [library], [studio("Walt Disney")], note=note),
+        pool_case("filters studios: look-alikes pass under fold 2 (4), only the fold 1 twins under fold 1 (3)",
+                  items, [library], filters={"studios": ["walt disney"]}, note=note),
+        pool_case("studio source: the name in the rules is folded the same way (U+3000 and a joiner in it)",
+                  items, [studio(" Walt" + cps(0x3000) + "Dis" + cps(0x200D) + "ney" + cps(0x00A0))], note=note),
+    ]
+
+    episodes = [
+        pool_item(0x201, [], kind="episode", series=0x301),
+        pool_item(0x202, [], kind="episode", series=0x302),
+        pool_item(0x203, ["Walt" + cps(0x3000) + "Disney"], kind="episode", series=0x302),
+        pool_item(0x204, [], kind="episode", series=0x399),
+    ]
+    shows = [pool_series(0x301, ["Walt" + cps(0x00A0) + "Disney"]), pool_series(0x302, ["Pixar"])]
+    cases.append(pool_case(
+        "studio exclusion under fold 2: an episode takes its series' studios; a missing series uses the episode's own",
+        episodes, [library], [studio("Walt Disney")], series=shows,
+        note="...0201's series has a look-alike; ...0203 has one itself; ...0204's series is not in the snapshot."))
+
+    blank = [
+        pool_item(0x101, [cps(0x2800, 0x3164)]),
+        pool_item(0x102, ["Pixar", cps(0x3164)]),
+        pool_item(0x103, ["Pixar"]),
+        pool_item(0x104, []),
+        pool_item(0x105, [cps(0x115F)]),
+        pool_item(0x201, [], kind="episode", series=0x301),
+        pool_item(0x202, [], kind="episode", series=0x302),
+    ]
+    blank_shows = [pool_series(0x301, [cps(0xFFA0)]), pool_series(0x302, ["Pixar"])]
+    blank_note = ("...0101 has the one studio U+2800 U+3164, ...0102 has Pixar and U+3164, ...0105 has U+115F, the "
+                  "series of ...0201 has U+FFA0: every one a studio whose fold 2 key is empty.")
+    cases += [
+        pool_case("the empty-key rule: under fold 2 an exclusion whose key is empty excludes every item with a studio "
+                  "whose key is empty (own or series'); under fold 1 it matches only its own fold 1 key",
+                  blank, [library], [studio(cps(0x3164))], series=blank_shows, note=blank_note),
+        pool_case("the empty-key rule: a studio source whose fold 2 key is empty matches nothing",
+                  blank, [studio(cps(0x3164))], series=blank_shows, note=blank_note),
+        pool_case("the empty-key rule: a studios filter name whose fold 2 key is empty matches nothing",
+                  blank, [library], series=blank_shows, filters={"studios": [cps(0x3164)]}, note=blank_note),
+    ]
+
+    toei = [
+        pool_item(0x101, [cps(0x6771, 0x6620, 0x3000, 0x200D) + "Animation"]),
+        pool_item(0x102, [cps(0x6771, 0x6620, 0x200D) + "Animation"]),
+        pool_item(0x103, [cps(0x0915, 0x094D, 0x200D, 0x0937)]),
+        pool_item(0x104, [cps(0x0915, 0x094D, 0x0937)]),
+    ]
+    cases += [
+        pool_case("joiners: removed after a gap even after a non-Latin letter; kept between a non-Latin letter and a "
+                  "Latin one (a known residual gap)",
+                  toei, [library], [studio(cps(0x6771, 0x6620) + " Animation")]),
+        pool_case("joiners: kept inside a non-Latin word, so a Devanagari conjunct and its plain form stay apart",
+                  toei, [studio(cps(0x0915, 0x094D, 0x200D, 0x0937))]),
+    ]
+    return cases
+
+
+POOL_V4_DESCRIPTION = (
+    "The version 4 pool (docs/adr/0026-studio-fold-2.md), in the pool-v3.json case shape (see its description), for "
+    "studio sources, studio exclusions and the studios filter only. 'expected' is the pool of the case's rules in a "
+    "file that says formatVersion 4: names match by their studio fold 2 key (see studio-fold-2.json); a studio source "
+    "or a studios filter name whose key is empty matches nothing; a studio exclusion whose key is empty matches every "
+    "item that has, or whose series has, a studio whose key is empty. 'expectedV3' is the pool of the same rules in a "
+    "file that says formatVersion 3: studio fold 1 (docs/rules-format.md, Studio names), exactly as pool-v3.json. "
+    "There is no films or franchises map here. Whitespace, control and format characters are "
+    "written as JSON escapes so that they can be seen; this file is all ASCII."
+)
+
+
 def ranges_json(ranges):
     return [[f"{lo:04X}", f"{hi:04X}"] for lo, hi in ranges]
 
@@ -404,7 +605,8 @@ def main() -> None:
         if fold2(case["key"]) != case["key"] or fold2(case["fold1"]) != case["key"]:
             sys.exit(f"{case['name']}: a property fails")
     hold = {"description": HOLD_DESCRIPTION, "source": SOURCE, "kidStudios": KID_STUDIOS_USED, "cases": hold_cases()}
-    for name, data in (("studio-fold-2.json", fold), ("kid-hold-4.json", hold)):
+    pool4 = {"description": POOL_V4_DESCRIPTION, "source": SOURCE, "cases": pool_v4_cases()}
+    for name, data in (("studio-fold-2.json", fold), ("kid-hold-4.json", hold), ("pool-v4.json", pool4)):
         text = json.dumps(data, indent=2, ensure_ascii=True) + "\n"
         (out / name).write_text(text, encoding="ascii")
 

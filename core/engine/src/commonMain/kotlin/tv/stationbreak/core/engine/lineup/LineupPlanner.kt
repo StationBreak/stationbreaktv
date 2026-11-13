@@ -371,7 +371,11 @@ object LineupPlanner {
                     }
 
                     else -> {
-                        val rules = p.resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
+                        val resolved = p.resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
+                        // A starter with a studio feature that says 4 is never written back as 3 (ADR-0026): the higher
+                        // of the stored and the written version is kept.
+                        val version = resolved.writeVersion(previousVersion = source.rules.formatVersion)
+                        val rules = resolved.copy(formatVersion = version)
                         // Only a keeper (see [previousKeepers]) keeps today's rules until the boundary; any other takes
                         // them at once and the file holds no second copy of it. A protected starter that is not a
                         // keeper exists only with more than the cap protected (see the known effects).

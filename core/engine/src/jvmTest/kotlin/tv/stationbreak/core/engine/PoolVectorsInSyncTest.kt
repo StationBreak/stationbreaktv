@@ -7,8 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The Kotlin copies of `pool.json`, `pool-v2.json`, `pool-v3.json` and `kid-hold-4.json` (commonTest) must equal the
- * published files.
+ * The Kotlin copies of `pool.json`, `pool-v2.json`, `pool-v3.json`, `pool-v4.json` and `kid-hold-4.json` (commonTest)
+ * must equal the published files.
  */
 class PoolVectorsInSyncTest {
     private val dir: File =
@@ -20,6 +20,7 @@ class PoolVectorsInSyncTest {
             "pool.json" to PoolVectorFiles.pool,
             "pool-v2.json" to PoolVectorFiles.poolV2,
             "pool-v3.json" to PoolVectorFiles.poolV3,
+            "pool-v4.json" to PoolVectorFiles.poolV4,
             "kid-hold-4.json" to KidHold4VectorFile.json,
         )) {
             val file = File(dir, name)

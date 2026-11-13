@@ -216,7 +216,7 @@ class LineupServiceResetKeepsCustomTest {
     @Test
     fun resetKeepsAnUnusableCustomChannelByteForByte() =
         runBlocking<Unit> {
-            val newer = """{"formatVersion":4,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
+            val newer = """{"formatVersion":5,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
             val rawCustom = """{"kind":"custom","rules":${jsonString(newer)}}"""
             val rawStarter = """{"kind":"starter","recipeKey":"frights","edited":false,"rules":${jsonString(newer)}}"""
             val file =
