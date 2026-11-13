@@ -304,8 +304,9 @@ class LaunchNavigationTest {
 
     // Diagnostic for a failure seen only on CI's emulator: what the screen and the activity looked like after Select.
     private fun describeScreenAfterSelect(activity: android.app.Activity): String {
-        val state = "finishing=${activity.isFinishing} destroyed=${activity.isDestroyed} " +
-            "hasWindowFocus=${activity.hasWindowFocus()}"
+        val state =
+            "finishing=${activity.isFinishing} destroyed=${activity.isDestroyed} " +
+                "hasWindowFocus=${activity.hasWindowFocus()}"
         val tree =
             runCatching {
                 compose.onAllNodes(isSelected()).fetchSemanticsNodes().map {
@@ -314,8 +315,26 @@ class LaunchNavigationTest {
             }.getOrElse { "unreadable: $it" }
         val sheet = runCatching { count(GuideTags.MENU_SHEET) }.getOrElse { -1 }
         val empty = runCatching { count(GuideTags.EMPTY) }.getOrElse { -1 }
-        return "$state; selected=$tree; sheets=$sheet; emptyGuide=$empty"
+        val window =
+            "lifecycle=${(activity as androidx.lifecycle.LifecycleOwner).lifecycle.currentState} " +
+                "attached=${activity.window.decorView.isAttachedToWindow} " +
+                "visible=${activity.window.decorView.visibility} taskRoot=${activity.isTaskRoot} " +
+                "children=${(activity.window.decorView as android.view.ViewGroup).childCount}"
+        return "$state; $window; selected=$tree; sheets=$sheet; emptyGuide=$empty; activities=${shell(ACTIVITIES)}"
     }
+
+    private fun shell(command: String): String =
+        runCatching {
+            val pipe = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+            android.os.ParcelFileDescriptor
+                .AutoCloseInputStream(pipe)
+                .use { it.readBytes().decodeToString() }
+        }.getOrElse { "unreadable: $it" }
+            .lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .take(SHELL_LINES)
+            .joinToString(" | ")
 
     private fun assertBackLeavesTheApp() {
         // The activity goes away, so nothing below may touch the compose rule again.
@@ -687,6 +706,8 @@ class LaunchNavigationTest {
         // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
         const val SHORT_WAIT_MS = 3_000L
         const val POLL_MS = 50L
+        const val SHELL_LINES = 12
+        const val ACTIVITIES = "dumpsys activity activities | grep -E \"ResumedActivity|Hist #|state=\""
     }
 
     @Test
