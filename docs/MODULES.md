@@ -105,7 +105,7 @@ visible range, the details of the focused program, the clock) and its screen. It
 `core:ui`, and applies the `hilt` convention plugin. It is not a route of its own: live TV owns the screen, the surface and
 the remote's keys, and takes the guide as a slot (`LiveDestination(onSignedOut, guide)`) that it draws over its picture while
 the guide is open. A feature module may not depend on another, so `app` fills the slot with `GuideDestination`. Whether the
-guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open is the guide's, which walks the focus outwards to its menu sheet, which the Menu key also opens and closes from anywhere in the guide; Exit in the sheet leaves live TV, and with the guide closed Menu is still Last Channel);
+guide is open is live's to decide (Back from the full picture and the Guide key open it; Back with it open is the guide's, which walks the focus outwards to its menu sheet and, from a sheet Back opened, leaves live TV; the Menu key opens and closes the sheet from anywhere in the guide, and Back closes a sheet the Menu key opened; with the guide closed Menu is still Last Channel);
 what it shows is the guide's. Where the picture is while the guide is open is live's too, and live is the one source of
 it: live moves its one surface to the top-right corner by its modifier alone (the surface is never made again), and the
 slot carries that hole (a `DpRect`, never null). The guide does not work out where the picture is: it leaves the hole
