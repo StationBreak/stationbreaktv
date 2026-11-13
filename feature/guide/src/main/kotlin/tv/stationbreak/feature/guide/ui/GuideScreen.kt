@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
@@ -70,9 +71,13 @@ import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.R
+import tv.stationbreak.feature.guide.ShownHoldings
 import tv.stationbreak.feature.guide.indexOf
 import tv.stationbreak.feature.guide.isAwayFrom
 import kotlin.math.abs
+
+/** No holdings: for a guide with no lineup to read them from. */
+private val NoHoldings: StateFlow<ShownHoldings?> = MutableStateFlow(null)
 
 // The guide's layout in dp (the guide UX notes, on a 960 x 540 dp screen with a 5% safe area).
 internal val ChannelColumnWidth = 84.dp
@@ -165,6 +170,7 @@ internal fun GuideScreen(
     modifier: Modifier = Modifier,
     syncNow: SyncNowState = SyncNowState.Idle,
     levelling: Boolean = true,
+    holdings: StateFlow<ShownHoldings?> = NoHoldings,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
@@ -212,7 +218,7 @@ internal fun GuideScreen(
                 // The menu row takes the foot of that band, so the grid and the picture stay where they are.
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 val kind = guidePanelOf(settings != null, noLibraries, onChannel)
-                val parts = TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling)
+                val parts = TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, holdings)
                 TopPanel(kind, parts, panelSize)
                 GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))

@@ -12,11 +12,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -25,6 +28,8 @@ import tv.stationbreak.core.domain.SyncNow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.LogoCache
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.lineup.ChannelHoldings
+import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.PlayingAiring
@@ -83,6 +88,8 @@ internal class GuideViewModel
         private val sync: SyncNow = SyncNow.None,
         /** The details panel's logos (#723): decoded, or null for none. */
         private val logos: GuideLogos = GuideLogos.None,
+        /** What a channel holds (#757), read for the channel box once focus has rested on a channel. */
+        private val holdings: ChannelHoldingsReader = ChannelHoldingsReader.None,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -94,6 +101,7 @@ internal class GuideViewModel
             choices: LibrarySelectionView,
             syncNow: SyncNow,
             logos: LogoCache,
+            holdings: ChannelHoldingsReader,
         ) : this(
             schedule,
             details,
@@ -105,10 +113,12 @@ internal class GuideViewModel
             choices.selection,
             syncNow,
             CachedGuideLogos(logos),
+            holdings,
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
+        private val shownHoldings = MutableStateFlow<ShownHoldings?>(null)
         private val eventChannel = Channel<GuideEvent>(Channel.BUFFERED)
 
         /** The grid and its focus, always consistent with each other. */
@@ -119,6 +129,12 @@ internal class GuideViewModel
          * comes with them at once when the logo is held decoded too, else whenever it arrives while the focus stays.
          */
         val panel: StateFlow<CellDetails?> = shownPanel.asStateFlow()
+
+        /**
+         * What the channel the focus rests on holds, once it has rested [DWELL_MS] on the channel column: null before
+         * then, off the column, and for a channel that is off or has nothing today. Never another channel's.
+         */
+        internal val channelHoldings: StateFlow<ShownHoldings?> = shownHoldings.asStateFlow()
 
         /** Where Sync now stands, for the line beside the Settings panel's row (spec 26, Part 5). */
         val syncNowState: StateFlow<SyncNowState> = sync.state
@@ -186,7 +202,35 @@ internal class GuideViewModel
             startLoad(s)
             startWatch(s)
             s.launch { followSelection(s) }
+            s.launch { followHoldings() }
         }
+
+        // The channel the focus is on while it is on the channel column; its holdings are read after a rest on it. A
+        // move to another channel or off the column drops them at once, and ends a read still out.
+        private suspend fun followHoldings() {
+            shownSnapshot
+                .map { snap -> snap.focus?.channel?.takeIf { snap.onChannel && snap.menu == null } }
+                .distinctUntilChanged()
+                .collectLatest { channel ->
+                    shownHoldings.value = null
+                    if (channel != null) {
+                        delay(DWELL_MS.milliseconds)
+                        val read = readHoldings(channel)
+                        currentCoroutineContext().ensureActive()
+                        shownHoldings.value = read?.let { ShownHoldings(channel, it) }
+                    }
+                }
+        }
+
+        private suspend fun readHoldings(channel: ChannelId): ChannelHoldings? =
+            try {
+                holdings.read(channel, clock.now())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Nothing held, whatever went wrong: the box shows the channel as it did.
+                null
+            }
 
         // No libraries: the grid is not shown, so the focus goes to the menu row, on Settings. It stays on the menu
         // row (Down does nothing) until a library is chosen again.
@@ -646,6 +690,7 @@ internal class GuideViewModel
                 // Dropped: a Tune from this session must not fire in the next.
             }
             shownPanel.value = null
+            shownHoldings.value = null
             shownSnapshot.value = GuideSnapshot.Closed
         }
 

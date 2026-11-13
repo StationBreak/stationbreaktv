@@ -28,6 +28,11 @@ object GuideTags {
     /** The details panel's channel variant, while the focus is on the channel column (#631), and its name line. */
     const val CHANNEL_PANEL = "guide:channelPanel"
     const val CHANNEL_PANEL_NAME = "guide:channelPanel:name"
+
+    /** The channel box's holdings (#757): the hours line, the label of the list ("Home to:" or "Mostly:") and the list. */
+    const val CHANNEL_PANEL_HOURS = "guide:channelPanel:hours"
+    const val CHANNEL_PANEL_LIST_LABEL = "guide:channelPanel:listLabel"
+    const val CHANNEL_PANEL_LIST = "guide:channelPanel:list"
     const val NOW_LINE = "guide:nowLine"
     const val HINT = "guide:hint"
     const val LOADING = "guide:loading"
