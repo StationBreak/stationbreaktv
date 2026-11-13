@@ -21,4 +21,21 @@
     <string name="program_details_loading">Loading details</string>
     <!-- The overlay's last line: it holds no focus, so this is how the viewer learns to close it. -->
     <string name="program_back_to_close">Back to close</string>
+
+    <!-- What a channel holds (#757): the box beside the guide's channel and the properties sheet's "What it holds". -->
+    <plurals name="holdings_hours">
+        <item quantity="one">%1$d hour of programmes</item>
+        <item quantity="other">%1$d hours of programmes</item>
+    </plurals>
+    <string name="holdings_days">about %1$d days</string>
+    <plurals name="holdings_titles">
+        <item quantity="one">%1$d title</item>
+        <item quantity="other">%1$d titles</item>
+    </plurals>
+    <!-- The hours line: the hours, then (from two days up) the days in brackets, then the titles. -->
+    <string name="holdings_line">%1$s · %2$s</string>
+    <string name="holdings_line_days">%1$s (%2$s) · %3$s</string>
+    <string name="holdings_home_to">Home to:</string>
+    <string name="holdings_mostly">Mostly:</string>
+    <string name="holdings_more">+ %1$d more</string>
 </resources>
