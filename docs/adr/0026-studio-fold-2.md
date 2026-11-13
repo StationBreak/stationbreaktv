@@ -1,6 +1,6 @@
 # ADR-0026: Studio fold 2 (closing look-alike gaps in studio matching)
 
-**Status:** Proposed. Owner decisions recorded; revised 2026-11-13 after security review rounds 1 and 2; awaiting
+**Status:** Proposed. Owner decisions recorded; revised 2026-11-13 after security review rounds 1-3; awaiting
 security re-review. Nothing is implemented yet.
 
 **Date:** 2026-11-12 (revised 2026-11-13)
@@ -188,6 +188,8 @@ it is. Every current call site of `cleanStudioName`, and of the fold-1 keys buil
 | `CatalogPicker.studios` | the spelling shown for a stored studio | fold 1 (display only) |
 | `DraftReader.spelled` and `DraftReader.withStudioNames` (builder), `BuiltInChannelProperties` (channel properties), both through the `StudioNames` lookup (`CatalogPicker.studios`) | the spelling shown for a studio source or exclusion the rules hold | fold 1 (display only). A format-4 exclusion whose name has no fold-1 twin in the library shows its stored spelling; what it matches is unchanged |
 | `ChannelRules.requiredVersion` (`core/rules`, `ChannelRules.kt`) and `ChannelRules.normalised` | the lowest version a file's features need, which every save writes | 3 for a studio source, studio exclusion or `studios` filter until the gate has passed, then 4 (see Versioning) |
+| `DraftRules.toRules` (builder, `DraftRules.kt`) | the rules a builder save writes, tried at version 3, then 2, then 1 | must branch on "requires 3 or more", not "requires exactly 3" (today `v3.requiredVersion == FORMAT_3`), or a studio channel that requires 4 falls to the version-2 path and drops carried version-3 data such as a `curated` order; it keeps the higher of the previous `formatVersion` and the required one (see Versioning) |
+| `RecipeResolver` (`RecipeResolver.kt`, `fitted.copy(formatVersion = fitted.requiredVersion)`) | the version a resolved starter is written at | follows `requiredVersion`: 4 for a starter with a studio source or exclusion once the gate has passed, 3 before |
 | Rules read and import: `RulesReader.read` through `LineupCodec` (a channel's rules and its previous rules), and any import or restore of a rules file | where a stored, imported or restored file enters the app | a `formatVersion` 3 file with a studio feature is written back as 4 once the gate has passed (see Versioning) |
 | `GroupCollections.isBoxSet` | box-set detection (`docs/rules-format.md`, the name ends in U+0020 `collection`) | fold 1. It needs the space; a change changes which collections group and would need its own version |
 
@@ -235,6 +237,13 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
     imported from an older TV or from another household, and a file an older TV that missed the gate saves as 3 after
     the rewrite (that TV reads it under fold 1 until a newer app next reads it, which is the existing behaviour of an
     old app). `ChannelRules.requiredVersion` returns 4 for those features, so `normalised` and every save write 4.
+    The invariant holds on a TV that has passed the gate as much as on one that missed it: no save on any TV that reads
+    4 writes a studio file below 4.
+  - **Never lower a file that says 4.** The release that reads 4 ships before the gate, while `requiredVersion` still
+    returns 3 for studio features. It must not write a file that says 4 back as 3: `ChannelRules.normalised` and
+    `DraftRules.toRules` keep the higher of the previous `formatVersion` and `requiredVersion` when the file holds a
+    `studio` source, a `studio` exclusion or a `studios` filter. (Today `DraftRules.toRules` tries version 3 by a fixed
+    `FORMAT_3` and `normalised` sets the version to `requiredVersion`, which can lower it; both change in that release.)
   - The upgrade is idempotent: a file already at 4 is left alone, so two TVs doing it at once write the same file.
     A file that says 1 or 2 is never upgraded: a studio source there is an unknown kind, and upgrading it would make an
     unsupported channel supported.
@@ -266,7 +275,11 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
 `docs/rules-format/vectors/upgrade-v4.json`, shared by all ports: a `formatVersion` 3 file with a studio source, one
 with a studio exclusion and one with a `studios` filter, each read or imported after the gate, come out as
 `formatVersion` 4 with nothing else changed; the same file read twice is written once; a `formatVersion` 3 file
-without those features and a `formatVersion` 1 or 2 file come out unchanged.
+without those features and a `formatVersion` 1 or 2 file come out unchanged; a `formatVersion` 4 file edited and
+saved by the release that reads 4 (before the gate) stays 4.
+
+A builder test in each port: a `formatVersion` 4 file with a studio source and a `curated` order, opened and saved,
+keeps both and stays at 4.
 
 `docs/rules-format/vectors/kid-hold-4.json`, shared by all ports: titles whose studio is a `KID_STUDIOS` entry spelled
 with each kind of look-alike above, made for kids under `kid-hold-4` and not under `kid-hold-3`, and moved off a
@@ -315,5 +328,9 @@ own version to close:
   U+1DFF, U+20D0 to U+20FF, U+FE20 to U+FE2F). A name using those letters can carry an invisible joiner.
 - **A trailing joiner after a non-Latin letter** is kept (`東映` U+200D does not match `東映`). Dropping it would need
   the pass to look ahead; it is invisible only at the end of a name, so it is left for a later version.
+- **A joiner between a non-Latin letter and a following Latin letter** is kept: `東映` U+200D `Animation` has the key
+  `東映` U+200D `animation`, and the exclusion `東映 Animation` has `東映animation`, so it does not match. Closing it
+  needs the pass to hold a joiner back until the next kept code point is known (buffered joiners); it is left for a
+  later version.
 - **Other code points that render as nothing in some fonts** but are not in R, such as U+16FE4 (Khitan small script
   filler), and code points that a later Unicode version makes default-ignorable.
