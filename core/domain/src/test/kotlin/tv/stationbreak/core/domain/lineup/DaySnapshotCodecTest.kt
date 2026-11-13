@@ -12,7 +12,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The days file of format 6 (spec 23): a curated day's weights go to disk and come back; the keeps never do. */
+/**
+ * The days file (spec 23, #757): a curated day's weights and its home set go to disk and come back; the keeps never
+ * do. A file of format 7, which had no home sets, is still read; any other format is a miss.
+ */
 class DaySnapshotCodecTest {
     private val days = LineupDays(TestCatalog)
     private val noon = NOON.toEpochMilliseconds()
@@ -106,7 +109,7 @@ class DaySnapshotCodecTest {
 
     @Test
     fun aVersionFiveFileMissesWithFormat() {
-        assertEquals(7, DaySnapshotCodec.VERSION)
+        assertEquals(8, DaySnapshotCodec.VERSION)
         val built = days.curatedDays(lineup, noon)
         assertTrue(runBlocking { persisted.save(ACCOUNT, key, built) })
         val (where, bytes) = store.only()
@@ -118,6 +121,88 @@ class DaySnapshotCodecTest {
         assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.Format), events.last())
         store.files[where] = bytes
         assertNotNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+    }
+
+    @Test
+    fun homeSetsRoundTripAndAnEmptySetIsNotAnUnknownOne() {
+        val built = inKeyOrder(days.curatedDays(lineup, noon))
+        assertTrue(built.any { it.homed?.isNotEmpty() == true } && built.any { it.homed == emptySet<Any>() })
+
+        val file = DaySnapshotCodec.encode(key, built)
+        val body = DaySnapshotCodec.body(file, DaySnapshotCodec.header(file) as DaySnapshotCodec.Header.Read, built.size)
+
+        assertEquals(built.map { it.homed }, body.map { it.homed })
+    }
+
+    @Test
+    fun aDayWithNoKnownHomesIsWrittenWithoutThemAndReadsBackUnknown() {
+        val built = inKeyOrder(days.curatedDays(lineup, noon))
+        val unknown = built.map { it.unbuiltCopy() }
+
+        val file = DaySnapshotCodec.encode(key, unknown)
+        val body = DaySnapshotCodec.body(file, DaySnapshotCodec.header(file) as DaySnapshotCodec.Header.Read, built.size)
+
+        assertTrue("\"homes\"" !in file.decodeToString())
+        assertTrue(body.all { it.homed == null })
+    }
+
+    // The same day with its home set not known: what a day read from a file of format 7 is.
+    private fun ChannelDay.unbuiltCopy(): ChannelDay =
+        days.restore(
+            scheduled.first {
+                it.channel.id == channel.id
+            },
+            pool,
+            films,
+            hidden,
+            weights,
+            null,
+        )
+
+    @Test
+    fun aHomeTwiceOrOfATitleTheDayDoesNotAirIsAFault() {
+        val built = inKeyOrder(days.curatedDays(lineup, noon))
+        val text = DaySnapshotCodec.encode(key, built).decodeToString()
+        val at = text.indexOf("\"homes\":[")
+        assertTrue(at > 0, "the homes are written as title rows")
+        val rows = text.substring(at + "\"homes\":[".length, text.indexOf(']', at))
+        val first = rows.split(',').first()
+
+        for (bad in listOf("$rows,$first", "-1", "99999")) {
+            val broken = text.replaceFirst("\"homes\":[$rows]", "\"homes\":[$bad]")
+            val file = withChecksum(broken)
+            val header = DaySnapshotCodec.header(file) as DaySnapshotCodec.Header.Read
+            assertFailsWith<Exception>(bad) { DaySnapshotCodec.body(file, header, built.size) }
+        }
+    }
+
+    // A file the version-7 code wrote (checked in): its days have weights but no home sets. It is read, under its own
+    // key, and its days come back with homes unknown; a file of any other format is not read.
+    @Test
+    fun aRealVersionSevenFileIsStillReadWithHomesUnknown() {
+        val file = checkNotNull(javaClass.getResourceAsStream("/days/days-v7.bin")).readBytes()
+        val text = file.decodeToString()
+        assertTrue(text.startsWith("{\"format\":7,"))
+        assertTrue("\"weights\"" in text && "\"homes\"" !in text)
+
+        store.files[ACCOUNT to PersistedDays.nameOf(key)] = file
+        val loaded = checkNotNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+
+        assertTrue(loaded.all { it.homed == null })
+        assertTrue(loaded.any { !it.weights.isEmpty })
+        assertEquals(DaySnapshotEvent.Hit::class, events.last()::class)
+    }
+
+    @Test
+    fun aNewerFormatFileMissesWithFormatAndIsNeverDecoded() {
+        val built = days.curatedDays(lineup, noon)
+        assertTrue(runBlocking { persisted.save(ACCOUNT, key, built) })
+        val (where, bytes) = store.only()
+        val newer = bytes.decodeToString().replaceFirst("\"format\":8", "\"format\":9")
+        store.files[where] = newer.encodeToByteArray()
+
+        assertNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+        assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.Format), events.last())
     }
 
     @Test

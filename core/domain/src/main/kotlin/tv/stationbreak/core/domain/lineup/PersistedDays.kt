@@ -9,6 +9,7 @@ import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.GrownUpHold
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.lineup.curation.Curation
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.schedule.FilmCollections
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -63,7 +64,8 @@ enum class DaySnapshotMiss {
  * gives it each cold build after.
  *
  * What is kept is the result of the day build, not its input: per channel, the day pool, the film-to-collection map
- * and why the day is empty ([DaySnapshotCodec]). The days are a pure function of the lineup, the library snapshots at
+ * why the day is empty and the titles the channel is home to ([DaySnapshotCodec]; a file of the previous format has no
+ * home sets and is read as it is, with them unknown). The days are a pure function of the lineup, the library snapshots at
  * their cut-offs and the code (ADR-0002), so a file is used only when its [DayKey] equals the key of the build it
  * replaces, and that key holds every one of them:
  * - [appBuild] is the guard for the code: it must change with every install of the app (the app gives its version code
@@ -151,7 +153,8 @@ class PersistedDays internal constructor(
         account: LibraryAccount,
         key: DayKey,
         scheduled: List<Scheduled>,
-        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?, TitleWeights) -> ChannelDay,
+        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?, TitleWeights, Set<CanonicalId>?) ->
+        ChannelDay,
     ): List<ChannelDay>? {
         if (!enabled) return null
         val began = TimeSource.Monotonic.markNow()
@@ -234,11 +237,14 @@ class PersistedDays internal constructor(
         file: ByteArray,
         key: DayKey,
         scheduled: List<Scheduled>,
-        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?, TitleWeights) -> ChannelDay,
+        restore: (Scheduled, List<ScheduleItem>, FilmCollections, HiddenReason?, TitleWeights, Set<CanonicalId>?) ->
+        ChannelDay,
     ): Read {
         // The body is read only for a header that matches: a file for other inputs costs one short line.
         val header = DaySnapshotCodec.header(file) as? DaySnapshotCodec.Header.Read
-        val moved = if (header == null) DaySnapshotMiss.Format else header.key.firstDifference(key)
+        // A file of the oldest format still read is compared under the current format number: its key is otherwise the
+        // same, and the header has already accepted its format.
+        val moved = if (header == null) DaySnapshotMiss.Format else header.key.copy(format = key.format).firstDifference(key)
         if (header == null || moved != null) return Read.Missed(moved ?: DaySnapshotMiss.Format)
         val body = DaySnapshotCodec.body(file, header, scheduled.size)
         // Each day is the one its channel expects, by ID: a file whose days are in another order is a miss.
@@ -247,7 +253,7 @@ class PersistedDays internal constructor(
             Read.Loaded(
                 scheduled.mapIndexed { i, s ->
                     val day = body[i]
-                    restore(s, day.pool, day.films, day.hidden, day.weights)
+                    restore(s, day.pool, day.films, day.hidden, day.weights, day.homed)
                 },
             )
         } else {

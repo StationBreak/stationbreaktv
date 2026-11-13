@@ -244,7 +244,7 @@ class DayCollectionsTest {
 
         val body = savedBody()
 
-        // The body's shape is the version 4 one: these keys and no others.
+        // The body's shape is the version 4 one (and the home sets): these keys and no others.
         assertEquals(setOf("series", "items", "days"), body.keys)
         body.getValue("days").jsonArray.forEach { assertTrue(it.jsonObject.keys.all { k -> k in V4_DAY_KEYS }) }
     }
@@ -343,6 +343,7 @@ class DayCollectionsTest {
     }
 
     private companion object {
-        val V4_DAY_KEYS = setOf("c", "bits", "rows", "hidden")
+        // The version 4 day, and the home set that format 8 adds: no films, no weights.
+        val V4_DAY_KEYS = setOf("c", "bits", "rows", "hidden", "homes")
     }
 }

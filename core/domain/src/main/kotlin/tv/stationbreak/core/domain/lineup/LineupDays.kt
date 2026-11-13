@@ -92,9 +92,11 @@ internal class ChannelDay private constructor(
     // The day's record laid over the build, and the composed day, worked out on first use.
     private val recorded: Recorded? = null,
     /**
-     * The titles whose home is this channel, as the build's curation placed them (null: not known, as for a day read
-     * back from disk, or a day that is not curated). Never kept on disk: only [ChannelHoldings] reads it, and it falls
-     * back to the weights without it.
+     * The titles (a show's ID, a film's ID) of the day pool whose home is this channel, as the build's curation placed
+     * them; kept on disk with the day ([DaySnapshotCodec], format 8). The empty set is a fact: the channel is home to
+     * none (a custom channel, the leftovers, a day with nothing to air). Null means unknown: the day was read back
+     * from a file of format 7 or older, or it is [unbuilt]. Only [ChannelHoldings] reads it, and for null it lists no
+     * homes at all rather than guess them from the weights, which cannot tell a home from a guest anchor.
      */
     val homed: Set<CanonicalId>? = null,
 ) {
@@ -968,7 +970,8 @@ internal class LineupDays(
      * The day of [s] as a day kept on disk ([PersistedDays]) is made back into: [pool] is the day pool as it was kept
      * (already windowed, so it is made with [TitleKeeps.NONE]: the window is never applied twice), [films] is its
      * film-to-collection map, [hidden] its empty reason and [weights] its curated weights. Everything else of the day
-     * comes from [s] and the catalog.
+     * comes from [s] and the catalog. [homed] is the day's home set as the file kept it: null from a file of an older
+     * format, which did not keep it ([ChannelDay.homed]).
      */
     fun restore(
         s: Scheduled,
@@ -976,7 +979,8 @@ internal class LineupDays(
         films: FilmCollections,
         hidden: HiddenReason?,
         weights: TitleWeights = TitleWeights.NONE,
-    ): ChannelDay = dayOf(s, pool, films, hidden, TitleKeeps.NONE, weights)
+        homed: Set<CanonicalId>? = null,
+    ): ChannelDay = dayOf(s, pool, films, hidden, TitleKeeps.NONE, weights, homed)
 
     // The day of [s] from the pool of its epoch: the day pool is that with the window of [keeps] applied, once.
     @Suppress("LongParameterList") // The day's facts, one for one.
@@ -987,7 +991,7 @@ internal class LineupDays(
         hidden: HiddenReason?,
         keeps: TitleKeeps,
         weights: TitleWeights,
-        homed: Set<CanonicalId>? = null,
+        homed: Set<CanonicalId>?,
     ): ChannelDay {
         val ceilingRank = RatingLadder.rankOf(ceilings.of(s.channel))
         val name = s.channel.displayName(catalog)
@@ -1214,7 +1218,7 @@ internal class LineupDays(
         // A repaired day whose cut-off is not read: no build, and it claims nothing (no leftovers day is built then).
         private fun unbuiltDay(s: Scheduled): ChannelDay {
             epochPools[s] = emptyList()
-            return dayOf(s, emptyList(), NO_FILMS, null, TitleKeeps.NONE, NO_WEIGHTS).unbuilt()
+            return dayOf(s, emptyList(), NO_FILMS, null, TitleKeeps.NONE, NO_WEIGHTS, null).unbuilt()
         }
 
         fun days(
@@ -1383,7 +1387,7 @@ internal class LineupDays(
                 }
             epochPools[s] = ruled.day
             val hidden = hiddenReason(ruled.pool, ruled.day, notChosen(rules))
-            return dayOf(s, ruled.day, ruled.films, hidden, TitleKeeps.NONE, NO_WEIGHTS)
+            return dayOf(s, ruled.day, ruled.films, hidden, TitleKeeps.NONE, NO_WEIGHTS, emptySet())
         }
 
         /**
@@ -1405,16 +1409,19 @@ internal class LineupDays(
             val epoch: List<ScheduleItem>
             val keeps: TitleKeeps
             val weights: TitleWeights
-            var homed: Set<CanonicalId>? = null
+            val homed: Set<CanonicalId>
             if (own != null) {
                 epoch = EpochPool.build(s.settings, own.items, s.n)
                 keeps = own.keeps
                 weights = own.weights
-                homed = homedHere(own.items, day.homes, s.channel.id)
+                // Of the titles the epoch pool holds (and so the day: the window keeps every title), as the file checks.
+                homed = homedHere(epoch, day.homes, s.channel.id)
             } else {
                 epoch = EpochPool.build(s.settings, withoutHomes(pool.items, day.homes), s.n)
                 keeps = TitleKeeps.NONE
                 weights = newOnWeights(epoch)
+                // As if it homed them all: the titles no channel of the basis homes are this channel's.
+                homed = epoch.mapTo(HashSet()) { it.groupId }
             }
             // What the leftovers and the airing-nowhere count read: the epoch pool, before the window (H3).
             epochPools[s] = epoch
@@ -1424,7 +1431,7 @@ internal class LineupDays(
             return dayOf(s, epoch, films, hidden, keeps, weights, homed)
         }
 
-        // The titles of [items] the curation gave their home to [channel]: a guest spot is not a home.
+        // The titles of [items] the curation gave their home to [channel]; a guest spot is not a home.
         private fun homedHere(
             items: List<ScheduleItem>,
             homes: Homes?,
@@ -1439,7 +1446,7 @@ internal class LineupDays(
         private fun startingDay(s: Scheduled): ChannelDay {
             epochPools[s] = emptyList()
             // TODO(design partner): a reason of its own ("Starts at 6 AM") for a channel that starts at the boundary.
-            return dayOf(s, emptyList(), NO_FILMS, HiddenReason.EmptyToday, TitleKeeps.NONE, NO_WEIGHTS)
+            return dayOf(s, emptyList(), NO_FILMS, HiddenReason.EmptyToday, TitleKeeps.NONE, NO_WEIGHTS, emptySet())
         }
 
         // An unedited starter whose sources are all household collections, on a day the flag is off: nothing to air.
@@ -1451,7 +1458,7 @@ internal class LineupDays(
             // Without a full collection pass the names are not known yet, so the emptiness may be only that.
             val synced = snapshot.collectionsSynced
             val reason = if (synced) HiddenReason.HouseholdCollectionsOff else HiddenReason.CollectionsNotSynced
-            return dayOf(s, emptyList(), NO_FILMS, reason, TitleKeeps.NONE, NO_WEIGHTS)
+            return dayOf(s, emptyList(), NO_FILMS, reason, TitleKeeps.NONE, NO_WEIGHTS, emptySet())
         }
 
         private fun leftoversDay(
@@ -1480,7 +1487,7 @@ internal class LineupDays(
             val day = EpochPool.build(s.settings, pool.items, s.n)
             epochPools[s] = day
             // A leftovers channel is never curated: no keeps, no weights.
-            return dayOf(s, day, NO_FILMS, hiddenReason(pool, day), TitleKeeps.NONE, NO_WEIGHTS)
+            return dayOf(s, day, NO_FILMS, hiddenReason(pool, day), TitleKeeps.NONE, NO_WEIGHTS, emptySet())
         }
 
         // The curated days' cache: one curation per cut and [DayCuration], however many channels read it.
