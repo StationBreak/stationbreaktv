@@ -91,6 +91,12 @@ internal class ChannelDay private constructor(
     val built: Boolean = true,
     // The day's record laid over the build, and the composed day, worked out on first use.
     private val recorded: Recorded? = null,
+    /**
+     * The titles whose home is this channel, as the build's curation placed them (null: not known, as for a day read
+     * back from disk, or a day that is not curated). Never kept on disk: only [ChannelHoldings] reads it, and it falls
+     * back to the weights without it.
+     */
+    val homed: Set<CanonicalId>? = null,
 ) {
     companion object {
         /**
@@ -112,12 +118,25 @@ internal class ChannelDay private constructor(
             keeps: TitleKeeps,
             weights: TitleWeights = TitleWeights.NONE,
             laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
+            homed: Set<CanonicalId>? = null,
         ): ChannelDay {
             val dayPool = EpochPool.dayPool(pool, n, keeps)
             // The weights of the titles the windowed day holds only: what the days file is checked against on read.
             val dayWeights = weightsIn(weights, dayPool)
             val layout = layoutOf(settings, dayPool, n, films, dayWeights, laidOut)
-            return ChannelDay(channel, name, settings, n, dayPool, films, dayWeights, hidden, ceilingRank, layout)
+            return ChannelDay(
+                channel,
+                name,
+                settings,
+                n,
+                dayPool,
+                films,
+                dayWeights,
+                hidden,
+                ceilingRank,
+                layout,
+                homed = homed,
+            )
         }
     }
 
@@ -184,7 +203,21 @@ internal class ChannelDay private constructor(
         channel: LineupChannel,
         name: String,
         recorded: Recorded?,
-    ) = ChannelDay(channel, name, settings, n, pool, films, weights, hidden, ceilingRank, layout, built, recorded)
+    ) = ChannelDay(
+        channel,
+        name,
+        settings,
+        n,
+        pool,
+        films,
+        weights,
+        hidden,
+        ceilingRank,
+        layout,
+        built,
+        recorded,
+        homed,
+    )
 
     /** This day with [next] laid over its build instead of its record; this very day when the record is the same. */
     fun withRecord(next: DayRecord?): ChannelDay {
@@ -954,6 +987,7 @@ internal class LineupDays(
         hidden: HiddenReason?,
         keeps: TitleKeeps,
         weights: TitleWeights,
+        homed: Set<CanonicalId>? = null,
     ): ChannelDay {
         val ceilingRank = RatingLadder.rankOf(ceilings.of(s.channel))
         val name = s.channel.displayName(catalog)
@@ -969,6 +1003,7 @@ internal class LineupDays(
             keeps,
             weights,
             laidOut,
+            homed,
         )
     }
 
@@ -1370,10 +1405,12 @@ internal class LineupDays(
             val epoch: List<ScheduleItem>
             val keeps: TitleKeeps
             val weights: TitleWeights
+            var homed: Set<CanonicalId>? = null
             if (own != null) {
                 epoch = EpochPool.build(s.settings, own.items, s.n)
                 keeps = own.keeps
                 weights = own.weights
+                homed = homedHere(own.items, day.homes, s.channel.id)
             } else {
                 epoch = EpochPool.build(s.settings, withoutHomes(pool.items, day.homes), s.n)
                 keeps = TitleKeeps.NONE
@@ -1383,7 +1420,19 @@ internal class LineupDays(
             epochPools[s] = epoch
             val films = GroupCollections.of(ruled, snapshot, epoch)
             // The window keeps at least one episode of each series, so emptiness (and its reason) is unchanged by it.
-            return dayOf(s, epoch, films, hiddenReason(pool, epoch, notChosen(rules)), keeps, weights)
+            val hidden = hiddenReason(pool, epoch, notChosen(rules))
+            return dayOf(s, epoch, films, hidden, keeps, weights, homed)
+        }
+
+        // The titles of [items] the curation gave their home to [channel]: a guest spot is not a home.
+        private fun homedHere(
+            items: List<ScheduleItem>,
+            homes: Homes?,
+            channel: ChannelId,
+        ): Set<CanonicalId> {
+            val out = HashSet<CanonicalId>()
+            for (item in items) if (homes?.homeOf(item.groupId) == channel) out.add(item.groupId)
+            return out
         }
 
         // A starter switched on for a later boundary: nothing airs before it starts, and it claims nothing.

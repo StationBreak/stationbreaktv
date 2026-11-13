@@ -24,6 +24,8 @@ import kotlin.time.Instant
  * the summary the Channels screen shows (so the two agree), the hidden reason from [schedule], and the words for its
  * sources from [labels] and [studioNames] (the lookups the builder's open uses, through the same [DraftReader]).
  *
+ * What the channel holds comes from [holdings], the same reader the guide's channel box uses.
+ *
  * It takes no lineup lock and writes nothing. A lookup that fails costs the words (a source shows its key), as in the
  * builder, and an unreadable schedule costs the hidden reason; neither fails the read.
  */
@@ -33,6 +35,7 @@ class BuiltInChannelProperties(
     private val schedule: ScheduleSource,
     labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
     studioNames: StudioNames,
+    private val holdings: ChannelHoldingsReader = ChannelHoldingsReader.None,
 ) : ChannelPropertiesReader {
     private val reader = DraftReader(labels, studioNames)
 
@@ -65,6 +68,7 @@ class BuiltInChannelProperties(
     ): ChannelProperties {
         val rules = channel.rules()
         val description = rules?.let { describe(account, it, channel) }
+        val hidden = hiddenAt(channel.id, at)
         return ChannelProperties(
             summary = summary,
             personality = starterRecipe(channel)?.personality,
@@ -77,7 +81,8 @@ class BuiltInChannelProperties(
                     .map { it.shown() },
             timing = rules?.let(::timingOf),
             leftoversCeiling = leftoversCeiling(channel),
-            hidden = hiddenAt(channel.id, at),
+            hidden = hidden,
+            holdings = if (hidden == null) holdings.readOrNull(channel.id, at) else null,
         )
     }
 
@@ -151,3 +156,16 @@ class BuiltInChannelProperties(
             is ChannelSource.Unusable -> null
         }
 }
+
+// A read that fails costs the holdings, not the properties.
+private suspend fun ChannelHoldingsReader.readOrNull(
+    id: ChannelId,
+    at: Instant,
+): ChannelHoldings? =
+    try {
+        read(id, at)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
