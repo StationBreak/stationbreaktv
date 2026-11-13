@@ -241,8 +241,8 @@ class FirstSyncNavigationTest {
     }
 
     /**
-     * Back walks in one step at a time (#475, #756): from live TV it opens the guide, focused on the playing channel;
-     * from there it opens the menu sheet on Channels; the sheet's Exit row leaves the app (Back in it only closes it).
+     * Back walks out one step at a time (#475): from live TV it opens the guide, focused on the playing channel; from
+     * there it opens the menu sheet on Channels (#756); from the sheet Back opened it leaves the app.
      */
     private fun assertBackOpensTheGuideThenLeavesTheApp() {
         compose.awaitWindowFocus()
@@ -255,27 +255,7 @@ class FirstSyncNavigationTest {
             runCatching { compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected() }.isSuccess
         }
         assertFalse("the second Back only opens the menu sheet", compose.activity.isFinishing)
-        assertExitRowLeavesTheApp()
-    }
-
-    /**
-     * Exit is the sheet's last row: Down twice from Channels, and Select leaves the app, as Back from the guide did
-     * before the menu moved behind the Menu button (#756).
-     */
-    private fun assertExitRowLeavesTheApp() {
-        // The activity goes away, so nothing below may touch the compose rule again once Select is sent.
-        val activity = compose.activity
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.waitUntil(TIMEOUT_MS) {
-            runCatching { compose.onNodeWithTag(GuideTags.EXIT_BUTTON).assertIsSelected() }.isSuccess
-        }
-        assertFalse("reaching Exit did not leave", activity.isFinishing)
-        compose.awaitWindowFocus()
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
-        val deadline = System.currentTimeMillis() + TIMEOUT_MS
-        while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
-        assertTrue("Select on Exit should leave the app", activity.isFinishing)
+        assertBackLeavesTheApp()
     }
 
     private fun assertBackLeavesTheApp() {

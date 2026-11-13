@@ -486,7 +486,7 @@ class GuideScreenTest {
     }
 
     @Test
-    fun backAwayFromThePlayingCellReturnsToItAndTheNextBackOpensTheMenuSheet() {
+    fun backAwayFromThePlayingCellReturnsToItAndThenOpensTheMenuSheetAndTheNextBackExits() {
         showReady(CH7)
         cell(CH7, 60).assertIsSelected()
         // Away: down two rows and right, the grid scrolled to the right.
@@ -500,19 +500,17 @@ class GuideScreenTest {
         assertEquals("Test Movie 102", text(GuideTags.PANEL_TITLE))
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back To the menu"))
         assertEquals(0, exits)
-        // On the playing cell: the next Back opens the menu sheet, whose Back closes it (Exit leaves live TV).
+        // On the playing cell: the next Back opens the menu sheet, whose Back leaves live TV.
         back()
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
-        assertEquals("Back Close the menu", text(GuideTags.HINT))
+        assertEquals("Back Exit live TV", text(GuideTags.HINT))
         assertEquals(0, exits)
         back()
-        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
-        cell(CH7, 60).assertIsSelected()
-        assertEquals(0, exits)
+        assertEquals(1, exits)
     }
 
     @Test
-    fun upOnTheFirstChannelWrapsToTheLastAndBackWalksOutToTheSheet() {
+    fun upOnTheFirstChannelWrapsToTheLastAndBackWalksOut() {
         showReady(CH5)
         compose.awaitWindowFocus()
         cell(CH5, 60).assertIsSelected()
@@ -525,28 +523,24 @@ class GuideScreenTest {
         compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
         press(Key.DirectionDown)
         cell(ch3, 0).assertIsSelected()
-        // Back goes to the playing channel, then opens the menu sheet, then closes it.
+        // Back goes to the playing channel, then opens the menu sheet, then leaves.
         back()
         cell(CH5, 60).assertIsSelected()
         back()
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertEquals(0, exits)
         back()
-        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
-        cell(CH5, 60).assertIsSelected()
-        assertEquals(0, exits)
+        assertEquals(1, exits)
     }
 
     @Test
-    fun backOnTheOpeningCellOpensTheMenuSheetAndTheNextClosesIt() {
+    fun backOnTheOpeningCellOpensTheMenuSheetAndTheNextExits() {
         showReady(CH5)
         back()
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertEquals(0, exits)
         back()
-        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
-        cell(CH5, 60).assertIsSelected()
-        assertEquals(0, exits)
+        assertEquals(1, exits)
     }
 
     @Test
@@ -559,8 +553,7 @@ class GuideScreenTest {
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertEquals(0, exits)
         back()
-        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
-        assertEquals(0, exits)
+        assertEquals(1, exits)
     }
 
     /** How many pixels in the middle half of [tag]'s cell are within a small distance of [color]. */

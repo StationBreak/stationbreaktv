@@ -244,11 +244,11 @@ class GuideMenuUiTest {
         sheet().assertExists()
         awaitOnChannels()
         cell(60).assertIsNotSelected()
-        // The guide has its keys back: Back closes the sheet and returns to the cell.
+        // The guide has its keys back: the sheet Back opened is left by Back again, as the menu row was.
         compose.awaitWindowFocus()
+        assertEquals(0, exits)
         back()
-        sheet().assertDoesNotExist()
-        cell(60).assertIsSelected()
+        assertEquals(1, exits)
         assertEquals(emptyList<ChannelId>(), tuned.toList())
     }
 
@@ -264,7 +264,7 @@ class GuideMenuUiTest {
     }
 
     @Test
-    fun aBackThatClosesTheSlotIsNotTheGuidesAndTheNextClosesTheSheet() {
+    fun aBackThatClosesTheSlotIsNotTheGuidesAndTheNextLeaves() {
         showReady()
         finishOnBack = true
         openTheSlot()
@@ -273,11 +273,9 @@ class GuideMenuUiTest {
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
         awaitOnChannels()
         assertEquals(0, exits)
-        // Back in the sheet closes it; it does not leave live TV.
+        // Back in the sheet Back opened leaves live TV, as Back from the menu row did.
         back()
-        sheet().assertDoesNotExist()
-        cell(60).assertIsSelected()
-        assertEquals(0, exits)
+        assertEquals(1, exits)
     }
 
     @Test
@@ -298,16 +296,65 @@ class GuideMenuUiTest {
     }
 
     @Test
-    fun backFromExitClosesTheSheetAndReturnsToThePlayingCell() {
+    fun backFromAnyRowOfABackOpenedSheetLeavesLiveTv() {
         showReady()
         back()
         press(Key.DirectionDown)
         press(Key.DirectionDown)
         exit().assertIsSelected()
+        assertEquals(0, exits)
+        back()
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun backFromThePlayingCellOpensTheSheetAndBackAgainLeaves() {
+        showReady()
+        cell(60).assertIsSelected()
+        assertTrue(hint(), hint().contains("Back To the menu"))
+        back()
+        awaitOnChannels()
+        assertEquals("Back Exit live TV", hint())
+        assertEquals(0, exits)
+        back()
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun backFromAnotherCellGoesToThePlayingCellThenOpensTheSheetThenLeaves() {
+        showReady()
+        press(Key.DirectionRight)
+        cell(120).assertIsSelected()
+        back()
+        cell(60).assertIsSelected()
+        sheet().assertDoesNotExist()
+        back()
+        awaitOnChannels()
+        assertEquals(0, exits)
+        back()
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun theMenuKeyClosesASheetBackOpenedAndASheetItReopensIsClosedByBack() {
+        showReady()
+        back()
+        awaitOnChannels()
+        press(Key.Menu)
+        sheet().assertDoesNotExist()
+        cell(60).assertIsSelected()
+        press(Key.Menu)
+        awaitOnChannels()
+        assertEquals("Back Close the menu", hint())
         back()
         sheet().assertDoesNotExist()
         cell(60).assertIsSelected()
         assertEquals(0, exits)
+        // And Back from the playing cell is the way out again.
+        back()
+        awaitOnChannels()
+        back()
+        assertEquals(1, exits)
     }
 
     @Test

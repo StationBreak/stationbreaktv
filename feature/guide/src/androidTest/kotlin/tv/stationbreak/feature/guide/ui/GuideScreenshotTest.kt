@@ -460,8 +460,8 @@ class GuideScreenshotTest {
         compose.onNodeWithTag(GuideTags.MENU_SHEET).assertIsDisplayed()
         shoot("$MENU_SHEET_FRAME$suffix.png")
 
-        // Back in the sheet closes it, and the focus is on the cell again.
-        back()
+        // The Menu key closes it (Back would leave live TV from a sheet Back opened); the focus is on the cell again.
+        press(Key.Menu)
         compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
         cell(CH7, 60).assertIsSelected()
 

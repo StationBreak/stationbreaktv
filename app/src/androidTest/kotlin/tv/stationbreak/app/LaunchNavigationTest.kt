@@ -264,8 +264,8 @@ class LaunchNavigationTest {
     }
 
     /**
-     * Back walks in one step at a time (#475, #756): from live TV it opens the guide, focused on the playing channel;
-     * from there it opens the menu sheet on Channels; the sheet's Exit row leaves the app (Back in it only closes it).
+     * Back walks out one step at a time (#475): from live TV it opens the guide, focused on the playing channel; from
+     * there it opens the menu sheet on Channels (#756); from the sheet Back opened it leaves the app.
      */
     private fun assertBackOpensTheGuideThenLeavesTheApp() {
         compose.awaitWindowFocus()
@@ -278,7 +278,7 @@ class LaunchNavigationTest {
             runCatching { compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected() }.isSuccess
         }
         assertFalse("the second Back only opens the menu sheet", compose.activity.isFinishing)
-        assertExitRowLeavesTheApp()
+        assertBackLeavesTheApp()
     }
 
     /**
@@ -299,6 +299,16 @@ class LaunchNavigationTest {
         val deadline = System.currentTimeMillis() + TIMEOUT_MS
         while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
         assertTrue("Select on Exit should leave the app", activity.isFinishing)
+    }
+
+    private fun assertBackLeavesTheApp() {
+        // The activity goes away, so nothing below may touch the compose rule again.
+        val activity = compose.activity
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
+        assertTrue("Back should leave the app", activity.isFinishing)
     }
 
     // Routes
@@ -345,8 +355,47 @@ class LaunchNavigationTest {
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertFalse("the Back that closed the screen did not leave", compose.activity.isFinishing)
 
-        // Back in the sheet only closes it, so the app is left through its Exit row. (The playing-cell step and the
-        // sheet's own keys are GuideMenuUiTest's.)
+        // Nothing is playing on an empty lineup, so there is no playing cell to go back to, and Back in the sheet Back
+        // opened leaves. (The playing-cell step is GuideMenuUiTest's.)
+        assertBackLeavesTheApp()
+    }
+
+    @Test
+    fun theMenuKeyOpensTheGuidesSheetAndBackClosesItWithoutLeaving() {
+        setUpEarlier()
+        launchApp()
+        awaitExists(LiveTags.NO_CHANNELS)
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.EMPTY)
+        assertEquals("no sheet before Menu", 0, count(GuideTags.MENU_SHEET))
+
+        press(KeyEvent.KEYCODE_MENU)
+        awaitExists(GuideTags.MENU_SHEET)
+        awaitSelected(GuideTags.CHANNELS_BUTTON)
+
+        // Back closes a sheet the Menu key opened; it does not leave.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { count(GuideTags.MENU_SHEET) == 0 }
+        assertFalse("Back in a Menu-opened sheet did not leave", compose.activity.isFinishing)
+        awaitExists(GuideTags.EMPTY)
+
+        // Back from the guide opens the sheet, and Back again leaves.
+        press(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.MENU_SHEET)
+        assertBackLeavesTheApp()
+    }
+
+    @Test
+    fun theSheetsExitRowLeavesTheApp() {
+        setUpEarlier()
+        launchApp()
+        awaitExists(LiveTags.NO_CHANNELS)
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        awaitExists(GuideTags.EMPTY)
+        press(KeyEvent.KEYCODE_MENU)
+        awaitSelected(GuideTags.CHANNELS_BUTTON)
         assertExitRowLeavesTheApp()
     }
 
@@ -427,12 +476,12 @@ class LaunchNavigationTest {
         awaitShown(ChannelsTags.GETTING_READY)
         assertEquals("the builder did not open", 0, count(ChannelsTags.BUILDER_SOURCES_STEP))
 
-        // Back leaves the Channels screen for the guide, the sheet on Channels; the app is left through Exit.
+        // Back leaves the Channels screen for the guide, the sheet still on Channels; the next Back leaves the app.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(ChannelsTags.TITLE) == 0 }
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertFalse("the Back did not leave the app", compose.activity.isFinishing)
-        assertExitRowLeavesTheApp()
+        assertBackLeavesTheApp()
     }
 
     @Test
