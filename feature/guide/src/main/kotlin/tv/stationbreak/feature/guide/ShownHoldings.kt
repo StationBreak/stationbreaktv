@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.model.ChannelId
 
@@ -13,4 +14,4 @@ internal class ShownHoldings(
 )
 
 /** No holdings: the one way to say so, for a guide with no lineup to read them from. */
-internal val NoHoldings: StateFlow<ShownHoldings?> = MutableStateFlow(null)
+internal val NoHoldings: StateFlow<ShownHoldings?> = MutableStateFlow<ShownHoldings?>(null).asStateFlow()

@@ -109,8 +109,20 @@ internal object DaySnapshotCodec {
      */
     const val VERSION = 8
 
-    /** The oldest format still read: its days are the same but for the home sets they do not hold. */
+    /**
+     * The oldest format still read: its days are the same but for the home sets they do not hold. Its body schema must
+     * be a strict subset of the current one (a reader of the current schema reads it unchanged), so a change that
+     * breaks that must also raise this number past it, and it is always the one before [VERSION].
+     *
+     * Note that the key's `app` part changes with every install or upgrade (see [PersistedDays]), so no file of another
+     * build is ever read, and this read matters only when the same install wrote a file of 7 (tests, or an upgrade
+     * that keeps the install time). It must not be relied on in the field.
+     */
     const val OLDEST_READ = 7
+
+    init {
+        check(OLDEST_READ == VERSION - 1) { "Only the previous format is read" }
+    }
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
     private const val MAX_HEADER = 256 * 1024

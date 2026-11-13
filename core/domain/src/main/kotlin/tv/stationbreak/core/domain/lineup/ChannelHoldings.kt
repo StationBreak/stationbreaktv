@@ -14,7 +14,7 @@ data class HeldTitle(
 )
 
 /** Which line lists a channel's titles: those that live there, or (a channel with none) those with the most hours. */
-enum class HoldingsList { HomeTo, Mostly }
+internal enum class HoldingsList { HomeTo, Mostly }
 
 /**
  * Which titles have their home on a channel. The two cases must not be confused: [Known] with a [Known.count] of zero
@@ -30,31 +30,43 @@ sealed interface HomeShows {
     data class Known(
         val count: Int,
         val titles: List<HeldTitle>,
-    ) : HomeShows
+    ) : HomeShows {
+        init {
+            require(count >= titles.size) { "The titles named are some of those that live here" }
+        }
+    }
 }
 
 /**
  * What a switched-on channel holds in its broadcast day, in the viewer's terms (#757); the channel box and the
  * properties sheet both read this one value and its derived figures, so they never disagree. Read-only.
  *
- * - [totalMs]: everything the channel airs today, home shows and guests alike.
+ * - [totalMs]: everything the channel airs in the day as it was built (the build's pool: a repair record laid over a
+ *   day later is not read), home shows and guests alike.
  * - [titleCount]: how many titles that is: a total of what it airs, like the hours, not a count of guests. A title is
  *   a show (all its episodes) or a film.
  * - [homes]: the titles whose home is this channel, anchors first, then by hours (most first), then by title ID; or
  *   [HomeShows.Unknown]. A guest is never listed as a home.
  * - [top]: up to [LISTED] titles holding the most hours whatever their status (on a guest-only channel, its guests),
  *   then by title ID.
- * - [validUntilMs]: when the broadcast day ends and this must be read again (the default: no end known).
+ * - [validUntilMs]: when the broadcast day ends and this must be read again ([Long.MAX_VALUE]: no end).
+ *
+ * [hours] and [days] are display policy, not data: hours to the nearest hour (at least one), days the whole days of
+ * those hours, shown from two up.
  */
 data class ChannelHoldings(
     val totalMs: Long,
     val titleCount: Int,
     val homes: HomeShows,
     val top: List<HeldTitle>,
-    val validUntilMs: Long = Long.MAX_VALUE,
+    val validUntilMs: Long,
 ) {
+    init {
+        require(totalMs >= 0 && titleCount >= 0) { "What a channel holds is not negative" }
+    }
+
     /** The line the titles go on; null when the homes are unknown and so no list is shown. */
-    val list: HoldingsList? get() =
+    internal val list: HoldingsList? get() =
         when (val shown = homes) {
             HomeShows.Unknown -> null
             is HomeShows.Known -> if (shown.count > 0) HoldingsList.HomeTo else HoldingsList.Mostly
@@ -64,7 +76,7 @@ data class ChannelHoldings(
     val homeTo: Boolean get() = list == HoldingsList.HomeTo
 
     /** The titles that line names (none for no list). */
-    val listed: List<HeldTitle> get() =
+    internal val listed: List<HeldTitle> get() =
         when (val shown = homes) {
             HomeShows.Unknown -> emptyList()
             is HomeShows.Known -> if (shown.count > 0) shown.titles else top
@@ -97,7 +109,7 @@ data class ChannelHoldings(
 
 /**
  * How features read what a channel holds. Read-only; none of it throws, but for cancellation. [read] is main-safe: it
- * does its work off the caller's thread.
+ * does its work off the caller's thread. What it gives describes the day as it was built, not a repaired one.
  */
 interface ChannelHoldingsReader {
     /**

@@ -188,6 +188,7 @@ internal class LegacyLineupDays(
                 hidden,
                 ceilingRank,
                 keeps,
+                emptySet(),
                 laidOut = laidOut,
             )
         }

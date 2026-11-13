@@ -6,19 +6,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
-import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.model.schedule.ScheduleItem
 import java.lang.ref.WeakReference
 import kotlin.time.Instant
 
 /**
  * The [ChannelHoldingsReader] built into the app: it reads the day [source] already holds for the channel (its pool,
  * its curated weights and the titles the curation homed on it), so no curation runs a second time. A channel's hours
- * are its day pool's, the figure the channel preview totals for a draft. The titles are named by [titleNames], the
- * lookup the properties sheet's source labels use. A holding is kept for the broadcast day: until the channel's day is
- * built again, or the account changes; a channel that leaves the lineup loses its entry, and an entry never keeps a
- * day's pool alive.
+ * are its day pool's, the figure the channel preview totals for a draft; it describes the day as it was built, not a
+ * repaired one. A holding is kept for the broadcast day: until the channel's day is built again (the entry is for that
+ * very day object), or the account changes; a channel that leaves the lineup loses its entry, and an entry never keeps
+ * a day alive. The titles are named by the library's `titleNames`, the lookup the sheet's source labels use.
  *
  * It does its work on [dispatcher], takes no lineup lock and writes nothing. A name lookup that fails costs the names:
  * the lists are left empty, and the counts stay.
@@ -26,22 +24,22 @@ import kotlin.time.Instant
 class BuiltInChannelHoldings(
     private val source: BuiltInScheduleSource,
     private val library: LibraryRepository,
-    private val titleNames: suspend (LibraryAccount, Set<CanonicalId>) -> Map<CanonicalId, String>,
     private val dispatcher: CoroutineDispatcher,
 ) : ChannelHoldingsReader {
     private class Kept(
         val account: LibraryAccount,
-        pool: List<ScheduleItem>,
-        val n: Long,
+        day: ChannelDay,
         val holdings: ChannelHoldings?,
     ) {
-        // Weak: a rolled-over or rebuilt day's pool is freed, and then the entry no longer matches any day.
-        private val pool = WeakReference(pool)
+        // The day itself, weakly: a rebuilt or rolled-over day is a new object, so a day that changed in any way (its
+        // pool, weights or home set) never gets the entry of the one it replaced, and a day that is gone is freed.
+        private val day = WeakReference(day)
+        private val n = day.n
 
         fun isOf(
             account: LibraryAccount,
             day: ChannelDay,
-        ): Boolean = this.account == account && pool.get() === day.pool && n == day.n
+        ): Boolean = this.account == account && this.day.get() === day && n == day.n
     }
 
     private val lock = Any()
@@ -71,10 +69,10 @@ class BuiltInChannelHoldings(
         val before = synchronized(lock) { kept[day.channel.id] }
         if (before != null && before.isOf(account, day)) return before.holdings
         val tally = HoldingsTally.of(day.pool, day.weights, day.homed)
-        val holdings = tally?.holdings(day.epochEndMs) { titleNames(account, it) }
+        val holdings = tally?.holdings(day.epochEndMs) { library.titleNames(account, it) }
         // A holding whose names could not be read is not kept: the next read asks again.
         val complete = holdings == null || holdings.top.isNotEmpty()
-        if (complete) synchronized(lock) { kept[day.channel.id] = Kept(account, day.pool, day.n, holdings) }
+        if (complete) synchronized(lock) { kept[day.channel.id] = Kept(account, day, holdings) }
         return holdings
     }
 }

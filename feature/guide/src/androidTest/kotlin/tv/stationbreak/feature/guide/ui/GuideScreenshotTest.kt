@@ -138,7 +138,8 @@ private val FRAME_HOMES =
             val id = CanonicalId.parse((i + 1).toString(16).padStart(32, '0'))
             HeldTitle(id, name, (60 - i * 5) * FRAME_HOUR_MS, i < 2)
         }
-private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, HomeShows.Known(37, FRAME_HOMES), emptyList())
+private val FRAME_KNOWN = HomeShows.Known(37, FRAME_HOMES)
+private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, FRAME_KNOWN, emptyList(), Long.MAX_VALUE)
 
 /** No lineup to watch: these shots never open channel management. */
 private object ScreenshotLineup : ChannelRepository {

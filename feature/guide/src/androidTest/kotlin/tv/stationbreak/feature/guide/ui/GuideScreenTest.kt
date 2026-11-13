@@ -1034,7 +1034,7 @@ class GuideScreenTest {
         titles: Int,
         homes: HomeShows,
         top: List<HeldTitle> = emptyList(),
-    ) = ShelfHoldings(mapOf(channel to ChannelHoldings(hours * 3_600_000L, titles, homes, top)))
+    ) = ShelfHoldings(mapOf(channel to ChannelHoldings(hours * 3_600_000L, titles, homes, top, Long.MAX_VALUE)))
 
     private fun fontSizeOf(tag: String): Float {
         val layouts = mutableListOf<TextLayoutResult>()
@@ -1073,7 +1073,7 @@ class GuideScreenTest {
     fun theChannelBoxShowsHoursTitlesAndTheShowsThatLiveThere() {
         val homes = listOf(title(1, anchor = true), title(2), title(3), title(4), title(5), title(6))
         holdings =
-            ShelfHoldings(mapOf(CH5 to ChannelHoldings(412 * 3_600_000L, 37, HomeShows.Known(37, homes), emptyList())))
+            shelf(CH5, 412, 37, HomeShows.Known(37, homes))
         showReady(CH5)
 
         press(Key.DirectionLeft)

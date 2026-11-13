@@ -95,10 +95,11 @@ internal class ChannelDay private constructor(
      * The titles (a show's ID, a film's ID) of the day pool whose home is this channel, as the build's curation placed
      * them; kept on disk with the day ([DaySnapshotCodec], format 8). The empty set is a fact: the channel is home to
      * none (a custom channel, the leftovers, a day with nothing to air). Null means unknown: the day was read back
-     * from a file of format 7 or older, or it is [unbuilt]. Only [ChannelHoldings] reads it, and for null it lists no
+     * from a file of format 7 or older, or it is [unbuilt] (a repaired day made from its record, with no build). Only
+     * [ChannelHoldings] reads it, and for null it lists no
      * homes at all rather than guess them from the weights, which cannot tell a home from a guest anchor.
      */
-    val homed: Set<CanonicalId>? = null,
+    val homed: Set<CanonicalId>?,
 ) {
     companion object {
         /**
@@ -118,13 +119,16 @@ internal class ChannelDay private constructor(
             hidden: HiddenReason?,
             ceilingRank: Int?,
             keeps: TitleKeeps,
+            homed: Set<CanonicalId>?,
             weights: TitleWeights = TitleWeights.NONE,
             laidOut: (n: Long, ms: Long) -> Unit = { _, _ -> },
-            homed: Set<CanonicalId>? = null,
         ): ChannelDay {
             val dayPool = EpochPool.dayPool(pool, n, keeps)
             // The weights of the titles the windowed day holds only: what the days file is checked against on read.
             val dayWeights = weightsIn(weights, dayPool)
+            // And the home set of the titles the day holds only, null staying null: a file never names a title the day
+            // does not air.
+            val dayHomed = homed?.let { homedIn(it, dayPool) }
             val layout = layoutOf(settings, dayPool, n, films, dayWeights, laidOut)
             return ChannelDay(
                 channel,
@@ -137,7 +141,7 @@ internal class ChannelDay private constructor(
                 hidden,
                 ceilingRank,
                 layout,
-                homed = homed,
+                homed = dayHomed,
             )
         }
     }
@@ -237,7 +241,21 @@ internal class ChannelDay private constructor(
     /** This day with nothing of a build: a repaired day made from its record, whose cut-off was not read. */
     fun unbuilt(): ChannelDay {
         val none = emptyList<ScheduleItem>()
-        return ChannelDay(channel, name, settings, n, none, NO_FILMS, NO_WEIGHTS, null, ceilingRank, layout, false)
+        val built = false
+        return ChannelDay(
+            channel,
+            name,
+            settings,
+            n,
+            none,
+            NO_FILMS,
+            NO_WEIGHTS,
+            null,
+            ceilingRank,
+            layout,
+            built,
+            homed = null,
+        )
     }
 }
 
@@ -979,8 +997,8 @@ internal class LineupDays(
         pool: List<ScheduleItem>,
         films: FilmCollections,
         hidden: HiddenReason?,
-        weights: TitleWeights = TitleWeights.NONE,
-        homed: Set<CanonicalId>? = null,
+        weights: TitleWeights,
+        homed: Set<CanonicalId>?,
     ): ChannelDay = dayOf(s, pool, films, hidden, TitleKeeps.NONE, weights, homed)
 
     // The day of [s] from the pool of its epoch: the day pool is that with the window of [keeps] applied, once.
@@ -1006,9 +1024,9 @@ internal class LineupDays(
             hidden,
             ceilingRank,
             keeps,
+            homed,
             weights,
             laidOut,
-            homed,
         )
     }
 
@@ -1737,6 +1755,17 @@ private fun weightsIn(
     val kept = HashMap<CanonicalId, Int>()
     for ((title, weight) in weights.entries) if (title in titles) kept[title] = weight
     return TitleWeights.of(kept)
+}
+
+// [homed] of the titles [pool] (the windowed day pool) holds only, as [weightsIn] does for the weights.
+private fun homedIn(
+    homed: Set<CanonicalId>,
+    pool: List<ScheduleItem>,
+): Set<CanonicalId> {
+    if (homed.isEmpty()) return homed
+    val titles = HashSet<CanonicalId>(pool.size * 2)
+    for (item in pool) titles.add(item.groupId)
+    return homed.filterTo(HashSet()) { it in titles }
 }
 
 // Weight 2 for every title of [pool]: a starter switched on after the basis was taken, as if it homed them all.

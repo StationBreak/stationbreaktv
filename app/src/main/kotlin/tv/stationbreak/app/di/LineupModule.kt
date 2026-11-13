@@ -262,7 +262,7 @@ internal object LineupModule {
     fun channelHoldings(
         source: BuiltInScheduleSource,
         library: LibraryRepository,
-    ): ChannelHoldingsReader = BuiltInChannelHoldings(source, library, library::titleNames, Dispatchers.Default)
+    ): ChannelHoldingsReader = BuiltInChannelHoldings(source, library, Dispatchers.Default)
 
     /**
      * The library snapshots the schedule source and the channel preview share (spec 22): a preview of a draft reads no

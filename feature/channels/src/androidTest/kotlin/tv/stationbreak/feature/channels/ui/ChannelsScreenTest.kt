@@ -189,6 +189,7 @@ private class SamplePropertiesReader(
                 titleCount = 37,
                 homes = HomeShows.Known(37, (1..6).map { heldTitle(it) }),
                 top = emptyList(),
+                validUntilMs = Long.MAX_VALUE,
             )
     }
 }

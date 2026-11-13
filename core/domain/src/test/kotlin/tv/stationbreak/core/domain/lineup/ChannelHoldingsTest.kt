@@ -3,6 +3,8 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -199,11 +201,19 @@ class ChannelHoldingsTest {
         val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
         val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
         var asked = 0
-        val reader =
-            BuiltInChannelHoldings(source, library, { _, ids ->
-                asked++
-                ids.associateWith { "Title ${it.value.takeLast(4)}" }
-            }, Dispatchers.Unconfined)
+
+        // The library's title lookup, counted and with names made up from the IDs.
+        private val naming =
+            object : LibraryRepository by library {
+                override suspend fun titleNames(
+                    account: LibraryAccount,
+                    ids: Set<CanonicalId>,
+                ): Map<CanonicalId, String> {
+                    asked++
+                    return ids.associateWith { "Title ${it.value.takeLast(4)}" }
+                }
+            }
+        val reader = BuiltInChannelHoldings(source, naming, Dispatchers.Unconfined)
 
         init {
             runBlocking {

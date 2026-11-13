@@ -195,6 +195,56 @@ class DaySnapshotCodecTest {
         assertEquals(DaySnapshotEvent.Hit::class, events.last()::class)
     }
 
+    // The upgrade as it happens in the field: the old build's file, under another build's key, is an App miss before
+    // anything of its body is read.
+    @Test
+    fun aFormatSevenFileOfAnotherAppBuildMissesOnTheAppAndIsNeverDecoded() {
+        val file = checkNotNull(javaClass.getResourceAsStream("/days/days-v7.bin")).readBytes()
+        val other = PersistedDays(store, "app-2", { events += it }, PersistedDays.HOLDS)
+        val keyOther =
+            other.keyOf(ACCOUNT, LIBRARIES, 1L, lineup.utcOffsetMinutes, days.inputsOf(lineup, null), 1, scheduled)
+        store.files[ACCOUNT to PersistedDays.nameOf(keyOther)] = file
+
+        assertNull(runBlocking { other.load(ACCOUNT, keyOther, scheduled, days::restore) })
+        assertEquals(DaySnapshotEvent.Miss(DaySnapshotMiss.App), events.last())
+    }
+
+    @Test
+    fun onlyThePreviousFormatIsRead() {
+        assertEquals(DaySnapshotCodec.VERSION - 1, DaySnapshotCodec.OLDEST_READ)
+    }
+
+    // A home set that names a title the windowed day does not air is cut to the titles it does, so the day saves and
+    // reads back (a reader refuses a home the day does not air).
+    @Test
+    fun aHomeSetNamingATitleOutsideTheDayIsCutAndTheDayStillRoundTrips() {
+        val built = inKeyOrder(days.curatedDays(lineup, noon))
+        val base = built.first { it.channel.id == CuratedLibrary.laughsId }
+        val aired = base.pool.first().groupId
+        val stranger = id(0x7777)
+        assertTrue(base.pool.none { it.groupId == stranger })
+        val widened =
+            ChannelDay.of(
+                base.channel,
+                base.name,
+                base.settings,
+                base.n,
+                base.pool,
+                base.films,
+                base.hidden,
+                base.ceilingRank,
+                tv.stationbreak.core.model.schedule.TitleKeeps.NONE,
+                setOf(aired, stranger),
+                base.weights,
+            )
+
+        assertEquals(setOf(aired), widened.homed)
+        val all = built.map { if (it.channel.id == base.channel.id) widened else it }
+        assertTrue(runBlocking { persisted.save(ACCOUNT, key, all) })
+        val loaded = checkNotNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+        assertEquals(setOf(aired), loaded.first { it.channel.id == base.channel.id }.homed)
+    }
+
     @Test
     fun aNewerFormatFileMissesWithFormatAndIsNeverDecoded() {
         val built = days.curatedDays(lineup, noon)
@@ -210,7 +260,8 @@ class DaySnapshotCodecTest {
     @Test
     fun theCurationVersionIsAHold() {
         assertTrue(tv.stationbreak.core.engine.lineup.curation.Curation.VERSION_NAME in PersistedDays.HOLDS)
-        assertEquals(TitleWeights.NONE, days.restore(scheduled.first(), emptyList(), NO_FILMS, null).weights)
+        val restored = days.restore(scheduled.first(), emptyList(), NO_FILMS, null, TitleWeights.NONE, null)
+        assertEquals(TitleWeights.NONE, restored.weights)
     }
 
     // [text] with its header's CRC-32 worked out again over its key and body, as the codec does.

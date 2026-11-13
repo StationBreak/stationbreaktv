@@ -206,8 +206,9 @@ internal class GuideViewModel
         }
 
         // The channel the focus is on while it is on the channel column; its holdings are read after a rest on it. A
-        // move to another channel or off the column drops them at once, and ends a read still out. A change of the
-        // lineup that the guide reloads for starts a new session, and so a new follower.
+        // move to another channel or off the column drops them at once, and ends a read still out. The follower
+        // is part of the session, so a reload of the grid (which starts a new session) starts it again, and it reads
+        // again; a change that reloads nothing is not seen until the focus moves.
         private suspend fun followHoldings() {
             shownSnapshot
                 .map { snap -> snap.focus?.channel?.takeIf { snap.onChannel && snap.menu == null } }

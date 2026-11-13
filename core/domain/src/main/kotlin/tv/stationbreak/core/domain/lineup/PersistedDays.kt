@@ -65,7 +65,9 @@ enum class DaySnapshotMiss {
  *
  * What is kept is the result of the day build, not its input: per channel, the day pool, the film-to-collection map
  * why the day is empty and the titles the channel is home to ([DaySnapshotCodec]; a file of the previous format has no
- * home sets and is read as it is, with them unknown).
+ * home sets and is read as it is, with them unknown). That read only matters for a file the same install wrote: the
+ * key's [appBuild] changes with every install and upgrade, so a file of another build is a miss on `App` whatever its
+ * format, and nothing in the field should rely on the older format being read.
  * The days are a pure function of the lineup, the library snapshots at
  * their cut-offs and the code (ADR-0002), so a file is used only when its [DayKey] equals the key of the build it
  * replaces, and that key holds every one of them:
