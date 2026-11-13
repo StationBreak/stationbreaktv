@@ -1052,7 +1052,10 @@ class GuideScreenTest {
 
     private fun awaitHoldings() {
         compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            compose
+                .onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
         }
     }
 
@@ -1095,10 +1098,7 @@ class GuideScreenTest {
 
     @Test
     fun theListNeverRunsPastTwoLines() {
-        val long =
-            (1..6).map {
-                HeldTitle(CanonicalId.parse(it.toString(16).padStart(32, '0')), "A Very Long Show Name $it Of The Night", 1L, false)
-            }
+        val long = (1..6).map { title(it).copy(name = "A Very Long Show Name $it Of The Night") }
         holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(50 * 3_600_000L, 90, 90, long, emptyList())))
         showReady(CH5)
 

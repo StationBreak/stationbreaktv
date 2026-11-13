@@ -32,9 +32,7 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelProperties
-import tv.stationbreak.core.domain.lineup.HoldingsList
 import tv.stationbreak.core.ui.ChannelHoldingsLines
-import tv.stationbreak.core.ui.HoldingsFigures
 import tv.stationbreak.core.ui.HoldingsTags
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.ChannelGroup
@@ -214,6 +212,3 @@ private fun sheetChoices(ui: ChannelsUi) = choicesOf(ui.copy(panel = null))
 
 // One node per block, so a reader announces it whole and a test reads its text.
 internal fun Modifier.merged(): Modifier = semantics(mergeDescendants = true) {}
-
-/** The words of [this] as the sheet and the guide's channel box draw them. */
-internal fun ChannelHoldings.figures() = HoldingsFigures(hours, days, titleCount, list == HoldingsList.HomeTo, listed.map { it.name }, more)

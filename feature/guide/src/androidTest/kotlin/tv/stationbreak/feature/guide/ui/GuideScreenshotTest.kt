@@ -134,7 +134,8 @@ private const val FRAME_HOUR_MS = 3_600_000L
 private val FRAME_HOMES =
     listOf("Little Farm", "Robot Factory", "Giant Robot Hour", "Test Series", "Test Series Two", "Late Late Show")
         .mapIndexed { i, name ->
-            HeldTitle(CanonicalId.parse((i + 1).toString(16).padStart(32, '0')), name, (60 - i * 5) * FRAME_HOUR_MS, i < 2)
+            val id = CanonicalId.parse((i + 1).toString(16).padStart(32, '0'))
+            HeldTitle(id, name, (60 - i * 5) * FRAME_HOUR_MS, i < 2)
         }
 private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, 37, FRAME_HOMES, emptyList())
 

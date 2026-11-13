@@ -29,7 +29,7 @@ object GuideTags {
     const val CHANNEL_PANEL = "guide:channelPanel"
     const val CHANNEL_PANEL_NAME = "guide:channelPanel:name"
 
-    /** The channel box's holdings (#757): the hours line, the label of the list ("Home to:" or "Mostly:") and the list. */
+    /** The channel box's holdings (#757): the hours line, the list's label ("Home to:", "Mostly:") and the list. */
     const val CHANNEL_PANEL_HOURS = "guide:channelPanel:hours"
     const val CHANNEL_PANEL_LIST_LABEL = "guide:channelPanel:listLabel"
     const val CHANNEL_PANEL_LIST = "guide:channelPanel:list"

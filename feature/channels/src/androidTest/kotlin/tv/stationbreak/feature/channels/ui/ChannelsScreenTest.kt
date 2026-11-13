@@ -176,6 +176,11 @@ private class SamplePropertiesReader(
     }
 
     companion object {
+        private fun heldTitle(n: Int): HeldTitle {
+            val id = CanonicalId.parse(n.toString(16).padStart(32, '0'))
+            return HeldTitle(id, "Show $n", n * 3_600_000L, n == 1)
+        }
+
         /** A channel with homes: 412 hours, 37 titles, six listed and 31 more. */
         val HOLDINGS =
             ChannelHoldings(
@@ -183,9 +188,7 @@ private class SamplePropertiesReader(
                 titleCount = 37,
                 homeCount = 37,
                 homes =
-                    (1..6).map {
-                        HeldTitle(CanonicalId.parse(it.toString(16).padStart(32, '0')), "Show $it", it * 3_600_000L, it == 1)
-                    },
+                    (1..6).map { heldTitle(it) },
                 top = emptyList(),
             )
     }

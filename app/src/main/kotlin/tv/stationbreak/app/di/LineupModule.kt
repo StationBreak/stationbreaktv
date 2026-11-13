@@ -238,6 +238,7 @@ internal object LineupModule {
      */
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // One port for each thing the sheet reads.
     fun channelProperties(
         service: LineupService,
         library: LibraryRepository,

@@ -218,7 +218,8 @@ internal fun GuideScreen(
                 // The menu row takes the foot of that band, so the grid and the picture stay where they are.
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
                 val kind = guidePanelOf(settings != null, noLibraries, onChannel)
-                val parts = TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, holdings)
+                val parts =
+                    TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, holdings)
                 TopPanel(kind, parts, panelSize)
                 GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))

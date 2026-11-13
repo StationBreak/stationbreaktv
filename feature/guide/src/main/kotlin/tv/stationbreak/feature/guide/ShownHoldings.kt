@@ -13,4 +13,7 @@ internal class ShownHoldings(
 )
 
 /** The words of [this] as the channel box and the properties sheet draw them. */
-internal fun ChannelHoldings.figures() = HoldingsFigures(hours, days, titleCount, list == HoldingsList.HomeTo, listed.map { it.name }, more)
+internal fun ChannelHoldings.figures(): HoldingsFigures {
+    val named = listed.map { it.name }
+    return HoldingsFigures(hours, days, titleCount, list == HoldingsList.HomeTo, named, more)
+}
