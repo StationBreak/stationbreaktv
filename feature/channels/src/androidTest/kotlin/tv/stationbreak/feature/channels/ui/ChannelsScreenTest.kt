@@ -57,6 +57,7 @@ import tv.stationbreak.core.domain.lineup.ChangeRefusal
 import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelEditor
+import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
@@ -65,6 +66,7 @@ import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.ChannelTiming
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.HeldTitle
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
@@ -87,6 +89,7 @@ import tv.stationbreak.core.domain.lineup.builder.OnlyKind
 import tv.stationbreak.core.domain.lineup.builder.OpenResult
 import tv.stationbreak.core.domain.lineup.builder.RulesDescription
 import tv.stationbreak.core.domain.lineup.builder.ShownOrder
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ServerId
@@ -168,7 +171,23 @@ private class SamplePropertiesReader(
             timing = ChannelTiming("06:00", null, "07EE-7E07"),
             leftoversCeiling = null,
             hidden = null,
+            holdings = HOLDINGS.takeIf { id == ALPHA },
         )
+    }
+
+    companion object {
+        /** A channel with homes: 412 hours, 37 titles, six listed and 31 more. */
+        val HOLDINGS =
+            ChannelHoldings(
+                totalMs = 412 * 3_600_000L,
+                titleCount = 37,
+                homeCount = 37,
+                homes =
+                    (1..6).map {
+                        HeldTitle(CanonicalId.parse(it.toString(16).padStart(32, '0')), "Show $it", it * 3_600_000L, it == 1)
+                    },
+                top = emptyList(),
+            )
     }
 }
 
@@ -749,6 +768,33 @@ class ChannelsScreenTest {
 
         until { !exists(ChannelsTags.ABOUT) }
         compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
+    }
+
+    @Test
+    fun theSheetShowsWhatTheChannelHoldsInTheWordsOfTheChannelBox() {
+        openSheetOnAlpha()
+        until { exists(ChannelsTags.ABOUT_HOLDS) }
+
+        compose.onNodeWithTag(ChannelsTags.ABOUT_HOLDS).assertTextContains("WHAT IT HOLDS", substring = true)
+        compose
+            .onNodeWithTag(ChannelsTags.ABOUT_HOLDS_HOURS, useUnmergedTree = true)
+            .assertTextEquals("412 hours of programmes (about 17 days) · 37 titles")
+        compose.onNodeWithTag(ChannelsTags.ABOUT_HOLDS_LABEL, useUnmergedTree = true).assertTextEquals("Home to:")
+        compose
+            .onNodeWithTag(ChannelsTags.ABOUT_HOLDS_LIST, useUnmergedTree = true)
+            .assertTextEquals("Show 1, Show 2, Show 3, Show 4, Show 5, Show 6 + 31 more")
+    }
+
+    @Test
+    fun aChannelWithNothingTodayShowsNoHoldingsInTheSheet() {
+        show(BRAVO)
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+        repeat(choicesOf(vm.ui.value).lastIndex) { press(Pad.Down) }
+        press(Pad.Select)
+        until { exists(ChannelsTags.ABOUT_PLAYS) }
+
+        assertTrue(!exists(ChannelsTags.ABOUT_HOLDS))
     }
 
     @Test

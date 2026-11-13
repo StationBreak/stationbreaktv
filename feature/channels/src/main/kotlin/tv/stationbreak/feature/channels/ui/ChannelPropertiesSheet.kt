@@ -29,8 +29,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelProperties
+import tv.stationbreak.core.domain.lineup.HoldingsList
+import tv.stationbreak.core.ui.ChannelHoldingsLines
+import tv.stationbreak.core.ui.HoldingsFigures
+import tv.stationbreak.core.ui.HoldingsTags
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
@@ -101,6 +106,7 @@ private fun Rules(
         if (properties.description == null) Plain(stringResource(R.string.channel_props_leftovers), null)
         playRows(properties).forEach { (label, value) -> KeyValue(label, value) }
     }
+    properties.holdings?.let { Holds(it) }
     val runs = runRows(properties)
     val code = properties.timing?.scheduleCode
     if (runs.isNotEmpty() && code != null) {
@@ -110,6 +116,22 @@ private fun Rules(
         }
     }
 }
+
+// What the channel holds (#757): the value the guide's channel box shows, in the same words.
+@Composable
+private fun Holds(holdings: ChannelHoldings) {
+    Section(stringResource(R.string.channel_props_section_holds), ChannelsTags.ABOUT_HOLDS) {
+        ChannelHoldingsLines(
+            figures = holdings.figures(),
+            primary = ChannelsPalette.text,
+            secondary = ChannelsPalette.secondary,
+            tags = HoldsTags,
+        )
+    }
+}
+
+private val HoldsTags =
+    HoldingsTags(ChannelsTags.ABOUT_HOLDS_HOURS, ChannelsTags.ABOUT_HOLDS_LABEL, ChannelsTags.ABOUT_HOLDS_LIST)
 
 @Composable
 private fun Section(
@@ -192,3 +214,6 @@ private fun sheetChoices(ui: ChannelsUi) = choicesOf(ui.copy(panel = null))
 
 // One node per block, so a reader announces it whole and a test reads its text.
 internal fun Modifier.merged(): Modifier = semantics(mergeDescendants = true) {}
+
+/** The words of [this] as the sheet and the guide's channel box draw them. */
+internal fun ChannelHoldings.figures() = HoldingsFigures(hours, days, titleCount, list == HoldingsList.HomeTo, listed.map { it.name }, more)
