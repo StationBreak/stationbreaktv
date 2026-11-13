@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.TitleWeights
@@ -16,6 +18,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 private const val HOUR_MS = 3_600_000L
+private const val UNTIL = 123L
 
 /** What a channel holds (#757): the tally of a day's pool, its lists and the "+ N more", over made-up titles. */
 class ChannelHoldingsTest {
@@ -41,7 +44,9 @@ class ChannelHoldingsTest {
         pool: List<ScheduleItem>,
         weights: TitleWeights = TitleWeights.NONE,
         homed: Set<CanonicalId>? = null,
-    ): ChannelHoldings? = runBlocking { HoldingsTally.of(pool, weights, homed)?.holdings { named(it) } }
+    ): ChannelHoldings? = runBlocking { HoldingsTally.of(pool, weights, homed)?.holdings(UNTIL, named) }
+
+    private fun known(holdings: ChannelHoldings) = holdings.homes as HomeShows.Known
 
     @Test
     fun aDayThatAirsNothingHoldsNothing() {
@@ -56,11 +61,13 @@ class ChannelHoldingsTest {
         val holdings = checkNotNull(held(pool, weights, homed = pool.map { it.id }.toSet()))
 
         // The two anchors (equal hours: the lower ID first), then 9 h, then the 5 h pair by ID.
-        assertEquals(listOf(0x10, 0x13, 0x14, 0x11, 0x12).map { id(it) }, holdings.homes.map { it.id })
-        assertEquals(listOf(true, true, false, false, false), holdings.homes.map { it.anchor })
+        val homes = known(holdings).titles
+        assertEquals(listOf(0x10, 0x13, 0x14, 0x11, 0x12).map { id(it) }, homes.map { it.id })
+        assertEquals(listOf(true, true, false, false, false), homes.map { it.anchor })
         assertEquals(HoldingsList.HomeTo, holdings.list)
-        assertEquals(holdings.homes, holdings.listed)
-        assertEquals(9 * HOUR_MS, holdings.homes[2].ms)
+        assertEquals(homes, holdings.listed)
+        assertEquals(homes.map { it.name }, holdings.listedNames)
+        assertEquals(9 * HOUR_MS, homes[2].ms)
     }
 
     @Test
@@ -70,9 +77,9 @@ class ChannelHoldingsTest {
 
         val holdings = checkNotNull(held(pool, TitleWeights.of(homed.associateWith { 2 }), homed))
 
-        assertEquals(6, holdings.homes.size)
+        assertEquals(6, known(holdings).titles.size)
+        assertEquals(37, known(holdings).count)
         assertEquals(37, holdings.titleCount)
-        assertEquals(37, holdings.homeCount)
         assertEquals(31, holdings.more)
     }
 
@@ -85,55 +92,59 @@ class ChannelHoldingsTest {
     }
 
     @Test
-    fun guestsAreNeverListedOrCountedButTheirHoursAre() {
+    fun guestsAreNeverListedAsHomesButTheyCountInTheTotalsLikeTheirHours() {
         val pool = listOf(film(0x20, 2), film(0x21, 2), film(0x22, 10), film(0x23, 4))
         // 0x22 is an anchor here and a guest: weight 3, homed elsewhere. 0x23 is a guest (weight 1).
         val weights = TitleWeights.of(mapOf(id(0x20) to 2, id(0x21) to 3, id(0x22) to 3))
 
         val holdings = checkNotNull(held(pool, weights, homed = setOf(id(0x20), id(0x21))))
 
-        assertEquals(listOf(id(0x21), id(0x20)), holdings.homes.map { it.id })
-        assertEquals(2, holdings.titleCount)
+        assertEquals(listOf(id(0x21), id(0x20)), known(holdings).titles.map { it.id })
+        assertEquals(2, known(holdings).count)
         assertEquals(0, holdings.more)
+        // The totals are of everything the channel airs: four titles, eighteen hours.
+        assertEquals(4, holdings.titleCount)
         assertEquals(18 * HOUR_MS, holdings.totalMs)
-        assertFalse(holdings.homes.any { it.id == id(0x22) || it.id == id(0x23) })
+        assertFalse(holdings.listed.any { it.id == id(0x22) || it.id == id(0x23) })
+        assertEquals(listOf(id(0x22), id(0x23), id(0x20), id(0x21)), holdings.top.map { it.id })
     }
 
     @Test
-    fun aDayReadBackFromDiskTakesTheWeightsForHomes() {
+    fun aDayWhoseHomesAreUnknownShowsTheTotalsAndNoListAtAll() {
+        // Weights of 2 and 3 are not read as homes: a weight-3 title may be a guest anchor.
         val pool = listOf(film(0x30), film(0x31), film(0x32))
         val weights = TitleWeights.of(mapOf(id(0x30) to 3, id(0x31) to 2))
 
         val holdings = checkNotNull(held(pool, weights, homed = null))
 
-        assertEquals(listOf(id(0x30), id(0x31)), holdings.homes.map { it.id })
-        assertEquals(2, holdings.titleCount)
+        assertEquals(HomeShows.Unknown, holdings.homes)
+        assertNull(holdings.list)
+        assertTrue(holdings.listed.isEmpty())
+        assertEquals(0, holdings.more)
+        assertEquals(3, holdings.titleCount)
+        assertEquals(6 * HOUR_MS, holdings.totalMs)
     }
 
     @Test
-    fun aChannelWithNoHomesIsMostlyItsSixBiggestTitles() {
-        // A guest-only decade channel, a custom channel or the leftovers: every title at weight 1, none homed here.
+    fun aChannelKnownToHaveNoHomesIsMostlyItsSixBiggestTitles() {
+        // A guest-only decade channel, a custom channel or the leftovers: nothing is homed here, and that is known.
         val pool = (1..9).map { film(0x200 + it, hours = it.toLong()) }
 
-        val holdings = checkNotNull(held(pool))
+        val holdings = checkNotNull(held(pool, homed = emptySet()))
 
         assertEquals(HoldingsList.Mostly, holdings.list)
-        assertEquals(0, holdings.homeCount)
+        assertEquals(HomeShows.Known(0, emptyList()), holdings.homes)
         assertEquals(listOf(9, 8, 7, 6, 5, 4).map { id(0x200 + it) }, holdings.listed.map { it.id })
         assertEquals(9, holdings.titleCount)
         assertEquals(3, holdings.more)
-        assertTrue(holdings.homes.isEmpty())
     }
 
     @Test
     fun hoursAreEveryTitlesEpisodesAdded() {
         val series = id(0x300)
-        val episodes =
-            (1..4).map {
-                episode(0x300 + it, series, it)
-            }
+        val episodes = (1..4).map { episode(0x300 + it, series, it) }
 
-        val holdings = checkNotNull(held(episodes + film(0x400, 2)))
+        val holdings = checkNotNull(held(episodes + film(0x400, 2), homed = emptySet()))
 
         assertEquals(2, holdings.titleCount)
         assertEquals(4 * HOUR_MS, holdings.totalMs)
@@ -148,25 +159,27 @@ class ChannelHoldingsTest {
         assertEquals(47L to null, hours(47))
         assertEquals(48L to 2L, hours(48))
         assertEquals(412L to 17L, hours(412))
-        val short =
-            checkNotNull(
-                held(listOf(movie(2, 600_000L))),
-            )
+        val short = checkNotNull(held(listOf(movie(2, 600_000L))))
         assertEquals(1L, short.hours)
         assertNull(short.days)
     }
 
     @Test
+    fun theDayEndIsCarried() {
+        assertEquals(UNTIL, checkNotNull(held(listOf(film(1)))).validUntilMs)
+    }
+
+    @Test
     fun aTitleWithNoNameIsPassedOverAndALookupThatFailsCostsOnlyTheNames() {
         val pool = (1..8).map { film(0x500 + it, hours = it.toLong()) }
-        val tally = checkNotNull(HoldingsTally.of(pool, TitleWeights.NONE, null))
+        val tally = checkNotNull(HoldingsTally.of(pool, TitleWeights.NONE, emptySet()))
         val withoutTop = id(0x508)
 
-        val passed = runBlocking { tally.holdings { ids -> named(ids - withoutTop) } }
+        val passed = runBlocking { tally.holdings(UNTIL) { ids -> named(ids - withoutTop) } }
         assertEquals(listOf(7, 6, 5, 4, 3, 2).map { id(0x500 + it) }, passed.top.map { it.id })
         assertEquals(8, passed.titleCount)
 
-        val failed = runBlocking { tally.holdings { error("the library is out of reach") } }
+        val failed = runBlocking { tally.holdings(UNTIL) { error("the library is out of reach") } }
         assertTrue(failed.top.isEmpty())
         assertEquals(8, failed.titleCount)
         assertEquals(36 * HOUR_MS, failed.totalMs)
@@ -186,10 +199,10 @@ class ChannelHoldingsTest {
         val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
         var asked = 0
         val reader =
-            BuiltInChannelHoldings(source, library) { _, ids ->
+            BuiltInChannelHoldings(source, library, { _, ids ->
                 asked++
                 ids.associateWith { "Title ${it.value.takeLast(4)}" }
-            }
+            }, Dispatchers.Unconfined)
 
         init {
             runBlocking {
@@ -198,14 +211,7 @@ class ChannelHoldingsTest {
             }
         }
 
-        fun read(id: String) =
-            runBlocking {
-                reader.read(
-                    tv.stationbreak.core.model
-                        .ChannelId(id),
-                    NOON,
-                )
-            }
+        fun read(id: String) = runBlocking { reader.read(ChannelId(id), NOON) }
 
         fun day(id: String) = days().firstOrNull { it.channel.id.value == id }
 
@@ -213,7 +219,7 @@ class ChannelHoldingsTest {
     }
 
     @Test
-    fun aCuratedStarterHoldsItsHomesAndItsHoursCountItsGuests() {
+    fun aCuratedStarterHoldsItsHomesAndItsTotalsCountItsGuests() {
         val rig = Rig()
         val day = checkNotNull(rig.day(CuratedLibrary.laughsId.value))
         val holdings = checkNotNull(rig.read(CuratedLibrary.laughsId.value))
@@ -221,41 +227,42 @@ class ChannelHoldingsTest {
         val homed = checkNotNull(day.homed)
         assertTrue(homed.isNotEmpty())
         assertEquals(day.pool.sumOf { it.runtimeMs }, holdings.totalMs)
-        assertEquals(homed.size, holdings.homeCount)
-        assertEquals(homed.size, holdings.titleCount)
-        assertTrue(holdings.homes.all { it.id in homed })
+        assertEquals(day.pool.mapTo(HashSet()) { it.groupId }.size, holdings.titleCount)
+        assertEquals(homed.size, known(holdings).count)
+        assertTrue(known(holdings).titles.all { it.id in homed })
         assertEquals(HoldingsList.HomeTo, holdings.list)
+        assertEquals(day.epochEndMs, holdings.validUntilMs)
         // Anchors, then hours, then ID.
         val order = compareByDescending<HeldTitle> { it.anchor }.thenByDescending { it.ms }.thenBy { it.id.value }
-        assertEquals(holdings.homes.sortedWith(order), holdings.homes)
+        val homes = known(holdings).titles
+        assertEquals(homes.sortedWith(order), homes)
     }
 
     @Test
-    fun guestsOfAnotherChannelsHomeAreNotListedAndAreCountedInTheHours() {
+    fun guestsOfAnotherChannelsHomeAreNotListedAsHomesAndTheirHoursAreCounted() {
         val rig = Rig()
-        val guestsSeen =
+        val withGuests =
             listOf(CuratedLibrary.laughsId, CuratedLibrary.whodunitId, CuratedLibrary.westernsId).filter { id ->
                 val day = checkNotNull(rig.day(id.value))
-                val titles = day.pool.mapTo(HashSet()) { it.groupId }
-                titles.size > checkNotNull(day.homed).size
+                day.pool.mapTo(HashSet()) { it.groupId }.size > checkNotNull(day.homed).size
             }
-        assertTrue(guestsSeen.isNotEmpty(), "the curated library has guests")
-        for (id in guestsSeen) {
+        assertTrue(withGuests.isNotEmpty(), "the curated library has guests")
+        for (id in withGuests) {
             val day = checkNotNull(rig.day(id.value))
             val holdings = checkNotNull(rig.read(id.value))
-            assertTrue(holdings.homes.all { it.id in checkNotNull(day.homed) })
+            assertTrue(known(holdings).titles.all { it.id in checkNotNull(day.homed) })
             assertEquals(day.pool.sumOf { it.runtimeMs }, holdings.totalMs)
-            assertTrue(holdings.titleCount < day.pool.mapTo(HashSet()) { it.groupId }.size)
+            assertTrue(holdings.titleCount > known(holdings).count)
         }
     }
 
     @Test
-    fun aCustomChannelIsMostlyItsBiggestTitles() {
+    fun aCustomChannelIsKnownToHaveNoHomesAndIsMostlyItsBiggestTitles() {
         val rig = Rig()
         val holdings = checkNotNull(rig.read("custom-1"))
 
         assertEquals(HoldingsList.Mostly, holdings.list)
-        assertEquals(0, holdings.homeCount)
+        assertEquals(0, known(holdings).count)
         assertEquals(CuratedLibrary.horror.size, holdings.titleCount)
         assertEquals(CuratedLibrary.horror.size, holdings.top.size)
     }
@@ -290,4 +297,56 @@ class ChannelHoldingsTest {
         assertSame(first, second)
         assertEquals(asked, rig.asked)
     }
+
+    @Test
+    fun aDaySavedAndRestoredHoldsTheSameAsBeforeTheSave() {
+        // The restart: the days a process built, written to disk, and read by the next one.
+        val days = LineupDays(TestCatalog)
+        val noon = NOON.toEpochMilliseconds()
+        val lineup = CuratedLibrary.lineup()
+        val scheduled = days.scheduled(lineup, noon, null)
+        val persisted = PersistedDays(MemoryDayStore(), "app-1", {}, PersistedDays.HOLDS)
+        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1L, 0, days.inputsOf(lineup, null), 1, scheduled)
+        val built = days.curatedDays(lineup, noon)
+        assertTrue(runBlocking { persisted.save(ACCOUNT, key, built) })
+
+        val restored = checkNotNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+
+        assertEquals(built.map { it.channel.id }, restored.map { it.channel.id })
+        for ((before, after) in built.zip(restored)) {
+            assertEquals(before.homed, after.homed, "${before.channel.id}")
+            assertEquals(holdingsOf(before), holdingsOf(after), "${before.channel.id}")
+        }
+        // A curated channel has homes, a custom one none: both known.
+        assertTrue(restored.any { it.homed?.isNotEmpty() == true })
+        assertEquals(emptySet(), restored.first { it.channel.id.value == "custom-1" }.homed)
+    }
+
+    @Test
+    fun aDayFromAFormatSevenFileHasNoHomesAndSaysNothingOfThem() {
+        val days = LineupDays(TestCatalog)
+        val noon = NOON.toEpochMilliseconds()
+        val lineup = CuratedLibrary.lineup()
+        val scheduled = days.scheduled(lineup, noon, null)
+        val store = MemoryDayStore()
+        val persisted = PersistedDays(store, "app-1", {}, PersistedDays.HOLDS)
+        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1L, 0, days.inputsOf(lineup, null), 1, scheduled)
+        // The weights a v7 file kept and a curated day reads back; the homes it never had.
+        val old = checkNotNull(javaClass.getResourceAsStream("/days/days-v7.bin")).readBytes()
+        store.files[ACCOUNT to PersistedDays.nameOf(key)] = old
+
+        val restored = checkNotNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+
+        assertTrue(restored.all { it.homed == null })
+        val laughs = restored.first { it.channel.id == CuratedLibrary.laughsId }
+        assertTrue(laughs.weights.entries.isNotEmpty(), "the weights came back")
+        val holdings = checkNotNull(holdingsOf(laughs))
+        assertEquals(HomeShows.Unknown, holdings.homes)
+        assertNull(holdings.list)
+        assertEquals(laughs.pool.sumOf { it.runtimeMs }, holdings.totalMs)
+        assertEquals(laughs.pool.mapTo(HashSet()) { it.groupId }.size, holdings.titleCount)
+    }
+
+    private fun holdingsOf(day: ChannelDay): ChannelHoldings? =
+        runBlocking { HoldingsTally.of(day.pool, day.weights, day.homed)?.holdings(day.epochEndMs, named) }
 }

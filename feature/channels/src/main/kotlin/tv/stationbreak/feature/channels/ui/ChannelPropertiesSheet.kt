@@ -120,7 +120,12 @@ private fun Rules(
 private fun Holds(holdings: ChannelHoldings) {
     Section(stringResource(R.string.channel_props_section_holds), ChannelsTags.ABOUT_HOLDS) {
         ChannelHoldingsLines(
-            figures = holdings.figures(),
+            hours = holdings.hours,
+            days = holdings.days,
+            titles = holdings.titleCount,
+            homeTo = holdings.homeTo,
+            names = holdings.listedNames,
+            more = holdings.more,
             primary = ChannelsPalette.text,
             secondary = ChannelsPalette.secondary,
             tags = HoldsTags,

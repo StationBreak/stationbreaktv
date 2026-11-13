@@ -68,6 +68,7 @@ import tv.stationbreak.core.domain.lineup.ChannelTiming
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HeldTitle
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.HomeShows
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.PlayKey
@@ -186,9 +187,7 @@ private class SamplePropertiesReader(
             ChannelHoldings(
                 totalMs = 412 * 3_600_000L,
                 titleCount = 37,
-                homeCount = 37,
-                homes =
-                    (1..6).map { heldTitle(it) },
+                homes = HomeShows.Known(37, (1..6).map { heldTitle(it) }),
                 top = emptyList(),
             )
     }

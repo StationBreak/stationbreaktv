@@ -35,7 +35,7 @@ class BuiltInChannelProperties(
     private val schedule: ScheduleSource,
     labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
     studioNames: StudioNames,
-    private val holdings: ChannelHoldingsReader = ChannelHoldingsReader.None,
+    private val holdings: ChannelHoldingsReader,
 ) : ChannelPropertiesReader {
     private val reader = DraftReader(labels, studioNames)
 
@@ -82,7 +82,7 @@ class BuiltInChannelProperties(
             timing = rules?.let(::timingOf),
             leftoversCeiling = leftoversCeiling(channel),
             hidden = hidden,
-            holdings = if (hidden == null) holdings.readOrNull(channel.id, at) else null,
+            holdings = holdings.readOrNull(channel.id, at),
         )
     }
 

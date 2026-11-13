@@ -81,6 +81,7 @@ import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.domain.lineup.HeldTitle
+import tv.stationbreak.core.domain.lineup.HomeShows
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -1063,7 +1064,7 @@ class GuideScreenTest {
     fun theChannelBoxShowsHoursTitlesAndTheShowsThatLiveThere() {
         val homes = listOf(title(1, anchor = true), title(2), title(3), title(4), title(5), title(6))
         holdings =
-            ShelfHoldings(mapOf(CH5 to ChannelHoldings(412 * 3_600_000L, 37, 37, homes, emptyList())))
+            ShelfHoldings(mapOf(CH5 to ChannelHoldings(412 * 3_600_000L, 37, HomeShows.Known(37, homes), emptyList())))
         showReady(CH5)
 
         press(Key.DirectionLeft)
@@ -1083,7 +1084,7 @@ class GuideScreenTest {
     @Test
     fun aChannelWithNoHomesIsMostlyItsBiggestTitlesAndUnderTwoDaysShowsNoDays() {
         val top = (1..6).map { title(it) }
-        holdings = ShelfHoldings(mapOf(CH7 to ChannelHoldings(40 * 3_600_000L, 9, 0, emptyList(), top)))
+        holdings = ShelfHoldings(mapOf(CH7 to ChannelHoldings(40 * 3_600_000L, 9, HomeShows.Known(0, emptyList()), top)))
         showReady(CH7)
 
         press(Key.DirectionLeft)
@@ -1099,13 +1100,26 @@ class GuideScreenTest {
     @Test
     fun theListNeverRunsPastTwoLines() {
         val long = (1..6).map { title(it).copy(name = "A Very Long Show Name $it Of The Night") }
-        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(50 * 3_600_000L, 90, 90, long, emptyList())))
+        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(50 * 3_600_000L, 90, HomeShows.Known(90, long), emptyList())))
         showReady(CH5)
 
         press(Key.DirectionLeft)
         awaitHoldings()
 
         assertEquals(2, lineCountOf(GuideTags.CHANNEL_PANEL_LIST))
+    }
+
+    @Test
+    fun aChannelWhoseHomesAreUnknownShowsTheHoursLineAndNoList() {
+        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(412 * 3_600_000L, 37, HomeShows.Unknown, listOf(title(1)))))
+        showReady(CH5)
+
+        press(Key.DirectionLeft)
+        awaitHoldings()
+
+        assertEquals("412 hours of programmes (about 17 days) · 37 titles", text(GuideTags.CHANNEL_PANEL_HOURS))
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_LIST_LABEL, useUnmergedTree = true).assertCountEquals(0)
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_LIST, useUnmergedTree = true).assertCountEquals(0)
     }
 
     @Test
@@ -1125,7 +1139,7 @@ class GuideScreenTest {
 
     @Test
     fun theHoldingsGoWhenTheFocusLeavesTheColumn() {
-        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(5 * 3_600_000L, 1, 1, listOf(title(1)), emptyList())))
+        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(5 * 3_600_000L, 1, HomeShows.Known(1, listOf(title(1))), emptyList())))
         showReady(CH5)
         press(Key.DirectionLeft)
         awaitHoldings()

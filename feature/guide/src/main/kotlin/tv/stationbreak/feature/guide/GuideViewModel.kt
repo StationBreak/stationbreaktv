@@ -206,7 +206,8 @@ internal class GuideViewModel
         }
 
         // The channel the focus is on while it is on the channel column; its holdings are read after a rest on it. A
-        // move to another channel or off the column drops them at once, and ends a read still out.
+        // move to another channel or off the column drops them at once, and ends a read still out. A change of the
+        // lineup that the guide reloads for starts a new session, and so a new follower.
         private suspend fun followHoldings() {
             shownSnapshot
                 .map { snap -> snap.focus?.channel?.takeIf { snap.onChannel && snap.menu == null } }
@@ -215,11 +216,22 @@ internal class GuideViewModel
                     shownHoldings.value = null
                     if (channel != null) {
                         delay(DWELL_MS.milliseconds)
-                        val read = readHoldings(channel)
-                        currentCoroutineContext().ensureActive()
-                        shownHoldings.value = read?.let { ShownHoldings(channel, it) }
+                        showHoldings(channel)
                     }
                 }
+        }
+
+        // Reads and shows [channel]'s holdings, and reads again when the broadcast day they were read for ends (the
+        // new day's pool is another), for as long as the focus rests on the channel. A channel with nothing held has
+        // no day to wait for.
+        private suspend fun showHoldings(channel: ChannelId) {
+            while (true) {
+                val read = readHoldings(channel)
+                currentCoroutineContext().ensureActive()
+                shownHoldings.value = read?.let { ShownHoldings(channel, it) }
+                val until = read?.validUntilMs?.takeIf { it != Long.MAX_VALUE } ?: return
+                delay((until - nowMs()).coerceAtLeast(DWELL_MS).milliseconds)
+            }
         }
 
         private suspend fun readHoldings(channel: ChannelId): ChannelHoldings? =

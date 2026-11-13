@@ -17,33 +17,68 @@ data class HeldTitle(
 enum class HoldingsList { HomeTo, Mostly }
 
 /**
+ * Which titles have their home on a channel. The two cases must not be confused: [Known] with a [Known.count] of zero
+ * is a fact (a custom channel, the leftovers, a guest-only channel: nothing lives here), and the channel box says
+ * "Mostly:" and lists its biggest titles; [Unknown] is a day that was built before homes were kept, so nothing is said
+ * of them at all: no "Home to:" and no "Mostly:" guess.
+ */
+sealed interface HomeShows {
+    /** The day does not say which titles live on the channel (read back from a file of an older format). */
+    data object Unknown : HomeShows
+
+    /** [count] titles live on the channel; [titles] are the first up to [ChannelHoldings.LISTED] of them, named. */
+    data class Known(
+        val count: Int,
+        val titles: List<HeldTitle>,
+    ) : HomeShows
+}
+
+/**
  * What a switched-on channel holds in its broadcast day, in the viewer's terms (#757); the channel box and the
- * properties sheet both read this one value, so they never disagree. Read-only.
+ * properties sheet both read this one value and its derived figures, so they never disagree. Read-only.
  *
- * - [totalMs]: everything the channel airs today, guests included.
- * - [titleCount]: the titles it is counted by: those whose home it is, or, for a channel with no home shows (a
- *   guest-only decade channel, a custom channel, the leftovers), every title it airs. A guest spot is never counted.
- * - [homeCount]: how many titles have their home here (zero for those channels).
- * - [homes]: up to [LISTED] of them, anchors first, then by hours (most first), then by title ID.
- * - [top]: up to [LISTED] titles holding the most hours (anchors have no say), then by title ID.
- *
- * A title is a show (all its episodes) or a film.
+ * - [totalMs]: everything the channel airs today, home shows and guests alike.
+ * - [titleCount]: how many titles that is: a total of what it airs, like the hours, not a count of guests. A title is
+ *   a show (all its episodes) or a film.
+ * - [homes]: the titles whose home is this channel, anchors first, then by hours (most first), then by title ID; or
+ *   [HomeShows.Unknown]. A guest is never listed as a home.
+ * - [top]: up to [LISTED] titles holding the most hours whatever their status (on a guest-only channel, its guests),
+ *   then by title ID.
+ * - [validUntilMs]: when the broadcast day ends and this must be read again (the default: no end known).
  */
 data class ChannelHoldings(
     val totalMs: Long,
     val titleCount: Int,
-    val homeCount: Int,
-    val homes: List<HeldTitle>,
+    val homes: HomeShows,
     val top: List<HeldTitle>,
+    val validUntilMs: Long = Long.MAX_VALUE,
 ) {
-    /** The line the titles go on. */
-    val list: HoldingsList get() = if (homeCount > 0) HoldingsList.HomeTo else HoldingsList.Mostly
+    /** The line the titles go on; null when the homes are unknown and so no list is shown. */
+    val list: HoldingsList? get() =
+        when (val shown = homes) {
+            HomeShows.Unknown -> null
+            is HomeShows.Known -> if (shown.count > 0) HoldingsList.HomeTo else HoldingsList.Mostly
+        }
 
-    /** The titles that line names. */
-    val listed: List<HeldTitle> get() = if (homeCount > 0) homes else top
+    /** Whether the list is "Home to:" (else "Mostly:", or none when [list] is null). */
+    val homeTo: Boolean get() = list == HoldingsList.HomeTo
 
-    /** How many titles are counted but not named: the "+ N more". */
-    val more: Int get() = (titleCount - listed.size).coerceAtLeast(0)
+    /** The titles that line names (none for no list). */
+    val listed: List<HeldTitle> get() =
+        when (val shown = homes) {
+            HomeShows.Unknown -> emptyList()
+            is HomeShows.Known -> if (shown.count > 0) shown.titles else top
+        }
+
+    /** The names of [listed], in order. */
+    val listedNames: List<String> get() = listed.map { it.name }
+
+    /** How many titles the list leaves out: the "+ N more" (homes beyond those listed, or titles beyond the top). */
+    val more: Int get() =
+        when (val shown = homes) {
+            HomeShows.Unknown -> 0
+            is HomeShows.Known -> ((if (shown.count > 0) shown.count else titleCount) - listed.size).coerceAtLeast(0)
+        }
 
     /** The hours the channel airs, to the nearest hour and never less than one. */
     val hours: Long get() = ((totalMs + MS_PER_HOUR / 2) / MS_PER_HOUR).coerceAtLeast(1)
@@ -60,7 +95,10 @@ data class ChannelHoldings(
     }
 }
 
-/** How features read what a channel holds. Read-only; none of it throws, but for cancellation. */
+/**
+ * How features read what a channel holds. Read-only; none of it throws, but for cancellation. [read] is main-safe: it
+ * does its work off the caller's thread.
+ */
 interface ChannelHoldingsReader {
     /**
      * What channel [id] holds in its broadcast day at [at], or null while nobody is signed in, the channel is not

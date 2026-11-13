@@ -79,6 +79,7 @@ import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.domain.lineup.HeldTitle
+import tv.stationbreak.core.domain.lineup.HomeShows
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
@@ -137,7 +138,7 @@ private val FRAME_HOMES =
             val id = CanonicalId.parse((i + 1).toString(16).padStart(32, '0'))
             HeldTitle(id, name, (60 - i * 5) * FRAME_HOUR_MS, i < 2)
         }
-private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, 37, FRAME_HOMES, emptyList())
+private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, HomeShows.Known(37, FRAME_HOMES), emptyList())
 
 /** No lineup to watch: these shots never open channel management. */
 private object ScreenshotLineup : ChannelRepository {

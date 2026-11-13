@@ -258,10 +258,11 @@ internal object LineupModule {
      */
     @Provides
     @Singleton
+    @Suppress("InjectDispatcher") // The reader's own work, off the main thread, as the schedule source's is.
     fun channelHoldings(
         source: BuiltInScheduleSource,
         library: LibraryRepository,
-    ): ChannelHoldingsReader = BuiltInChannelHoldings(source, library, library::titleNames)
+    ): ChannelHoldingsReader = BuiltInChannelHoldings(source, library, library::titleNames, Dispatchers.Default)
 
     /**
      * The library snapshots the schedule source and the channel preview share (spec 22): a preview of a draft reads no

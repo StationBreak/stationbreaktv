@@ -8,6 +8,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.HeldTitle
+import tv.stationbreak.core.domain.lineup.HomeShows
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
@@ -35,14 +36,20 @@ class GuideChannelHoldingsTest : GuideRig() {
         }
     }
 
-    private fun held(hours: Long) =
-        ChannelHoldings(
-            totalMs = hours * HOUR_MS,
-            titleCount = 1,
-            homeCount = 1,
-            homes = listOf(HeldTitle(CanonicalId.parse("ab".repeat(16)), "A Show", hours * HOUR_MS, anchor = true)),
-            top = emptyList(),
-        )
+    private fun held(
+        hours: Long,
+        until: Long = Long.MAX_VALUE,
+    ) = ChannelHoldings(
+        totalMs = hours * HOUR_MS,
+        titleCount = 1,
+        homes =
+            HomeShows.Known(
+                1,
+                listOf(HeldTitle(CanonicalId.parse("ab".repeat(16)), "A Show", hours * HOUR_MS, anchor = true)),
+            ),
+        top = emptyList(),
+        validUntilMs = until,
+    )
 
     private val sevens = held(7)
     private val nines = held(9)
@@ -136,12 +143,28 @@ class GuideChannelHoldingsTest : GuideRig() {
     }
 
     @Test
-    fun theFiguresAreTheHoldingsOwn() {
-        val figures = held(412).figures()
+    fun theHoldingsAreReadAgainWhenTheBroadcastDayEndsWhileTheFocusRests() {
+        // The day ends 10 minutes after the open (minute 65 + 10); the next read is the next day's.
+        val rollsOver = min(75)
+        val days = ArrayDeque(listOf(held(7, until = rollsOver), held(8)))
+        holdings =
+            object : ChannelHoldingsReader {
+                override suspend fun read(
+                    id: ChannelId,
+                    at: Instant,
+                ): ChannelHoldings? = days.removeFirst().also { reader.reads += id }
+            }
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            vm.press(GuideDirection.Left)
+            after(200)
+            assertEquals(held(7, until = rollsOver), vm.channelHoldings.value?.holdings)
 
-        assertEquals(412L, figures.hours)
-        assertEquals(17L, figures.days)
-        assertEquals(listOf("A Show"), figures.names)
-        assertEquals(true, figures.homeTo)
+            after(10 * 60_000L)
+
+            assertEquals(held(8), vm.channelHoldings.value?.holdings)
+            assertEquals(2, reader.reads.size)
+        }
     }
 }

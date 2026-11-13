@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
-import tv.stationbreak.core.domain.lineup.HoldingsList
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.HoldingsFigures
 
 /** What [channel] holds, read once focus had rested on its column: the channel box draws it for that channel only. */
 internal class ShownHoldings(
@@ -12,8 +12,5 @@ internal class ShownHoldings(
     val holdings: ChannelHoldings,
 )
 
-/** The words of [this] as the channel box and the properties sheet draw them. */
-internal fun ChannelHoldings.figures(): HoldingsFigures {
-    val named = listed.map { it.name }
-    return HoldingsFigures(hours, days, titleCount, list == HoldingsList.HomeTo, named, more)
-}
+/** No holdings: the one way to say so, for a guide with no lineup to read them from. */
+internal val NoHoldings: StateFlow<ShownHoldings?> = MutableStateFlow(null)

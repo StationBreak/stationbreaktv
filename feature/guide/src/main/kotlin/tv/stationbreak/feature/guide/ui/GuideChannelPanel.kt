@@ -36,7 +36,6 @@ import tv.stationbreak.core.ui.mark.ChannelMark
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.ShownHoldings
-import tv.stationbreak.feature.guide.figures
 import tv.stationbreak.feature.guide.focusedRow
 
 // The mark at twice its 50 by 28 dp column box (#631).
@@ -56,13 +55,13 @@ private val HoldingsGap = 8.dp
 @Composable
 internal fun ChannelPanel(
     snapshotOf: () -> GuideSnapshot,
-    holdings: StateFlow<ShownHoldings?>?,
+    holdings: StateFlow<ShownHoldings?>,
     modifier: Modifier,
 ) {
     val row by remember(snapshotOf) { derivedStateOf { snapshotOf().focusedRow() } }
     val shown = row ?: return
     val colors = LocalGuideColors.current
-    val held = holdings?.collectAsStateWithLifecycle()?.value?.takeIf { it.channel == shown.channel }
+    val held = holdings.collectAsStateWithLifecycle().value?.takeIf { it.channel == shown.channel }
     Column(
         modifier
             .clipToBounds()
@@ -93,7 +92,12 @@ internal fun ChannelPanel(
         if (held != null) {
             Spacer(Modifier.height(HoldingsGap))
             ChannelHoldingsLines(
-                figures = held.holdings.figures(),
+                hours = held.holdings.hours,
+                days = held.holdings.days,
+                titles = held.holdings.titleCount,
+                homeTo = held.holdings.homeTo,
+                names = held.holdings.listedNames,
+                more = held.holdings.more,
                 primary = colors.textPrimary,
                 secondary = colors.textSecondary,
                 tags = HoldingsLineTags,

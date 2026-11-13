@@ -18,17 +18,17 @@ internal data class TalliedTitle(
 )
 
 /**
- * A day's pool counted by title, in the order a line lists them. [homed] are the titles whose home is the channel when
- * the day's own curation said so; without it (a day read back from disk) a title weighs 2 or 3 only when it is at home
- * or an anchor, so those are taken as homes.
+ * A day's pool counted by title, in the order a line lists them. [homed] are the titles whose home is the channel, as
+ * the day's build kept them ([ChannelDay.homed]); null when the day does not say, and then [homes] is null too.
  */
 internal class HoldingsTally(
     val totalMs: Long,
     private val titles: List<TalliedTitle>,
+    homed: Boolean,
 ) {
-    /** The titles that live on the channel, anchors first, then most hours, then the lower title ID. */
-    val homes: List<TalliedTitle> =
-        titles.filter { it.home }.sortedWith(compareByDescending<TalliedTitle> { it.anchor }.then(BY_HOURS))
+    /** The titles that live on the channel, anchors first, then most hours, then the lower title ID; null: unknown. */
+    val homes: List<TalliedTitle>? =
+        if (homed) titles.filter { it.home }.sortedWith(compareByDescending<TalliedTitle> { it.anchor }.then(BY_HOURS)) else null
 
     /** Every title, most hours first, then the lower title ID. */
     val byHours: List<TalliedTitle> = titles.sortedWith(BY_HOURS)
@@ -38,7 +38,7 @@ internal class HoldingsTally(
     companion object {
         private val BY_HOURS = compareByDescending<TalliedTitle> { it.ms }.thenBy { it.id.value }
 
-        /** The tally of [pool]; null when it airs nothing. */
+        /** The tally of [pool]; null when it airs nothing. A title is an anchor when it is a home of weight 3. */
         fun of(
             pool: List<ScheduleItem>,
             weights: TitleWeights,
@@ -53,22 +53,26 @@ internal class HoldingsTally(
             if (ms.isEmpty()) return null
             val titles =
                 ms.map { (id, held) ->
-                    val weight = weights[id]
-                    val home = homed?.contains(id) ?: (weight >= TitleWeights.MAX_WEIGHT - 1)
-                    TalliedTitle(id, held, anchor = home && weight == TitleWeights.MAX_WEIGHT, home = home)
+                    val home = homed?.contains(id) == true
+                    TalliedTitle(id, held, anchor = home && weights[id] == TitleWeights.MAX_WEIGHT, home = home)
                 }
-            return HoldingsTally(total, titles)
+            return HoldingsTally(total, titles, homed != null)
         }
     }
 }
 
 /**
- * The tally as a [ChannelHoldings], its titles named by [names] (asked once, for the titles the lists could show). A
- * lookup that fails costs the names, not the counts; a title with no name is passed over for the next.
+ * The tally as a [ChannelHoldings] valid until [untilMs], its titles named by [names] (asked once, for the titles the
+ * lists could show). A lookup that fails costs the names, not the counts; a title with no name is passed over for the
+ * next.
  */
-internal suspend fun HoldingsTally.holdings(names: TitleNames): ChannelHoldings {
+internal suspend fun HoldingsTally.holdings(
+    untilMs: Long,
+    names: TitleNames,
+): ChannelHoldings {
     val asked = ChannelHoldings.LISTED * 2
-    val wanted = (homes.take(asked) + byHours.take(asked)).mapTo(LinkedHashSet()) { it.id }
+    val homed = homes
+    val wanted = ((homed?.take(asked) ?: emptyList()) + byHours.take(asked)).mapTo(LinkedHashSet()) { it.id }
     val named =
         try {
             names(wanted)
@@ -82,11 +86,6 @@ internal suspend fun HoldingsTally.holdings(names: TitleNames): ChannelHoldings 
         titles
             .mapNotNull { t -> named[t.id]?.let { HeldTitle(t.id, it, t.ms, t.anchor) } }
             .take(ChannelHoldings.LISTED)
-    return ChannelHoldings(
-        totalMs = totalMs,
-        titleCount = if (homes.isEmpty()) titleCount else homes.size,
-        homeCount = homes.size,
-        homes = listed(homes),
-        top = listed(byHours),
-    )
+    val shown = if (homed == null) HomeShows.Unknown else HomeShows.Known(homed.size, listed(homed))
+    return ChannelHoldings(totalMs, titleCount, shown, listed(byHours), untilMs)
 }
