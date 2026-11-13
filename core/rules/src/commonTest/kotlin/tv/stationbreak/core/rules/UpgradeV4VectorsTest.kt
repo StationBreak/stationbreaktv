@@ -58,10 +58,10 @@ class UpgradeV4VectorsTest {
     }
 
     @Test
-    fun theAppDefaultIsBeforeTheGate() {
+    fun theAppDefaultIsAfterTheGate() {
         for (case in cases.filter { it.string("operation") == "read" }) {
             val rules = readOk(text(case.getValue("input")))
-            val expected = case.getValue("beforeGate")
+            val expected = case.getValue("afterGate")
             val written = VectorJson.parse(RulesWriter.write(rules.upgradedToStudioFold2()))
             assertEquals(expected, written, case.string("name"))
         }

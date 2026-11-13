@@ -6,8 +6,9 @@ package tv.stationbreak.core.rules
  * `studio` sources, `studio` exclusions and `studios` filter under studio fold 2; a file that says 1 to 3 keeps studio
  * fold 1 exactly.
  *
- * The app reads 4 before it writes it: [WRITES_FORMAT_4] stays false until every port has released a version that
- * reads 4 and the owner has checked that every TV in the household runs it. Then it is turned on in its own release.
+ * The app reads 4 before it writes it: [WRITES_FORMAT_4] stayed false until every port that had a release read 4 and
+ * the owner had checked the TVs. It passed on 2026-11-13 (the ADR's gate table): the Fire app is the only port with a
+ * release, and the Roku and Vega OS ports must read 4 before their first.
  */
 object StudioFold2Gate {
     /** The first format version that matches studios under studio fold 2. */
@@ -18,5 +19,5 @@ object StudioFold2Gate {
      * exclusion or a `studios` filter at [FORMAT_VERSION], and upgrades such a file that says 3 whenever it reads,
      * imports or saves it. While false, nothing is upgraded, and a file that says 4 is still never written lower.
      */
-    const val WRITES_FORMAT_4: Boolean = false
+    const val WRITES_FORMAT_4: Boolean = true
 }

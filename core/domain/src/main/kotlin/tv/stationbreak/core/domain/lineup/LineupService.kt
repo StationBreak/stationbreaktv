@@ -139,9 +139,11 @@ class LineupService internal constructor(
      * hold (a count, nothing else): a gap there is a show whose episodes cannot be named or homed (issue 604).
      * [derived] is told when a lineup is forgotten ([forget]): what was built from it (the days on disk, #480) goes
      * too. [trimmed] is told what a lineup save trimmed from the repair record to fit (three counts: fixes, fixes
-     * covering now, selection repairs; nothing else).
+     * covering now, selection repairs; nothing else). [rulesFormats] is told, when the stored lineup is first read
+     * ([loaded]), how many rules files it holds at each rules format version and how many the read upgraded (counts
+     * only, ADR-0026).
      */
-    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and five numbers-only hooks.
+    @Suppress("LongParameterList") // The app's one constructor: the store, the reads and six numbers-only hooks.
     constructor(
         store: LineupStore,
         library: LibraryRepository,
@@ -152,13 +154,20 @@ class LineupService internal constructor(
         derived: DayStore? = null,
         unknownSeries: (Int) -> Unit = {},
         trimmed: (fixes: Int, coveringFixes: Int, selection: Int) -> Unit = { _, _, _ -> },
+        rulesFormats: (RulesFormats) -> Unit = {},
     ) : this(
         store,
         library,
         clock,
         standardOffsetMinutes,
         report,
-        LineupSeams(timed = timed, derived = derived, unknownSeries = unknownSeries, trimmed = trimmed),
+        LineupSeams(
+            timed = timed,
+            derived = derived,
+            unknownSeries = unknownSeries,
+            trimmed = trimmed,
+            rulesFormats = rulesFormats,
+        ),
     )
 
     internal val catalog: StarterCatalogView get() = seams.catalog
@@ -166,6 +175,9 @@ class LineupService internal constructor(
 
     // Background rolls (see [rollSoon]): their own scope, so a roll outlives the read that asked for it.
     private val rolls = BackgroundRolls(seams.rollDispatcher)
+
+    // The one-time rewrite of rules a load upgraded (see [rewriteSoon]): in the background, like the rolls.
+    private val rewrites = BackgroundRolls(seams.rollDispatcher)
 
     // The play keys of the last few revisions and days ([PlayKeyCache]).
     private val playKeys = PlayKeyCache()
@@ -938,6 +950,8 @@ class LineupService internal constructor(
                         droppedUnreadableRecord(owner, entry, decoded)
                         entry.writable = true
                         publish(entry, decoded.lineup, decoded.meta, decoded.repairs)
+                        seams.rulesFormats(RulesFormats.of(decoded.lineup, decoded.upgradedRules))
+                        if (decoded.upgradedRules > 0) rewriteSoon(owner, entry)
                     }
                     entry.loaded = stored != StoredBytes.Failed
                 }
@@ -1176,6 +1190,54 @@ class LineupService internal constructor(
             entry.mutex.unlock()
         }
     }
+
+    /**
+     * The one-time rewrite (ADR-0026, Versioning): once the format 4 gate has passed, a stored lineup whose rules its
+     * read upgraded (rules that say 3 and hold a studio feature now say 4) is saved once, so the file says 4 too and no
+     * TV reads those rules under studio fold 1 again. [loaded] asks for it; it runs in the background, never on a
+     * reader's path (a tune's lookup reads through [loaded]), and takes the account's lock like any save.
+     *
+     * Under the lock it reads the file again and saves only when the file still holds rules to upgrade (a refresh or
+     * an edit since may have saved them already), and only the lineup this session holds writable, through the normal
+     * save ([savedWithRecord]: the same checks every save makes). A later start reads 4 and asks for nothing, so this
+     * runs once. A file of an older lineup version keeps its copy first, as any first save of a new version does. A
+     * failure is reported and leaves the file as it was: the next save of the lineup writes 4 anyway.
+     */
+    private fun rewriteSoon(
+        owner: Owner,
+        entry: Entry,
+    ) {
+        rewrites.launch { rewriteUpgraded(owner, entry) }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // Any failure of a background save: report it, the next save writes 4.
+    private suspend fun rewriteUpgraded(
+        owner: Owner,
+        entry: Entry,
+    ) {
+        // Read before the lock is taken: the provider never runs under the entry's lock.
+        val savedSeq = savedSeqNow()
+        try {
+            entry.mutex.withLock {
+                val stored = store.load(owner.key) as? StoredBytes.Present
+                val decoded = stored?.let { LineupCodec.decode(it.bytes) } as? LineupCodec.Decoded.Loaded
+                val due = decoded?.takeIf { it.upgradedRules > 0 && owner.owns(it.lineup) }
+                val held = entry.state.value?.takeIf { it.writable && entry.writable }
+                if (due != null && held != null) {
+                    if (due.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, due.fileVersion)
+                    val repairs = savedWithRecord(owner, entry, held.lineup, held.meta, held.repairs, savedSeq)
+                    if (repairs !== held.repairs) entry.set(held.copy(repairs = repairs))
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            report(LineupEvent.SaveFailed)
+        }
+    }
+
+    /** For tests: waits for the one-time rewrites started so far. */
+    internal suspend fun awaitRewrites() = rewrites.await()
 
     /** For tests: waits for the background rolls started so far. */
     internal suspend fun awaitRolls() = rolls.await()
@@ -1480,6 +1542,8 @@ internal class LineupSeams(
     val trimmed: (Int, Int, Int) -> Unit = { _, _, _ -> },
     /** The lineup as rolled at a moment; here so a test can count the lookups that pay for it. */
     val rolledLineup: (Lineup, Long) -> Lineup = { lineup, nowMs -> lineup.rolled(nowMs) },
+    /** Told the rules formats of a stored lineup when it is first read (counts only, ADR-0026). */
+    val rulesFormats: (RulesFormats) -> Unit = {},
 )
 
 /** The episodes of [snapshot] whose series it lacks: what `PoolEvaluator` counts as `episodesWithUnknownSeries`. */

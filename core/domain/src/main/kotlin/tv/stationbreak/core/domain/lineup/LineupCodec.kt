@@ -94,6 +94,8 @@ internal object LineupCodec {
          * caller keeps the old bytes before it saves. The default [fileVersion] is [BASE_VERSION]: what a lineup with
          * no repairs is written as. [repairsUnreadable] is true when the file's `repairs` object did not read: the
          * lineup is loaded with no record ([repairs] is none), the file is not set aside, and the caller reports it.
+         * [upgradedRules] is how many rules files (a channel's rules, a starter's previous rules) the read upgraded to
+         * format 4 (ADR-0026, the upgrade): more than none means the file on disk still says 3 for them.
          */
         data class Loaded(
             val lineup: Lineup,
@@ -101,6 +103,7 @@ internal object LineupCodec {
             val repairs: TodayRepairs = TodayRepairs.NONE,
             val fileVersion: Int = BASE_VERSION,
             val repairsUnreadable: Boolean = false,
+            val upgradedRules: Int = 0,
         ) : Decoded
 
         /** Not a lineup this version can read. The caller sets it aside before writing another. */
@@ -200,7 +203,9 @@ internal object LineupCodec {
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
         if (server == null || user == null || !validOffset(file.utcOffsetMinutes)) return Decoded.Unreadable
         val inferred = fileVersion < 3
-        val channels = file.channels.map { upgraded(channelOf(it, inferred), gatePassed) }
+        val read = file.channels.map { channelOf(it, inferred) }
+        val channels = read.map { upgraded(it, gatePassed) }
+        val upgradedRules = read.indices.sumOf { upgradesIn(read[it], channels[it]) }
         val ids = channels.mapTo(HashSet()) { it.id }
         val lineup =
             Lineup.ofOrNull(
@@ -218,7 +223,14 @@ internal object LineupCodec {
         return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs)) {
             val repairs = if (hasRepairs) repairsOf(file.repairs ?: JsonNull) else TodayRepairs.NONE
             val unreadable = repairs == null
-            Decoded.Loaded(lineup, meta, repairs ?: TodayRepairs.NONE, fileVersion, repairsUnreadable = unreadable)
+            Decoded.Loaded(
+                lineup,
+                meta,
+                repairs ?: TodayRepairs.NONE,
+                fileVersion,
+                repairsUnreadable = unreadable,
+                upgradedRules = upgradedRules,
+            )
         } else {
             Decoded.Unreadable
         }
@@ -326,6 +338,28 @@ private fun upgraded(
         is ChannelSource.Starter -> channel.copy(source = source.mapRules(upgrade))
         is ChannelSource.Custom -> channel.copy(source = ChannelSource.Custom(upgrade(source.rules)))
         is ChannelSource.Leftovers, is ChannelSource.Unusable -> channel
+    }
+}
+
+// How many of [before]'s rules files [after] holds upgraded: the upgrade gives back the very rules it leaves alone.
+private fun upgradesIn(
+    before: LineupChannel,
+    after: LineupChannel,
+): Int {
+    val was = before.source
+    val now = after.source
+    return when {
+        was is ChannelSource.Starter && now is ChannelSource.Starter -> {
+            (if (was.rules !== now.rules) 1 else 0) + (if (was.previousRules !== now.previousRules) 1 else 0)
+        }
+
+        was is ChannelSource.Custom && now is ChannelSource.Custom -> {
+            if (was.rules !== now.rules) 1 else 0
+        }
+
+        else -> {
+            0
+        }
     }
 }
 
