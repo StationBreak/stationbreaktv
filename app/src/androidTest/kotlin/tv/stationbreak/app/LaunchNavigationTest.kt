@@ -30,6 +30,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -298,7 +299,22 @@ class LaunchNavigationTest {
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
         val deadline = System.currentTimeMillis() + TIMEOUT_MS
         while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
-        assertTrue("Select on Exit should leave the app", activity.isFinishing)
+        if (!activity.isFinishing) fail("Select on Exit should leave the app. ${describeScreenAfterSelect(activity)}")
+    }
+
+    // Diagnostic for a failure seen only on CI's emulator: what the screen and the activity looked like after Select.
+    private fun describeScreenAfterSelect(activity: android.app.Activity): String {
+        val state = "finishing=${activity.isFinishing} destroyed=${activity.isDestroyed} " +
+            "hasWindowFocus=${activity.hasWindowFocus()}"
+        val tree =
+            runCatching {
+                compose.onAllNodes(isSelected()).fetchSemanticsNodes().map {
+                    it.config.getOrNull(SemanticsProperties.TestTag) ?: "(untagged)"
+                }
+            }.getOrElse { "unreadable: $it" }
+        val sheet = runCatching { count(GuideTags.MENU_SHEET) }.getOrElse { -1 }
+        val empty = runCatching { count(GuideTags.EMPTY) }.getOrElse { -1 }
+        return "$state; selected=$tree; sheets=$sheet; emptyGuide=$empty"
     }
 
     private fun assertBackLeavesTheApp() {
