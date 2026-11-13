@@ -8,8 +8,9 @@ import tv.stationbreak.core.rules.ChannelRules
 /**
  * How many rules files a loaded lineup holds at each rules `formatVersion` (a channel's rules and a starter's previous
  * rules; a channel whose rules need a newer app holds none this app can count), and how many of them its load
- * [upgraded] to 4 (docs/adr/0026-studio-fold-2.md, Versioning). Counts only: no name, ID or content. It is what the
- * owner reads to check the format 4 gate on a TV until the diagnostics screen (F3.6) shows it.
+ * [upgraded] to 4 (docs/adr/0026-studio-fold-2.md, Versioning). Counts only: no name, ID or content. The versions are
+ * of the lineup as loaded, after the upgrade: `v3` counts what is still 3 in memory. [upgraded] above none on a second
+ * start means the earlier rewrite did not land. The diagnostics screen (F3.6) should show the same.
  */
 data class RulesFormats(
     val v1: Int = 0,
@@ -18,8 +19,8 @@ data class RulesFormats(
     val v4: Int = 0,
     val upgraded: Int = 0,
 ) {
-    /** The `Lineup` log line. */
-    fun line(): String = "Lineup rules formats v1=$v1 v2=$v2 v3=$v3 v4=$v4 upgraded=$upgraded"
+    /** The log line, logged under the `Lineup` tag. */
+    fun line(): String = "rules formats v1=$v1 v2=$v2 v3=$v3 v4=$v4 upgraded=$upgraded"
 
     internal companion object {
         /** The rules files of [lineup] counted by version, and [upgraded] as its load said. */

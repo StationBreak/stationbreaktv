@@ -6,9 +6,9 @@ package tv.stationbreak.core.rules
  * `studio` sources, `studio` exclusions and `studios` filter under studio fold 2; a file that says 1 to 3 keeps studio
  * fold 1 exactly.
  *
- * The app reads 4 before it writes it: [WRITES_FORMAT_4] stayed false until every port that had a release read 4 and
- * the owner had checked the TVs. It passed on 2026-11-13 (the ADR's gate table): the Fire app is the only port with a
- * release, and the Roku and Vega OS ports must read 4 before their first.
+ * The app reads 4 before it writes it: [WRITES_FORMAT_4] stayed false until the release gate. On 2026-11-13 the owner
+ * waived the gate's reader-before-writer order for the Fire app, the only port with a release (the ADR's gate ruling:
+ * it fails closed); the Roku and Vega OS ports must read 4 before their first release.
  */
 object StudioFold2Gate {
     /** The first format version that matches studios under studio fold 2. */

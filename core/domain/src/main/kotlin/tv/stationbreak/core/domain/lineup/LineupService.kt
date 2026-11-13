@@ -139,9 +139,9 @@ class LineupService internal constructor(
      * hold (a count, nothing else): a gap there is a show whose episodes cannot be named or homed (issue 604).
      * [derived] is told when a lineup is forgotten ([forget]): what was built from it (the days on disk, #480) goes
      * too. [trimmed] is told what a lineup save trimmed from the repair record to fit (three counts: fixes, fixes
-     * covering now, selection repairs; nothing else). [rulesFormats] is told, when the stored lineup is first read
-     * ([loaded]), how many rules files it holds at each rules format version and how many the read upgraded (counts
-     * only, ADR-0026).
+     * covering now, selection repairs; nothing else). [rulesFormats] is told, once, at the first read of the stored
+     * lineup on any path, how many rules files it holds at each rules format version and how many the read upgraded
+     * (counts only, ADR-0026).
      */
     @Suppress("LongParameterList") // The app's one constructor: the store, the reads and six numbers-only hooks.
     constructor(
@@ -214,6 +214,9 @@ class LineupService internal constructor(
 
         /** Whether a stored repair record that did not read was dealt with (reported, dropped). Used under [mutex]. */
         var unreadableRecordSeen = false
+
+        /** Whether the rules formats of the stored lineup were told ([noteFormats]). Used under [mutex]. */
+        var formatsNoted = false
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -950,7 +953,7 @@ class LineupService internal constructor(
                         droppedUnreadableRecord(owner, entry, decoded)
                         entry.writable = true
                         publish(entry, decoded.lineup, decoded.meta, decoded.repairs)
-                        seams.rulesFormats(RulesFormats.of(decoded.lineup, decoded.upgradedRules))
+                        noteFormats(entry, decoded)
                         if (decoded.upgradedRules > 0) rewriteSoon(owner, entry)
                     }
                     entry.loaded = stored != StoredBytes.Failed
@@ -1024,6 +1027,7 @@ class LineupService internal constructor(
     ): RecordReset =
         when {
             decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup) -> {
+                noteFormats(entry, decoded)
                 if (empty) {
                     emptied(owner, entry, decoded)
                 } else {
@@ -1313,6 +1317,7 @@ class LineupService internal constructor(
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
                 if (owner.owns(lineup)) {
+                    noteFormats(entry, decoded)
                     droppedUnreadableRecord(owner, entry, decoded)
                     // Only an older file's upgrade to version 3 is kept here; the first version-4 save keeps its own.
                     if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
@@ -1331,6 +1336,18 @@ class LineupService internal constructor(
                 setAside(owner, session)
             }
         }
+
+    // The rules formats of the first lineup of this account the entry decodes from the store, on whatever path reads it
+    // first ([loaded], a refresh, an edit, a reset, a record), told once (counts only, ADR-0026): the session that
+    // rewrites upgraded rules, or saves them first, is the one that tells how many it upgraded. Under the entry's lock.
+    private fun noteFormats(
+        entry: Entry,
+        decoded: LineupCodec.Decoded.Loaded,
+    ) {
+        if (entry.formatsNoted) return
+        entry.formatsNoted = true
+        seams.rulesFormats(RulesFormats.of(decoded.lineup, decoded.upgradedRules))
+    }
 
     // A stored record that did not read (spec 26) is reported once per entry, and the file is written once without it,
     // after a copy of its bytes as they stand is kept. The copy is best effort: the first unreadable record is kept
@@ -1542,7 +1559,7 @@ internal class LineupSeams(
     val trimmed: (Int, Int, Int) -> Unit = { _, _, _ -> },
     /** The lineup as rolled at a moment; here so a test can count the lookups that pay for it. */
     val rolledLineup: (Lineup, Long) -> Lineup = { lineup, nowMs -> lineup.rolled(nowMs) },
-    /** Told the rules formats of a stored lineup when it is first read (counts only, ADR-0026). */
+    /** Told the rules formats of a stored lineup once, when it is first read (counts only, ADR-0026). */
     val rulesFormats: (RulesFormats) -> Unit = {},
 )
 

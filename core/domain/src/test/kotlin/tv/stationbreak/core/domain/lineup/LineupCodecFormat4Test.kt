@@ -153,7 +153,7 @@ class LineupCodecFormat4Test {
         val upgraded = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes, gatePassed = true))
         val formats = RulesFormats.of(upgraded.lineup, upgraded.upgradedRules)
         assertEquals(RulesFormats(v1 = 1, v2 = 1, v3 = 1, v4 = 6, upgraded = 5), formats)
-        assertEquals("Lineup rules formats v1=1 v2=1 v3=1 v4=6 upgraded=5", formats.line())
+        assertEquals("rules formats v1=1 v2=1 v3=1 v4=6 upgraded=5", formats.line())
         assertEquals(RulesFormats(v1 = 1, v2 = 1, v3 = 6, v4 = 1, upgraded = 0), RulesFormats.of(lineup, 0))
     }
 }
