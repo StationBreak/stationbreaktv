@@ -15,11 +15,16 @@ against its Default_Ignorable_Code_Point lines (less U+200C and U+200D) and stop
 
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import sys
 
 ZWNJ, ZWJ = 0x200C, 0x200D
+
+# https://www.unicode.org/Public/15.1.0/ucd/DerivedCoreProperties.txt: its first line and its SHA-256.
+UCD_HEADER = "# DerivedCoreProperties-15.1.0.txt"
+UCD_SHA256 = "f55d0db69123431a7317868725b1fcbf1eab6b265d756d1bd7f0f6d9f9ee108b"
 
 # --- the sets, as the ADR lists them ---------------------------------------------------------------------------------
 
@@ -56,8 +61,16 @@ def in_r(cp: int) -> bool:
 
 
 def check_default_ignorable(path: pathlib.Path) -> None:
+    data = path.read_bytes()
+    text = data.decode("utf-8")
+    header = text.split("\n", 1)[0].rstrip("\r")
+    if header != UCD_HEADER:
+        sys.exit(f"{path} is not Unicode 15.1.0 DerivedCoreProperties.txt: its first line is {header!r}, not {UCD_HEADER!r}")
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != UCD_SHA256:
+        sys.exit(f"{path} has SHA-256 {digest}, not the pinned {UCD_SHA256}: download it again from unicode.org")
     expected = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         body = line.split("#", 1)[0].strip()
         if not body:
             continue
@@ -288,12 +301,24 @@ def hold_cases():
         ("U+0085", lambda s: s.replace(" ", cps(0x0085))),
         ("U+3164 Hangul filler", lambda s: s.replace(" ", cps(0x3164))),
         ("U+2800 Braille blank", lambda s: s.replace(" ", cps(0x2800))),
+        ("U+115F Hangul choseong filler", lambda s: s.replace(" ", cps(0x115F))),
+        ("U+1160 Hangul jungseong filler", lambda s: s.replace(" ", cps(0x1160))),
+        ("U+FFA0 halfwidth Hangul filler", lambda s: s.replace(" ", cps(0xFFA0))),
+        ("U+1680 Ogham space mark", lambda s: s.replace(" ", cps(0x1680))),
+        ("U+202F narrow no-break space", lambda s: s.replace(" ", cps(0x202F))),
+        ("U+205F medium mathematical space", lambda s: s.replace(" ", cps(0x205F))),
         ("ZWJ inside a word", lambda s: s[:2] + cps(ZWJ) + s[2:]),
         ("ZWNJ inside a word", lambda s: s[:2] + cps(ZWNJ) + s[2:]),
         ("U+E0002 inside a word", lambda s: s[:3] + cps(0xE0002) + s[3:]),
         ("U+2065 inside a word", lambda s: s[:3] + cps(0x2065) + s[3:]),
         ("U+034F inside a word", lambda s: s[:3] + cps(0x034F) + s[3:]),
         ("U+FE0F inside a word", lambda s: s[:3] + cps(0xFE0F) + s[3:]),
+        ("U+17B4 inside a word", lambda s: s[:3] + cps(0x17B4) + s[3:]),
+        ("U+180B inside a word", lambda s: s[:3] + cps(0x180B) + s[3:]),
+        ("U+E0100 inside a word", lambda s: s[:3] + cps(0xE0100) + s[3:]),
+        ("U+E00A0 inside a word", lambda s: s[:3] + cps(0xE00A0) + s[3:]),
+        ("ZWJ at the start", lambda s: cps(ZWJ) + s),
+        ("ZWNJ at the start", lambda s: cps(ZWNJ) + s),
         ("space then ZWJ", lambda s: s.replace(" ", " " + cps(ZWJ), 1) if " " in s else s + " " + cps(ZWJ)),
     ]
     cases = []

@@ -2119,7 +2119,8 @@ Everything below is in this repository, under `docs/`:
   whose studio is a kid studio spelled with a look-alike: made for kids under `kid-hold-4` and not under `kid-hold-3`,
   and dropped from a grown-up channel by `grown-up-hold-3`). They are computed with an independent reference,
   `scripts/rules-format/studio_fold_2_vectors.py`, written from ADR-0026 alone. The holds use studio fold 2 from
-  `kid-hold-4`; the rules format still uses studio fold 1 (Studio names) in every version this document defines.
+  `kid-hold-4` (defined in `docs/adr/0026-studio-fold-2.md`, The sets and The pass, until a Studio fold 2 subsection
+  is added here); the rules format still uses studio fold 1 (Studio names) in every version this document defines.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

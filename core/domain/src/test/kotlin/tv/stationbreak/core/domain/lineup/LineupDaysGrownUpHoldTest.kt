@@ -67,6 +67,20 @@ class LineupDaysGrownUpHoldTest {
         assertEquals(setOf(pgItem), days.getValue(edited.id.value).ids())
     }
 
+    // grown-up-hold-3 (ADR-0026): the starter's real path drops a kid studio spelled with U+3164 between its words.
+    @Test
+    fun aGrownUpStarterDropsAKidStudioSpelledWithAHangulFiller() {
+        library.seed(
+            movie(1, "Drama", rating = "PG").copy(studios = listOf("Cartoon\u3164Network")),
+            movie(2, "Drama", rating = "PG").copy(studios = listOf("Other Co")),
+        )
+        val drama = starterAt("drama", 150)
+        val custom = channel("custom-out", 160, ChannelState.On, ChannelSource.Custom(drama()))
+        val days = days(lineupOf(drama, custom))
+        assertEquals(setOf(pgItem), days.getValue(drama.id.value).ids())
+        assertEquals(setOf(childrensItem, pgItem), days.getValue("custom-out").ids())
+    }
+
     @Test
     fun aCustomChannelStillAirsTheChildrensRatedItem() {
         seed()

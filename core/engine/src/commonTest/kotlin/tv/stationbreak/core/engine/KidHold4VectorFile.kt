@@ -118,6 +118,78 @@ internal object KidHold4VectorFile {
               "grownUpHold3Drops": true
             },
             {
+              "name": "Walt Disney Animation Studios, U+115F Hangul choseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Walt\u115fDisney\u115fAnimation\u115fStudios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+1160 Hangul jungseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Walt\u1160Disney\u1160Animation\u1160Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+FFA0 halfwidth Hangul filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Walt\uffa0Disney\uffa0Animation\uffa0Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+1680 Ogham space mark, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Walt\u1680Disney\u1680Animation\u1680Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+202F narrow no-break space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Walt\u202fDisney\u202fAnimation\u202fStudios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+205F medium mathematical space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Walt\u205fDisney\u205fAnimation\u205fStudios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
               "name": "Walt Disney Animation Studios, ZWJ inside a word, PG movie",
               "kind": "movie",
               "officialRating": "PG",
@@ -183,6 +255,78 @@ internal object KidHold4VectorFile {
               "officialRating": "PG",
               "studios": [
                 "Wal\ufe0ft Disney Animation Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+17B4 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Wal\u17b4t Disney Animation Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+180B inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Wal\u180bt Disney Animation Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+E0100 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Wal\udb40\udd00t Disney Animation Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, U+E00A0 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Wal\udb40\udca0t Disney Animation Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, ZWJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200dWalt Disney Animation Studios"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Walt Disney Animation Studios, ZWNJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200cWalt Disney Animation Studios"
               ],
               "series": null,
               "kidHold3": false,
@@ -298,6 +442,78 @@ internal object KidHold4VectorFile {
               "grownUpHold3Drops": true
             },
             {
+              "name": "Disney Junior, U+115F Hangul choseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Disney\u115fJunior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+1160 Hangul jungseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Disney\u1160Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+FFA0 halfwidth Hangul filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Disney\uffa0Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+1680 Ogham space mark, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Disney\u1680Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+202F narrow no-break space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Disney\u202fJunior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+205F medium mathematical space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Disney\u205fJunior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
               "name": "Disney Junior, ZWJ inside a word, PG movie",
               "kind": "movie",
               "officialRating": "PG",
@@ -363,6 +579,78 @@ internal object KidHold4VectorFile {
               "officialRating": "PG",
               "studios": [
                 "Dis\ufe0fney Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+17B4 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Dis\u17b4ney Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+180B inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Dis\u180bney Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+E0100 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Dis\udb40\udd00ney Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, U+E00A0 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Dis\udb40\udca0ney Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, ZWJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200dDisney Junior"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Disney Junior, ZWNJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200cDisney Junior"
               ],
               "series": null,
               "kidHold3": false,
@@ -447,6 +735,78 @@ internal object KidHold4VectorFile {
               "officialRating": "PG",
               "studios": [
                 "Pix\ufe0far"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Pixar, U+17B4 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Pix\u17b4ar"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Pixar, U+180B inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Pix\u180bar"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Pixar, U+E0100 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Pix\udb40\udd00ar"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Pixar, U+E00A0 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Pix\udb40\udca0ar"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Pixar, ZWJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200dPixar"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Pixar, ZWNJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200cPixar"
               ],
               "series": null,
               "kidHold3": false,
@@ -562,6 +922,78 @@ internal object KidHold4VectorFile {
               "grownUpHold3Drops": true
             },
             {
+              "name": "Cartoon Network, U+115F Hangul choseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Cartoon\u115fNetwork"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+1160 Hangul jungseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Cartoon\u1160Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+FFA0 halfwidth Hangul filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Cartoon\uffa0Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+1680 Ogham space mark, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Cartoon\u1680Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+202F narrow no-break space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Cartoon\u202fNetwork"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+205F medium mathematical space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Cartoon\u205fNetwork"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
               "name": "Cartoon Network, ZWJ inside a word, PG movie",
               "kind": "movie",
               "officialRating": "PG",
@@ -627,6 +1059,78 @@ internal object KidHold4VectorFile {
               "officialRating": "PG",
               "studios": [
                 "Car\ufe0ftoon Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+17B4 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Car\u17b4toon Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+180B inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Car\u180btoon Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+E0100 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Car\udb40\udd00toon Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, U+E00A0 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Car\udb40\udca0toon Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, ZWJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200dCartoon Network"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Cartoon Network, ZWNJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200cCartoon Network"
               ],
               "series": null,
               "kidHold3": false,
@@ -742,6 +1246,78 @@ internal object KidHold4VectorFile {
               "grownUpHold3Drops": true
             },
             {
+              "name": "PBS Kids, U+115F Hangul choseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\u115fKids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+1160 Hangul jungseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\u1160Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+FFA0 halfwidth Hangul filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\uffa0Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+1680 Ogham space mark, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\u1680Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+202F narrow no-break space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\u202fKids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+205F medium mathematical space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\u205fKids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
               "name": "PBS Kids, ZWJ inside a word, PG movie",
               "kind": "movie",
               "officialRating": "PG",
@@ -807,6 +1383,78 @@ internal object KidHold4VectorFile {
               "officialRating": "PG",
               "studios": [
                 "PBS\ufe0f Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+17B4 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\u17b4 Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+180B inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\u180b Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+E0100 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\udb40\udd00 Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, U+E00A0 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "PBS\udb40\udca0 Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, ZWJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200dPBS Kids"
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "PBS Kids, ZWNJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200cPBS Kids"
               ],
               "series": null,
               "kidHold3": false,
@@ -922,6 +1570,78 @@ internal object KidHold4VectorFile {
               "grownUpHold3Drops": true
             },
             {
+              "name": "Nick Jr., U+115F Hangul choseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nick\u115fJr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+1160 Hangul jungseong filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nick\u1160Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+FFA0 halfwidth Hangul filler, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nick\uffa0Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+1680 Ogham space mark, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nick\u1680Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+202F narrow no-break space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nick\u202fJr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+205F medium mathematical space, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nick\u205fJr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
               "name": "Nick Jr., ZWJ inside a word, PG movie",
               "kind": "movie",
               "officialRating": "PG",
@@ -987,6 +1707,78 @@ internal object KidHold4VectorFile {
               "officialRating": "PG",
               "studios": [
                 "Nic\ufe0fk Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+17B4 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nic\u17b4k Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+180B inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nic\u180bk Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+E0100 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nic\udb40\udd00k Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., U+E00A0 inside a word, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "Nic\udb40\udca0k Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., ZWJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200dNick Jr."
+              ],
+              "series": null,
+              "kidHold3": false,
+              "kidHold4": true,
+              "grownUpHold3Drops": true
+            },
+            {
+              "name": "Nick Jr., ZWNJ at the start, PG movie",
+              "kind": "movie",
+              "officialRating": "PG",
+              "studios": [
+                "\u200cNick Jr."
               ],
               "series": null,
               "kidHold3": false,

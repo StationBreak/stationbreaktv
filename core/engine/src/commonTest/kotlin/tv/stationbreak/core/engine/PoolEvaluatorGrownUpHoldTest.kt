@@ -60,6 +60,17 @@ class PoolEvaluatorGrownUpHoldTest {
         assertEquals(1, pool.counts.madeForKidsOut)
     }
 
+    // grown-up-hold-3 (ADR-0026): a kid studio spelled with a blank-width letter between its words still counts.
+    @Test
+    fun aKidStudioSpelledWithAHangulFillerIsDroppedFromGrownUpAtPg() {
+        val lookAlike = movie(idOf(1), rating = "PG", studios = listOf("Cartoon\u3164Network"))
+        val snap = snapshot(items = listOf(lookAlike, movie(idOf(2), rating = "PG", studios = listOf("Other Co"))))
+        val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
+        assertEquals(listOf(idOf(2)), idsOf(pool))
+        assertEquals(1, pool.counts.madeForKidsOut)
+        assertEquals(listOf(idOf(1)), idsOf(PoolEvaluator.evaluate(kidsRules(), snap, PoolPolicy.KidsOnly)))
+    }
+
     @Test
     fun aKidStudioSeriesRatedTv14WithTv14EpisodesIsKeptByGrownUp() {
         val snap =
