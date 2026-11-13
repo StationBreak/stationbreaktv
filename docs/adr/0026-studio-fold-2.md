@@ -1,7 +1,7 @@
 # ADR-0026: Studio fold 2 (closing look-alike gaps in studio matching)
 
-**Status:** Proposed. Owner decisions recorded; revised 2026-11-13 after security review rounds 1-3; awaiting
-security re-review. Nothing is implemented yet.
+**Status:** Accepted 2026-11-13, after the owner's decisions and four rounds of security review. The implementation
+PRs (every port) get their own security review. Nothing is implemented yet.
 
 **Date:** 2026-11-12 (revised 2026-11-13)
 
@@ -187,10 +187,14 @@ it is. Every current call site of `cleanStudioName`, and of the fold-1 keys buil
 | `Theme.NameMatcher.fold` (catalog studio anchors), `LibraryNames` studio keys, `RecipeResolver`, `CurationLanes` studio anchors, curation `Titles` against `CurationTables` | catalog and curation | fold 1. `NameMatcher` matches whole words, which needs the spaces; a change is a new catalog or curation version, not part of this ADR |
 | `CatalogPicker.studios` | the spelling shown for a stored studio | fold 1 (display only) |
 | `DraftReader.spelled` and `DraftReader.withStudioNames` (builder), `BuiltInChannelProperties` (channel properties), both through the `StudioNames` lookup (`CatalogPicker.studios`) | the spelling shown for a studio source or exclusion the rules hold | fold 1 (display only). A format-4 exclusion whose name has no fold-1 twin in the library shows its stored spelling; what it matches is unchanged |
-| `ChannelRules.requiredVersion` (`core/rules`, `ChannelRules.kt`) and `ChannelRules.normalised` | the lowest version a file's features need, which every save writes | 3 for a studio source, studio exclusion or `studios` filter until the gate has passed, then 4 (see Versioning) |
-| `DraftRules.toRules` (builder, `DraftRules.kt`) | the rules a builder save writes, tried at version 3, then 2, then 1 | must branch on "requires 3 or more", not "requires exactly 3" (today `v3.requiredVersion == FORMAT_3`), or a studio channel that requires 4 falls to the version-2 path and drops carried version-3 data such as a `curated` order; it keeps the higher of the previous `formatVersion` and the required one (see Versioning) |
-| `RecipeResolver` (`RecipeResolver.kt`, `fitted.copy(formatVersion = fitted.requiredVersion)`) | the version a resolved starter is written at | follows `requiredVersion`: 4 for a starter with a studio source or exclusion once the gate has passed, 3 before |
-| Rules read and import: `RulesReader.read` through `LineupCodec` (a channel's rules and its previous rules), and any import or restore of a rules file | where a stored, imported or restored file enters the app | a `formatVersion` 3 file with a studio feature is written back as 4 once the gate has passed (see Versioning) |
+| `RulesLimits.SUPPORTED_FORMAT_VERSION` (`core/rules`, `RulesLimits.kt`) | the highest `formatVersion` the app reads | 3 today; 4 in the release that reads 4 (with `RulesVocabulary` knowing version 4: the same fields as version 3) |
+| `ChannelRules` init check (`ChannelRules.kt`, `formatVersion in 1..SUPPORTED_FORMAT_VERSION`) | rejects rules at a version the app does not read | follows `SUPPORTED_FORMAT_VERSION`, so rules at 4 can be built in the release that reads 4 |
+| `RulesReader` version gate (`RulesReader.kt`, `value > SUPPORTED_FORMAT_VERSION`) | turns a newer file into "update required" | follows `SUPPORTED_FORMAT_VERSION`: a 4 file is read, not "update required", from the release that reads 4 |
+| `ChannelRules.requiredVersion` (`ChannelRules.kt`) | the lowest version a file must say to be valid (`require(formatVersion >= requiredVersion)`, which `RulesReader` turns into Invalid) | unchanged: 3 for a studio source, studio exclusion or `studios` filter, before and after the gate. It must not become 4, or every studio file that says 3 would be rejected as invalid before it could be rewritten |
+| `ChannelRules.writeVersion` (new) and `ChannelRules.normalised` | the version the app writes | `writeVersion` is `requiredVersion`, except that for a file with a studio source, studio exclusion or `studios` filter it is 4 once the gate has passed, and it is never lower than the file's previous `formatVersion` when that file holds those features. `normalised` writes at `writeVersion` (see Versioning) |
+| `DraftRules.toRules` (builder, `DraftRules.kt`) | the rules a builder save writes, tried at version 3, then 2, then 1 | the first attempt is made at the write version, not at a fixed `FORMAT_3`, and must branch on "requires 3 or more", not "requires exactly 3" (today `v3.requiredVersion == FORMAT_3`), or a studio channel falls to the version-2 path and drops carried version-3 data such as a `curated` order. The never-lower rule reads `previous`, not `carry` (which is null when `draft.kept` is null) |
+| `RecipeResolver` (`RecipeResolver.kt`: `LATEST_FORMAT` at line 82, `fitted.copy(formatVersion = fitted.requiredVersion)` at line 94) | the version a resolved starter is built and written at | `LATEST_FORMAT` follows the write version, and line 94 writes at `writeVersion`: 4 for a starter with a studio source or exclusion once the gate has passed, 3 before. On a re-resolve (`LineupPlanner.kt`, line 374) the higher of the stored and the written version is kept |
+| Rules read and import: `RulesReader.read` through `LineupCodec` (a channel's rules and its previous rules), and any import or restore of a rules file | where a stored, imported or restored file enters the app | a `formatVersion` 3 file is read, and matched under fold 1, as it is; once the gate has passed one with a studio feature is written back as 4 (see Versioning) |
 | `GroupCollections.isBoxSet` | box-set detection (`docs/rules-format.md`, the name ends in U+0020 `collection`) | fold 1. It needs the space; a change changes which collections group and would need its own version |
 
 A snapshot therefore holds fold-2 studio keys alongside the fold-1 ones for every item and series: the holds read fold 2
@@ -236,14 +240,18 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
     and holds one of those features, it writes it back as 4, the same way. That covers a file restored from a backup,
     imported from an older TV or from another household, and a file an older TV that missed the gate saves as 3 after
     the rewrite (that TV reads it under fold 1 until a newer app next reads it, which is the existing behaviour of an
-    old app). `ChannelRules.requiredVersion` returns 4 for those features, so `normalised` and every save write 4.
-    The invariant holds on a TV that has passed the gate as much as on one that missed it: no save on any TV that reads
-    4 writes a studio file below 4.
-  - **Never lower a file that says 4.** The release that reads 4 ships before the gate, while `requiredVersion` still
-    returns 3 for studio features. It must not write a file that says 4 back as 3: `ChannelRules.normalised` and
-    `DraftRules.toRules` keep the higher of the previous `formatVersion` and `requiredVersion` when the file holds a
-    `studio` source, a `studio` exclusion or a `studios` filter. (Today `DraftRules.toRules` tries version 3 by a fixed
-    `FORMAT_3` and `normalised` sets the version to `requiredVersion`, which can lower it; both change in that release.)
+    old app). The mechanism is a new `ChannelRules.writeVersion`, the version the app writes: 4 for those features
+    once the gate has passed. `normalised`, `DraftRules.toRules` and `RecipeResolver` write at `writeVersion`.
+    `ChannelRules.requiredVersion` does **not** change: it is the lowest version a file must say to be valid, and it
+    stays 3 for studio features, so a studio file that says 3 is still valid, is read and is matched under fold 1
+    until it is written back as 4. A TV that has passed the gate keeps the invariant as much as one that missed it and
+    was updated later: no save by a release that writes 4 writes a studio file below 4.
+  - **Never lower a file that says 4.** The release that reads 4 ships before the gate, while `writeVersion` is still 3
+    for studio features. It must not write a file that says 4 back as 3: `writeVersion` is never lower than the file's
+    previous `formatVersion` when the file holds a `studio` source, a `studio` exclusion or a `studios` filter, and
+    `normalised`, `DraftRules.toRules` (reading `previous`, which is set even when nothing was carried) and a
+    re-resolved starter keep it. (Today `DraftRules.toRules` tries version 3 by a fixed `FORMAT_3` and `normalised` sets
+    the version to `requiredVersion`, which can lower it; both change in that release.)
   - The upgrade is idempotent: a file already at 4 is left alone, so two TVs doing it at once write the same file.
     A file that says 1 or 2 is never upgraded: a studio source there is an unknown kind, and upgrading it would make an
     unsupported channel supported.
@@ -278,8 +286,9 @@ with a studio exclusion and one with a `studios` filter, each read or imported a
 without those features and a `formatVersion` 1 or 2 file come out unchanged; a `formatVersion` 4 file edited and
 saved by the release that reads 4 (before the gate) stays 4.
 
-A builder test in each port: a `formatVersion` 4 file with a studio source and a `curated` order, opened and saved,
-keeps both and stays at 4.
+Builder tests in each port: a `formatVersion` 4 file with a studio source and a `curated` order, opened and saved,
+keeps both and stays at 4; a new studio channel saved after the gate writes 4; a `formatVersion` 3 file with a studio
+source is read as valid by the release that reads 4 (`requiredVersion` stays 3).
 
 `docs/rules-format/vectors/kid-hold-4.json`, shared by all ports: titles whose studio is a `KID_STUDIOS` entry spelled
 with each kind of look-alike above, made for kids under `kid-hold-4` and not under `kid-hold-3`, and moved off a
