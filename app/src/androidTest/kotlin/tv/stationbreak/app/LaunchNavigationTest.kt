@@ -297,10 +297,17 @@ class LaunchNavigationTest {
         assertFalse("reaching Exit did not leave", activity.isFinishing)
         compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        // CI's emulator showed the activity destroyed with the launcher on top while isFinishing was still false when
+        // sampled, so a destroyed activity counts as left, as well as a finishing one.
         val deadline = System.currentTimeMillis() + TIMEOUT_MS
-        while (!activity.isFinishing && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
-        if (!activity.isFinishing) fail("Select on Exit should leave the app. ${describeScreenAfterSelect(activity)}")
+        while (!hasLeft(activity) && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
+        if (!hasLeft(activity)) fail("Select on Exit should leave the app. ${describeScreenAfterSelect(activity)}")
     }
+
+    private fun hasLeft(activity: android.app.Activity): Boolean =
+        activity.isFinishing ||
+            (activity as androidx.lifecycle.LifecycleOwner).lifecycle.currentState ==
+            androidx.lifecycle.Lifecycle.State.DESTROYED
 
     // Diagnostic for a failure seen only on CI's emulator: what the screen and the activity looked like after Select.
     private fun describeScreenAfterSelect(activity: android.app.Activity): String {
