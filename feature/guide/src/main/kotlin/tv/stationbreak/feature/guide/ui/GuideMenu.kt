@@ -134,16 +134,15 @@ private fun MenuRow(
         text = stringResource(text),
         modifier =
             Modifier
-                .fillMaxWidth()
-                .height(MenuRowHeight)
-                .drawnFocus(focused)
-                .padding(horizontal = RowTextPadding)
-                .wrapContentHeight(Alignment.CenterVertically)
                 .testTag(tag)
                 .semantics(mergeDescendants = true) {
                     role = Role.Button
                     selected = focused
-                },
+                }.fillMaxWidth()
+                .height(MenuRowHeight)
+                .drawnFocus(focused)
+                .padding(horizontal = RowTextPadding)
+                .wrapContentHeight(Alignment.CenterVertically),
         style = guideText(MENU_ROW_SP.sp, FontWeight.Medium),
         color = BroadcastColors.Cream,
         maxLines = 1,
