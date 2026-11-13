@@ -48,6 +48,9 @@ internal sealed interface GuideState {
  * names the [focus]'s row, whose channel cell is drawn outlined and whose cell is not drawn focused. Right returns to
  * that cell. Under an open [menu] it is kept, but the channel cell is not drawn outlined.
  *
+ * [menuByBack] says how the open [menu] sheet was opened: by Back (true), where Back again leaves live TV as Back from
+ * the menu row always did, or by the Menu key (false), where Back closes it. False while there is no sheet.
+ *
  * [noLibraries] is true while the stored library selection is gone (spec 26): no grid is shown then, the focus is on
  * the menu row and no programme is shown. The one place the guide reads that from: a screen draws from this flag only.
  */
@@ -57,6 +60,7 @@ internal data class GuideSnapshot(
     val menu: GuideMenuEntry? = null,
     val onChannel: Boolean = false,
     val noLibraries: Boolean = false,
+    val menuByBack: Boolean = false,
 ) {
     companion object {
         /** The guide closed: nothing shown, nothing focused. */

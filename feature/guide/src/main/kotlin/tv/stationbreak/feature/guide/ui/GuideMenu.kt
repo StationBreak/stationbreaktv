@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -33,6 +35,8 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -43,6 +47,7 @@ import tv.stationbreak.core.ui.StationBreakDarkColors
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideMenuEntry
+import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R
 
 private val UnderlineGap = 4.dp
@@ -66,21 +71,41 @@ private val SheetLine = Color(0xFF3A3B40)
 private const val SCRIM_ALPHA = 0.55f
 
 /**
+ * The menu sheet over the guide, when it is open: not over the Settings panel it opened ([settingsClosed] false),
+ * which it would hide. Whether it is open and what Back does in it are states of their own, so a move on the grid
+ * recomposes nothing here; only the sheet opening or closing does.
+ */
+@Composable
+internal fun GuideMenuSheetHost(
+    shown: State<GuideSnapshot>,
+    settingsClosed: Boolean,
+    safe: DpRect,
+) {
+    val open by remember(shown) { derivedStateOf { shown.value.menu != null } }
+    val backLeaves by remember(shown) { derivedStateOf { shown.value.menuByBack || shown.value.noLibraries } }
+    val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
+    if (open && settingsClosed) {
+        GuideMenuSheet(menuOf, backLeaves, PaddingValues(start = safe.left, top = safe.top, bottom = safe.top))
+    }
+}
+
+/**
  * The menu sheet (#756): Channels, Settings and Exit as rows of a sheet on the screen's left edge, over the guide
  * dimmed as the channel properties sheet dims its list, with the same surface and the same drawn focus. The guide's
- * focus is its own (model-driven), so the rows take no Compose focus. [menuOf] says which row the guide's focus is on;
- * the sheet is only composed while it is not null. Each row is told to a screen reader as selected only while the focus
- * is on it. [startInset], [topInset] and [bottomInset] keep the rows inside the safe area.
+ * focus is its own (model-driven), so the rows take no Compose focus. [menuOf] says which row the guide's focus is
+ * on, and [backLeaves] whether Back leaves live TV from the sheet or closes it; the sheet is only composed while the
+ * row is not null. Each row is told to a screen reader as selected only while the focus is on it. [insets] keep the
+ * rows inside the safe area.
  */
 @Composable
 internal fun GuideMenuSheet(
     menuOf: () -> GuideMenuEntry?,
-    startInset: Dp,
-    topInset: Dp,
-    bottomInset: Dp,
+    backLeaves: Boolean,
+    insets: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
     val back = stringResource(R.string.guide_key_back)
+    val what = stringResource(if (backLeaves) R.string.guide_hint_exit else R.string.guide_hint_close_menu)
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(GuideTags.MENU_SCRIM)) {
         Row(
             Modifier
@@ -94,7 +119,11 @@ internal fun GuideMenuSheet(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .padding(start = startInset, top = topInset, end = SheetEndPadding),
+                    .padding(
+                        start = insets.calculateLeftPadding(LayoutDirection.Ltr),
+                        top = insets.calculateTopPadding(),
+                        end = SheetEndPadding,
+                    ),
                 verticalArrangement = Arrangement.spacedBy(RowGap),
             ) {
                 MenuRow(R.string.guide_channels_button, GuideTags.CHANNELS_BUTTON) {
@@ -108,10 +137,10 @@ internal fun GuideMenuSheet(
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "$back  ${stringResource(R.string.guide_hint_close_menu)}",
+                    text = "$back  $what",
                     modifier =
                         Modifier
-                            .padding(start = RowTextPadding, bottom = bottomInset)
+                            .padding(start = RowTextPadding, bottom = insets.calculateBottomPadding())
                             .testTag(GuideTags.MENU_HINT),
                     style = guideText(HINT_SP.sp, FontWeight.Normal),
                     color = StationBreakDarkColors.onSurfaceVariant,

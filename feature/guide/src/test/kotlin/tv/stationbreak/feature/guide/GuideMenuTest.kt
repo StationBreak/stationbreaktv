@@ -30,6 +30,7 @@ import kotlin.time.Instant
  * The menu sheet (spec 21, F2.4, #756): Back on the playing cell and the Menu key open it, Back and the Menu key close
  * it, Channels opens management and Exit leaves.
  */
+@Suppress("LargeClass") // One function per behaviour of the sheet and the reload, over one shared rig.
 class GuideMenuTest : GuideRig() {
     private fun GuideViewModel.up(
         repeat: Boolean = false,
@@ -127,31 +128,108 @@ class GuideMenuTest : GuideRig() {
             assertEquals(GuideMenuEntry.Channels, vm.menu())
             // The cell last focused is kept.
             assertEquals(playing, vm.focused())
+            // The sheet Back opened is left by Back again: not the guide's, the activity leaves live TV.
+            assertFalse(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 
     @Test
-    fun backInTheSheetClosesItWhateverTheEntryAndTheFocusIsWhereItWas() =
+    fun backFromThePlayingCellOpensTheSheetAndBackAgainLeavesWhateverTheRow() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            assertTrue(vm.snapshot.value.menuByBack)
+            assertFalse(vm.back())
+            vm.down()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertFalse(vm.back())
+            vm.down()
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            // Moving in the sheet keeps how it was opened.
+            assertTrue(vm.snapshot.value.menuByBack)
+            assertFalse(vm.back())
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+        }
+
+    @Test
+    fun backFromAnotherCellGoesToThePlayingCellThenOpensTheSheetThenLeaves() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.up()
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertFalse(vm.back())
+        }
+
+    @Test
+    fun backInASheetTheMenuKeyOpenedClosesItWithTheFocusWhereItWas() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            val playing = vm.focused()
+            assertTrue(vm.toggleMenu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            vm.down()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertEquals(playing, vm.focused())
+            // Back from the playing cell is the way out again: it opens the sheet, and Back leaves.
+            assertTrue(vm.back())
+            assertFalse(vm.back())
+        }
+
+    @Test
+    fun theMenuKeyClosesASheetBackOpenedAndAReopenByMenuIsClosedByBack() =
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
             val playing = vm.focused()
             assertTrue(vm.back())
+            assertTrue(vm.snapshot.value.menuByBack)
+            assertTrue(vm.toggleMenu())
+            assertNull(vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertEquals(playing, vm.focused())
+            // Opened again by the Menu key, the sheet is closed by Back, not left.
+            assertTrue(vm.toggleMenu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+            assertEquals(playing, vm.focused())
+        }
+
+    @Test
+    fun theOpenerSurvivesChannelManagementAndARebuildOfTheGrid() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            vm.channelsOpened()
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
+            assertTrue(vm.snapshot.value.menuByBack)
+            assertFalse(vm.back())
+            vm.close()
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.toggleMenu())
+            vm.channelsOpened()
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
             assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
             assertTrue(vm.back())
             assertNull(vm.menu())
-            assertEquals(playing, vm.focused())
-            assertTrue(vm.back())
-            vm.down()
-            assertEquals(GuideMenuEntry.Settings, vm.menu())
-            assertTrue(vm.back())
-            assertNull(vm.menu())
-            assertTrue(vm.back())
-            vm.down()
-            vm.down()
-            assertEquals(GuideMenuEntry.Exit, vm.menu())
-            assertTrue(vm.back())
-            assertNull(vm.menu())
-            assertEquals(playing, vm.focused())
         }
 
     @Test
@@ -169,7 +247,7 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
-    fun backOnAnEmptyGuideOpensTheSheetAndThenClosesIt() =
+    fun backOnAnEmptyGuideOpensTheSheetAndThenLeaves() =
         guideTest { vm ->
             fake.channels.clear()
             vm.open(CH5)
@@ -177,8 +255,7 @@ class GuideMenuTest : GuideRig() {
             assertEquals(GuideState.Empty, vm.snapshot.value.state)
             assertTrue(vm.back())
             assertEquals(GuideMenuEntry.Channels, vm.menu())
-            assertTrue(vm.back())
-            assertNull(vm.menu())
+            assertFalse(vm.back())
         }
 
     @Test
@@ -367,7 +444,7 @@ class GuideMenuTest : GuideRig() {
 
             // The grid shown stays until the new one lands: closing the sheet works on it, and the new grid keeps the
             // focus.
-            assertTrue(vm.back())
+            assertTrue(vm.toggleMenu())
             assertNull(vm.menu())
             assertEquals(CH7, vm.focused().channel)
             // The opening's figures are the first session's, not the reload's.
@@ -461,7 +538,7 @@ class GuideMenuTest : GuideRig() {
     fun aChangeLongAfterTheScreenClosedReloadsTheGridWithTheFocusWhereItWas() =
         guideTest { vm ->
             closedWithNoChange(vm)
-            assertTrue(vm.back())
+            assertTrue(vm.toggleMenu())
             val focus = vm.focused()
             after(60_000)
 

@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -184,10 +185,6 @@ internal fun GuideScreen(
     // The panel's variant, read as a state of its own so a move on the grid does not recompose this level.
     val onChannel by remember(shown) { derivedStateOf { shown.value.onChannel } }
     val noLibraries by remember(shown) { derivedStateOf { shown.value.noLibraries } }
-    val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
-    // Whether the sheet is open, as a state of its own: it recomposes the screen when the sheet opens or closes, not
-    // on a move.
-    val sheetOpen by remember(shown) { derivedStateOf { shown.value.menu != null } }
     // The clock and the viewport as states of their own, so reading them is invalidated only when they change.
     val now = remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.nowMs } }
     val viewport =
@@ -228,10 +225,7 @@ internal fun GuideScreen(
                 Spacer(Modifier.height(HintGap))
                 HintRow(snapshotOf, current)
             }
-            // The menu sheet is drawn over the guide, but not over the Settings panel it opened (which it would hide).
-            if (sheetOpen && settings == null) {
-                GuideMenuSheet(menuOf, geometry.safe.left, geometry.safe.top, geometry.safe.top)
-            }
+            GuideMenuSheetHost(shown, settings == null, geometry.safe)
         }
     }
 }
@@ -431,7 +425,8 @@ private fun HintRow(
     val sheet by remember(snapshotOf) { derivedStateOf { snapshotOf().menu != null } }
     val noLibraries by remember(snapshotOf) { derivedStateOf { snapshotOf().noLibraries } }
     val menuKey = stringResource(R.string.guide_key_menu)
-    val exit = stringResource(backHintOf(sheet, noLibraries, onChannel, away, toMenu))
+    val sheetByBack by remember(snapshotOf) { derivedStateOf { snapshotOf().menuByBack } }
+    val exit = stringResource(backHintOf(sheet, sheetByBack, noLibraries, onChannel, away, toMenu))
     val action =
         when (kind) {
             HintKind.Watch -> stringResource(R.string.guide_hint_watch)

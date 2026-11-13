@@ -420,12 +420,13 @@ internal class GuideViewModel
                 val focus = current.focus
                 val showsMenu = ready != null || current.state == GuideState.Empty
                 when {
-                    // No grid is shown: the sheet is the only thing there is, and Back leaves live TV from it.
-                    current.menu != null && noLibraries() -> {
+                    // A sheet Back opened is left by Back again, as the menu row was (and with no libraries the sheet
+                    // is all there is): the activity leaves live TV.
+                    current.menu != null && (current.menuByBack || noLibraries()) -> {
                         false
                     }
 
-                    // Back in the sheet closes it: the focus is where it was when the sheet opened.
+                    // Back in a sheet the Menu key opened closes it: the focus is where it was when it opened.
                     current.menu != null -> {
                         shownSnapshot.value = current.copy(menu = null)
                         true
@@ -453,7 +454,7 @@ internal class GuideViewModel
                     }
 
                     else -> {
-                        shownSnapshot.value = current.copy(menu = GuideMenuEntry.Channels)
+                        shownSnapshot.value = current.copy(menu = GuideMenuEntry.Channels, menuByBack = true)
                         true
                     }
                 }
@@ -474,11 +475,13 @@ internal class GuideViewModel
                     }
 
                     current.menu != null -> {
-                        (!noLibraries()).also { if (it) shownSnapshot.value = current.copy(menu = null) }
+                        (!noLibraries()).also {
+                            if (it) shownSnapshot.value = current.copy(menu = null, menuByBack = false)
+                        }
                     }
 
                     else -> {
-                        shownSnapshot.value = current.copy(menu = GuideMenuEntry.Channels)
+                        shownSnapshot.value = current.copy(menu = GuideMenuEntry.Channels, menuByBack = false)
                         true
                     }
                 }
@@ -964,7 +967,15 @@ internal class GuideViewModel
             val before = shownSnapshot.value.focus
             // The channel column keeps the focus across a move of rows or a rebuild, the menu sheet over it or not.
             val onChannel = shownSnapshot.value.onChannel && focus != null
-            shownSnapshot.value = GuideSnapshot(ready, focus, menu, onChannel, shownSnapshot.value.noLibraries)
+            shownSnapshot.value =
+                GuideSnapshot(
+                    ready,
+                    focus,
+                    menu,
+                    onChannel,
+                    shownSnapshot.value.noLibraries,
+                    menuByBack = menu != null && shownSnapshot.value.menuByBack,
+                )
             follow(ready.model, before, focus, located)
         }
 
