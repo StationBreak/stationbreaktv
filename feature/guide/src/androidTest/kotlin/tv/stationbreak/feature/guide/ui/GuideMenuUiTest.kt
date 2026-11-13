@@ -295,6 +295,21 @@ class GuideMenuUiTest {
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
     }
 
+    // The activity stands in as a BackHandler counting the Backs nothing on screen took, and the guide leaves through
+    // that dispatcher as in the app; the app's LaunchNavigationTest.theSheetsExitRowLeavesTheApp is the real activity.
+    @Test
+    fun theExitRowOfASheetTheMenuKeyOpenedLeavesLiveTv() {
+        showReady()
+        press(Key.Menu)
+        awaitOnChannels()
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
+        exit().assertIsSelected()
+        assertEquals(0, exits)
+        press(Key.DirectionCenter)
+        assertEquals(1, exits)
+    }
+
     @Test
     fun backFromAnyRowOfABackOpenedSheetLeavesLiveTv() {
         showReady()

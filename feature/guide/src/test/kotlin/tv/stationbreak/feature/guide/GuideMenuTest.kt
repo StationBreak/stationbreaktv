@@ -206,6 +206,60 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
+    fun selectOnExitInASheetTheMenuKeyOpenedMakesTheNextBackLeave() =
+        guideTest { vm ->
+            val got = eventsOf(vm)
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.toggleMenu())
+            vm.down()
+            vm.down()
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            vm.select()
+            runCurrent()
+            assertEquals(listOf<GuideEvent>(GuideEvent.Exit), got)
+            // The screen leaves by dispatching Back: it must not be taken to close the sheet.
+            assertFalse(vm.back())
+            // The Back did not leave after all: the sheet is as the Menu key opened it, and Back closes it.
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+        }
+
+    @Test
+    fun selectOnExitInASheetBackOpenedMakesTheNextBackLeave() =
+        guideTest { vm ->
+            val got = eventsOf(vm)
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            vm.down()
+            vm.down()
+            vm.select()
+            runCurrent()
+            assertEquals(listOf<GuideEvent>(GuideEvent.Exit), got)
+            assertFalse(vm.back())
+            assertTrue(vm.snapshot.value.menuByBack)
+        }
+
+    @Test
+    fun movingOffExitAfterSelectingItRestoresHowTheSheetWasOpened() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.toggleMenu())
+            vm.down()
+            vm.down()
+            vm.select()
+            assertTrue(vm.snapshot.value.menuByBack)
+            vm.up()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+        }
+
+    @Test
     fun theOpenerSurvivesChannelManagementAndARebuildOfTheGrid() =
         guideTest { vm ->
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))

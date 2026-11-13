@@ -152,6 +152,9 @@ internal class GuideViewModel
         private var lineupAtOpen: List<Triple<ChannelId, Int?, PlayKey>>? = null
         private var lineupNow: List<Triple<ChannelId, Int?, PlayKey>>? = null
         private var managing = false
+
+        // How the sheet was opened when Select on Exit made Back leave regardless (see [selectOnMenu]); null otherwise.
+        private var openerBeforeExit: Boolean? = null
         private var loadJob: Job? = null
         private var loadId = 0
         private var firstWindowMs = NO_MEASURE
@@ -172,6 +175,7 @@ internal class GuideViewModel
         ) {
             synchronized(lock) {
                 endSession()
+                openerBeforeExit = null
                 currentChannel = current
                 this.playing = playing?.takeIf { it.channel == current }
                 startWork(newSession())
@@ -306,10 +310,17 @@ internal class GuideViewModel
                 }
             if (step != 0) {
                 GuideMenuEntry.entries.getOrNull(entry.ordinal + step)?.let {
-                    shownSnapshot.value = current.copy(menu = it)
+                    shownSnapshot.value = current.withOpenerRestored().copy(menu = it)
                 }
             }
         }
+
+        // The opener the sheet had before Select on Exit changed it, if it did; under [lock].
+        private fun GuideSnapshot.withOpenerRestored(): GuideSnapshot =
+            openerBeforeExit?.let { opener ->
+                openerBeforeExit = null
+                copy(menuByBack = opener)
+            } ?: this
 
         // Up and Down on the grid wrap at the ends of the rows, a held key waiting at the end first. The menu sheet is
         // reached by Back and the Menu key only, so a guide with no cell to focus (nothing on) has nothing to do.
@@ -394,6 +405,16 @@ internal class GuideViewModel
 
         // Select on a menu entry: what it opens, or Exit; under [lock].
         private fun selectOnMenu(entry: GuideMenuEntry) {
+            if (entry == GuideMenuEntry.Exit) {
+                // The screen leaves by dispatching Back, which the guide handles first: from a sheet the Menu key
+                // opened that Back would only close it. So Back leaves from here, as from a sheet Back opened; the
+                // opener comes back if the viewer moves, closes the sheet, or that Back arrives and does not leave.
+                val current = shownSnapshot.value
+                if (!current.menuByBack) {
+                    openerBeforeExit = false
+                    shownSnapshot.value = current.copy(menuByBack = true)
+                }
+            }
             eventChannel.trySend(
                 when (entry) {
                     GuideMenuEntry.Channels -> GuideEvent.OpenChannels
@@ -423,6 +444,8 @@ internal class GuideViewModel
                     // A sheet Back opened is left by Back again, as the menu row was (and with no libraries the sheet
                     // is all there is): the activity leaves live TV.
                     current.menu != null && (current.menuByBack || noLibraries()) -> {
+                        // If this is the Back Exit asked for and the activity does not leave, the sheet is as it was.
+                        shownSnapshot.value = current.withOpenerRestored()
                         false
                     }
 
@@ -477,6 +500,7 @@ internal class GuideViewModel
                     current.menu != null -> {
                         (!noLibraries()).also {
                             if (it) shownSnapshot.value = current.copy(menu = null, menuByBack = false)
+                            openerBeforeExit = null
                         }
                     }
 
