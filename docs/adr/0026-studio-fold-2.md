@@ -1,6 +1,7 @@
 # ADR-0026: Studio fold 2 (closing look-alike gaps in studio matching)
 
-**Status:** Proposed (needs an owner decision on the two open questions at the end). Nothing is implemented yet.
+**Status:** Proposed. The owner decided both open questions on 2026-11-13 (see Owner decisions); accepted after the
+security review. Nothing is implemented yet.
 
 **Date:** 2026-11-12
 
@@ -71,6 +72,9 @@ Changing the fold changes which items air, so by this document's own rule it nee
   the stricter matching writes 4. (Format 4 adds nothing else in this ADR.)
 - **Holds:** `kid-hold-4` and the matching grown-up hold version read studio names through studio fold 2. Hold
   versions are named so a mismatch is visible (ADR-0019), so bumping the name is the documented way.
+- **Upgrade on save.** Once every port reads `formatVersion` 4, the app writes 4, and it writes a version 1 to 3 file
+  as 4 the next time it saves that file. Existing exclusions get fold 2 that way, without two TVs ever reading the same
+  file differently. A file is never rewritten only to bump its version.
 
 ### Tests
 
@@ -86,9 +90,16 @@ fold; idempotence; and fold-1 files (`formatVersion` 3) giving the fold-1 answer
 - Older apps say "update required" for a format-4 file, which is the existing behaviour for a newer version.
 - The cache keeps raw (cleaned by fold 1) studio names; fold 2 is applied at match time, so no cache migration is needed.
 
-## Open questions for the owner
+## Owner decisions (2026-11-13)
 
-1. **Version or fix?** This ADR proposes `formatVersion` 4 so existing files keep their exact meaning. The alternative is
-   to treat the gaps as a bug and change fold 1 for version 3 in place, which changes some existing lineups on update.
-2. **Scope of rule 2 (joiners).** Dropping joiners only after Latin code points is the smallest change that closes the
-   Latin look-alikes. Should other scripts where a joiner never changes meaning (Greek, Cyrillic) be added?
+1. **Version, not an in-place fix.** `formatVersion` 4 and `kid-hold-4` as above, with the upgrade on save. Fixing
+   fold 1 in place was declined: during an update window two TVs in one household could build different lineups from
+   the same file.
+2. **Joiners: Latin only**, as in rule 2. Adding Greek or Cyrillic buys almost nothing, because their look-alike letters
+   (a Cyrillic `а` for a Latin `a`) already evade the fold with or without a joiner.
+
+## Known residual gap
+
+Studio fold 2 closes invisible and space look-alikes only. **Look-alike letters from other scripts** (Cyrillic or Greek
+letters that render like Latin ones) still do not match. Closing that needs a confusables table (Unicode UTS #39) and
+its own version; it is out of scope here.
