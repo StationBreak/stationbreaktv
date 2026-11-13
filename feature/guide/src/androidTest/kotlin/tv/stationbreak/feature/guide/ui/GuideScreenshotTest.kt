@@ -215,6 +215,28 @@ class GuideScreenshotTest {
         shootDetails(GuideTheme.Light, suffix = "-light", frame = DETAILS_TEXT_FRAME)
     }
 
+    /** The channel box (#757): the details panel while focus rests on the channel column, dark then light. */
+    @Test
+    fun theChannelBox() {
+        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
+            theme.value = shown
+            showReady(CH7)
+            focusTheChannelColumn()
+            assertEquals("Test Channel 7", text(GuideTags.CHANNEL_PANEL_NAME))
+            shoot("$CHANNEL_BOX_FRAME$suffix.png")
+        }
+    }
+
+    /** Left along the row: the earliest cell is a few presses away, and one more goes to the channel column. */
+    private fun focusTheChannelColumn() {
+        repeat(MAX_LEFT_PRESSES) {
+            if (compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL).fetchSemanticsNodes().isEmpty()) {
+                press(Key.DirectionLeft)
+            }
+        }
+        compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertIsDisplayed()
+    }
+
     private fun shootDetails(
         shown: GuideTheme,
         suffix: String,
@@ -700,6 +722,8 @@ class GuideScreenshotTest {
         const val OFF_AIR = "guide-off-air.png"
         const val MARKS_FRAME = "guide-marks"
         const val DETAILS_FRAME = "guide-details"
+        const val CHANNEL_BOX_FRAME = "guide-channel-box"
+        const val MAX_LEFT_PRESSES = 6
         const val DETAILS_TEXT_FRAME = "guide-details-text"
         val MARK_FARM = ChannelId("ch-marks-farm")
         val MARK_ROBOTS = ChannelId("ch-marks-robots")
