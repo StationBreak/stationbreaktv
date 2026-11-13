@@ -1,8 +1,17 @@
 # StationBreak — Roadmap, Dependencies & Risks
 
-Phases follow [SPEC.md](SPEC.md). **No phase starts until the previous gate passes**
-([EPICS.md](EPICS.md)). Within a phase, features run in the dependency order shown below.
+Phases follow [SPEC.md](SPEC.md). Each phase has a gate ([EPICS.md](EPICS.md)). Gates were meant to be
+strictly sequential, but in practice later work has started while an earlier gate was open or waived: Phase 2
+began while the Phase 1 flip-speed gate was open (the Firestick bar was waived for submission on 2026-11-04),
+and the Phase 3 and 4 release work for the free Fire listing runs alongside the Phase 2 dogfood
+([#752](https://github.com/StationBreak/stationbreaktv/issues/752), label `release:fire-v1`). Within a phase,
+features run in the dependency order shown below.
 No calendar estimates are given; this is a solo/evenings project, and gates matter more than dates.
+
+**Where things stand (2026-11-13):** Phase 0 done. Phase 1 built; its gate is waived for submission on the
+Firestick flip speed. Phase 2 features are built and the 14-day dogfood is running (clock started 2026-11-12,
+earliest pass 2026-11-25). Phase 3 and 4 prerequisites for the free Fire App Store listing are in progress
+under #752. Phase 5 is unchanged.
 
 ## Design principles
 
@@ -25,24 +34,27 @@ No calendar estimates are given; this is a solo/evenings project, and gates matt
 ```
 Phase 0  Foundations ─────► Gate: connects by URL, lists libraries on Insignia
    │
-Phase 1  Live core ───────► Gate: 30 flips; Firestick < 2 s, Insignia median < 4 s, no hangs
+Phase 1  Live core ───────► Gate: 30 flips; Insignia median < 4 s, no hangs (Firestick < 2 s waived)
    │
-Phase 2  Guide + builder ─► Gate: 14 days daily use replacing NostalgiaTV
+Phase 2  Guide + builder ─► Gate: 14 days daily use replacing NostalgiaTV (clock running)
    │
-Phase 3  Polish ──────────► Gate: 5–10 r/jellyfin testers succeed unassisted
+Phase 3  Polish ──────────► Gate: 5–10 outside testers succeed unassisted
    │
-Phase 4  Public release ──► Gate (proposed): live in both stores + GitHub, Pro works
+Phase 4  Public release ──► Gate (proposed): V1 = free Fire App Store listing
    │
 Phase 5  Expansion ───────► Re-plan
 ```
 
 ## Phase 0 — Foundations
 
+**Status: done.** The gate passed and is signed off in [gates/phase-0.md](gates/phase-0.md); spikes SP-1 to SP-5
+are recorded in ADRs 0006 to 0015. The contract-test matrix covers Jellyfin 12.2 and 12.4 (PR #730).
+
 | Order | Feature | Depends on |
 | --- | --- | --- |
 | 1 | F0.1 Repo & CI | Owner creates the `StationBreak/stationbreaktv` GitHub repo ✅ |
 | 2 | F0.2 Module skeleton | F0.1 |
-| 3 | F0.7 Rules format v1 (doc + types) | F0.2. Can run in parallel with F0.3 |
+| 3 | F0.7 Rules format (doc, types, vectors and fixtures in `docs/rules-format/`; now at format 3) | F0.2. Can run in parallel with F0.3 |
 | 3 | F0.3 Jellyfin adapter (starts with the jellyfin-sdk-kotlin fitness spike, SP-4) | F0.2 |
 | 4 | F0.4 Secure storage | F0.2 |
 | 5 | F0.5 Server setup UI | F0.3, F0.4 |
@@ -71,6 +83,16 @@ CI, starting with the F0.2 hello-world. Nothing is built by hand.
 
 ## Phase 1 — Live core
 
+**Status: built; gate waived for submission on the Firestick flip speed.** The Insignia usable floor is met
+(direct flips: median 3267 ms, worst 4126 ms, 2026-11-07). The Firestick 2 s bar is not met
+([#392](https://github.com/StationBreak/stationbreaktv/issues/392), [#563](https://github.com/StationBreak/stationbreaktv/issues/563);
+the warm decoder of [ADR-0024](adr/0024-warm-next-decoder.md) ships off by default). The owner waived that bar
+on 2026-11-04 unless flips make the app unusable; optimisation continues. Also built since: the channel
+leaves the lineup without cutting a playing show ([#562](https://github.com/StationBreak/stationbreaktv/issues/562),
+PR #746), no reshape from an empty snapshot (#305, #306, PR #711), and the keep-screen-on fix after a killed and
+relaunched task ([#744](https://github.com/StationBreak/stationbreaktv/issues/744), PRs #747, #728). Track and
+version choice and automatic volume levelling (below) are playback work from this phase's feature set.
+
 | Order | Feature | Depends on |
 | --- | --- | --- |
 | 1 | F1.1 Scheduler (+ golden vectors) | F0.7 |
@@ -82,17 +104,38 @@ CI, starting with the F0.2 hello-world. Nothing is built by hand.
 
 ## Phase 2 — Guide and builder
 
+**Status: features done; in the 14-day dogfood.** The clock started 2026-11-12 (PR #743); the earliest pass is
+2026-11-25. Still open: the dogfood log items, the baseline profile
+([#416](https://github.com/StationBreak/stationbreaktv/issues/416)) and F2.5 benchmark, and F2.6 phase B.
+
+Built in this phase beyond the table below: lineup curation and the themed starter catalog (spec 23,
+[ADR-0023](adr/0023-lineup-curation.md)); library settings and Sync now (spec 26,
+[ADR-0025](adr/0025-repairing-today.md), #632); channel properties (#631) and channel marks and logos
+(#571, spec 27); audio and subtitle track choice and video version choice while watching (#497, #630; design
+`docs/design/live-banner-and-tracks.md`); "Even out volume", on by default (#498; Firestick-verified, Insignia
+listening pending); the guide overhaul (#657), two-hour grid (#721), picture label (#722), richer info panel and
+OK on a later programme (#723, #729), and live banner restyle (#686). A synthetic-library lineup fixture
+(PR #742) backs the lineup tests. [ADR-0026](adr/0026-studio-fold-2.md) (studio fold 2) is accepted
+2026-11-13 but not built.
+
 | Order | Feature | Depends on |
 | --- | --- | --- |
 | 1 | F2.2 Now/next banner | F1.4 |
 | 1 | F2.1 Grid guide | F1.1 (materialised blocks), SP-2 result |
 | 2 | F2.3 Channel builder | F1.2, F0.7 |
 | 2 | F2.4 Channel management | F1.2 |
-| 3 | F2.5 Perf hardening + baseline profile | F2.1 |
-| 3 | F2.6 Kid channels, phase B | Phase A (ADR-0019) |
+| 3 | F2.5 Perf hardening + baseline profile (open: #24, #90, #416; the profile is a `release:fire-v1` item) | F2.1 |
+| 3 | F2.6 Kid channels, phase B (no feature or story issue yet) | Phase A (ADR-0019) |
 | — | **14-day dogfood** | all of the above |
 
 ## Phase 3 — Polish and personality
+
+**Status: not started as a gate.** The gate is 5 to 10 outside testers succeeding unassisted
+([#31](https://github.com/StationBreak/stationbreaktv/issues/31), [#97](https://github.com/StationBreak/stationbreaktv/issues/97)).
+Its prerequisites are tracks A to F of [#752](https://github.com/StationBreak/stationbreaktv/issues/752): onboarding
+([#28](https://github.com/StationBreak/stationbreaktv/issues/28)), phone setup (#116, if doable) and the install
+guide (#147). F3.1 to F3.3 (filler, retro, themes) are candidates after the listing; the Light theme and the guide
+restyle already shipped under F2.1.
 
 F3.1 Filler (depends on the F1.1 scheduler) · F3.2 Retro / F3.3 Themes (depend on the F2.1 guide UI) ·
 F3.4 Onboarding (reworks F0.5) · F3.5 Watch-state (depends on F1.5) · F3.6 Diagnostics ·
@@ -100,13 +143,25 @@ F3.7 Beta program (last; it needs everything else).
 
 ## Phase 4 — Public release
 
-F4.1 Release pipeline → (F4.2, F4.3, F4.4 in parallel) · F4.5 Pro unlock (needs Q-BIZ answers early;
-store billing integration and review take time) · F4.6 Docs site (can start any time after Phase 2).
+**Status: re-scoped (owner decisions 2026-11-04 and 2026-11-06).** V1 is a **free listing on the Amazon (Fire)
+App Store**. Work is tracked in [#752](https://github.com/StationBreak/stationbreaktv/issues/752) and the
+`release:fire-v1` label: release pipeline (#32), listing (#33), the GPL exception text (#745), docs site (#37),
+art (#572) and brand (#118). Pro (F4.5, #36) is the first update after the listing, not part of V1. Google Play
+(F4.3, #34) and GitHub Releases (F4.4, #35) follow the listing and are not needed for it.
+
+F4.1 Release pipeline → F4.2 Amazon listing (V1) → (F4.3, F4.4 in parallel, after the listing) · F4.5 Pro unlock
+(first update after the listing; needs Q-BIZ answers early; store billing integration and review take time) ·
+F4.6 Docs site (can start any time after Phase 2; part of V1).
 
 ## Phase 5 — Expansion
 
 F5.1 Import/export (deferred; needs a hosting/storage decision) → F5.2 Sync server → F5.3 XMLTV → F5.4 Roku → F5.5 Apple TV.
 F5.6 Emby and F5.7 Plex can slot in anywhere after F5.1; they only need a new `MediaServer` implementation.
+
+**Status: unchanged; re-plan after Phase 4.** [ADR-0026](adr/0026-studio-fold-2.md) (studio fold 2) is accepted
+but not built; it is rules-format work that the Roku port (F5.4) shares. The kid hold
+([ADR-0019](adr/0019-kid-hold.md)) and grown-up hold ([ADR-0020](adr/0020-grown-up-hold.md)) already cover part
+of F5.8; a PIN and per-profile channel sets stay deferred.
 
 ---
 
@@ -116,7 +171,7 @@ Severity: 🔴 high · 🟠 medium · 🟢 low.
 
 | ID | Risk | Sev | Mitigation |
 | --- | --- | --- | --- |
-| R-PERF-1 | **< 2 s mid-program tune-in on a budget Fire TV.** Seeking into an MKV without cues, slow server disk, remote (WAN) servers, or a transcode start can each blow the budget. The spec's gate also implies a LAN server. The 2026-10-24 gate holds the 2 s bar on the Firestick 4K only; the Insignia has a usable-floor bar (EPICS.md). | 🔴 | SP-1 spike in Phase 0; a single reused player; pre-resolve adjacent channels; close the first-frame→playing gap (ADR-0007); verify seeks landed and fall back to transcode; the gate is measured on the home network (A-NET-1). |
+| R-PERF-1 | **< 2 s mid-program tune-in on a budget Fire TV.** Seeking into an MKV without cues, slow server disk, remote (WAN) servers, or a transcode start can each blow the budget. The spec's gate also implies a LAN server. The 2026-10-24 gate holds the 2 s bar on the Firestick 4K only; the Insignia has a usable-floor bar (EPICS.md). The owner waived the Firestick bar for submission on 2026-11-04, unless flips make the app unusable. | 🔴 | SP-1 spike in Phase 0; a single reused player; pre-resolve adjacent channels; a warm next decoder, built but off by default ([ADR-0024](adr/0024-warm-next-decoder.md)); close the first-frame→playing gap (ADR-0007); verify seeks landed and fall back to transcode; the gate is measured on the home network (A-NET-1). |
 | R-PERF-2 | Compose for TV performance on low-end hardware (≈1–1.5 GB RAM, older Mali GPU) for a 6h × 50-channel grid. | 🟠 | SP-2 passed with standard Compose lists; the built guide uses model-driven rows ([ADR-0008](adr/0008-guide-grid-spike.md) and addendum); Baseline Profiles (decisive in SP-2); R8; watch fast horizontal sweeps. |
 | R-DET-1 | **Cross-device determinism.** It depends on both devices having the same snapshot (sync lag), the same epoch math (timezone/DST), and the same hash-keyed ordering bit-for-bit, including future Swift/BrightScript ports. | 🔴 | Snapshot = items with `dateCreated < epochStart − grace`; tombstones; UTC origin + fixed offset in rules; SplitMix64-derived seeds; ID-byte canonical sort; hard epoch cuts; golden vectors (incl. `formatVersion`) as the cross-platform contract. |
 | R-DET-2 | Per-user library permissions and watch-state make lineups account-dependent. | 🟢 | **Resolved by ADR-0002:** same account → same lineup; channel rules set content limits; hash-keyed ordering keeps reduced lineups recognisably similar. |
@@ -139,7 +194,9 @@ Severity: 🔴 high · 🟠 medium · 🟢 low.
 ## Verification of this plan
 
 - Each epic gate is a checklist in [EPICS.md](EPICS.md). Gates are recorded as signed-off checkboxes
-  in a `docs/gates/phase-N.md` file (with evidence: screenshots, latency logs, dogfood log).
+  in a `docs/gates/phase-N.md` file (with evidence: screenshots, latency logs, dogfood log). Only
+  `docs/gates/phase-0.md` exists so far. Phase 1 evidence is in the EPICS.md status lines and Phase 2 evidence is
+  in `docs/dogfood/phase-2.md`; each gets a `phase-N.md` when it is signed off.
 - Spikes SP-1..3 each produce an ADR before Phase 1 work starts.
 
 ## Rollback
