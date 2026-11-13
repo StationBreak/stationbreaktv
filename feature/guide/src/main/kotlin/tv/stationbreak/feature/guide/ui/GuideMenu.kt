@@ -69,7 +69,7 @@ private const val SCRIM_ALPHA = 0.55f
  * The menu sheet (#756): Channels, Settings and Exit as rows of a sheet on the screen's left edge, over the guide
  * dimmed as the channel properties sheet dims its list, with the same surface and the same drawn focus. The guide's
  * focus is its own (model-driven), so the rows take no Compose focus. [menuOf] says which row the guide's focus is on;
- * the sheet is drawn only while it is not null. Each row is told to a screen reader as selected only while the focus
+ * the sheet is only composed while it is not null. Each row is told to a screen reader as selected only while the focus
  * is on it. [startInset], [topInset] and [bottomInset] keep the rows inside the safe area.
  */
 @Composable
@@ -80,15 +80,15 @@ internal fun GuideMenuSheet(
     bottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    if (menuOf() == null) return
     val back = stringResource(R.string.guide_key_back)
-    Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(GuideTags.MENU_SHEET)) {
+    Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(GuideTags.MENU_SCRIM)) {
         Row(
             Modifier
                 .align(Alignment.CenterStart)
                 .width(MenuSheetWidth)
                 .fillMaxHeight()
-                .background(SheetGround),
+                .background(SheetGround)
+                .testTag(GuideTags.MENU_SHEET),
         ) {
             Column(
                 Modifier

@@ -36,7 +36,8 @@ object GuideTags {
     /** The line where the grid goes when none of this TV's libraries is available (spec 26). */
     const val NO_LIBRARIES = "guide:noLibraries"
 
-    /** The menu sheet (#756): the scrim and the sheet; present only while it is open. */
+    /** The menu sheet (#756): the dimmed screen-wide scrim and the sheet on it; present only while it is open. */
+    const val MENU_SCRIM = "guide:menuScrim"
     const val MENU_SHEET = "guide:menuSheet"
 
     /** The line at the foot of the menu sheet that says what Back does there. */

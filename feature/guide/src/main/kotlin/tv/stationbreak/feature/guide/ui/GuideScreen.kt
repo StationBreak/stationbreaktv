@@ -185,6 +185,9 @@ internal fun GuideScreen(
     val onChannel by remember(shown) { derivedStateOf { shown.value.onChannel } }
     val noLibraries by remember(shown) { derivedStateOf { shown.value.noLibraries } }
     val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
+    // Whether the sheet is open, as a state of its own: it recomposes the screen when the sheet opens or closes, not
+    // on a move.
+    val sheetOpen by remember(shown) { derivedStateOf { shown.value.menu != null } }
     // The clock and the viewport as states of their own, so reading them is invalidated only when they change.
     val now = remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.nowMs } }
     val viewport =
@@ -226,7 +229,7 @@ internal fun GuideScreen(
                 HintRow(snapshotOf, current)
             }
             // The menu sheet is drawn over the guide, but not over the Settings panel it opened (which it would hide).
-            if (settings == null) {
+            if (sheetOpen && settings == null) {
                 GuideMenuSheet(menuOf, geometry.safe.left, geometry.safe.top, geometry.safe.top)
             }
         }
