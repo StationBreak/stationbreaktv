@@ -186,6 +186,7 @@ class ChannelHoldingsTest {
     }
 
     // The same figures from the day the build made, through the schedule source (no second curation run).
+    @Suppress("InjectDispatcher") // A test: the reader's work runs where the test runs.
     private class Rig(
         westernsState: ChannelState = ChannelState.On,
     ) {

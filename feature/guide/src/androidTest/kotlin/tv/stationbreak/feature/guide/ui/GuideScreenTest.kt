@@ -1027,6 +1027,15 @@ class GuideScreenTest {
         anchor: Boolean = false,
     ) = HeldTitle(CanonicalId.parse(n.toString(16).padStart(32, '0')), "Show $n", n * 3_600_000L, anchor)
 
+    // A shelf telling [channel] it holds [hours] hours of [titles] titles.
+    private fun shelf(
+        channel: ChannelId,
+        hours: Long,
+        titles: Int,
+        homes: HomeShows,
+        top: List<HeldTitle> = emptyList(),
+    ) = ShelfHoldings(mapOf(channel to ChannelHoldings(hours * 3_600_000L, titles, homes, top)))
+
     private fun fontSizeOf(tag: String): Float {
         val layouts = mutableListOf<TextLayoutResult>()
         compose
@@ -1084,7 +1093,7 @@ class GuideScreenTest {
     @Test
     fun aChannelWithNoHomesIsMostlyItsBiggestTitlesAndUnderTwoDaysShowsNoDays() {
         val top = (1..6).map { title(it) }
-        holdings = ShelfHoldings(mapOf(CH7 to ChannelHoldings(40 * 3_600_000L, 9, HomeShows.Known(0, emptyList()), top)))
+        holdings = shelf(CH7, 40, 9, HomeShows.Known(0, emptyList()), top)
         showReady(CH7)
 
         press(Key.DirectionLeft)
@@ -1100,7 +1109,7 @@ class GuideScreenTest {
     @Test
     fun theListNeverRunsPastTwoLines() {
         val long = (1..6).map { title(it).copy(name = "A Very Long Show Name $it Of The Night") }
-        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(50 * 3_600_000L, 90, HomeShows.Known(90, long), emptyList())))
+        holdings = shelf(CH5, 50, 90, HomeShows.Known(90, long))
         showReady(CH5)
 
         press(Key.DirectionLeft)
@@ -1111,7 +1120,7 @@ class GuideScreenTest {
 
     @Test
     fun aChannelWhoseHomesAreUnknownShowsTheHoursLineAndNoList() {
-        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(412 * 3_600_000L, 37, HomeShows.Unknown, listOf(title(1)))))
+        holdings = shelf(CH5, 412, 37, HomeShows.Unknown, listOf(title(1)))
         showReady(CH5)
 
         press(Key.DirectionLeft)
@@ -1139,7 +1148,7 @@ class GuideScreenTest {
 
     @Test
     fun theHoldingsGoWhenTheFocusLeavesTheColumn() {
-        holdings = ShelfHoldings(mapOf(CH5 to ChannelHoldings(5 * 3_600_000L, 1, HomeShows.Known(1, listOf(title(1))), emptyList())))
+        holdings = shelf(CH5, 5, 1, HomeShows.Known(1, listOf(title(1))))
         showReady(CH5)
         press(Key.DirectionLeft)
         awaitHoldings()

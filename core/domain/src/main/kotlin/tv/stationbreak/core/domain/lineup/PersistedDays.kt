@@ -65,7 +65,8 @@ enum class DaySnapshotMiss {
  *
  * What is kept is the result of the day build, not its input: per channel, the day pool, the film-to-collection map
  * why the day is empty and the titles the channel is home to ([DaySnapshotCodec]; a file of the previous format has no
- * home sets and is read as it is, with them unknown). The days are a pure function of the lineup, the library snapshots at
+ * home sets and is read as it is, with them unknown).
+ * The days are a pure function of the lineup, the library snapshots at
  * their cut-offs and the code (ADR-0002), so a file is used only when its [DayKey] equals the key of the build it
  * replaces, and that key holds every one of them:
  * - [appBuild] is the guard for the code: it must change with every install of the app (the app gives its version code
@@ -244,7 +245,8 @@ class PersistedDays internal constructor(
         val header = DaySnapshotCodec.header(file) as? DaySnapshotCodec.Header.Read
         // A file of the oldest format still read is compared under the current format number: its key is otherwise the
         // same, and the header has already accepted its format.
-        val moved = if (header == null) DaySnapshotMiss.Format else header.key.copy(format = key.format).firstDifference(key)
+        val readKey = header?.key?.copy(format = key.format)
+        val moved = if (readKey == null) DaySnapshotMiss.Format else readKey.firstDifference(key)
         if (header == null || moved != null) return Read.Missed(moved ?: DaySnapshotMiss.Format)
         val body = DaySnapshotCodec.body(file, header, scheduled.size)
         // Each day is the one its channel expects, by ID: a file whose days are in another order is a miss.

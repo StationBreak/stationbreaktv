@@ -28,7 +28,7 @@ internal class HoldingsTally(
 ) {
     /** The titles that live on the channel, anchors first, then most hours, then the lower title ID; null: unknown. */
     val homes: List<TalliedTitle>? =
-        if (homed) titles.filter { it.home }.sortedWith(compareByDescending<TalliedTitle> { it.anchor }.then(BY_HOURS)) else null
+        if (homed) titles.filter { it.home }.sortedWith(ANCHORS_FIRST.then(BY_HOURS)) else null
 
     /** Every title, most hours first, then the lower title ID. */
     val byHours: List<TalliedTitle> = titles.sortedWith(BY_HOURS)
@@ -36,6 +36,7 @@ internal class HoldingsTally(
     val titleCount: Int get() = titles.size
 
     companion object {
+        private val ANCHORS_FIRST = compareByDescending<TalliedTitle> { it.anchor }
         private val BY_HOURS = compareByDescending<TalliedTitle> { it.ms }.thenBy { it.id.value }
 
         /** The tally of [pool]; null when it airs nothing. A title is an anchor when it is a home of weight 3. */
@@ -72,7 +73,7 @@ internal suspend fun HoldingsTally.holdings(
 ): ChannelHoldings {
     val asked = ChannelHoldings.LISTED * 2
     val homed = homes
-    val wanted = ((homed?.take(asked) ?: emptyList()) + byHours.take(asked)).mapTo(LinkedHashSet()) { it.id }
+    val wanted = (homed?.take(asked).orEmpty() + byHours.take(asked)).mapTo(LinkedHashSet()) { it.id }
     val named =
         try {
             names(wanted)

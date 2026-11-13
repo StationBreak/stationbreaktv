@@ -99,7 +99,8 @@ internal object DaySnapshotCodec {
     /**
      * 8 (#757): a day may hold its home set (`homes`: rows of the body's table of title IDs, the titles whose home is
      * the channel; absent when it is not known, an empty list when the channel is home to none). A file of 7 is still
-     * read: it has no home sets, so its days come back with an unknown one ([ChannelDay.homed]). 7 (spec 26): a day may be empty for a new reason, `LibraryNotChosen`. 6 (spec 23): a curated day may hold its
+     * read: it has no home sets, so its days come back with an unknown one ([ChannelDay.homed]). 7 (spec 26): a day
+     * may be empty for a new reason, `LibraryNotChosen`. 6 (spec 23): a curated day may hold its
      * weights (`weights`, with one table of title IDs in the body), the key holds the digest of the days' curations
      * (`curation`), and the curated pools, keeps and weights are live, so a file of 5 is never read. 5: a day may
      * hold its film-to-collection map (`films`, with one table of collection IDs in the body). 4: the key holds the
@@ -144,7 +145,6 @@ internal object DaySnapshotCodec {
         class Read(
             val key: DayKey,
             val bodyAt: Int,
-            val format: Int = VERSION,
         ) : Header
 
         /** Written by another version of this format. */
@@ -162,11 +162,7 @@ internal object DaySnapshotCodec {
         if (format != VERSION.toString() && format != OLDEST_READ.toString()) return Header.OtherFormat
         val header = json.decodeFromJsonElement(HeaderV2.serializer(), root)
         val crc = crcOf(keyBytes(header.key), file, end + 1)
-        return if (crc == header.crc) {
-            Header.Read(header.key, end + 1, header.format)
-        } else {
-            throw IOException("Fails its checksum")
-        }
+        return if (crc == header.crc) Header.Read(header.key, end + 1) else throw IOException("Fails its checksum")
     }
 
     // Where the header line ends (its newline). Throws for a file with no newline within MAX_HEADER bytes.
@@ -293,14 +289,8 @@ internal object DaySnapshotCodec {
                 val films = filmRows(day, rowOf, collections)
                 val weights = weightRows(day, titles)
                 val homes = homeRows(day, titles)
-                if (isAscending(rows)) {
-                    val set = BitSet(table.size)
-                    rows.forEach(set::set)
-                    val bits = Base64.encode(set.toByteArray())
-                    DayV2(day.channel.id.value, bits = bits, hidden = day.hidden, films = films, weights = weights, homes = homes)
-                } else {
-                    DayV2(day.channel.id.value, rows = rows, hidden = day.hidden, films = films, weights = weights, homes = homes)
-                }
+                val parts = DayParts(films, weights, homes)
+                dayOfRows(day, rows, table.size, parts)
             }
         val series = LinkedHashMap<CanonicalId, Int>()
         val rows =
@@ -379,16 +369,17 @@ private fun homesOf(
     titles: List<CanonicalId>,
     pool: List<ScheduleItem>,
 ): Set<CanonicalId>? {
-    val rows = day.homes ?: return null
-    if (rows.isEmpty()) return emptySet()
-    val aired = HashSet<CanonicalId>(pool.size * 2)
-    for (item in pool) aired.add(item.groupId)
-    val homed = HashSet<CanonicalId>(rows.size * 2)
-    for (row in rows) {
-        val title = titles[rowIn(row, titles.size)]
-        if (title !in aired || !homed.add(title)) throw IOException("A home, once, of a title the day airs")
+    val rows = day.homes
+    val homed = HashSet<CanonicalId>((rows?.size ?: 0) * 2)
+    if (!rows.isNullOrEmpty()) {
+        val aired = HashSet<CanonicalId>(pool.size * 2)
+        for (item in pool) aired.add(item.groupId)
+        for (row in rows) {
+            val title = titles[rowIn(row, titles.size)]
+            if (title !in aired || !homed.add(title)) throw IOException("A home, once, of a title the day airs")
+        }
     }
-    return homed
+    return if (rows == null) null else homed
 }
 
 // The day's home set as title rows, ascending by title ID; null when it is not known, [] when there are none.
@@ -396,6 +387,32 @@ private fun homeRows(
     day: ChannelDay,
     titles: MutableMap<CanonicalId, Int>,
 ): List<Int>? = day.homed?.sortedBy { it.value }?.map { titles.getOrPut(it) { titles.size } }
+
+// What a day keeps besides its pool and its reason: the film map, the weights and the home set, as written.
+private class DayParts(
+    val films: List<List<Int>>?,
+    val weights: List<List<Int>>?,
+    val homes: List<Int>?,
+) {
+    fun day(
+        day: ChannelDay,
+        bits: String? = null,
+        rows: IntArray? = null,
+    ) = DayV2(day.channel.id.value, bits, rows, day.hidden, films, weights, homes)
+}
+
+// A day pool in canonical-ID order: the set of table rows it holds, as a bitset. Any other order: its row numbers.
+private fun dayOfRows(
+    day: ChannelDay,
+    rows: IntArray,
+    tableSize: Int,
+    parts: DayParts,
+): DayV2 {
+    if (!isAscending(rows)) return parts.day(day, rows = rows)
+    val set = BitSet(tableSize)
+    rows.forEach(set::set)
+    return parts.day(day, bits = Base64.encode(set.toByteArray()))
+}
 
 /** The header line: the format first (read before anything else), the body's CRC-32, and the key. */
 @Serializable
@@ -450,9 +467,10 @@ private class ItemV2(
 /**
  * One channel's day: the channel's ID, its pool as a bitset of table rows (Base64) or as row numbers, its empty
  * reason, the film-to-collection map as `[item row, collection row]` pairs and the weights as `[title row, weight]`
- * pairs (each absent when the day has none) and, from format 8, the home set as title rows (absent when it is not known:
- * an empty list is a day with no homes).
+ * pairs (each absent when the day has none) and, from format 8, the home set as title rows (absent when it is not
+ * known; an empty list is a day with no homes).
  */
+@Suppress("LongParameterList") // One field for each thing a day keeps.
 @Serializable
 private class DayV2(
     @SerialName("c") val channel: String,

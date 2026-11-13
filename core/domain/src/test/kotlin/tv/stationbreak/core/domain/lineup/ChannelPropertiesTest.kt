@@ -302,7 +302,8 @@ class ChannelPropertiesTest {
 
             val noLabels: Labels = { _, _ -> emptyMap() }
             val noStudios: StudioNames = { _, _ -> emptyMap() }
-            val signedOut = BuiltInChannelProperties(service, CountingLibrary(), schedule, noLabels, noStudios, ChannelHoldingsReader.None)
+            val none = ChannelHoldingsReader.None
+            val signedOut = BuiltInChannelProperties(service, CountingLibrary(), schedule, noLabels, noStudios, none)
             assertNull(signedOut.read(laughs.id, NOON))
         }
 

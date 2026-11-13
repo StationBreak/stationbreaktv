@@ -973,6 +973,7 @@ internal class LineupDays(
      * comes from [s] and the catalog. [homed] is the day's home set as the file kept it: null from a file of an older
      * format, which did not keep it ([ChannelDay.homed]).
      */
+    @Suppress("LongParameterList") // The day's kept facts, one for one.
     fun restore(
         s: Scheduled,
         pool: List<ScheduleItem>,
@@ -1414,7 +1415,7 @@ internal class LineupDays(
                 epoch = EpochPool.build(s.settings, own.items, s.n)
                 keeps = own.keeps
                 weights = own.weights
-                // Of the titles the epoch pool holds (and so the day: the window keeps every title), as the file checks.
+                // Of the titles the epoch pool holds, which is every title of the day: the window keeps them all.
                 homed = homedHere(epoch, day.homes, s.channel.id)
             } else {
                 epoch = EpochPool.build(s.settings, withoutHomes(pool.items, day.homes), s.n)

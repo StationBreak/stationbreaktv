@@ -15,13 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 
-/** The tags of the lines of [ChannelHoldingsLines]: the hours line, the list's label and the list. */
-class HoldingsTags(
-    val hours: String,
-    val label: String,
-    val names: String,
-)
-
 private const val SMALL_SP = 11
 private const val NAMES_SP = 13
 private const val NAMES_LINES = 2

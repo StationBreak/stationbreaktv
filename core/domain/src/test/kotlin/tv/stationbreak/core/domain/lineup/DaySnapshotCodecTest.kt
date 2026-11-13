@@ -129,7 +129,8 @@ class DaySnapshotCodecTest {
         assertTrue(built.any { it.homed?.isNotEmpty() == true } && built.any { it.homed == emptySet<Any>() })
 
         val file = DaySnapshotCodec.encode(key, built)
-        val body = DaySnapshotCodec.body(file, DaySnapshotCodec.header(file) as DaySnapshotCodec.Header.Read, built.size)
+        val header = DaySnapshotCodec.header(file) as DaySnapshotCodec.Header.Read
+        val body = DaySnapshotCodec.body(file, header, built.size)
 
         assertEquals(built.map { it.homed }, body.map { it.homed })
     }
@@ -140,7 +141,8 @@ class DaySnapshotCodecTest {
         val unknown = built.map { it.unbuiltCopy() }
 
         val file = DaySnapshotCodec.encode(key, unknown)
-        val body = DaySnapshotCodec.body(file, DaySnapshotCodec.header(file) as DaySnapshotCodec.Header.Read, built.size)
+        val header = DaySnapshotCodec.header(file) as DaySnapshotCodec.Header.Read
+        val body = DaySnapshotCodec.body(file, header, built.size)
 
         assertTrue("\"homes\"" !in file.decodeToString())
         assertTrue(body.all { it.homed == null })
