@@ -54,6 +54,7 @@ internal fun foldNames(names: List<String>): List<String> {
 class NameFolds {
     private val lists = HashMap<List<String>, List<String>>()
     private val studioLists = HashMap<List<String>, List<String>>()
+    private val studioKeyLists = HashMap<List<String>, List<String>>()
     private val names = HashMap<String, String>()
 
     /** The number of distinct name lists that needed a fold, for telling how much sharing there is. */
@@ -67,6 +68,20 @@ class NameFolds {
         val cleaned = studioLists[list] ?: foldStudioNames(list).map { names.getOrPut(it) { it } }
         studioLists[list] = cleaned
         return cleaned
+    }
+
+    /**
+     * [list] of studio names through studio fold 2 ([studioKey2]), a name with an empty key dropped, shared like [of].
+     * When the keys are the [ofStudios] keys (one-word names, say), that same list is returned: no second list is
+     * held.
+     */
+    fun ofStudios2(list: List<String>): List<String> {
+        studioKeyLists[list]?.let { return it }
+        val keys = studioKeys2(list)
+        val fold1 = ofStudios(list)
+        val shared = if (keys == fold1) fold1 else keys.map { names.getOrPut(it) { it } }
+        studioKeyLists[list] = shared
+        return shared
     }
 
     /** [list] folded; [list] itself, with no table entry, when no name in it has a capital. */

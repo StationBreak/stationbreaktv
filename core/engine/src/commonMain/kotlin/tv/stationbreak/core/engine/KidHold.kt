@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.studioKey2
 import tv.stationbreak.core.rules.RatingLadder
 
 /**
@@ -11,10 +12,12 @@ import tv.stationbreak.core.rules.RatingLadder
  * children ([isMadeForKids]) and that passes a kid rating table ([passesKidCeiling]). It is pure: it reads the entry
  * and its series and nothing else. Tags never take part. The lists below are frozen under [VERSION_NAME]; a change to
  * either is a new version name. `kid-hold-3` adds the animated-family signal ([isAnimatedFamily]; ADR-0019 addendum).
+ * `kid-hold-4` matches [KID_STUDIOS] by studio fold 2 key ([studioKey2], ADR-0026) instead of studio fold 1, so a kid
+ * studio spelled with a space, blank or invisible look-alike still counts; the lists are unchanged.
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-3"
+    const val VERSION_NAME = "kid-hold-4"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's
@@ -31,6 +34,9 @@ object KidHold {
      * (owner decision 2026-10-28), except Studio Ghibli, which is left off on purpose. Also left off on purpose:
      * Nelvana, which also co-produces general-audience work, and a big film studio's live-action label (a DreamWorks
      * Pictures label, say).
+     *
+     * Matched by studio fold 2 key ([studioKey2]) against [RuleItem.foldedStudios2] and [RuleSeries.foldedStudios2],
+     * so two entries that differ only by a space ("BabyTV", "Baby TV") share one key, which is harmless.
      */
     val KID_STUDIOS: List<String> =
         listOf(
@@ -125,7 +131,7 @@ object KidHold {
     private const val TIER_ABOVE = 4
 
     private val genreSet = NameSet(KIDS_GENRES, IntArray(KIDS_GENRES.size))
-    private val studioSet = NameSet(KID_STUDIOS, IntArray(KID_STUDIOS.size))
+    private val studioSet = NameSet(KID_STUDIOS.map(::studioKey2), IntArray(KID_STUDIOS.size))
 
     /**
      * Whether [entry] is made for children: one of its genres is in [KIDS_GENRES], one of its studios is in
@@ -139,13 +145,13 @@ object KidHold {
         series: RuleSeries?,
     ): Boolean =
         anyMatch(genreSet, entry.foldedGenres) ||
-            anyMatch(studioSet, entry.foldedStudios) ||
+            anyMatch(studioSet, entry.foldedStudios2) ||
             hasChildrensRating(entry, series) ||
             (
                 series != null &&
                     (
                         anyMatch(genreSet, series.foldedGenres) ||
-                            anyMatch(studioSet, series.foldedStudios)
+                            anyMatch(studioSet, series.foldedStudios2)
                     )
             ) ||
             isAnimatedFamily(entry, series)
@@ -157,7 +163,7 @@ object KidHold {
      */
     fun isSeriesMadeForKids(series: RuleSeries): Boolean =
         anyMatch(genreSet, series.foldedGenres) ||
-            anyMatch(studioSet, series.foldedStudios) ||
+            anyMatch(studioSet, series.foldedStudios2) ||
             isChildrensRating(series.officialRating) ||
             AnimatedFamilySignal.holdsForSeries(series)
 

@@ -2004,7 +2004,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `3`),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-3`), `grownUpHold` (`grown-up-hold-2`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-4`), `grownUpHold` (`grown-up-hold-3`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2112,6 +2112,14 @@ Everything below is in this repository, under `docs/`:
   weights, a franchise and the tunables) and `lineup-v3.json` (whole days for `curated`, the per-kind runtime windows and the
   trim window). They are computed with an independent reference that was written from this document alone, and are added to
   the folder with that reference. The version 1 and version 2 vectors are unchanged.
+
+- `docs/rules-format/vectors/` (studio fold 2, ADR-0026): `studio-fold-2.json` (the fold 2 key of names with every code
+  point of the space set, the blank and break set and each range of the dropped set, the joiner cases and the
+  walk-through table of the ADR, with the fold 1 answer of each and the sets themselves) and `kid-hold-4.json` (titles
+  whose studio is a kid studio spelled with a look-alike: made for kids under `kid-hold-4` and not under `kid-hold-3`,
+  and dropped from a grown-up channel by `grown-up-hold-3`). They are computed with an independent reference,
+  `scripts/rules-format/studio_fold_2_vectors.py`, written from ADR-0026 alone. The holds use studio fold 2 from
+  `kid-hold-4`; the rules format still uses studio fold 1 (Studio names) in every version this document defines.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

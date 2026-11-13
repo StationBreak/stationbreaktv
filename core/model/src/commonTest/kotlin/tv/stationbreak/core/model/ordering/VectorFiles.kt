@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.model.ordering
 
+import tv.stationbreak.core.model.StudioFold2VectorFile
+
 /**
  * Kotlin copies of `docs/rules-format/vectors/` for the primitives (`VectorFilesInSyncTest` fails if they differ
  * from the files).
@@ -555,5 +557,6 @@ internal object VectorFiles {
             "splitmix64.json" to splitmix64,
             "fnv1a64.json" to fnv1a64,
             "canonical-id.json" to canonicalId,
+            "studio-fold-2.json" to StudioFold2VectorFile.json,
         )
 }
