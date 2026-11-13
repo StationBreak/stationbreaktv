@@ -36,10 +36,16 @@ object GuideTags {
     /** The line where the grid goes when none of this TV's libraries is available (spec 26). */
     const val NO_LIBRARIES = "guide:noLibraries"
 
-    /** The Channels entry of the menu row above the grid. */
+    /** The menu sheet (#756): the scrim and the sheet; present only while it is open. */
+    const val MENU_SHEET = "guide:menuSheet"
+
+    /** The line at the foot of the menu sheet that says what Back does there. */
+    const val MENU_HINT = "guide:menuHint"
+
+    /** The Channels row of the menu sheet. */
     const val CHANNELS_BUTTON = "guide:channelsButton"
 
-    /** The Settings entry of the menu row: the guide's Dark and Light choice. */
+    /** The Settings row of the menu sheet: the guide's Dark and Light choice. */
     const val SETTINGS_BUTTON = "guide:settingsButton"
 
     /** The Dark and Light choices of the Settings panel's Appearance row. */
@@ -63,7 +69,7 @@ object GuideTags {
     /** The line beside Sync now: syncing, when it last synced, or why it failed. */
     const val SETTINGS_SYNC_STATUS = "guide:settings:syncStatus"
 
-    /** The Exit entry of the menu row. */
+    /** The Exit row of the menu sheet. */
     const val EXIT_BUTTON = "guide:exitButton"
 
     /** The cell of [channel] that starts at [startMs]. */

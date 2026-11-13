@@ -2,11 +2,19 @@
 package tv.stationbreak.feature.guide.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -28,78 +36,118 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.StationBreakDarkColors
+import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.R
 
-/**
- * The tabs' row: 28 dp, the text at its foot over a 1 dp underline when active. It takes the foot of the details band
- * (the picture corner's height), so the panel has what is left.
- */
-internal val ButtonRowHeight = 28.dp
-private val TabGap = 20.dp
 private val UnderlineGap = 4.dp
 private val UnderlineHeight = 1.dp
 private val FocusUnderlineHeight = 2.dp
 
+/** The menu sheet's measures (#756): a left-edge sheet 220 dp wide, full height, with rows 36 dp tall. */
+internal val MenuSheetWidth = 220.dp
+internal val MenuRowHeight = 36.dp
+private val SheetEndPadding = 8.dp
+private val RowTextPadding = 10.dp
+private val RowGap = 4.dp
+private val SheetLineWidth = 1.dp
+private const val MENU_ROW_SP = 13
+private const val HINT_SP = 11
+
+// The properties sheet's own surface (`ChannelsPalette` in feature:channels, which this feature cannot read): the
+// design's #141518 with a 1 dp line on the edge toward the screen, over a scrim of black at 55%.
+private val SheetGround = Color(0xFF141518)
+private val SheetLine = Color(0xFF3A3B40)
+private const val SCRIM_ALPHA = 0.55f
+
 /**
- * The menu row above the grid: Channels, Settings and Exit as plain text tabs, no pills. The guide's focus is its own
- * (model-driven), so the tabs do not take Compose focus. [menuOf] says which one the guide's focus is on, if any. The
- * active tab is in the primary colour with a 1 dp underline: the focused one, or Channels while the focus is on the
- * grid (it is the screen the guide is on, not the D-pad focus). Exactly one is underlined at a time. Each is told to
- * a screen reader as selected only while the guide's focus is on it. A tab recomposes only when that changes.
+ * The menu sheet (#756): Channels, Settings and Exit as rows of a sheet on the screen's left edge, over the guide
+ * dimmed as the channel properties sheet dims its list, with the same surface and the same drawn focus. The guide's
+ * focus is its own (model-driven), so the rows take no Compose focus. [menuOf] says which row the guide's focus is on;
+ * the sheet is drawn only while it is not null. Each row is told to a screen reader as selected only while the focus
+ * is on it. [startInset], [topInset] and [bottomInset] keep the rows inside the safe area.
  */
 @Composable
-internal fun GuideMenu(
+internal fun GuideMenuSheet(
     menuOf: () -> GuideMenuEntry?,
+    startInset: Dp,
+    topInset: Dp,
+    bottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val onGridOf = remember(menuOf) { { menuOf() == null } }
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(TabGap)) {
-        MenuTab(R.string.guide_channels_button, GuideTags.CHANNELS_BUTTON, primary = true, onGridOf = onGridOf) {
-            menuOf() == GuideMenuEntry.Channels
-        }
-        MenuTab(R.string.guide_settings_button, GuideTags.SETTINGS_BUTTON, primary = false, onGridOf = onGridOf) {
-            menuOf() == GuideMenuEntry.Settings
-        }
-        MenuTab(R.string.guide_exit_button, GuideTags.EXIT_BUTTON, primary = false, onGridOf = onGridOf) {
-            menuOf() == GuideMenuEntry.Exit
+    if (menuOf() == null) return
+    val back = stringResource(R.string.guide_key_back)
+    Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(GuideTags.MENU_SHEET)) {
+        Row(
+            Modifier
+                .align(Alignment.CenterStart)
+                .width(MenuSheetWidth)
+                .fillMaxHeight()
+                .background(SheetGround),
+        ) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(start = startInset, top = topInset, end = SheetEndPadding),
+                verticalArrangement = Arrangement.spacedBy(RowGap),
+            ) {
+                MenuRow(R.string.guide_channels_button, GuideTags.CHANNELS_BUTTON) {
+                    menuOf() == GuideMenuEntry.Channels
+                }
+                MenuRow(R.string.guide_settings_button, GuideTags.SETTINGS_BUTTON) {
+                    menuOf() == GuideMenuEntry.Settings
+                }
+                MenuRow(R.string.guide_exit_button, GuideTags.EXIT_BUTTON) {
+                    menuOf() == GuideMenuEntry.Exit
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "$back  ${stringResource(R.string.guide_hint_close_menu)}",
+                    modifier =
+                        Modifier
+                            .padding(start = RowTextPadding, bottom = bottomInset)
+                            .testTag(GuideTags.MENU_HINT),
+                    style = guideText(HINT_SP.sp, FontWeight.Normal),
+                    color = StationBreakDarkColors.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            Box(Modifier.width(SheetLineWidth).fillMaxHeight().background(SheetLine))
         }
     }
 }
 
 @Composable
-private fun MenuTab(
+private fun MenuRow(
     @StringRes text: Int,
     tag: String,
-    primary: Boolean,
-    onGridOf: () -> Boolean,
     focusedOf: () -> Boolean,
 ) {
     val focused by remember(focusedOf) { derivedStateOf(focusedOf) }
-    val onGrid by remember(onGridOf) { derivedStateOf(onGridOf) }
-    val colors = LocalGuideColors.current
-    val look = tabLook(focused = focused, selected = primary && onGrid, colors = colors)
-    Box(
-        Modifier
-            .height(ButtonRowHeight)
-            .testTag(tag)
-            .semantics(mergeDescendants = true) {
-                role = Role.Button
-                selected = focused
-            },
-        contentAlignment = Alignment.BottomStart,
-    ) {
-        Text(
-            text = stringResource(text),
-            modifier = Modifier.underline(look.underline, look.thickness),
-            style = guideText(11.sp, FontWeight.Medium),
-            color = look.text,
-            maxLines = 1,
-        )
-    }
+    Text(
+        text = stringResource(text),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(MenuRowHeight)
+                .drawnFocus(focused)
+                .padding(horizontal = RowTextPadding)
+                .wrapContentHeight(Alignment.CenterVertically)
+                .testTag(tag)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    selected = focused
+                },
+        style = guideText(MENU_ROW_SP.sp, FontWeight.Medium),
+        color = BroadcastColors.Cream,
+        maxLines = 1,
+    )
 }
 
 /** How a tab is drawn: its text colour, and its underline (null for none) and the underline's thickness. */

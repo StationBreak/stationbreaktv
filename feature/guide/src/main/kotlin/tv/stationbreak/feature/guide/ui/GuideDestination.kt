@@ -59,7 +59,8 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * arrived (`System.nanoTime`), for the guide's open-time measurement.
  *
  * Keys: the guide moves its own focus (model-driven, not Compose focus search), with the D-pad and Select; Back walks
- * the focus outwards and from the menu row is left to the activity, which leaves live TV. Select on a program tunes its
+ * the focus outwards to the menu sheet (which the Menu key opens and closes from anywhere), and from the guide with no
+ * sheet to go to is left to the activity, which leaves live TV. Select on a program tunes its
  * channel, and the details panel carries what an info overlay once did. Select on the Channels
  * button above the grid shows [channels] over the guide (channel management, which `app` hands in); the guide's own
  * keys and Back stand down while it shows. Left from a row's first cell moves the focus to its channel; Select there
@@ -263,15 +264,16 @@ internal fun GuideRoot(
         }
     }
     val syncNow by viewModel.syncNowState.collectAsStateWithLifecycle()
-    // Back walks the focus outwards (to what is playing, then to the menu row), and from the menu row it is the
-    // activity's and leaves live TV. While a screen covers the guide (channel management, the properties sheet,
-    // Settings, Libraries), it is that screen's.
+    // Back walks the focus outwards (to what is playing, then to the menu sheet, which it closes), and from the guide
+    // with nothing to go to it is the activity's and leaves live TV. While a screen covers the guide (channel
+    // management, the properties sheet, Settings, Libraries), it is that screen's.
     val keys = remember { FocusRequester() }
     // The guide takes the key focus when it shows, and takes it back when the screen that covered it has gone.
     LaunchedEffect(keys, covered) { if (!covered) keys.requestFocus() }
     val back: (() -> Unit)? =
         remember(viewModel, backs) { backs?.let { d -> { if (!viewModel.back()) d.onBackPressed() } } }
     val move = remember(viewModel) { viewModel.tracedMove() }
+    val menu: () -> Unit = remember(viewModel) { { viewModel.toggleMenu() } }
     Box(modifier.fillMaxSize()) {
         GuideScreen(
             snapshot = viewModel.snapshot,
@@ -305,7 +307,7 @@ internal fun GuideRoot(
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },
-                            grid = { event -> guideKey(event, move, viewModel::select, back) },
+                            grid = { event -> guideKey(event, move, viewModel::select, back, menu) },
                         )
                     }.focusable(),
         )
@@ -371,7 +373,7 @@ private class GuideCover(
 /** A slot that draws nothing, for a test that never opens Settings, Libraries. */
 private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, _ -> }
 
-/** What a one-off guide event asks the screen to do. Exit takes the way Back takes from the menu row. */
+/** What a one-off guide event asks the screen to do. Exit takes the way Back takes from the guide. */
 @Suppress("LongParameterList") // One callback for each thing an event asks.
 private fun handleGuideEvent(
     event: GuideEvent,
@@ -421,8 +423,9 @@ private fun guideRootKey(
  * so holding a direction scrolls; a held Down pauses at the last row before it wraps, and a held Up at the top row
  * before it wraps) and Select acts on the focused cell once per press. Their releases are consumed too.
  *
+ * The Menu key is handed to [menu] on its down (opening the menu sheet from anywhere, closing it when it is open).
  * Back is handed to [back] on its release, as the activity itself would: the focus goes to what is playing, then to
- * the menu row, and from there the activity leaves live TV.
+ * the menu sheet, which Back closes; from the guide with no sheet over it the activity leaves live TV.
  * Left unconsumed, Compose would spend it on moving the focus out of the guide to live TV's root ("exit"), and the
  * viewer would have to press Back twice. The media keys are not the guide's.
  */
@@ -431,15 +434,11 @@ internal fun guideKey(
     move: (GuideDirection, Boolean, Long) -> Unit,
     select: () -> Unit,
     back: (() -> Unit)? = null,
+    menu: (() -> Unit)? = null,
 ): Boolean {
     val down = event.type == KeyEventType.KeyDown
     val direction = directionOf(event.key)
-    val handled =
-        when {
-            event.key == Key.Back -> back != null
-            direction != null -> true
-            else -> event.key in SELECT_KEYS
-        }
+    val handled = event.key.let { if (it == Key.Back) back != null else keyIsTheGuides(it, menu != null) }
     when {
         !handled -> Unit
 
@@ -449,12 +448,21 @@ internal fun guideKey(
         // which passes it, and only the release lands here. Waiting for a down the guide saw would swallow that press.
         event.key == Key.Back -> if (event.type == KeyEventType.KeyUp) back?.invoke()
 
+        // The Menu key opens the menu sheet, or closes it: once per press, on the down.
+        event.key == Key.Menu -> if (down && event.nativeKeyEvent.repeatCount == 0) menu?.invoke()
+
         direction != null -> if (down) with(event.nativeKeyEvent) { move(direction, repeatCount > 0, eventTime) }
 
         down && event.nativeKeyEvent.repeatCount == 0 -> select()
     }
     return handled
 }
+
+// Whether a key that is not Back is the guide's: the D-pad, Select, and the Menu key when there is a sheet to toggle.
+private fun keyIsTheGuides(
+    key: Key,
+    hasMenu: Boolean,
+): Boolean = if (key == Key.Menu) hasMenu else directionOf(key) != null || key in SELECT_KEYS
 
 internal val SELECT_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
 

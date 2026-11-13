@@ -292,47 +292,27 @@ internal class GuideViewModel
             }
         }
 
-        // On the menu row Left and Right move between the entries (and stop at the ends); Down goes to the playing
-        // cell, or to the cell last focused when there is none; Up does nothing.
+        // On the menu sheet Up and Down move between the entries (and stop at the ends); Left and Right do nothing.
         private fun moveOnMenu(
             current: GuideSnapshot,
             entry: GuideMenuEntry,
             direction: GuideDirection,
         ) {
-            val entries = GuideMenuEntry.entries
-            when (direction) {
-                GuideDirection.Left -> {
-                    entries.getOrNull(entry.ordinal - 1)?.let { shownSnapshot.value = current.copy(menu = it) }
+            val step =
+                when (direction) {
+                    GuideDirection.Up -> -1
+                    GuideDirection.Down -> 1
+                    GuideDirection.Left, GuideDirection.Right -> 0
                 }
-
-                GuideDirection.Right -> {
-                    entries.getOrNull(entry.ordinal + 1)?.let { shownSnapshot.value = current.copy(menu = it) }
-                }
-
-                GuideDirection.Down -> {
-                    if (!noLibraries()) leaveMenu(current)
-                }
-
-                GuideDirection.Up -> {
-                    Unit
+            if (step != 0) {
+                GuideMenuEntry.entries.getOrNull(entry.ordinal + step)?.let {
+                    shownSnapshot.value = current.copy(menu = it)
                 }
             }
         }
 
-        // Down from the menu row: the playing cell, as Back from elsewhere on the grid goes to it, else the cell last
-        // focused; a guide with no cell keeps the focus on the menu.
-        private fun leaveMenu(current: GuideSnapshot) {
-            val ready = current.state as? GuideState.Ready ?: return
-            val playing = current.playingFocus(currentChannel)
-            val focus = current.focus
-            when {
-                playing != null -> showPlaying(ready, playing)
-                focus != null -> publish(ready, focus, menu = null)
-            }
-        }
-
-        // Up and Down on the grid wrap at the ends of the rows, a held key waiting at the end first. The menu row is
-        // reached by Back only, so a guide with no cell to focus (nothing on) has nothing for a direction to do.
+        // Up and Down on the grid wrap at the ends of the rows, a held key waiting at the end first. The menu sheet is
+        // reached by Back and the Menu key only, so a guide with no cell to focus (nothing on) has nothing to do.
         private fun moveOnGrid(
             current: GuideSnapshot,
             direction: GuideDirection,
@@ -426,10 +406,11 @@ internal class GuideViewModel
         /**
          * Back, one step outwards: from a cell that is not the playing channel's cell on
          * air now to that cell, with the grid back at now and that row at the top, as when the guide opened; from that
-         * cell (or when there is none to go to) to the menu row, on Channels. True when it moved. False on the menu
-         * row, while the guide loads and when there is no grid or menu to go to: Back then
-         * leaves live TV. Nothing is added for a screen reader: the jump changes the focused cell or entry, so the
-         * details panel's polite live region reads the playing program as it does after any move.
+         * cell (or when there is none to go to) opens the menu sheet, on Channels; Back in the sheet closes it, the
+         * focus where it was. True when it moved. False while the guide loads, when there is no grid or sheet to go
+         * to, and in the sheet when there are no libraries (it is all there is): Back then leaves live TV. Nothing is
+         * added for a screen reader: the jump changes the focused cell or entry, so the details panel's polite live
+         * region reads the playing program as it does after any move.
          */
         fun back(): Boolean =
             synchronized(lock) {
@@ -439,8 +420,15 @@ internal class GuideViewModel
                 val focus = current.focus
                 val showsMenu = ready != null || current.state == GuideState.Empty
                 when {
-                    current.menu != null -> {
+                    // No grid is shown: the sheet is the only thing there is, and Back leaves live TV from it.
+                    current.menu != null && noLibraries() -> {
                         false
+                    }
+
+                    // Back in the sheet closes it: the focus is where it was when the sheet opened.
+                    current.menu != null -> {
+                        shownSnapshot.value = current.copy(menu = null)
+                        true
                     }
 
                     // No grid is shown: the menu row, on Settings, where the libraries are chosen again.
@@ -462,6 +450,31 @@ internal class GuideViewModel
                     ready != null && target != null && focus != null && !focus.sameCellAs(target) -> {
                         showPlaying(ready, target)
                         true
+                    }
+
+                    else -> {
+                        shownSnapshot.value = current.copy(menu = GuideMenuEntry.Channels)
+                        true
+                    }
+                }
+            }
+
+        /**
+         * The Menu key: opens the menu sheet from anywhere in the guide (on Channels, the focus on the grid or the
+         * channel column kept as it is), and closes it when it is open, returning the focus to where it was. True when
+         * it did either. With no libraries the sheet is all there is (Settings is where they are chosen), so it
+         * stays; and a guide that is closed has no sheet.
+         */
+        fun toggleMenu(): Boolean =
+            synchronized(lock) {
+                val current = shownSnapshot.value
+                when {
+                    current.state == GuideState.Closed -> {
+                        false
+                    }
+
+                    current.menu != null -> {
+                        (!noLibraries()).also { if (it) shownSnapshot.value = current.copy(menu = null) }
                     }
 
                     else -> {
@@ -949,8 +962,8 @@ internal class GuideViewModel
             val located = focus?.let { ready.model.indexOf(it) }
             check(focus == null || located != null) { "The focus is not in the model it is published with" }
             val before = shownSnapshot.value.focus
-            // The channel column keeps the focus across a move of rows or a rebuild, never together with the menu.
-            val onChannel = shownSnapshot.value.onChannel && menu == null && focus != null
+            // The channel column keeps the focus across a move of rows or a rebuild, the menu sheet over it or not.
+            val onChannel = shownSnapshot.value.onChannel && focus != null
             shownSnapshot.value = GuideSnapshot(ready, focus, menu, onChannel, shownSnapshot.value.noLibraries)
             follow(ready.model, before, focus, located)
         }

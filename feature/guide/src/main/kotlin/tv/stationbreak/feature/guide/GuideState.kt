@@ -40,13 +40,13 @@ internal sealed interface GuideState {
  * same moment. A [focus] always resolves with `indexOf` in the model of a [GuideState.Ready] [state] (the ViewModel
  * checks it as it publishes); it is null when the guide is not showing a grid, or no row has a cell.
  *
- * [menu] names the entry of the menu row above the grid that has the focus (spec 21), null while the focus is on the
- * grid. The [focus] then keeps the cell last focused, which Down returns to when nothing is playing, but no cell is
- * drawn focused.
+ * [menu] is non-null while the menu sheet is open (#756) and names the entry in it that has the focus; null while the
+ * focus is on the grid. The [focus] and [onChannel] then keep where the focus was, which closing the sheet returns to,
+ * but no cell is drawn focused.
  *
  * [onChannel] is true while the focus is on the channel column (#631): reached by Left from a row's earliest cell, it
  * names the [focus]'s row, whose channel cell is drawn outlined and whose cell is not drawn focused. Right returns to
- * that cell. It is never set together with [menu].
+ * that cell. Under an open [menu] it is kept, but the channel cell is not drawn outlined.
  *
  * [noLibraries] is true while the stored library selection is gone (spec 26): no grid is shown then, the focus is on
  * the menu row and no programme is shown. The one place the guide reads that from: a screen draws from this flag only.
@@ -64,7 +64,7 @@ internal data class GuideSnapshot(
     }
 }
 
-/** The entries of the menu row above the grid, left to right. */
+/** The entries of the menu sheet (#756), top to bottom. */
 internal enum class GuideMenuEntry {
     /** Opens channel management. */
     Channels,
