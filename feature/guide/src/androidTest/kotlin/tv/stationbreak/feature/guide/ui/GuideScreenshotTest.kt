@@ -72,10 +72,13 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.lineup.ChannelHoldings
+import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.GuideOpening
+import tv.stationbreak.core.domain.lineup.HeldTitle
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
@@ -87,6 +90,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
@@ -117,6 +121,22 @@ import java.util.concurrent.Executors
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+
+/** What the channel box is told channel 7 holds: a channel with homes, six of them named and 31 more. */
+private object FrameHoldings : ChannelHoldingsReader {
+    override suspend fun read(
+        id: ChannelId,
+        at: Instant,
+    ): ChannelHoldings? = if (id == CH7) FRAME_HOLDINGS else null
+}
+
+private const val FRAME_HOUR_MS = 3_600_000L
+private val FRAME_HOMES =
+    listOf("Little Farm", "Robot Factory", "Giant Robot Hour", "Test Series", "Test Series Two", "Late Late Show")
+        .mapIndexed { i, name ->
+            HeldTitle(CanonicalId.parse((i + 1).toString(16).padStart(32, '0')), name, (60 - i * 5) * FRAME_HOUR_MS, i < 2)
+        }
+private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, 37, FRAME_HOMES, emptyList())
 
 /** No lineup to watch: these shots never open channel management. */
 private object ScreenshotLineup : ChannelRepository {
@@ -223,8 +243,23 @@ class GuideScreenshotTest {
             showReady(CH7)
             focusTheChannelColumn()
             assertEquals("Test Channel 7", text(GuideTags.CHANNEL_PANEL_NAME))
+            awaitHoldings()
+            assertEquals("412 hours of programmes (about 17 days) · 37 titles", text(GuideTags.CHANNEL_PANEL_HOURS))
+            assertEquals("Home to:", text(GuideTags.CHANNEL_PANEL_LIST_LABEL))
+            assertEquals(FRAME_HOMES.joinToString(", ") { it.name } + " + 31 more", text(GuideTags.CHANNEL_PANEL_LIST))
             shoot("$CHANNEL_BOX_FRAME$suffix.png")
         }
+    }
+
+    /** The holdings come once the focus has rested on the channel: a dwell after the column is reached. */
+    private fun awaitHoldings() {
+        compose.waitUntil(TIMEOUT_MS) {
+            compose
+                .onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        compose.waitForIdle()
     }
 
     /** Left along the row: the earliest cell is a few presses away, and one more goes to the channel column. */
@@ -520,6 +555,7 @@ class GuideScreenshotTest {
                     ScreenshotLineup,
                     sync = syncNow,
                     logos = { logoArt() },
+                    holdings = FrameHoldings,
                 )
             compose.setContent { GuideHost(current) }
             composed = true
