@@ -20,15 +20,20 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -74,7 +79,10 @@ private object QuietLineup : ChannelRepository {
     override fun activeChannels(): Flow<List<ChannelSummary>> = flowOf(emptyList())
 }
 
-/** The menu row (Channels and Exit) and the slot Channels opens over the guide (spec 21). */
+/**
+ * The menu sheet (#756: Channels, Settings and Exit, opened by the Menu key or by Back on the playing cell) and the
+ * slot Channels opens over the guide (spec 21).
+ */
 @RunWith(AndroidJUnit4::class)
 class GuideMenuUiTest {
     @get:Rule
@@ -178,6 +186,17 @@ class GuideMenuUiTest {
 
     private fun channels() = compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON)
 
+    private fun settings() = compose.onNodeWithTag(GuideTags.SETTINGS_BUTTON)
+
+    private fun sheet() = compose.onNodeWithTag(GuideTags.MENU_SHEET)
+
+    private fun hint(): String =
+        compose
+            .onNodeWithTag(GuideTags.HINT, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.Text]
+            .joinToString("") { it.text }
+
     private fun exit() = compose.onNodeWithTag(GuideTags.EXIT_BUTTON)
 
     private fun cell(startMin: Long) = compose.onNodeWithTag(GuideTags.cell(CH5, T0 + startMin * MIN))
@@ -191,7 +210,7 @@ class GuideMenuUiTest {
         compose.waitUntil(TIMEOUT_MS) { runCatching { channels().assertIsSelected() }.isSuccess }
     }
 
-    // Back from the playing cell reaches the menu row, on Channels.
+    // Back from the playing cell opens the menu sheet, on Channels.
     private fun openTheSlot() {
         back()
         awaitOnChannels()
@@ -221,11 +240,14 @@ class GuideMenuUiTest {
         compose.runOnUiThread { done?.invoke(null) }
         compose.waitForIdle()
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
+        // The sheet is back, as it was, on Channels.
+        sheet().assertExists()
         awaitOnChannels()
         cell(60).assertIsNotSelected()
-        // The guide has its keys back: Down returns to the cell.
+        // The guide has its keys back: Back closes the sheet and returns to the cell.
         compose.awaitWindowFocus()
-        press(Key.DirectionDown)
+        back()
+        sheet().assertDoesNotExist()
         cell(60).assertIsSelected()
         assertEquals(emptyList<ChannelId>(), tuned.toList())
     }
@@ -242,7 +264,7 @@ class GuideMenuUiTest {
     }
 
     @Test
-    fun aBackThatClosesTheSlotIsNotTheGuidesAndTheNextLeaves() {
+    fun aBackThatClosesTheSlotIsNotTheGuidesAndTheNextClosesTheSheet() {
         showReady()
         finishOnBack = true
         openTheSlot()
@@ -251,20 +273,22 @@ class GuideMenuUiTest {
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
         awaitOnChannels()
         assertEquals(0, exits)
-        // Back from the menu row leaves live TV.
+        // Back in the sheet closes it; it does not leave live TV.
         back()
-        assertEquals(1, exits)
+        sheet().assertDoesNotExist()
+        cell(60).assertIsSelected()
+        assertEquals(0, exits)
     }
 
     @Test
-    fun theExitEntryIsShownFocusableAndLeaves() {
+    fun theExitRowIsInTheSheetFocusableAndLeaves() {
         showReady()
-        exit().assertExists()
-        exit().assertIsNotSelected()
+        // No menu row between the panel and the grid: the rows exist only in the sheet.
+        exit().assertDoesNotExist()
         back()
         awaitOnChannels()
-        press(Key.DirectionRight)
-        press(Key.DirectionRight)
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
         exit().assertIsSelected()
         channels().assertIsNotSelected()
         assertEquals(0, exits)
@@ -274,16 +298,140 @@ class GuideMenuUiTest {
     }
 
     @Test
-    fun downFromExitReturnsToThePlayingCell() {
+    fun backFromExitClosesTheSheetAndReturnsToThePlayingCell() {
         showReady()
         back()
-        press(Key.DirectionRight)
-        press(Key.DirectionRight)
-        exit().assertIsSelected()
         press(Key.DirectionDown)
-        exit().assertIsNotSelected()
+        press(Key.DirectionDown)
+        exit().assertIsSelected()
+        back()
+        sheet().assertDoesNotExist()
         cell(60).assertIsSelected()
         assertEquals(0, exits)
+    }
+
+    @Test
+    fun upAndDownMoveBetweenTheRowsAndStopAtTheEnds() {
+        showReady()
+        press(Key.Menu)
+        awaitOnChannels()
+        press(Key.DirectionUp)
+        channels().assertIsSelected()
+        press(Key.DirectionDown)
+        settings().assertIsSelected()
+        channels().assertIsNotSelected()
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
+        exit().assertIsSelected()
+        press(Key.DirectionUp)
+        settings().assertIsSelected()
+        // Left and Right stay in the sheet.
+        press(Key.DirectionRight)
+        press(Key.DirectionLeft)
+        settings().assertIsSelected()
+    }
+
+    @Test
+    fun selectOnSettingsOpensThePanelAndBackReturnsToTheSheetOnSettings() {
+        showReady()
+        press(Key.Menu)
+        press(Key.DirectionDown)
+        settings().assertIsSelected()
+        press(Key.DirectionCenter)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.THEME_DARK).fetchSemanticsNodes().isNotEmpty()
+        }
+        // The panel is not read under the sheet: the sheet steps aside while it shows.
+        sheet().assertDoesNotExist()
+        back()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.THEME_DARK).fetchSemanticsNodes().isEmpty()
+        }
+        sheet().assertExists()
+        settings().assertIsSelected()
+    }
+
+    @Test
+    fun theMenuKeyOpensAndClosesTheSheetFromAProgrammeCellAndTheFocusReturns() {
+        showReady()
+        press(Key.DirectionRight)
+        cell(120).assertIsSelected()
+        sheet().assertDoesNotExist()
+        assertTrue(hint(), hint().contains("Menu Open the menu"))
+        press(Key.Menu)
+        sheet().assertExists()
+        awaitOnChannels()
+        cell(120).assertIsNotSelected()
+        assertEquals("Back Close the menu", hint())
+        press(Key.Menu)
+        sheet().assertDoesNotExist()
+        cell(120).assertIsSelected()
+        assertEquals(0, exits)
+        // Opened again, it is on Channels again, and Back closes it to the same cell.
+        press(Key.Menu)
+        awaitOnChannels()
+        back()
+        sheet().assertDoesNotExist()
+        cell(120).assertIsSelected()
+    }
+
+    @Test
+    fun theMenuKeyOpensAndClosesTheSheetFromTheChannelColumnAndTheFocusReturns() {
+        showReady()
+        press(Key.DirectionLeft)
+        compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertExists()
+        press(Key.Menu)
+        sheet().assertExists()
+        awaitOnChannels()
+        press(Key.Menu)
+        sheet().assertDoesNotExist()
+        // Still on the channel column: its panel and its hint, no cell selected.
+        compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertExists()
+        assertTrue(hint(), hint().contains("Back to programs"))
+        cell(60).assertIsNotSelected()
+        press(Key.DirectionRight)
+        cell(60).assertIsSelected()
+    }
+
+    @Test
+    fun theMenuKeyIsNotTheGuidesWhileAScreenCoversIt() {
+        showReady()
+        openTheSlot()
+        compose.runOnUiThread { slotKeys.clear() }
+        press(Key.Menu)
+        assertEquals(listOf(Key.Menu), slotKeys.toList())
+        assertEquals(GuideMenuEntry.Channels, vm.snapshot.value.menu)
+    }
+
+    @Test
+    fun noMenuRowSitsBetweenThePanelAndTheGridAndThePanelKeepsTheBand() {
+        showReady()
+        for (tag in listOf(GuideTags.CHANNELS_BUTTON, GuideTags.SETTINGS_BUTTON, GuideTags.EXIT_BUTTON)) {
+            compose.onNodeWithTag(tag).assertDoesNotExist()
+        }
+        val panel = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot()
+        val grid = compose.onNodeWithTag(GuideTags.GRID).getBoundsInRoot()
+        // The panel takes the whole band beside the picture, and the grid stays where it was under it.
+        assertEquals("panel height", (HOLE.bottom - HOLE.top).value, panel.height.value, 0.5f)
+        assertEquals("gap to the grid", TopGap.value, (grid.top - panel.bottom).value, 0.5f)
+    }
+
+    @Test
+    fun theSheetIs220DpWideFullHeightOnTheLeftEdgeWithRowsThirtySixDpTall() {
+        showReady()
+        press(Key.Menu)
+        awaitOnChannels()
+        val scrim = compose.onNodeWithTag(GuideTags.MENU_SCRIM).getBoundsInRoot()
+        val sheet = sheet().getBoundsInRoot()
+        assertEquals("sheet width", 220f, sheet.width.value, 0.5f)
+        assertEquals("sheet left", scrim.left.value, sheet.left.value, 0.5f)
+        assertEquals("sheet height", scrim.height.value, sheet.height.value, 0.5f)
+        assertEquals("the scrim covers the screen", HEIGHT_DP.toFloat(), scrim.height.value, 0.5f)
+        for (tag in listOf(GuideTags.CHANNELS_BUTTON, GuideTags.SETTINGS_BUTTON, GuideTags.EXIT_BUTTON)) {
+            val row = compose.onNodeWithTag(tag).getBoundsInRoot()
+            assertEquals("$tag height", 36f, row.height.value, 0.5f)
+            assertTrue("$tag is inside the sheet", row.right <= sheet.right && row.left >= sheet.left)
+        }
     }
 
     @Test
