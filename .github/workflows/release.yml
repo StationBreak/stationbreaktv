@@ -112,6 +112,9 @@ jobs:
     permissions: {}
     outputs:
       cert-sha256: ${{ steps.verify.outputs.cert-sha256 }}
+      # The signed APKs' hashes: `publish` checks what it downloads against these and writes SHA256SUMS from them.
+      github-sha256: ${{ steps.verify.outputs.github-sha256 }}
+      amazon-sha256: ${{ steps.verify.outputs.amazon-sha256 }}
     env:
       # The runner image's build-tools, as in ci.yml (AGP 9.4's default version).
       BUILD_TOOLS_VERSION: 36.0.0
@@ -194,7 +197,7 @@ jobs:
           # As apksigner prints digests: lower-case hex, no colons.
           release_cert="$(tr -d ': ' <<<"$RELEASE_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
           if ! [[ "$release_cert" =~ ^[0-9a-f]{64}$ ]]; then
-            echo "::error::the release environment variable RELEASE_CERT_SHA256 is unset or not a SHA-256 (ADR-0011)"
+            echo "::error::the release environment variable RELEASE_CERT_SHA256 is unset or invalid: the SHA-256 hex digest only, colons allowed (ADR-0011)"
             exit 1
           fi
           # One per line.
@@ -233,6 +236,13 @@ jobs:
             echo "::group::apksigner verify --print-certs ($flavor)"
             echo "$certs"
             echo "::endgroup::"
+            # Every digest line must be one of the counted `Signer #N` lines: a stray one would be a signer not counted.
+            all_digests="$(grep -c 'certificate SHA-256 digest:' <<<"$certs" || true)"
+            signer_digests="$(grep -cE '^Signer #[0-9]+ certificate SHA-256 digest: ' <<<"$certs" || true)"
+            if [ "$all_digests" != "$signer_digests" ]; then
+              echo "::error::$flavor APK: apksigner printed a certificate digest that is not a counted signer"
+              exit 1
+            fi
             signers="$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' <<<"$certs" | sort -u)"
             if [ -z "$signers" ] || [ "$(wc -l <<<"$signers")" -ne 1 ]; then
               echo "::error::$flavor APK must have exactly one signer certificate"
@@ -247,10 +257,17 @@ jobs:
               exit 1
             fi
           done
-          (cd "$RUNNER_TEMP/out" && sha256sum -- "stationbreak-github-v$VERSION.apk" "stationbreak-amazon-v$VERSION.apk" > SHA256SUMS && cat SHA256SUMS)
-          echo "cert-sha256=$release_cert" >> "$GITHUB_OUTPUT"
+          github_sha="$(sha256sum "$RUNNER_TEMP/out/stationbreak-github-v$VERSION.apk" | cut -d' ' -f1)"
+          amazon_sha="$(sha256sum "$RUNNER_TEMP/out/stationbreak-amazon-v$VERSION.apk" | cut -d' ' -f1)"
+          echo "github $github_sha"
+          echo "amazon $amazon_sha"
+          {
+            echo "cert-sha256=$release_cert"
+            echo "github-sha256=$github_sha"
+            echo "amazon-sha256=$amazon_sha"
+          } >> "$GITHUB_OUTPUT"
 
-      # Handed to `publish`: the verified APKs and SHA256SUMS. Kept a day.
+      # Handed to `publish`: the verified APKs. Kept a day. Their hashes travel as job outputs, not in the artifact.
       - name: Upload the signed APKs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -258,7 +275,6 @@ jobs:
           path: |
             ${{ runner.temp }}/out/stationbreak-github-v${{ needs.build.outputs.version }}.apk
             ${{ runner.temp }}/out/stationbreak-amazon-v${{ needs.build.outputs.version }}.apk
-            ${{ runner.temp }}/out/SHA256SUMS
           retention-days: 1
           if-no-files-found: error
 
@@ -283,13 +299,40 @@ jobs:
           name: internal-release-apks-signed
           path: ${{ runner.temp }}/out
 
+      # The artifact store is not trusted: `sign` published the hash of each signed APK as a job output, and these must
+      # match what was downloaded. The outputs themselves must be real SHA-256 values (a masked output would be empty).
+      - name: Check the downloaded APKs against the signed hashes
+        env:
+          CERT_SHA256: ${{ needs.sign.outputs.cert-sha256 }}
+          GITHUB_SHA256: ${{ needs.sign.outputs.github-sha256 }}
+          AMAZON_SHA256: ${{ needs.sign.outputs.amazon-sha256 }}
+        run: |
+          for value in "$CERT_SHA256" "$GITHUB_SHA256" "$AMAZON_SHA256"; do
+            if ! [[ "$value" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::a hash or certificate output from the sign job is empty or not a SHA-256"
+              exit 1
+            fi
+          done
+          found="$(cd "$RUNNER_TEMP/out" && find . -mindepth 1 | sort | tr '\n' ' ')"
+          if [ "$found" != "./stationbreak-amazon-v$VERSION.apk ./stationbreak-github-v$VERSION.apk " ]; then
+            echo "::error::the signed artifact must hold exactly the two APKs; found: $found"
+            exit 1
+          fi
+          cd "$RUNNER_TEMP/out"
+          printf '%s  %s\n' "$GITHUB_SHA256" "stationbreak-github-v$VERSION.apk" \
+            "$AMAZON_SHA256" "stationbreak-amazon-v$VERSION.apk" > "$RUNNER_TEMP/SHA256SUMS"
+          # Fails on any APK that is not byte-for-byte what `sign` verified.
+          sha256sum --check --strict "$RUNNER_TEMP/SHA256SUMS"
+
       # The tag could have been moved while the run waited for approval. It must still point at the commit that was
-      # built. An annotated tag is followed to its commit.
+      # built; an annotated tag is followed to its commit. The check is a script so the same code runs twice: here, and
+      # again right before the release is created.
       - name: Check the tag still points at the built commit
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          cat > "$RUNNER_TEMP/check-tag.sh" <<'SCRIPT'
           ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha')"
           read -r type sha <<<"$ref"
           for _ in 1 2 3; do
@@ -301,6 +344,8 @@ jobs:
             echo "::error::tag $TAG now points at $type $sha, not the built commit $GITHUB_SHA"
             exit 1
           fi
+          SCRIPT
+          bash -eo pipefail "$RUNNER_TEMP/check-tag.sh"
 
       # Provenance for both APKs: they were built by this workflow, from this tag's commit.
       - name: Attest build provenance
@@ -329,12 +374,14 @@ jobs:
             echo "APK SHA-256 (also in the attached SHA256SUMS):"
             echo
             echo '```'
-            cat SHA256SUMS
+            cat "$RUNNER_TEMP/SHA256SUMS"
             echo '```'
             echo
             echo "Each APK has a build-provenance attestation: \`gh attestation verify <apk> --repo $GITHUB_REPOSITORY\`."
             echo "Check the certificate with \`apksigner verify --print-certs <apk>\`."
           } > "$RUNNER_TEMP/notes.md"
+          # Once more, right before the release exists.
+          bash -eo pipefail "$RUNNER_TEMP/check-tag.sh"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$TAG" \
             --notes-file "$RUNNER_TEMP/notes.md" \
-            "stationbreak-github-v$VERSION.apk" "stationbreak-amazon-v$VERSION.apk" SHA256SUMS
+            "stationbreak-github-v$VERSION.apk" "stationbreak-amazon-v$VERSION.apk" "$RUNNER_TEMP/SHA256SUMS"

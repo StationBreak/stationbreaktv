@@ -258,7 +258,8 @@ it from a tag pushed by someone else. These repository settings are the real gat
 - the four secrets (`RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
   `RELEASE_KEY_PASSWORD`) as **environment** secrets of `release`, never repository secrets;
 - the environment variable `RELEASE_CERT_SHA256` (a variable, not a secret) set to the release certificate's SHA-256:
-  `keytool -list -v -keystore <keystore> -alias <alias> | grep 'SHA256:'`.
+  `keytool -list -v -keystore <keystore> -alias <alias> | sed -n 's/^ *SHA256: //p'` (the hex digest only; colons are
+  allowed).
 
 Then:
 

@@ -134,9 +134,11 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
   key to the runner's temporary directory, aligns and signs those two files with the runner's `apksigner` (build-tools
   36.0.0), deletes the key when the step ends, and runs the checks inline in the workflow YAML. The `publish` job has
   no key and no checkout, and is the only one with `contents: write`, `id-token: write` and `attestations: write`: it
-  gets the verified APKs and `SHA256SUMS` as another one-day `internal-` artifact, checks that the tag still points at
-  the built commit (an annotated tag is followed to its commit), attests both APKs and creates the draft release. No
-  repository code runs where the key is.
+  gets the verified APKs as another one-day `internal-` artifact, but does not trust that artifact: `sign` publishes
+  each signed APK's SHA-256 (and the certificate's) as job outputs, and `publish` fails unless the outputs are real
+  SHA-256 values and every downloaded APK matches its output. It writes `SHA256SUMS` itself from the outputs. It checks
+  that the tag still points at the built commit (an annotated tag is followed to its commit) before attesting and again
+  right before creating the draft release. No repository code runs where the key is.
 - **Required owner settings.** The workflow runs from the tagged commit, so the on-main check in its first job is
   only as strong as who can push the tag: a tag on a branch that edits `release.yml` would run the edited workflow.
   These settings are therefore the real gate, and a release must not be cut until all are in place:
@@ -146,8 +148,8 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
      reach any workflow), and so is the variable `RELEASE_CERT_SHA256` below.
   4. The environment variable `RELEASE_CERT_SHA256` (a variable, not a secret: the value is public) holds the release
      certificate's SHA-256, set from the keystore before the first tag:
-     `keytool -list -v -keystore <keystore> -alias <alias> | grep 'SHA256:'`. The workflow fails unless every APK's
-     signer equals it, so a wrong or swapped key stops the release.
+     `keytool -list -v -keystore <keystore> -alias <alias> | sed -n 's/^ *SHA256: //p'` (the hex digest only; colons are
+     allowed). The workflow fails unless every APK's signer equals it, so a wrong or swapped key stops the release.
 - **The `release` environment and its secrets.** Secrets: `RELEASE_KEYSTORE_BASE64` (the keystore file, base64; PKCS12
   recommended), `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. The job fails if any is
   empty, so a tag never produces an unsigned release.
