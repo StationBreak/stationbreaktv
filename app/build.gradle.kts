@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
 import com.android.build.api.variant.HostTestBuilder
+import tv.stationbreak.buildlogic.ReleaseVersion
 
 plugins {
     // SDK levels, flavors, desugaring, toolchain, Lint, Spotless and detekt: build-logic's AndroidAppPlugin.
@@ -15,7 +16,7 @@ plugins {
 
 // CI gives its debug and benchmark builds a rising versionCode (#146), so each one installs over the last on a test
 // device. CI passes the workflow's run number in CI_VERSION_CODE; a local build has none and keeps 1. Release builds
-// keep defaultConfig's value: theirs comes from the release tag. Android's limit for versionCode is 2100000000.
+// keep defaultConfig's value, unless RELEASE_VERSION is set (below). Android's limit for versionCode is 2100000000.
 val ciVersionCode: Int =
     providers.environmentVariable("CI_VERSION_CODE").orNull?.let { raw ->
         val code = raw.toIntOrNull()
@@ -24,6 +25,19 @@ val ciVersionCode: Int =
         }
         code
     } ?: 1
+
+// A tagged release (ADR-0011): the release workflow passes the tag's version, without the `v`, in RELEASE_VERSION.
+// versionName is that value and versionCode is MAJOR * 10000 + MINOR * 100 + PATCH (ReleaseVersion, which fails the build
+// on a malformed value). Without it a release build keeps defaultConfig's 1 and 0.0.1, as on a local build.
+val releaseVersion: ReleaseVersion? =
+    providers.environmentVariable("RELEASE_VERSION").orNull?.let { ReleaseVersion.parse(it) }
+
+// Release signing (ADR-0011): the release workflow's protected `release` environment passes all four of these. With any
+// of them missing or empty there is no release signing config and the release build stays unsigned, as locally.
+val releaseSigningEnv: Map<String, String>? =
+    listOf("RELEASE_KEYSTORE_FILE", "RELEASE_KEYSTORE_PASSWORD", "RELEASE_KEY_ALIAS", "RELEASE_KEY_PASSWORD")
+        .associateWith { providers.environmentVariable(it).orNull.orEmpty() }
+        .takeIf { env -> env.values.all { it.isNotEmpty() } }
 
 // AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
 // benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13). The flavors
@@ -44,6 +58,11 @@ androidComponents {
         }
         if (variant.buildType != "release") {
             variant.outputs.forEach { it.versionCode.set(ciVersionCode) }
+        } else if (releaseVersion != null) {
+            variant.outputs.forEach {
+                it.versionCode.set(releaseVersion.code)
+                it.versionName.set(releaseVersion.name)
+            }
         }
     }
 }
@@ -64,6 +83,19 @@ android {
         buildConfig = true
     }
 
+    // The release key exists only when the protected environment supplies all four values (see releaseSigningEnv). The
+    // benchmark build type copies release (initWith) but sets its own debug signing below.
+    signingConfigs {
+        releaseSigningEnv?.let { env ->
+            create("release") {
+                storeFile = file(env.getValue("RELEASE_KEYSTORE_FILE"))
+                storePassword = env.getValue("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = env.getValue("RELEASE_KEY_ALIAS")
+                keyPassword = env.getValue("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     // Debug builds use Android's per-machine debug key. CI re-signs its debug APK with the CI debug key in a separate
     // step, outside Gradle, so no build code ever sees that key (ADR-0011, amended 2026-10-18).
     buildTypes {
@@ -74,7 +106,8 @@ android {
             buildConfigField("boolean", "WARM_SWITCHES", "true")
         }
         release {
-            // No signing config: release signing comes only from protected secrets (S4.1.1).
+            // Signed only when the release workflow's secrets are present; otherwise unsigned (ADR-0011, S4.1.1).
+            signingConfig = signingConfigs.findByName("release")
             isDebuggable = false
             buildConfigField("boolean", "WARM_SWITCHES", "false")
             // R8 shrinks and optimises what ships; ADR-0008's SP-2 frame numbers were measured with it on. Class and

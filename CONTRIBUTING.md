@@ -246,6 +246,16 @@ The CI debug certificate's SHA-256 fingerprint is:
 Until 2026-10-18 debug builds were signed with a public key committed as `debug.keystore` (fingerprint
 `57:4B:E8:75:…:BA:80:B1`). It is retired: anyone can still sign with it, so never install an APK signed with it.
 
+## Cutting a release
+
+Owner only. Releases are built and signed by CI from a tag ([ADR-0011](docs/adr/0011-debug-build-signing.md)).
+
+1. Push a `vMAJOR.MINOR.PATCH` tag on the commit to release, for example `v1.2.3` (MAJOR 1 or more, MINOR and PATCH
+   0 to 99). Any other `v*` tag fails the run.
+2. Approve the run in the `release` environment when GitHub asks. CI builds and signs both flavors, checks them, and
+   creates a draft release.
+3. Read the draft (APKs, `SHA256SUMS`, signing certificate fingerprint), then publish it by hand.
+
 ## Code of conduct and security
 
 Everyone who takes part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security
