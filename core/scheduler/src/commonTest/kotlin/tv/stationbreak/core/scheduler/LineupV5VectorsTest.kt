@@ -83,7 +83,7 @@ class LineupV5VectorsTest {
                 "spread unit dropped",
                 "spread plan tie",
                 "spread repeat gap unshifted",
-                "spread grid prefers unaired",
+                "spread grid all items fill more",
             )
     }
 }

@@ -1663,7 +1663,8 @@ Best:
                     Best = Ba if the slots of Ba add up to strictly more than the slots of Bu; otherwise Best = Bu.
   other modes:      Best = bestGroupedFit(V, group key, G, slot).
 Extra pass: lay Best out from c (each item at nextMark of the end before it) and let from = nextMark(where it ends).
-  Scan V in order and take the first eligible item x with from + runtime(x) <= E. Add it after Best. At most one item
+  Scan V in order and take the first eligible item x with from + runtime(x) <= E. Add it after Best (it always comes
+  after every position of Best in the visit, so the selection stays ascending). At most one item
   is added, and none when no eligible item fits.
   Eligible: shuffle, curated: x is not in Best. Other modes: the number of visit items of x's group before x equals the
   number of Best items of that group (x is the next item of its group, so nothing of a group is skipped before it).
@@ -1692,7 +1693,7 @@ S2. Points. If no run was placed, the only point is S. Otherwise chosen = {c}, a
       end that is not chosen lies strictly between r[j] and p. Take the valid r[j] with the smallest |r[j] - t[i]|;
       on a tie, the smaller r[j]. Add it to chosen. If no run end is valid, skip t[i].
     Sort the points in ascending order. k' = the number of points (1 or more). Break b, for b = 0 .. k' - 1, is at the
-    b-th point, so break k' - 1 is at c.
+    b-th point, counting from 0, so break k' - 1 is at c.
 S3. Place F.
     chronological, randomInOrder, rotation, inOrder: placed = the sum of the runtimes of F. The fill goes into break k' - 1.
     shuffle, curated:

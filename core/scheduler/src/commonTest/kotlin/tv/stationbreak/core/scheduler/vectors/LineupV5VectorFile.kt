@@ -4072,8 +4072,8 @@ internal object LineupV5VectorFile {
               ]
             },
             {
-              "name": "spread grid prefers unaired",
-              "note": "Aligned, grid 30. Order i9 i5 i6 i4 | i7 i8 i3 i2 i1; i9 (25 min) aired at the start. G = 90. The unaired best fit is {i8} (slot 60); the best fit of all items is {i8, i9} (slot 90), strictly more, so it is kept and i9 airs again (no repeat gap or run rule on the grid). First fit ends at the same 475, so it does not replace it.",
+              "name": "spread grid all items fill more",
+              "note": "Aligned, grid 30. Order i9 i5 i6 i4 | i7 i8 i3 i2 i1; i9 (70 min) and i5 (20) aired at 0 and 90. c = 350, G = 480 - 360 = 120. The only unaired item that fits is i8 (45, slot 60): Bu = {i8}. All items: {i9, i5} (slots 90 + 30 = 120), strictly more, so Best = {i9, i5}, ending 470; both replay (no repeat gap or run rule on the grid). First fit takes i8 and i5 and ends at 440. A port that kept Bu would also get {i8, i5} (the extra pass adds only i5), ending 440: different blocks.",
               "settings": {
                 "seed": "22",
                 "ordering": {
@@ -4098,55 +4098,55 @@ internal object LineupV5VectorFile {
                 {
                   "id": "00000000000000050016000000000001",
                   "kind": "movie",
-                  "runtimeMs": "2700000",
+                  "runtimeMs": "8100000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000002",
                   "kind": "movie",
-                  "runtimeMs": "6000000",
+                  "runtimeMs": "7800000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000003",
                   "kind": "movie",
-                  "runtimeMs": "5700000",
+                  "runtimeMs": "7500000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000004",
                   "kind": "movie",
-                  "runtimeMs": "5700000",
+                  "runtimeMs": "6600000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000005",
                   "kind": "movie",
-                  "runtimeMs": "6000000",
+                  "runtimeMs": "1200000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000006",
                   "kind": "movie",
-                  "runtimeMs": "6600000",
+                  "runtimeMs": "6000000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000007",
                   "kind": "movie",
-                  "runtimeMs": "7200000",
+                  "runtimeMs": "7500000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000008",
                   "kind": "movie",
-                  "runtimeMs": "3000000",
+                  "runtimeMs": "2700000",
                   "createdAtMs": "-1000000000000"
                 },
                 {
                   "id": "00000000000000050016000000000009",
                   "kind": "movie",
-                  "runtimeMs": "1500000",
+                  "runtimeMs": "4200000",
                   "createdAtMs": "-1000000000000"
                 }
               ],
@@ -4154,61 +4154,61 @@ internal object LineupV5VectorFile {
               "blocks": [
                 {
                   "startMs": "576000000000",
-                  "endMs": "576001500000",
+                  "endMs": "576004200000",
                   "itemId": "00000000000000050016000000000009"
                 },
                 {
-                  "startMs": "576001500000",
-                  "endMs": "576001800000",
+                  "startMs": "576004200000",
+                  "endMs": "576005400000",
                   "slate": true
                 },
                 {
-                  "startMs": "576001800000",
-                  "endMs": "576007800000",
+                  "startMs": "576005400000",
+                  "endMs": "576006600000",
                   "itemId": "00000000000000050016000000000005"
                 },
                 {
-                  "startMs": "576007800000",
-                  "endMs": "576009000000",
+                  "startMs": "576006600000",
+                  "endMs": "576007200000",
                   "slate": true
                 },
                 {
-                  "startMs": "576009000000",
-                  "endMs": "576015600000",
+                  "startMs": "576007200000",
+                  "endMs": "576013200000",
                   "itemId": "00000000000000050016000000000006"
                 },
                 {
-                  "startMs": "576015600000",
-                  "endMs": "576016200000",
+                  "startMs": "576013200000",
+                  "endMs": "576014400000",
                   "slate": true
                 },
                 {
-                  "startMs": "576016200000",
-                  "endMs": "576021900000",
+                  "startMs": "576014400000",
+                  "endMs": "576021000000",
                   "itemId": "00000000000000050016000000000004"
                 },
                 {
-                  "startMs": "576021900000",
-                  "endMs": "576023400000",
+                  "startMs": "576021000000",
+                  "endMs": "576021600000",
                   "slate": true
                 },
                 {
-                  "startMs": "576023400000",
-                  "endMs": "576026400000",
-                  "itemId": "00000000000000050016000000000008"
+                  "startMs": "576021600000",
+                  "endMs": "576025800000",
+                  "itemId": "00000000000000050016000000000009"
                 },
                 {
-                  "startMs": "576026400000",
+                  "startMs": "576025800000",
                   "endMs": "576027000000",
                   "slate": true
                 },
                 {
                   "startMs": "576027000000",
-                  "endMs": "576028500000",
-                  "itemId": "00000000000000050016000000000009"
+                  "endMs": "576028200000",
+                  "itemId": "00000000000000050016000000000005"
                 },
                 {
-                  "startMs": "576028500000",
+                  "startMs": "576028200000",
                   "endMs": "576028800000",
                   "break": true
                 }
@@ -4225,7 +4225,7 @@ internal object LineupV5VectorFile {
                   ]
                 },
                 {
-                  "t": "576028500001",
+                  "t": "576028200001",
                   "k": 1,
                   "blockIndex": 11,
                   "nextIndexes": []
