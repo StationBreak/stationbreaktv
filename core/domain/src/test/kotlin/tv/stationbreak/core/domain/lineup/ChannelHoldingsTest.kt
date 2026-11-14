@@ -343,10 +343,10 @@ class ChannelHoldingsTest {
         val persisted = PersistedDays(store, "app-1", {}, PersistedDays.HOLDS)
         val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1L, 0, days.inputsOf(lineup, null), 1, scheduled)
         // The weights a v7 file kept and a curated day reads back; the homes it never had.
-        val old = checkNotNull(javaClass.getResourceAsStream("/days/days-v7.bin")).readBytes()
-        store.files[ACCOUNT to PersistedDays.nameOf(key)] = old
+        val keyOfFile = DaysV7Fixture.keyFor(key)
+        store.files[ACCOUNT to PersistedDays.nameOf(keyOfFile)] = DaysV7Fixture.bytes
 
-        val restored = checkNotNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+        val restored = checkNotNull(runBlocking { persisted.load(ACCOUNT, keyOfFile, scheduled, days::restore) })
 
         assertTrue(restored.all { it.homed == null })
         val laughs = restored.first { it.channel.id == CuratedLibrary.laughsId }

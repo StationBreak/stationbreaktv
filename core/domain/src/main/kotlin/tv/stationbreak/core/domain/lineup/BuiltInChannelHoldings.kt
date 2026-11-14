@@ -32,14 +32,15 @@ class BuiltInChannelHoldings(
         val holdings: ChannelHoldings?,
     ) {
         // The day itself, weakly: a rebuilt or rolled-over day is a new object, so a day that changed in any way (its
-        // pool, weights or home set) never gets the entry of the one it replaced, and a day that is gone is freed.
+        // pool, weights or home set) never gets the entry of the one it replaced, and a day that is gone is freed. A
+        // copy of a day that shares all three (a repair record laid over it, a rename) is a new object too, and costs
+        // a recompute and a name lookup, on purpose: the key does not have to know which fields the figures read.
         private val day = WeakReference(day)
-        private val n = day.n
 
         fun isOf(
             account: LibraryAccount,
             day: ChannelDay,
-        ): Boolean = this.account == account && this.day.get() === day && n == day.n
+        ): Boolean = this.account == account && this.day.get() === day
     }
 
     private val lock = Any()
