@@ -26,18 +26,11 @@ val ciVersionCode: Int =
         code
     } ?: 1
 
-// A tagged release (ADR-0011): the release workflow passes the tag's version, without the `v`, in RELEASE_VERSION.
-// versionName is that value and versionCode is MAJOR * 10000 + MINOR * 100 + PATCH (ReleaseVersion, which fails the build
-// on a malformed value). Without it a release build keeps defaultConfig's 1 and 0.0.1, as on a local build.
+// A tagged release (ADR-0011): the release workflow's build job passes the tag's version, without the `v`, in
+// RELEASE_VERSION. versionName is that value and versionCode is MAJOR * 10000 + MINOR * 100 + PATCH (ReleaseVersion,
+// which fails the build on a malformed value). Without it a release build keeps defaultConfig's 1 and 0.0.1.
 val releaseVersion: ReleaseVersion? =
     providers.environmentVariable("RELEASE_VERSION").orNull?.let { ReleaseVersion.parse(it) }
-
-// Release signing (ADR-0011): the release workflow's protected `release` environment passes all four of these. With any
-// of them missing or empty there is no release signing config and the release build stays unsigned, as locally.
-val releaseSigningEnv: Map<String, String>? =
-    listOf("RELEASE_KEYSTORE_FILE", "RELEASE_KEYSTORE_PASSWORD", "RELEASE_KEY_ALIAS", "RELEASE_KEY_PASSWORD")
-        .associateWith { providers.environmentVariable(it).orNull.orEmpty() }
-        .takeIf { env -> env.values.all { it.isNotEmpty() } }
 
 // AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
 // benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13). The flavors
@@ -83,19 +76,6 @@ android {
         buildConfig = true
     }
 
-    // The release key exists only when the protected environment supplies all four values (see releaseSigningEnv). The
-    // benchmark build type copies release (initWith) but sets its own debug signing below.
-    signingConfigs {
-        releaseSigningEnv?.let { env ->
-            create("release") {
-                storeFile = file(env.getValue("RELEASE_KEYSTORE_FILE"))
-                storePassword = env.getValue("RELEASE_KEYSTORE_PASSWORD")
-                keyAlias = env.getValue("RELEASE_KEY_ALIAS")
-                keyPassword = env.getValue("RELEASE_KEY_PASSWORD")
-            }
-        }
-    }
-
     // Debug builds use Android's per-machine debug key. CI re-signs its debug APK with the CI debug key in a separate
     // step, outside Gradle, so no build code ever sees that key (ADR-0011, amended 2026-10-18).
     buildTypes {
@@ -106,8 +86,8 @@ android {
             buildConfigField("boolean", "WARM_SWITCHES", "true")
         }
         release {
-            // Signed only when the release workflow's secrets are present; otherwise unsigned (ADR-0011, S4.1.1).
-            signingConfig = signingConfigs.findByName("release")
+            // No signing config, ever: Gradle never sees the release key. The release workflow signs the unsigned APK
+            // in a separate job with no checkout (ADR-0011, S4.1.1).
             isDebuggable = false
             buildConfigField("boolean", "WARM_SWITCHES", "false")
             // R8 shrinks and optimises what ships; ADR-0008's SP-2 frame numbers were measured with it on. Class and

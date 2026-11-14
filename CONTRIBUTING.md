@@ -250,10 +250,10 @@ Until 2026-10-18 debug builds were signed with a public key committed as `debug.
 
 Owner only. Releases are built and signed by CI from a tag ([ADR-0011](docs/adr/0011-debug-build-signing.md)).
 
-1. Push a `vMAJOR.MINOR.PATCH` tag on the commit to release, for example `v1.2.3` (MAJOR 1 or more, MINOR and PATCH
-   0 to 99). Any other `v*` tag fails the run.
-2. Approve the run in the `release` environment when GitHub asks. CI builds and signs both flavors, checks them, and
-   creates a draft release.
+1. Push a `vMAJOR.MINOR.PATCH` tag on a commit that is on `main`, for example `v1.2.3` (MAJOR 1 or more, MINOR and
+   PATCH 0 to 99). Any other `v*` tag, or a tag off `main`, fails the run.
+2. CI builds both flavors unsigned with no secrets, then waits for your approval of the `release` environment. After
+   you approve, a separate job (no checkout) signs, checks them, and creates a draft release.
 3. Read the draft (APKs, `SHA256SUMS`, signing certificate fingerprint), then publish it by hand.
 
 ## Code of conduct and security
