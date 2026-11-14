@@ -137,6 +137,10 @@ class GuideModelTest {
         val breaks = result.filter { it.kind == CellKind.Break }
         assertEquals(listOf(T0 + 31 * MIN, T0 + 31 * MIN, null), breaks.map { it.upNextMs })
         assertNull("only a break has one", result.first().upNextMs)
+        // The title of that program goes with its start; none when a slate follows.
+        val title = result.single { it.startMs == T0 + 31 * MIN }.title
+        assertEquals(listOf(title, title, null), breaks.map { it.upNextTitle })
+        assertNull(result.first().upNextTitle)
     }
 
     @Test
