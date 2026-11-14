@@ -302,7 +302,7 @@ class LineupPlannerMigrationTest {
     // from the boundary, as the planner and the day build read it.
     @Test
     fun kidChannelsOnlyEverSeeKidHoldThree() {
-        assertEquals("kid-hold-3", KidHold.VERSION_NAME)
+        assertEquals("kid-hold-4", KidHold.VERSION_NAME)
         val next = swap(before(real2, realLibrary), realLibrary, StarterCatalog)
 
         var checked = 0

@@ -9,6 +9,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * Spec 10, Unit 3: the rule-input snapshot is a plain value of the fixed shape (Granny H1). Its names (spec 23, D8)
@@ -134,5 +136,52 @@ class RuleSnapshotTypeTest {
 
         assertEquals(listOf(foldNameAscii("A Studio")), item.foldedStudios)
         assertEquals(listOf(foldNameAscii("B Network")), series.foldedStudios)
+    }
+
+    // ADR-0026: the fold-2 keys sit beside the fold-1 ones; fold 1 is unchanged.
+    @Test
+    fun studiosHaveFoldTwoKeysBesideTheFoldOneKeys() {
+        val item = ruleItem(1).copy(studios = listOf("Walt\u00A0Disney", "Pix\u2065ar"))
+        assertEquals(listOf("walt\u00A0disney", "pix\u2065ar"), item.foldedStudios)
+        assertEquals(listOf("waltdisney", "pixar"), item.foldedStudios2)
+        assertFalse(item.hasEmptyStudioKey2)
+
+        val series = RuleSeries(id(7), null, emptyList(), emptyList(), studios = listOf("B\u3164Network"))
+        assertEquals(listOf("b\u3164network"), series.foldedStudios)
+        assertEquals(listOf("bnetwork"), series.foldedStudios2)
+        assertEquals(emptyList(), ruleItem(2).foldedStudios2)
+        assertFalse(ruleItem(2).hasEmptyStudioKey2)
+    }
+
+    // The empty-key rule (applied by format 4, a later part) needs to know whether an item has a studio whose key is
+    // empty; such a name has no key in the list.
+    @Test
+    fun aStudioWhoseFoldTwoKeyIsEmptyIsRecorded() {
+        val item = ruleItem(1).copy(studios = listOf("Pixar", "\u2800\u3164"))
+        assertEquals(listOf("pixar"), item.foldedStudios2)
+        assertTrue(item.hasEmptyStudioKey2)
+        val series = RuleSeries(id(7), null, emptyList(), emptyList(), studios = listOf("\u3164"))
+        assertEquals(listOf("\u3164"), series.foldedStudios)
+        assertTrue(series.hasEmptyStudioKey2)
+    }
+
+    @Test
+    fun primingFoldsAlsoPrimesFoldTwoKeysSharedAcrossTheSnapshot() {
+        val folds = NameFolds()
+        val one = ruleItem(1).copy(studios = listOf("Walt Disney", "Pixar"))
+        val two = ruleItem(2).copy(studios = listOf("Walt Disney", "Pixar"))
+        val single = ruleItem(3).copy(studios = listOf("Pixar"))
+        val series = RuleSeries(id(7), null, emptyList(), emptyList(), studios = listOf("\u3164", "Walt  Disney"))
+
+        listOf(one, two, single).forEach { it.primeFolds(folds) }
+        series.primeFolds(folds)
+
+        assertEquals(listOf("waltdisney", "pixar"), one.foldedStudios2)
+        assertSame(one.foldedStudios2, two.foldedStudios2)
+        assertSame(one.foldedStudios2[0], series.foldedStudios2[0])
+        // A one-word list has the same keys under both folds: one list is held, not two.
+        assertSame(single.foldedStudios, single.foldedStudios2)
+        assertTrue(series.hasEmptyStudioKey2)
+        assertFalse(one.hasEmptyStudioKey2)
     }
 }
