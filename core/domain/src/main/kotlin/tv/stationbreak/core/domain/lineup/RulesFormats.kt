@@ -17,10 +17,11 @@ data class RulesFormats(
     val v2: Int = 0,
     val v3: Int = 0,
     val v4: Int = 0,
+    val v5: Int = 0,
     val upgraded: Int = 0,
 ) {
     /** The log line, logged under the `Lineup` tag. */
-    fun line(): String = "rules formats v1=$v1 v2=$v2 v3=$v3 v4=$v4 upgraded=$upgraded"
+    fun line(): String = "rules formats v1=$v1 v2=$v2 v3=$v3 v4=$v4 v5=$v5 upgraded=$upgraded"
 
     internal companion object {
         /** The rules files of [lineup] counted by version, and [upgraded] as its load said. */
@@ -28,13 +29,13 @@ data class RulesFormats(
             lineup: Lineup,
             upgraded: Int,
         ): RulesFormats {
-            // A reader only gives 1 to 4.
+            // A reader only gives 1 to 5.
             val counts =
                 lineup.channels
                     .flatMap { rulesOf(it.source) }
                     .groupingBy { it.formatVersion }
                     .eachCount()
-            return RulesFormats(counts.of(V1), counts.of(V2), counts.of(V3), counts.of(V4), upgraded)
+            return RulesFormats(counts.of(V1), counts.of(V2), counts.of(V3), counts.of(V4), counts.of(V5), upgraded)
         }
 
         private fun Map<Int, Int>.of(version: Int): Int = get(version) ?: 0
@@ -50,5 +51,6 @@ data class RulesFormats(
         private const val V2 = 2
         private const val V3 = 3
         private const val V4 = 4
+        private const val V5 = 5
     }
 }

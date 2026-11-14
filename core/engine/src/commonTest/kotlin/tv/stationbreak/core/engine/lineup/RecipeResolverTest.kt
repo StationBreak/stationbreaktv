@@ -11,6 +11,7 @@ import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.rules.AutoSeed
 import tv.stationbreak.core.rules.AutoSeedKind
 import tv.stationbreak.core.rules.Source
@@ -145,8 +146,28 @@ class RecipeResolverTest {
     fun leftoversSettingsEqualsAnEquivalentResolvedRecipe() {
         val left = StarterCatalog.leftovers.first { it.number == 199 }
         val equivalent = recipe().copy(key = left.key, ordering = null)
-        val expected = RecipeResolver.resolve(equivalent, server, 345, noCollections, NO_LIBRARY).toSchedulerSettings()
+        val resolved = RecipeResolver.resolve(equivalent, server, 345, noCollections, NO_LIBRARY).toSchedulerSettings()
+        // Held once recipes resolve at 5 too (the spread day end): a leftovers channel always gathers.
+        val expected = resolved.copy(leftover = LeftoverPolicy.Gather)
         assertEquals(expected, RecipeResolver.leftoversSettings(left, server, 345))
+    }
+
+    @Test
+    fun leftoversGather() {
+        for (left in StarterCatalog.leftovers) {
+            assertEquals(LeftoverPolicy.Gather, RecipeResolver.leftoversSettings(left, server, 0).leftover)
+        }
+    }
+
+    // The app reads 5 now, but nothing writes 5 yet: a new starter is still written at ADR-0026's version.
+    @Test
+    fun aNewStarterIsNotWrittenAt5() {
+        val plain = RecipeResolver.resolve(recipe(), server, 0, noCollections, NO_LIBRARY)
+        assertEquals(plain.requiredVersion, plain.formatVersion)
+        val studio = recipe().copy(sources = listOf(Source.Studio("Studio A")))
+        assertEquals(4, RecipeResolver.resolve(studio, server, 0, noCollections, NO_LIBRARY).formatVersion)
+        val before = RecipeResolver.resolve(studio, server, 0, noCollections, NO_LIBRARY, gatePassed = false)
+        assertEquals(3, before.formatVersion)
     }
 
     @Test

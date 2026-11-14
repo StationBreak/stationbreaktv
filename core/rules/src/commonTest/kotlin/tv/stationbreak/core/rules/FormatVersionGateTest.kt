@@ -14,7 +14,7 @@ class FormatVersionGateTest {
 
     @Test
     fun aNewerVersionNeedsAnUpdateEvenWhenTheBodyIsUnreadable() {
-        assertEquals(RulesResult.UpdateRequired(5), read("5"))
+        assertEquals(RulesResult.UpdateRequired(6), read("6"))
         assertEquals(RulesResult.UpdateRequired(2147483647), read("2147483647"))
         assertEquals(RulesResult.UpdateRequired(4294967296), read("4294967296"))
     }
@@ -26,8 +26,8 @@ class FormatVersionGateTest {
 
     @Test
     fun aNewerVersionWithAValidBodyIsNotReadAnyFurther() {
-        val text = minimalRules().with("formatVersion", JsonPrimitive(5)).with("somethingNew", "x").text()
-        assertEquals(RulesResult.UpdateRequired(5), RulesReader.read(text))
+        val text = minimalRules().with("formatVersion", JsonPrimitive(6)).with("somethingNew", "x").text()
+        assertEquals(RulesResult.UpdateRequired(6), RulesReader.read(text))
     }
 
     @Test
@@ -65,12 +65,42 @@ class FormatVersionGateTest {
     }
 
     @Test
-    fun theSupportedVersionIsFour() {
-        assertEquals(4L, RulesLimits.SUPPORTED_FORMAT_VERSION)
+    fun theSupportedVersionIsFive() {
+        assertEquals(5L, RulesLimits.SUPPORTED_FORMAT_VERSION)
+        assertEquals(5, SpreadDayEnd.FORMAT_VERSION)
+        assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("formatVersion", JsonPrimitive(5)).text()))
         assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("formatVersion", JsonPrimitive(4)).text()))
         assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("formatVersion", JsonPrimitive(3)).text()))
         assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().text()))
         assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("formatVersion", JsonPrimitive(2)).text()))
+    }
+
+    // Version 5 (the spread day end) is a behaviour version: it knows the fields of version 4 and nothing more.
+    @Test
+    fun aVersion5FileIsReadAndHeldAt5() {
+        val curated = obj("mode" to JsonPrimitive("curated"), "repeatGapMinutes" to JsonPrimitive(60))
+        val text =
+            minimalRules()
+                .with("formatVersion", JsonPrimitive(5))
+                .with("ordering", curated)
+                .with("filters", obj("tags" to array(JsonPrimitive("Tag A"))))
+                .with("futureField", "x")
+                .text()
+        val rules = readOk(text)
+        assertEquals(5, rules.formatVersion)
+        assertEquals(3, rules.requiredVersion, "requiredVersion never reports 5")
+        assertEquals(60, rules.ordering?.repeatGapMinutes)
+        assertEquals(setOf("futureField"), rules.extras.keys)
+        val written = RulesWriter.write(rules)
+        assertEquals(5, readOk(written).formatVersion)
+        assertEquals(written, RulesWriter.write(readOk(written)), "byte for byte")
+        assertEquals(5, readOk(minimalRules().with("formatVersion", JsonPrimitive(5)).text()).formatVersion)
+    }
+
+    @Test
+    fun aVersion6FileIsNewer() {
+        val text = minimalRules().with("formatVersion", JsonPrimitive(6)).text()
+        assertEquals(RulesResult.UpdateRequired(6), RulesReader.read(text))
     }
 
     @Test

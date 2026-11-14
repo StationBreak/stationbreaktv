@@ -110,4 +110,30 @@ class DraftRulesV4Test {
             assertEquals(3, DraftRules.toRules(fromRules(stored), offset, stored, gatePassed = gate).formatVersion)
         }
     }
+
+    // The app reads 5 (the spread day end) but nothing writes it yet: a new channel is written at ADR-0026's version.
+    @Test
+    fun aNewChannelIsNotWrittenAt5() {
+        val comedy = DraftSource.Genre("Comedy", "Comedy")
+        val draft = ChannelDraft("New", listOf(comedy), emptyList(), DraftFilters(), kids = false, seed = Seed(9uL))
+        val saved = DraftRules.toRules(draft, offset)
+        assertEquals(saved.requiredVersion, saved.formatVersion)
+        // A new studio channel (a copy of a starter at 3) is written at 4, as ADR-0026 says.
+        val starter = rules(3, ordering = null)
+        assertEquals(4, DraftRules.toRules(fromRules(starter).copy(name = "Mine"), offset, starter).formatVersion)
+    }
+
+    // A file that says 5 is never written lower by the builder, whatever it holds.
+    @Test
+    fun aV5FileEditedInTheBuilderStays5() {
+        val plain = rules(5, sources = listOf(Source.Genre("Comedy")), ordering = null)
+        val studio = rules(5)
+        for (stored in listOf(plain, studio)) {
+            val draft = fromRules(stored)
+            for (gate in listOf(false, true)) {
+                assertEquals(stored, DraftRules.toRules(draft, offset, stored, gatePassed = gate))
+                assertEquals(5, DraftRules.toRules(draft.copy(name = "Renamed"), offset, stored, gate).formatVersion)
+            }
+        }
+    }
 }

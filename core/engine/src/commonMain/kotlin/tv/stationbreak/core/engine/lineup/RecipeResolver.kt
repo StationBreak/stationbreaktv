@@ -8,6 +8,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.AutoSeed
 import tv.stationbreak.core.rules.AutoSeedKind
@@ -155,7 +156,8 @@ object RecipeResolver {
 
     /**
      * The scheduler settings of a leftovers channel: those of a resolved recipe with the same key, no ordering of its
-     * own (shuffle) and the same back-to-back timing. Its pool is the engine's business, not the rules'.
+     * own (shuffle), the same back-to-back timing, and the `Gather` day end (a leftovers channel has no rules file to
+     * carry a boundary switch). Its pool is the engine's business, not the rules'.
      */
     fun leftoversSettings(
         recipe: LeftoversRecipe,
@@ -170,6 +172,7 @@ object RecipeResolver {
             runtimeFilter = null,
             // A leftovers channel shuffles: it has no curated tuning.
             curated = null,
+            leftover = LeftoverPolicy.Gather,
         )
 
     /**

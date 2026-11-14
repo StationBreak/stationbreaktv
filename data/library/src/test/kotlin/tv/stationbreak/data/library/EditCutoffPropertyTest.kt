@@ -14,6 +14,7 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ordering.splitmix64
 import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -296,6 +297,7 @@ class EditCutoffPropertyTest {
             caps = null,
             runtimeFilter = null,
             curated = null,
+            leftover = LeftoverPolicy.Gather,
         )
     }
 

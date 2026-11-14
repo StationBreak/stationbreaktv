@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -28,6 +29,7 @@ class StandInTest {
             null,
             null,
             null,
+            LeftoverPolicy.Gather,
         )
     private val hour = 3_600_000L
     private val pool = (1..12).map { item(it, runtimeMs = hour) }

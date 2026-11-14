@@ -66,7 +66,7 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
  * as JSON `null` in a version 1 or 2 file (read as absent).
  *
- * The rules of a starter or custom channel are a rules-format file (version 1 to 4) held as a JSON string; they are
+ * The rules of a starter or custom channel are a rules-format file (version 1 to 5) held as a JSON string; they are
  * read and written by the rules codec, so they keep their extras (the fields this app does not know) but not their
  * bytes.
  *
@@ -517,7 +517,7 @@ private object SourceCodec {
 
     private fun custom(fields: JsonObject): ChannelSource? = rulesOf(fields)?.let { ChannelSource.Custom(it) }
 
-    // Only rules this app can schedule (versions 1 to 4); any other result keeps the channel unusable.
+    // Only rules this app can schedule (versions 1 to 5); any other result keeps the channel unusable.
     private fun rulesOf(fields: JsonObject) = (fields.string(RULES)?.let(RulesReader::read) as? RulesResult.Ok)?.rules
 
     private fun JsonObject.string(key: String): String? = (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content

@@ -38,8 +38,59 @@ class StudioFold2FormatTest {
     }
 
     @Test
-    fun aFormat5FileNeedsAnUpdate() {
-        assertEquals(RulesResult.UpdateRequired(5), RulesReader.read(studioFile(5).text()))
+    fun aFormat6FileNeedsAnUpdate() {
+        assertEquals(RulesResult.UpdateRequired(6), RulesReader.read(studioFile(6).text()))
+    }
+
+    // Version 5 (the spread day end) keeps studio fold 2: fold 2 is "4 or more", not "exactly 4".
+    @Test
+    fun aV4StudioFileStillUsesFold2AtV5() {
+        assertTrue(studioRules(4).matchesStudiosByFold2)
+        assertTrue(studioRules(5).matchesStudiosByFold2)
+        assertEquals(3, studioRules(5).requiredVersion, "requiredVersion never reports 5")
+    }
+
+    @Test
+    fun normalisingAV5FileKeepsV5() {
+        val tags =
+            readOk(
+                minimalRules()
+                    .with("formatVersion", JsonPrimitive(5))
+                    .with("filters", obj("tags" to array(JsonPrimitive("Tag A"))))
+                    .text(),
+            )
+        val plain = readOk(at(5).text())
+        for (rules in listOf(studioRules(5), tags, plain)) {
+            for (gate in listOf(false, true)) {
+                assertEquals(rules, rules.normalised(gatePassed = gate), "a v5 file is left as it is")
+            }
+            assertEquals(5, rules.normalised().formatVersion)
+        }
+    }
+
+    @Test
+    fun writeVersionNeverLowersAV5File() {
+        val plain = readOk(at(5).text())
+        for (gate in listOf(false, true)) {
+            assertEquals(5, studioRules(5).writeVersion(previousVersion = 5, gatePassed = gate))
+            assertEquals(5, plain.writeVersion(previousVersion = 5, gatePassed = gate))
+            // Keyed on the stored file's version, not on the version the rules object was built at.
+            assertEquals(4, studioRules(5).writeVersion(previousVersion = 4, gatePassed = true))
+            assertEquals(1, plain.writeVersion(previousVersion = null, gatePassed = gate))
+            assertEquals(1, plain.writeVersion(previousVersion = 4, gatePassed = gate))
+        }
+        assertEquals(4, studioRules(5).writeVersion(previousVersion = null, gatePassed = true))
+        assertEquals(3, studioRules(5).writeVersion(previousVersion = null, gatePassed = false))
+        assertEquals(5, studioRules(5).writeVersion)
+        assertEquals(5, plain.writeVersion)
+    }
+
+    // ADR-0026's one-time rewrite and its invariant touch only files that say 3.
+    @Test
+    fun adr0026RewriteLeavesAV5StudioFileAlone() {
+        val five = studioRules(5)
+        assertSame(five, five.upgradedToStudioFold2(gatePassed = true))
+        assertSame(five, five.upgradedToStudioFold2())
     }
 
     @Test

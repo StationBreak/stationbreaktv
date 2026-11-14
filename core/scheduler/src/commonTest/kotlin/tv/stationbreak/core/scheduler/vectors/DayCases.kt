@@ -14,6 +14,7 @@ import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
 import tv.stationbreak.core.model.schedule.CuratedTuning
 import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
@@ -70,6 +71,8 @@ internal object DayCases {
                     optional("repeatGapMs")?.toLong() ?: DEFAULT_REPEAT_GAP_MS,
                     optional("pairUpToMs")?.toLong() ?: DEFAULT_PAIR_UP_MS,
                 ).takeIf { mode == OrderingMode.Curated },
+            // The day cases of lineup.json to lineup-v3.json are rules of format 1 to 3: they gather the day end.
+            leftover = LeftoverPolicy.Gather,
         )
     }
 

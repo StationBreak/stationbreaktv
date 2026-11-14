@@ -55,6 +55,17 @@ class StudioFold2MatchingTest {
         assertEquals(lookAlikeIndices + plainIndex, pool(rules))
     }
 
+    // Version 5 (the spread day end) keeps studio fold 2: the matcher picks fold 2 for "4 or more".
+    @Test
+    fun aV4StudioFileStillUsesFold2AtV5() {
+        val library = listOf<Source>(Source.Library(LIB))
+        val studio = listOf<Source>(Source.Studio("Walt Disney"))
+        val filters = Filters(null, null, null, null, null, null, studios = listOf("walt disney"))
+        assertEquals(lookAlikeIndices + plainIndex, pool(rules(studio, formatVersion = 5)))
+        assertEquals(setOf(otherIndex), pool(rules(library, studio, formatVersion = 5)))
+        assertEquals(lookAlikeIndices + plainIndex, pool(rules(library, formatVersion = 5, filters = filters)))
+    }
+
     @Test
     fun aFormat4StudioExclusionRemovesTheLookAlikesAndAFormat3OneDoesNot() {
         val library = listOf<Source>(Source.Library(LIB))
