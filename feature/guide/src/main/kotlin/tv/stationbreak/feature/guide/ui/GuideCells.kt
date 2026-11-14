@@ -254,20 +254,8 @@ internal fun GuideCellView(
         derivedStateOf { focusOf()?.let { it.channel == channel && it.cellStartMs == cell.startMs } == true }
     }
     LocalCellComposed.current?.invoke(channel, cell.startMs)
-    val copy = programCopy()
-    // All are always read, so a cell that changes kind does not change which composables run. A slate on the grid is
-    // the "OFF AIR" plate and a break the "STATION BREAK" plate; the panel keeps [cellTitle]'s longer lines.
-    val spoken = cellTitle(cell, copy)
-    val offAir = stringResource(R.string.guide_off_air)
-    val stationBreak = stringResource(R.string.guide_station_break)
-    val title =
-        when (cell.kind) {
-            CellKind.Slate -> offAir.uppercase()
-            CellKind.Break -> stationBreak.uppercase()
-            CellKind.Program, CellKind.Unavailable -> spoken
-        }
-    // A screen reader hears a break's panel line ("Station break · Up next at 9:30 PM"), not the shouted plate.
-    val described = if (cell.kind == CellKind.Break) spoken else title
+    val labels = cellLabels(cell)
+    val title = labels.title
     // Read here, in composition, so the cell whose "on now" flips (and only it) composes again and its semantics with
     // it; the description itself is put together only when something asks for the semantics (a screen reader, a
     // test), not in every cell's composition.
@@ -311,7 +299,7 @@ internal fun GuideCellView(
             // kept; the unmerged tree still has the Text node.
             .clearAndSetSemantics {
                 selected = focused
-                contentDescription = cellDescription(resources, cell, described, onNow, is24h)
+                contentDescription = cellDescription(resources, cell, labels.described, onNow, is24h)
             },
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -358,9 +346,6 @@ private class CellTextSlots(
     val secondLineTag: String,
     val layout: Modifier,
 )
-
-/** A slate and a station break are plates on the grid: the slate's fill and face, no progress line, no second line. */
-private fun CellKind.isPlate(): Boolean = this == CellKind.Slate || this == CellKind.Break
 
 /**
  * The cell's title, a slate's "OFF AIR" or a break's "STATION BREAK", and under an episode's title its "S2 E5" when two

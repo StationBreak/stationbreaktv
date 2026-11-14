@@ -85,19 +85,13 @@ internal class NextUp(
         scope: CoroutineScope,
         onAir: ChannelOnAir,
     ): Deferred<Pending.AtBoundary?>? {
-        val first = onAir.next.firstOrNull()
-        val next = if (first?.airing == Airing.Break) onAir.next.pastBreaks() else first
-        val program = (next?.airing as? Airing.Program)?.takeIf { it.info != null }
-        val start = next?.positionAt(next.startMs)
-        if (next == null || program == null || start == null || holds(program, next)) return null
         val leadMs = timings.preResolveLead.inWholeMilliseconds
-        val resolveAt = if (next === first) onAir.now.endMs - leadMs else next.startMs - leadMs
-        if (next !== first && resolveAt >= onAir.now.endMs) return null
+        val plan = planFor(onAir, leadMs, listOfNotNull(pending, lead)) ?: return null
         return scope.async {
-            val wait = resolveAt - now()
+            val wait = plan.resolveAtMs - now()
             if (wait > 0) delay(wait)
-            val handle = tuner.preResolve(session, ItemId(program.itemId.value), start)
-            handle?.let { Pending.AtBoundary(it, program.itemId, next.startMs, start) }
+            val handle = tuner.preResolve(session, ItemId(plan.item.value), plan.start)
+            handle?.let { Pending.AtBoundary(it, plan.item, plan.blockStartMs, plan.start) }
         }
     }
 
@@ -110,12 +104,6 @@ internal class NextUp(
         pending?.takeIf { it !== done }?.let { discard(it) }
         pending = done
     }
-
-    // True when a handle for exactly [block]'s [program] is already held: kept through a break, or a neighbour's.
-    private fun holds(
-        program: Airing.Program,
-        block: AiringBlock,
-    ): Boolean = listOfNotNull(pending, lead).any { it.item == program.itemId && it.blockStartMs == block.startMs }
 
     /**
      * Ends what [prepare] started, unused: a finished handle is discarded and a resolve still running is cancelled
@@ -159,21 +147,28 @@ internal class NextUp(
         }
         val held = pending
         pending = null
-        // A station break: a handle for a programme after it is kept through it, for the cut at that programme.
-        if (held != null && block.airing == Airing.Break && held.blockStartMs >= block.endMs) {
-            pending = held
-            return takeLead(block)
-        }
-        val program = block.airing as? Airing.Program
-        val fits =
-            held != null &&
-                program != null &&
-                program.itemId == held.item &&
-                block.startMs == held.blockStartMs &&
-                block.positionAt(block.startMs) == held.start &&
-                now() - block.startMs <= CUT_SLACK_MS
-        if (held != null && !fits) discard(held)
-        return held?.takeIf { fits } ?: takeLead(block)
+        val use =
+            when {
+                held == null -> {
+                    null
+                }
+
+                // A station break: a handle for a programme after it is kept through it, for the cut at that programme.
+                keptThrough(held, block) -> {
+                    pending = held
+                    null
+                }
+
+                fitsCut(held, block, now()) -> {
+                    held
+                }
+
+                else -> {
+                    discard(held)
+                    null
+                }
+            }
+        return use ?: takeLead(block)
     }
 
     /** The held catch-up when it is for this block, which is still on; otherwise it is ended. */
@@ -188,17 +183,30 @@ internal class NextUp(
 
     /** The lead handle when it is for exactly this block and the block is still on; otherwise it is ended. */
     private suspend fun takeLead(block: AiringBlock): Pending.Retarget? {
-        val held = lead ?: return null
+        val held = lead
         lead = null
-        // A station break: a lead for a programme after it is kept for that programme's block.
-        if (block.airing == Airing.Break && held.blockStartMs >= block.endMs) {
-            lead = held
-            return null
+        return when {
+            held == null -> {
+                null
+            }
+
+            // A station break: a lead for a programme after it is kept for that programme's block.
+            keptThrough(held, block) -> {
+                lead = held
+                null
+            }
+
+            (block.airing as? Airing.Program)?.itemId == held.item &&
+                block.startMs == held.blockStartMs &&
+                now() < block.endMs -> {
+                held
+            }
+
+            else -> {
+                discard(held)
+                null
+            }
         }
-        val program = block.airing as? Airing.Program
-        val fits = program?.itemId == held.item && block.startMs == held.blockStartMs && now() < block.endMs
-        if (!fits) discard(held)
-        return held.takeIf { fits }
     }
 
     /** Ends a handle the machine will not use (unless a tune already took it). */
@@ -214,12 +222,67 @@ internal class NextUp(
         caughtUp = null
         all.forEach { discard(it) }
     }
+}
 
-    private companion object {
-        /** How far past a block's start a prepared cut may still happen (the spec's +-2 s offset error). */
-        const val CUT_SLACK_MS = 2_000L
+/** How far past a block's start a prepared cut may still happen (the spec's +-2 s offset error). */
+private const val CUT_SLACK_MS = 2_000L
+
+/** What [NextUp.prepare] resolves: [item] for its block at [blockStartMs], from [start], at [resolveAtMs]. */
+private class Plan(
+    val item: CanonicalId,
+    val blockStartMs: Long,
+    val start: Duration,
+    val resolveAtMs: Long,
+)
+
+/**
+ * The program [NextUp.prepare] resolves, past any station breaks, and when ([leadMs] before it starts); null when
+ * there is none, a handle in [held] is for it already (kept through a break, or a neighbour's), or it lies past a
+ * break longer than the lead (the break's own look-ahead resolves it).
+ */
+private fun planFor(
+    onAir: ChannelOnAir,
+    leadMs: Long,
+    held: List<Pending>,
+): Plan? {
+    val first = onAir.next.firstOrNull()
+    val next = if (first?.airing == Airing.Break) onAir.next.pastBreaks() else first
+    return next?.let { block ->
+        val program =
+            (block.airing as? Airing.Program)?.takeIf { p ->
+                p.info != null && held.none { it.item == p.itemId && it.blockStartMs == block.startMs }
+            }
+        val start = block.positionAt(block.startMs)
+        val afterBreaks = block !== first
+        val resolveAt = (if (afterBreaks) block.startMs else onAir.now.endMs) - leadMs
+        val inTime = !afterBreaks || resolveAt < onAir.now.endMs
+        if (program != null && start != null && inTime) {
+            Plan(program.itemId, block.startMs, start, resolveAt)
+        } else {
+            null
+        }
     }
 }
+
+/** True when [held] was resolved for exactly [block], which started no more than the cut's slack before [nowMs]. */
+private fun fitsCut(
+    held: Pending.AtBoundary,
+    block: AiringBlock,
+    nowMs: Long,
+): Boolean {
+    val program = block.airing as? Airing.Program
+    return program != null &&
+        program.itemId == held.item &&
+        block.startMs == held.blockStartMs &&
+        block.positionAt(block.startMs) == held.start &&
+        nowMs - block.startMs <= CUT_SLACK_MS
+}
+
+/** True when [block] is a station break and [held] is for a block after it: it is kept for that block. */
+private fun keptThrough(
+    held: Pending,
+    block: AiringBlock,
+): Boolean = block.airing == Airing.Break && held.blockStartMs >= block.endMs
 
 /**
  * The programme past the station breaks at the head of [this]: the first block that is not a break, when it is a
