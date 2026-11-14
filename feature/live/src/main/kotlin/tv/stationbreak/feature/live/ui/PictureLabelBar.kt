@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -36,16 +38,32 @@ import java.util.Locale
 internal val PictureLabelHeight = 32.dp
 
 private const val SCRIM_TOP_ALPHA = 0.88f
+
+/** The scrim holds [SCRIM_TOP_ALPHA] this far down, behind the mark and the lead text, then fades out by the bottom. */
+internal val ScrimSolidHeight = 24.dp
 private val SidePadding = 10.dp
 private val MarkWidth = 36.dp
 private val MarkHeight = 20.dp
 private val LabelSize = 11.sp
 
 /**
+ * The scrim's colour stops down the label, from [top] (`page` at 88%): solid for the top [ScrimSolidHeight], then
+ * fading to nothing over the last 8 dp, so the mark and the lead text read over a pale picture with no hard edge.
+ */
+internal fun pictureLabelScrimStops(top: Color): Array<Pair<Float, Color>> {
+    val solid = ScrimSolidHeight / PictureLabelHeight
+    return arrayOf(0f to top, solid to top, 1f to top.copy(alpha = 0f))
+}
+
+// The brush of [pictureLabelScrimStops], built once per colour: copying three stops for the call costs nothing.
+@Suppress("SpreadOperator")
+private fun pictureLabelScrim(top: Color): Brush = Brush.verticalGradient(*pictureLabelScrimStops(top))
+
+/**
  * What the picture in the guide's corner is (#722), along its top edge: the channel's mark and number, then the lead
- * and title ("Now playing: ..."), or the channel's name alone. A scrim, `page` fading from 88% to nothing downwards,
- * with no hard edge; one line, the title ellipsized. Always the Dark tokens, as it sits over video. The top edge is
- * clear of the film's own subtitles, which sit along the bottom.
+ * and title ("Now playing: ..."), or the channel's name alone. A scrim of `page` at 88% for the top 24 dp, fading to
+ * nothing over the last 8 dp ([pictureLabelScrimStops]); one line, the title ellipsized. Always the Dark tokens, as it
+ * sits over video. The top edge is clear of the film's own subtitles, which sit along the bottom.
  */
 @Composable
 internal fun PictureLabelBar(
@@ -55,7 +73,7 @@ internal fun PictureLabelBar(
     ChromeTheme {
         val colors = LocalGuideColors.current
         val top = colors.page.copy(alpha = SCRIM_TOP_ALPHA)
-        val scrim = Brush.verticalGradient(listOf(top, top.copy(alpha = 0f)))
+        val scrim = remember(top) { pictureLabelScrim(top) }
         Row(
             modifier
                 .fillMaxWidth()

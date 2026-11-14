@@ -195,7 +195,9 @@ private fun PanelLines(
     val episode = remember(cell, copy) { episodeLine(cell, copy) }
     val metaCopy = metaCopy()
     val item = details.item
-    val meta = remember(item, metaCopy) { item?.let { metaLine(it.year, it.runtime, it.genres, metaCopy) } }
+    val upNext = if (cell.kind == CellKind.Break) upNextLine(cell) else null
+    val meta =
+        remember(item, metaCopy, upNext) { upNext ?: item?.let { metaLine(it.year, it.runtime, it.genres, metaCopy) } }
     val colors = LocalGuideColors.current
     Slot(PanelSlot.Channel) {
         Text(

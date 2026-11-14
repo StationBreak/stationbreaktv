@@ -28,7 +28,8 @@ internal enum class CellKind { Program, Slate, Break, Unavailable }
  * before [GuideModel.originMs]. [title] is derived from [info], the display title: the series name for an episode of a
  * known series, else the item's own title. It and [info] are null for a slate, a break and an [CellKind.Unavailable]
  * program (no longer in the library); [itemId] is null for a slate and a break. [upNextMs] is set on a break only: the
- * start of the program its row goes on to past any breaks, for "Up next at" (null when a slate or nothing follows).
+ * start of the program its row goes on to past any breaks, for "Up next at" (null when a slate or nothing follows), and
+ * [upNextTitle] that program's title (null with it, and for an unavailable program).
  * Whether it is too narrow for a title is the screen's call (`CellPlace`).
  */
 @Immutable
@@ -40,6 +41,7 @@ internal data class GuideCell(
     val info: ProgramInfo?,
     val itemId: CanonicalId?,
     val upNextMs: Long? = null,
+    val upNextTitle: String? = null,
 )
 
 /**
@@ -152,13 +154,13 @@ private fun cellOf(block: AiringBlock): GuideCell {
     return GuideCell(block.startMs, block.endMs, kind, info?.let(::displayTitle), info, itemId)
 }
 
-// Each break cell with the start of the program past the breaks that follow it; other cells as they are.
+// Each break cell with the start and title of the program past the breaks that follow it; other cells as they are.
 private fun List<GuideCell>.withUpNext(): List<GuideCell> =
     mapIndexed { i, cell ->
         if (cell.kind != CellKind.Break) return@mapIndexed cell
         val next = subList(i + 1, size).firstOrNull { it.kind != CellKind.Break }
         val program = next?.takeIf { it.kind == CellKind.Program || it.kind == CellKind.Unavailable }
-        cell.copy(upNextMs = program?.startMs)
+        cell.copy(upNextMs = program?.startMs, upNextTitle = program?.title)
     }
 
 private fun displayTitle(info: ProgramInfo): String {

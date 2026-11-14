@@ -11,7 +11,7 @@ Three changes from TV use, each its own issue and PR. Owner decisions are marked
 
 **What.** A bar across the **top** of the picture, drawn over the video:
 
-- 32 dp tall, `page` fading from 88 % to 0 % top to bottom (a scrim, no hard edge).
+- 32 dp tall: a scrim of `page` at 88 % for the top 24 dp, behind the mark and the lead text, then fading to 0 % over the last 8 dp (no hard edge). A scrim that faded over the whole height left the mark and the lead text hard to read over a pale picture.
 - Left to right, 10 dp padding: the channel **mark** (36×20 dp), the **number** (11 sp SemiBold `textPrimary`, tabular), then `Now playing: <title>` (11 sp; "Now playing:" `textSecondary`, title SemiBold `textPrimary`), one line with ellipsis.
 - During a tune, an ident or a slate, the title part follows the banner's label: `Tuning in: …`, or the channel name alone when nothing is playing.
 - Always Dark tokens (it sits over video).

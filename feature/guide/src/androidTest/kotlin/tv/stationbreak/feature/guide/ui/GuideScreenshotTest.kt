@@ -258,8 +258,9 @@ class GuideScreenshotTest {
     /**
      * Station breaks (rules format 5) on the playing channel: a two-minute break narrower than the compact width (its
      * fill only, no plate text) and a twenty-five-minute break with its whole STATION BREAK plate. Right from the
-     * playing episode stops on the short break, then the next programme, then the long break; Left comes back the same
-     * way. Each focused break names itself in the panel ("Station break · Up next at ..."). Dark then Light.
+     * playing episode passes over the short break to the next programme, then stops on the long break; Left comes back
+     * the same way. The focused long break's panel says "Station break", and its meta line what is up next ("Up next:
+     * <title> at <time>"). Dark then Light.
      */
     @Test
     fun theStationBreaks() {
@@ -281,21 +282,17 @@ class GuideScreenshotTest {
             shoot("$BREAKS_FRAME$suffix.png")
 
             press(Key.DirectionRight)
-            cell(CH7, SHORT_BREAK_MIN).assertIsSelected()
-            assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Station break · Up next at "))
-            shoot("$BREAK_SHORT_FOCUSED_FRAME$suffix.png")
+            cell(CH7, SHORT_BREAK_MIN + 2).assertIsSelected()
+            shoot("$BREAK_SHORT_SKIPPED_FRAME$suffix.png")
 
             press(Key.DirectionRight)
-            cell(CH7, SHORT_BREAK_MIN + 2).assertIsSelected()
-            press(Key.DirectionRight)
             cell(CH7, LONG_BREAK_MIN).assertIsSelected()
-            assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Station break · Up next at "))
+            assertEquals("Station break", text(GuideTags.PANEL_TITLE))
+            assertTrue(text(GuideTags.PANEL_META), text(GuideTags.PANEL_META).startsWith("Up next: Test Movie 115 at "))
             shoot("$BREAK_LONG_FOCUSED_FRAME$suffix.png")
 
             press(Key.DirectionLeft)
             cell(CH7, SHORT_BREAK_MIN + 2).assertIsSelected()
-            press(Key.DirectionLeft)
-            cell(CH7, SHORT_BREAK_MIN).assertIsSelected()
             press(Key.DirectionLeft)
             cell(CH7, 60).assertIsSelected()
         }
@@ -861,7 +858,7 @@ class GuideScreenshotTest {
         const val FRAME_WAIT_MS = 500L
         const val FIT_FRAME = "guide-fit"
         const val BREAKS_FRAME = "guide-breaks"
-        const val BREAK_SHORT_FOCUSED_FRAME = "guide-break-short-focused"
+        const val BREAK_SHORT_SKIPPED_FRAME = "guide-break-short-skipped"
         const val BREAK_LONG_FOCUSED_FRAME = "guide-break-long-focused"
         const val SHORT_BREAK_MIN = 88L
         const val LONG_BREAK_MIN = 120L

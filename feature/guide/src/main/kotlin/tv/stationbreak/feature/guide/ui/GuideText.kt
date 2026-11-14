@@ -23,8 +23,8 @@ internal fun channelLine(
 
 /**
  * What the panel and the info overlay call a cell: its display title, "Off air until 8:30 PM" for a slate, "Station
- * break · Up next at 8:30 PM" for a break, "Unavailable" for a program that left the library. A slate or a break on
- * the grid itself is the "OFF AIR" or "STATION BREAK" plate, not this line.
+ * break" for a break (its meta line says what is up next: [upNextLine]), "Unavailable" for a program that left the
+ * library. A slate or a break on the grid itself is the "OFF AIR" or "STATION BREAK" plate, not this line.
  */
 @Composable
 internal fun cellTitle(
@@ -37,7 +37,7 @@ internal fun cellTitle(
         }
 
         CellKind.Break -> {
-            copy.breakUpNext(ProgramText.time(cell.upNextMs ?: cell.endMs, ZoneId.systemDefault(), is24Hour()))
+            stringResource(R.string.guide_station_break)
         }
 
         CellKind.Program -> {
@@ -86,6 +86,39 @@ internal class MetaCopy(
                 hours = { resources.getString(R.string.guide_runtime_hours, it) },
             )
     }
+}
+
+/** The words of a break's meta line, from the guide's resources: a plain holder, so [upNextLine] is JVM-tested. */
+internal class UpNextCopy(
+    val titleAt: (title: String, time: String) -> String,
+    val at: (time: String) -> String,
+) {
+    companion object {
+        fun from(resources: android.content.res.Resources) =
+            UpNextCopy(
+                titleAt = { title, time -> resources.getString(R.string.guide_up_next_title_at, title, time) },
+                at = { resources.getString(R.string.guide_up_next_at, it) },
+            )
+    }
+}
+
+/**
+ * A break's meta line: "Up next: <title> at <time>", or "Up next at <time>" when the program that follows has no
+ * title (it is unavailable) or nothing does. [time] is when it starts, or the break's end when nothing follows.
+ */
+internal fun upNextLine(
+    title: String?,
+    time: String,
+    copy: UpNextCopy,
+): String = title?.takeIf { it.isNotBlank() }?.let { copy.titleAt(it, time) } ?: copy.at(time)
+
+/** [upNextLine] for the break [cell], in the device's zone and clock. */
+@Composable
+internal fun upNextLine(cell: GuideCell): String {
+    val resources = LocalResources.current
+    val copy = remember(resources) { UpNextCopy.from(resources) }
+    val time = ProgramText.time(cell.upNextMs ?: cell.endMs, ZoneId.systemDefault(), is24Hour())
+    return upNextLine(cell.upNextTitle, time, copy)
 }
 
 private const val META_SEPARATOR = " · "

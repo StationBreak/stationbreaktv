@@ -16,11 +16,14 @@ internal class CellLabels(
 /**
  * [cell]'s labels. All the strings are always read, so a cell that changes kind does not change which composables run.
  * A slate on the grid is the "OFF AIR" plate and a break the "STATION BREAK" plate; the panel keeps [cellTitle]'s
- * longer lines. A screen reader hears a break's panel line ("Station break · Up next at 9:30 PM"), not the plate.
+ * longer lines. A screen reader hears a break's panel title and meta line ("Station break · Up next: News at 9:30 PM"),
+ * not the plate.
  */
 @Composable
 internal fun cellLabels(cell: GuideCell): CellLabels {
-    val spoken = cellTitle(cell, programCopy())
+    val named = cellTitle(cell, programCopy())
+    val upNext = upNextLine(cell)
+    val spoken = if (cell.kind == CellKind.Break) "$named · $upNext" else named
     val offAir = stringResource(R.string.guide_off_air)
     val stationBreak = stringResource(R.string.guide_station_break)
     val title =
