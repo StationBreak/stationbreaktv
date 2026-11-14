@@ -24,3 +24,6 @@ keystore.properties
 # SDD working artifacts (questions, spec, tasks, audit, proofs) stay local. Proofs go on the PR; anything
 # durable goes in an ADR, BACKLOG.md or the issue (owner decision, 2026-10-12).
 /docs/specs/
+
+# Python bytecode
+__pycache__/

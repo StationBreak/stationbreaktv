@@ -365,7 +365,7 @@ internal class Scheduled(
  * its cache key carries the policy. A hidden or opt-in kid channel withholds only what it would air if shown, so what
  * the hold keeps off it is not offered to the grown-up channels either.
  *
- * Any other starter, edited or not, and the grown-up leftovers are grown-up (ADR-0020, grown-up-hold-2): they drop
+ * Any other starter, edited or not, and the grown-up leftovers are grown-up (ADR-0020, grown-up-hold-4): they drop
  * what a kid channel could take ([GrownUpHold.dropsFromGrownUp]), with their own cache key. A custom channel is open,
  * and so is the grown-up leftovers while no kid leftovers channel is on. What the kid hold refuses stays on the
  * grown-up side. [KidStatus.policyOf] decides all of this.
@@ -1047,7 +1047,7 @@ internal class LineupDays(
 
     /**
      * How many of the items [airingNowhere] would count that a grown-up pool drops ([GrownUpHold.dropsFromGrownUp]):
-     * made for kids, takeable by a kid channel, and aired nowhere. Under `grown-up-hold-2` (ADR-0020, option C) a
+     * made for kids, takeable by a kid channel, and aired nowhere. Under `grown-up-hold-4` (ADR-0020, option C) a
      * grown-up pool drops only what a kid channel could take, and the grown-up leftovers keeps everything while no kid
      * leftovers is on, so this is normally zero; it remains as a guard (it is not zero when, say, the grown-up
      * leftovers is off and no kid channel takes the title). A separate count, not part of [airingNowhere].

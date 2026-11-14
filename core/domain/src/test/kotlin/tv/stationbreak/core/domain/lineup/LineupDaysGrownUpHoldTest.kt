@@ -18,7 +18,7 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
- * A grown-up starter and the grown-up leftovers drop what is made for kids (ADR-0020, grown-up-hold-2); a custom
+ * A grown-up starter and the grown-up leftovers drop what is made for kids (ADR-0020, grown-up-hold-4); a custom
  * channel does not. Each test has a TV-Y7 item and a PG item, both matching a genre.
  */
 class LineupDaysGrownUpHoldTest {
@@ -128,10 +128,11 @@ class LineupDaysGrownUpHoldTest {
             assertEquals(0, service.airingNowhereCount(ACCOUNT, LIBRARIES, NOON))
         }
 
-    // A TV-PG episode of a TV-Y7 series: made for kids by its series, but above the kid table's PG cap.
+    // A TV-PG episode of an unrated series that is made for kids by genre: the series has no rating, so the episode's
+    // own decides (kid-hold-5), and TV-PG is above the kid table's PG cap. The kid table refuses it.
     private fun seedMixed() {
         val show = id(0x90)
-        library.seedSeries(RuleSeries(show, "TV-Y7", listOf("Drama"), emptyList()))
+        library.seedSeries(RuleSeries(show, null, listOf("Drama", "Children"), emptyList()))
         val tvPg = movie(3, "Drama", rating = "TV-PG")
         library.seed(
             movie(1, "Drama", rating = "TV-Y"),
@@ -161,7 +162,8 @@ class LineupDaysGrownUpHoldTest {
         val kids = leftovers("kids-odds-and-ends", 99, "PG")
         val odds = leftovers("odds-and-ends", 199, null)
         val days = days(lineupOf(starterAt("drama", 150), kids, odds))
-        // Made for kids by its series, but the kid table refuses it: the grown-up starter keeps it (option C).
+        // The TV-Y film moves to the kid side; the TV-PG episode of the unrated kids series is refused by the kid table
+        // and stays on the grown-up starter.
         assertEquals(setOf(id(3)), days.getValue(LineupIds.starter("drama").value).ids())
         assertEquals(setOf(id(1)), days.getValue(kids.id.value).ids())
         assertEquals(emptySet(), days.getValue(odds.id.value).ids())
