@@ -16,6 +16,11 @@ import tv.stationbreak.core.model.schedule.TitleWeights
  * run replays its aired items. In chronological ordering a run that is mid-air at [fromMs] starts again from its
  * beginning, not mid-run. An empty cycle gives one slate. [fromMs] must be in `[epochStart(n), epochEnd(n)]`; at
  * `epochEnd(n)` it returns an empty list, so the caller's kept blocks must already cover the day.
+ *
+ * [airedBefore] is every programme that aired in `[epochStart(n), fromMs)` as the viewer saw it, each with its real
+ * end. Only the spread end of the day (rules format version 5) reads it: a short that aired goes into a break only
+ * after a run boundary past its airing (`shuffle`) or `repeatGapMs` after it (`curated`), and the fill prefers items
+ * that have not aired. Breaks are planned over `[fromMs, epochEnd(n))` only. Version 1 to 4 days ignore it.
  */
 @Suppress("LongParameterList") // The day's inputs plus the moment and what has aired.
 fun layoutTail(
@@ -26,6 +31,7 @@ fun layoutTail(
     weights: TitleWeights,
     fromMs: Long,
     aired: Set<CanonicalId>,
+    airedBefore: List<AiredBefore>,
 ): List<ScheduleBlock> {
     val start = Epochs.epochStart(settings, n)
     val end = start + settings.epochMs
@@ -44,7 +50,7 @@ fun layoutTail(
 
         else -> {
             val startRun = Timeline.startRun(settings, cycle, fromMs)
-            Timeline.layout(settings, cycle, startRun, fromMs, end, groups).blocks
+            Timeline.layout(settings, cycle, startRun, fromMs, end, groups, airedBefore).blocks
         }
     }
 }

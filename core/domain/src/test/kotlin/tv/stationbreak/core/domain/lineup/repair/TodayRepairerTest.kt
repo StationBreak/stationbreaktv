@@ -109,7 +109,8 @@ internal class TodayRepairerTest : RepairTestBase() {
             day.day.blocks
                 .filter { it.startMs < repair.pinEndMs }
                 .mapNotNullTo(HashSet()) { (it.content as? ScheduleContent.Program)?.itemId }
-        val expected = layoutTail(day.settings, pool, day.n, day.films, day.weights, repair.pinEndMs, aired)
+        val earlier = airedBefore(day, repair.pinEndMs)
+        val expected = layoutTail(day.settings, pool, day.n, day.films, day.weights, repair.pinEndMs, aired, earlier)
         assertEquals(expected.map { kept(it) }, repair.tail())
     }
 

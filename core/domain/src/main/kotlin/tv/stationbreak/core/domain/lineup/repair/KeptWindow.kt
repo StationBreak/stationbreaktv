@@ -5,6 +5,8 @@ import tv.stationbreak.core.domain.lineup.ChannelDay
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
+import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.scheduler.AiredBefore
 
 /** The length of the steps the kept window starts on: it starts at the half hour at or before the repair. */
 internal const val KEPT_STEP_MS = 30 * 60 * 1000L
@@ -14,17 +16,31 @@ internal const val KEPT_STEP_MS = 30 * 60 * 1000L
  * repair, never before the day's start) to [pinEndMs] (the end of the block on air, the pin), exactly as the viewer
  * sees it now. A gone block in it is kept as the schedule source names it: the gap fill's pieces as programmes, and
  * the time they leave as the gone item, with an empty fix ([fixes]) so it is never filled again. [aired] is what
- * aired or airs before the pin's end, for the tail to leave out; [pinItem] is the programme on air (null for a slate,
- * a break or a gone rest).
+ * aired or airs before the pin's end, for the tail to leave out; [airings] is the same airings each with its end, for
+ * the spread end of the day; [pinItem] is the programme on air (null for a slate, a break or a gone rest).
  */
+@Suppress("LongParameterList") // The window's facts, one for one.
 internal class KeptWindow(
     val fromMs: Long,
     val pinEndMs: Long,
     val blocks: List<KeptBlock>,
     val fixes: List<LostFix>,
     val aired: Set<CanonicalId>,
+    val airings: List<KeptAiring>,
     val pinItem: CanonicalId?,
 ) {
+    /**
+     * [airings] as the tail's `airedBefore` (ADR-0025): each item resolved by ID from [dayPool], the day's pool. An
+     * item no longer in it is left out, so a short that aired only as such an item is not held back by that airing.
+     * An airing may be listed twice (a block that starts before the window's start, and its span in the window);
+     * the tail reads only the latest end of each group, so that does not change it.
+     */
+    fun airedBefore(dayPool: List<ScheduleItem>): List<AiredBefore> {
+        if (airings.isEmpty()) return emptyList()
+        val byId = dayPool.associateBy { it.id }
+        return airings.mapNotNull { airing -> byId[airing.itemId]?.let { AiredBefore(it, airing.endMs) } }
+    }
+
     companion object {
         /** The ids of the programmes of [day] that [of] reads for the window at [atMs], to ask about at once. */
         fun programmesOf(
@@ -55,12 +71,15 @@ internal class KeptWindow(
                     val gone = checkNotNull(it.item())
                     LostFix(day.channel.id, day.n, day.epochEndMs, it.startMs, it.endMs, gone, emptyList(), seq)
                 }
-            val aired = HashSet<CanonicalId>()
+            // What aired before the window as the day laid it, then the window's spans as the viewer sees them (the
+            // gap fill's pieces among them), each with its real end.
+            val airings = ArrayList<KeptAiring>()
             for (block in day.day.blocks) {
                 if (block.startMs >= from) break
-                (block.content as? ScheduleContent.Program)?.let { aired += it.itemId }
+                (block.content as? ScheduleContent.Program)?.let { airings += KeptAiring(it.itemId, block.endMs) }
             }
-            for (span in clipped) if (!span.gone) span.item()?.let { aired += it }
+            for (span in clipped) if (!span.gone) span.item()?.let { airings += KeptAiring(it, span.endMs) }
+            val aired = airings.mapTo(HashSet()) { it.itemId }
             val pin = clipped.first { atMs >= it.startMs && atMs < it.endMs }
             val pinItem = pin.item()?.takeUnless { pin.gone }
             return KeptWindow(
@@ -69,6 +88,7 @@ internal class KeptWindow(
                 clipped.map { KeptBlock(it.startMs, it.endMs, it.content) },
                 fixes,
                 aired,
+                airings,
                 pinItem,
             )
         }
@@ -157,3 +177,9 @@ internal class KeptWindow(
             }
     }
 }
+
+/** A programme that aired before a repair's tail: its [itemId] and when it ended ([endMs]) as the viewer saw it. */
+internal data class KeptAiring(
+    val itemId: CanonicalId,
+    val endMs: Long,
+)

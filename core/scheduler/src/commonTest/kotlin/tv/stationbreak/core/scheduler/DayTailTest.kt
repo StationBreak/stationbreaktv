@@ -24,7 +24,7 @@ class DayTailTest {
         aired: Set<CanonicalId> = emptySet(),
         items: List<tv.stationbreak.core.model.schedule.ScheduleItem> = pool,
         s: SchedulerSettings = settings,
-    ) = layoutTail(s, items, n, noFilms(), noWeights(), from, aired)
+    ) = layoutTail(s, items, n, noFilms(), noWeights(), from, aired, emptyList())
 
     private fun ids(blocks: List<ScheduleBlock>): List<CanonicalId> =
         blocks.map { it.content }.filterIsInstance<ScheduleContent.Program>().map { it.itemId }

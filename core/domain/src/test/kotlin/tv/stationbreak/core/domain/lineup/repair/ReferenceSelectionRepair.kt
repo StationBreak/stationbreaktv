@@ -21,6 +21,7 @@ import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.TitleWeights
+import tv.stationbreak.core.scheduler.AiredBefore
 import tv.stationbreak.core.scheduler.layoutTail
 import kotlin.time.Instant
 
@@ -108,8 +109,9 @@ internal class ReferenceSelectionRepair(
         return PlannedRepair(change.seq, repairs, fixes, pins)
     }
 
-    // A day's kept window, where its repair starts and its tail, and its tail pool before the current-row check (none
-    // when the tail starts at the day's end).
+    // A day's kept window, where its repair starts and its tail, its tail pool before the current-row check (none
+    // when the tail starts at the day's end), and what aired before the tail.
+    @Suppress("LongParameterList") // One field per fact of the prepared day.
     private class Prepared(
         val day: ChannelDay,
         val s: Scheduled,
@@ -118,6 +120,7 @@ internal class ReferenceSelectionRepair(
         val fromMs: Long,
         val tailFromMs: Long,
         val pool: List<ScheduleItem>?,
+        val airedBefore: List<AiredBefore>,
     )
 
     // [day] made ready for its repair: with no [kept] window (a day hidden at the change) its tail starts at the half
@@ -138,7 +141,8 @@ internal class ReferenceSelectionRepair(
             } else {
                 tailPool(day, s, snapshot, day.record?.repair != null, today)
             }
-        return Prepared(day, s, snapshot, kept, fromMs, tailFromMs, pool)
+        val airedBefore = if (pool == null || kept == null) emptyList() else kept.airedBefore(fills.dayPool(day))
+        return Prepared(day, s, snapshot, kept, fromMs, tailFromMs, pool, airedBefore)
     }
 
     // [p]'s repair, its tail pool kept to the items in [live]. When the tail holds nothing either, a day hidden at the
@@ -152,7 +156,8 @@ internal class ReferenceSelectionRepair(
         val snapshot = p.snapshot
         val kept = p.kept
         val fromMs = p.fromMs
-        val tail = tailOf(day, s, snapshot, p.pool?.filter { it.id in live }, p.tailFromMs, kept?.aired.orEmpty())
+        val pool = p.pool?.filter { it.id in live }
+        val tail = tailOf(day, s, snapshot, pool, p.tailFromMs, kept?.aired.orEmpty(), p.airedBefore)
         val nothing = tail.isNotEmpty() && tail.none { it.content is ScheduleContent.Program }
         // Hidden at the change and after it: hidden all day, from its start, so no window ever shows it.
         val offAir = kept == null && nothing
@@ -179,9 +184,9 @@ internal class ReferenceSelectionRepair(
         )
     }
 
-    // The scheduler's tail of [day] from [fromMs] over its tail [pool], with [aired] left out; none at the day's end
-    // (where there is no pool).
-    @Suppress("LongParameterList") // The day, what it reads, and where the tail starts.
+    // The scheduler's tail of [day] from [fromMs] over its tail [pool], with [aired] left out and [airedBefore] for a
+    // spread end of the day; none at the day's end (where there is no pool).
+    @Suppress("LongParameterList") // The day, what it reads, where the tail starts and what aired before it.
     private fun tailOf(
         day: ChannelDay,
         s: Scheduled,
@@ -189,11 +194,12 @@ internal class ReferenceSelectionRepair(
         pool: List<ScheduleItem>?,
         fromMs: Long,
         aired: Set<CanonicalId>,
+        airedBefore: List<AiredBefore>,
     ): List<ScheduleBlock> {
         if (pool == null) return emptyList()
         val repaired = day.record?.repair != null
         val (films, weights) = sidesOf(day, pool, repaired, addedIn(s, snapshot))
-        return layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired)
+        return layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired, airedBefore)
     }
 
     // The tail pool of [day]: its base (the day pool as built; on a repaired day the record's tail pool and what the
