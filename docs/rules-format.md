@@ -143,6 +143,12 @@ mode that ignores them). A builder that edits a file moves it to version 3 when 
 lowest version the rules need when it removes the last one. Rules that hold a `studio` source, a `studio` exclusion or a
 `studios` filter are the one exception: they are written at their **write version** (see Studio fold 2, Writing version
 4), which is never below the version the file said and is 4 once every client reads 4.
+**New channels and starters are written at 5.** A channel created in the app (from scratch or copied from another
+channel) and every starter channel resolved from the built-in catalog are written at `formatVersion` 5 whatever their
+rules need, so they spread the end of the day; an edited existing file keeps the rule above (ADR-0022's addendum,
+[ADR-0027](adr/0027-v5-release-rule.md)). The starter catalog's version 4 is the one that brings this: a client that
+ships catalog 4 writes its starters at 5, and moves unedited starters from an earlier catalog to 5 at the next day
+boundary (at once for one not on the air).
 **A reader that supports version 2 reads a version 1 file unchanged, and a reader that supports version 3 reads version 1
 and version 2 files unchanged.** Version 2 adds, and changes nothing in version 1:
 the orders `rotation` and `inOrder`, `ordering.caps`, the `item` source and exclusion, and `filters`. Versions 1, 2 and 3
@@ -2315,7 +2321,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 **What is in it.** One JSON object, with its keys in this order:
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
-- `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `3`),
+- `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
   `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-4`), `grownUpHold` (`grown-up-hold-3`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;

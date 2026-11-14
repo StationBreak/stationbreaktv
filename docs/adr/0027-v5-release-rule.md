@@ -60,4 +60,17 @@ The cost the owner accepts:
 - **An older reader.** A reader that stops at 4 (an older Fire OS build, or the Vega OS and Roku apps until they catch
   up) sees a v5 file only after a downgrade, a restore or an import. It then shows that channel as unusable ("update
   required", off the air) and keeps it byte for byte until it is updated. It fails closed: nothing is lost.
-- The Vega OS and Roku ports must read 5 before their first release, as they must read 4 (ADR-0026).
+- **No rollback.** `writeVersion` never lowers a file that says 5, and a re-resolved starter keeps the higher of its
+  stored version and the written one, so starters and new channels stay at 5 for good. A later release cannot turn the
+  spread end off by writing a lower version. The way out is a format 6 (a behaviour version that gathers again, written
+  over 5 the same way), or an explicit one-time migration that rewrites v5 files, recorded in its own ADR.
+- **A downgrade affects the whole lineup.** An older build that reads a catalog 4 lineup freezes its planner on it
+  (`LineupPlanner.plan` returns the lineup as it is when the catalog is older than the lineup's), and every unedited
+  starter in it says 5. So a downgraded build shows every starter channel as unusable, not just the channels made after
+  the update. Custom channels created before the update and edited starters keep their version and still air.
+- **A hold while the catalog waits.** The catalog bump (3 to 4) waits, like any newer catalog, for a full collection
+  pass. Until one applies catalog 4, a selecting lineup is in `PlannerSelection.Mode.Hold` (`modeOf`): no starter is
+  switched on or leaves in that window, and the starters keep their old version. They move to 5 when catalog 4 is
+  applied, on the keeper path above.
+- The Vega OS and Roku ports must read 5 before their first release, as they must read 4 (ADR-0026). A port that ships
+  the catalog must also link catalog 4 to starters at 5 ([docs/rules-format.md](../rules-format.md)).
