@@ -82,6 +82,8 @@ The owner decisions of 2026-10-27:
      written before that matches the same way. The lists and the rating table are unchanged, so the version name is
      too: it changes with the lists or the table, not with how input text is tidied. The only names whose match
      changes are ones that carried stray invisible characters and so failed to match before.
+     Superseded for the hold by `kid-hold-4` (ADR-0026): the studio list is now matched by studio fold 2, not
+     `cleanStudioName`; see [ADR-0026](0026-studio-fold-2.md).
 6. **The kid rating table.** A fixed table in the hold, not a change to `RatingLadder`:
 
    | Tier | Ratings |

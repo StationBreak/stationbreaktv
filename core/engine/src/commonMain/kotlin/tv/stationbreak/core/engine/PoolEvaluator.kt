@@ -17,7 +17,9 @@ import tv.stationbreak.core.rules.Source
  *
  * 1. Only movies and episodes are items; `RuleSnapshot.items` holds nothing else.
  * 2. An item matches a source as `SourceMatcher` reads rule 2 (no recursion into collections; a season's own genres and
- *    tags are never used; a name matches as in "String matching").
+ *    tags are never used; a name matches as in "String matching"). A studio name matches under studio fold 1 in a
+ *    file that says `formatVersion` 1 to 3 and under studio fold 2 in one that says 4 (ADR-0026, with its empty-key
+ *    rule for exclusions).
  * 3. The pool is every item that matches any source, once, minus every item that matches any exclusion. Exclusions fail
  *    closed: if a `collection` exclusion is not in the snapshot the pool is empty, and a `genre` or `tag` exclusion
  *    also removes an episode whose series is missing from the snapshot.
@@ -36,8 +38,8 @@ import tv.stationbreak.core.rules.Source
  * **Filters.** The `genres`, `years` and `kind` parts of `rules.filters` apply to what remains after the exclusions and
  * the policy hold, before the ceiling ([ItemFilters]). The `runtime` part is the scheduler's (`EpochPool`).
  *
- * **What a pool depends on.** The snapshot, the sources, the exclusions, the filters, the ceiling and the policy: a
- * caller that caches a pool keys it on all of them.
+ * **What a pool depends on.** The snapshot, the sources, the exclusions, the filters, the ceiling, the policy and the
+ * format version (studio fold 1 or 2): a caller that caches a pool keys it on all of them.
  *
  * **No time filter.** This does not look at creation, deletion or runtime. An item with a deletion time is kept, and
  * which items count for which epoch is `EpochPool`'s decision.
@@ -92,15 +94,23 @@ object PoolEvaluator {
         private val snapshot: RuleSnapshot,
         private val policy: PoolPolicy,
     ) {
-        private val sourceMatcher = SourceMatcher(rules.sources, snapshot)
+        // A file that says 4 matches studios under studio fold 2 (ADR-0026); 1 to 3 under fold 1.
+        private val fold2 = rules.matchesStudiosByFold2
+        private val sourceMatcher = SourceMatcher(rules.sources, snapshot, studioFold2 = fold2)
         private val exclusionMatcher =
-            SourceMatcher(rules.effectiveExclusions, snapshot, missingSeriesMatchesNames = true)
+            SourceMatcher(
+                rules.effectiveExclusions,
+                snapshot,
+                missingSeriesMatchesNames = true,
+                studioFold2 = fold2,
+                emptyStudioKeyMatches = true,
+            )
 
         // Exclusions fail closed: one that cannot be checked removes everything (rule 3 as amended).
         val unresolvedExclusions = unresolvedCollections(rules.effectiveExclusions, snapshot)
         private val excludeAll = unresolvedExclusions.isNotEmpty()
         private val maxRating = rules.maxRating
-        private val filters = ItemFilters(rules.filters, snapshot)
+        private val filters = ItemFilters(rules.filters, snapshot, fold2)
 
         // The IDs seen so far, built only once the items stop being in strictly ascending ID order: a snapshot is
         // canonical, so for it every ID is new by construction and no hash set is needed (one set per channel before).

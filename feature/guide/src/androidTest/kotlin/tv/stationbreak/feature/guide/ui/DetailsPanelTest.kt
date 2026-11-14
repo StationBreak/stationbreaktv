@@ -345,6 +345,29 @@ class DetailsPanelTest {
         assertOverviewEndsInsidePanel()
     }
 
+    // The lines the description is drawn in at [heightDp], settled.
+    private fun overviewLines(heightDp: Int): Int {
+        height.value = heightDp
+        show(rich(overview = "A description. ".repeat(400)))
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        val layouts = mutableListOf<TextLayoutResult>()
+        overview()
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        return layouts.single().lineCount
+    }
+
+    @Test
+    fun theDescriptionGainsLinesWhenThePanelTakesTheHeightTheMenuRowHad() {
+        // The panel is as tall as the band beside the picture now; the menu row (28 dp) used to take its foot.
+        val before = overviewLines(PANEL_HEIGHT_DP)
+        val after = overviewLines(PANEL_HEIGHT_DP + 28)
+        assertTrue("the description kept $before lines with 28 dp more ($after)", after > before)
+        assertOverviewEndsInsidePanel()
+    }
+
     private fun art(
         width: Int,
         height: Int,
@@ -445,8 +468,8 @@ class DetailsPanelTest {
     }
 
     private companion object {
-        // The guide's panel on a 960 x 540 dp screen: the band left of the picture, less the menu row (a 40 dp button
-        // and the gap above it).
+        // A panel height for the cases here; the guide's own on a 960 x 540 dp screen is 28 dp taller, as the menu row
+        // that took the foot of the band is gone (#756).
         const val PANEL_WIDTH_DP = 502
         const val PANEL_HEIGHT_DP = 150
 

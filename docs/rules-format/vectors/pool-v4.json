@@ -1,0 +1,2203 @@
+{
+  "description": "The version 4 pool (docs/adr/0026-studio-fold-2.md), in the pool-v3.json case shape (see its description), for studio sources, studio exclusions and the studios filter only. 'expected' is the pool of the case's rules in a file that says formatVersion 4: names match by their studio fold 2 key (see studio-fold-2.json); a studio source or a studios filter name whose key is empty matches nothing; a studio exclusion whose key is empty matches every item that has, or whose series has, a studio whose key is empty. 'expectedV3' is the pool of the same rules in a file that says formatVersion 3: studio fold 1 (docs/rules-format.md, Studio names), exactly as pool-v3.json. There is no films or franchises map here. Whitespace, control and format characters are written as JSON escapes so that they can be seen; this file is all ASCII.",
+  "source": "Computed with scripts/rules-format/studio_fold_2_vectors.py: written from ADR-0026; the pool model was written after reading SourceMatcher. The folds it uses are the independent ones of studio-fold-2.json.",
+  "cases": [
+    {
+      "name": "studio source: look-alikes of the name match under fold 2 (4), only the fold 1 twins under fold 1 (3)",
+      "note": "One movie per spelling, in this order: \"Walt Disney\", \"WALT DISNEY\", \"Walt\\u00a0Disney\", \"Walt\\u2009Disney\", \"Walt\\u3000Disney\", \"Walt  Disney\", \"WaltDisney\", \"Walt\\u3164Disney\", \"Walt\\u115fDisney\", \"Walt\\u2800Disney\", \"Walt\\u000bDisney\", \"Walt\\u0085Disney\", \"Walt\\u2009\\u200dDisney\", \"Walt Dis\\u200dney\", \"Walt Dis\\u200c\\u200dney\", \"Walt Dis\\udb40\\udc02ney\", \"Walt Dis\\u034fney\", \"Walt Disne\\ufe0fy\", \"\\u3000\\u200dWalt Disney\", \"Walt Disney\\u200b\", \"Pixar\", \"Walt Disnay\". Only the last two are other studios.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WALT DISNEY"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u00a0Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000105",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3000Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000106",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt  Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000107",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WaltDisney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000108",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3164Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000109",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u115fDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010a",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2800Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010b",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u000bDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010c",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u0085Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010d",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009\u200dDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010e",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200dney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010f",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200c\u200dney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000110",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\udb40\udc02ney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000111",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u034fney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000112",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disne\ufe0fy"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000113",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u3000\u200dWalt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000114",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney\u200b"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000115",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000116",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disnay"
+          ]
+        }
+      ],
+      "series": [],
+      "collections": [],
+      "sources": [
+        {
+          "type": "studio",
+          "name": "Walt Disney"
+        }
+      ],
+      "exclusions": [],
+      "expectedV3": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000102",
+        "00000000000000000000000000000114"
+      ],
+      "expected": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000102",
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104",
+        "00000000000000000000000000000105",
+        "00000000000000000000000000000106",
+        "00000000000000000000000000000107",
+        "00000000000000000000000000000108",
+        "00000000000000000000000000000109",
+        "0000000000000000000000000000010a",
+        "0000000000000000000000000000010b",
+        "0000000000000000000000000000010c",
+        "0000000000000000000000000000010d",
+        "0000000000000000000000000000010e",
+        "0000000000000000000000000000010f",
+        "00000000000000000000000000000110",
+        "00000000000000000000000000000111",
+        "00000000000000000000000000000112",
+        "00000000000000000000000000000113",
+        "00000000000000000000000000000114"
+      ]
+    },
+    {
+      "name": "studio exclusion: look-alikes are excluded under fold 2 (4), only the fold 1 twins under fold 1 (3)",
+      "note": "One movie per spelling, in this order: \"Walt Disney\", \"WALT DISNEY\", \"Walt\\u00a0Disney\", \"Walt\\u2009Disney\", \"Walt\\u3000Disney\", \"Walt  Disney\", \"WaltDisney\", \"Walt\\u3164Disney\", \"Walt\\u115fDisney\", \"Walt\\u2800Disney\", \"Walt\\u000bDisney\", \"Walt\\u0085Disney\", \"Walt\\u2009\\u200dDisney\", \"Walt Dis\\u200dney\", \"Walt Dis\\u200c\\u200dney\", \"Walt Dis\\udb40\\udc02ney\", \"Walt Dis\\u034fney\", \"Walt Disne\\ufe0fy\", \"\\u3000\\u200dWalt Disney\", \"Walt Disney\\u200b\", \"Pixar\", \"Walt Disnay\". Only the last two are other studios.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WALT DISNEY"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u00a0Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000105",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3000Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000106",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt  Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000107",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WaltDisney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000108",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3164Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000109",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u115fDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010a",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2800Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010b",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u000bDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010c",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u0085Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010d",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009\u200dDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010e",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200dney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010f",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200c\u200dney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000110",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\udb40\udc02ney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000111",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u034fney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000112",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disne\ufe0fy"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000113",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u3000\u200dWalt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000114",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney\u200b"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000115",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000116",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disnay"
+          ]
+        }
+      ],
+      "series": [],
+      "collections": [],
+      "sources": [
+        {
+          "type": "library",
+          "id": "00000000000000000000000000001001"
+        }
+      ],
+      "exclusions": [
+        {
+          "type": "studio",
+          "name": "Walt Disney"
+        }
+      ],
+      "expectedV3": [
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104",
+        "00000000000000000000000000000105",
+        "00000000000000000000000000000106",
+        "00000000000000000000000000000107",
+        "00000000000000000000000000000108",
+        "00000000000000000000000000000109",
+        "0000000000000000000000000000010a",
+        "0000000000000000000000000000010b",
+        "0000000000000000000000000000010c",
+        "0000000000000000000000000000010d",
+        "0000000000000000000000000000010e",
+        "0000000000000000000000000000010f",
+        "00000000000000000000000000000110",
+        "00000000000000000000000000000111",
+        "00000000000000000000000000000112",
+        "00000000000000000000000000000113",
+        "00000000000000000000000000000115",
+        "00000000000000000000000000000116"
+      ],
+      "expected": [
+        "00000000000000000000000000000115",
+        "00000000000000000000000000000116"
+      ]
+    },
+    {
+      "name": "filters studios: look-alikes pass under fold 2 (4), only the fold 1 twins under fold 1 (3)",
+      "note": "One movie per spelling, in this order: \"Walt Disney\", \"WALT DISNEY\", \"Walt\\u00a0Disney\", \"Walt\\u2009Disney\", \"Walt\\u3000Disney\", \"Walt  Disney\", \"WaltDisney\", \"Walt\\u3164Disney\", \"Walt\\u115fDisney\", \"Walt\\u2800Disney\", \"Walt\\u000bDisney\", \"Walt\\u0085Disney\", \"Walt\\u2009\\u200dDisney\", \"Walt Dis\\u200dney\", \"Walt Dis\\u200c\\u200dney\", \"Walt Dis\\udb40\\udc02ney\", \"Walt Dis\\u034fney\", \"Walt Disne\\ufe0fy\", \"\\u3000\\u200dWalt Disney\", \"Walt Disney\\u200b\", \"Pixar\", \"Walt Disnay\". Only the last two are other studios.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WALT DISNEY"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u00a0Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000105",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3000Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000106",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt  Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000107",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WaltDisney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000108",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3164Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000109",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u115fDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010a",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2800Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010b",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u000bDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010c",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u0085Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010d",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009\u200dDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010e",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200dney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010f",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200c\u200dney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000110",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\udb40\udc02ney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000111",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u034fney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000112",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disne\ufe0fy"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000113",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u3000\u200dWalt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000114",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney\u200b"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000115",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000116",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disnay"
+          ]
+        }
+      ],
+      "series": [],
+      "collections": [],
+      "sources": [
+        {
+          "type": "library",
+          "id": "00000000000000000000000000001001"
+        }
+      ],
+      "exclusions": [],
+      "filters": {
+        "studios": [
+          "walt disney"
+        ]
+      },
+      "expectedV3": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000102",
+        "00000000000000000000000000000114"
+      ],
+      "expected": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000102",
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104",
+        "00000000000000000000000000000105",
+        "00000000000000000000000000000106",
+        "00000000000000000000000000000107",
+        "00000000000000000000000000000108",
+        "00000000000000000000000000000109",
+        "0000000000000000000000000000010a",
+        "0000000000000000000000000000010b",
+        "0000000000000000000000000000010c",
+        "0000000000000000000000000000010d",
+        "0000000000000000000000000000010e",
+        "0000000000000000000000000000010f",
+        "00000000000000000000000000000110",
+        "00000000000000000000000000000111",
+        "00000000000000000000000000000112",
+        "00000000000000000000000000000113",
+        "00000000000000000000000000000114"
+      ]
+    },
+    {
+      "name": "studio source: the name in the rules is folded the same way (U+3000 and a joiner in it)",
+      "note": "One movie per spelling, in this order: \"Walt Disney\", \"WALT DISNEY\", \"Walt\\u00a0Disney\", \"Walt\\u2009Disney\", \"Walt\\u3000Disney\", \"Walt  Disney\", \"WaltDisney\", \"Walt\\u3164Disney\", \"Walt\\u115fDisney\", \"Walt\\u2800Disney\", \"Walt\\u000bDisney\", \"Walt\\u0085Disney\", \"Walt\\u2009\\u200dDisney\", \"Walt Dis\\u200dney\", \"Walt Dis\\u200c\\u200dney\", \"Walt Dis\\udb40\\udc02ney\", \"Walt Dis\\u034fney\", \"Walt Disne\\ufe0fy\", \"\\u3000\\u200dWalt Disney\", \"Walt Disney\\u200b\", \"Pixar\", \"Walt Disnay\". Only the last two are other studios.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WALT DISNEY"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u00a0Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000105",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3000Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000106",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt  Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000107",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "WaltDisney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000108",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3164Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000109",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u115fDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010a",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2800Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010b",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u000bDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010c",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u0085Disney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010d",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u2009\u200dDisney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010e",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200dney"
+          ]
+        },
+        {
+          "id": "0000000000000000000000000000010f",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u200c\u200dney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000110",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\udb40\udc02ney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000111",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Dis\u034fney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000112",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disne\ufe0fy"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000113",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u3000\u200dWalt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000114",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney\u200b"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000115",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000116",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disnay"
+          ]
+        }
+      ],
+      "series": [],
+      "collections": [],
+      "sources": [
+        {
+          "type": "studio",
+          "name": " Walt\u3000Dis\u200dney\u00a0"
+        }
+      ],
+      "exclusions": [],
+      "expectedV3": [],
+      "expected": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000102",
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104",
+        "00000000000000000000000000000105",
+        "00000000000000000000000000000106",
+        "00000000000000000000000000000107",
+        "00000000000000000000000000000108",
+        "00000000000000000000000000000109",
+        "0000000000000000000000000000010a",
+        "0000000000000000000000000000010b",
+        "0000000000000000000000000000010c",
+        "0000000000000000000000000000010d",
+        "0000000000000000000000000000010e",
+        "0000000000000000000000000000010f",
+        "00000000000000000000000000000110",
+        "00000000000000000000000000000111",
+        "00000000000000000000000000000112",
+        "00000000000000000000000000000113",
+        "00000000000000000000000000000114"
+      ]
+    },
+    {
+      "name": "studio exclusion under fold 2: an episode takes its series' studios; a missing series uses the episode's own",
+      "note": "...0201's series has a look-alike; ...0203 has one itself; ...0204's series is not in the snapshot.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000201",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000301",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000202",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000302",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000203",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000302",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3000Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000204",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000399",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        }
+      ],
+      "series": [
+        {
+          "id": "00000000000000000000000000000301",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u00a0Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000302",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        }
+      ],
+      "collections": [],
+      "sources": [
+        {
+          "type": "library",
+          "id": "00000000000000000000000000001001"
+        }
+      ],
+      "exclusions": [
+        {
+          "type": "studio",
+          "name": "Walt Disney"
+        }
+      ],
+      "expectedV3": [
+        "00000000000000000000000000000201",
+        "00000000000000000000000000000202",
+        "00000000000000000000000000000203",
+        "00000000000000000000000000000204"
+      ],
+      "expected": [
+        "00000000000000000000000000000202",
+        "00000000000000000000000000000204"
+      ]
+    },
+    {
+      "name": "the empty-key rule: under fold 2 an exclusion whose key is empty excludes every item with a studio whose key is empty (own or series'); under fold 1 it matches only its own fold 1 key",
+      "note": "...0101 has the one studio U+2800 U+3164, ...0102 has Pixar and U+3164, ...0105 has U+115F, the series of ...0201 has U+FFA0: every one a studio whose fold 2 key is empty.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u2800\u3164"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar",
+            "\u3164"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000105",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u115f"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000201",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000301",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000202",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000302",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        }
+      ],
+      "series": [
+        {
+          "id": "00000000000000000000000000000301",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\uffa0"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000302",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        }
+      ],
+      "collections": [],
+      "sources": [
+        {
+          "type": "library",
+          "id": "00000000000000000000000000001001"
+        }
+      ],
+      "exclusions": [
+        {
+          "type": "studio",
+          "name": "\u3164"
+        }
+      ],
+      "expectedV3": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104",
+        "00000000000000000000000000000105",
+        "00000000000000000000000000000201",
+        "00000000000000000000000000000202"
+      ],
+      "expected": [
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104",
+        "00000000000000000000000000000202"
+      ]
+    },
+    {
+      "name": "the empty-key rule: a studio source whose fold 2 key is empty matches nothing",
+      "note": "...0101 has the one studio U+2800 U+3164, ...0102 has Pixar and U+3164, ...0105 has U+115F, the series of ...0201 has U+FFA0: every one a studio whose fold 2 key is empty.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u2800\u3164"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar",
+            "\u3164"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000105",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u115f"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000201",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000301",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000202",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000302",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        }
+      ],
+      "series": [
+        {
+          "id": "00000000000000000000000000000301",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\uffa0"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000302",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        }
+      ],
+      "collections": [],
+      "sources": [
+        {
+          "type": "studio",
+          "name": "\u3164"
+        }
+      ],
+      "exclusions": [],
+      "expectedV3": [
+        "00000000000000000000000000000102"
+      ],
+      "expected": []
+    },
+    {
+      "name": "the empty-key rule: a studios filter name whose fold 2 key is empty matches nothing",
+      "note": "...0101 has the one studio U+2800 U+3164, ...0102 has Pixar and U+3164, ...0105 has U+115F, the series of ...0201 has U+FFA0: every one a studio whose fold 2 key is empty.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u2800\u3164"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar",
+            "\u3164"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000105",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u115f"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000201",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000301",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        },
+        {
+          "id": "00000000000000000000000000000202",
+          "kind": "episode",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": "00000000000000000000000000000302",
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": []
+        }
+      ],
+      "series": [
+        {
+          "id": "00000000000000000000000000000301",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\uffa0"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000302",
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        }
+      ],
+      "collections": [],
+      "sources": [
+        {
+          "type": "library",
+          "id": "00000000000000000000000000001001"
+        }
+      ],
+      "exclusions": [],
+      "filters": {
+        "studios": [
+          "\u3164"
+        ]
+      },
+      "expectedV3": [
+        "00000000000000000000000000000102"
+      ],
+      "expected": []
+    },
+    {
+      "name": "a studio source and a studio exclusion cancel under fold 2 (4) but not under fold 1 (3)",
+      "note": "Under fold 1 the source keeps ...0101 and the exclusion removes only ...0103, which the source does not select; under fold 2 both name the key waltdisney, so every Walt Disney spelling is selected and removed.",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u000bDisney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Walt\u3000Disney"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "Pixar"
+          ]
+        }
+      ],
+      "series": [],
+      "collections": [],
+      "sources": [
+        {
+          "type": "studio",
+          "name": "Walt Disney"
+        },
+        {
+          "type": "studio",
+          "name": "Pixar"
+        }
+      ],
+      "exclusions": [
+        {
+          "type": "studio",
+          "name": "Walt\u3000Disney"
+        }
+      ],
+      "expectedV3": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000104"
+      ],
+      "expected": [
+        "00000000000000000000000000000104"
+      ]
+    },
+    {
+      "name": "joiners: removed after a gap even after a non-Latin letter; kept between a non-Latin letter and a Latin one (a known residual gap)",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u6771\u6620\u3000\u200dAnimation"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u6771\u6620\u200dAnimation"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u0915\u094d\u200d\u0937"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u0915\u094d\u0937"
+          ]
+        }
+      ],
+      "series": [],
+      "collections": [],
+      "sources": [
+        {
+          "type": "library",
+          "id": "00000000000000000000000000001001"
+        }
+      ],
+      "exclusions": [
+        {
+          "type": "studio",
+          "name": "\u6771\u6620 Animation"
+        }
+      ],
+      "expectedV3": [
+        "00000000000000000000000000000101",
+        "00000000000000000000000000000102",
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104"
+      ],
+      "expected": [
+        "00000000000000000000000000000102",
+        "00000000000000000000000000000103",
+        "00000000000000000000000000000104"
+      ]
+    },
+    {
+      "name": "joiners: kept inside a non-Latin word, so a Devanagari conjunct and its plain form stay apart",
+      "libraries": [
+        "00000000000000000000000000001001"
+      ],
+      "items": [
+        {
+          "id": "00000000000000000000000000000101",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u6771\u6620\u3000\u200dAnimation"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000102",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u6771\u6620\u200dAnimation"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000103",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u0915\u094d\u200d\u0937"
+          ]
+        },
+        {
+          "id": "00000000000000000000000000000104",
+          "kind": "movie",
+          "libraryId": "00000000000000000000000000001001",
+          "seriesId": null,
+          "seasonId": null,
+          "productionYear": null,
+          "officialRating": null,
+          "genres": [],
+          "tags": [],
+          "studios": [
+            "\u0915\u094d\u0937"
+          ]
+        }
+      ],
+      "series": [],
+      "collections": [],
+      "sources": [
+        {
+          "type": "studio",
+          "name": "\u0915\u094d\u200d\u0937"
+        }
+      ],
+      "exclusions": [],
+      "expectedV3": [
+        "00000000000000000000000000000103"
+      ],
+      "expected": [
+        "00000000000000000000000000000103"
+      ]
+    }
+  ]
+}

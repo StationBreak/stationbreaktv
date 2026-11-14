@@ -26,7 +26,11 @@ import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
-/** The menu row above the grid (spec 21, F2.4): Back reaches it, Channels opens management and Exit leaves. */
+/**
+ * The menu sheet (spec 21, F2.4, #756): Back on the playing cell and the Menu key open it, Back and the Menu key close
+ * it, Channels opens management and Exit leaves.
+ */
+@Suppress("LargeClass") // One function per behaviour of the sheet and the reload, over one shared rig.
 class GuideMenuTest : GuideRig() {
     private fun GuideViewModel.up(
         repeat: Boolean = false,
@@ -91,7 +95,7 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
-    fun upNeverReachesTheMenu() =
+    fun upNeverOpensTheSheet() =
         guideTest { vm ->
             vm.open(CH5)
             runCurrent()
@@ -110,7 +114,7 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
-    fun backWalksOutwardsFromACellToThePlayingCellThenTheMenuThenLeaves() =
+    fun backWalksOutwardsFromACellToThePlayingCellThenOpensTheSheet() =
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
@@ -124,25 +128,162 @@ class GuideMenuTest : GuideRig() {
             assertEquals(GuideMenuEntry.Channels, vm.menu())
             // The cell last focused is kept.
             assertEquals(playing, vm.focused())
+            // The sheet Back opened is left by Back again: not the guide's, the activity leaves live TV.
             assertFalse(vm.back())
             assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 
     @Test
-    fun backOnEitherEntryLeaves() =
+    fun backFromThePlayingCellOpensTheSheetAndBackAgainLeavesWhateverTheRow() =
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
             assertTrue(vm.back())
+            assertTrue(vm.snapshot.value.menuByBack)
             assertFalse(vm.back())
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.down()
             assertEquals(GuideMenuEntry.Settings, vm.menu())
             assertFalse(vm.back())
-            assertEquals(GuideMenuEntry.Settings, vm.menu())
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.down()
             assertEquals(GuideMenuEntry.Exit, vm.menu())
+            // Moving in the sheet keeps how it was opened.
+            assertTrue(vm.snapshot.value.menuByBack)
             assertFalse(vm.back())
             assertEquals(GuideMenuEntry.Exit, vm.menu())
+        }
+
+    @Test
+    fun backFromAnotherCellGoesToThePlayingCellThenOpensTheSheetThenLeaves() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.up()
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertFalse(vm.back())
+        }
+
+    @Test
+    fun backInASheetTheMenuKeyOpenedClosesItWithTheFocusWhereItWas() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            val playing = vm.focused()
+            assertTrue(vm.toggleMenu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            vm.down()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertEquals(playing, vm.focused())
+            // Back from the playing cell is the way out again: it opens the sheet, and Back leaves.
+            assertTrue(vm.back())
+            assertFalse(vm.back())
+        }
+
+    @Test
+    fun theMenuKeyClosesASheetBackOpenedAndAReopenByMenuIsClosedByBack() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            val playing = vm.focused()
+            assertTrue(vm.back())
+            assertTrue(vm.snapshot.value.menuByBack)
+            assertTrue(vm.toggleMenu())
+            assertNull(vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertEquals(playing, vm.focused())
+            // Opened again by the Menu key, the sheet is closed by Back, not left.
+            assertTrue(vm.toggleMenu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+            assertEquals(playing, vm.focused())
+        }
+
+    @Test
+    fun selectOnExitInASheetTheMenuKeyOpenedMakesTheNextBackLeave() =
+        guideTest { vm ->
+            val got = eventsOf(vm)
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.toggleMenu())
+            vm.down()
+            vm.down()
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            vm.select()
+            runCurrent()
+            assertEquals(listOf<GuideEvent>(GuideEvent.Exit), got)
+            // The screen leaves by dispatching Back: it must not be taken to close the sheet.
+            assertFalse(vm.back())
+            // The Back did not leave after all: the sheet is as the Menu key opened it, and Back closes it.
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+        }
+
+    @Test
+    fun selectOnExitInASheetBackOpenedMakesTheNextBackLeave() =
+        guideTest { vm ->
+            val got = eventsOf(vm)
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            vm.down()
+            vm.down()
+            vm.select()
+            runCurrent()
+            assertEquals(listOf<GuideEvent>(GuideEvent.Exit), got)
+            assertFalse(vm.back())
+            assertTrue(vm.snapshot.value.menuByBack)
+        }
+
+    @Test
+    fun movingOffExitAfterSelectingItRestoresHowTheSheetWasOpened() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.toggleMenu())
+            vm.down()
+            vm.down()
+            vm.select()
+            assertTrue(vm.snapshot.value.menuByBack)
+            vm.up()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
+        }
+
+    @Test
+    fun theOpenerSurvivesChannelManagementAndARebuildOfTheGrid() =
+        guideTest { vm ->
+            lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.back())
+            vm.channelsOpened()
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
+            assertTrue(vm.snapshot.value.menuByBack)
+            assertFalse(vm.back())
+            vm.close()
+            vm.open(CH7)
+            runCurrent()
+            assertTrue(vm.toggleMenu())
+            vm.channelsOpened()
+            runCurrent()
+            vm.channelsClosed()
+            runCurrent()
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertFalse(vm.snapshot.value.menuByBack)
+            assertTrue(vm.back())
+            assertNull(vm.menu())
         }
 
     @Test
@@ -160,7 +301,7 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
-    fun backOnAnEmptyGuideGoesToTheMenuAndThenLeaves() =
+    fun backOnAnEmptyGuideOpensTheSheetAndThenLeaves() =
         guideTest { vm ->
             fake.channels.clear()
             vm.open(CH5)
@@ -183,90 +324,105 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
-    fun downFromEitherEntryGoesToThePlayingCell() =
+    fun upAndDownMoveBetweenTheEntriesAndStopAtTheEnds() =
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            val playing = vm.focused()
+            assertTrue(vm.back())
             vm.up()
-            assertTrue(vm.back())
-            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
             vm.down()
-            assertNull(vm.menu())
-            assertEquals(playing, vm.focused())
-
-            vm.toMenu()
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            vm.down()
             assertEquals(GuideMenuEntry.Exit, vm.menu())
             vm.down()
-            assertNull(vm.menu())
-            assertEquals(playing, vm.focused())
+            assertEquals(GuideMenuEntry.Exit, vm.menu())
+            vm.up()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            vm.up()
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
         }
 
     @Test
-    fun downFromTheMenuWithNoPlayingCellGoesToTheCellLastFocused() =
+    fun leftAndRightDoNothingInTheSheet() =
         guideTest { vm ->
-            vm.open(ChannelId("gone"))
+            vm.open(CH7)
             runCurrent()
+            assertTrue(vm.back())
+            vm.down()
+            val before = vm.snapshot.value
+            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
+            assertEquals(before, vm.snapshot.value)
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            assertEquals(before, vm.snapshot.value)
+        }
+
+    @Test
+    fun theMenuKeyOpensTheSheetFromACellAndClosesItWithTheFocusWhereItWas() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
             vm.down()
             val cell = vm.focused()
-            assertEquals(CH7, cell.channel)
-            assertTrue(vm.back())
+            assertTrue(vm.toggleMenu())
             assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertEquals(cell, vm.focused())
             vm.down()
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertTrue(vm.toggleMenu())
             assertNull(vm.menu())
+            assertEquals(cell, vm.focused())
+            assertFalse(vm.snapshot.value.onChannel)
+            // Opened again it is on Channels again, not where it was left.
+            assertTrue(vm.toggleMenu())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+        }
+
+    @Test
+    fun theMenuKeyOpensTheSheetFromTheChannelColumnAndTheFocusReturnsThere() =
+        guideTest { vm ->
+            vm.open(CH7)
+            runCurrent()
+            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
+            assertTrue(vm.snapshot.value.onChannel)
+            val cell = vm.focused()
+            assertTrue(vm.toggleMenu())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertTrue(vm.snapshot.value.onChannel)
+            assertTrue(vm.toggleMenu())
+            assertNull(vm.menu())
+            assertTrue(vm.snapshot.value.onChannel)
+            assertEquals(cell, vm.focused())
+            // And Back from the sheet returns there too.
+            assertTrue(vm.toggleMenu())
+            assertTrue(vm.back())
+            assertTrue(vm.snapshot.value.onChannel)
             assertEquals(cell, vm.focused())
         }
 
     @Test
-    fun downFromTheMenuOfAnEmptyGuideStays() =
+    fun theMenuKeyOnAClosedGuideDoesNothing() =
         guideTest { vm ->
-            fake.channels.clear()
-            vm.open(CH5)
+            assertFalse(vm.toggleMenu())
+            assertNull(vm.menu())
+        }
+
+    @Test
+    fun theSheetKeepsItsRowAcrossARebuildOfTheGrid() =
+        guideTest { vm ->
+            vm.open(CH7)
             runCurrent()
-            assertTrue(vm.back())
+            val onChannel = vm.snapshot.value.onChannel
+            assertTrue(vm.toggleMenu())
             vm.down()
-            assertEquals(GuideMenuEntry.Channels, vm.menu())
-        }
-
-    @Test
-    fun leftAndRightMoveBetweenTheEntriesAndStopAtTheEnds() =
-        guideTest { vm ->
-            vm.open(CH7)
-            runCurrent()
-            assertTrue(vm.back())
-            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
-            assertEquals(GuideMenuEntry.Channels, vm.menu())
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            after(3 * MIN)
             assertEquals(GuideMenuEntry.Settings, vm.menu())
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            assertEquals(GuideMenuEntry.Exit, vm.menu())
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            assertEquals(GuideMenuEntry.Exit, vm.menu())
-            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
-            assertEquals(GuideMenuEntry.Settings, vm.menu())
-            vm.move(GuideDirection.Left, repeat = false, atMs = 0)
-            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertEquals(onChannel, vm.snapshot.value.onChannel)
         }
 
     @Test
-    fun upOnEitherEntryDoesNothing() =
-        guideTest { vm ->
-            vm.open(CH7)
-            runCurrent()
-            assertTrue(vm.back())
-            var before = vm.snapshot.value
-            vm.up()
-            assertEquals(before, vm.snapshot.value)
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
-            before = vm.snapshot.value
-            vm.up()
-            assertEquals(before, vm.snapshot.value)
-        }
-
-    @Test
-    fun selectOnAnEntryOpensChannelsOrLeaves() =
+    fun selectOnEachRowOfTheSheetOpensChannelsOpensSettingsOrLeaves() =
         guideTest { vm ->
             val got = eventsOf(vm)
             vm.open(CH5)
@@ -280,12 +436,12 @@ class GuideMenuTest : GuideRig() {
             runCurrent()
             assertEquals(listOf(GuideEvent.OpenChannels), got)
             got.clear()
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.down()
             vm.select()
             runCurrent()
             assertEquals(listOf(GuideEvent.OpenSettings), got)
             got.clear()
-            vm.move(GuideDirection.Right, repeat = false, atMs = 0)
+            vm.down()
             vm.select()
             runCurrent()
             assertEquals(listOf(GuideEvent.Exit), got)
@@ -325,7 +481,7 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
-    fun downFromTheMenuWhileTheGridLoadsAgainGoesToThePlayingCellOnTheGridShown() =
+    fun closingTheSheetWhileTheGridLoadsAgainReturnsToTheCellOnTheGridShown() =
         guideTest { vm ->
             lineupList.list.value = listOf(summary(CH5, 5), summary(CH7, 7), summary(CH9, 9))
             vm.open(CH7)
@@ -340,8 +496,10 @@ class GuideMenuTest : GuideRig() {
 
             vm.channelsClosed()
 
-            // The grid shown stays until the new one lands: Down works on it, and the new grid keeps the focus.
-            vm.down()
+            // The grid shown stays until the new one lands: closing the sheet works on it, and the new grid keeps the
+            // focus.
+            assertTrue(vm.toggleMenu())
+            assertNull(vm.menu())
             assertEquals(CH7, vm.focused().channel)
             // The opening's figures are the first session's, not the reload's.
             assertEquals(measured, vm.windowMs)
@@ -434,7 +592,7 @@ class GuideMenuTest : GuideRig() {
     fun aChangeLongAfterTheScreenClosedReloadsTheGridWithTheFocusWhereItWas() =
         guideTest { vm ->
             closedWithNoChange(vm)
-            vm.down()
+            assertTrue(vm.toggleMenu())
             val focus = vm.focused()
             after(60_000)
 

@@ -242,7 +242,7 @@ class FirstSyncNavigationTest {
 
     /**
      * Back walks out one step at a time (#475): from live TV it opens the guide, focused on the playing channel; from
-     * there it goes to the menu row's Channels entry; from the menu row it leaves the app.
+     * there it opens the menu sheet on Channels (#756); from the sheet Back opened it leaves the app.
      */
     private fun assertBackOpensTheGuideThenLeavesTheApp() {
         compose.awaitWindowFocus()
@@ -254,7 +254,7 @@ class FirstSyncNavigationTest {
         compose.waitUntil(TIMEOUT_MS) {
             runCatching { compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected() }.isSuccess
         }
-        assertFalse("the second Back only reaches the menu row", compose.activity.isFinishing)
+        assertFalse("the second Back only opens the menu sheet", compose.activity.isFinishing)
         assertBackLeavesTheApp()
     }
 

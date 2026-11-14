@@ -6,6 +6,7 @@ import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.cleanStudioName
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
+import tv.stationbreak.core.model.studioKey2
 import tv.stationbreak.core.rules.Source
 
 /**
@@ -20,6 +21,11 @@ import tv.stationbreak.core.rules.Source
  * `tag` entry also matches an episode whose series ID is set but whose series is not in the snapshot, whatever its own
  * names are. Sources leave it off and use the episode's own names alone.
  *
+ * With [studioFold2] (a file that says `formatVersion` 4: docs/adr/0026-studio-fold-2.md), a `studio` entry matches by
+ * studio fold 2 keys ([studioKey2], `RuleItem.foldedStudios2`); without it, by studio fold 1, as in versions 1 to 3.
+ * Under fold 2 an entry whose key is empty matches nothing, unless [emptyStudioKeyMatches] (used for exclusions, the
+ * empty-key rule of ADR-0026): then it matches every item that has, or whose series has, a studio whose key is empty.
+ *
  * It is not thread-safe: [tally] keeps a scratch stamp so that one source is counted once per item. The per-item
  * methods use plain loops and allocate nothing (no lambdas in the per-item path: ART 7.1 crash, #264).
  */
@@ -27,6 +33,8 @@ internal class SourceMatcher(
     sources: List<Source>,
     snapshot: RuleSnapshot,
     private val missingSeriesMatchesNames: Boolean = false,
+    private val studioFold2: Boolean = false,
+    emptyStudioKeyMatches: Boolean = false,
 ) {
     private val byLibrary: Map<String, IntArray>
     private val byItem: Map<String, IntArray>
@@ -43,6 +51,7 @@ internal class SourceMatcher(
     private val yearSource: IntArray
     private val allGenreSources: IntArray?
     private val allTagSources: IntArray?
+    private val emptyStudioKeySources: IntArray?
 
     private val stamped = IntArray(sources.size)
 
@@ -64,6 +73,7 @@ internal class SourceMatcher(
         val tagSources = ArrayList<Int>()
         val studioNames = ArrayList<String>()
         val studioSources = ArrayList<Int>()
+        val emptyStudioKeys = ArrayList<Int>()
         val from = ArrayList<Int>()
         val to = ArrayList<Int>()
         val years = ArrayList<Int>()
@@ -82,11 +92,14 @@ internal class SourceMatcher(
                 }
 
                 is Source.Studio -> {
-                    // The studio fold cleans, then folds; a name that cleans to nothing matches nothing.
-                    val cleaned = cleanStudioName(source.name)
-                    if (cleaned.isNotEmpty()) {
-                        studioNames.add(cleaned)
+                    // Fold 1 cleans, then folds; fold 2 gives the key. A name that comes to nothing matches nothing,
+                    // except a fold 2 exclusion (the empty-key rule).
+                    val key = if (studioFold2) studioKey2(source.name) else cleanStudioName(source.name)
+                    if (key.isNotEmpty()) {
+                        studioNames.add(key)
                         studioSources.add(index)
+                    } else if (studioFold2 && emptyStudioKeyMatches) {
+                        emptyStudioKeys.add(index)
                     }
                 }
 
@@ -130,6 +143,7 @@ internal class SourceMatcher(
         studios = NameSet(studioNames, studioSources.toIntArray())
         allGenreSources = if (genreSources.isEmpty()) null else genreSources.toIntArray()
         allTagSources = if (tagSources.isEmpty()) null else tagSources.toIntArray()
+        emptyStudioKeySources = if (emptyStudioKeys.isEmpty()) null else emptyStudioKeys.toIntArray()
         yearFrom = from.toIntArray()
         yearTo = to.toIntArray()
         yearSource = years.toIntArray()
@@ -206,7 +220,7 @@ internal class SourceMatcher(
             if (hits == null) return true
             any = true
         }
-        if (markNames(studios, item.foldedStudios, inherited?.foldedStudios, hits)) {
+        if (markStudios(item, inherited, hits)) {
             if (hits == null) return true
             any = true
         }
@@ -222,6 +236,22 @@ internal class SourceMatcher(
             }
         }
         return markYear(schedule.productionYear, hits) || any
+    }
+
+    // The studio entries [item] matches (with its series' studios in [inherited]): by the fold 1 or the fold 2 keys,
+    // and under fold 2 the empty-key entries when the item or its series has a studio whose key is empty.
+    private fun markStudios(
+        item: RuleItem,
+        inherited: RuleSeries?,
+        hits: IntArray?,
+    ): Boolean {
+        val own = if (studioFold2) item.foldedStudios2 else item.foldedStudios
+        val ofSeries = if (studioFold2) inherited?.foldedStudios2 else inherited?.foldedStudios
+        val named = markNames(studios, own, ofSeries, hits)
+        val blankKeys = emptyStudioKeySources
+        if ((named && hits == null) || blankKeys == null) return named
+        val emptyKey = item.hasEmptyStudioKey2 || inherited?.hasEmptyStudioKey2 == true
+        return (emptyKey && mark(blankKeys, hits)) || named
     }
 
     private fun markYear(

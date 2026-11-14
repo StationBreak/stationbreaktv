@@ -63,12 +63,15 @@ class GuideNoLibrariesTest : GuideRig() {
             // The focus is on the menu row, on Settings, where the libraries are chosen again.
             assertEquals(GuideMenuEntry.Settings, vm.menu())
 
-            // Down never leaves the menu row for a grid that is not shown; Left and Right still move along it.
+            // The sheet is all there is for a grid that is not shown: Up and Down move along it, Left and Right do not.
+            vm.move(GuideDirection.Right, false, 0)
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            vm.move(GuideDirection.Up, false, 0)
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
             vm.move(GuideDirection.Down, false, 0)
             assertEquals(GuideMenuEntry.Settings, vm.menu())
-            vm.move(GuideDirection.Left, false, 0)
-            assertEquals(GuideMenuEntry.Channels, vm.menu())
-            vm.move(GuideDirection.Right, false, 0)
+            // The Menu key does not close it either: there is nothing behind it to return to.
+            assertFalse(vm.toggleMenu())
             assertEquals(GuideMenuEntry.Settings, vm.menu())
 
             // Select opens Settings; Back from the menu row is the activity's, as ever.
@@ -91,10 +94,11 @@ class GuideNoLibrariesTest : GuideRig() {
             runCurrent()
             assertEquals(GuideMenuEntry.Settings, vm.menu())
 
-            // A library chosen again: Down goes back to the grid.
+            // A library chosen again: the sheet stays until it is closed, and Back then closes it to the grid.
             choices.selection.value = kept
             runCurrent()
-            vm.move(GuideDirection.Down, false, 0)
+            assertEquals(GuideMenuEntry.Settings, vm.menu())
+            assertTrue(vm.back())
             assertNull(vm.menu())
             assertTrue(vm.snapshot.value.state is GuideState.Ready)
         }
@@ -200,7 +204,7 @@ class GuideNoLibrariesTest : GuideRig() {
             vm.open(CH7)
             runCurrent()
             while (vm.menu() == null) check(vm.back()) { "Back did not reach the menu" }
-            vm.move(GuideDirection.Right, false, 0)
+            vm.move(GuideDirection.Down, false, 0)
             assertEquals(GuideMenuEntry.Settings, vm.menu())
             vm.librariesOpened()
             val calls = schedule.calls

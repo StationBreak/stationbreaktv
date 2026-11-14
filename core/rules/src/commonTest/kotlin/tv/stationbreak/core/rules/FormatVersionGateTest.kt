@@ -14,7 +14,7 @@ class FormatVersionGateTest {
 
     @Test
     fun aNewerVersionNeedsAnUpdateEvenWhenTheBodyIsUnreadable() {
-        assertEquals(RulesResult.UpdateRequired(4), read("4"))
+        assertEquals(RulesResult.UpdateRequired(5), read("5"))
         assertEquals(RulesResult.UpdateRequired(2147483647), read("2147483647"))
         assertEquals(RulesResult.UpdateRequired(4294967296), read("4294967296"))
     }
@@ -26,8 +26,8 @@ class FormatVersionGateTest {
 
     @Test
     fun aNewerVersionWithAValidBodyIsNotReadAnyFurther() {
-        val text = minimalRules().with("formatVersion", JsonPrimitive(4)).with("somethingNew", "x").text()
-        assertEquals(RulesResult.UpdateRequired(4), RulesReader.read(text))
+        val text = minimalRules().with("formatVersion", JsonPrimitive(5)).with("somethingNew", "x").text()
+        assertEquals(RulesResult.UpdateRequired(5), RulesReader.read(text))
     }
 
     @Test
@@ -65,8 +65,9 @@ class FormatVersionGateTest {
     }
 
     @Test
-    fun theSupportedVersionIsThree() {
-        assertEquals(3L, RulesLimits.SUPPORTED_FORMAT_VERSION)
+    fun theSupportedVersionIsFour() {
+        assertEquals(4L, RulesLimits.SUPPORTED_FORMAT_VERSION)
+        assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("formatVersion", JsonPrimitive(4)).text()))
         assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("formatVersion", JsonPrimitive(3)).text()))
         assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().text()))
         assertIs<RulesResult.Ok>(RulesReader.read(minimalRules().with("formatVersion", JsonPrimitive(2)).text()))

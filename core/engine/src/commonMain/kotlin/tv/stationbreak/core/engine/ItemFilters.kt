@@ -13,20 +13,24 @@ import tv.stationbreak.core.rules.Source
  * The `genres`, `tags`, `studios`, `notGenres`, `years` and `kind` parts of `filters` (docs/rules-format.md,
  * "Filters"): every part given must pass. Genres, tags and studios are matched as `genre`, `tag` and `studio` sources
  * are (any of the names, an episode also takes its series' names), by a [SourceMatcher] over synthetic entries.
- * `notGenres` passes an item that matches none of its genres, and fails closed on an episode whose series is missing.
- * The `runtime` part is not here: it is a pool condition of the scheduler. Built once per evaluation; [passes]
- * allocates nothing (no lambdas: ART 7.1 crash, #264).
+ * Studios match under studio fold 2 when [studioFold2] (a file that says `formatVersion` 4), else under fold 1; a
+ * `studios` name whose fold 2 key is empty matches nothing. `notGenres` passes an item that matches none of its
+ * genres, and fails closed on an episode whose series is missing. The `runtime` part is not here: it is a pool
+ * condition of the scheduler. Built once per evaluation; [passes] allocates nothing (no lambdas: ART 7.1 crash, #264).
  */
 internal class ItemFilters(
     filters: Filters?,
     snapshot: RuleSnapshot,
+    studioFold2: Boolean = false,
 ) {
     private val genres: SourceMatcher? =
         filters?.genres?.let { names -> SourceMatcher(names.map { Source.Genre(it) }, snapshot) }
     private val tags: SourceMatcher? =
         filters?.tags?.let { names -> SourceMatcher(names.map { Source.Tag(it) }, snapshot) }
     private val studios: SourceMatcher? =
-        filters?.studios?.let { names -> SourceMatcher(names.map { Source.Studio(it) }, snapshot) }
+        filters?.studios?.let { names ->
+            SourceMatcher(names.map { Source.Studio(it) }, snapshot, studioFold2 = studioFold2)
+        }
     private val notGenres: SourceMatcher? =
         filters?.notGenres?.let { names ->
             SourceMatcher(names.map { Source.Genre(it) }, snapshot, missingSeriesMatchesNames = true)

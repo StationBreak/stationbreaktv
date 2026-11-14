@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -179,7 +180,7 @@ internal fun GuideScreen(
         remember(shown) {
             {
                 shown.value
-                    .takeIf { it.onChannel }
+                    .takeIf { it.onChannel && it.menu == null }
                     ?.focus
                     ?.channel
             }
@@ -187,7 +188,6 @@ internal fun GuideScreen(
     // The panel's variant, read as a state of its own so a move on the grid does not recompose this level.
     val onChannel by remember(shown) { derivedStateOf { shown.value.onChannel } }
     val noLibraries by remember(shown) { derivedStateOf { shown.value.noLibraries } }
-    val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
     // The clock and the viewport as states of their own, so reading them is invalidated only when they change.
     val now = remember(shown) { derivedStateOf { (shown.value.state as? GuideState.Ready)?.nowMs } }
     val viewport =
@@ -212,13 +212,12 @@ internal fun GuideScreen(
                     .offset(geometry.safe.left, geometry.safe.top)
                     .width(geometry.safe.right - geometry.safe.left),
             ) {
-                // The menu row takes the foot of that band, so the grid and the picture stay where they are.
-                val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight - ButtonRowHeight)
+                // The panel takes the whole band: the description has the lines the menu row used to take (#756).
+                val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
                 val kind = guidePanelOf(settings != null, noLibraries, onChannel)
                 val parts =
                     TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, holdings)
                 TopPanel(kind, parts, panelSize)
-                GuideMenu(menuOf)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(
                     stateOf,
@@ -230,6 +229,7 @@ internal fun GuideScreen(
                 Spacer(Modifier.height(HintGap))
                 HintRow(snapshotOf, current)
             }
+            GuideMenuSheetHost(shown, settings == null, geometry.safe)
         }
     }
 }
@@ -426,15 +426,11 @@ private fun HintRow(
     val onChannel by remember(snapshotOf) { derivedStateOf { snapshotOf().onChannel } }
     val back = stringResource(if (onChannel) R.string.guide_key_right else R.string.guide_key_back)
     val toMenu by remember(snapshotOf, current) { derivedStateOf { snapshotOf().isAtPlaying(current) } }
-    val exit =
-        stringResource(
-            when {
-                onChannel -> R.string.guide_hint_programs
-                away -> R.string.guide_hint_playing
-                toMenu -> R.string.guide_hint_menu
-                else -> R.string.guide_hint_exit
-            },
-        )
+    val sheet by remember(snapshotOf) { derivedStateOf { snapshotOf().menu != null } }
+    val noLibraries by remember(snapshotOf) { derivedStateOf { snapshotOf().noLibraries } }
+    val menuKey = stringResource(R.string.guide_key_menu)
+    val sheetByBack by remember(snapshotOf) { derivedStateOf { snapshotOf().menuByBack } }
+    val exit = stringResource(backHintOf(sheet, sheetByBack, noLibraries, onChannel, away, toMenu))
     val action =
         when (kind) {
             HintKind.Watch -> stringResource(R.string.guide_hint_watch)
@@ -442,10 +438,12 @@ private fun HintRow(
             HintKind.Properties -> stringResource(R.string.guide_hint_properties)
             HintKind.BackOnly -> null
         }
+    val openMenu = stringResource(R.string.guide_hint_open_menu)
     val spoken =
         buildString {
             if (action != null) append("$ok $action$HINT_SPACE")
             append("$back $exit")
+            if (!sheet) append("$HINT_SPACE$menuKey $openMenu")
         }
     val actionStyle = guideText(10.sp, FontWeight.Normal)
     Row(
@@ -463,7 +461,20 @@ private fun HintRow(
         }
         HintKey(back, round = false)
         HintAction(exit, actionStyle)
+        if (!sheet) MenuHint(menuKey, openMenu, actionStyle)
     }
+}
+
+// The Menu key (#756): shown with the others while the sheet is closed.
+@Composable
+private fun MenuHint(
+    key: String,
+    action: String,
+    style: TextStyle,
+) {
+    Spacer(Modifier.width(HintPairGap))
+    HintKey(key, round = false)
+    HintAction(action, style)
 }
 
 @Composable

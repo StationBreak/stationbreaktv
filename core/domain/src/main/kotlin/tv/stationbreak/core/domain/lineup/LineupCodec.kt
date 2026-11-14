@@ -22,9 +22,12 @@ import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.BroadcastDay
+import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.RulesReader
 import tv.stationbreak.core.rules.RulesResult
 import tv.stationbreak.core.rules.RulesWriter
+import tv.stationbreak.core.rules.StudioFold2Gate
+import tv.stationbreak.core.rules.upgradedToStudioFold2
 
 /**
  * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 3` or `4` ([VERSION] is the newest). Only
@@ -55,7 +58,7 @@ import tv.stationbreak.core.rules.RulesWriter
  * `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
  * as JSON `null` in a version 1 or 2 file (read as absent).
  *
- * The rules of a starter or custom channel are a rules-format file (version 1 to 3) held as a JSON string; they are
+ * The rules of a starter or custom channel are a rules-format file (version 1 to 4) held as a JSON string; they are
  * read and written by the rules codec, so they keep their extras (the fields this app does not know) but not their
  * bytes.
  *
@@ -91,6 +94,8 @@ internal object LineupCodec {
          * caller keeps the old bytes before it saves. The default [fileVersion] is [BASE_VERSION]: what a lineup with
          * no repairs is written as. [repairsUnreadable] is true when the file's `repairs` object did not read: the
          * lineup is loaded with no record ([repairs] is none), the file is not set aside, and the caller reports it.
+         * [upgradedRules] is how many rules files (a channel's rules, a starter's previous rules) the read upgraded to
+         * format 4 (ADR-0026, the upgrade): more than none means the file on disk still says 3 for them.
          */
         data class Loaded(
             val lineup: Lineup,
@@ -98,6 +103,7 @@ internal object LineupCodec {
             val repairs: TodayRepairs = TodayRepairs.NONE,
             val fileVersion: Int = BASE_VERSION,
             val repairsUnreadable: Boolean = false,
+            val upgradedRules: Int = 0,
         ) : Decoded
 
         /** Not a lineup this version can read. The caller sets it aside before writing another. */
@@ -136,9 +142,19 @@ internal object LineupCodec {
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
 
-    /** What [bytes] hold. Never throws: whatever else goes wrong, even a stack overflow, is [Decoded.Unreadable]. */
+    /**
+     * What [bytes] hold. Never throws: whatever else goes wrong, even a stack overflow, is [Decoded.Unreadable].
+     *
+     * Once the format 4 gate ([gatePassed], `StudioFold2Gate`) has passed, a channel's rules, and a starter's previous
+     * rules, that say `formatVersion` 3 and hold a `studio` source, a `studio` exclusion or a `studios` filter come out
+     * saying 4 with nothing else changed (ADR-0026, the upgrade), so the next save writes them as 4. Before it, the
+     * rules come out as they were written.
+     */
     @Suppress("TooGenericExceptionCaught")
-    fun decode(bytes: ByteArray): Decoded =
+    fun decode(
+        bytes: ByteArray,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
+    ): Decoded =
         try {
             val root = json.parseToJsonElement(bytes.decodeToString(throwOnInvalidSequence = true))
             when (val version = versionOf(root)) {
@@ -148,7 +164,7 @@ internal object LineupCodec {
 
                 in 1..VERSION -> {
                     val hasRepairs = (root as JsonObject).containsKey("repairs")
-                    lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version, hasRepairs)
+                    lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version, hasRepairs, gatePassed)
                 }
 
                 else -> {
@@ -181,12 +197,15 @@ internal object LineupCodec {
         file: FileV1,
         fileVersion: Int,
         hasRepairs: Boolean,
+        gatePassed: Boolean,
     ): Decoded {
         val server = CanonicalId.parseCanonicalOrNull(file.serverId)
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
         if (server == null || user == null || !validOffset(file.utcOffsetMinutes)) return Decoded.Unreadable
         val inferred = fileVersion < 3
-        val channels = file.channels.map { channelOf(it, inferred) }
+        val read = file.channels.map { channelOf(it, inferred) }
+        val channels = read.map { upgraded(it, gatePassed) }
+        val upgradedRules = read.indices.sumOf { upgradesIn(read[it], channels[it]) }
         val ids = channels.mapTo(HashSet()) { it.id }
         val lineup =
             Lineup.ofOrNull(
@@ -204,7 +223,14 @@ internal object LineupCodec {
         return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs)) {
             val repairs = if (hasRepairs) repairsOf(file.repairs ?: JsonNull) else TodayRepairs.NONE
             val unreadable = repairs == null
-            Decoded.Loaded(lineup, meta, repairs ?: TodayRepairs.NONE, fileVersion, repairsUnreadable = unreadable)
+            Decoded.Loaded(
+                lineup,
+                meta,
+                repairs ?: TodayRepairs.NONE,
+                fileVersion,
+                repairsUnreadable = unreadable,
+                upgradedRules = upgradedRules,
+            )
         } else {
             Decoded.Unreadable
         }
@@ -298,6 +324,43 @@ internal object LineupCodec {
     }
 
     private val WHOLE = Regex("^-?(0|[1-9][0-9]*)$")
+}
+
+// ADR-0026, the upgrade: once the gate has passed, rules that say 3 and hold a studio feature say 4 (a starter's
+// previous rules too).
+private fun upgraded(
+    channel: LineupChannel,
+    gatePassed: Boolean,
+): LineupChannel {
+    if (!gatePassed) return channel
+    val upgrade = { rules: ChannelRules -> rules.upgradedToStudioFold2(gatePassed = true) }
+    return when (val source = channel.source) {
+        is ChannelSource.Starter -> channel.copy(source = source.mapRules(upgrade))
+        is ChannelSource.Custom -> channel.copy(source = ChannelSource.Custom(upgrade(source.rules)))
+        is ChannelSource.Leftovers, is ChannelSource.Unusable -> channel
+    }
+}
+
+// How many of [before]'s rules files [after] holds upgraded: the upgrade gives back the very rules it leaves alone.
+private fun upgradesIn(
+    before: LineupChannel,
+    after: LineupChannel,
+): Int {
+    val was = before.source
+    val now = after.source
+    return when {
+        was is ChannelSource.Starter && now is ChannelSource.Starter -> {
+            (if (was.rules !== now.rules) 1 else 0) + (if (was.previousRules !== now.previousRules) 1 else 0)
+        }
+
+        was is ChannelSource.Custom && now is ChannelSource.Custom -> {
+            if (was.rules !== now.rules) 1 else 0
+        }
+
+        else -> {
+            0
+        }
+    }
 }
 
 /** The "kind" a stored channel's raw JSON names ([CUSTOM_KIND] for the viewer's own), or null when it names none. */
@@ -446,7 +509,7 @@ private object SourceCodec {
 
     private fun custom(fields: JsonObject): ChannelSource? = rulesOf(fields)?.let { ChannelSource.Custom(it) }
 
-    // Only rules this app can schedule (versions 1 to 3); any other result keeps the channel unusable.
+    // Only rules this app can schedule (versions 1 to 4); any other result keeps the channel unusable.
     private fun rulesOf(fields: JsonObject) = (fields.string(RULES)?.let(RulesReader::read) as? RulesResult.Ok)?.rules
 
     private fun JsonObject.string(key: String): String? = (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content

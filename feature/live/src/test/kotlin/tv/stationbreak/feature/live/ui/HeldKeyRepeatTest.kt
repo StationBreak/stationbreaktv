@@ -64,6 +64,14 @@ class HeldKeyRepeatTest {
         assertEquals(listOf<LiveCommand>(LiveCommand.DismissOverlay), sent)
     }
 
+    // The guide's own Menu key (#756) opens its menu sheet; in full screen, with no guide up, Menu stays Last Channel.
+    @Test
+    fun aMenuPressInFullScreenIsLastChannel() {
+        assertTrue(down(Key.Menu, 0, OverlayUp.None))
+        assertTrue(release(Key.Menu, OverlayUp.None))
+        assertEquals(listOf<LiveCommand>(LiveCommand.Previous), sent)
+    }
+
     @Test
     fun aHeldMenuGoesBackOnce() {
         assertTrue(down(Key.Menu, 0, OverlayUp.None))

@@ -71,6 +71,8 @@ data class RuleItem(
 
     @Volatile private var foldedStudiosCache: List<String>? = null
 
+    @Volatile private var foldedStudios2Cache: List<String>? = null
+
     /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept: a rule match reads this. */
     val foldedGenres: List<String>
         get() = foldedGenresCache ?: foldNames(genres).also { foldedGenresCache = it }
@@ -79,15 +81,29 @@ data class RuleItem(
     val foldedTags: List<String>
         get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
 
-    /** [studios] cleaned ([cleanStudioName]) and folded, as [foldedGenres]. */
+    /** [studios] cleaned ([cleanStudioName]) and folded, as [foldedGenres]: studio fold 1. */
     val foldedStudios: List<String>
         get() = foldedStudiosCache ?: foldStudioNames(studios).also { foldedStudiosCache = it }
 
-    /** Sets [foldedGenres], [foldedTags] and [foldedStudios] from [folds], shared with the rest of the snapshot. */
+    /**
+     * [studios] through studio fold 2 ([studioKey2], ADR-0026), a name whose key is empty dropped, as [foldedGenres].
+     * The holds match by these.
+     */
+    val foldedStudios2: List<String>
+        get() = foldedStudios2Cache ?: studioKeys2(studios).also { foldedStudios2Cache = it }
+
+    /** Whether one of [studios] has an empty studio fold 2 key (ADR-0026, the empty-key rule). */
+    val hasEmptyStudioKey2: Boolean get() = foldedStudios2.size < studios.size
+
+    /**
+     * Sets [foldedGenres], [foldedTags], [foldedStudios] and [foldedStudios2] from [folds], shared with the rest of the
+     * snapshot.
+     */
     fun primeFolds(folds: NameFolds) {
         foldedGenresCache = folds.of(genres)
         foldedTagsCache = folds.of(tags)
         foldedStudiosCache = folds.ofStudios(studios)
+        foldedStudios2Cache = folds.ofStudios2(studios)
     }
 }
 
@@ -115,6 +131,8 @@ data class RuleSeries(
 
     @Volatile private var foldedStudiosCache: List<String>? = null
 
+    @Volatile private var foldedStudios2Cache: List<String>? = null
+
     /** [genres] folded (`foldNameAscii`) in order, worked out on first use and kept. */
     val foldedGenres: List<String>
         get() = foldedGenresCache ?: foldNames(genres).also { foldedGenresCache = it }
@@ -123,15 +141,29 @@ data class RuleSeries(
     val foldedTags: List<String>
         get() = foldedTagsCache ?: foldNames(tags).also { foldedTagsCache = it }
 
-    /** [studios] cleaned ([cleanStudioName]) and folded, as [foldedGenres]. */
+    /** [studios] cleaned ([cleanStudioName]) and folded, as [foldedGenres]: studio fold 1. */
     val foldedStudios: List<String>
         get() = foldedStudiosCache ?: foldStudioNames(studios).also { foldedStudiosCache = it }
 
-    /** Sets [foldedGenres], [foldedTags] and [foldedStudios] from [folds], shared with the rest of the snapshot. */
+    /**
+     * [studios] through studio fold 2 ([studioKey2], ADR-0026), a name whose key is empty dropped, as [foldedGenres].
+     * The holds match by these.
+     */
+    val foldedStudios2: List<String>
+        get() = foldedStudios2Cache ?: studioKeys2(studios).also { foldedStudios2Cache = it }
+
+    /** Whether one of [studios] has an empty studio fold 2 key (ADR-0026, the empty-key rule). */
+    val hasEmptyStudioKey2: Boolean get() = foldedStudios2.size < studios.size
+
+    /**
+     * Sets [foldedGenres], [foldedTags], [foldedStudios] and [foldedStudios2] from [folds], shared with the rest of the
+     * snapshot.
+     */
     fun primeFolds(folds: NameFolds) {
         foldedGenresCache = folds.of(genres)
         foldedTagsCache = folds.of(tags)
         foldedStudiosCache = folds.ofStudios(studios)
+        foldedStudios2Cache = folds.ofStudios2(studios)
     }
 }
 

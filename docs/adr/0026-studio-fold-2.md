@@ -1,7 +1,11 @@
 # ADR-0026: Studio fold 2 (closing look-alike gaps in studio matching)
 
 **Status:** Accepted 2026-11-13, after the owner's decisions and four rounds of security review. The implementation
-PRs (every port) get their own security review. Nothing is implemented yet.
+PRs (every port) get their own security review. The Fire app implements it in three parts (fold 2 and the holds;
+format 4 behind the gate; the gate flipped). On 2026-11-13 the owner **waived the gate's reader-before-writer order
+for the Fire app** (see the gate ruling under Versioning; it is a waiver, not a pass): from the release that ships
+part 3 the Fire app writes format 4 for studio rules and rewrites stored files once. The Roku and Vega OS ports have
+no release yet and must read 4 before their first.
 
 **Date:** 2026-11-12 (revised 2026-11-13)
 
@@ -191,9 +195,9 @@ it is. Every current call site of `cleanStudioName`, and of the fold-1 keys buil
 | `ChannelRules` init check (`ChannelRules.kt`, `formatVersion in 1..SUPPORTED_FORMAT_VERSION`) | rejects rules at a version the app does not read | follows `SUPPORTED_FORMAT_VERSION`, so rules at 4 can be built in the release that reads 4 |
 | `RulesReader` version gate (`RulesReader.kt`, `value > SUPPORTED_FORMAT_VERSION`) | turns a newer file into "update required" | follows `SUPPORTED_FORMAT_VERSION`: a 4 file is read, not "update required", from the release that reads 4 |
 | `ChannelRules.requiredVersion` (`ChannelRules.kt`) | the lowest version a file must say to be valid (`require(formatVersion >= requiredVersion)`, which `RulesReader` turns into Invalid) | unchanged: 3 for a studio source, studio exclusion or `studios` filter, before and after the gate. It must not become 4, or every studio file that says 3 would be rejected as invalid before it could be rewritten |
-| `ChannelRules.writeVersion` (new) and `ChannelRules.normalised` | the version the app writes | `writeVersion` is `requiredVersion`, except that for a file with a studio source, studio exclusion or `studios` filter it is 4 once the gate has passed, and it is never lower than the file's previous `formatVersion` when that file holds those features. `normalised` writes at `writeVersion` (see Versioning) |
+| `ChannelRules.writeVersion` (new) and `ChannelRules.normalised` | the version the app writes | `writeVersion` is `requiredVersion`, except that for a file with a studio source, studio exclusion or `studios` filter it is 4 once the gate has passed, and it is never lower than the file's previous `formatVersion` when the rules being written hold a studio source, studio exclusion or `studios` filter (rules that no longer hold one are written at `requiredVersion`). `normalised` writes at `writeVersion` (see Versioning) |
 | `DraftRules.toRules` (builder, `DraftRules.kt`) | the rules a builder save writes, tried at version 3, then 2, then 1 | the first attempt is made at the write version, not at a fixed `FORMAT_3`, and must branch on "requires 3 or more", not "requires exactly 3" (today `v3.requiredVersion == FORMAT_3`), or a studio channel falls to the version-2 path and drops carried version-3 data such as a `curated` order. The never-lower rule reads `previous`, not `carry` (which is null when `draft.kept` is null) |
-| `RecipeResolver` (`RecipeResolver.kt`: `LATEST_FORMAT` at line 82, `fitted.copy(formatVersion = fitted.requiredVersion)` at line 94) | the version a resolved starter is built and written at | `LATEST_FORMAT` follows the write version, and line 94 writes at `writeVersion`: 4 for a starter with a studio source or exclusion once the gate has passed, 3 before. On a re-resolve (`LineupPlanner.kt`, line 374) the higher of the stored and the written version is kept |
+| `RecipeResolver` (`RecipeResolver.kt`: `LATEST_FORMAT` at line 82, `fitted.copy(formatVersion = fitted.requiredVersion)` at line 94) | the version a resolved starter is built and written at | `LATEST_FORMAT` follows the write version, and line 94 writes at `writeVersion`: 4 for a starter with a studio source or exclusion once the gate has passed, 3 before. On a re-resolve (`LineupPlanner.kt`, line 374, and a shelved starter switched on) the higher of the stored and the written version is kept when the resolved rules hold a studio feature |
 | Rules read and import: `RulesReader.read` through `LineupCodec` (a channel's rules and its previous rules), and any import or restore of a rules file | where a stored, imported or restored file enters the app | a `formatVersion` 3 file is read, and matched under fold 1, as it is; once the gate has passed one with a studio feature is written back as 4 (see Versioning) |
 | `GroupCollections.isBoxSet` | box-set detection (`docs/rules-format.md`, the name ends in U+0020 `collection`) | fold 1. It needs the space; a change changes which collections group and would need its own version |
 
@@ -224,14 +228,34 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
 
   | Port | Minimum version that reads 4 |
   | --- | --- |
-  | Fire OS (Kotlin, this repo) | to be filled at release |
-  | Vega OS | to be filled at release |
-  | Roku | to be filled at release |
+  | Fire OS (Kotlin, this repo) | to be filled at release (versionName/versionCode); parts 2 and 3 ship in the same release, or part 2 first |
+  | Vega OS | no release yet; must read 4 before the first release (Vega OS #38) |
+  | Roku | no release yet; must read 4 before the first release (Roku #29) |
 
   The owner verifies that every listed version is released and that every TV in the household runs at least it (the
   version and `rulesFormat` are on the app's diagnostics screen), and only then is the release that writes 4 shipped.
   A TV that missed the update (automatic updates off) or was downgraded reads a format-4 file as "update required":
   that channel is not scheduled, so the excluded titles do not air. It fails closed.
+
+  **Gate ruling (2026-11-13): a waiver for the Fire app, not a pass.** Neither the Roku nor the Vega OS port has a
+  release (both are private repositories with no releases); each has an open issue to implement this ADR (Roku #29,
+  Vega OS #38) and must read 4 before its first release. The only released app is the Fire app, and the owner asked to
+  ship the fix now, so the owner waived the reader-before-writer order for it. The waiver fails closed:
+  - lineup files are local to each TV: no other TV reads the file a Fire TV rewrites;
+  - a downgraded app reads 4 as "update required": the channel is not scheduled, and its source is kept verbatim, so
+    nothing is lost and the excluded titles do not air;
+  - fold 2 applies in memory from the first load of the release that writes 4, before the rewrite has landed.
+
+  A development build of a port that reads a lineup this app wrote sees "update required" for the upgraded channels
+  (it fails closed too). No copy of the fold-1 file is kept before the rewrite, on purpose: a copy would bring the
+  looser matching back if anything ever restored it. After the rewrite, an app older than part 2 shows those channels
+  as "update required".
+
+  No diagnostics screen exists yet (F3.6), so the Fire app logs the rules formats once per account, from the first
+  read of the stored lineup on any path, under the `Lineup` tag:
+  `rules formats v1=<n> v2=<n> v3=<n> v4=<n> upgraded=<n>` (counts only, no names). The versions count the lineup as loaded, after the in-memory upgrade, so
+  `v3=` is what still says 3 in memory; `upgraded=` above 0 on a second start means the earlier rewrite did not land.
+  The diagnostics screen (F3.6) should show the same counts when it is built.
 - **Upgrade to 4: a one-time rewrite, kept as an invariant.** In the release that ships after the gate has passed:
   - **The rewrite.** On its first start the app rewrites, once, every rules file that says `formatVersion` 3 and holds
     a `studio` source, a `studio` exclusion or a `studios` filter: `formatVersion` becomes 4 and nothing else changes
@@ -248,7 +272,8 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
     was updated later: no save by a release that writes 4 writes a studio file below 4.
   - **Never lower a file that says 4.** The release that reads 4 ships before the gate, while `writeVersion` is still 3
     for studio features. It must not write a file that says 4 back as 3: `writeVersion` is never lower than the file's
-    previous `formatVersion` when the file holds a `studio` source, a `studio` exclusion or a `studios` filter, and
+    previous `formatVersion` when the rules being written hold a `studio` source, a `studio` exclusion or a `studios`
+    filter, and
     `normalised`, `DraftRules.toRules` (reading `previous`, which is set even when nothing was carried) and a
     re-resolved starter keep it. (Today `DraftRules.toRules` tries version 3 by a fixed `FORMAT_3` and `normalised` sets
     the version to `requiredVersion`, which can lower it; both change in that release.)
@@ -307,6 +332,10 @@ dropped, mapped and trimmed sets are inside R, and the `PersistedDays` hold name
 - Names that differ only in spacing match under fold 2, for rules and holds alike.
 - Older apps say "update required" for a format-4 file, the existing behaviour for a newer version.
 - Every day built under the old hold names is rebuilt once.
+- Until the gate passes, the planner ranks starters and works out what opt-in starters withhold from the rules as a fresh
+  resolve writes them (format 3, studio fold 1), even for a starter whose stored rules say 4. Only which starters are
+  switched on and what the leftovers hold can differ; what a channel airs and what its exclusions remove is decided by
+  its stored rules, so this has no safety effect, and it ends when the gate flips (for the Fire app, by the waiver of 2026-11-13).
 
 ## Owner decisions (2026-11-13)
 

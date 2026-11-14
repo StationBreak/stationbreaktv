@@ -6,9 +6,10 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
- * The channel rules of format versions 1 to 3 (docs/rules-format.md). A reader builds this from a file and a writer
+ * The channel rules of format versions 1 to 4 (docs/rules-format.md). A reader builds this from a file and a writer
  * turns it back into the same file. A file holds only what its [formatVersion] allows: [requiredVersion] is the lowest
- * version that has every feature the rules use, and the version must not be below it.
+ * version that has every feature the rules use, and the version must not be below it. Version 4 has the fields of
+ * version 3; it matches studios under studio fold 2 ([matchesStudiosByFold2], ADR-0026).
  *
  * A field with a default is `null` when the file did not write it, so a rewrite does not invent it. The `effective…`
  * properties give the value to use. Fields this version does not know are in the `extras` of the object that held them.
@@ -29,7 +30,7 @@ data class ChannelRules(
 ) {
     init {
         require(formatVersion in 1..RulesLimits.SUPPORTED_FORMAT_VERSION.toInt()) {
-            "Only format versions 1 to 3 can be held"
+            "Only format versions 1 to 4 can be held"
         }
         require(formatVersion >= requiredVersion) { "The file version is below the lowest that has these features" }
         name?.let { RulesVocabulary.requireText(it, RulesLimits.MAX_NAME_CODE_POINTS, "The name") }
@@ -46,6 +47,40 @@ data class ChannelRules(
             RulesVocabulary.requireFreeExtras(it.runtimeExtras, RulesVocabulary.filterRuntime(formatVersion))
         }
     }
+
+    /** True when the rules hold a `studio` source, a `studio` exclusion or a `studios` filter: the studio features. */
+    val usesStudios: Boolean
+        get() =
+            sources.any { it is Source.Studio } ||
+                effectiveExclusions.any { it is Source.Studio } ||
+                filters?.studios != null
+
+    /**
+     * True when studio names match under studio fold 2 (a file that says 4 or more, ADR-0026), false under studio
+     * fold 1 (1 to 3).
+     */
+    val matchesStudiosByFold2: Boolean get() = formatVersion >= StudioFold2Gate.FORMAT_VERSION
+
+    /**
+     * The version the app writes these rules at (ADR-0026, Versioning): [requiredVersion], except for rules that
+     * [usesStudios]: 4 once the gate has passed, and before it never lower than the version they were read at, so a
+     * file that says 4 is not written back as 3.
+     */
+    val writeVersion: Int get() = writeVersion(previousVersion = formatVersion)
+
+    /**
+     * [writeVersion] for rules made from a file that said [previousVersion] (null for new rules), with the gate as
+     * [gatePassed]. `requiredVersion` is not changed by the gate: a studio file that says 3 stays valid.
+     */
+    fun writeVersion(
+        previousVersion: Int?,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
+    ): Int =
+        when {
+            !usesStudios -> requiredVersion
+            gatePassed -> StudioFold2Gate.FORMAT_VERSION
+            else -> maxOf(requiredVersion, previousVersion ?: requiredVersion)
+        }
 
     /** The ordering mode to use: `shuffle` when the file has no `ordering`. */
     val orderingMode: OrderingMode get() = ordering?.mode ?: OrderingMode.Shuffle
@@ -121,8 +156,25 @@ data class ChannelRules(
         )
 }
 
-/** These rules at the lowest version that has their features: what a writer that edits rules should write. */
-fun ChannelRules.normalised(): ChannelRules = withVersion(requiredVersion)
+/**
+ * These rules at their [ChannelRules.writeVersion]: what a writer that edits rules should write. That is the lowest
+ * version that has their features, except that rules with a studio feature are never written below the version they
+ * said, and are written at 4 once the gate ([gatePassed]) has passed.
+ */
+fun ChannelRules.normalised(gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4): ChannelRules =
+    withVersion(writeVersion(formatVersion, gatePassed))
+
+/**
+ * These rules as the app keeps them after reading, importing or restoring them (ADR-0026, Versioning, the upgrade):
+ * once the gate ([gatePassed]) has passed, rules that say 3 and hold a studio feature say 4, and nothing else changes;
+ * otherwise they are returned as they are. Rules that say 1 or 2 are never upgraded, and rules at 4 are left alone.
+ */
+fun ChannelRules.upgradedToStudioFold2(gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4): ChannelRules =
+    if (gatePassed && formatVersion == RulesVocabulary.VERSION_3 && usesStudios) {
+        copy(formatVersion = StudioFold2Gate.FORMAT_VERSION)
+    } else {
+        this
+    }
 
 /**
  * The `ordering` object. [caps] is a version 2 field, and [repeatGapMinutes] and [pairUpToMinutes] are version 3

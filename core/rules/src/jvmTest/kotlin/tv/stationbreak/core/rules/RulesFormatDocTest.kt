@@ -108,15 +108,17 @@ class RulesFormatDocTest {
             "> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). " +
                 "Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged " +
                 "(see Format version). Version 3 (2026-11-03): it adds features to version 2 and leaves versions 1 " +
-                "and 2 unchanged. Any later change that alters a lineup needs `formatVersion` 4."
+                "and 2 unchanged. Version 4 (2026-11-13): it adds no field and changes only how a studio name " +
+                "matches (studio fold 2, see Studio names). Any later change that alters a lineup needs " +
+                "`formatVersion` 5."
         assertTrue(banner in doc.lines(), "the final banner is missing")
         assertTrue("### Changes to version 1 (2026-10-19)" in doc.lines(), "the amendment section is missing")
         assertTrue(doc.lines().none { it.startsWith("> Draft") }, "a Draft banner remains")
         assertTrue("**Version 2 is final**" in doc, "the Format version text does not say version 2 is final")
         assertTrue("**Version 2 is a Draft**" !in doc, "the Format version text still calls version 2 a Draft")
         assertTrue(
-            "A later change that alters a lineup needs `formatVersion` 4." in doc,
-            "the version 4 rule must apply now that version 3 is defined",
+            "A later change that alters a lineup needs `formatVersion` 5." in doc,
+            "the version 5 rule must apply now that version 4 is defined",
         )
         for (h in listOf("items and the pool", "building the schedule", "verify your client", "glossary")) {
             assertTrue(headings.any { h in it }, "no section heading mentions: $h")
@@ -221,7 +223,7 @@ class RulesFormatDocTest {
     }
 
     @Test
-    fun theVerifyListRejectsVersionFour() {
+    fun theVerifyListRejectsVersionFive() {
         val start = doc.lines().indexOfFirst { it.startsWith("## Verify your client") }
         assertTrue(start >= 0, "no Verify your client section")
         val section =
@@ -230,15 +232,15 @@ class RulesFormatDocTest {
                 .drop(start + 1)
                 .takeWhile { !it.startsWith("## ") }
                 .joinToString("\n")
-        assertTrue("`formatVersion` 4 is not scheduled" in section, "item 9 must reject version 4")
-        assertTrue("`formatVersion` 3 is not scheduled" !in section, "item 9 still rejects version 3")
+        assertTrue("`formatVersion` 5 is not scheduled" in section, "item 9 must reject version 5")
+        assertTrue("`formatVersion` 4 is not scheduled" !in section, "item 9 still rejects version 4")
     }
 
     @Test
     fun theDocNamesFormatVersionThree() {
         val needles =
             listOf(
-                "This document defines versions `1`, `2` and `3`",
+                "This document defines versions `1`, `2`, `3` and `4`",
                 "\"type\": \"studio\"",
                 "`curated`",
                 "`repeatGapMinutes`",
@@ -256,6 +258,23 @@ class RulesFormatDocTest {
             )
         for (needle in needles) assertTrue(needle in doc, "version 3 feature missing from the document: $needle")
         assertTrue(headings.any { "curated" in it } || doc.lines().any { it == "### `curated`" }, "no curated section")
+    }
+
+    // ADR-0026: the Studio fold 2 subsection, the empty-key rule, the gate and the version 4 schema.
+    @Test
+    fun theDocDescribesFormatVersionFour() {
+        val flat = doc.replace(Regex("\\s+"), " ")
+        assertTrue(doc.lines().any { it == "### Studio fold 2" }, "no Studio fold 2 subsection")
+        for (needle in listOf(
+            "**Version 4**",
+            "**The empty-key rule.**",
+            "**Writing version 4.**",
+            "is **never** written back as 3",
+            "channel-rules.v4.schema.json",
+            "docs/adr/0026-studio-fold-2.md",
+        )) {
+            assertTrue(needle in flat, "missing: $needle")
+        }
     }
 
     @Test

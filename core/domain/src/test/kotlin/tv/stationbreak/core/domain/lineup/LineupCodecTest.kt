@@ -245,7 +245,7 @@ class LineupCodecTest {
 
     @Test
     fun rulesThatNeedANewerAppAreUnusableNotUnreadable() {
-        val newer = """{"formatVersion":4,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
+        val newer = """{"formatVersion":5,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
         val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(newer))) }
         val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
         assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
@@ -298,22 +298,31 @@ class LineupCodecTest {
 
     @Test
     fun aStarterWithV3RulesIsUsable() {
+        // Before the format 4 gate (ADR-0026) the rules come out as written; past it, these (a studio source) say 4.
         val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(version3Text))) }
-        val first = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+        val first = loadedBeforeTheGate(file.toString().encodeToByteArray())
         val source = assertIs<ChannelSource.Starter>(first.channels[0].source)
         assertEquals(3, source.rules.formatVersion)
-        val second = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(first))).lineup
-        assertEquals(first, second)
-        val custom = assertIs<LineupCodec.Decoded.Loaded>(decode(customWith(version3Text).toString())).lineup
+        assertEquals(first, loadedBeforeTheGate(LineupCodec.encode(first)))
+        val custom = loadedBeforeTheGate(customWith(version3Text).toString().encodeToByteArray())
         assertEquals(3, assertIs<ChannelSource.Custom>(custom.channels[0].source).rules.formatVersion)
+        val upgraded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+        assertEquals(4, assertIs<ChannelSource.Starter>(upgraded.channels[0].source).rules.formatVersion)
     }
 
+    private fun loadedBeforeTheGate(bytes: ByteArray) =
+        assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes, gatePassed = false)).lineup
+
     @Test
-    fun aFourthVersionRulesFileStaysUnusable() {
+    fun aFourthVersionRulesFileIsUsableAndAFifthStaysUnusable() {
         val fourth = version3Text.replace("\"formatVersion\":3", "\"formatVersion\":4")
         val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(fourth))) }
         val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
-        assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
+        assertEquals(4, assertIs<ChannelSource.Starter>(loaded.channels[0].source).rules.formatVersion)
+        val fifth = version3Text.replace("\"formatVersion\":3", "\"formatVersion\":5")
+        val newer = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(fifth))) }
+        val stays = assertIs<LineupCodec.Decoded.Loaded>(decode(newer.toString())).lineup
+        assertIs<ChannelSource.Unusable>(stays.channels[0].source)
     }
 
     @Test
