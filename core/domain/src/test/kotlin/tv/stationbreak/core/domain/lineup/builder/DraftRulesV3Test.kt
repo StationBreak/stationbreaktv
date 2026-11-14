@@ -45,11 +45,15 @@ class DraftRulesV3Test {
 
     private fun fromRules(rules: ChannelRules) = DraftRules.fromRules(rules, null) { it.key }
 
+    // An edit of [previous] when it is set (the saved channel keeps its version), else a new channel (written at 5).
     private fun toRules(
         draft: ChannelDraft,
         previous: ChannelRules? = null,
         gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
-    ) = DraftRules.toRules(draft, offset, previous, gatePassed)
+    ): ChannelRules {
+        val target = previous?.let { RulesTarget.Edit(it) } ?: RulesTarget.NewChannel(null)
+        return DraftRules.toRules(draft, offset, target, gatePassed)
+    }
 
     // What "Use the builder's settings instead" does in the view model.
     private fun ChannelDraft.useBuildersSettings() =
@@ -182,7 +186,7 @@ class DraftRulesV3Test {
     }
 
     @Test
-    fun aPlainBuilderChannelStillWritesV2() {
+    fun aPlainNewBuilderChannelNeedsV2AndIsWrittenAt5() {
         val draft =
             ChannelDraft(
                 "Funny",
@@ -194,7 +198,8 @@ class DraftRulesV3Test {
                 seed = seed,
             )
 
-        assertEquals(2, toRules(draft).formatVersion)
+        assertEquals(2, toRules(draft).requiredVersion)
+        assertEquals(5, toRules(draft).formatVersion, "a new channel has the floor of 5 (Task 6)")
     }
 
     @Test

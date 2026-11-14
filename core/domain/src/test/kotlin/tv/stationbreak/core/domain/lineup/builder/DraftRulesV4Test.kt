@@ -44,6 +44,20 @@ class DraftRulesV4Test {
 
     private fun fromRules(rules: ChannelRules) = DraftRules.fromRules(rules, null) { it.key }
 
+    // A save of the custom channel whose stored rules are [stored].
+    private fun save(
+        draft: ChannelDraft,
+        stored: ChannelRules,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
+    ) = DraftRules.toRules(draft, offset, RulesTarget.Edit(stored), gatePassed)
+
+    // A new channel copied from the built-in channel whose rules are [carry].
+    private fun create(
+        draft: ChannelDraft,
+        carry: ChannelRules,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
+    ) = DraftRules.toRules(draft, offset, RulesTarget.NewChannel(carry), gatePassed)
+
     @Test
     fun theGateHasPassed() {
         assertTrue(StudioFold2Gate.WRITES_FORMAT_4)
@@ -53,13 +67,13 @@ class DraftRulesV4Test {
     fun aFormat4FileWithAStudioSourceAndACuratedOrderKeepsBothAndStays4() {
         val stored = rules(4)
         val draft = fromRules(stored)
-        val saved = DraftRules.toRules(draft, offset, stored)
+        val saved = save(draft, stored)
         assertEquals(stored, saved)
         assertEquals(4, saved.formatVersion)
         assertEquals(OrderingMode.Curated, saved.orderingMode)
         assertEquals(Source.Studio("Studio A"), saved.sources.first())
         // An edit the builder shows keeps it at 4 too.
-        val renamed = DraftRules.toRules(draft.copy(name = "Renamed"), offset, stored)
+        val renamed = save(draft.copy(name = "Renamed"), stored)
         assertEquals(4, renamed.formatVersion)
         assertEquals(OrderingMode.Curated, renamed.orderingMode)
     }
@@ -67,7 +81,7 @@ class DraftRulesV4Test {
     @Test
     fun aFormat4StudioExclusionIsNotLoweredEither() {
         val stored = rules(4, sources = listOf(Source.Genre("Comedy")), exclusions = listOf(Source.Studio("Studio B")))
-        val saved = DraftRules.toRules(fromRules(stored), offset, stored)
+        val saved = save(fromRules(stored), stored)
         assertEquals(4, saved.formatVersion)
         assertEquals(listOf<Source>(Source.Studio("Studio B")), saved.exclusions)
     }
@@ -76,23 +90,24 @@ class DraftRulesV4Test {
     fun aFormat3StudioFileStays3WithTheGateOffAnd4WithItOn() {
         val stored = rules(3, ordering = null)
         val draft = fromRules(stored)
-        assertEquals(3, DraftRules.toRules(draft, offset, stored, gatePassed = false).formatVersion)
-        val after = DraftRules.toRules(draft, offset, stored, gatePassed = true)
+        assertEquals(3, save(draft, stored, gatePassed = false).formatVersion)
+        val after = save(draft, stored, gatePassed = true)
         assertEquals(stored.copy(formatVersion = 4), after)
-        assertEquals(after, DraftRules.toRules(draft, offset, stored), "the app's default: the gate has passed")
+        assertEquals(after, save(draft, stored), "the app's default: the gate has passed")
     }
 
+    // Task 6: a new studio channel (a copy of a starter with a studio source, whose rules are carried) is written at
+    // 5, above ADR-0026's 4 and whatever its gate says.
     @Test
-    fun aNewStudioChannelSavedAfterTheGateWrites4() {
-        // A new channel made from a starter with a studio source (a copy): the starter's rules are previous.
+    fun aNewStudioChannelIsWrittenAt5AboveAdr0026s4() {
         val starter = rules(3, ordering = null)
         val copy = fromRules(starter).copy(name = "My copy")
-        val saved = DraftRules.toRules(copy, offset, starter, gatePassed = true)
-        assertEquals(4, saved.formatVersion)
+        val saved = create(copy, starter, gatePassed = true)
+        assertEquals(5, saved.formatVersion)
         assertEquals(Source.Studio("Studio A"), saved.sources.first())
         assertIs<RulesResult.Ok>(RulesReader.read(RulesWriter.write(saved)))
-        assertEquals(3, DraftRules.toRules(copy, offset, starter, gatePassed = false).formatVersion)
-        assertEquals(4, DraftRules.toRules(copy, offset, starter).formatVersion, "the app's default")
+        assertEquals(5, create(copy, starter, gatePassed = false).formatVersion)
+        assertEquals(5, create(copy, starter).formatVersion, "the default")
     }
 
     @Test
@@ -107,20 +122,22 @@ class DraftRulesV4Test {
     fun withoutStudiosAFormat4FileIsWrittenAtItsRequiredVersion() {
         val stored = rules(4, sources = listOf(Source.Genre("Comedy")))
         for (gate in listOf(false, true)) {
-            assertEquals(3, DraftRules.toRules(fromRules(stored), offset, stored, gatePassed = gate).formatVersion)
+            assertEquals(3, save(fromRules(stored), stored, gatePassed = gate).formatVersion)
         }
     }
 
-    // The app reads 5 (the spread day end) but nothing writes it yet: a new channel is written at ADR-0026's version.
+    // Task 6: a new channel is written at 5 (the spread day end), not at the lowest version it needs.
     @Test
-    fun aNewChannelIsNotWrittenAt5() {
+    fun aNewChannelIsWrittenAt5NotItsLowestVersion() {
         val comedy = DraftSource.Genre("Comedy", "Comedy")
         val draft = ChannelDraft("New", listOf(comedy), emptyList(), DraftFilters(), kids = false, seed = Seed(9uL))
         val saved = DraftRules.toRules(draft, offset)
-        assertEquals(saved.requiredVersion, saved.formatVersion)
-        // A new studio channel (a copy of a starter at 3) is written at 4, as ADR-0026 says.
+        assertEquals(2, saved.requiredVersion)
+        assertEquals(5, saved.formatVersion)
+        // A new studio channel (a copy of a starter at 3) is at 5 too, above ADR-0026's 4.
         val starter = rules(3, ordering = null)
-        assertEquals(4, DraftRules.toRules(fromRules(starter).copy(name = "Mine"), offset, starter).formatVersion)
+        val copy = fromRules(starter).copy(name = "Mine")
+        assertEquals(5, create(copy, starter).formatVersion)
     }
 
     // A file that says 5 is never written lower by the builder, whatever it holds.
@@ -131,8 +148,8 @@ class DraftRulesV4Test {
         for (stored in listOf(plain, studio)) {
             val draft = fromRules(stored)
             for (gate in listOf(false, true)) {
-                assertEquals(stored, DraftRules.toRules(draft, offset, stored, gatePassed = gate))
-                assertEquals(5, DraftRules.toRules(draft.copy(name = "Renamed"), offset, stored, gate).formatVersion)
+                assertEquals(stored, save(draft, stored, gatePassed = gate))
+                assertEquals(5, save(draft.copy(name = "Renamed"), stored, gate).formatVersion)
             }
         }
     }

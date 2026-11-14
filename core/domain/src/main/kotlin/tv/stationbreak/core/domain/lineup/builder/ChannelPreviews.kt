@@ -154,21 +154,23 @@ class BuiltInChannelPreviews(
     ): ChannelPreview? {
         val lineup = service.loaded(account)?.lineup
         val chosen = libraries()?.takeIf { it.isNotEmpty() }
-        val previous = lineup?.let { previousRules(it, draft) }
+        if (lineup == null) return null
+        val target = targetOf(lineup, draft)
         // Kept settings come from the rules they were read from: without them the draft cannot be previewed.
-        val keptReadable = draft.kept == null || previous != null
-        return if (lineup == null || chosen == null || !keptReadable) {
+        val keptReadable = draft.kept == null || target.previous != null
+        return if (chosen == null || !keptReadable) {
             null
         } else {
-            previewFor(account, draft, at, Inputs(lineup, chosen, previous))
+            previewFor(account, draft, at, Inputs(lineup, chosen, target))
         }
     }
 
-    // What a preview reads before it starts: the lineup, the chosen libraries and the rules the kept settings are of.
+    // What a preview reads before it starts: the lineup, the chosen libraries and what the rules are written for (the
+    // rules the kept settings are of among it).
     private data class Inputs(
         val lineup: Lineup,
         val chosen: Set<ItemId>,
-        val previous: ChannelRules?,
+        val target: RulesTarget,
     )
 
     private suspend fun previewFor(
@@ -177,8 +179,8 @@ class BuiltInChannelPreviews(
         at: Instant,
         inputs: Inputs,
     ): ChannelPreview {
-        val (lineup, chosen, previous) = inputs
-        val rules = DraftRules.toRules(draft, lineup.utcOffsetMinutes, previous)
+        val (lineup, chosen, target) = inputs
+        val rules = DraftRules.toRules(draft, lineup.utcOffsetMinutes, target)
         val channel = syntheticChannel(lineup, draft, rules, at)
         val settings = rules.toSchedulerSettings()
         val n = Epochs.epochNumber(settings, at.toEpochMilliseconds())
@@ -224,17 +226,18 @@ class BuiltInChannelPreviews(
         return cuts.mapTo(HashSet()) { it.cutoffMs }
     }
 
-    // The rules the draft was opened from; null for a new channel, or when its origin is gone.
-    private fun previousRules(
+    // What the draft's rules are written for, as the flow it previews writes them: a draft opened from a custom
+    // channel is an edit of it (save), any other a new channel (create), carrying the rules of the built-in channel a
+    // copy was opened from. With no origin, or one that is gone, it is a new channel with nothing to carry.
+    private fun targetOf(
         lineup: Lineup,
         draft: ChannelDraft,
-    ): ChannelRules? {
+    ): RulesTarget {
         val origin = draft.origin
-        if (draft.kept == null || origin == null) return null
         return when (val held = lineup.channels.firstOrNull { it.id == origin }?.source) {
-            is ChannelSource.Starter -> held.rules
-            is ChannelSource.Custom -> held.rules
-            else -> null
+            is ChannelSource.Custom -> RulesTarget.Edit(held.rules)
+            is ChannelSource.Starter -> RulesTarget.NewChannel(held.rules)
+            else -> RulesTarget.NewChannel(null)
         }
     }
 

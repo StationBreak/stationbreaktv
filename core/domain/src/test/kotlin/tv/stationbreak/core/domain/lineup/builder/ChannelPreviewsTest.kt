@@ -502,6 +502,34 @@ class ChannelPreviewsTest {
         assertNotEquals(ids(shown), ids(dropped), "the kept order is not the builder's Shuffle")
     }
 
+    // Task 6: a copy is a new channel, written at 5 (the spread day end), so its preview lays the day out with the
+    // leftover spread as breaks, as create then airs it. The starter it copies says 1 and gathers the leftover at the
+    // end: with its seed and its rules, only the version differs, and the breaks before 12:41 move what is on air.
+    @Test
+    fun aCopyPreviewLaysOutWithSpread() {
+        // 100-minute films: 14 fill 23 h 20 min of the day, and 40 minutes are left.
+        (1..7).forEach { film(it, item = movieItem(it, runtimeMs = 100 * 60_000L)) }
+        val backToBack = Timing(null, false, 24, null, null, null, BroadcastDay(0, "06:00"))
+        val laughs = rules("Laughs", Source.Genre("Comedy")).copy(timing = backToBack)
+        val starter = starter("gathered", 120, ChannelState.On, laughs)
+        runBlocking { holding(starter) }
+        val opened = runBlocking { builder.open(ACCOUNT, starter.id, copy = true) } as OpenResult.Opened
+        val copy = opened.draft.copy(name = "Laughs (copy)", seed = laughs.seed)
+        assertTrue(copy.kept?.items?.contains(KeptItem.NoCaps) == true, "the copy keeps the starter's own order")
+        // The fifth film of the gathered day starts at 12:40.
+        val at = Instant.parse("2026-10-19T12:41:00Z")
+
+        val shown = runBlocking { previews.preview(ACCOUNT, copy, at) }
+
+        // The source lists 12 airings, breaks and slates among them; the preview lists programs only.
+        val aired = airedAs(copy, at)
+        assertEquals(aired, ids(shown).take(aired.size), "the preview is what create then airs")
+        val gathered = runBlocking { airs(starter.id, at) }
+        // The first five programs: the day's end (a gathered slate, or breaks) is not among them.
+        val first = 5
+        assertNotEquals(gathered.take(first), ids(shown).take(first), "the copy spreads; the starter gathers")
+    }
+
     @Test
     fun anEditOfACustomChannelPreviewsWhatSaveThenAirs() {
         dramas()

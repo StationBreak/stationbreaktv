@@ -36,10 +36,11 @@ class DraftRulesTest {
         order: PlayOrder = PlayOrder.Shuffle,
     ) = ChannelDraft(name, sources, emptyList(), DraftFilters(), order = order, kids = false, seed = seed)
 
+    // An edit of [previous] when it is set (the saved channel keeps its version), else a new channel (written at 5).
     private fun toRules(
         draft: ChannelDraft,
         previous: ChannelRules? = null,
-    ) = DraftRules.toRules(draft, offset, previous)
+    ) = DraftRules.toRules(draft, offset, previous?.let { RulesTarget.Edit(it) } ?: RulesTarget.NewChannel(null))
 
     private fun fromRules(
         rules: ChannelRules,
@@ -47,22 +48,24 @@ class DraftRulesTest {
     ) = DraftRules.fromRules(rules, number) { it.key }
 
     @Test
-    fun aDefaultDraftWritesShuffleWithCaps3And1AndVersion2() {
+    fun aDefaultDraftWritesShuffleWithCaps3And1AndVersion5() {
         val rules = toRules(draft())
 
-        assertEquals(2, rules.formatVersion)
+        assertEquals(2, rules.requiredVersion)
+        assertEquals(5, rules.formatVersion, "a new channel has the floor of 5 (Task 6)")
         assertEquals(OrderingMode.Shuffle, rules.orderingMode)
         assertEquals(3, rules.effectiveCaps?.series)
         assertEquals(1, rules.effectiveCaps?.film)
     }
 
     @Test
-    fun inOrderWritesNoCapsAndVersion2() {
+    fun inOrderWritesNoCapsAndVersion5() {
         val rules = toRules(draft(order = PlayOrder.InOrder))
 
         assertEquals(OrderingMode.InOrder, rules.orderingMode)
         assertNull(rules.ordering?.caps)
-        assertEquals(2, rules.formatVersion)
+        assertEquals(2, rules.requiredVersion)
+        assertEquals(5, rules.formatVersion, "a new channel has the floor of 5 (Task 6)")
     }
 
     private val keptRules =
@@ -436,7 +439,8 @@ class DraftRulesTest {
         val rules = toRules(fromRules(busy).copy(kept = null), busy)
 
         val plain = draft("Western", listOf(DraftSource.Genre("Western", "Western")))
-        assertEquals(toRules(plain).copy(maxRating = "PG"), rules)
+        // The new channel is at 5; the saved one keeps the lowest version its rules need.
+        assertEquals(toRules(plain).copy(maxRating = "PG", formatVersion = 2), rules)
         assertNull(rules.timing.graceHours)
         assertNull(rules.timing.gridMinutes)
         assertEquals(24, rules.timing.epochHours)

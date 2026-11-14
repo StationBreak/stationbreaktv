@@ -159,7 +159,7 @@ class LineupPlannerMigrationTest {
 
         val next = swap(lineup, realLibrary, StarterCatalog)
 
-        assertEquals(3, next.catalogVersion)
+        assertEquals(StarterCatalog.VERSION, next.catalogVersion)
         val byId = lineup.channels.associateBy { it.id }
         var held = 0
         for (channel in next.channels) {
@@ -189,7 +189,7 @@ class LineupPlannerMigrationTest {
 
         val next = swap(lineup, realLibrary, StarterCatalog)
 
-        assertEquals(3, next.catalogVersion)
+        assertEquals(StarterCatalog.VERSION, next.catalogVersion)
         assertTrue(next.viewerChoicesKnown)
         assertEquals(lineup.channels.map { it.id }.toSet(), next.channels.map { it.id }.toSet())
         val byId = next.channels.associateBy { it.id }
@@ -501,9 +501,136 @@ class LineupPlannerMigrationTest {
         assertEquals(lineup.channel("echo").starter, next.channel("echo").starter, "a hidden starter is left alone")
     }
 
+    // Task 6 (the spread day end): catalogs 3 and 4 have the same recipes, one of them ([STUDIO_KEY]) with a studio
+    // source, and foxtrot, which nothing fills. The bump to 4 moves every unedited starter to format 5 through the
+    // keeper path: from the boundary for one on the air, at once for one that is not.
+    private fun spreadCatalog(version: Int): TestCatalog =
+        TestCatalog(
+            (plain + recipeOf("foxtrot", 130)).map {
+                val studio = if (it.key == STUDIO_KEY) listOf(Source.Studio("Studio E")) else emptyList()
+                themed(it.copy(sources = it.sources + studio))
+            },
+            version = version,
+            selectsByIdentity = true,
+        )
+
+    // A starter's rules (and previous rules) as an older app wrote them, at [version].
+    private fun Lineup.withStarterAt(
+        key: String,
+        version: Int,
+    ): Lineup =
+        withChannel(key) {
+            it.copy(source = it.starter.mapRules { rules -> rules.copy(formatVersion = version) })
+        }
+
+    // A lineup chosen under catalog 3 by an app before Task 6: its starters say 3, the studio one 4 (ADR-0026).
+    private fun underCatalog3(): Lineup {
+        val chosen = planOf(null, libraryOf(fills), spreadCatalog(3))
+        return chosen.channels.fold(chosen) { lineup, channel ->
+            val source = channel.source as? ChannelSource.Starter ?: return@fold lineup
+            lineup.withStarterAt(source.recipeKey, if (source.rules.usesStudios) 4 else 3)
+        }
+    }
+
+    @Test
+    fun anOnAirUneditedStarterIsAtItsOldVersionTodayAndV5Tomorrow() {
+        val lineup = underCatalog3()
+
+        val next = swap(lineup, catalog = spreadCatalog(4))
+
+        assertEquals(4, next.catalogVersion)
+        for ((key, old) in listOf("alpha" to 3, STUDIO_KEY to 4)) {
+            val channel = next.channel(key)
+            assertEquals(ChannelState.On, channel.state, key)
+            val source = channel.starter
+            assertEquals(lineup.channel(key).starter.rules, source.rulesFor(noon), "$key: today is as it was")
+            assertEquals(old, source.rulesFor(noon).formatVersion, "$key today")
+            assertEquals(5, source.rulesFor(boundary).formatVersion, "$key tomorrow")
+            assertTrue(source.rulesFor(boundary).spreadsDayEnd, key)
+            assertEquals(boundary, source.rulesFromMs, key)
+            assertEquals(
+                5,
+                next
+                    .rolled(boundary)
+                    .channel(key)
+                    .starter.rules.formatVersion,
+                key,
+            )
+        }
+    }
+
+    @Test
+    fun aShelvedUneditedStarterIsV5AtOnce() {
+        val lineup = underCatalog3()
+        assertEquals(ChannelState.Shelf, lineup.channel("foxtrot").state)
+        assertEquals(
+            3,
+            lineup
+                .channel("foxtrot")
+                .starter.rules.formatVersion,
+        )
+
+        val next = swap(lineup, catalog = spreadCatalog(4))
+
+        val foxtrot = next.channel("foxtrot")
+        assertEquals(ChannelState.Shelf, foxtrot.state)
+        assertEquals(5, foxtrot.starter.rules.formatVersion)
+        assertEquals(5, foxtrot.starter.rulesFor(noon).formatVersion, "nothing of it airs today: at once")
+        assertNull(foxtrot.starter.previousRules)
+    }
+
+    @Test
+    fun anEditedStarterKeepsItsVersion() {
+        val lineup = underCatalog3().withChannel("bravo") { it.copy(source = it.starter.copy(edited = true)) }
+
+        val next = swap(lineup, catalog = spreadCatalog(4))
+
+        assertSame(lineup.channel("bravo"), next.channel("bravo"), "an edited starter is never touched")
+        assertEquals(
+            3,
+            next
+                .rolled(boundary)
+                .channel("bravo")
+                .starter.rules.formatVersion,
+        )
+    }
+
+    // A re-resolve (here a synced plan with no newer catalog) writes the higher of the stored version and the
+    // resolver's, which is floored at 5: a stored 5 stays 5, and a stored 3 or 4 moves to 5 at the boundary. So the
+    // rules a keeper takes are always at 5, and the keeper path never pairs rules below 5 with previous rules at 5.
+    @Test
+    fun aReResolvedStarterKeepsTheHigherOfStoredAndWritten() {
+        val chosen = planOf(null, libraryOf(fills), spreadCatalog(4))
+        assertEquals(
+            5,
+            chosen
+                .channel("bravo")
+                .starter.rules.formatVersion,
+        )
+        val lineup = chosen.withStarterAt("alpha", 3).withStarterAt(STUDIO_KEY, 4)
+
+        val next = planOf(lineup, libraryOf(fills), spreadCatalog(4), nowMs = noon, boundaryMs = boundary)
+
+        assertEquals(4, next.catalogVersion)
+        assertSame(lineup.channel("bravo").starter, next.channel("bravo").starter, "a stored 5 is never written lower")
+        for ((key, old) in listOf("alpha" to 3, STUDIO_KEY to 4)) {
+            val source = next.channel(key).starter
+            assertEquals(old, source.rulesFor(noon).formatVersion, key)
+            assertEquals(5, source.rules.formatVersion, key)
+            assertEquals(boundary, source.rulesFromMs, key)
+        }
+        val pairs = next.channels.mapNotNull { it.source as? ChannelSource.Starter }.filter { it.previousRules != null }
+        assertTrue(pairs.isNotEmpty())
+        for (source in pairs) {
+            assertTrue(source.rules.formatVersion >= checkNotNull(source.previousRules).formatVersion, source.recipeKey)
+        }
+    }
+
     private fun leftoversOf(lineup: Lineup) = lineup.channels.filter { it.source is ChannelSource.Leftovers }
 
     private companion object {
+        const val STUDIO_KEY = "echo"
+
         // Catalog 2 as it shipped, for a lineup chosen before the swap.
         val real2: StarterCatalogView =
             TestCatalog(CATALOG_V2_RECIPES, version = 2, leftovers = StarterCatalog.leftovers)

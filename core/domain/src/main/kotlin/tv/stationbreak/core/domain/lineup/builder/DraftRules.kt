@@ -15,23 +15,26 @@ import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.OrderingCaps
 import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
+import tv.stationbreak.core.rules.SpreadDayEnd
 import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 import tv.stationbreak.core.rules.normalised
 
 /**
- * A [ChannelDraft] to rules and back. The builder writes back-to-back schedules over 24-hour epochs, and the lowest
- * format version that holds the rules.
+ * A [ChannelDraft] to rules and back. The builder writes back-to-back schedules over 24-hour epochs, at format version
+ * 5 for a new channel and at the lowest format version that holds the rules for an edit ([RulesTarget]).
  *
  * What the builder cannot show (a built-in's `chronological` or `randomInOrder` order, year-range sources, block
  * length, a grid layout, filler, and every setting or extra it does not know) is carried over from `previous` while the
  * draft's [KeptSettings] is set. "Use the builder's settings instead" replaces only what the builder has controls for
  * (the play order and the caps: a kept order, a kept uncapped Shuffle, a day cut shorter than 24 hours); the rest stays
  * kept, so it is still carried over (see [ChannelDraft.keepsReplaceable]). A decade copy's year range stays its pool.
- * Without [KeptSettings] none of it is written. The version is the rules' write version (`ChannelRules.writeVersion`,
- * ADR-0026): the lowest that holds the rules, so an edited version 2 file that uses only version 1 features is written
- * as version 1 (by design), except that rules with a studio feature are never written below the version `previous`
- * said, and are written at 4 once the gate has passed.
+ * Without [KeptSettings] none of it is written. The version of an edit is the rules' write version
+ * (`ChannelRules.writeVersion`, ADR-0026): the lowest that holds the rules, so an edited version 2 file that uses only
+ * version 1 features is written as version 1 (by design), except that rules with a studio feature are never written
+ * below the version `previous` said, and are written at 4 once the gate has passed, and a file that says 5 stays 5. A
+ * new channel, a copy included, is written at 5, the spread day end: a floor over that write version (ADR-0027, and the
+ * exception to the lowest version in ADR-0022's addendum).
  */
 @Suppress("TooManyFunctions") // One step of the draft to rules and back, each.
 internal object DraftRules {
@@ -41,26 +44,30 @@ internal object DraftRules {
     private val NO_EXTRAS = JsonObject(emptyMap())
 
     /**
-     * The rules of [draft], under the lineup's [utcOffsetMinutes]. [previous] is the stored rules of an edit, and
-     * [gatePassed] the format 4 gate (`StudioFold2Gate`).
+     * The rules of [draft], under the lineup's [utcOffsetMinutes]. [target] says whether they are for a new channel
+     * (a copy carries the rules it was opened from) or an edit (with the stored rules), and [gatePassed] is the format
+     * 4 gate (`StudioFold2Gate`).
      */
     fun toRules(
         draft: ChannelDraft,
         utcOffsetMinutes: Int,
-        previous: ChannelRules? = null,
+        target: RulesTarget = RulesTarget.NewChannel(null),
         gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
     ): ChannelRules {
+        val previous = target.previous
         require(draft.kept == null || previous != null) { "Kept settings come from the rules they were read from" }
         val carry = previous.takeIf { draft.kept != null }
         // The newest version first (it knows every field of version 3): a copy's studio sources, theme filters and
         // curated order are carried, and the rules need 3 or more only when they are still in them. They are then
         // written at their write version, which reads `previous` (set even when nothing is carried), so a studio file
         // that says 4 stays at 4. The write version is never below the required one, so this path is taken whenever
-        // the rules need 3 or more, and also for an edit of a file that says 5 or more, which `writeVersion` keeps.
+        // the rules need 3 or more, for an edit of a file that says 5 or more, which `writeVersion` keeps, and for
+        // every new channel, which has the floor of 5 (so the lowering below is never reached for one).
         val carryNewest = carry?.withVersion(NEWEST)
         val newest = assemble(draft, utcOffsetMinutes, NEWEST, carryNewest)
-        val target = newest.writeVersion(previous?.formatVersion, gatePassed)
-        if (target >= FORMAT_3) return newest.withVersion(target)
+        val written = newest.writeVersion(previous?.formatVersion, gatePassed)
+        val version = if (target is RulesTarget.NewChannel) maxOf(SpreadDayEnd.FORMAT_VERSION, written) else written
+        if (version >= FORMAT_3) return newest.withVersion(version)
         // Version 2 next, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
         // `caps` extra makes room for the real ones). A carry that needed 3 has lost it by now (the viewer took the
         // builder's order), so it is read at the newest version.

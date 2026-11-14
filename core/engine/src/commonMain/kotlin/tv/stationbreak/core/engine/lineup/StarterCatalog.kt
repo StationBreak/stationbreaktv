@@ -22,8 +22,12 @@ object StarterCatalog : StarterCatalogView {
      *
      * Version 3 (spec 23): the themed, programmed recipes ([CATALOG_V3_RECIPES]), every key, number, band, ceiling and
      * opt-in kept. A lineup moves to it from the next day boundary (the planner keeps today's rules, D1).
+     *
+     * Version 4 (the spread day end, ADR-0027): the recipes are unchanged. The bump makes the planner resolve every
+     * unedited starter again, now at rules format 5, through its usual path: a starter on the air (a keeper) keeps
+     * today's rules and switches at the next boundary, any other switches at once. Edited starters keep their version.
      */
-    const val VERSION = 3
+    const val VERSION = 4
 
     override val version: Int = VERSION
 
