@@ -11,6 +11,7 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -140,6 +141,7 @@ class TombstoneHeldRuntimeTest {
                     null,
                     null,
                     null,
+                    LeftoverPolicy.Gather,
                 )
             val cutoff = 0L
             repository.applySelection(ALICE, setOf(MOVIES), nowMs = 0)

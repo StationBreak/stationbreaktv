@@ -262,7 +262,7 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
         assertNotNull(box.rig.change(before = setOf(libA, libB), after = all, at = second))
         val repair2 = box.rig.repairOf(laughs.id)
         val after2 = box.builtOver(all)
-        val airedRecord = repair1.blocks.filter { it.startMs < second }.mapNotNullTo(HashSet()) { it.itemId }
+        val airedRecord = repair1.blocks.filter { it.startMs < second }.mapNotNullTo(HashSet()) { it.programId() }
         val admittedNow = ids(comedies.take(2) + box.todays + box.boxSet + box.others)
         val ids2 = repair1.tailIds() + admittedNow - airedRecord + box.extra.item.id
         val pool2 =
@@ -391,7 +391,8 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
     ): List<KeptBlock> {
         val aired = programmesBefore(day, fromMs)
         val sides = FilmCollections.of(films) to TitleWeights.of(weights)
-        val tail = layoutTail(day.settings, pool, day.n, sides.first, sides.second, fromMs, aired)
+        val before = pastAirings(day, fromMs)
+        val tail = layoutTail(day.settings, pool, day.n, sides.first, sides.second, fromMs, aired, before)
         return tail.map { kept(it) }
     }
 

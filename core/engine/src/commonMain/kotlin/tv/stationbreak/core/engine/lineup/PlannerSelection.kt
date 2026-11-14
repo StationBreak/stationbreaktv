@@ -374,15 +374,22 @@ private fun leftOut(
 
 /**
  * The rules a starter takes when its recipe is resolved again (a refresh, or a shelved starter switched on): its
- * recipe's, keeping seed and timing. A starter with a studio feature whose stored rules say 4 is never written back as
- * 3 (ADR-0026, never lower a file that says 4): the version is the write version over the stored one.
+ * recipe's, keeping seed and timing. The version is the higher of the resolver's (floored at 5, the spread day end) and
+ * the write version over the stored one, so a stored file is never written lower (ADR-0026: a studio file that says 4
+ * stays 4 or more; a file that says 5 stays 5).
+ *
+ * Because the resolver's floor is 5, the rules a keeper takes here ([withNewRules]) are always at 5. The keeper path
+ * therefore never holds rules at 5 as the previous rules of rules below 5 (today spreading, tomorrow gathering): the
+ * pair it makes is old rules today and v5 rules from the boundary. Edited starters and custom channels hold no
+ * previous rules.
  */
 internal fun Planning.reResolved(
     recipe: Recipe,
     source: ChannelSource.Starter,
 ): ChannelRules {
     val resolved = resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
-    return resolved.copy(formatVersion = resolved.writeVersion(previousVersion = source.rules.formatVersion))
+    val stored = resolved.writeVersion(previousVersion = source.rules.formatVersion)
+    return resolved.copy(formatVersion = maxOf(resolved.formatVersion, stored))
 }
 
 /**

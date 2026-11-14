@@ -23,7 +23,9 @@ import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -226,16 +228,17 @@ class LiveScreenshotTest {
         name: String,
         colors: GuideColors,
         title: String?,
+        state: LiveState = LiveState.Watching(null),
+        lead: PictureLead = PictureLead.NowPlaying,
     ) {
         compose.setContent {
             StationBreakTheme {
                 Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)) {
                     LiveScreen(
-                        state = LiveState.Watching(null),
+                        state = state,
                         nowMs = { now },
                         guide = { hole -> GuideStandIn(hole, colors.page) },
-                        pictureLabel =
-                            title?.let { PictureLabel(162, "Date Night", MARK_KEY, PictureLead.NowPlaying, it) },
+                        pictureLabel = title?.let { PictureLabel(162, "Date Night", MARK_KEY, lead, it) },
                     ) { BrightPicture() }
                 }
             }
@@ -264,6 +267,36 @@ class LiveScreenshotTest {
 
     @Test
     fun theGuideWithoutALabelLight() = shootGuide("live-guide-nolabel-light.png", GuideColors.Light, null)
+
+    /** A station break (rules format 5): the ident card with "Up next" naming the programme the break leads into. */
+    private val breakCard =
+        LiveState.Ident(
+            banner(actions = false, label = BannerLabel.UpNext).copy(
+                title = "Roman Holiday",
+                info = null,
+                slotStartMs = now + 2 * MINUTE,
+                slotEndMs = now + 120 * MINUTE,
+                joinedMs = null,
+                next = null,
+            ),
+        )
+
+    /** The station-break card full screen. Live TV has no light theme: the card is the same in both. */
+    @Test
+    fun theStationBreakCard() {
+        shoot("live-break.png", breakCard)
+        compose.onNodeWithText("Up next", substring = true, ignoreCase = true).assertIsDisplayed()
+        compose.onNodeWithText("Roman Holiday", substring = true).assertIsDisplayed()
+    }
+
+    /** The station-break card in the guide's picture, with the picture label's "Up next:", dark then light. */
+    @Test
+    fun theStationBreakUnderTheGuide() =
+        shootGuide("live-guide-break.png", GuideColors.Dark, "Roman Holiday", breakCard, PictureLead.UpNext)
+
+    @Test
+    fun theStationBreakUnderTheGuideLight() =
+        shootGuide("live-guide-break-light.png", GuideColors.Light, "Roman Holiday", breakCard, PictureLead.UpNext)
 
     @Composable
     private fun GuideStandIn(
@@ -445,8 +478,11 @@ class LiveScreenshotTest {
         // package is uninstalled (as the guide's frames are).
         val external = File(checkNotNull(context.getExternalFilesDir(null)), SCREENSHOT_DIR)
         val shared = File(Environment.getExternalStorageDirectory(), SCREENSHOT_DIR)
-        grantPublicStorage(context.packageName)
-        for (directory in listOf(external, shared)) {
+        // A run given the instrumentation argument sharedCopy=false (a TV where the shell installs the test package for
+        // one user) keeps only the package's own copy, and the shell pulls it from there.
+        val sharedCopy = InstrumentationRegistry.getArguments().getString("sharedCopy") != "false"
+        if (sharedCopy) grantPublicStorage(context.packageName)
+        for (directory in if (sharedCopy) listOf(external, shared) else listOf(external)) {
             assertTrue("could not create $directory", directory.mkdirs() || directory.isDirectory)
             val file = File(directory, name)
             file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it)) }

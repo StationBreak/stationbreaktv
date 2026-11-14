@@ -6,10 +6,11 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 
 /**
- * The channel rules of format versions 1 to 4 (docs/rules-format.md). A reader builds this from a file and a writer
+ * The channel rules of format versions 1 to 5 (docs/rules-format.md). A reader builds this from a file and a writer
  * turns it back into the same file. A file holds only what its [formatVersion] allows: [requiredVersion] is the lowest
  * version that has every feature the rules use, and the version must not be below it. Version 4 has the fields of
- * version 3; it matches studios under studio fold 2 ([matchesStudiosByFold2], ADR-0026).
+ * version 3; it matches studios under studio fold 2 ([matchesStudiosByFold2], ADR-0026). Version 5 has the fields of
+ * version 4 and spreads the day's leftover time as station breaks ([SpreadDayEnd]).
  *
  * A field with a default is `null` when the file did not write it, so a rewrite does not invent it. The `effective…`
  * properties give the value to use. Fields this version does not know are in the `extras` of the object that held them.
@@ -30,7 +31,7 @@ data class ChannelRules(
 ) {
     init {
         require(formatVersion in 1..RulesLimits.SUPPORTED_FORMAT_VERSION.toInt()) {
-            "Only format versions 1 to 4 can be held"
+            "Only format versions 1 to 5 can be held"
         }
         require(formatVersion >= requiredVersion) { "The file version is below the lowest that has these features" }
         name?.let { RulesVocabulary.requireText(it, RulesLimits.MAX_NAME_CODE_POINTS, "The name") }
@@ -62,25 +63,59 @@ data class ChannelRules(
     val matchesStudiosByFold2: Boolean get() = formatVersion >= StudioFold2Gate.FORMAT_VERSION
 
     /**
+     * True when the time left at the end of a broadcast day is spread through the day as station breaks (a file that
+     * says 5 or more, [SpreadDayEnd]), false when it is gathered at the end (1 to 4).
+     */
+    val spreadsDayEnd: Boolean get() = formatVersion >= SpreadDayEnd.FORMAT_VERSION
+
+    /**
      * The version the app writes these rules at (ADR-0026, Versioning): [requiredVersion], except for rules that
      * [usesStudios]: 4 once the gate has passed, and before it never lower than the version they were read at, so a
-     * file that says 4 is not written back as 3.
+     * file that says 4 is not written back as 3. A file that says 5 or more is written at the version it says.
+     *
+     * Version 5 is a behaviour version (the spread day end), not a feature version. `requiredVersion` never reports
+     * it. `writeVersion` keeps a v5 file at 5, and callers must not normalise a v5 file down by any other path.
+     *
+     * Rules built at SUPPORTED_FORMAT_VERSION (new rules) must use writeVersion(previousVersion), never normalised():
+     * this property reads the rules' own [formatVersion] as the previous one, so it would write them at the newest
+     * version.
      */
     val writeVersion: Int get() = writeVersion(previousVersion = formatVersion)
 
     /**
      * [writeVersion] for rules made from a file that said [previousVersion] (null for new rules), with the gate as
-     * [gatePassed]. `requiredVersion` is not changed by the gate: a studio file that says 3 stays valid.
+     * [gatePassed]. `requiredVersion` is not changed by the gate: a studio file that says 3 stays valid. A file that
+     * said 5 or more is written at that version, never lower, whatever the rules hold. That reads [previousVersion],
+     * never these rules' own [formatVersion]: new rules are built at the newest version this app reads and must not be
+     * written at it for that reason alone.
+     *
+     * Version 5 is a behaviour version (the spread day end), not a feature version. `requiredVersion` never reports
+     * it. `writeVersion` keeps a v5 file at 5, and callers must not normalise a v5 file down by any other path.
      */
     fun writeVersion(
         previousVersion: Int?,
         gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
     ): Int =
         when {
+            previousVersion != null && previousVersion >= SpreadDayEnd.FORMAT_VERSION -> previousVersion
             !usesStudios -> requiredVersion
             gatePassed -> StudioFold2Gate.FORMAT_VERSION
             else -> maxOf(requiredVersion, previousVersion ?: requiredVersion)
         }
+
+    /**
+     * The version new rules are written at (ADR-0027, ADR-0022's addendum): a channel made in the app (from scratch or
+     * copied from another channel's rules, said at [previousVersion]) and a resolved starter. It is [writeVersion]
+     * with one floor, [SpreadDayEnd.FORMAT_VERSION], so new rules are always written at 5 and spread the end of the
+     * day. This and [writeVersion] are the one version policy: an edit of stored rules uses [writeVersion] alone.
+     *
+     * [gatePassed] (the format 4 gate) is passed through to [writeVersion] but cannot change the result: everything
+     * the gate decides is below the floor. The gate only ever matters for an edit.
+     */
+    fun newRulesWriteVersion(
+        previousVersion: Int?,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
+    ): Int = maxOf(SpreadDayEnd.FORMAT_VERSION, writeVersion(previousVersion, gatePassed))
 
     /** The ordering mode to use: `shuffle` when the file has no `ordering`. */
     val orderingMode: OrderingMode get() = ordering?.mode ?: OrderingMode.Shuffle
@@ -107,6 +142,9 @@ data class ChannelRules(
      * The lowest format version that has every feature these rules use: 3 for a version 3 feature (a studio source or
      * exclusion, a `tags`, `studios` or `notGenres` filter, a per-kind runtime, the `curated` order or one of its
      * tunables), 2 for a version 2 feature, else 1.
+     *
+     * Version 5 is a behaviour version (the spread day end), not a feature version. `requiredVersion` never reports
+     * it. `writeVersion` keeps a v5 file at 5, and callers must not normalise a v5 file down by any other path.
      */
     val requiredVersion: Int
         get() {
@@ -159,7 +197,13 @@ data class ChannelRules(
 /**
  * These rules at their [ChannelRules.writeVersion]: what a writer that edits rules should write. That is the lowest
  * version that has their features, except that rules with a studio feature are never written below the version they
- * said, and are written at 4 once the gate ([gatePassed]) has passed.
+ * said, and are written at 4 once the gate ([gatePassed]) has passed, and rules that say 5 or more stay at it.
+ *
+ * Version 5 is a behaviour version (the spread day end), not a feature version. `requiredVersion` never reports it.
+ * `writeVersion` keeps a v5 file at 5, and callers must not normalise a v5 file down by any other path.
+ *
+ * Rules built at SUPPORTED_FORMAT_VERSION (new rules) must use writeVersion(previousVersion), never normalised(): it
+ * reads the rules' own [ChannelRules.formatVersion] as the previous one, so it would write them at the newest version.
  */
 fun ChannelRules.normalised(gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4): ChannelRules =
     withVersion(writeVersion(formatVersion, gatePassed))

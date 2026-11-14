@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.repair
 
-import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 
@@ -67,7 +66,7 @@ internal object RepairedDay {
             kept.isNotEmpty() &&
                 repair.keptFromMs >= dayStartMs &&
                 kept.all { block ->
-                    val ok = block.startMs == cursor && block.endMs > block.startMs && block.mediaStartMs >= 0
+                    val ok = block.startMs == cursor && block.endMs > block.startMs && block.content.mediaOk()
                     cursor = block.endMs
                     ok
                 } &&
@@ -91,14 +90,21 @@ internal object RepairedDay {
     private fun fits(fix: LostFix): Boolean {
         var cursor = fix.blockStartMs
         for (piece in fix.pieces) {
-            if (piece.startMs != cursor || piece.endMs <= piece.startMs || piece.mediaStartMs < 0) return false
+            if (piece.startMs != cursor || piece.endMs <= piece.startMs || !piece.content.mediaOk()) return false
             cursor = piece.endMs
         }
         return cursor <= fix.blockEndMs
     }
 
-    private fun KeptBlock.asBlock(): ScheduleBlock = ScheduleBlock(startMs, endMs, itemId.toContent(mediaStartMs))
+    // A programme's media start is not negative; a slate and a break have none.
+    private fun KeptContent.mediaOk(): Boolean = this !is KeptContent.Program || mediaStartMs >= 0
 
-    private fun CanonicalId?.toContent(mediaStartMs: Long): ScheduleContent =
-        if (this == null) ScheduleContent.Slate else ScheduleContent.Program(this, mediaStartMs)
+    private fun KeptBlock.asBlock(): ScheduleBlock = ScheduleBlock(startMs, endMs, content.toContent())
+
+    private fun KeptContent.toContent(): ScheduleContent =
+        when (this) {
+            is KeptContent.Program -> ScheduleContent.Program(itemId, mediaStartMs)
+            KeptContent.Slate -> ScheduleContent.Slate
+            KeptContent.Break -> ScheduleContent.Break
+        }
 }

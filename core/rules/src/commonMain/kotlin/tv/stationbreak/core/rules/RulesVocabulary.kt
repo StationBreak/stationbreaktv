@@ -4,8 +4,9 @@ package tv.stationbreak.core.rules
 import kotlinx.serialization.json.JsonObject
 
 /**
- * The fixed names and ranges of format versions 1 to 4, shared by the reader and by the checks on the types. Version 4
- * knows the same fields as version 3 (it changes only how studios match), so every "3 or later" below covers it.
+ * The fixed names and ranges of format versions 1 to 5, shared by the reader and by the checks on the types. Version 4
+ * knows the same fields as version 3 (it changes only how studios match), and version 5 the same as version 4 (it
+ * changes only where the day's leftover time goes), so every "3 or later" below covers both.
  */
 internal object RulesVocabulary {
     /** The names a `maxRating` may take: the rating ladder. */
@@ -40,6 +41,7 @@ internal object RulesVocabulary {
 
     const val VERSION_2 = 2
     const val VERSION_3 = 3
+    const val VERSION_5 = 5
     const val MAX_BLOCK_LENGTH = 100
     const val MIN_CAP = 1
     const val MAX_CAP = 10
@@ -59,6 +61,8 @@ internal object RulesVocabulary {
     const val MIN_OFFSET = -720
     const val MAX_OFFSET = 840
     const val OFFSET_STEP = 15
+
+    // Version 5 has exactly the fields of version 4 (and so of version 3): every "3 or later" below covers it.
 
     /** The top-level field names that [version] knows. */
     fun topLevel(version: Int): Set<String> = if (version >= VERSION_2) TOP_LEVEL_V2 else TOP_LEVEL_V1

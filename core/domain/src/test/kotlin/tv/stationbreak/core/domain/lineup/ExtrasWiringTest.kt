@@ -253,7 +253,7 @@ class ExtrasWiringTest {
                     seed = Seed(11uL),
                 )
 
-            val shown = previews.preview(ACCOUNT, draft, FOURTEEN)
+            val shown = previews.preview(ACCOUNT, draft, FOURTEEN, null)
 
             val ready = shown as ChannelPreview.Ready
             assertEquals(7, ready.itemCount, "the seven films; the opening and the long episode are out")

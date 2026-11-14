@@ -6,7 +6,7 @@ package tv.stationbreak.core.engine.lineup
  * version here (`CatalogManifestTest` fails until it is added); earlier ones are never edited or removed.
  */
 internal val CATALOG_MANIFESTS: List<CatalogManifest> by lazy {
-    listOf(CATALOG_MANIFEST_V1, CATALOG_MANIFEST_V2, CATALOG_MANIFEST_V3)
+    listOf(CATALOG_MANIFEST_V1, CATALOG_MANIFEST_V2, CATALOG_MANIFEST_V3, CATALOG_MANIFEST_V4)
 }
 
 /**

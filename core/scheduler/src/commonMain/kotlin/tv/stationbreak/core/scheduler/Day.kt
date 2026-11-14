@@ -4,6 +4,7 @@ package tv.stationbreak.core.scheduler
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -158,9 +159,11 @@ internal fun buildDayCounting(
 
 /** The day's layout, step by step (spec 08, Unit 3). Pure functions of their inputs. */
 internal object Timeline {
+    /** The laid-out blocks, how many runs the regular layout started, and where each of those runs ended. */
     class Layout(
         val blocks: List<ScheduleBlock>,
         val runsStarted: Int,
+        val runEnds: List<Long>,
     )
 
     /** A run's slot: its runtime, rounded up to a whole number of grid slots when aligned. */
@@ -216,9 +219,11 @@ internal object Timeline {
 
     /**
      * Lays the day out: runs from [startRun] at [dayStart], each at the first grid mark at or after the previous run's
-     * end when aligned, and the end of the day planned by [fillEnd] when the next run would end after [dayEnd].
+     * end when aligned. When the next run would end after [dayEnd], the end of the day is planned by [fillEnd]
+     * ([LeftoverPolicy.Gather]) or by [spread] ([LeftoverPolicy.Spread]), which also reads [pastAirings]: what aired
+     * before [dayStart] in a repair's tail, empty for a whole day.
      */
-    @Suppress("LongParameterList") // The day's window and the group rules are each an input of the layout.
+    @Suppress("LongParameterList") // The day's window, the group rules and what aired are each an input.
     fun layout(
         settings: SchedulerSettings,
         cycle: List<Run>,
@@ -226,8 +231,13 @@ internal object Timeline {
         dayStart: Long,
         dayEnd: Long,
         groups: GroupRules,
+        pastAirings: List<PastAiring> = emptyList(),
     ): Layout {
         val blocks = ArrayList<ScheduleBlock>()
+        val runEnds = ArrayList<Long>()
+        val spreads = settings.leftover == LeftoverPolicy.Spread
+        val aired = ArrayList<PastAiring>()
+        if (spreads) aired.addAll(pastAirings)
         var cursor = dayStart
         var index = startRun
         var started = 0
@@ -244,9 +254,15 @@ internal object Timeline {
             for (item in run.items) {
                 blocks.add(ScheduleBlock(cursor, cursor + item.runtimeMs, ScheduleContent.Program(item.id)))
                 cursor += item.runtimeMs
+                if (spreads) aired.add(PastAiring(item, cursor))
             }
+            runEnds.add(cursor)
             started++
             index = (index + 1) % cycle.size
+        }
+        if (spreads) {
+            val spread = spreadEnd(settings, cycle, unstarted, blocks, runEnds, aired, groups, dayStart, dayEnd)
+            return Layout(spread, started, runEnds)
         }
         if (unstarted >= 0) {
             val filled = fillEnd(settings, cycle, unstarted, cursor, dayEnd, groups)
@@ -254,7 +270,36 @@ internal object Timeline {
             cursor = filled.lastOrNull()?.endMs ?: cursor
         }
         if (cursor < dayEnd) blocks.add(ScheduleBlock(cursor, dayEnd, ScheduleContent.Slate))
-        return Layout(blocks, started)
+        return Layout(blocks, started, runEnds)
+    }
+
+    /**
+     * [spread] over the visit of the planned end: from the first item of the run that did not fit ([unstarted]), the
+     * cycle's items, wrapping in `shuffle` and `curated` and stopping at the cycle's end in the other modes; no visit
+     * when every run fitted.
+     */
+    @Suppress("LongParameterList") // The layout's inputs and what the regular layout made.
+    private fun spreadEnd(
+        settings: SchedulerSettings,
+        cycle: List<Run>,
+        unstarted: Int,
+        regular: List<ScheduleBlock>,
+        runEnds: List<Long>,
+        aired: List<PastAiring>,
+        groups: GroupRules,
+        dayStart: Long,
+        dayEnd: Long,
+    ): List<ScheduleBlock> {
+        val items = cycle.flatMap { it.items }
+        val firstItem = if (unstarted < 0) 0 else (0 until unstarted).sumOf { cycle[it].items.size }
+        val wraps = settings.orderingMode == OrderingMode.Shuffle || settings.orderingMode == OrderingMode.Curated
+        val visit =
+            when {
+                unstarted < 0 -> emptyList()
+                wraps -> List(items.size) { items[(firstItem + it) % items.size] }
+                else -> items.subList(firstItem, items.size)
+            }
+        return spread(settings, regular, runEnds, visit, firstItem, aired, groups, dayStart, dayEnd)
     }
 
     /**

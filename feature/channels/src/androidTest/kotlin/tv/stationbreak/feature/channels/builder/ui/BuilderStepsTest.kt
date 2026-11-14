@@ -85,6 +85,7 @@ private class GatedPreviews(
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
+        editing: ChannelId?,
     ): ChannelPreview {
         gate.await()
         return answer

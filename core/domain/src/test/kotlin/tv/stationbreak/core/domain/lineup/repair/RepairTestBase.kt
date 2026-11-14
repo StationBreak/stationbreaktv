@@ -65,6 +65,7 @@ import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.scheduler.Epochs
+import tv.stationbreak.core.scheduler.PastAiring
 import tv.stationbreak.core.scheduler.layoutTail
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicInteger
@@ -307,7 +308,7 @@ internal open class RepairTestBase {
 
     protected fun ChannelRepair.tail(): List<KeptBlock> = blocks.filter { it.startMs >= pinEndMs }
 
-    protected fun ChannelRepair.tailIds(): Set<CanonicalId> = tail().mapNotNullTo(HashSet()) { it.itemId }
+    protected fun ChannelRepair.tailIds(): Set<CanonicalId> = tail().mapNotNullTo(HashSet()) { it.programId() }
 
     protected fun ChannelDay.blockAt(at: Long): ScheduleBlock = day.blocks.first { at >= it.startMs && at < it.endMs }
 
@@ -337,8 +338,17 @@ internal open class RepairTestBase {
 
     protected fun kept(block: ScheduleBlock): KeptBlock =
         when (val c = block.content) {
-            is ScheduleContent.Program -> KeptBlock(block.startMs, block.endMs, c.itemId, c.mediaStartOffsetMs)
-            ScheduleContent.Slate -> KeptBlock(block.startMs, block.endMs, null, 0)
+            is ScheduleContent.Program -> {
+                KeptBlock(block.startMs, block.endMs, KeptContent.Program(c.itemId, c.mediaStartOffsetMs))
+            }
+
+            ScheduleContent.Slate -> {
+                KeptBlock(block.startMs, block.endMs, KeptContent.Slate)
+            }
+
+            ScheduleContent.Break -> {
+                KeptBlock(block.startMs, block.endMs, KeptContent.Break)
+            }
         }
 
     // A curated starter's view, as the build makes it (CuratedDaysTest's helper).
@@ -392,9 +402,9 @@ internal open class RepairTestBase {
         val end = Epochs.epochStart(settings, n + 1)
         val blocks =
             listOf(
-                KeptBlock(noonMs, noonMs + hour, pinned.item.id, 0),
-                KeptBlock(noonMs + hour, noonMs + 3 * hour, lost.item.id, offset),
-                KeptBlock(noonMs + 3 * hour, noonMs + 4 * hour, shortTail.item.id, 0),
+                KeptBlock(noonMs, noonMs + hour, KeptContent.Program(pinned.item.id, 0)),
+                KeptBlock(noonMs + hour, noonMs + 3 * hour, KeptContent.Program(lost.item.id, offset)),
+                KeptBlock(noonMs + 3 * hour, noonMs + 4 * hour, KeptContent.Program(shortTail.item.id, 0)),
             ) + extra
         val last = blocks.last().endMs
         val repair =
@@ -408,7 +418,7 @@ internal open class RepairTestBase {
                 noonMs,
                 noonMs + hour,
                 libA,
-                blocks + KeptBlock(last, end, null, 0),
+                blocks + KeptBlock(last, end, KeptContent.Slate),
                 null,
             )
         val rig = Rig(lineupOf(laughs), lostItems, setOf(libA), TodayRepairs(selection = listOf(repair)), successors)
@@ -431,6 +441,20 @@ internal open class RepairTestBase {
         day.day.blocks
             .filter { it.startMs < endMs }
             .mapNotNullTo(HashSet()) { (it.content as? ScheduleContent.Program)?.itemId }
+
+    /** The programmes of [day] that start before [endMs], each with its end: `pastAirings` when nothing is gone. */
+    protected fun pastAirings(
+        day: ChannelDay,
+        endMs: Long,
+    ): List<PastAiring> {
+        val byId = day.pool.associateBy { it.id }
+        return day.day.blocks
+            .filter { it.startMs < endMs }
+            .mapNotNull { block ->
+                val item = (block.content as? ScheduleContent.Program)?.itemId?.let { byId[it] }
+                item?.let { PastAiring(it, block.endMs) }
+            }
+    }
 }
 
 /** A library a change adds or removes. */

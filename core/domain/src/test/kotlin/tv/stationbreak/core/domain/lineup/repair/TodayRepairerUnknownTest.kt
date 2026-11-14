@@ -127,7 +127,7 @@ internal class TodayRepairerUnknownTest : RepairTestBase() {
                 noonMs,
                 noonMs + hour,
                 libA,
-                listOf(KeptBlock(noonMs, noonMs + hour, comedies[0].item.id, 0)),
+                listOf(KeptBlock(noonMs, noonMs + hour, KeptContent.Program(comedies[0].item.id, 0))),
                 null,
             )
         assertTrue(runBlocking { rig.service.recordRepairs(ACCOUNT) { TodayRepairs(selection = listOf(broken)) } })

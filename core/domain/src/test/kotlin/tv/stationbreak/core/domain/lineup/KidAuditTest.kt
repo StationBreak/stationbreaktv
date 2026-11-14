@@ -240,7 +240,7 @@ class KidAuditTest {
     fun aCatalogThreeLineupPassesTheKidAuditForSevenDays() =
         runBlocking<Unit> {
             seed()
-            assertEquals(3, StarterCatalog.VERSION)
+            assertEquals(4, StarterCatalog.VERSION)
             val catalogTwo =
                 object : StarterCatalogView by StarterCatalog {
                     override val version = 2
@@ -254,7 +254,7 @@ class KidAuditTest {
             assertEquals(2, old.loaded(ACCOUNT)?.lineup?.catalogVersion)
             val service = LineupService(store, library, clock, { 0 }, {}, StarterCatalog)
             service.refresh(ACCOUNT, LIBRARIES)
-            assertEquals(3, service.loaded(ACCOUNT)?.lineup?.catalogVersion)
+            assertEquals(4, service.loaded(ACCOUNT)?.lineup?.catalogVersion)
             val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
             val ceilings = Ceilings(StarterCatalog)
             val byId = items.associateBy { it.item.id }

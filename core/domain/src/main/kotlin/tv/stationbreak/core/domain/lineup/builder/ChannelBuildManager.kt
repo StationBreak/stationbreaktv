@@ -149,7 +149,7 @@ class ChannelBuildManager(
 
                 else -> {
                     val id = ChannelId("custom:" + newId())
-                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, previous)
+                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.NewChannel(previous))
                     val number = sent.number.takeIf { sent.numberChosen }
                     edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids), sent.kids, id)
                 }
@@ -185,7 +185,7 @@ class ChannelBuildManager(
                 }
 
                 else -> {
-                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, stored)
+                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.Edit(stored))
                     // A number the viewer did not pick is the channel's own, or the first free one on the other side
                     // of a kids switch: worked out in the lock.
                     val number = sent.number.takeIf { sent.numberChosen }

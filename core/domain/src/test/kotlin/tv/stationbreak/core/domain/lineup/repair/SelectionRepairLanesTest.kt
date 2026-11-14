@@ -215,7 +215,7 @@ internal class SelectionRepairLanesTest {
     private fun tailItems(step: Step): Set<CanonicalId> =
         step.record.selection
             .flatMap { repair -> repair.blocks.filter { it.startMs >= repair.pinEndMs } }
-            .mapNotNullTo(HashSet()) { it.itemId }
+            .mapNotNullTo(HashSet()) { it.programId() }
 
     private val untickScenario =
         RepairMatrix.scenarios().first { it.name == "catalog: untick the 250-item library, days laid out" }

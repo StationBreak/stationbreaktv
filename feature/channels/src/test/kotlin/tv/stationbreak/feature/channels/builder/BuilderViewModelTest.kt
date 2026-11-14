@@ -320,6 +320,24 @@ class BuilderViewModelTest {
             assertEquals(before + 1, rig.previews.drafts.size)
         }
 
+    // The preview is of the flow the save takes (Task 6: an edit keeps its version, a new channel is written at 5): an
+    // edit names the channel it saves, a copy names none, as create takes none.
+    @Test
+    fun thePreviewNamesTheChannelAnEditSavesAndACopyNamesNone() =
+        builderTest { rig ->
+            rig.openEdit(draftOf("Mine", listOf(lib1), origin = CUSTOM))
+            rig.advance(400)
+            assertEquals(listOf<ChannelId?>(CUSTOM), rig.previews.editing.distinct())
+
+            rig.previews.editing.clear()
+            rig.builder.openResult = OpenResult.Opened(draftOf("Movies", listOf(lib1), origin = BUILT_IN), null)
+            rig.vm.openCopy(BUILT_IN) { it }
+            rig.settle()
+            rig.advance(400)
+            assertTrue(rig.previews.editing.isNotEmpty())
+            assertEquals(listOf<ChannelId?>(null), rig.previews.editing.distinct())
+        }
+
     @Test
     fun theBarAndPreviewRecomputeOnceAfterAQuietPeriod() =
         builderTest { rig ->

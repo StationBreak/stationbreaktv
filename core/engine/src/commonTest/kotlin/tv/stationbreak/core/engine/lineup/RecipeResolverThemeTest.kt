@@ -95,31 +95,34 @@ class RecipeResolverThemeTest {
     }
 
     @Test
-    fun aThemedRecipeWritesFormatThreeAndCurated() {
+    fun aThemedRecipeNeedsFormatThreeIsWrittenAt5AndCurated() {
         val filters = Filters(genres = listOf("Comedy"), null, null, null, null, null, tags = listOf("tag a"))
         val rules = resolve(themed(Theme(emptyList(), emptyList(), FormatPromise.Films, false), filters = filters))
-        assertEquals(3, rules.formatVersion)
+        assertEquals(3, rules.requiredVersion)
+        assertEquals(5, rules.formatVersion)
         assertEquals(OrderingMode.Curated, rules.orderingMode)
         assertEquals(filters, rules.filters)
     }
 
-    // ADR-0026: a starter with a studio source is written at 3 while the gate is off, and at 4 once it has passed; one
-    // without a studio feature stays at the lowest version it needs either way.
+    // ADR-0026 and Task 6: a starter with a studio source would be written at 3 while the gate is off and at 4 once it
+    // has passed, and the floor of 5 is over both, so it is at 5 (studio fold 2) either way; so is one without a
+    // studio feature.
     @Test
-    fun aStudioStarterIsWrittenAt4OnlyOnceTheGateHasPassed() {
+    fun aStudioStarterIsWrittenAt5WhateverTheGate() {
         val theme = Theme(listOf(Anchor(AnchorKind.Studio, NameMatcher.Exact("Studio A"))), emptyList(), null, false)
         val recipe = themed(theme)
         val names = LibraryNames(library, collectionNames)
         val before = RecipeResolver.resolve(recipe, SERVER, 0, collectionNames, names, gatePassed = false)
         assertTrue(before.sources.any { it is Source.Studio })
-        assertEquals(3, before.formatVersion)
+        assertEquals(5, before.formatVersion)
+        assertEquals(3, before.writeVersion(previousVersion = null, gatePassed = false), "ADR-0026's alone")
         val after = RecipeResolver.resolve(recipe, SERVER, 0, collectionNames, names, gatePassed = true)
-        assertEquals(4, after.formatVersion)
-        assertEquals(after, resolve(recipe), "the app's default: the gate has passed")
-        assertEquals(before.copy(formatVersion = 4), after, "only the version differs")
+        assertEquals(5, after.formatVersion)
+        assertEquals(after, resolve(recipe), "the app's default")
+        assertEquals(before, after, "the gate changes nothing")
         val plain = themed(Theme(emptyList(), emptyList(), FormatPromise.Films, false))
         val plainAfter = RecipeResolver.resolve(plain, SERVER, 0, collectionNames, names, gatePassed = true)
-        assertEquals(3, plainAfter.formatVersion)
+        assertEquals(5, plainAfter.formatVersion)
     }
 
     // What the rules take in the lineup file: the rules text as a JSON string.
@@ -199,7 +202,8 @@ class RecipeResolverThemeTest {
     fun anUnthemedRecipeResolvesAsBefore() {
         val plain = recipeOf("plain", 110, hints = listOf("box set 2"))
         val rules = resolve(plain)
-        assertEquals(1, rules.formatVersion)
+        assertEquals(1, rules.requiredVersion)
+        assertEquals(5, rules.formatVersion, "written at the floor")
         assertEquals(plain.sources + Source.Collection(idOf(4)), rules.sources)
         assertNull(rules.ordering)
         assertNull(rules.filters)

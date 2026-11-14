@@ -32,6 +32,7 @@ class SchedulerSettingsTest {
         caps: Caps? = null,
         runtimeFilter: RuntimeFilter? = null,
         curated: CuratedTuning? = tuning.takeIf { orderingMode == OrderingMode.Curated },
+        leftover: LeftoverPolicy = LeftoverPolicy.Gather,
     ) = SchedulerSettings(
         orderingMode = orderingMode,
         seed = seed,
@@ -46,6 +47,7 @@ class SchedulerSettingsTest {
         caps = caps,
         runtimeFilter = runtimeFilter,
         curated = curated,
+        leftover = leftover,
     )
 
     private fun rejects(build: () -> SchedulerSettings) {
@@ -142,7 +144,7 @@ class SchedulerSettingsTest {
 
     @Test
     fun theTypeHasNoDefaults() {
-        // Every constructor parameter is required: the only way to build one is to name all thirteen fields.
+        // Every constructor parameter is required: the only way to build one is to name all fourteen fields.
         val s = settings()
         assertEquals(
             SchedulerSettings(
@@ -159,6 +161,7 @@ class SchedulerSettingsTest {
                 null,
                 null,
                 null,
+                LeftoverPolicy.Gather,
             ),
             s,
         )

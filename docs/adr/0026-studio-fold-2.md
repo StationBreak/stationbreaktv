@@ -9,6 +9,9 @@ no release yet and must read 4 before their first.
 
 **Date:** 2026-11-12 (revised 2026-11-13)
 
+**Format 5:** writing rules format 5 (the spread day end, which also matches under fold 2) is an Android-only exception
+to this ADR's release gate; see [ADR-0027](0027-v5-release-rule.md).
+
 > **Note (2026-11-13): hold names superseded.** The hold names this ADR introduced, `kid-hold-4` and `grown-up-hold-3`,
 > are superseded by `kid-hold-5` and `grown-up-hold-4` (ADR-0019 addendum 2026-11-13, which adds the series-rating
 > rule on top of this ADR). Studio fold 2 is unchanged in them, so `kid-hold-4` is no longer the current hold name:
@@ -261,7 +264,7 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
 
   No diagnostics screen exists yet (F3.6), so the Fire app logs the rules formats once per account, from the first
   read of the stored lineup on any path, under the `Lineup` tag:
-  `rules formats v1=<n> v2=<n> v3=<n> v4=<n> upgraded=<n>` (counts only, no names). The versions count the lineup as loaded, after the in-memory upgrade, so
+  `rules formats v1=<n> v2=<n> v3=<n> v4=<n> v5=<n> upgraded=<n>` (counts only, no names). The versions count the lineup as loaded, after the in-memory upgrade, so
   `v3=` is what still says 3 in memory; `upgraded=` above 0 on a second start means the earlier rewrite did not land.
   The diagnostics screen (F3.6) should show the same counts when it is built.
 - **Upgrade to 4: a one-time rewrite, kept as an invariant.** In the release that ships after the gate has passed:

@@ -42,7 +42,7 @@ internal class TodayRepairerSaveTest : RepairTestBase() {
     ): Pair<Any?, Long> =
         when (val content = block.content) {
             is ScheduleContent.Program -> content.itemId to content.mediaStartOffsetMs + (at - block.startMs)
-            ScheduleContent.Slate -> null to 0L
+            ScheduleContent.Slate, ScheduleContent.Break -> null to 0L
         }
 
     // --- A fix goes with its repair -----------------------------------------------------------------------------

@@ -173,6 +173,7 @@ internal object StringsXml {
             episodeNumber = { e, t -> String.format(Locale.US, fmt("program_episode_number"), e, t) },
             next = { t, at -> String.format(Locale.US, fmt("program_next"), t, at) },
             offAirUntil = { String.format(Locale.US, fmt("program_off_air_until"), it) },
+            breakUpNext = { String.format(Locale.US, fmt("program_station_break_up_next"), it) },
             startsIn = { String.format(Locale.US, fmt("program_starts_in"), it) },
             minutesLeft = { String.format(Locale.US, fmt("program_minutes_left"), it) },
         )

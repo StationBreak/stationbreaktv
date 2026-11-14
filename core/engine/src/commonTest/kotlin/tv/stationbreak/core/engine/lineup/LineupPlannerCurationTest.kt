@@ -92,10 +92,10 @@ class LineupPlannerCurationTest {
 
     private fun genre(vararg names: String): List<Source> = names.map { Source.Genre(it) }
 
-    // ADR-0026, once the gate has passed: a themed refresh that picks a shelved studio starter writes it at 4, whether
-    // it was stored at 4 or at 3.
+    // ADR-0026 and Task 6: a themed refresh that picks a shelved studio starter writes it at 5 (the resolver's
+    // floor), whether it was stored at 4 or at 3: never lower than the 4 it said.
     @Test
-    fun aPickedStudioStarterThatSays4StaysAt4() {
+    fun aPickedStudioStarterThatSays4IsWrittenAt5() {
         val foxtrot = recipeOf("foxtrot", 130, sources = genre("foxtrot") + Source.Studio("Studio A"))
         val withFoxtrot = selecting(catalog.recipes + themed(foxtrot))
         for (stored in listOf(3, 4)) {
@@ -107,7 +107,7 @@ class LineupPlannerCurationTest {
             val next = replan(lineup, libraryOf(fills("foxtrot" to QUALIFYING_ITEMS)), withFoxtrot)
             val picked = next.channel("foxtrot")
             assertTrue(picked.startsAtTheBoundary())
-            assertEquals(4, picked.starter.rules.formatVersion, "stored at $stored")
+            assertEquals(5, picked.starter.rules.formatVersion, "stored at $stored")
         }
     }
 

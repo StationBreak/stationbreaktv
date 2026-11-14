@@ -35,7 +35,7 @@ internal const val LONG_AGO = -1_000_000_000_000L
 
 /**
  * A day in whole minutes since the Unix epoch, one string per block: `start-end:X`, where X is the first digit of the
- * item's ID or `slate`. Every hand-worked case in these tests starts and ends on a whole minute.
+ * item's ID, `slate` or `break`. Every hand-worked case in these tests starts and ends on a whole minute.
  */
 internal fun Day.describe(): List<String> =
     blocks.map { block ->
@@ -49,6 +49,10 @@ internal fun Day.describe(): List<String> =
 
                 ScheduleContent.Slate -> {
                     "slate"
+                }
+
+                ScheduleContent.Break -> {
+                    "break"
                 }
             }
         check(block.startMs % MS_MINUTE == 0L && block.endMs % MS_MINUTE == 0L) { "not on a whole minute: $block" }

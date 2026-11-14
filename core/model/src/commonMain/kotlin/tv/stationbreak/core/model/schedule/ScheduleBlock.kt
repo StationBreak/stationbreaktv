@@ -3,7 +3,7 @@ package tv.stationbreak.core.model.schedule
 
 import tv.stationbreak.core.model.CanonicalId
 
-/** What a [ScheduleBlock] holds: an item, or a station-ID slate for time nothing else fills. */
+/** What a [ScheduleBlock] holds: an item, a station-ID slate for time nothing else fills, or a station break. */
 sealed interface ScheduleContent {
     /**
      * An item. [mediaStartOffsetMs] is where in the media the block starts playing. It is always 0 in version 1,
@@ -20,6 +20,9 @@ sealed interface ScheduleContent {
 
     /** A gap with no program. F3.1's filler will replace it. */
     data object Slate : ScheduleContent
+
+    /** Leftover time spread as a station break; rules-format v5. */
+    data object Break : ScheduleContent
 }
 
 /**

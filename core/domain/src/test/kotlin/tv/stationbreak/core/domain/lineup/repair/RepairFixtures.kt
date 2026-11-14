@@ -32,12 +32,17 @@ internal fun repairOf(
     val keptFrom = atMs - Math.floorMod(atMs, HALF_HOUR_MS)
     val pinEnd = keptFrom + 2 * HALF_HOUR_MS
     val blocks = ArrayList<KeptBlock>()
-    blocks += KeptBlock(keptFrom, pinEnd, id(firstItem), 120_000L)
+    blocks += KeptBlock(keptFrom, pinEnd, KeptContent.Program(id(firstItem), 120_000L))
     require(dayEndMs - pinEnd >= tailBlocks) { "no room for the tail" }
     var cursor = pinEnd
     for (i in 0 until tailBlocks) {
         val end = pinEnd + (dayEndMs - pinEnd) * (i + 1) / tailBlocks
-        blocks += KeptBlock(cursor, end, if (i == tailBlocks - 1) null else id(firstItem + 1 + i % 3), 0L)
+        blocks +=
+            KeptBlock(
+                cursor,
+                end,
+                if (i == tailBlocks - 1) KeptContent.Slate else KeptContent.Program(id(firstItem + 1 + i % 3), 0L),
+            )
         cursor = end
     }
     return ChannelRepair(
@@ -79,8 +84,20 @@ internal fun fixOf(
         gone = id(gone),
         pieces =
             listOf(
-                KeptBlock(blockStartMs, blockStartMs + HALF_HOUR_MS, id(piece), 0L),
-                KeptBlock(blockStartMs + HALF_HOUR_MS, blockStartMs + lengthMs, null, 0L),
+                KeptBlock(blockStartMs, blockStartMs + HALF_HOUR_MS, KeptContent.Program(id(piece), 0L)),
+                KeptBlock(blockStartMs + HALF_HOUR_MS, blockStartMs + lengthMs, KeptContent.Slate),
             ),
         seq = seq,
+    )
+
+/**
+ * One of each kind of kept content, a programme with a media start. The codec round-trip test runs over it and
+ * checks it covers every subclass of [KeptContent] (`permittedSubclasses`), so a new kind fails until the codec and
+ * this list handle it.
+ */
+internal fun everyKeptContent(): List<KeptContent> =
+    listOf(
+        KeptContent.Program(id(7), 90_000L),
+        KeptContent.Slate,
+        KeptContent.Break,
     )

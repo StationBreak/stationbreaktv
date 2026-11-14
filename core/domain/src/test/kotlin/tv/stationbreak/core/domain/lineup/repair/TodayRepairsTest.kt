@@ -72,6 +72,50 @@ class TodayRepairsTest {
         assertNotEquals(repairs.digestFor(laughs, 1L), unfixed.digestFor(laughs, 1L))
     }
 
+    // The record of LineupCodecV4Test, as its frozen file holds it.
+    private fun stored() =
+        TodayRepairs(
+            selection =
+                listOf(
+                    repairOf(n = 1L, seq = 4L),
+                    repairOf(
+                        channel = "leftovers:odds-and-ends",
+                        n = 2L,
+                        seq = 5L,
+                        hidden = tv.stationbreak.core.domain.lineup.HiddenReason.NoMatches,
+                    ),
+                ),
+            fixes = listOf(fixOf(seq = 4L), fixOf(n = 2L, blockStartMs = NOW_MS + 4 * HALF_HOUR_MS, gone = 91)),
+            lastSeq = 9L,
+        )
+
+    @Test
+    fun existingProgramAndSlateDigestsAreUnchanged() {
+        // Pinned from the build before the break kind: a record of programmes and slates hashes as it did.
+        val repairs = stored()
+        assertEquals(
+            "da72f7a883f86453af8d13fb6733952055a6037a2b05c5e8571fcdc2f2878fb8",
+            repairs.digestFor(ChannelId("starter:laughs"), 1L),
+        )
+        assertEquals(
+            "bb92c9ee98944584261cab04bcfc22702f99dbd77735bbf0edd0eb8e89a1581e",
+            repairs.digestFor(ChannelId("leftovers:odds-and-ends"), 2L),
+        )
+    }
+
+    @Test
+    fun slateAndBreakRecordsDigestDifferently() {
+        val repair = repairOf()
+        val last = repair.blocks.last()
+        assertEquals(KeptContent.Slate, last.content)
+        val asBreak = repair.copy(blocks = repair.blocks.dropLast(1) + last.copy(content = KeptContent.Break))
+        val laughs = ChannelId("starter:laughs")
+        assertNotEquals(
+            TodayRepairs(selection = listOf(repair)).digestFor(laughs, 1L),
+            TodayRepairs(selection = listOf(asBreak)).digestFor(laughs, 1L),
+        )
+    }
+
     @Test
     fun digestFor_aDayWithNoRecordHasTheEmptyDigest() {
         assertEquals("", TodayRepairs.NONE.digestFor(ChannelId("starter:laughs"), 1L))

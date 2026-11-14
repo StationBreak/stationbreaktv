@@ -106,6 +106,7 @@ class ProgramTextTest {
     fun countdownCopyIsTheShippedWords() {
         assertEquals("Next: Test Show at 8:30 PM", copy.next("Test Show", "8:30 PM"))
         assertEquals("Off air until 6:00 AM", copy.offAirUntil("6:00 AM"))
+        assertEquals("Station break · Up next at 9:15 PM", copy.breakUpNext("9:15 PM"))
         assertEquals("Starts in 5 min", copy.startsIn(5))
         assertEquals("12 min left", copy.minutesLeft(12))
     }
@@ -175,6 +176,7 @@ object StringsXml {
             episodeNumber = { e, t -> String.format(Locale.US, text("program_episode_number"), e, t) },
             next = { t, at -> String.format(Locale.US, text("program_next"), t, at) },
             offAirUntil = { String.format(Locale.US, text("program_off_air_until"), it) },
+            breakUpNext = { String.format(Locale.US, text("program_station_break_up_next"), it) },
             startsIn = { String.format(Locale.US, text("program_starts_in"), it) },
             minutesLeft = { String.format(Locale.US, text("program_minutes_left"), it) },
         )

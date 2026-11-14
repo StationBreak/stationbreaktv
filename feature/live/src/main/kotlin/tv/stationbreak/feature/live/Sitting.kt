@@ -133,8 +133,11 @@ internal class Sitting(
     val report: (TuneReport) -> Unit = {},
     /** Set for a sitting a flip started: its first block reports the flip's line (once), then this is null. */
     var flip: FlipTiming? = null,
-    /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
-    lead: Pending.Retarget? = null,
+    /**
+     * Resolved ahead while this channel was a neighbour: the first block plays it if it still fits, or, on a station
+     * break, the programme after the break is cut to with it.
+     */
+    lead: Pending? = null,
     /** The run's playback reporter (spec 16), null where reporting is off, and this sitting's id in it. */
     internal val reporter: PlaybackReporter? = null,
     internal val sittingId: Long = 0,
@@ -279,6 +282,13 @@ internal class Sitting(
                         holdIdent(this, onAir, onAir.now.endMs)
                     }
 
+                    // A station break is a slate on screen: the ident with Up next, then the next programme, which
+                    // the look-ahead started above resolves during the card.
+                    Airing.Break -> {
+                        reportFlipEnded("break")
+                        holdIdent(this, onAir, onAir.now.endMs)
+                    }
+
                     is Airing.Program -> {
                         // The reporter's visit spans all the block's tries and ends when the block is left for good.
                         val visiting = Visiting(reporter)
@@ -321,7 +331,7 @@ internal class Sitting(
                 when (airing) {
                     is Airing.Program -> resumeProgram(this, onAir, airing, place, visiting)
                     is Airing.StandIn -> resumeStandIn(this, onAir, airing, place)
-                    Airing.Slate -> null.also { resumeSettled() }
+                    Airing.Slate, Airing.Break -> null.also { resumeSettled() }
                 }
             } finally {
                 visiting.leave()

@@ -51,6 +51,14 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
  * or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside).
  *
+ * One explicit exception (owner decision 2026-11-13, ADR-0025): the contents of `repairs` are a per-TV, disposable
+ * record, so the station-break block index (-2, [RepairsCodec]) was added inside version 4 without a bump. Only a
+ * channel at rules `formatVersion` 5 lays out breaks, and an older build already shows that channel as unusable. An
+ * older build that meets a block index it does not know drops the **entire** repair record (every channel's selection
+ * repairs and lost fixes on that TV, until the next repair) and loads the lineup; as for any unreadable record it
+ * reports `LineupEvent.RepairsUnreadable`, keeps the one-time `repairs-unreadable` copy (`UNREADABLE_RECORD_COPY`) and
+ * writes the file at once without the record.
+ *
  * What is rejected and what is dropped: an unknown key or value, and a field of a later version in an older file,
  * make the file [Decoded.Unreadable]. A few values this app could have written itself are read leniently and dropped
  * instead, so a save writes them back without them: `leavesAtMs` and `shelfReason` on a channel that is not a starter
@@ -58,7 +66,7 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
  * as JSON `null` in a version 1 or 2 file (read as absent).
  *
- * The rules of a starter or custom channel are a rules-format file (version 1 to 4) held as a JSON string; they are
+ * The rules of a starter or custom channel are a rules-format file (version 1 to 5) held as a JSON string; they are
  * read and written by the rules codec, so they keep their extras (the fields this app does not know) but not their
  * bytes.
  *
@@ -509,7 +517,7 @@ private object SourceCodec {
 
     private fun custom(fields: JsonObject): ChannelSource? = rulesOf(fields)?.let { ChannelSource.Custom(it) }
 
-    // Only rules this app can schedule (versions 1 to 4); any other result keeps the channel unusable.
+    // Only rules this app can schedule (versions 1 to 5); any other result keeps the channel unusable.
     private fun rulesOf(fields: JsonObject) = (fields.string(RULES)?.let(RulesReader::read) as? RulesResult.Ok)?.rules
 
     private fun JsonObject.string(key: String): String? = (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content

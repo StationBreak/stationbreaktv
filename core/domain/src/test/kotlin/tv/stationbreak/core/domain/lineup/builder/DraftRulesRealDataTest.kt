@@ -35,7 +35,7 @@ class DraftRulesRealDataTest {
     private fun roundTrip(rules: ChannelRules): ChannelRules {
         val draft = DraftRules.fromRules(rules, null) { it.key }
         assertEquals(null, draft.problem(), "the draft of ${rules.name} can be saved")
-        return DraftRules.toRules(draft, rules.timing.broadcastDay.utcOffsetMinutes, rules)
+        return DraftRules.toRules(draft, rules.timing.broadcastDay.utcOffsetMinutes, RulesTarget.Edit(rules))
     }
 
     @Test

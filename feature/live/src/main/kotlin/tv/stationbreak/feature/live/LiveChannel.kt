@@ -501,7 +501,7 @@ class LiveChannel(
         reporter: PlaybackReporter?,
     ): Sitting {
         val id = first.channel.id
-        val lead = neighbours.take(id, first)?.let { leadOf(it, first.now) }
+        val lead = neighbours.take(id, first)
         val sittingId = ++sittings
         reporter?.sittingStarted(sittingId)
         return Sitting(
@@ -809,13 +809,4 @@ class LiveChannel(
             ceilingRank != null && ceilingRank < ChannelAiring.PG_TIER -> 1
             else -> 2
         }
-}
-
-/** A handle from [Neighbours.take] as the sitting wants it: for the block on air, played from the position then. */
-private fun leadOf(
-    handle: NextHandle,
-    block: AiringBlock,
-): Pending.Retarget? {
-    val program = block.airing as? Airing.Program ?: return null
-    return Pending.Retarget(handle, program.itemId, block.startMs)
 }

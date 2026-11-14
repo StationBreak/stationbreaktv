@@ -13,6 +13,8 @@
 
     <string name="program_next">Next: %1$s at %2$s</string>
     <string name="program_off_air_until">Off air until %1$s</string>
+    <!-- A station break (leftover time spread through the day): the time is when the next programme starts. -->
+    <string name="program_station_break_up_next">Station break · Up next at %1$s</string>
     <string name="program_starts_in">Starts in %1$d min</string>
     <string name="program_minutes_left">%1$d min left</string>
 

@@ -50,7 +50,11 @@ class BackToBackLayoutTest {
         buildDay(settings, items, 0L, FilmCollections.of(emptyMap()), TitleWeights.NONE).blocks
 
     private fun assertBackToBack(blocks: List<ScheduleBlock>) {
-        val slates = blocks.withIndex().filter { it.value.content !is ScheduleContent.Program }
+        // A starter at format 5 spreads the day's leftover as station breaks between runs: those are not grid gaps.
+        val slates =
+            blocks.withIndex().filter {
+                it.value.content !is ScheduleContent.Program && it.value.content != ScheduleContent.Break
+            }
         assertTrue(slates.all { it.index == blocks.lastIndex }, "only the closing slate is a slate: $slates")
         blocks.zipWithNext().forEach { (a, b) -> assertEquals(a.endMs, b.startMs) }
         assertEquals(7 * 60_000L, blocks.first().lengthMs)

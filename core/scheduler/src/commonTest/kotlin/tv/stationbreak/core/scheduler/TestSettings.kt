@@ -6,6 +6,7 @@ import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
 import tv.stationbreak.core.model.schedule.CuratedTuning
 import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -37,6 +38,7 @@ internal fun testSettings(
     runtimeFilter: RuntimeFilter? = null,
     repeatGapMs: Long = 10_800_000L,
     pairUpToMs: Long = 2_100_000L,
+    leftover: LeftoverPolicy = LeftoverPolicy.Gather,
 ) = SchedulerSettings(
     orderingMode = orderingMode,
     seed = seed,
@@ -51,6 +53,7 @@ internal fun testSettings(
     caps = caps,
     runtimeFilter = runtimeFilter,
     curated = CuratedTuning(repeatGapMs, pairUpToMs).takeIf { orderingMode == OrderingMode.Curated },
+    leftover = leftover,
 )
 
 /** No film belongs to a collection: the v1 tests' side input. */

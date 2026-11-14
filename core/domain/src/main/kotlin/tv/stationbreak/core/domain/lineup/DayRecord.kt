@@ -6,6 +6,7 @@ import tv.stationbreak.core.domain.lineup.repair.Composed
 import tv.stationbreak.core.domain.lineup.repair.LostFix
 import tv.stationbreak.core.domain.lineup.repair.RepairedDay
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.programId
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleBlock
@@ -33,7 +34,7 @@ internal class DayRecord(
         repair
             ?.blocks
             ?.filter { it.startMs >= repair.pinEndMs }
-            ?.mapNotNullTo(LinkedHashSet()) { it.itemId }
+            ?.mapNotNullTo(LinkedHashSet()) { it.programId() }
             .orEmpty()
 
     // The tail pool once read: the same record gives the same items, so it is read once per record and process.

@@ -54,6 +54,12 @@ object ScheduleFixtures {
         to: Long,
     ) = AiringBlock(T0 + from * MIN, T0 + to * MIN, Airing.Slate)
 
+    /** A station break from minute [from] to [to] (minutes from the test day's start). */
+    fun stationBreak(
+        from: Long,
+        to: Long,
+    ) = AiringBlock(T0 + from * MIN, T0 + to * MIN, Airing.Break)
+
     fun standIn(
         from: Long,
         to: Long,

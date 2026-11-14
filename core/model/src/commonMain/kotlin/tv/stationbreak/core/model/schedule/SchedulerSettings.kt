@@ -26,6 +26,8 @@ import tv.stationbreak.core.model.Seed
  * @property curated the tunables of the `curated` order: set exactly when [orderingMode] is `Curated`, so no other
  *   mode carries numbers it never reads
  * @property startMinuteOfDay when the broadcast day starts: minutes after midnight on the channel's clock, 0..1439.
+ * @property leftover where the time left at the end of a broadcast day goes ([LeftoverPolicy]): `Spread` for rules
+ *   that say `formatVersion` 5 or more, `Gather` otherwise.
  */
 data class SchedulerSettings(
     val orderingMode: OrderingMode,
@@ -41,6 +43,7 @@ data class SchedulerSettings(
     val caps: Caps?,
     val runtimeFilter: RuntimeFilter?,
     val curated: CuratedTuning?,
+    val leftover: LeftoverPolicy,
 ) {
     init {
         require(blockLength in MIN_BLOCK_LENGTH..MAX_BLOCK_LENGTH) { "A run is 1 to 100 items" }
@@ -111,6 +114,17 @@ data class SchedulerSettings(
         private val GRID_MINUTES = setOf(15, 30, 60)
         private val EPOCH_HOURS = setOf(1, 2, 3, 4, 6, 8, 12, 24)
     }
+}
+
+/**
+ * Where the time a broadcast day cannot fill with programmes goes.
+ * - [Gather]: all of it at the end of the day, before the next day starts (rules `formatVersion` 1 to 4).
+ * - [Spread]: spread through the day as station breaks between programmes (rules `formatVersion` 5, the spread day
+ *   end).
+ */
+enum class LeftoverPolicy {
+    Gather,
+    Spread,
 }
 
 /**

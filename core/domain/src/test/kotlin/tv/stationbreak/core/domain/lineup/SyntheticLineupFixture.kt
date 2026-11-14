@@ -311,5 +311,9 @@ internal object SyntheticLineupFixture {
             ScheduleContent.Slate -> {
                 jsonOf("startMs" to jsonMs(startMs), "endMs" to jsonMs(endMs), "slate" to json(true))
             }
+
+            ScheduleContent.Break -> {
+                jsonOf("startMs" to jsonMs(startMs), "endMs" to jsonMs(endMs), "break" to json(true))
+            }
         }
 }

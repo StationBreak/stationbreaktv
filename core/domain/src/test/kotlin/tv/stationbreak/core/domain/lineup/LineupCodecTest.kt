@@ -12,6 +12,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -245,7 +246,7 @@ class LineupCodecTest {
 
     @Test
     fun rulesThatNeedANewerAppAreUnusableNotUnreadable() {
-        val newer = """{"formatVersion":5,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
+        val newer = """{"formatVersion":6,"seed":"1","sources":[{"type":"genre","name":"Comedy"}]}"""
         val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(newer))) }
         val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
         assertIs<ChannelSource.Unusable>(loaded.channels[0].source)
@@ -314,15 +315,46 @@ class LineupCodecTest {
         assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes, gatePassed = false)).lineup
 
     @Test
-    fun aFourthVersionRulesFileIsUsableAndAFifthStaysUnusable() {
-        val fourth = version3Text.replace("\"formatVersion\":3", "\"formatVersion\":4")
-        val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(fourth))) }
-        val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
-        assertEquals(4, assertIs<ChannelSource.Starter>(loaded.channels[0].source).rules.formatVersion)
-        val fifth = version3Text.replace("\"formatVersion\":3", "\"formatVersion\":5")
-        val newer = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(fifth))) }
+    fun aFourthAndFifthVersionRulesFileIsUsableAndASixthStaysUnusable() {
+        for (version in listOf(4, 5)) {
+            val text = version3Text.replace("\"formatVersion\":3", "\"formatVersion\":$version")
+            val file = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(text))) }
+            val loaded = assertIs<LineupCodec.Decoded.Loaded>(decode(file.toString())).lineup
+            assertEquals(version, assertIs<ChannelSource.Starter>(loaded.channels[0].source).rules.formatVersion)
+        }
+        val sixth = version3Text.replace("\"formatVersion\":3", "\"formatVersion\":6")
+        val newer = tree().withChannel(0) { it.with("source", it.source().with("rules", JsonPrimitive(sixth))) }
         val stays = assertIs<LineupCodec.Decoded.Loaded>(decode(newer.toString())).lineup
         assertIs<ChannelSource.Unusable>(stays.channels[0].source)
+    }
+
+    // The path an older build takes with rules one version past what it reads (a build that reads 4, given 5): a
+    // stored starter and custom channel with such rules are kept as unusable, with their ID, numbers, name and state,
+    // and the file comes back byte for byte.
+    @Test
+    fun aChannelWithNewerRulesIsKeptAsUnusableAndRoundTripsByteForByte() {
+        val next = RulesLimits.SUPPORTED_FORMAT_VERSION + 1
+        val stored =
+            lineupOf(
+                starter("laughs", 110, ChannelState.UserHidden, rules("Laughs", Source.Genre("Comedy")))
+                    .copy(numberOverride = 111, nameOverride = "Our laughs"),
+                channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(rules("Mine", Source.Tag("mine"))))
+                    .copy(numberOverride = 601, nameOverride = "My channel"),
+            )
+        val current = LineupCodec.encode(stored).decodeToString()
+        // The rules are held as JSON strings, written by the rules codec: `\"formatVersion\": 1`.
+        val one = "\\\"formatVersion\\\": 1,"
+        assertEquals(2, current.split(one).size - 1, "the starter's and the custom channel's rules say 1")
+        val fixture = current.replace(one, "\\\"formatVersion\\\": $next,")
+        val bytes = fixture.encodeToByteArray()
+
+        val loaded = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes)).lineup
+        assertEquals(stored.channels.size, loaded.channels.size)
+        for ((was, now) in stored.channels.zip(loaded.channels)) {
+            assertIs<ChannelSource.Unusable>(now.source, was.id.toString())
+            assertEquals(was.copy(source = now.source), now, "everything but the source is kept")
+        }
+        assertEquals(fixture, LineupCodec.encode(loaded).decodeToString(), "byte for byte")
     }
 
     @Test
