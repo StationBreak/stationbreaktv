@@ -793,7 +793,7 @@ class GuideScreenshotTest {
         // shell can still pull.
         val external = File(checkNotNull(context.getExternalFilesDir(null)), SCREENSHOT_DIR)
         val shared = File(Environment.getExternalStorageDirectory(), SCREENSHOT_DIR)
-        // A run started with `am instrument -e sharedCopy false` (a TV where the shell installs the test package for
+        // A run given the instrumentation argument sharedCopy=false (a TV where the shell installs the test package for
         // one user) keeps only the package's own copy, and the shell pulls it from there.
         val sharedCopy = InstrumentationRegistry.getArguments().getString("sharedCopy") != "false"
         if (sharedCopy) grantPublicStorage(context.packageName)
