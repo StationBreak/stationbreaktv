@@ -266,6 +266,7 @@ class BuilderFixesTest {
                         account: LibraryAccount,
                         draft: ChannelDraft,
                         at: Instant,
+                        editing: ChannelId?,
                     ): ChannelPreview {
                         delay(1000)
                         return ChannelPreview.Ready(draft.sources.size, 1, emptyList(), emptyList())

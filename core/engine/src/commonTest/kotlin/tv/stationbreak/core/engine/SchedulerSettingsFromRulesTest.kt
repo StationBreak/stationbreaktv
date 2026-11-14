@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.Filters
@@ -47,6 +48,22 @@ class SchedulerSettingsFromRulesTest {
         assertEquals(1080, s.startMinuteOfDay)
         assertEquals(2, s.graceHours)
         assertEquals(90_000L, s.minRuntimeMs)
+    }
+
+    // Version 5 (the spread day end) is the boundary switch: 5 spreads the day's leftover time, 1 to 4 gather it.
+    @Test
+    fun version5MapsToSpreadAndOlderToGather() {
+        assertEquals(LeftoverPolicy.Spread, base.copy(formatVersion = 5).toSchedulerSettings().leftover)
+        for (version in 1..4) {
+            assertEquals(LeftoverPolicy.Gather, base.copy(formatVersion = version).toSchedulerSettings().leftover)
+        }
+        // A version 4 studio file matches under studio fold 2 and still gathers.
+        val studio = rules(listOf(Source.Studio("Studio A")), formatVersion = 4)
+        assertEquals(true, studio.matchesStudiosByFold2)
+        assertEquals(LeftoverPolicy.Gather, studio.toSchedulerSettings().leftover)
+        val spread = studio.copy(formatVersion = 5).toSchedulerSettings()
+        assertEquals(LeftoverPolicy.Spread, spread.leftover)
+        assertEquals(studio.toSchedulerSettings().copy(leftover = LeftoverPolicy.Spread), spread, "nothing else moves")
     }
 
     @Test

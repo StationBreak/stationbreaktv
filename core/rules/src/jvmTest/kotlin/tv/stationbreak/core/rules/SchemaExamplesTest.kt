@@ -45,7 +45,37 @@ class SchemaExamplesTest {
             .getSchema(RulesFormatFiles.schemaV4File.readText())
     }
 
+    private val schemaV5: Schema by lazy {
+        assertTrue(RulesFormatFiles.schemaV5File.isFile, "missing ${RulesFormatFiles.schemaV5File}")
+        SchemaRegistry
+            .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
+            .getSchema(RulesFormatFiles.schemaV5File.readText())
+    }
+
     private fun errors(text: String) = schema.validate(text, InputFormat.JSON)
+
+    // Version 5 has the fields of version 4: every earlier example validates, and every version 3 example also
+    // validates when it says 5; version 6 does not, the version 4 schema rejects 5, and a version 3 feature in a file
+    // that says 2 is still rejected.
+    @Test
+    fun theV5SchemaTakesEveryEarlierExampleAndTheV3OnesAt5() {
+        val earlier = RulesFormatFiles.valid + RulesFormatFiles.validV2 + RulesFormatFiles.validV3
+        val failures =
+            earlier.mapNotNull { (name, text) ->
+                schemaV5.validate(text, InputFormat.JSON).takeIf { it.isNotEmpty() }?.let { name to it }
+            }
+        if (failures.isNotEmpty()) fail(failures.joinToString("\n") { (n, e) -> "$n: $e" })
+        for ((name, text) in RulesFormatFiles.validV3) {
+            val v5 = JsonObject(Json.parseToJsonElement(text).jsonObject + ("formatVersion" to JsonPrimitive(5)))
+            assertTrue(schemaV5.validate(v5.toString(), InputFormat.JSON).isEmpty(), "$name at 5")
+            assertTrue(schemaV4.validate(v5.toString(), InputFormat.JSON).isNotEmpty(), "$name at 5, v4 schema")
+            val v6 = JsonObject(v5 + ("formatVersion" to JsonPrimitive(6)))
+            assertTrue(schemaV5.validate(v6.toString(), InputFormat.JSON).isNotEmpty(), "$name at 6")
+            assertTrue(RulesReader.read(v5.toString()) is RulesResult.Ok, "$name at 5 reads")
+        }
+        val text = RulesFormatFiles.invalid.getValue("v3-feature-in-v2.json")
+        assertTrue(schemaV5.validate(text, InputFormat.JSON).isNotEmpty(), "a studio source in a v2 file")
+    }
 
     // Version 4 (ADR-0026) has the fields of version 3: every earlier example validates, and every version 3 example
     // also validates when it says 4; version 5 does not, nor a version 3 feature in a file that says 2.

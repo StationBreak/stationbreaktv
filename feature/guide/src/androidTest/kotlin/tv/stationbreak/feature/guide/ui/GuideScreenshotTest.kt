@@ -90,6 +90,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.info
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.stationBreak
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -252,6 +253,84 @@ class GuideScreenshotTest {
             assertEquals(FRAME_HOMES.joinToString(", ") { it.name } + " + 31 more", text(GuideTags.CHANNEL_PANEL_LIST))
             shoot("$CHANNEL_BOX_FRAME$suffix.png")
         }
+    }
+
+    /**
+     * Station breaks (rules format 5) on the playing channel: a two-minute break narrower than the compact width (its
+     * fill only, no plate text) and a twenty-five-minute break with its whole STATION BREAK plate. Right from the
+     * playing episode stops on the short break, then the next programme, then the long break; Left comes back the same
+     * way. Each focused break names itself in the panel ("Station break · Up next at ..."). Dark then Light.
+     */
+    @Test
+    fun theStationBreaks() {
+        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
+            theme.value = shown
+            showReady(CH7, fill = ::fillBreaksLineup)
+            cell(CH7, 60).assertIsSelected()
+            assertTrue("the short break is ${widthDp(CH7, SHORT_BREAK_MIN)} dp", widthDp(CH7, SHORT_BREAK_MIN) < 48f)
+            assertTrue(
+                "the short break draws no plate text",
+                compose
+                    .onAllNodesWithTag(GuideTags.cellText(CH7, T0 + SHORT_BREAK_MIN * MIN), useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .isEmpty(),
+            )
+            assertTrue("the long break is ${widthDp(CH7, LONG_BREAK_MIN)} dp", widthDp(CH7, LONG_BREAK_MIN) >= 48f)
+            assertEquals("STATION BREAK", text(GuideTags.cellText(CH7, T0 + LONG_BREAK_MIN * MIN)))
+            assertTrue("the long break's plate is cut", !ellipsized(GuideTags.cellText(CH7, T0 + LONG_BREAK_MIN * MIN)))
+            shoot("$BREAKS_FRAME$suffix.png")
+
+            press(Key.DirectionRight)
+            cell(CH7, SHORT_BREAK_MIN).assertIsSelected()
+            assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Station break · Up next at "))
+            shoot("$BREAK_SHORT_FOCUSED_FRAME$suffix.png")
+
+            press(Key.DirectionRight)
+            cell(CH7, SHORT_BREAK_MIN + 2).assertIsSelected()
+            press(Key.DirectionRight)
+            cell(CH7, LONG_BREAK_MIN).assertIsSelected()
+            assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Station break · Up next at "))
+            shoot("$BREAK_LONG_FOCUSED_FRAME$suffix.png")
+
+            press(Key.DirectionLeft)
+            cell(CH7, SHORT_BREAK_MIN + 2).assertIsSelected()
+            press(Key.DirectionLeft)
+            cell(CH7, SHORT_BREAK_MIN).assertIsSelected()
+            press(Key.DirectionLeft)
+            cell(CH7, 60).assertIsSelected()
+        }
+    }
+
+    private fun widthDp(
+        channel: ChannelId,
+        startMin: Long,
+    ): Float {
+        val px = cell(channel, startMin).fetchSemanticsNode().boundsInRoot.width
+        return px / compose.density.density
+    }
+
+    /** The default lineup with channel 7's day carrying a short and a long station break after the playing episode. */
+    private fun fillBreaksLineup() {
+        fillLineup()
+        fake.channel(
+            CH7,
+            7,
+            listOf(
+                program(0, 30, 100),
+                program(30, 60, 101),
+                program(60, SHORT_BREAK_MIN, FOCUSED_ITEM, info = episodeInfo(FOCUSED_ITEM, SERIES, 1, 19)),
+                stationBreak(SHORT_BREAK_MIN, SHORT_BREAK_MIN + 2),
+                program(SHORT_BREAK_MIN + 2, LONG_BREAK_MIN, 110),
+                stationBreak(LONG_BREAK_MIN, LONG_BREAK_MIN + LONG_BREAK_LENGTH_MIN),
+            ) +
+                (LONG_BREAK_MIN + LONG_BREAK_LENGTH_MIN until 600L step 30).map {
+                    program(
+                        it,
+                        minOf(it + 30, 600),
+                        111 + (it / 30).toInt(),
+                    )
+                },
+        )
     }
 
     /** The holdings come once the focus has rested on the channel: a dwell after the column is reached. */
@@ -714,8 +793,11 @@ class GuideScreenshotTest {
         // shell can still pull.
         val external = File(checkNotNull(context.getExternalFilesDir(null)), SCREENSHOT_DIR)
         val shared = File(Environment.getExternalStorageDirectory(), SCREENSHOT_DIR)
-        grantPublicStorage(context.packageName)
-        for (directory in listOf(external, shared)) {
+        // A run given the instrumentation argument sharedCopy=false (a TV where the shell installs the test package for
+        // one user) keeps only the package's own copy, and the shell pulls it from there.
+        val sharedCopy = InstrumentationRegistry.getArguments().getString("sharedCopy") != "false"
+        if (sharedCopy) grantPublicStorage(context.packageName)
+        for (directory in if (sharedCopy) listOf(external, shared) else listOf(external)) {
             assertTrue("could not create $directory", directory.mkdirs() || directory.isDirectory)
             val file = File(directory, name)
             file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it)) }
@@ -778,6 +860,12 @@ class GuideScreenshotTest {
         const val PNG_QUALITY = 100
         const val FRAME_WAIT_MS = 500L
         const val FIT_FRAME = "guide-fit"
+        const val BREAKS_FRAME = "guide-breaks"
+        const val BREAK_SHORT_FOCUSED_FRAME = "guide-break-short-focused"
+        const val BREAK_LONG_FOCUSED_FRAME = "guide-break-long-focused"
+        const val SHORT_BREAK_MIN = 88L
+        const val LONG_BREAK_MIN = 120L
+        const val LONG_BREAK_LENGTH_MIN = 25L
         val PANEL_ROW_TAGS =
             listOf(
                 GuideTags.THEME_DARK,

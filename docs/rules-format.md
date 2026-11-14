@@ -1,6 +1,6 @@
 # Channel rules format
 
-> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged (see Format version). Version 3 (2026-11-03): it adds features to version 2 and leaves versions 1 and 2 unchanged. Version 4 (2026-11-13): it adds no field and changes only how a studio name matches (studio fold 2, see Studio names). Any later change that alters a lineup needs `formatVersion` 5.
+> Version 1 — final (2026-10-16), amended once on 2026-10-19 (see Changes to version 1). Version 2 — final (2026-11-02): it adds features to version 1 and leaves version 1 unchanged (see Format version). Version 3 (2026-11-03): it adds features to version 2 and leaves versions 1 and 2 unchanged. Version 4 (2026-11-13): it adds no field and changes only how a studio name matches (studio fold 2, see Studio names). Version 5 (2026-11-13): it adds no field, keeps studio fold 2, and spreads the end of the day as breaks (see The spread end of the day). Any later change that alters a lineup needs `formatVersion` 6.
 
 This document defines the file that describes one StationBreak channel. It is written for a developer who has never seen
 this repository and who wants to build another client (Roku, Apple TV, a web tool) that shows the same lineup as the
@@ -50,7 +50,7 @@ The top-level fields:
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `formatVersion` | yes, no default | Whole number, 1 or more. The version of this format: `1`, `2` or `3` (see Format version). |
+| `formatVersion` | yes, no default | Whole number, 1 or more. The version of this format: `1` to `5` (see Format version). |
 | `name` | no | The channel's display name. |
 | `seed` | yes, no default | The channel's random seed, as a decimal string. |
 | `sources` | yes, no default | List of sources: what can air. At least 1. |
@@ -83,9 +83,12 @@ holds a secret and never causes a client to fetch a URL.
 - **Program**: one item as it airs.
 - **Run**: `blockLength` items that play back to back (see `blockLength` in Timing and Runs). A run is a unit of the
   order. It is not a unit of the lineup.
-- **Block**: one entry of a lineup: either one item (a program) or a slate, with a start and an end. A run is played as one
-  block per item.
+- **Block**: one entry of a lineup: one item (a program), a slate or, in version 5, a break, with a start and an end. A
+  run is played as one block per item.
 - **Slate**: a block with no program, for time nothing else fills. It is a station-ID card until filler exists.
+- **Break**: in version 5, a block with no program and no media offset that is shown as the channel's station-break card,
+  and also the place at a run boundary where the spread end of the day puts such a card and programmes (see The spread
+  end of the day). Versions 1 to 4 have no breaks.
 - **Epoch**: the stretch of time from `epochStart(n)` up to `epochStart(n + 1)` (default 24 hours). Each epoch's lineup is
   worked out from that epoch's own pool and the channel's rules, with no state carried over from earlier epochs. The
   `shuffle` order has a seed of its own for each epoch; the other orders do not (see Ordering).
@@ -103,7 +106,7 @@ holds a secret and never causes a client to fetch a URL.
 
 ## Format version
 
-`formatVersion` is a whole number of 1 or more. This document defines versions `1`, `2`, `3` and `4`.
+`formatVersion` is a whole number of 1 or more. This document defines versions `1`, `2`, `3`, `4` and `5`.
 
 **Version 2 is final** (2026-11-02), with its independently computed vectors. The owner accepted the one known cost of its
 layout, that the planned end of a day may be played again at the start of the next (issue #546), rather than change the layout
@@ -122,7 +125,14 @@ a file that says `4`, a `studio` source, a `studio` exclusion and the `studios` 
 fold 2** (see Studio names, Studio fold 2), which closes look-alike spellings (spaces, blanks and invisible code points
 inside a name) that studio fold 1 lets through. A file that says `1` to `3` keeps studio fold 1 exactly, so every client
 agrees on every existing file. A file that uses no studio feature is the same in version 3 and 4.
-A later change that alters a lineup needs `formatVersion` 5.
+
+**Version 5** (2026-11-13) has exactly the fields of version 4 and keeps studio fold 2: everything this document says of a
+file that says 4 (studio fold 2 and its empty-key rule) holds for a file that says 5. It changes one more thing, the end of
+each day. In a file that says 5, the time the regular layout leaves before the end of the day is filled with a best fit
+and spread through the day as breaks at run boundaries, and a day can hold a third kind of block, the **break** (see The
+spread end of the day). A file that says `1` to `4` keeps The planned end of the day exactly. A file that says 5 is
+written back as 5: a writer never lowers it, because its days are not those of version 4.
+A later change that alters a lineup needs `formatVersion` 6.
 
 **A writer that creates or edits rules writes the lowest version whose features the rules use.** A file that uses nothing
 from version 2 or 3 says `1`. A file that is read and written back unchanged keeps the version it had. The presence of `filters`
@@ -133,6 +143,12 @@ mode that ignores them). A builder that edits a file moves it to version 3 when 
 lowest version the rules need when it removes the last one. Rules that hold a `studio` source, a `studio` exclusion or a
 `studios` filter are the one exception: they are written at their **write version** (see Studio fold 2, Writing version
 4), which is never below the version the file said and is 4 once every client reads 4.
+**New channels and starters are written at 5.** A channel created in the app (from scratch or copied from another
+channel) and every starter channel resolved from the built-in catalog are written at `formatVersion` 5 whatever their
+rules need, so they spread the end of the day; an edited existing file keeps the rule above (ADR-0022's addendum,
+[ADR-0027](adr/0027-v5-release-rule.md)). The starter catalog's version 4 is the one that brings this: a client that
+ships catalog 4 writes its starters at 5, and moves unedited starters from an earlier catalog to 5 at the next day
+boundary (at once for one not on the air).
 **A reader that supports version 2 reads a version 1 file unchanged, and a reader that supports version 3 reads version 1
 and version 2 files unchanged.** Version 2 adds, and changes nothing in version 1:
 the orders `rotation` and `inOrder`, `ordering.caps`, the `item` source and exclusion, and `filters`. Versions 1, 2 and 3
@@ -144,7 +160,7 @@ coexist, and no file is migrated.
   **unsupported** (see Unknown fields and unsupported kinds);
 - `filters` and `ordering.caps` are unknown fields: they are kept and ignored.
 
-**Version 3 features are read only in a file that says `formatVersion` 3 or 4.** In a file that says `1` or `2`:
+**Version 3 features are read only in a file that says `formatVersion` 3, 4 or 5.** In a file that says `1` or `2`:
 
 - the source and exclusion `type` `studio` and the ordering `mode` `curated` are unknown kinds, so the channel is
   **unsupported** (see Unknown fields and unsupported kinds);
@@ -157,7 +173,7 @@ coexist, and no file is migrated.
 rest of the file is unreadable. The only things checked before it are the input limits (see Limits) and the JSON profile
 (see JSON profile): a file over a limit, or one that breaks the profile, is invalid even when its `formatVersion` is newer.
 
-- If `formatVersion` is higher than the highest version the reader supports (5 or more, for a reader of this document),
+- If `formatVersion` is higher than the highest version the reader supports (6 or more, for a reader of this document),
   the reader must **not** schedule the
   channel, must not try to read the rest, and should tell the user that an update is required. It must never play a
   best-effort lineup from a newer file.
@@ -269,7 +285,7 @@ Sources, exclusions and the rating ceiling decide the **pool**. These rules deci
    - `yearRange`: if the item's **own** production year is in the range. An item with no production year is **not**
      included. A client must not guess a year from the series;
    - `studio` (version 3): if the item has a studio whose name equals the source's `name` under the **studio fold** (see
-     String matching; studio fold 2 in a file that says 4), **or if it is an episode and its series has one**. Jellyfin keeps studios on the series, so an
+     String matching; studio fold 2 in a file that says 4 or 5), **or if it is an episode and its series has one**. Jellyfin keeps studios on the series, so an
      episode takes its series' studios as it takes its series' genres and tags.
 3. **Union, then exclusions.** The pool starts as every item that matches **any** source. An item that matches several
    sources is in the pool **once** (items are the same item if their canonical IDs are equal). Then every item that
@@ -380,7 +396,7 @@ Each kind has its own example file:
 - `docs/rules-format/examples/series.json` selects one series.
 
 `studio` (version 3) matches an item that has a studio whose name equals `name` under the studio fold (studio fold 2 in a
-file that says 4), and an episode whose series has one. It is a source and an exclusion like `genre` and `tag`. `docs/rules-format/examples/v3/studio.json` has a
+file that says 4 or 5), and an episode whose series has one. It is a source and an exclusion like `genre` and `tag`. `docs/rules-format/examples/v3/studio.json` has a
 `studio` source and a `studio` exclusion:
 
 ```jsonc
@@ -407,8 +423,8 @@ rules file that names a library, collection or series by ID only makes sense on 
 ## Exclusions
 
 `exclusions` is an optional list of up to 256 objects. It uses **the same kinds as sources**, with the same fields. That
-includes `item` in a file of version 2 to 4, which removes one movie or one episode, and `studio` in a version 3 or 4 file,
-which removes every item of that studio and every episode of a series of that studio (in a version 4 file, with the
+includes `item` in a file of version 2 to 5, which removes one movie or one episode, and `studio` in a version 3, 4 or 5 file,
+which removes every item of that studio and every episode of a series of that studio (in a version 4 or 5 file, with the
 empty-key rule of Studio fold 2).
 
 How they combine: first take the union of all `sources`. Then remove every item that matches **any** exclusion. An item
@@ -1123,10 +1139,13 @@ and builds no day.
 
 **Output.** A **day**: the epoch number `n`, its start `S = epochStart(n)`, its end `E = S + epochMs` (which is
 `epochStart(n + 1)`), and a list of **blocks**. A block is a start and an end, in milliseconds since the Unix epoch, and
-its content: either a program (an item ID and a **media start offset**, which is always `0` in version 1) or a **slate**.
+its content: a program (an item ID and a **media start offset**, which is always `0` in version 1), a **slate** or, in
+version 5, a **break**: a station-break card, with no item and no media offset (see The spread end of the day). Versions 1
+to 4 never give a break.
 A block is **half-open**, `[start, end)`: a time exactly on a block's end belongs to the next block. A block is always
 longer than zero. The blocks of a day follow each other with no gap and no overlap, the first starts at `S`, the last ends
-at `E`, and no two slates are next to each other. Nothing crosses `S` or `E`.
+at `E`, no two slates are next to each other, and a break is never next to another break. On a grid day a slate never
+directly precedes the closing break. Nothing crosses `S` or `E`.
 
 ### Numbers and ranges
 
@@ -1385,10 +1404,10 @@ The day is laid out from a start run `j` (see Where the day starts) with a curso
 
 The cycle wraps **inside a day, in every mode**, including `shuffle`: after run `B - 1` comes run `0`, so a day longer than
 one cycle plays the cycle again. If the regular layout reaches `E` exactly (step 1), the day is complete: there is no
-planned end, and no closing slate. Otherwise the planned end finishes the day.
+planned end, and no closing slate. Otherwise the planned end finishes the day (in version 5, the spread end of the day).
 
 A gap before a grid mark is a slate only when a run is placed after it. A gap that has no run after it is part of the
-closing slate (see The planned end of the day).
+closing slate (see The planned end of the day; in version 5, of the closing break).
 
 ### Where the day starts
 
@@ -1476,6 +1495,9 @@ For `shuffle` (also with caps) the order is new on each day, so there is no cont
 
 ### The planned end of the day
 
+(Versions 1 to 4. A file that says 5 ends its day as The spread end of the day says, which uses step 1 below and the scan
+of steps 1 and 2 as its first fit.)
+
 When step 3 of the regular layout stops (run `i` would not end by `E`), the rest of the day is **planned**, not cut. Let `c`
 be the end of the last block placed (it is `S` if none). Number the items of the cycle `L[0] ... L[N - 1]`, runs in order
 and items in order inside each run. Here `i` is the index of the run that did not fit, taken modulo `B` (the regular layout may have gone round the cycle
@@ -1513,13 +1535,16 @@ planned end of a curated day may place an episode before an earlier episode of i
 **Caps are not enforced in the planned end.** The planned end places items one by one by their fit, so a cap can be
 exceeded there.
 
-**Where a cap can be exceeded.** A cap holds in the order a mode produces. It can be exceeded in three places only:
+**Where a cap can be exceeded.** A cap holds in the order a mode produces. It can be exceeded in three places only, and
+in version 5 in a fourth:
 
 - `rotation`'s **cycle wrap**: the last turns of one cycle can be followed by the first turn of the next, so a show can run
   from its tail into its head. There is no rule to mend this seam;
 - the capped shuffle's **in-day wrap**: when the cycle is shorter than the day, the order starts again and its tail meets
   its head;
-- the **planned end** of the day, as above.
+- the **planned end** of the day, as above (in version 5, on a grid day, which keeps the planned end);
+- in version 5, the **breaks** of a capped `shuffle` (see The spread end of the day): a short placed in a break can sit
+  next to an episode of its own series, so a cap can be exceeded there.
 
 A separate consequence of the left-out rule: when a run is left out (see Left-out runs), the runs on each side of it
 become neighbours, and in the capped shuffle that can put two turns of one group together. (No `rotation` run is left out.)
@@ -1555,9 +1580,213 @@ shuffle (seed 4):  the order is P A1 A2 B too, so visit A1, A2, B, P (N = 4, wra
                  B: s = nextMark(110) = 120, 145 > 120, no.   P: s = 120, no.   Close: slate [110,120).
 ```
 
+### The spread end of the day (version 5)
+
+In a file that says `formatVersion` 5, the time the regular layout leaves before `E` is not gathered at the end of the day.
+It is filled with the **best fit** of the items the planned end may visit, and that fill, with the time it cannot fill,
+is spread through the day as **breaks** at run boundaries. A break holds programmes and a **card**: a block whose content
+is a break (see Inputs and outputs), shown as the channel's station-break card. A file that says 1 to 4 keeps The planned
+end of the day exactly. The regular layout, and everything before it, is the same in every version. This section
+describes a whole day, `[S, E)`.
+
+**What the steps read.** After the regular layout stops:
+
+- `c`: the end of the last run it placed, or `S` if it placed none. `left = E - c` is the **leftover**.
+- The **run ends** `r[0] < r[1] < ... < r[q - 1]`: the end of each run the regular layout placed, in order, so
+  `r[q - 1] = c`. `q` counts a run each time it is placed. Every run end but the last lies strictly between `S` and `c`.
+  When no run was placed there are no run ends.
+- The **visit** `V[0], V[1], ...`: exactly the items that step 1 of The planned end of the day visits, in that order (it
+  wraps for `shuffle` and `curated`, and stops at the end of the cycle for the other modes). When the regular layout reached `E`
+  exactly, no run was left unstarted and the visit is empty. In `shuffle` and `curated` the **cycle index** of `V[v]` is
+  `(f + v) mod N`, its place in the cycle's items `L[0] ... L[N - 1]` of The planned end of the day.
+- The **airings**: every program block the regular layout placed, each as its item and the block's end. An item may air
+  more than once.
+- The **group key** of an item:
+  - `curated`: its group in the walk of `curated` (step 1 there): the series ID, the franchise's collection ID, or the
+    item's own ID;
+  - `rotation`: its group of Groups in version 2, as in the planned end;
+  - `chronological`, `randomInOrder` and `inOrder`: its series ID, or its own ID, as in the planned end;
+  - `shuffle`, with or without caps: its own ID.
+- Items and groups are compared by canonical ID, as exact strings. An item **has aired** when its ID is the ID of an
+  airing.
+- Two constants: `BREAK_SPACING_MS = 9000000` (one break per 150 minutes) and `MIN_CARD_MS = 60000`.
+
+Every division below is `floorDiv` of numbers that are not negative. A **selection** is a list of positions in the visit,
+in ascending order. A best fit returns positions in the list it was given, never items found again by their ID. When it is
+given a sub-list of the visit (such as the items that have not aired), each returned position is turned back into the
+position in the visit of the same entry.
+
+When `left = 0` (the regular layout reached `E`) the steps below add nothing, and the day is the regular layout.
+
+**Best fit.** Two procedures pick the candidates whose weights add up to the most whole seconds that fit in a budget. Each
+takes a list of candidates `C[0], C[1], ...`, a budget in milliseconds, and a weight for each candidate in milliseconds.
+
+```text
+w(x) = ceil(weight(x) / 1000)            seconds, rounded up; a weight above 86400000 ms counts as 86401 s
+B    = min(floorDiv(budget, 1000), 86400) seconds, rounded down
+If B <= 0 the result is empty. MAX_FIT_CANDIDATES = 64.
+reach[0 .. B]: each entry is unset or holds a position; reach[0] = start, every other entry is unset.
+
+bestFit(C, budget, weight):
+  1. pool = the positions p of C, in order, with w(C[p]) <= B (each fits alone). Keep the first 64 of pool.
+  2. For each kept position p, in order, with w = w(C[p]):
+       for s from B down to w: if reach[s] is unset and reach[s - w] is set, set reach[s] = p.
+  3. s = the largest s with reach[s] set. While s > 0: p = reach[s]; take p; s = s - w(C[p]).
+  4. The result is the positions taken, in ascending order.
+
+bestGroupedFit(C, group, budget, weight):   (the ordered modes: inside a group only a prefix may be taken)
+  1. The cut. Walk C in order, with an empty set P of passed-over groups. At position p, with g = group(C[p]):
+       if w(C[p]) > B, add g to P and drop p; otherwise p goes into pool when g is not in P, and is dropped when it is.
+     Keep the first 64 of pool. (A dropped position comes after every kept position of its group, so each group keeps
+     a prefix of its positions in C.)
+  2. Take the groups in the order of their first kept position. A group's members are its kept positions
+     m[1] < m[2] < ... < m[t]. Its option j, for j = 1 .. t, is m[1] .. m[j], of weight
+     W[j] = w(C[m[1]]) + ... + w(C[m[j]]).
+  3. For each group, in that order: copy reach into snapshot; then
+       for s from B down to 1:
+         for j from 1 to t: if reach[s] is unset and s >= W[j] and snapshot[s - W[j]] is set, set reach[s] = m[j].
+     (Reading the snapshot, which is reach as it was before the group, takes at most one option per group.)
+  4. s = the largest s with reach[s] set. While s > 0: m[j] = reach[s]; take every member of its group up to and
+     including m[j]; s = s - W[j].
+  5. The result is the positions taken, in ascending order.
+```
+
+The first write to `reach[s]` wins and is never replaced, so ties go to the set reached first when the candidates are taken
+in order. Weights round up and the budget rounds down, so the real sum never exceeds the budget. The 64-candidate cap
+applies after the fits-alone filter (in `bestGroupedFit`, after the cut). Every item weighs at least 1 s: every weight a
+day gives is at least `1000` ms (a runtime is at least `minRuntimeMs`, and a slot is at least the runtime), and a weight
+below `1000` ms is an error. A budget over one day counts as 86,400 s. `bestFit` keeps one array of `B + 1` entries and
+`bestGroupedFit` two (`reach` and `snapshot`), so at most 86,401 entries each.
+
+**Grid channels.** When `alignToGrid` is true, version 5 keeps the planned end, adds the best fit, and spreads nothing,
+because moving a programme would take it off its grid mark:
+
+```text
+slot(x) = ceil(runtime(x) / gridMs) * gridMs;   G = E - nextMark(c).
+Best:
+  shuffle, curated: Bu = bestFit(the visit items that have not aired, G, slot), as visit positions;
+                    Ba = bestFit(V, G, slot).
+                    Best = Ba if the slots of Ba add up to strictly more than the slots of Bu; otherwise Best = Bu.
+  other modes:      Best = bestGroupedFit(V, group key, G, slot).
+Extra pass: lay Best out from c (each item at nextMark of the end before it) and let from = nextMark(where it ends).
+  Scan V in order and take the first eligible item x with from + runtime(x) <= E. Add it after Best (it always comes
+  after every position of Best in the visit, so the selection stays ascending). At most one item
+  is added, and none when no eligible item fits.
+  Eligible: shuffle, curated: x is not in Best. Other modes: the number of visit items of x's group before x equals the
+  number of Best items of that group (x is the next item of its group, so nothing of a group is skipped before it).
+First fit: steps 1 and 2 of The planned end of the day over the whole visit (no cap; the group rule in the ordered modes).
+Keep first fit if, laid out the same way, it ends strictly later than Best with the extra item; otherwise keep Best with
+  the extra item.
+Lay the kept selection out as the planned end does (each item at the next grid mark, with a slate before a gap), then
+  put one break [cursor, E) if cursor < E.
+```
+
+The extra pass recovers an item that the 64-candidate cap left out of `Best`. Nothing else is checked on a grid day: an
+item that has aired may be placed again (no repeat gap and no run rule apply), and caps are not enforced, as in the planned
+end. A grid day has at most one break, at its end, and a slate never directly precedes it. In a whole day the items that
+have not aired are the first items of the visit (`L[f] ... L[N - 1]`, or none when the day went round the cycle), so when
+`Ba` fills no more slot time than `Bu`, the two are the same selection.
+
+**Off the grid.** Each **candidate** fill `F` (a selection) is laid out by the steps S1 to S4, which give its **placed**
+sum.
+
+```text
+S1. R0 = left - (the sum of the runtimes of F).   n0 = |F| for shuffle and curated, 0 for the other modes.
+    k  = max(1, min(floorDiv(E - S, BREAK_SPACING_MS), n0 + floorDiv(R0, MIN_CARD_MS))).
+S2. Points. If no run was placed, the only point is S. Otherwise chosen = {c}, and for i = 0, 1, ..., k - 2, in order:
+      t[i] = S + floorDiv((i + 1) * (c - S), k).
+      A run end r[j], with j <= q - 2, is valid when it is not chosen and, for every chosen point p, at least one run
+      end that is not chosen lies strictly between r[j] and p. Take the valid r[j] with the smallest |r[j] - t[i]|;
+      on a tie, the smaller r[j]. Add it to chosen. If no run end is valid, skip t[i].
+    Sort the points in ascending order. k' = the number of points (1 or more). Break b, for b = 0 .. k' - 1, is at the
+    b-th point, counting from 0, so break k' - 1 is at c.
+S3. Place F.
+    chronological, randomInOrder, rotation, inOrder: placed = the sum of the runtimes of F. The fill goes into break k' - 1.
+    shuffle, curated:
+      Units. In shuffle each item of F is one unit. In curated the items of F that have one group key form one unit.
+        Units are in the order of their first item in F. Inside a unit the items are in cycle index order.
+      earliest(g), over every airing a whose item has the group key g (no airing: no limit):
+        curated: the largest a.end + repeatGapMs;
+        shuffle: the largest runEnd(a) + 1, where runEnd(a) is the end of the run a aired in (one of the r[j]).
+      Unit j (counting from 0) is tried at break j mod k', then at each later break up to k' - 1, and goes into the
+        first break whose point is at or after earliest(its group key). If there is none, the unit is dropped.
+      placed = the sum of the runtimes of the units placed.
+    R = left - placed.
+S4. Cards. If R = 0 there are none. Otherwise m = max(1, min(k', floorDiv(R, MIN_CARD_MS))), and card j, for
+    j = 0 .. m - 1, goes into break floorDiv((j + 1) * k', m) - 1. Every card is floorDiv(floorDiv(R, m), 1000) * 1000 ms
+    long, and the card in break k' - 1 also takes the rest, R - m * that.
+```
+
+Each of these points is part of the rule, and a port must follow it exactly:
+
+- `k` counts the whole day, `[S, E)`, but the targets divide `c - S` by `k`. When targets are skipped, `k'` is smaller than
+  `k`: the targets are still spaced by `k`, and the units and cards then use `k'`. Whether a run end is valid does not
+  depend on the target, so once a target is skipped every later one is skipped too.
+- A point tie goes to the earlier run end (a strict `<` on the distance, scanning the run ends in ascending order).
+- A unit that finds no break from `j mod k'` on is **dropped**. It is never tried at an earlier break (an earlier break has
+  an earlier point, so it could not take the unit anyway) and never wraps round to break 0.
+- `earliest` reads every airing of the group in the regular layout, the later ones too. Its times are those of the
+  regular layout **before** any break moves it: an airing's end and a break's point are both unshifted. A port **must
+  not** measure the repeat gap or the run rule on the moved times, on which a break before the point would make the point
+  look later. Units placed earlier in S3 do not count as airings.
+- In `shuffle` the rule is that at least one run boundary lies between an airing and the break: an item never replays in
+  the break at the end of its own run.
+- In the ordered modes only the card time is spread: the fill stays at the end of the day, in its order, because moving a
+  later episode into a mid-day break would put it before earlier ones.
+
+**Choosing the fill.** The candidates are laid out by S1 to S4 in a fixed order, and the one with the largest placed sum is
+kept. On a tie, the earliest candidate is kept (a later one must place strictly more).
+
+```text
+shuffle, curated:
+  U        = bestFit(the visit items that have not aired, left, runtime), as visit positions;
+  A        = bestFit(V, left, runtime);
+  firstFit = steps 1 and 2 of The planned end of the day over the whole visit, off the grid: with a sum s from 0,
+             take x when s + runtime(x) <= left.
+other modes:
+  G        = bestGroupedFit(V, group key, left, runtime);
+  firstFit = the same scan with the planned end's group rule (an item of a passed-over group is not eligible).
+```
+
+`firstFit` has no cap, so it covers a large pool whose best items the 64-candidate cap leaves out. The candidates are
+compared on placed sums, after S3 has dropped what it must.
+
+**The blocks.** Break `b` goes right after the run that ends at its point (at `S` itself when no run was placed), and every
+later block moves later by the break's length. Inside a break, in `shuffle` and `curated`: its units in the order they were
+placed, each unit's items in its order, one program block each, then its card as one break block. In the other modes break
+`b` is its card, and break `k' - 1` is its card followed by the fill in visit order, so the day ends on a programme. A
+break with nothing in it adds no block. The breaks add up to `left`, so the day still ends at `E` exactly. Two breaks are
+never next to each other (at least two runs lie between any two points, and a break holds at most one card), and a day
+off the grid has no slate.
+
+Worked example 3 (the case "spread shuffle" of `lineup-v5.json`, which gives the real IDs and seed). UTC, `start`
+`"00:00"`, `epochHours` 12, `alignToGrid` false, `blockLength` 1, `shuffle`. Suppose the order of the day is the films
+A (150 minutes), B (160), C (145), D (155) and E (130), then the shorts s1 (30), s2 (25), s3 (20), s4 (14) and s5 (11).
+Times are in minutes from `S`.
+
+```text
+regular layout:  A [0,150) B [150,310) C [310,455) D [455,610). E would end at 740 > 720: c = 610, left = 110.
+                 Run ends 150, 310, 455, 610.
+fill:            visit E s1 s2 s3 s4 s5 A B C D. U: E (130) does not fit alone; s1 to s5 add up to 100 <= 110,
+                 so U = {s1 .. s5}. A and firstFit are the same (the aired films do not fit). Nothing has aired among
+                 them, so U places 100 and is kept.
+S1:              R0 = 10, n0 = 5: k = max(1, min(720 / 150, 5 + 10)) = min(4, 15) = 4.
+S2:              chosen {610}. t0 = 610 / 4 = 152.5: 150 and 310 are valid (455 has no unchosen run end between it
+                 and 610); 150 is nearer. t1 = 305: 310 is next to 150, 455 next to 610: none, skipped; so is t2.
+                 Points 150, 610: k' = 2.
+S3:              units s1 s2 s3 s4 s5 go to breaks 0 1 0 1 0.
+S4:              R = 10, m = min(2, 10) = 2: cards in breaks floorDiv(1 * 2, 2) - 1 = 0 and floorDiv(2 * 2, 2) - 1 = 1,
+                 each 5 minutes.
+blocks:          A [0,150) s1 [150,180) s3 [180,200) s5 [200,211) break [211,216) B [216,376) C [376,521)
+                 D [521,676) s2 [676,701) s4 [701,715) break [715,720).
+```
+
+The vectors of `lineup-v5.json` cover each step: the point that is skipped, the tie between two run ends, a unit that waits
+for a repeat gap and one that is dropped, a unit that wraps in its group, the grid, and a pool of more than 64 candidates.
+
 ### One block per item
 
-A **block** holds one item, or is a slate. A run is played as **consecutive blocks**, one per item, each starting where the
+A **block** holds one item, or is a slate or (version 5) a break. A run is played as **consecutive blocks**, one per item, each starting where the
 last ended: item `k` of a run that starts at `r` starts at `r` plus the runtimes of items `0` to `k - 1`, and ends
 `runtimeMs` later. The media start offset of every program block is `0`: no program is ever joined part-way through at the
 start of a block.
@@ -1573,7 +1802,7 @@ An empty cycle (`B = 0`) makes the whole day one slate block `[S, E)`.
 2. The block is the **last block whose start is at or before `t`**, found by binary search (at most `ceil(log2(number of
    blocks))` comparisons). Blocks are half-open, so a `t` exactly on the end of one block is in the next one.
 3. The **offset** is `mediaStartOffset + (t - blockStart)` for a program: the position in the media to play from. A
-   **slate has no offset**.
+   **slate or a break has no offset**.
 4. The **next `k` blocks** are the `k` blocks that follow in the same day (fewer when the day ends). The caller builds the
    next day for any more.
 
@@ -1592,7 +1821,8 @@ The scheduler keeps no cache: the caller keeps the day.
 ### No random stream, no bounded integers
 
 Nothing in this section draws from a random-number stream, and no step needs an integer chosen from a range. Every order
-comes from a **hash key** and a total sort, and the planned end of the day is a deterministic scan. So the format defines
+comes from a **hash key** and a total sort, and the planned end of the day is a deterministic scan (in version 5, with a
+deterministic best fit). So the format defines
 no random-number generator and no bounded-integer step (such as rejection sampling), and a client **must not** add one. The
 only primitives are `splitmix64` and `fnv1a64` (see Primitives).
 
@@ -1608,7 +1838,9 @@ the keeps, the two tunables (`repeatGapMs` and `pairUpToMs`) and the per-kind ru
 written from this text alone, not with the code that is tested. Version 1 is final (amended once, on 2026-10-19), so a wrong
 vector now means version 2, and for version 2 now means version 3. Version 4 adds `pool-v4.json` (the pool of studio
 sources, exclusions and the `studios` filter in a file that says 4 and in one that says 3) and `upgrade-v4.json` (what a
-client writes back for a file before and after the gate); the scheduler's vectors are unchanged.
+client writes back for a file before and after the gate); the scheduler's vectors are unchanged. Version 5 adds
+`lineup-v5.json` (whole days of the spread end of the day, in the shape of `lineup-v3.json`, with break blocks), worked out
+by hand from this text; version 4 has no lineup vectors of its own, because its days are those of version 3.
 
 ## Filler
 
@@ -1867,7 +2099,7 @@ IDs are.
 ### Studio names
 
 (Version 3.) In a file that says `formatVersion` 3, a `studio` source or exclusion and the `studios` filter match a
-studio name under the **studio fold** described here (**studio fold 1**); in a file that says 4 they use studio fold 2
+studio name under the **studio fold** described here (**studio fold 1**); in a file that says 4 or 5 they use studio fold 2
 (next subsection). Studio fold 1 is not changed by version 4. The studio fold
 is applied to the name in the rules **and** to each studio name of the item or series, and then the two results are compared
 as exact sequences of Unicode code points. The studio fold is **clean**, then fold:
@@ -1895,7 +2127,7 @@ case function for this: they differ between platforms.
 
 ### Studio fold 2
 
-(Version 4, `docs/adr/0026-studio-fold-2.md`.) In a file that says `formatVersion` 4, a `studio` source, a `studio`
+(Version 4, `docs/adr/0026-studio-fold-2.md`.) In a file that says `formatVersion` 4 or 5, a `studio` source, a `studio`
 exclusion and the `studios` filter match by **studio fold 2**: the rules name and every studio name of the item (and, for
 an episode, of its series) are each turned into a **key**, and two names match when their keys are equal code point for
 code point. The sets and the pass are copied here from the ADR, which is the authority for them and also has the
@@ -1930,7 +2162,7 @@ c, apply the first rule that fits:
 The key is the kept code points in order: no trim, no collapse, no normalisation, no locale. So `Walt Disney`,
 `Walt  Disney`, `Walt` U+3000 `Disney`, `Walt` U+3164 `Disney` and `WaltDisney` all have the key `waltdisney`.
 
-**The empty-key rule.** A name whose key is empty is **empty**. In a file that says 4, a `studio` source or a `studios`
+**The empty-key rule.** A name whose key is empty is **empty**. In a file that says 4 or 5, a `studio` source or a `studios`
 filter name that is empty matches nothing, and a `studio` exclusion that is empty matches every item that has, or whose
 series has, a studio whose key is empty. (A studio name that studio fold 1 keeps but whose fold 2 key is empty, such as
 U+3164 alone, is still a studio of the item; so an exclusion never matches less under fold 2 than under fold 1.)
@@ -1981,7 +2213,8 @@ The version 1 JSON Schema describes version 1 only, so it rejects an unknown kin
 version 2, and it also rejects a version 2 mode or source in a file that says `formatVersion` 1. The version 3 schema
 describes version 3, and it also rejects a version 3 mode or source in a file that says `formatVersion` 1 or 2 and a
 version 2 mode or source in a file that says `formatVersion` 1. The version 4 schema is the version 3 schema with
-`formatVersion` 4 allowed, and the version 3 parts allowed in it. Readers rely on the rules above, not on the schemas.
+`formatVersion` 4 allowed, and the version 3 parts allowed in it. The version 5 schema is the version 4 schema with
+`formatVersion` 5 allowed, and the version 3 parts allowed in it. Readers rely on the rules above, not on the schemas.
 
 ## Limits
 
@@ -2022,7 +2255,7 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
    allowed.
 8. **Names.** A `name` of 100 emoji is accepted, and one of 101 is rejected (`name-100-code-points.json` and
    `invalid/name-101-code-points.json`).
-9. **Version gate.** A file with `formatVersion` 5 is not scheduled, even when the rest of it is unreadable.
+9. **Version gate.** A file with `formatVersion` 6 is not scheduled, even when the rest of it is unreadable.
 10. **JSON profile.** A repeated member name (also in an unknown field), a byte-order mark, `01`, `1.0` or `1e2` where a whole
     number is expected, and `NaN` are all rejected.
 11. **Automatic seed.** For server ID `11111111111111111111111111111111` and the library
@@ -2075,6 +2308,9 @@ same kinds, each written in decimal, in hex and as 32-bit halves.
     studio is `Walt` U+3000 `Disney` or `Walt` U+000B `Disney`, and the same file saying 3 does not (`pool-v4.json`); an exclusion named U+3164 removes an item whose only studio is U+2800 U+3164,
     and a `studio` source named U+3164 matches nothing. A file that says 4 and has a studio source is written back as 4,
     never 3 (`upgrade-v4.json`).
+24. **The spread end of the day.** Worked example 3 in Building the schedule gives the blocks of a version 5 `shuffle`
+    day: two breaks, at 150 and at `c`, the five shorts in them by `j mod k'`, and two 5-minute cards. A client should
+    reproduce it and every case of `lineup-v5.json`.
 
 ## A reference lineup fixture
 
@@ -2085,10 +2321,10 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 **What is in it.** One JSON object, with its keys in this order:
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
-- `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `3`),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-5`), `grownUpHold`
-  (`grown-up-hold-4`), `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of
-  these is not expected to give the same lineup or the same days;
+- `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-5`), `grownUpHold` (`grown-up-hold-4`),
+  `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
+  give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
   `standardOffsetMinutes` (`0`), `nowMs` (the moment of the first setup: a fixed instant, not a clock), `days` (how many
   days are written out) and `planner`: no current lineup (`current` null, so a first choice), the "Use my collections" flag on,
@@ -2113,7 +2349,8 @@ whole path from a library to a day's blocks, and shows which versions of the cat
   as `{id, number, name, n, epochStartMs, epochEndMs, ordering, seed, ceilingRank, hidden, blocks}`: the epoch number `n`
   and the epoch's start and end, the ordering mode and seed the day was built with, the tier of the rating ceiling (or
   null), why the day is empty (a `HiddenReason` name, or null) and `blocks`, the whole day in order. A block is
-  `{startMs, endMs, itemId, mediaStartOffsetMs}` for a program or `{startMs, endMs, slate: true}`; it is half-open, and the
+  `{startMs, endMs, itemId, mediaStartOffsetMs}` for a program, `{startMs, endMs, slate: true}` for a slate or
+  `{startMs, endMs, break: true}` for a break (version 5); it is half-open, and the
   blocks tile `[epochStartMs, epochEndMs)` as the Building the schedule section says. Every millisecond count (and `n`)
   is decimal text.
 
@@ -2142,6 +2379,9 @@ and review the diff. Run the same command without the property to check it.
 Everything below is in this repository, under `docs/`:
 
 - `docs/rules-format.md`: this document.
+- `docs/rules-format/channel-rules.v5.schema.json`: a JSON Schema (draft 2020-12) for version 5: the version 4 schema
+  with `formatVersion` 5 allowed and the version 3 parts allowed in a file that says 5. Version 5 changes only how a day
+  ends (and keeps studio fold 2), which a schema does not check.
 - `docs/rules-format/channel-rules.v4.schema.json`: a JSON Schema (draft 2020-12) for version 4: the version 3 schema
   with `formatVersion` 4 allowed and the version 3 parts allowed in a file that says 4. Version 4 changes only how studio
   names match, which a schema does not check.
@@ -2214,13 +2454,16 @@ Everything below is in this repository, under `docs/`:
   (hand-written from ADR-0026, Versioning: a file read, or saved unedited, before and after the gate). The version 1 to 3
   vectors are unchanged.
 
+- `docs/rules-format/vectors/` (version 5): `lineup-v5.json` (whole days of the spread end of the day: the best fit, the
+  break points with a skipped target and a tie, units that wait for a repeat gap, are dropped or wrap inside a group, the
+  ordered modes, the grid, a one-hour epoch and a pool of more than 64 candidates), worked out by hand from this
+  document. The version 1 to 4 vectors are unchanged.
 - `docs/rules-format/vectors/` (kid hold): `kid-hold-5.json` (the series-rating rule of `kid-hold-5` /
   `grown-up-hold-4`: an episode of a known series follows the series rating when it is present, with the cases for the
   kid ceiling, the animated-family signal, the grown-up drop and the shapes that do not change). Exception to the
   statement above: this one was written by hand from the text of the ADR-0019 addendum (2026-11-13), not computed with
   an independent reference and not from the code. A test in `core/engine` reads this file and holds the code to it. It
-  is not a rules-file vector: it covers the app's kid hold, which is outside the rules format. The version 1 to 4
-  vectors are unchanged.
+  is not a rules-file vector: it covers the app's kid hold, which is outside the rules format.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

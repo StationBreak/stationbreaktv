@@ -245,7 +245,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
 
         val fix = rig.record().fixes.first { it.blockStartMs == later.startMs }
         assertTrue(fix.pieces.isNotEmpty(), "filled from the built day pool")
-        assertTrue(fix.pieces.all { piece -> day.pool.any { it.id == piece.itemId } })
+        assertTrue(fix.pieces.all { piece -> day.pool.any { it.id == piece.programId() } })
         assertEquals(snapshots, rig.library.snapshotCutoffs.size, "no snapshot is read")
         assertEquals(byId, rig.library.scheduleItemsOfCalls, "no item is read by id")
         assertTrue(rig.library.currentIdsCalls > liveness, "only the pool's liveness is read")
@@ -272,7 +272,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
         assertEquals(lineup.channels.map { it.id }.toSet(), repaired, "every switched-on channel")
         val hidden = rig.repairOf(westerns.id)
         assertEquals(HiddenReason.NoMatches, hidden.tailHidden)
-        assertEquals(listOf(KeptBlock(hidden.keptFromMs, hidden.dayEndMs, null, 0)), hidden.blocks)
+        assertEquals(listOf(KeptBlock(hidden.keptFromMs, hidden.dayEndMs, KeptContent.Slate)), hidden.blocks)
         val cold = rig.restarted(lineup)
         rig.library.snapshotCutoffs.clear()
 

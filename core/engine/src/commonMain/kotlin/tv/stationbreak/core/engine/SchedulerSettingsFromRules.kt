@@ -5,6 +5,7 @@ import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.Caps
 import tv.stationbreak.core.model.schedule.CuratedTuning
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
@@ -21,6 +22,7 @@ private const val MINUTES_PER_HOUR = 60
  * The scheduler's numbers for a channel: its ordering, seed and timing with the rules-format defaults applied
  * (`effective…`), so the defaults are written once, in `core:rules`. The caps are the caps in force
  * ([ChannelRules.effectiveCaps]: `rotation`, or a `shuffle` that has them), and the runtime filter is in milliseconds.
+ * The day end is `Spread` for rules that spread it ([ChannelRules.spreadsDayEnd]) and `Gather` otherwise.
  */
 fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
     // Rules with no `ordering` object take the tunables' defaults from core:rules too (only `curated` reads them).
@@ -37,6 +39,7 @@ fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
         caps = effectiveCaps?.let { Caps(it.effectiveSeries, it.effectiveFilm) },
         runtimeFilter = filters?.let { runtimeFilterOf(it) },
         curated = curated,
+        leftover = if (spreadsDayEnd) LeftoverPolicy.Spread else LeftoverPolicy.Gather,
     )
 }
 
@@ -62,6 +65,7 @@ internal fun settingsOf(
     caps: Caps?,
     runtimeFilter: RuntimeFilter?,
     curated: CuratedTuning?,
+    leftover: LeftoverPolicy,
 ): SchedulerSettings =
     SchedulerSettings(
         orderingMode = orderingMode,
@@ -77,6 +81,7 @@ internal fun settingsOf(
         caps = caps,
         runtimeFilter = runtimeFilter,
         curated = curated,
+        leftover = leftover,
     )
 
 // The start is "HH:MM", already checked by BroadcastDay.

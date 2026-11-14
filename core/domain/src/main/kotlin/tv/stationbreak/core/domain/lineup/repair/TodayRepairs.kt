@@ -8,16 +8,40 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 
 /**
- * One block of a repaired day: [startMs] to [endMs] airs [itemId] from [mediaStartMs] into it. A null [itemId] is a
- * slate (nothing airs). Blocks are in order and have length: a block that starts before the one before it ends, a block
- * of no length or a negative [mediaStartMs] cannot be stored, and the save of a record holding one is refused.
+ * What a [KeptBlock] airs: a programme from a point in its media, a slate, or a station break.
+ *
+ * It deliberately mirrors `ScheduleContent` rather than reusing it: this is the stored, per-TV repair record, whose
+ * wire form (`RepairsCodec`) and digest are pinned separately from the schedule model, so a change to the model never
+ * silently changes what is stored. The mappings both ways are exhaustive `when`s, so the compiler forces each new kind
+ * through `kept()`, `RepairedDay` and the codec.
+ */
+internal sealed interface KeptContent {
+    /** [itemId] from [mediaStartMs] into its media. */
+    data class Program(
+        val itemId: CanonicalId,
+        val mediaStartMs: Long,
+    ) : KeptContent
+
+    /** Nothing airs. */
+    data object Slate : KeptContent
+
+    /** A station break (rules-format v5): nothing airs, and the ident shows what is up next. */
+    data object Break : KeptContent
+}
+
+/**
+ * One block of a repaired day: [startMs] to [endMs] airs [content]. Blocks are in order and have length: a block that
+ * starts before the one before it ends, a block of no length or a programme with a negative media start cannot be
+ * stored, and the save of a record holding one is refused.
  */
 internal data class KeptBlock(
     val startMs: Long,
     val endMs: Long,
-    val itemId: CanonicalId?,
-    val mediaStartMs: Long,
+    val content: KeptContent,
 )
+
+/** The item of a programme block; null for a slate or a break (neither names an item). */
+internal fun KeptBlock.programId(): CanonicalId? = (content as? KeptContent.Program)?.itemId
 
 /**
  * A repaired channel day (spec 26): the blocks of one channel's broadcast day [n] as they stand after a change of the
@@ -29,6 +53,9 @@ internal data class KeptBlock(
  * @property blocks contiguous from [keptFromMs] to [dayEndMs]: the kept window (ending at [pinEndMs]), then the tail.
  *   A day hidden at the repair keeps nothing: [pinEndMs] is [keptFromMs] (and when it stays hidden, both are the day's
  *   start and the one block is a slate).
+ * @property pinEndMs the end of the block on air at the repair, the pin. On a spread day (rules format 5) a break pin
+ *   joined with the tail's first break ([RepairSeam]) ends later than the block that was on air: [pinEndMs] is then
+ *   the end of the joined break.
  * @property tailHidden the tail's own empty reason, stored so no snapshot is read for it.
  */
 internal data class ChannelRepair(
@@ -294,8 +321,17 @@ private fun canonical(fix: LostFix): String =
         append("|P").append(canonical(fix.pieces)).append(';')
     }
 
+// A slate is "-" and a break "~", so the digest of a record of programmes and slates is what it was before breaks.
 private fun canonical(blocks: List<KeptBlock>): String =
-    blocks.joinToString(",") { "${it.startMs}:${it.endMs}:${it.itemId?.value ?: "-"}:${it.mediaStartMs}" }
+    blocks.joinToString(",") {
+        val (item, media) =
+            when (val c = it.content) {
+                is KeptContent.Program -> c.itemId.value to c.mediaStartMs
+                KeptContent.Slate -> "-" to 0L
+                KeptContent.Break -> "~" to 0L
+            }
+        "${it.startMs}:${it.endMs}:$item:$media"
+    }
 
 /** A test seam: [hashed] is told each time a record works out the digest of one channel day. Never set in the app. */
 internal object DigestProbe {

@@ -192,13 +192,15 @@ internal class BuilderViewModel
             previewJob?.cancel()
             val account = m.account
             val draft = m.draft
+            // The preview is of the flow the save takes: an edit of this channel (save), or a new channel (create).
+            val editing = (m.mode as? BuilderMode.Edit)?.id
             val hasPool = draft.hasPool()
             if (account != null && hasPool) {
                 val generation = m.generation
                 previewJob =
                     scope.launch {
                         delay(PREVIEW_DEBOUNCE)
-                        val answer = previews.preview(account, draft, clock.now())
+                        val answer = previews.preview(account, draft, clock.now(), editing)
                         change(generation) { if (previewJob === coroutineContext[Job]) it.previewed(answer) else it }
                     }
             }

@@ -64,3 +64,9 @@ Notes for whoever picks these up:
   time-windowed pools, and "midnight" drifts by an hour across DST because epochs use a fixed offset.
 - Parental lockouts should defer to Jellyfin's per-user `accessSchedules`, `maxParentalRating`,
   `allowedTags`, and `blockUnratedItems` (enforced server-side) rather than being rebuilt in the app.
+
+## Note (2026-11-13): rules format 5 stays stateless
+
+Rules format 5 (the spread day end) adds no stored state. A day is still a function of rules, snapshot, seed, time and
+app version. See `docs/superpowers/specs/2026-11-13-spread-day-end-design.md` and
+[ADR-0027](0027-v5-release-rule.md).

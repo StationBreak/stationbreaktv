@@ -314,6 +314,69 @@ holds. A completed run is `Done`, a failed one is `Failed` with its reason, and 
 press while one runs starts nothing. Lost blocks are repaired by the lineup refresher's hook once the run's writing
 ends, as for a background pass.
 
+## Amendment 2026-11-13: the station-break block in the record
+
+Rules format 5 (the spread end of the day) adds a station-break block (`ScheduleContent.Break`). A repaired day keeps
+its breaks, so the record stores them. A kept block is now a programme (an item from a media start), a slate or a
+break, and in the `repairs` object a break is the block index **-2** (a slate is -1). A slate and a break write the
+media start a slate writes, 0. The wire layout is otherwise unchanged. The digest marks a break with `~` and a slate
+with `-` as before, so the digest of a record of programmes and slates is unchanged.
+
+**The -2 stays inside lineup file version 4.** This is an explicit exception to the codec's rule that any schema change
+bumps `LineupCodec.VERSION` (owner decision 2026-11-13, option a). The `repairs` contents are a per-TV record that the
+next repair rebuilds, and a bump would make every older build show a planned default lineup and refuse to save.
+
+The real downgrade radius. Only a channel whose rules are at `formatVersion` 5 lays out breaks, so only such a channel
+can put a -2 in the record. An older build already shows that channel as unusable (off air, its source kept byte for
+byte), and that is the main thing a viewer sees after a downgrade. The record drop is secondary: the older build reads
+the file as version 4 as before, but its `RepairsCodec.decode` throws on the first -2 row (an index outside the
+table). `LineupCodec.repairsOf` then drops the **entire** per-TV record (`TodayRepairs.NONE`), not only the channel
+with the break. As for any unreadable record (§6), the older build reports `LineupEvent.RepairsUnreadable`, so a report
+after a downgrade is expected and is not a bug. It keeps a copy of the file's bytes in the one-time
+`repairs-unreadable` slot (`UNREADABLE_RECORD_COPY`; an earlier unreadable copy is never replaced), and then writes the
+file at once without the record. On that TV every channel's selection repairs and lost-block fixes are lost until the
+next repair, so a repaired day goes back to its day as built from the saved selection, which can change the programme
+on air. The lineup itself loads, and is not set aside.
+
+## Amendment 2026-11-13: what aired before the tail, on a spread day
+
+On a day of rules format 5 the tail's end is spread as station breaks, and two of its rules read what has aired today:
+the fill prefers items that have not aired, and in `shuffle` and `curated` a short that already aired goes only into a
+break after that airing (in `shuffle`, past a run boundary after it; in `curated`, `repeatGapMs` after it). A repair's
+tail starts at the pin's end, so `layoutTail` is given what aired before it as a required `pastAirings` list: each
+programme (`PastAiring`) with the moment it ended.
+
+**The repair rule.** `pastAirings` is what the viewer saw air before the pin's end (`KeptWindow.airings`): the day's
+programme blocks that ended before the kept window's start, each with its end, then the window's spans that are not the
+rest of a gone item, each with its real end. The second part includes the gap fill's pieces of a gone block, so a piece
+counts with its own times, not the gone item's. A gone programme before the window (its item has no current row, or it
+is a fix's rest) counts for nothing: it was shown as its gap fill, which is not worked out again, so neither the gone
+item nor that fill's pieces are past airings. This is an accepted limit: a short that aired only as such a piece may
+come round in a break sooner than its gap. Each airing counts for
+the group rule (the fill prefers what has not aired), for `curated`'s repeat gap, and for `shuffle`'s run-boundary rule,
+where an airing before the tail counts as ending its own run (its run end is its end). Breaks are planned over the
+tail, `[pin's end, day's end)`, only.
+
+Items are resolved by ID: from the day's pool as built, else from its day pool (`Fills.dayPool`; on a repaired day the
+recorded tail's items), else read by ID at the day's cut-off (`scheduleItemsOf`, as a repaired day's tail pool is read).
+The read covers a repaired day, which keeps no pool as built: what an earlier repair kept before its own tail still
+counts in a later repair. Only an item deleted before the cut-off is left out.
+
+`layoutTail` keeps its `aired` set (the leave-out rule, unchanged for every version) and requires every ID of
+`pastAirings` to be in it: both come from the same airings, and `aired` may hold more (a gone item stays left out).
+Only a day that spreads its end builds `pastAirings` and reads the programmes before the window to do so; a day of
+versions 1 to 4 passes an empty list, so its repairs read and lay out exactly as before.
+
+**The seam.** On a spread day, a break on air at the pin and a tail that starts with a break (nothing fits before the
+tail's first break) would be two breaks in a row. When the tail airs a programme after that break, the repair joins
+the two into one kept break and moves the pin's end to its end: the pin is still the block on air, and the tail starts
+after it (`RepairSeam`). So the recorded pin's end can run past the block that was on air at the repair. A tail that is
+only a break (nothing fits the rest of the day) is not joined: the day hides its empty rest from the pin's end, as it
+does after a programme pin. A slate on air at the pin of a grid day can
+still be followed by the tail's closing break; that is left as it is.
+
+This rule is ADR-0025's, not the rules format's: the rules format describes a day as built, and a repair is per TV.
+
 ## Consequences
 
 - The rest of today follows the viewer's change, a Sync now or a background pass, and no block is blank. The tune path reads

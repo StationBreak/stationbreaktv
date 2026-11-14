@@ -16,6 +16,17 @@ import tv.stationbreak.core.model.schedule.TitleWeights
  * run replays its aired items. In chronological ordering a run that is mid-air at [fromMs] starts again from its
  * beginning, not mid-run. An empty cycle gives one slate. [fromMs] must be in `[epochStart(n), epochEnd(n)]`; at
  * `epochEnd(n)` it returns an empty list, so the caller's kept blocks must already cover the day.
+ *
+ * [pastAirings] is every programme that aired in `[epochStart(n), fromMs)` as the viewer saw it, each with its real
+ * end. Only the spread end of the day (rules format version 5) reads it: a short that aired goes into a break only
+ * after a run boundary past its airing (`shuffle`) or `repeatGapMs` after it (`curated`), and the fill prefers items
+ * that have not aired. Breaks are planned over `[fromMs, epochEnd(n))` only. Version 1 to 4 days ignore it, and a
+ * caller may pass an empty list for them.
+ *
+ * The two describe the same airings: [aired] is the IDs the leave-out rule reads, and [pastAirings] the ones the
+ * caller could resolve to items, with their ends. So every ID of [pastAirings] must be in [aired]
+ * ([IllegalArgumentException] otherwise). [aired] may hold more: an airing whose item could not be resolved, or one a
+ * caller counts as aired for the leave-out rule but not as seen (a gone item in a repair).
  */
 @Suppress("LongParameterList") // The day's inputs plus the moment and what has aired.
 fun layoutTail(
@@ -26,10 +37,12 @@ fun layoutTail(
     weights: TitleWeights,
     fromMs: Long,
     aired: Set<CanonicalId>,
+    pastAirings: List<PastAiring>,
 ): List<ScheduleBlock> {
     val start = Epochs.epochStart(settings, n)
     val end = start + settings.epochMs
     require(fromMs in start..end) { "Time $fromMs is outside day $n [$start, $end]" }
+    require(pastAirings.all { it.item.id in aired }) { "Every past airing must be in aired" }
     val groups = GroupRules(films, weights)
     val full = Timeline.cycle(settings, pool, Epochs.seedN(settings.seed, n), groups)
     val cycle = full.filterNot { run -> run.items.all { it.id in aired } }.ifEmpty { full }
@@ -44,7 +57,7 @@ fun layoutTail(
 
         else -> {
             val startRun = Timeline.startRun(settings, cycle, fromMs)
-            Timeline.layout(settings, cycle, startRun, fromMs, end, groups).blocks
+            Timeline.layout(settings, cycle, startRun, fromMs, end, groups, pastAirings).blocks
         }
     }
 }

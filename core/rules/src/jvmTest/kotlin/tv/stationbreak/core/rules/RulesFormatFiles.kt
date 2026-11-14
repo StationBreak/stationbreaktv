@@ -30,6 +30,8 @@ internal object RulesFormatFiles {
 
     val schemaV4File: File = File(dir, "channel-rules.v4.schema.json")
 
+    val schemaV5File: File = File(dir, "channel-rules.v5.schema.json")
+
     val valid: Map<String, String> get() = jsonFiles("examples")
     val invalid: Map<String, String> get() = jsonFiles("examples/invalid")
     val validV2: Map<String, String> get() = jsonFiles("examples/v2")

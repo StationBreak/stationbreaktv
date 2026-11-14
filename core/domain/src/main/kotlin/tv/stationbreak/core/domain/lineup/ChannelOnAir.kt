@@ -6,7 +6,10 @@ import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
-/** What a block of a channel's schedule airs: a program of the library, or a slate (a gap with nothing to play). */
+/**
+ * What a block of a channel's schedule airs: a program of the library, a slate (a gap with nothing to play), or a
+ * station break (leftover time spread through the day, shown as the ident with Up next).
+ */
 sealed interface Airing {
     /**
      * An item of the library. [mediaStartMs] is where in the media the block starts playing
@@ -33,6 +36,12 @@ sealed interface Airing {
 
     /** Nothing to play: the grid gap before a program, or a whole day with nothing to air. */
     data object Slate : Airing
+
+    /**
+     * A station break (rules-format v5): leftover time spread between programmes. Like a [Slate] it has no item and
+     * no position in any media; unlike one, the next programme follows it within the same stretch of the day.
+     */
+    data object Break : Airing
 }
 
 /** One block of a channel's schedule, half-open: it covers `[startMs, endMs)`, in milliseconds since 1970. */
@@ -43,14 +52,14 @@ data class AiringBlock(
 ) {
     /**
      * The position in the media at [atMs] (programs and stand-ins): `mediaStartMs + (atMs - startMs)`, where a
-     * stand-in's `mediaStartMs` is 0. Null for a slate. Every
+     * stand-in's `mediaStartMs` is 0. Null for a slate or a break. Every
      * tune that joins the clock starts here; one that joins from the start of a block starts at `mediaStartMs`.
      */
     fun positionAt(atMs: Long): Duration? =
         when (airing) {
             is Airing.Program -> (airing.mediaStartMs + (atMs - startMs)).milliseconds
             is Airing.StandIn -> (atMs - startMs).milliseconds
-            Airing.Slate -> null
+            Airing.Slate, Airing.Break -> null
         }
 }
 

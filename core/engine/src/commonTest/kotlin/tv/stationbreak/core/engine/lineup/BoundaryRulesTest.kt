@@ -300,10 +300,10 @@ class BoundaryRulesTest {
         assertNull(assertIs<EditOutcome.Applied>(plain).lineup.curationBasis)
     }
 
-    // ADR-0026, once the gate has passed: a starter with a studio source, stored at 4 or at 3, is resolved again (a
-    // newer catalog) at 4, as a new resolve writes it; before the gate a new resolve wrote 3.
+    // ADR-0026 and Task 6: a starter with a studio source, stored at 4 or at 3, is resolved again (a newer catalog)
+    // at 5, as a new resolve writes it whatever the format 4 gate says: never lower than the 4 it said.
     @Test
-    fun aReResolveKeepsAStudioStarterThatSays4At4() {
+    fun aReResolveWritesAStudioStarterThatSays4At5() {
         val studios = listOf(Source.Genre("other"), Source.Studio("Studio A"))
         val catalog =
             TestCatalog(
@@ -319,12 +319,12 @@ class BoundaryRulesTest {
                 }
             val starter = replan(lineup, catalog).channel("alpha").starter
             assertEquals(studios, starter.rulesFor(boundary).sources)
-            assertEquals(4, starter.rulesFor(boundary).formatVersion, "stored at $stored")
+            assertEquals(5, starter.rulesFor(boundary).formatVersion, "stored at $stored")
         }
         val recipe = catalog.recipes.first()
-        assertEquals(4, RecipeResolver.resolve(recipe, SERVER, 0, NO_NAMES, NO_LIBRARY).formatVersion)
+        assertEquals(5, RecipeResolver.resolve(recipe, SERVER, 0, NO_NAMES, NO_LIBRARY).formatVersion)
         val beforeTheGate = RecipeResolver.resolve(recipe, SERVER, 0, NO_NAMES, NO_LIBRARY, gatePassed = false)
-        assertEquals(3, beforeTheGate.formatVersion)
+        assertEquals(5, beforeTheGate.formatVersion)
     }
 
     private fun ordering(mode: OrderingMode) = Ordering(mode)

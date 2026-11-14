@@ -13,6 +13,7 @@ import tv.stationbreak.core.model.ItemKind
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.schedule.FilmCollections
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.RuntimeFilter
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -48,6 +49,7 @@ class ScheduleInputFilterTest {
             null,
             null,
             null,
+            LeftoverPolicy.Gather,
         )
     private val id = hexId(1)
     private val series = hexId(2)

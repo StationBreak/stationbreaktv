@@ -24,7 +24,7 @@ class DayTailTest {
         aired: Set<CanonicalId> = emptySet(),
         items: List<tv.stationbreak.core.model.schedule.ScheduleItem> = pool,
         s: SchedulerSettings = settings,
-    ) = layoutTail(s, items, n, noFilms(), noWeights(), from, aired)
+    ) = layoutTail(s, items, n, noFilms(), noWeights(), from, aired, emptyList())
 
     private fun ids(blocks: List<ScheduleBlock>): List<CanonicalId> =
         blocks.map { it.content }.filterIsInstance<ScheduleContent.Program>().map { it.itemId }
@@ -71,6 +71,17 @@ class DayTailTest {
             val built = buildDay(s, pool, n, noFilms(), noWeights())
             assertEquals(built.blocks, tail(dayStart, items = built.pool, s = s))
         }
+    }
+
+    @Test
+    fun tail_rejectsAPastAiringThatIsNotAired() {
+        val from = dayStart + MS_HOUR
+        val past = listOf(PastAiring(pool[0], from))
+        assertFailsWith<IllegalArgumentException> {
+            layoutTail(settings, pool, n, noFilms(), noWeights(), from, emptySet(), past)
+        }
+        val aired = setOf(pool[0].id)
+        assertEquals(tail(from, aired), layoutTail(settings, pool, n, noFilms(), noWeights(), from, aired, past))
     }
 
     @Test

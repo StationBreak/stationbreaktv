@@ -11,6 +11,7 @@ import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleItem
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.rules.AutoSeed
 import tv.stationbreak.core.rules.AutoSeedKind
 import tv.stationbreak.core.rules.Source
@@ -44,21 +45,23 @@ class RecipeResolverTest {
     )
 
     @Test
-    fun everyStarterResolvesAgainstAnEmptyLibraryAtFormatOne() {
-        // Catalog 2's recipes, which lineups from before the swap hold, are plain: format 1.
+    fun everyCatalogTwoStarterResolvesAgainstAnEmptyLibraryAtFormat5() {
+        // Catalog 2's recipes, which lineups from before the swap hold, are plain (they need only 1), and are
+        // written at 5 all the same: a resolved starter has the floor of a new channel (the spread day end).
         for (r in CATALOG_V2_RECIPES) {
             val rules = RecipeResolver.resolve(r, server, 0, noCollections, NO_LIBRARY)
-            assertEquals(1, rules.formatVersion, r.key)
+            assertEquals(1, rules.requiredVersion, r.key)
+            assertEquals(5, rules.formatVersion, r.key)
             assertEquals(r.sources, rules.sources, r.key)
         }
     }
 
     @Test
-    fun everyCatalogThreeStarterResolvesAgainstAnEmptyLibraryAtFormatThree() {
+    fun everyCatalogStarterResolvesAgainstAnEmptyLibraryAtFormat5() {
         // With no names in the library no anchor or theme studio adds a source.
         for (r in StarterCatalog.recipes) {
             val rules = RecipeResolver.resolve(r, server, 0, noCollections, NO_LIBRARY)
-            assertEquals(3, rules.formatVersion, r.key)
+            assertEquals(5, rules.formatVersion, r.key)
             assertEquals(OrderingMode.Curated, rules.orderingMode, r.key)
             assertEquals(r.sources, rules.sources, r.key)
         }
@@ -145,8 +148,43 @@ class RecipeResolverTest {
     fun leftoversSettingsEqualsAnEquivalentResolvedRecipe() {
         val left = StarterCatalog.leftovers.first { it.number == 199 }
         val equivalent = recipe().copy(key = left.key, ordering = null)
-        val expected = RecipeResolver.resolve(equivalent, server, 345, noCollections, NO_LIBRARY).toSchedulerSettings()
+        val resolved = RecipeResolver.resolve(equivalent, server, 345, noCollections, NO_LIBRARY).toSchedulerSettings()
+        // Held once recipes resolve at 5 too (the spread day end): a leftovers channel always gathers.
+        val expected = resolved.copy(leftover = LeftoverPolicy.Gather)
         assertEquals(expected, RecipeResolver.leftoversSettings(left, server, 345))
+    }
+
+    @Test
+    fun leftoversGather() {
+        for (left in StarterCatalog.leftovers) {
+            assertEquals(LeftoverPolicy.Gather, RecipeResolver.leftoversSettings(left, server, 0).leftover)
+        }
+    }
+
+    // Task 6 (the spread day end): every starter is written at 5, a floor over ADR-0026's write version, so a studio
+    // starter is at 5 (and matched under studio fold 2) whatever the format 4 gate says.
+    @Test
+    fun everyStarterResolvesAtVersion5() {
+        val plain = RecipeResolver.resolve(recipe(), server, 0, noCollections, NO_LIBRARY)
+        assertEquals(5, plain.formatVersion)
+        assertTrue(plain.spreadsDayEnd)
+        val studio = recipe().copy(sources = listOf(Source.Studio("Studio A")))
+        for (gate in listOf(false, true)) {
+            val rules = RecipeResolver.resolve(studio, server, 0, noCollections, NO_LIBRARY, gatePassed = gate)
+            assertEquals(5, rules.formatVersion, "gate $gate")
+            assertTrue(rules.matchesStudiosByFold2, "gate $gate")
+        }
+        // Every catalog starter, as the app resolves it, and a studio one among them.
+        val studioFilm = movie(idOf(1), studios = listOf("Hanna-Barbera"))
+        val names = LibraryNames(snapshot(items = listOf(studioFilm)), noCollections)
+        var studios = 0
+        for (r in StarterCatalog.recipes) {
+            val rules = RecipeResolver.resolve(r, server, 0, noCollections, names)
+            assertEquals(5, rules.formatVersion, r.key)
+            assertTrue(rules.spreadsDayEnd, r.key)
+            if (rules.usesStudios) studios++
+        }
+        assertTrue(studios > 0, "a catalog starter with a studio feature")
     }
 
     @Test

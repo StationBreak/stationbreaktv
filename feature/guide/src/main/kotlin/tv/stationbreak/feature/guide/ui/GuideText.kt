@@ -22,8 +22,9 @@ internal fun channelLine(
 ) = "$number · $name"
 
 /**
- * What the panel and the info overlay call a cell: its display title, "Off air until 8:30 PM" for a slate,
- * "Unavailable" for a program that left the library. A slate on the grid itself is the "OFF AIR" plate, not this line.
+ * What the panel and the info overlay call a cell: its display title, "Off air until 8:30 PM" for a slate, "Station
+ * break · Up next at 8:30 PM" for a break, "Unavailable" for a program that left the library. A slate or a break on
+ * the grid itself is the "OFF AIR" or "STATION BREAK" plate, not this line.
  */
 @Composable
 internal fun cellTitle(
@@ -31,12 +32,27 @@ internal fun cellTitle(
     copy: ProgramCopy,
 ): String =
     when (cell.kind) {
-        CellKind.Slate -> copy.offAirUntil(ProgramText.time(cell.endMs, ZoneId.systemDefault(), is24Hour()))
-        CellKind.Program -> cell.title.orEmpty()
-        CellKind.Unavailable -> stringResource(R.string.guide_unavailable)
+        CellKind.Slate -> {
+            copy.offAirUntil(ProgramText.time(cell.endMs, ZoneId.systemDefault(), is24Hour()))
+        }
+
+        CellKind.Break -> {
+            copy.breakUpNext(ProgramText.time(cell.upNextMs ?: cell.endMs, ZoneId.systemDefault(), is24Hour()))
+        }
+
+        CellKind.Program -> {
+            cell.title.orEmpty()
+        }
+
+        CellKind.Unavailable -> {
+            stringResource(R.string.guide_unavailable)
+        }
     }
 
-/** The episode line of a cell (see [ProgramText.episodeLine]); null for a movie, a slate and an unavailable program. */
+/**
+ * The episode line of a cell (see [ProgramText.episodeLine]); null for a movie, a slate, a break and an unavailable
+ * program.
+ */
 internal fun episodeLine(
     cell: GuideCell,
     copy: ProgramCopy,

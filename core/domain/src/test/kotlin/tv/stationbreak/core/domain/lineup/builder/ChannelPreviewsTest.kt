@@ -34,6 +34,7 @@ import tv.stationbreak.core.domain.lineup.starter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -173,10 +174,12 @@ class ChannelPreviewsTest {
 
     private val comedy = DraftSource.Genre("Comedy", "Comedy")
 
+    // A preview of a new channel (create), or of an edit of [editing] (save).
     private fun preview(
         draft: ChannelDraft,
         at: Instant = NOON,
-    ) = runBlocking { previews.preview(ACCOUNT, draft, at) }
+        editing: ChannelId? = null,
+    ) = runBlocking { previews.preview(ACCOUNT, draft, at, editing) }
 
     private val ChannelPreview.next: List<PreviewItem>
         get() = (this as? ChannelPreview.Ready)?.next.orEmpty()
@@ -445,7 +448,7 @@ class ChannelPreviewsTest {
         val dispatcher = executor.asCoroutineDispatcher()
         val elsewhere = BuiltInChannelPreviews(service, watching, ownShared, dispatcher) { LIBRARIES }
 
-        val shown = runBlocking { elsewhere.preview(ACCOUNT, draft(), NOON) }
+        val shown = runBlocking { elsewhere.preview(ACCOUNT, draft(), NOON, null) }
 
         executor.shutdown()
         assertTrue(shown.next.isNotEmpty())
@@ -466,8 +469,8 @@ class ChannelPreviewsTest {
         val broken = BuiltInChannelPreviews(service, failing, shared) { LIBRARIES }
 
         val withoutSource = preview(draft().copy(kept = kept))
-        val withoutLibraries = runBlocking { noLibraries.preview(ACCOUNT, draft(), NOON) }
-        val unreadable = runBlocking { broken.preview(ACCOUNT, draft(), NOON) }
+        val withoutLibraries = runBlocking { noLibraries.preview(ACCOUNT, draft(), NOON, null) }
+        val unreadable = runBlocking { broken.preview(ACCOUNT, draft(), NOON, null) }
 
         listOf(withoutSource, withoutLibraries, unreadable).forEach {
             assertTrue(it.unavailable && !it.nothingFits && it.next.isEmpty(), "$it")
@@ -495,11 +498,70 @@ class ChannelPreviewsTest {
         val copy = opened.draft.copy(name = "Dramas (copy)")
         assertTrue(copy.kept?.items?.contains(KeptItem.Order(KeptOrder.RandomInOrder)) == true)
 
-        val shown = runBlocking { previews.preview(ACCOUNT, copy, NOON) }
-        val dropped = runBlocking { previews.preview(ACCOUNT, copy.copy(kept = null), NOON) }
+        val shown = runBlocking { previews.preview(ACCOUNT, copy, NOON, null) }
+        val dropped = runBlocking { previews.preview(ACCOUNT, copy.copy(kept = null), NOON, null) }
 
         assertEquals(ids(shown), airedAs(copy))
         assertNotEquals(ids(shown), ids(dropped), "the kept order is not the builder's Shuffle")
+    }
+
+    // Task 6: a copy is a new channel, written at 5 (the spread day end), so its preview lays the day out with the
+    // leftover spread as breaks, as create then airs it. The starter it copies says 1 and gathers the leftover at the
+    // end: with its seed and its rules, only the version differs, and the breaks before 12:41 move what is on air.
+    @Test
+    fun aCopyPreviewLaysOutWithSpread() {
+        // 100-minute films: 14 fill 23 h 20 min of the day, and 40 minutes are left.
+        (1..7).forEach { film(it, item = movieItem(it, runtimeMs = 100 * 60_000L)) }
+        val backToBack = Timing(null, false, 24, null, null, null, BroadcastDay(0, "06:00"))
+        val laughs = rules("Laughs", Source.Genre("Comedy")).copy(timing = backToBack)
+        val starter = starter("gathered", 120, ChannelState.On, laughs)
+        runBlocking { holding(starter) }
+        val opened = runBlocking { builder.open(ACCOUNT, starter.id, copy = true) } as OpenResult.Opened
+        val copy = opened.draft.copy(name = "Laughs (copy)", seed = laughs.seed)
+        assertTrue(copy.kept?.items?.contains(KeptItem.NoCaps) == true, "the copy keeps the starter's own order")
+        // The fifth film of the gathered day starts at 12:40.
+        val at = Instant.parse("2026-10-19T12:41:00Z")
+
+        val shown = runBlocking { previews.preview(ACCOUNT, copy, at, null) }
+
+        // The source lists 12 airings, breaks and slates among them; the preview lists programs only.
+        val aired = airedAs(copy, at)
+        assertEquals(aired, ids(shown).take(aired.size), "the preview is what create then airs")
+        val gathered = runBlocking { airs(starter.id, at) }
+        // The first five programs: the day's end (a gathered slate, or breaks) is not among them.
+        val first = 5
+        assertNotEquals(gathered.take(first), ids(shown).take(first), "the copy spreads; the starter gathers")
+    }
+
+    // Task 6: the caller names the flow. An edit of a custom channel at 1 is previewed as save writes it (it keeps 1
+    // and gathers); the same draft as a new channel (create, carrying the custom channel's rules) is at 5 and spreads.
+    // Naming a channel that is not custom as the edit is unavailable: save would refuse it.
+    @Test
+    fun theCallerNamesTheFlowAnEditKeepsItsVersionANewChannelSpreads() {
+        (1..7).forEach { film(it, item = movieItem(it, runtimeMs = 100 * 60_000L)) }
+        val backToBack = Timing(null, false, 24, null, null, null, BroadcastDay(0, "06:00"))
+        val laughs = rules("Laughs", Source.Genre("Comedy")).copy(timing = backToBack)
+        val mine = channel("custom:mine", 620, ChannelState.On, ChannelSource.Custom(laughs))
+        runBlocking { holding(mine) }
+        val opened = runBlocking { builder.open(ACCOUNT, mine.id, copy = false) } as OpenResult.Opened
+        val draft = opened.draft.copy(name = "Renamed")
+        assertTrue(draft.kept?.items?.contains(KeptItem.NoCaps) == true, "the stored uncapped order is kept")
+        val at = Instant.parse("2026-10-19T12:41:00Z")
+        val first = 5
+
+        val asEdit = preview(draft, at, editing = mine.id)
+        val asNew = preview(draft, at)
+
+        assertNotEquals(ids(asEdit).take(first), ids(asNew).take(first), "the edit gathers; the new channel spreads")
+        assertEquals(ChannelPreview.Unavailable, preview(draft, at, editing = LineupIds.starter("laughs")))
+        val created = airedAs(draft, at)
+        assertEquals(created, ids(asNew).take(created.size), "the new channel previews what create then airs")
+        val saved =
+            runBlocking {
+                assertEquals(BuildResult.Done(mine.id), builder.save(ACCOUNT, mine.id, draft))
+                airs(mine.id, at)
+            }
+        assertEquals(saved, ids(asEdit).take(saved.size), "the edit previews what save then airs")
     }
 
     @Test
@@ -510,7 +572,7 @@ class ChannelPreviewsTest {
         val opened = runBlocking { builder.open(ACCOUNT, mine.id, copy = false) } as OpenResult.Opened
         val edited = opened.draft.copy(name = "Renamed")
 
-        val shown = runBlocking { previews.preview(ACCOUNT, edited, NOON) }
+        val shown = runBlocking { previews.preview(ACCOUNT, edited, NOON, mine.id) }
         val aired =
             runBlocking {
                 assertEquals(BuildResult.Done(mine.id), builder.save(ACCOUNT, mine.id, edited))
@@ -553,7 +615,7 @@ class ChannelPreviewsTest {
         preview(draft())
         val reads = shared.cache.reads
 
-        val shown = runBlocking { previews.preview(ACCOUNT, opened.draft, NOON) }
+        val shown = runBlocking { previews.preview(ACCOUNT, opened.draft, NOON, null) }
 
         assertTrue(shown.next.isNotEmpty() && !shown.unavailable)
         assertEquals(reads, shared.cache.reads, "its own cut-offs were read, not kept")
@@ -627,7 +689,7 @@ class ChannelPreviewsTest {
         val cancellable = BuiltInChannelPreviews(service, watching, shared) { LIBRARIES }
 
         runBlocking {
-            preview = launch(start = CoroutineStart.LAZY) { cancellable.preview(ACCOUNT, draft(), NOON) }
+            preview = launch(start = CoroutineStart.LAZY) { cancellable.preview(ACCOUNT, draft(), NOON, null) }
             preview.start()
             preview.join()
         }

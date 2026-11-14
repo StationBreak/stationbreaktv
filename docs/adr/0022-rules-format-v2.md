@@ -195,3 +195,24 @@ trim window's `keeps`.
   an independent reference written from the document alone. A disagreement is fixed in the code or the document, never in a
   vector.
 - A file with `formatVersion` 4 is not scheduled. Version 3 does not change any version 1 or 2 default, rule or vector.
+
+## Addendum: Version 5 and new channels (the spread day end, 2026-11-13)
+
+**New channels are written at 5 on purpose, an exception to "the lowest version".** A channel made in the app from now
+on (from scratch, or copied from a built-in channel) and every unedited starter is written at `formatVersion` 5, the
+spread day end, even when its rules need only 1, 2 or 3 (owner decision 2026-11-13; see
+[ADR-0027](0027-v5-release-rule.md)). Existing channels keep this ADR's rule: an existing custom channel, an edited
+starter or an imported file keeps its version when saved again, and ruling 10 still writes it at the lowest version its
+features need (so a version 2 file that uses only version 1 features is still saved as 1).
+
+The version map:
+
+- 1 to 3: the features of each version (this ADR and its version 3 addendum); the end of the day is gathered.
+- 4: version 3 with studio fold 2 ([ADR-0026](0026-studio-fold-2.md)).
+- 5: fold 2 plus the spread end of the day. It is a behaviour version, not a feature version: `requiredVersion` never
+  reports it.
+- `ChannelRules.writeVersion` never lowers a file that says 5. New channels and starters have a floor of 5 over
+  `writeVersion`.
+
+**Downgrade.** An app that reads only up to 4 sees a v5 file only after a downgrade, a restore or an import, and shows
+that channel as unusable ("update required", off the air), keeping it byte for byte until it is updated.

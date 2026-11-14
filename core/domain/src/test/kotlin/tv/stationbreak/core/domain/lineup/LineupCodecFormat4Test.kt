@@ -153,7 +153,25 @@ class LineupCodecFormat4Test {
         val upgraded = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes, gatePassed = true))
         val formats = RulesFormats.of(upgraded.lineup, upgraded.upgradedRules)
         assertEquals(RulesFormats(v1 = 1, v2 = 1, v3 = 1, v4 = 6, upgraded = 5), formats)
-        assertEquals("rules formats v1=1 v2=1 v3=1 v4=6 upgraded=5", formats.line())
+        assertEquals("rules formats v1=1 v2=1 v3=1 v4=6 v5=0 upgraded=5", formats.line())
         assertEquals(RulesFormats(v1 = 1, v2 = 1, v3 = 6, v4 = 1, upgraded = 0), RulesFormats.of(lineup, 0))
+    }
+
+    // A version 5 file (the spread day end) says 5 and is not a 3: the one-time rewrite and its invariant leave it
+    // alone, and the formats count it as 5.
+    @Test
+    fun adr0026RewriteLeavesAV5StudioFileAlone() {
+        val five = studioSource.copy(formatVersion = 5, name = "Five")
+        val withFive =
+            lineupOf(
+                channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(five)),
+                channel("custom-2", 601, ChannelState.On, ChannelSource.Custom(studioSource)),
+            )
+        val decoded = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(LineupCodec.encode(withFive), true))
+        assertEquals(listOf(five, studioSource.copy(formatVersion = 4)), rulesOf(decoded.lineup))
+        assertEquals(1, decoded.upgradedRules, "only the file that said 3")
+        val formats = RulesFormats.of(decoded.lineup, decoded.upgradedRules)
+        assertEquals(RulesFormats(v4 = 1, v5 = 1, upgraded = 1), formats)
+        assertEquals("rules formats v1=0 v2=0 v3=0 v4=1 v5=1 upgraded=1", formats.line())
     }
 }

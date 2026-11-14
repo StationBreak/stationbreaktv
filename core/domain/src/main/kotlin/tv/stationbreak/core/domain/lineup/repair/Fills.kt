@@ -8,12 +8,14 @@ import tv.stationbreak.core.domain.lineup.GapFill
 import tv.stationbreak.core.domain.lineup.fillExclusions
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.scheduler.Epochs
 
 /**
  * The reads one repair makes of [account]'s library, each once (spec 26): which items have a current row
- * (`currentIds`, asked only for ids not asked before), and each day's day pool (`ChannelDay.dayPool`: on a repaired
- * day the tail pool, read by id). And the one gap fill, [GapFill.pick] with [fillExclusions], as the schedule source
- * names a gone block: the same inputs give the same pieces.
+ * (`currentIds`, asked only for ids not asked before), each day's day pool (`ChannelDay.dayPool`: on a repaired
+ * day the tail pool, read by id), and items by id at a day's cut-off ([itemsAt], `scheduleItemsOf`: what a spread
+ * day's past airings name that neither pool holds). And the one gap fill, [GapFill.pick] with [fillExclusions], as
+ * the schedule source names a gone block: the same inputs give the same pieces.
  */
 internal class Fills(
     private val library: LibraryRepository,
@@ -64,6 +66,15 @@ internal class Fills(
     /** Whether [id] has a current row, as [live] last read it (false when it was never asked). */
     fun isLive(id: CanonicalId): Boolean = known[id] == true
 
+    /** The items [ids] as [day] reads them by id at its cut-off (as its tail pool is read); nothing read for none. */
+    suspend fun itemsAt(
+        day: ChannelDay,
+        ids: Set<CanonicalId>,
+    ): List<ScheduleItem> {
+        if (ids.isEmpty()) return emptyList()
+        return library.scheduleItemsOf(account, ids, Epochs.cutoff(day.settings, day.n))
+    }
+
     /** [day]'s day pool: its build's pool, or on a repaired day its tail pool, read by id once. */
     suspend fun dayPool(day: ChannelDay): List<ScheduleItem> =
         pools[day] ?: day.dayPool { ids, cutoffMs -> library.scheduleItemsOf(account, ids, cutoffMs) }.also {
@@ -89,6 +100,8 @@ internal class Fills(
             GapFill.pick(day.channel.id, pool, startMs, endMs, exclude) {
                 day.settings.isAirable(it.runtimeMs, it.kind)
             }
-        return pieces.filter { it.endMs > it.startMs }.map { KeptBlock(it.startMs, it.endMs, it.item.id, 0) }
+        return pieces
+            .filter { it.endMs > it.startMs }
+            .map { KeptBlock(it.startMs, it.endMs, KeptContent.Program(it.item.id, 0)) }
     }
 }
