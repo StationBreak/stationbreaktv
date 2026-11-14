@@ -130,8 +130,8 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
   with no environment and no secret (`contents: read`, no cache, an empty `dist/` that ends up holding exactly the two
   APKs). Gradle has no release signing config at all, so release builds are always unsigned. The unsigned APKs go to a
   one-day `internal-` artifact. The `sign` job has no checkout, no Gradle, no cache and no token permission: it fails
-  unless the artifact holds exactly `stationbreak-github-vX.Y.Z.apk` and `stationbreak-amazon-vX.Y.Z.apk`, decodes the
-  key to the runner's temporary directory, aligns and signs those two files with the runner's `apksigner` (build-tools
+  unless the artifact holds exactly `stationbreak-github-vX.Y.Z.apk` and `stationbreak-amazon-vX.Y.Z.apk` and each
+  matches the SHA-256 the `build` job published as a job output (checked before the key is decoded), decodes the key to the runner's temporary directory, aligns and signs those two files with the runner's `apksigner` (build-tools
   36.0.0), deletes the key when the step ends, and runs the checks inline in the workflow YAML. The `publish` job has
   no key and no checkout, and is the only one with `contents: write`, `id-token: write` and `attestations: write`: it
   gets the verified APKs as another one-day `internal-` artifact, but does not trust that artifact: `sign` publishes
@@ -148,7 +148,7 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
      reach any workflow), and so is the variable `RELEASE_CERT_SHA256` below.
   4. The environment variable `RELEASE_CERT_SHA256` (a variable, not a secret: the value is public) holds the release
      certificate's SHA-256, set from the keystore before the first tag:
-     `keytool -list -v -keystore <keystore> -alias <alias> | sed -n 's/^ *SHA256: //p'` (the hex digest only; colons are
+     `keytool -list -v -keystore <keystore> -alias <alias> | sed -n 's/^[[:space:]]*SHA256: //p'` (the hex digest only; colons are
      allowed). The workflow fails unless every APK's signer equals it, so a wrong or swapped key stops the release.
 - **The `release` environment and its secrets.** Secrets: `RELEASE_KEYSTORE_BASE64` (the keystore file, base64; PKCS12
   recommended), `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. The job fails if any is

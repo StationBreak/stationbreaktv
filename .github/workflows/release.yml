@@ -32,6 +32,9 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.tag.outputs.version }}
+      # The unsigned APKs' hashes: `sign` checks what it downloads against these before it touches the key.
+      github-sha256: ${{ steps.collect.outputs.github-sha256 }}
+      amazon-sha256: ${{ steps.collect.outputs.amazon-sha256 }}
     steps:
       - name: Check the tag
         id: tag
@@ -76,6 +79,7 @@ jobs:
         run: ./gradlew assembleGithubRelease assembleAmazonRelease
 
       - name: Collect the unsigned APKs
+        id: collect
         env:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
@@ -91,6 +95,10 @@ jobs:
             cp "$apk" "dist/stationbreak-$flavor-v$VERSION.apk"
           done
           ls -l dist
+          {
+            echo "github-sha256=$(sha256sum "dist/stationbreak-github-v$VERSION.apk" | cut -d' ' -f1)"
+            echo "amazon-sha256=$(sha256sum "dist/stationbreak-amazon-v$VERSION.apk" | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
 
       # Handed to `sign`. Kept a day: only that job reads it.
       - name: Upload the unsigned APKs
@@ -126,6 +134,29 @@ jobs:
         with:
           name: internal-release-apks-unsigned
           path: ${{ runner.temp }}/in
+
+      # Before any key exists on this runner: the artifact store is not trusted, so what was downloaded must be what the
+      # build job hashed. The outputs must be real SHA-256 values (a masked output would be empty). No secrets here.
+      - name: Check the unsigned APKs against the build's hashes
+        env:
+          GITHUB_SHA256: ${{ needs.build.outputs.github-sha256 }}
+          AMAZON_SHA256: ${{ needs.build.outputs.amazon-sha256 }}
+        run: |
+          for value in "$GITHUB_SHA256" "$AMAZON_SHA256"; do
+            if ! [[ "$value" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::a hash output from the build job is empty or not a SHA-256"
+              exit 1
+            fi
+          done
+          found="$(cd "$RUNNER_TEMP/in" && find . -mindepth 1 | sort | tr '\n' ' ')"
+          if [ "$found" != "./stationbreak-amazon-v$VERSION.apk ./stationbreak-github-v$VERSION.apk " ]; then
+            echo "::error::the unsigned artifact must hold exactly the two release APKs; found: $found"
+            exit 1
+          fi
+          cd "$RUNNER_TEMP/in"
+          printf '%s  %s\n' "$GITHUB_SHA256" "stationbreak-github-v$VERSION.apk" \
+            "$AMAZON_SHA256" "stationbreak-amazon-v$VERSION.apk" > "$RUNNER_TEMP/unsigned.sha256"
+          sha256sum --check --strict "$RUNNER_TEMP/unsigned.sha256"
 
       # The key file lives in the runner's temp directory, never the workspace, and is removed by the step after this
       # one whatever happens (and by this step's own trap). Secrets reach this step through its environment only.
