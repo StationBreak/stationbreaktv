@@ -257,9 +257,9 @@ class GuideScreenshotTest {
 
     /**
      * Station breaks (rules format 5) on the playing channel: a two-minute break narrower than the compact width (its
-     * fill only, no plate text) and a twenty-five-minute break with its whole STATION BREAK plate. Right from the playing episode
-     * stops on the short break, then the next programme, then the long break; Left comes back the same way. Each focused
-     * break names itself in the panel ("Station break · Up next at ..."). Dark then Light.
+     * fill only, no plate text) and a twenty-five-minute break with its whole STATION BREAK plate. Right from the
+     * playing episode stops on the short break, then the next programme, then the long break; Left comes back the same
+     * way. Each focused break names itself in the panel ("Station break · Up next at ..."). Dark then Light.
      */
     @Test
     fun theStationBreaks() {
