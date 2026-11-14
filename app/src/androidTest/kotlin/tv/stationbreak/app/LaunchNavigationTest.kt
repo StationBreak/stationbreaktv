@@ -301,7 +301,13 @@ class LaunchNavigationTest {
         // false, and a real TV finishes within 16 ms of the key), so the check is what a viewer sees: our app is no
         // longer the foreground app.
         val deadline = System.currentTimeMillis() + TIMEOUT_MS
-        while (!appIsGone() && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
+        while (!appIsGone() && System.currentTimeMillis() < deadline) {
+            // The Exit event reaches the activity through a compose effect, and the rule's clock only moves when the
+            // test touches it (a real TV has no test clock: finish() ran 16 ms after the key). The activity may be
+            // gone by now, which the rule reports by throwing.
+            runCatching { compose.waitForIdle() }
+            Thread.sleep(POLL_MS)
+        }
         if (!appIsGone()) fail("Select on Exit should leave the app. ${describeScreenAfterSelect(activity)}")
     }
 
