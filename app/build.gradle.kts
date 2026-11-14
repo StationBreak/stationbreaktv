@@ -13,6 +13,18 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// CI gives its debug and benchmark builds a rising versionCode (#146), so each one installs over the last on a test
+// device. CI passes the workflow's run number in CI_VERSION_CODE; a local build has none and keeps 1. Release builds
+// keep defaultConfig's value: theirs comes from the release tag. Android's limit for versionCode is 2100000000.
+val ciVersionCode: Int =
+    providers.environmentVariable("CI_VERSION_CODE").orNull?.let { raw ->
+        val code = raw.toIntOrNull()
+        require(code != null && code in 1..2_100_000_000) {
+            "CI_VERSION_CODE must be a whole number from 1 to 2100000000, not '$raw'"
+        }
+        code
+    } ?: 1
+
 // AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
 // benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13). The flavors
 // share every source set and dependency, so the github benchmark manifest stands for the amazon one: that one alone is
@@ -29,6 +41,9 @@ androidComponents {
         if (variant.buildType != "debug") {
             variant.packaging.resources.excludes
                 .add("DebugProbesKt.bin")
+        }
+        if (variant.buildType != "release") {
+            variant.outputs.forEach { it.versionCode.set(ciVersionCode) }
         }
     }
 }

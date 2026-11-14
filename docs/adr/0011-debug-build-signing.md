@@ -81,7 +81,9 @@ administrator token, so Angua rated the risk HIGH before the repository goes pub
    reaches `keytool` and `apksigner` through the step's environment only. Only this job reads the secrets. A separate
    job is needed because a build step can shape every later step in its own job (through `$GITHUB_ENV`,
    `$GITHUB_PATH` or a background process), so no step in `assemble` could hold the key safely.
-3. `sign-debug` checks that the debug APK has exactly one signer, the CI debug key, before it uploads it.
+3. `sign-debug` checks that the debug APK has exactly one signer, the CI debug key, before it hands it on. It uploads
+   the signed APKs only as a one-day `internal-signed-apks` artifact; the `publish` job, which holds no secret, makes
+   them downloadable under their device-facing names once `verify` and the other required jobs have passed (#249).
 4. A push to `main` without the secrets fails. A pull request from a fork gets no secrets (`pull_request`, never
    `pull_request_target`), never reaches `sign-debug`, and uploads no APK, as before (item 5).
 5. Local builds and the `emulator` job use Android's per-machine debug key. They can't update a CI install.
