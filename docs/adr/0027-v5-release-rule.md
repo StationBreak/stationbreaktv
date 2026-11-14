@@ -38,9 +38,16 @@ What is written at 5:
 
 - **New channels** (made in the builder from scratch, or copied from a built-in channel) are written at 5: a floor of
   5 over `writeVersion`. An edit of a custom channel keeps `writeVersion`, so a saved channel keeps its version.
-- **Unedited starters** are resolved at 5 (the same floor), and a starter resolved again keeps the higher of its stored
-  version and the written one. `StarterCatalog.VERSION` goes up (to 4), so the planner resolves every unedited starter
-  again: one on the air (a keeper) switches at the next broadcast-day boundary, any other at once.
+- **Unedited starters** are resolved at 5 (the same floor). `StarterCatalog.VERSION` goes up (to 4), so the planner
+  resolves every unedited starter again: one on the air (a keeper) switches at the next broadcast-day boundary, any
+  other at once.
+- **Beyond the keeper cap.** Only a keeper holds today's rules until the boundary, and the keepers are capped
+  (`previousKeepers`). An on-air starter beyond that cap is not a keeper, so it switches to 5 at once, as it does for
+  any catalog bump.
+- **Synced calls (`rehinted`).** On a call where collections are synced, an unedited starter that is on or on the shelf
+  is resolved again even without a catalog bump (`LineupPlanner.rehinted`). That resolution also writes 5, so an
+  unedited starter can pick up v5 on a synced call before the catalog bump reaches it. It still goes through the keeper
+  path: a keeper holds today's rules until the boundary, any other takes 5 at once.
 - `writeVersion` never lowers a file that says 5.
 
 **Fold 2 arrives early through 5.** Because every v5 file is matched under studio fold 2, the Android build brings fold 2
@@ -60,8 +67,10 @@ The cost the owner accepts:
 - **An older reader.** A reader that stops at 4 (an older Fire OS build, or the Vega OS and Roku apps until they catch
   up) sees a v5 file only after a downgrade, a restore or an import. It then shows that channel as unusable ("update
   required", off the air) and keeps it byte for byte until it is updated. It fails closed: nothing is lost.
-- **No rollback.** `writeVersion` never lowers a file that says 5, and a re-resolved starter keeps the higher of its
-  stored version and the written one, so starters and new channels stay at 5 for good. A later release cannot turn the
+- **No rollback.** `writeVersion` never lowers a file that says 5. A starter resolved again stays at 5 for two reasons:
+  `RecipeResolver` passes no previous version, so the floor of 5 (`ChannelRules.newRulesWriteVersion`) sets its
+  version, and `Planning.reResolved` keeps the higher of the stored version and the one written. So starters and new
+  channels stay at 5 for good. A later release cannot turn the
   spread end off by writing a lower version. The way out is a format 6 (a behaviour version that gathers again, written
   over 5 the same way), or an explicit one-time migration that rewrites v5 files, recorded in its own ADR.
 - **A downgrade affects the whole lineup.** An older build that reads a catalog 4 lineup freezes its planner on it

@@ -119,6 +119,9 @@ dead air before 06:00.
   version 5 on purpose (a floor on ADR-0026's `writeVersion`), and that exception needs a line in ADR-0022.
 - Determinism and vectors: ADR-0002. Persisted days (`PersistedDays`, `DayStore`) must store and read the new block
   kind. That touches the stored format, so it needs a data review.
+  **Correction (2026-11-13, preflight ruling 16):** this is stale. `PersistedDays` stores pools, not blocks, so no
+  persisted-day format change was needed. The repair record (the lineup file) carries the new block kind instead, as
+  the `Break` sentinel (ADR-0025), and the lineup file stays at version 4.
 - The planned end's cost today is one pass over at most `N` items. The best-fit selection must stay cheap on TV
   hardware for big pools (thousands of items) and long leftovers (hours). Bound it, for example with a capped
   subset-sum over seconds, or with a greedy fallback above a size limit.
