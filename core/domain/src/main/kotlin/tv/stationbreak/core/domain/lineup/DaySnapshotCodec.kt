@@ -85,7 +85,10 @@ internal data class DayKey(
  * (1 to 3); a reader checks each title is listed once. The keeps are never written: the day pool is already windowed,
  * and a restore applies no window ([LineupDays.restore]).
  *
- * **Any** change to what is written still bumps [VERSION], so the miss is reported as `Format`.
+ * **Any** change to what is written still bumps [VERSION]. A file of another format than [VERSION] or [OLDEST_READ]
+ * (older or newer, so one a newer build wrote) is never decoded: its header says so, and it is a miss reported as
+ * `Format`, which the caller answers with a build as usual. A file of [OLDEST_READ] is read as it is, under its own
+ * key (its `format` apart), and the next save writes the current format.
  *
  * The stream reads and writes are kotlinx.serialization's experimental API. They keep a file of a few megabytes from
  * ever also being one string in memory (twice its size on Android), which matters on a 1.5 GB TV; the format is
@@ -94,14 +97,29 @@ internal data class DayKey(
 @OptIn(ExperimentalSerializationApi::class)
 internal object DaySnapshotCodec {
     /**
-     * 7 (spec 26): a day may be empty for a new reason, `LibraryNotChosen`. 6 (spec 23): a curated day may hold its
+     * 8 (#757): a day may hold its home set (`homes`: rows of the body's table of title IDs, the titles whose home is
+     * the channel; absent when it is not known, an empty list when the channel is home to none). A file of 7 is still
+     * read: it has no home sets, so its days come back with an unknown one ([ChannelDay.homed]). 7 (spec 26): a day
+     * may be empty for a new reason, `LibraryNotChosen`. 6 (spec 23): a curated day may hold its
      * weights (`weights`, with one table of title IDs in the body), the key holds the digest of the days' curations
      * (`curation`), and the curated pools, keeps and weights are live, so a file of 5 is never read. 5: a day may
      * hold its film-to-collection map (`films`, with one table of collection IDs in the body). 4: the key holds the
      * digest of the day inputs (`inputs`), its channels and the body's days are in ID order, and each day names its
      * channel.
      */
-    const val VERSION = 7
+    const val VERSION = 8
+
+    /**
+     * The oldest format still read: its days are the same but for the home sets they do not hold. It is [VERSION] - 1
+     * while that format's body schema is a strict subset of the current one (a reader of the current schema reads it
+     * unchanged). A change that breaks that sets it to [VERSION], so that no older format is read. A test pins the two
+     * values it may have; there is no check at run time, where a wrong value would fail every days-file read.
+     *
+     * Note that the key's `app` part changes with every install or upgrade (see [PersistedDays]), so no file of another
+     * build is ever read, and this read matters only when the same install wrote a file of 7 (tests, or an upgrade
+     * that keeps the install time). It must not be relied on in the field.
+     */
+    const val OLDEST_READ = 7
 
     /** The longest header line read: a key is a few kilobytes even for a few hundred channels. */
     private const val MAX_HEADER = 256 * 1024
@@ -150,7 +168,7 @@ internal object DaySnapshotCodec {
         val end = headerEnd(file)
         val root = json.parseToJsonElement(file.decodeToString(0, end, throwOnInvalidSequence = true))
         val format = ((root as? JsonObject)?.get("format") as? JsonPrimitive)?.content
-        if (format != VERSION.toString()) return Header.OtherFormat
+        if (format != VERSION.toString() && format != OLDEST_READ.toString()) return Header.OtherFormat
         val header = json.decodeFromJsonElement(HeaderV2.serializer(), root)
         val crc = crcOf(keyBytes(header.key), file, end + 1)
         return if (crc == header.crc) Header.Read(header.key, end + 1) else throw IOException("Fails its checksum")
@@ -166,7 +184,7 @@ internal object DaySnapshotCodec {
 
     /**
      * One day of a file: the ID of the channel it is for, its day pool, its film-to-collection map, why it is empty, if
-     * it is, and its curated weights.
+     * it is, its curated weights and its home set (null when the file's format did not keep one).
      */
     class StoredDay(
         val channel: String,
@@ -174,6 +192,7 @@ internal object DaySnapshotCodec {
         val films: FilmCollections,
         val hidden: HiddenReason?,
         val weights: TitleWeights,
+        val homed: Set<CanonicalId>?,
     )
 
     /**
@@ -196,7 +215,7 @@ internal object DaySnapshotCodec {
         return body.days.map { day ->
             val pool = poolOf(day, items)
             val films = filmsOf(day, items, pool, collections)
-            StoredDay(day.channel, pool, films, day.hidden, weightsOf(day, titles, pool))
+            StoredDay(day.channel, pool, films, day.hidden, weightsOf(day, titles, pool), homesOf(day, titles, pool))
         }
     }
 
@@ -278,14 +297,9 @@ internal object DaySnapshotCodec {
                 val rows = IntArray(pool.size) { i -> rowOf.getValue(pool[i]) }
                 val films = filmRows(day, rowOf, collections)
                 val weights = weightRows(day, titles)
-                if (isAscending(rows)) {
-                    val set = BitSet(table.size)
-                    rows.forEach(set::set)
-                    val bits = Base64.encode(set.toByteArray())
-                    DayV2(day.channel.id.value, bits = bits, hidden = day.hidden, films = films, weights = weights)
-                } else {
-                    DayV2(day.channel.id.value, rows = rows, hidden = day.hidden, films = films, weights = weights)
-                }
+                val homes = homeRows(day, titles)
+                val parts = DayParts(films, weights, homes)
+                dayOfRows(day, rows, table.size, parts)
             }
         val series = LinkedHashMap<CanonicalId, Int>()
         val rows =
@@ -357,6 +371,58 @@ private fun weightRows(
     return day.weights.entries.map { (title, weight) -> listOf(titles.getOrPut(title) { titles.size }, weight) }
 }
 
+// The day's home set: each a title of the table and of the day's own pool, once. Anything else is a fault. Null when
+// the file did not keep one (a format 7 file): unknown, which is not the same as empty.
+private fun homesOf(
+    day: DayV2,
+    titles: List<CanonicalId>,
+    pool: List<ScheduleItem>,
+): Set<CanonicalId>? {
+    val rows = day.homes
+    val homed = HashSet<CanonicalId>((rows?.size ?: 0) * 2)
+    if (!rows.isNullOrEmpty()) {
+        val aired = HashSet<CanonicalId>(pool.size * 2)
+        for (item in pool) aired.add(item.groupId)
+        for (row in rows) {
+            val title = titles[rowIn(row, titles.size)]
+            if (title !in aired || !homed.add(title)) throw IOException("A home, once, of a title the day airs")
+        }
+    }
+    return if (rows == null) null else homed
+}
+
+// The day's home set as title rows, ascending by title ID; null when it is not known, [] when there are none.
+private fun homeRows(
+    day: ChannelDay,
+    titles: MutableMap<CanonicalId, Int>,
+): List<Int>? = day.homed?.sortedBy { it.value }?.map { titles.getOrPut(it) { titles.size } }
+
+// What a day keeps besides its pool and its reason: the film map, the weights and the home set, as written.
+private class DayParts(
+    val films: List<List<Int>>?,
+    val weights: List<List<Int>>?,
+    val homes: List<Int>?,
+) {
+    fun day(
+        day: ChannelDay,
+        bits: String? = null,
+        rows: IntArray? = null,
+    ) = DayV2(day.channel.id.value, bits, rows, day.hidden, films, weights, homes)
+}
+
+// A day pool in canonical-ID order: the set of table rows it holds, as a bitset. Any other order: its row numbers.
+private fun dayOfRows(
+    day: ChannelDay,
+    rows: IntArray,
+    tableSize: Int,
+    parts: DayParts,
+): DayV2 {
+    if (!isAscending(rows)) return parts.day(day, rows = rows)
+    val set = BitSet(tableSize)
+    rows.forEach(set::set)
+    return parts.day(day, bits = Base64.encode(set.toByteArray()))
+}
+
 /** The header line: the format first (read before anything else), the body's CRC-32, and the key. */
 @Serializable
 private class HeaderV2(
@@ -410,8 +476,10 @@ private class ItemV2(
 /**
  * One channel's day: the channel's ID, its pool as a bitset of table rows (Base64) or as row numbers, its empty
  * reason, the film-to-collection map as `[item row, collection row]` pairs and the weights as `[title row, weight]`
- * pairs (each absent when the day has none).
+ * pairs (each absent when the day has none) and, from format 8, the home set as title rows (absent when it is not
+ * known; an empty list is a day with no homes).
  */
+@Suppress("LongParameterList") // One field for each thing a day keeps.
 @Serializable
 private class DayV2(
     @SerialName("c") val channel: String,
@@ -420,6 +488,7 @@ private class DayV2(
     val hidden: HiddenReason? = null,
     val films: List<List<Int>>? = null,
     val weights: List<List<Int>>? = null,
+    val homes: List<Int>? = null,
 )
 
 private const val MOVIE = 0

@@ -54,6 +54,8 @@ private const val HEX_DIGITS = 8
  * - [leftoversCeiling]: a leftovers channel's rating ceiling (a rating-ladder name), null for none or another kind.
  * - [hidden]: why a switched-on channel has nothing to air in its day at the asked-for moment, as the schedule says;
  *   null when it has something, and for a channel that is not on.
+ * - [holdings]: what the channel holds today ([ChannelHoldings], the value the guide's channel box shows too); null
+ *   for a channel that is off, hidden or has nothing today, and while it could not be read.
  */
 data class ChannelProperties(
     val summary: ChannelSummary,
@@ -63,6 +65,7 @@ data class ChannelProperties(
     val timing: ChannelTiming?,
     val leftoversCeiling: String?,
     val hidden: HiddenReason?,
+    val holdings: ChannelHoldings? = null,
 )
 
 /** How features read a channel's properties. Read-only; none of it throws, but for cancellation. */

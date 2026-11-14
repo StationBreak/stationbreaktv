@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
@@ -159,6 +160,9 @@ open class GuideRig {
     /** The logos the guide's panel is offered; none unless a test brings some. */
     internal var logos: GuideLogos = GuideLogos.None
 
+    /** What the channel box is told a channel holds; nothing unless a test brings some (#757). */
+    internal var holdings: ChannelHoldingsReader = ChannelHoldingsReader.None
+
     internal fun TestScope.clock(startMin: Long) =
         object : Clock {
             override fun now(): Instant {
@@ -186,6 +190,7 @@ open class GuideRig {
             selection = choices.selection,
             sync = syncNow,
             logos = logos,
+            holdings = holdings,
         )
     }
 

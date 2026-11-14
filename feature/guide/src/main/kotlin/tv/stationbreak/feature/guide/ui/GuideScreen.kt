@@ -70,7 +70,9 @@ import tv.stationbreak.feature.guide.GuideFocus
 import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.GuideState
+import tv.stationbreak.feature.guide.NoHoldings
 import tv.stationbreak.feature.guide.R
+import tv.stationbreak.feature.guide.ShownHoldings
 import tv.stationbreak.feature.guide.indexOf
 import tv.stationbreak.feature.guide.isAwayFrom
 import kotlin.math.abs
@@ -166,6 +168,7 @@ internal fun GuideScreen(
     modifier: Modifier = Modifier,
     syncNow: SyncNowState = SyncNowState.Idle,
     levelling: Boolean = true,
+    holdings: StateFlow<ShownHoldings?> = NoHoldings,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
@@ -212,7 +215,8 @@ internal fun GuideScreen(
                 // The panel takes the whole band: the description has the lines the menu row used to take (#756).
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
                 val kind = guidePanelOf(settings != null, noLibraries, onChannel)
-                val parts = TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling)
+                val parts =
+                    TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, holdings)
                 TopPanel(kind, parts, panelSize)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(

@@ -202,10 +202,11 @@ class PersistedDaysTest {
                 null,
                 base.ceilingRank,
                 keeps,
+                emptySet(),
             )
 
         val day = fresh()
-        val restored = lineupDays.restore(scheduled, day.pool, day.films, null)
+        val restored = lineupDays.restore(scheduled, day.pool, day.films, null, day.weights, day.homed)
 
         assertEquals(2, day.pool.size, "the window keeps two of six")
         assertEquals(day.pool, restored.pool)

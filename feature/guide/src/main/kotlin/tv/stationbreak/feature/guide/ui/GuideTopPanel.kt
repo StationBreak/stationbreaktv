@@ -9,6 +9,8 @@ import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.GuideSnapshot
+import tv.stationbreak.feature.guide.NoHoldings
+import tv.stationbreak.feature.guide.ShownHoldings
 
 /** What the top-left panel shows. */
 internal enum class GuidePanelKind {
@@ -52,6 +54,7 @@ internal class TopPanelParts(
     val fit: ScreenFit,
     val syncNow: SyncNowState,
     val levelling: Boolean = true,
+    val holdings: StateFlow<ShownHoldings?> = NoHoldings,
 )
 
 /** The top-left panel of [kind], in [modifier]'s place; [GuidePanelKind.Empty] keeps the place and draws nothing. */
@@ -72,7 +75,7 @@ internal fun TopPanel(
         }
 
         GuidePanelKind.Channel -> {
-            ChannelPanel(parts.snapshotOf, modifier)
+            ChannelPanel(parts.snapshotOf, parts.holdings, modifier)
         }
 
         GuidePanelKind.Details -> {

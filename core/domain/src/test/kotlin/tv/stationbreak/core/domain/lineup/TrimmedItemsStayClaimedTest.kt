@@ -84,7 +84,7 @@ class TrimmedItemsStayClaimedTest {
         val restored =
             built.map { day ->
                 val s = scheduled.first { it.channel.id == day.channel.id }
-                days.restore(s, day.pool, day.films, day.hidden, day.weights)
+                days.restore(s, day.pool, day.films, day.hidden, day.weights, day.homed)
             }
 
         assertEquals(built.map { it.pool }, restored.map { it.pool })

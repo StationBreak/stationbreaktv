@@ -42,6 +42,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -73,10 +74,14 @@ import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.lineup.ChannelHoldings
+import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.GuideOpening
+import tv.stationbreak.core.domain.lineup.HeldTitle
+import tv.stationbreak.core.domain.lineup.HomeShows
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
@@ -88,6 +93,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
+import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.ProgramInfoTags
@@ -131,6 +137,16 @@ private object NoLineup : ChannelRepository {
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = flowOf(emptyList())
 
     override fun activeChannels(): Flow<List<ChannelSummary>> = flowOf(emptyList())
+}
+
+/** What the channel box is told each channel holds (#757); a channel it is not told about is off. */
+private class ShelfHoldings(
+    val held: Map<ChannelId, ChannelHoldings>,
+) : ChannelHoldingsReader {
+    override suspend fun read(
+        id: ChannelId,
+        at: Instant,
+    ): ChannelHoldings? = held[id]
 }
 
 /** The guide on screen (spec 17): focus, the panel, cells of every kind, the info overlay and Back. */
@@ -186,6 +202,9 @@ class GuideScreenTest {
     private val showing = mutableStateOf(true)
     private val openedAt = mutableLongStateOf(1L)
 
+    // What the channel box is told a channel holds; nothing unless a test sets some before showing the guide.
+    private var holdings: ChannelHoldingsReader = ChannelHoldingsReader.None
+
     // The channel logos the guide draws from; null (initials only) unless a test sets one before showing the guide.
     private var marks: MarkCache? = null
 
@@ -197,7 +216,7 @@ class GuideScreenTest {
         measure: Boolean = false,
     ) {
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-        vm = GuideViewModel(schedule, cache, clock, work, NoLineup)
+        vm = GuideViewModel(schedule, cache, clock, work, NoLineup, holdings = holdings)
         compose.setContent {
             // Stands in for the activity: a Back that nothing on screen takes leaves live TV.
             BackHandler { exits++ }
@@ -1003,7 +1022,146 @@ class GuideScreenTest {
         compose.onNodeWithTag(GuideTags.GRID).assertDoesNotExist()
     }
 
+    private fun title(
+        n: Int,
+        anchor: Boolean = false,
+    ) = HeldTitle(CanonicalId.parse(n.toString(16).padStart(32, '0')), "Show $n", n * 3_600_000L, anchor)
+
+    // A shelf telling [channel] it holds [hours] hours of [titles] titles.
+    private fun shelf(
+        channel: ChannelId,
+        hours: Long,
+        titles: Int,
+        homes: HomeShows,
+        top: List<HeldTitle> = emptyList(),
+    ) = ShelfHoldings(mapOf(channel to ChannelHoldings(hours * 3_600_000L, titles, homes, top, Long.MAX_VALUE)))
+
+    private fun fontSizeOf(tag: String): Float {
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose
+            .onNodeWithTag(tag, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        return layouts
+            .single()
+            .layoutInput.style.fontSize.value
+    }
+
+    private fun lineCountOf(tag: String): Int {
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose
+            .onNodeWithTag(tag, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(layouts)
+        return layouts.single().lineCount
+    }
+
+    private fun awaitHoldings() {
+        compose.waitUntil(TIMEOUT_MS) {
+            compose
+                .onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+    }
+
+    @Test
+    fun theChannelBoxShowsHoursTitlesAndTheShowsThatLiveThere() {
+        val homes = listOf(title(1, anchor = true), title(2), title(3), title(4), title(5), title(6))
+        holdings =
+            shelf(CH5, 412, 37, HomeShows.Known(37, homes))
+        showReady(CH5)
+
+        press(Key.DirectionLeft)
+        awaitHoldings()
+
+        assertEquals("412 hours of programmes (about 17 days) · 37 titles", text(GuideTags.CHANNEL_PANEL_HOURS))
+        assertEquals("Home to:", text(GuideTags.CHANNEL_PANEL_LIST_LABEL))
+        assertEquals("Show 1, Show 2, Show 3, Show 4, Show 5, Show 6 + 31 more", text(GuideTags.CHANNEL_PANEL_LIST))
+        assertEquals("Test Channel 5", text(GuideTags.CHANNEL_PANEL_NAME))
+        // 11 sp for the hours and the label, 13 sp for the titles; nothing under 10 sp.
+        assertEquals(11f, fontSizeOf(GuideTags.CHANNEL_PANEL_HOURS), 0f)
+        assertEquals(11f, fontSizeOf(GuideTags.CHANNEL_PANEL_LIST_LABEL), 0f)
+        assertEquals(13f, fontSizeOf(GuideTags.CHANNEL_PANEL_LIST), 0f)
+        assertTrue(lineCountOf(GuideTags.CHANNEL_PANEL_LIST) <= 2)
+    }
+
+    @Test
+    fun aChannelWithNoHomesIsMostlyItsBiggestTitlesAndUnderTwoDaysShowsNoDays() {
+        val top = (1..6).map { title(it) }
+        holdings = shelf(CH7, 40, 9, HomeShows.Known(0, emptyList()), top)
+        showReady(CH7)
+
+        press(Key.DirectionLeft)
+        press(Key.DirectionLeft)
+        press(Key.DirectionLeft)
+        awaitHoldings()
+
+        assertEquals("40 hours of programmes · 9 titles", text(GuideTags.CHANNEL_PANEL_HOURS))
+        assertEquals("Mostly:", text(GuideTags.CHANNEL_PANEL_LIST_LABEL))
+        assertEquals("Show 1, Show 2, Show 3, Show 4, Show 5, Show 6 + 3 more", text(GuideTags.CHANNEL_PANEL_LIST))
+    }
+
+    @Test
+    fun theListNeverRunsPastTwoLines() {
+        val long = (1..6).map { title(it).copy(name = "A Very Long Show Name $it Of The Night") }
+        holdings = shelf(CH5, 50, 90, HomeShows.Known(90, long))
+        showReady(CH5)
+
+        press(Key.DirectionLeft)
+        awaitHoldings()
+
+        assertEquals(2, lineCountOf(GuideTags.CHANNEL_PANEL_LIST))
+    }
+
+    @Test
+    fun aChannelWhoseHomesAreUnknownShowsTheHoursLineAndNoList() {
+        holdings = shelf(CH5, 412, 37, HomeShows.Unknown, listOf(title(1)))
+        showReady(CH5)
+
+        press(Key.DirectionLeft)
+        awaitHoldings()
+
+        assertEquals("412 hours of programmes (about 17 days) · 37 titles", text(GuideTags.CHANNEL_PANEL_HOURS))
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_LIST_LABEL, useUnmergedTree = true).assertCountEquals(0)
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_LIST, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aChannelThatIsOffShowsItsNameAndNoHoldings() {
+        holdings = ShelfHoldings(emptyMap())
+        showReady(CH5)
+
+        press(Key.DirectionLeft)
+        compose.waitForIdle()
+        Thread.sleep(REST_AFTER_MS)
+        compose.waitForIdle()
+
+        assertEquals("Test Channel 5", text(GuideTags.CHANNEL_PANEL_NAME))
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true).assertCountEquals(0)
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_LIST, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun theHoldingsGoWhenTheFocusLeavesTheColumn() {
+        holdings = shelf(CH5, 5, 1, HomeShows.Known(1, listOf(title(1))))
+        showReady(CH5)
+        press(Key.DirectionLeft)
+        awaitHoldings()
+
+        press(Key.DirectionRight)
+
+        compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertDoesNotExist()
+        press(Key.DirectionLeft)
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true).assertCountEquals(0)
+    }
+
     private companion object {
+        const val REST_AFTER_MS = 600L
         const val LOAD_TIMEOUT_S = 10L
 
         // A 64 x 64 stand-in for a decoded logo; the guide only draws it.

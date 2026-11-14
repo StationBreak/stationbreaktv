@@ -97,6 +97,7 @@ class ChannelPropertiesTest {
                 sources.associateWith { "Label ${it.key}" }
             },
             studioNames = { _, names -> names.associateWith { "Studio ${it.uppercase()}" } },
+            holdings = ChannelHoldingsReader.None,
         )
 
     private fun timing(
@@ -301,7 +302,8 @@ class ChannelPropertiesTest {
 
             val noLabels: Labels = { _, _ -> emptyMap() }
             val noStudios: StudioNames = { _, _ -> emptyMap() }
-            val signedOut = BuiltInChannelProperties(service, CountingLibrary(), schedule, noLabels, noStudios)
+            val none = ChannelHoldingsReader.None
+            val signedOut = BuiltInChannelProperties(service, CountingLibrary(), schedule, noLabels, noStudios, none)
             assertNull(signedOut.read(laughs.id, NOON))
         }
 

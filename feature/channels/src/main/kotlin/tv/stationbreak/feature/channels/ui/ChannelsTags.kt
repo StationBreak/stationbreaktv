@@ -55,6 +55,13 @@ object ChannelsTags {
     const val ABOUT_LOADING = "channels:about:loading"
     const val ABOUT_PLAYS = "channels:about:plays"
     const val ABOUT_RUNS = "channels:about:runs"
+
+    /** "What it holds" (#757): the section, its hours line, the list's label and the list. */
+    const val ABOUT_HOLDS = "channels:about:holds"
+    const val ABOUT_HOLDS_HOURS = "channels:about:holds:hours"
+    const val ABOUT_HOLDS_LABEL = "channels:about:holds:label"
+    const val ABOUT_HOLDS_LIST = "channels:about:holds:list"
+
     const val ABOUT_STATUS = "channels:about:status"
     const val ABOUT_CODE = "channels:about:code"
 

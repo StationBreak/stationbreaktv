@@ -24,6 +24,7 @@ A viewer should be able to answer, without leaving the TV, "what is this channel
 | Personality | Recipe `personality` in quotes, 11sp italic `textSecondary`. Custom channels: omitted. | `StarterCatalogView.recipes[key].personality` |
 | **What it plays** | Key/value rows: Genres, Tags, Years, Studios, Collections/Series/Items (named, not IDs), Libraries; **Always** = theme anchors; **Never** = exclusions + "anything rated above X"; **Narrowed to** = filters (kind, runtime, not-genres). Omit empty rows. | `ChannelSource.*.rules.sources/exclusions/filters`, `Recipe.theme.anchors` |
 | **How it runs** | Order (Shuffle / In order / Rotation / Chronological / Random in order / **Programmed** for Curated) with "· new day at <broadcastDay.start>"; block length when set; Schedule code | `ChannelRules.ordering`, `timing`, `seed` |
+| **What it holds** | (#757) The hours line, then **Home to:** (the titles whose home is the channel) or, for a channel with none, **Mostly:** (the six titles with the most hours): the same lines, from the same `ChannelHoldings` value, as the guide's channel box (`docs/design/guide-menu-and-channel-holdings.md`, section 2). Only home shows are listed; the hours and the title count are totals of everything the channel airs. A day whose homes are not known (built before they were kept) shows the hours line alone. Omitted for a channel that is off, hidden or has nothing today. | `ChannelProperties.holdings` (`ChannelHoldingsReader`) |
 | Status | One line with a 5dp dot: green **On since <date>** · *showing today* / *hidden today: <HiddenReason text>*; amber **Not switched on** · *<ShelfReason text>*; grey **Off** · *hidden by you* | `ChannelSummary.state/onSince/shelfReason`, `ScheduleSource.airings().hidden` |
 | Actions | Buttons 11sp Medium, 3dp radius, focused = accent fill + `focusText` | `actionsOf()` |
 | Hint | `BACK` Return to the guide / to Channels | |
@@ -53,6 +54,7 @@ Implementation reads `LineupChannel.source` (`Starter.rules`, `Custom.rules`, `L
 - `GuideFocus` gains a channel position (e.g. `cellIndex = -1` or a sealed `GuideFocus.Channel(channel)`). `GuideModel.move(Left)` from the earliest cell → channel position; `Right` → back to that cell; `Up/Down` move between channels staying in the column.
 - `ChannelCell` draws a 2dp accent outline (inside its bounds) when its row holds the channel focus. Nothing else changes in the column.
 - `DetailsPanel` in channel focus shows: mark large, channel line, name, personality, status line. (Same data as the sheet's top; no sources.)
+  Since #757 it also shows what the channel holds (hours, and "Home to:" or "Mostly:"), read once focus has rested 200 ms on the channel; see `docs/design/guide-menu-and-channel-holdings.md`, section 2.
 - `GuideViewModel.select` in channel focus → `GuideEvent.OpenChannelProperties(channel)`. The sheet is a slot like `ChannelsSlot`, so `feature:guide` doesn't depend on `feature:channels`.
 - Hints row in channel focus: `OK` About this channel · `▸` Back to programs.
 

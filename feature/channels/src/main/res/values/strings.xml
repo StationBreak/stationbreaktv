@@ -211,6 +211,8 @@
     <string name="channel_props_loading">Loading\u2026</string>
     <string name="channel_props_section_plays">What it plays</string>
     <string name="channel_props_section_runs">How it runs</string>
+    <!-- The section that says how much a channel has and which shows live there (#757). -->
+    <string name="channel_props_section_holds">What it holds</string>
     <string name="channel_props_leftovers">Plays whatever nothing else does</string>
     <string name="channel_props_row_genres">Genres</string>
     <string name="channel_props_row_tags">Tags</string>

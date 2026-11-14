@@ -34,9 +34,11 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.domain.lineup.BuildProbes
+import tv.stationbreak.core.domain.lineup.BuiltInChannelHoldings
 import tv.stationbreak.core.domain.lineup.BuiltInChannelProperties
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
+import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelManager
 import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
@@ -239,16 +241,31 @@ internal object LineupModule {
      */
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // One port for each thing the sheet reads.
     fun channelProperties(
         service: LineupService,
         library: LibraryRepository,
         schedule: ScheduleSource,
         sessions: SessionRepository,
         server: MediaServer,
+        holdings: ChannelHoldingsReader,
     ): ChannelPropertiesReader {
         val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
-        return BuiltInChannelProperties(service, library, schedule, labels::invoke, labels::studios)
+        return BuiltInChannelProperties(service, library, schedule, labels::invoke, labels::studios, holdings)
     }
+
+    /**
+     * What a channel holds today (#757), for the guide's channel box and the properties sheet: one reader, so the two
+     * show the same value. The titles are named by the library's own title lookup, the one the sheet's source labels
+     * use.
+     */
+    @Provides
+    @Singleton
+    @Suppress("InjectDispatcher") // The reader's own work, off the main thread, as the schedule source's is.
+    fun channelHoldings(
+        source: BuiltInScheduleSource,
+        library: LibraryRepository,
+    ): ChannelHoldingsReader = BuiltInChannelHoldings(source, library, Dispatchers.Default)
 
     /**
      * The library snapshots the schedule source and the channel preview share (spec 22): a preview of a draft reads no
