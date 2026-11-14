@@ -391,9 +391,9 @@ internal class SelectionRepair(
         val fromMs = p.fromMs
         val pool = p.pool?.filter { it.id in live }
         val laid = tailOf(day, s, snapshot, pool, p.tailFromMs, kept?.aired.orEmpty(), p.pastAirings, after)
-        val seam = RepairSeam.of(kept, laid)
+        val seam = RepairSeam.of(kept, laid, day.settings.leftover == LeftoverPolicy.Spread)
         val tail = seam.tail
-        val nothing = tail.isNotEmpty() && tail.none { it.content is ScheduleContent.Program }
+        val nothing = seam.emptyTail
         // Hidden at the change and after it: hidden all day, from its start, so no window ever shows it.
         val offAir = kept == null && nothing
         val start = if (offAir) day.epochStartMs else fromMs

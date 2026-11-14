@@ -129,14 +129,34 @@ internal class SpreadDayRepairTest : RepairTestBase() {
                 pinItem = null,
             )
         val programme = ScheduleBlock(30L, 40L, ScheduleContent.Program(comedies100[0].item.id))
-        val joined = RepairSeam.of(window, listOf(ScheduleBlock(20L, 30L, ScheduleContent.Break), programme))
+        val laid = listOf(ScheduleBlock(20L, 30L, ScheduleContent.Break), programme)
+        val joined = RepairSeam.of(window, laid, spreads = true)
         assertEquals(listOf(KeptBlock(0L, 10L, KeptContent.Slate), KeptBlock(10L, 30L, KeptContent.Break)), joined.kept)
         assertEquals(listOf(programme), joined.tail)
         assertEquals(30L, joined.pinEndMs)
         // A programme at the start of the tail is not joined.
-        val apart = RepairSeam.of(window, listOf(programme.copy(startMs = 20L)))
+        val apart = RepairSeam.of(window, listOf(programme.copy(startMs = 20L)), spreads = true)
         assertEquals(window.blocks, apart.kept)
         assertEquals(20L, apart.pinEndMs)
-        assertEquals(null, RepairSeam.of(null, listOf(programme)).pinEndMs)
+        assertEquals(null, RepairSeam.of(null, listOf(programme), spreads = true).pinEndMs)
+        // Only a day that spreads its end joins.
+        val gathering = RepairSeam.of(window, laid, spreads = false)
+        assertEquals(window.blocks, gathering.kept)
+        assertEquals(20L, gathering.pinEndMs)
+    }
+
+    @Test
+    fun aBreakPinBeforeATailOfOnlyABreakHidesItsRestAsAProgrammePinDoes() {
+        val onlyBreak = listOf(ScheduleBlock(20L, 30L, ScheduleContent.Break))
+        val breakPin = KeptBlock(10L, 20L, KeptContent.Break)
+        val programmePin = KeptBlock(10L, 20L, KeptContent.Program(comedies100[0].item.id, 0))
+        for (pin in listOf(breakPin, programmePin)) {
+            val window = KeptWindow(0L, 20L, listOf(pin), emptyList(), emptySet(), emptyList(), null)
+            val seam = RepairSeam.of(window, onlyBreak, spreads = true)
+            assertEquals(listOf(pin), seam.kept, "nothing joined")
+            assertEquals(onlyBreak, seam.tail)
+            assertEquals(20L, seam.pinEndMs, "hidden from the pin's own end")
+            assertTrue(seam.emptyTail, "the empty rest is hidden")
+        }
     }
 }

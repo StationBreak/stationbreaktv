@@ -12,9 +12,10 @@ import tv.stationbreak.core.scheduler.Epochs
 
 /**
  * The reads one repair makes of [account]'s library, each once (spec 26): which items have a current row
- * (`currentIds`, asked only for ids not asked before), and each day's day pool (`ChannelDay.dayPool`: on a repaired
- * day the tail pool, read by id). And the one gap fill, [GapFill.pick] with [fillExclusions], as the schedule source
- * names a gone block: the same inputs give the same pieces.
+ * (`currentIds`, asked only for ids not asked before), each day's day pool (`ChannelDay.dayPool`: on a repaired
+ * day the tail pool, read by id), and items by id at a day's cut-off ([itemsAt], `scheduleItemsOf`: what a spread
+ * day's past airings name that neither pool holds). And the one gap fill, [GapFill.pick] with [fillExclusions], as
+ * the schedule source names a gone block: the same inputs give the same pieces.
  */
 internal class Fills(
     private val library: LibraryRepository,

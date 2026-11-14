@@ -53,6 +53,9 @@ internal fun KeptBlock.programId(): CanonicalId? = (content as? KeptContent.Prog
  * @property blocks contiguous from [keptFromMs] to [dayEndMs]: the kept window (ending at [pinEndMs]), then the tail.
  *   A day hidden at the repair keeps nothing: [pinEndMs] is [keptFromMs] (and when it stays hidden, both are the day's
  *   start and the one block is a slate).
+ * @property pinEndMs the end of the block on air at the repair, the pin. On a spread day (rules format 5) a break pin
+ *   joined with the tail's first break ([RepairSeam]) ends later than the block that was on air: [pinEndMs] is then
+ *   the end of the joined break.
  * @property tailHidden the tail's own empty reason, stored so no snapshot is read for it.
  */
 internal data class ChannelRepair(

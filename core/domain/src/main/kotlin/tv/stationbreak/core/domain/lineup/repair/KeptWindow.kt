@@ -15,11 +15,13 @@ internal const val KEPT_STEP_MS = 30 * 60 * 1000L
 /**
  * The kept window of one channel day at a repair (spec 26): what airs from [fromMs] (the half hour at or before the
  * repair, never before the day's start) to [pinEndMs] (the end of the block on air, the pin), exactly as the viewer
- * sees it now. A gone block in it is kept as the schedule source names it: the gap fill's pieces as programmes, and
- * the time they leave as the gone item, with an empty fix ([fixes]) so it is never filled again. [aired] is what
- * aired or airs before the pin's end, for the tail to leave out; [airings] is what the viewer saw air before the pin's
- * end, each with its end, for the spread end of the day (empty on a day that does not spread: nothing reads it);
- * [pinItem] is the programme on air (null for a slate, a break or a gone rest).
+ * sees it now. The repair can move the pin's end later when it joins a break pin with the tail's first break
+ * ([RepairSeam]); this window's [pinEndMs] is the block's own end. A gone block in it is kept as the schedule source
+ * names it: the gap fill's pieces as programmes, and the time they leave as the gone item, with an empty fix ([fixes])
+ * so it is never filled again. [aired] is what aired or airs before the pin's end, for the tail to leave out; [airings]
+ * is what the viewer saw air before the pin's end, each with its end, for the spread end of the day (empty on a day
+ * that does not spread: nothing reads it); [pinItem] is the programme on air (null for a slate, a break or a gone
+ * rest).
  */
 @Suppress("LongParameterList") // The window's facts, one for one.
 internal class KeptWindow(
@@ -109,7 +111,8 @@ internal class KeptWindow(
         // What the viewer saw air before the pin's end, each with its real end: the programmes that ended before the
         // window, less a gone one (its item has no current row, or it is a fix's rest), then the window's spans that
         // are not gone (the gap fill's pieces among them). A gone block before the window was shown as its gap fill,
-        // which is not worked out again here, so it counts for nothing.
+        // which is not worked out again here, so it counts for nothing: neither the gone item nor the fill's pieces
+        // are past airings (an accepted limit, ADR-0025).
         private fun airingsOf(
             day: ChannelDay,
             from: Long,

@@ -350,7 +350,9 @@ programme (`PastAiring`) with the moment it ended.
 programme blocks that ended before the kept window's start, each with its end, then the window's spans that are not the
 rest of a gone item, each with its real end. The second part includes the gap fill's pieces of a gone block, so a piece
 counts with its own times, not the gone item's. A gone programme before the window (its item has no current row, or it
-is a fix's rest) counts for nothing: it was shown as its gap fill, which is not worked out again. Each airing counts for
+is a fix's rest) counts for nothing: it was shown as its gap fill, which is not worked out again, so neither the gone
+item nor that fill's pieces are past airings. This is an accepted limit: a short that aired only as such a piece may
+come round in a break sooner than its gap. Each airing counts for
 the group rule (the fill prefers what has not aired), for `curated`'s repeat gap, and for `shuffle`'s run-boundary rule,
 where an airing before the tail counts as ending its own run (its run end is its end). Breaks are planned over the
 tail, `[pin's end, day's end)`, only.
@@ -365,9 +367,12 @@ counts in a later repair. Only an item deleted before the cut-off is left out.
 Only a day that spreads its end builds `pastAirings` and reads the programmes before the window to do so; a day of
 versions 1 to 4 passes an empty list, so its repairs read and lay out exactly as before.
 
-**The seam.** A break on air at the pin and a tail that starts with a break (nothing fits before the tail's first
-break) would be two breaks in a row. The repair joins them into one kept break and moves the pin's end to its end: the
-pin is still the block on air, and the tail starts after it (`RepairSeam`). A slate on air at the pin of a grid day can
+**The seam.** On a spread day, a break on air at the pin and a tail that starts with a break (nothing fits before the
+tail's first break) would be two breaks in a row. When the tail airs a programme after that break, the repair joins
+the two into one kept break and moves the pin's end to its end: the pin is still the block on air, and the tail starts
+after it (`RepairSeam`). So the recorded pin's end can run past the block that was on air at the repair. A tail that is
+only a break (nothing fits the rest of the day) is not joined: the day hides its empty rest from the pin's end, as it
+does after a programme pin. A slate on air at the pin of a grid day can
 still be followed by the tail's closing break; that is left as it is.
 
 This rule is ADR-0025's, not the rules format's: the rules format describes a day as built, and a repair is per TV.
