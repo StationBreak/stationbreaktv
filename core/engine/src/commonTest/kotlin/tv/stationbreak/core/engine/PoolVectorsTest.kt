@@ -39,6 +39,7 @@ class PoolVectorsTest {
     private val cases = VectorJson.parse(PoolVectorFiles.pool).array("cases").objects()
     private val v2Cases = VectorJson.parse(PoolVectorFiles.poolV2).array("cases").objects()
     private val v3Cases = VectorJson.parse(PoolVectorFiles.poolV3).array("cases").objects()
+    private val v4Cases = VectorJson.parse(PoolVectorFiles.poolV4).array("cases").objects()
 
     @Test
     fun theFileHasTheCasesTheSpecAsks() {
@@ -120,6 +121,41 @@ class PoolVectorsTest {
         val kept = pool.items.filter { window.admits(it.runtimeMs, it.kind) }
         val expectedKept = afterRuntime.jsonArray.map { it.jsonPrimitive.content }
         assertEquals(expectedKept, kept.map { it.id.value }.sorted(), "runtime: $name")
+    }
+
+    // The version 4 file (ADR-0026): the same rules give `expected` in a file that says 4 (studio fold 2) and
+    // `expectedV3` in one that says 3 (studio fold 1).
+    @Test
+    fun everyV4CaseAgreesWithTheReferenceUnderBothFolds() {
+        assertTrue(v4Cases.size >= 8, "at least 8 version 4 cases, has ${v4Cases.size}")
+        assertEquals(v4Cases.size, v4Cases.map { it.string("name") }.toSet().size, "case names are unique")
+        assertTrue(v4Cases.any { it.strings("expected") != it.strings("expectedV3") }, "the folds differ somewhere")
+        for (case in v4Cases) {
+            val snapshot =
+                snapshot(
+                    items = case.array("items").objects().map(::item),
+                    series = case.array("series").objects().map(::series),
+                    collections = case.array("collections").objects().map(::collection),
+                    libraries = case.strings("libraries").map(::canon).toSet(),
+                )
+            for ((version, expected) in listOf(4 to "expected", 3 to "expectedV3")) {
+                val rules =
+                    rules(
+                        sources = case.array("sources").objects().map(::source),
+                        exclusions = case.array("exclusions").objects().map(::source),
+                        maxRating = null,
+                        formatVersion = version,
+                        filters = (case["filters"] as? JsonObject)?.let(::filters),
+                    )
+                val pool =
+                    PoolEvaluator
+                        .evaluate(rules, snapshot)
+                        .items
+                        .map { it.id.value }
+                        .sorted()
+                assertEquals(case.strings(expected), pool, "$version: ${case.string("name")}")
+            }
+        }
     }
 
     private fun JsonObject.objOrEmpty(name: String): JsonObject = this[name] as? JsonObject ?: JsonObject(emptyMap())

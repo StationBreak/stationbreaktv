@@ -1636,5 +1636,6 @@ internal object RatingVectorFiles {
         mapOf(
             "rating.json" to rating,
             "auto-seed.json" to autoSeed,
+            "upgrade-v4.json" to UpgradeV4VectorFile.json,
         )
 }

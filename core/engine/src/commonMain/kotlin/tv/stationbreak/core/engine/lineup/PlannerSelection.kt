@@ -306,7 +306,7 @@ internal object PlannerSelection {
                 // one the selection leaves out leaves at it. Nothing of it airs before, so its rules apply at once.
                 val source = channel.source as ChannelSource.Starter
                 val recipe = checkNotNull(p.recipe(source.recipeKey))
-                val next = source.withRulesNow(p.switchOnRules(recipe, source))
+                val next = source.withRulesNow(p.reResolved(recipe, source))
                 channel.copy(state = ChannelState.On, source = next, onSinceMs = p.boundaryMs, shelfReason = null)
             }
 
@@ -327,7 +327,7 @@ private fun reasonInputOf(
     val source = channel.source as ChannelSource.Starter
     val recipe = checkNotNull(p.recipe(source.recipeKey))
     val own = channel.state == ChannelState.On || source.edited
-    val rules = if (own) source.rules else p.switchOnRules(recipe, source)
+    val rules = if (own) source.rules else p.reResolved(recipe, source)
     return ReasonInput(channel.id, rules, KidStatus.policyOf(channel, lineup), household || source.edited)
 }
 
@@ -372,11 +372,18 @@ private fun leftOut(
     return channel.copy(leavesAtMs = leaves, shelfReason = reason)
 }
 
-/** The rules a shelved starter takes when switched on: its recipe's, keeping seed and timing, as on a refresh. */
-internal fun Planning.switchOnRules(
+/**
+ * The rules a starter takes when its recipe is resolved again (a refresh, or a shelved starter switched on): its
+ * recipe's, keeping seed and timing. A starter with a studio feature whose stored rules say 4 is never written back as
+ * 3 (ADR-0026, never lower a file that says 4): the version is the write version over the stored one.
+ */
+internal fun Planning.reResolved(
     recipe: Recipe,
     source: ChannelSource.Starter,
-): ChannelRules = resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
+): ChannelRules {
+    val resolved = resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
+    return resolved.copy(formatVersion = resolved.writeVersion(previousVersion = source.rules.formatVersion))
+}
 
 /**
  * The curation's view of a starter: its pool under [policy], with the household's collections left out when

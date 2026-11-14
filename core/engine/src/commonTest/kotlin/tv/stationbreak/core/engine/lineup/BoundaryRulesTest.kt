@@ -300,6 +300,30 @@ class BoundaryRulesTest {
         assertNull(assertIs<EditOutcome.Applied>(plain).lineup.curationBasis)
     }
 
+    // ADR-0026, never lower a file that says 4: a starter stored at 4 with a studio source is resolved again (a newer
+    // catalog) at 4, though the gate is off and a new resolve writes 3; one stored at 3 stays at 3.
+    @Test
+    fun aReResolveKeepsAStudioStarterThatSays4At4() {
+        val studios = listOf(Source.Genre("other"), Source.Studio("Studio A"))
+        val catalog =
+            TestCatalog(
+                base.recipes.map { if (it.key == "alpha") recipeOf("alpha", 110, sources = studios) else it },
+                version = 2,
+            )
+        for (stored in listOf(3, 4)) {
+            val lineup =
+                first().withChannel("alpha") {
+                    val studio = listOf<Source>(Source.Studio("Studio A"))
+                    val rules = it.starter.rules.copy(formatVersion = stored, sources = studio)
+                    it.copy(source = it.starter.copy(rules = rules))
+                }
+            val starter = replan(lineup, catalog).channel("alpha").starter
+            assertEquals(studios, starter.rulesFor(boundary).sources)
+            assertEquals(stored, starter.rulesFor(boundary).formatVersion, "stored at $stored")
+        }
+        assertEquals(3, RecipeResolver.resolve(catalog.recipes.first(), SERVER, 0, NO_NAMES, NO_LIBRARY).formatVersion)
+    }
+
     private fun ordering(mode: OrderingMode) = Ordering(mode)
 
     private companion object {

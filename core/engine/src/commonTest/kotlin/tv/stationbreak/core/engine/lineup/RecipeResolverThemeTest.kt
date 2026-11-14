@@ -103,6 +103,24 @@ class RecipeResolverThemeTest {
         assertEquals(filters, rules.filters)
     }
 
+    // ADR-0026: a starter with a studio source is written at 3 while the gate is off, and at 4 once it has passed; one
+    // without a studio feature stays at the lowest version it needs either way.
+    @Test
+    fun aStudioStarterIsWrittenAt4OnlyOnceTheGateHasPassed() {
+        val theme = Theme(listOf(Anchor(AnchorKind.Studio, NameMatcher.Exact("Studio A"))), emptyList(), null, false)
+        val recipe = themed(theme)
+        val before = resolve(recipe)
+        assertTrue(before.sources.any { it is Source.Studio })
+        assertEquals(3, before.formatVersion)
+        val names = LibraryNames(library, collectionNames)
+        val after = RecipeResolver.resolve(recipe, SERVER, 0, collectionNames, names, gatePassed = true)
+        assertEquals(4, after.formatVersion)
+        assertEquals(before.copy(formatVersion = 4), after, "only the version differs")
+        val plain = themed(Theme(emptyList(), emptyList(), FormatPromise.Films, false))
+        val plainAfter = RecipeResolver.resolve(plain, SERVER, 0, collectionNames, names, gatePassed = true)
+        assertEquals(3, plainAfter.formatVersion)
+    }
+
     // What the rules take in the lineup file: the rules text as a JSON string.
     private fun fileBytes(rules: ChannelRules): Int {
         val text = JsonPrimitive(RulesWriter.write(rules)).toString()

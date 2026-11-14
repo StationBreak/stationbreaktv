@@ -371,7 +371,7 @@ object LineupPlanner {
                     }
 
                     else -> {
-                        val rules = p.resolve(recipe).copy(seed = source.rules.seed, timing = source.rules.timing)
+                        val rules = p.reResolved(recipe, source)
                         // Only a keeper (see [previousKeepers]) keeps today's rules until the boundary; any other takes
                         // them at once and the file holds no second copy of it. A protected starter that is not a
                         // keeper exists only with more than the cap protected (see the known effects).
@@ -444,13 +444,12 @@ object LineupPlanner {
                 if (shelved && !source.edited && !recipe.optIn) recipe to p.resolve(recipe) else null
             }
         val chosen = p.ranked(candidates).take(room)
-        val rules = candidates.associate { (recipe, rules) -> recipe.key to rules }
         val byId = chosen.associateBy { LineupIds.starter(it.key) }
         return channels.map { channel ->
             val recipe = byId[channel.id] ?: return@map channel
             val source = channel.source as ChannelSource.Starter
-            // Seed and timing stay, as on a refresh.
-            val resolved = rules.getValue(recipe.key).copy(seed = source.rules.seed, timing = source.rules.timing)
+            // Seed and timing stay, and a studio starter that says 4 stays at 4, as on a refresh.
+            val resolved = p.reResolved(recipe, source)
             // Nothing of a shelved starter airs today, so there is nothing to protect: the rules apply at once.
             val next = source.withRulesNow(resolved)
             channel.copy(state = ChannelState.On, source = next, onSinceMs = p.nowMs, shelfReason = null)

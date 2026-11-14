@@ -3,7 +3,10 @@ package tv.stationbreak.core.rules
 
 import kotlinx.serialization.json.JsonObject
 
-/** The fixed names and ranges of format versions 1 to 3, shared by the reader and by the checks on the types. */
+/**
+ * The fixed names and ranges of format versions 1 to 4, shared by the reader and by the checks on the types. Version 4
+ * knows the same fields as version 3 (it changes only how studios match), so every "3 or later" below covers it.
+ */
 internal object RulesVocabulary {
     /** The names a `maxRating` may take: the rating ladder. */
     val RATINGS: Set<String> get() = RatingLadder.names

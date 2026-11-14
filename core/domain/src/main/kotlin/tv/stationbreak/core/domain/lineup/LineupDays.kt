@@ -1122,7 +1122,7 @@ internal class LineupDays(
             if (cut.extras) filteredSnapshots.getValue(cut.cutoffMs) else snapshots.getValue(cut.cutoffMs)
 
         // A pool depends on the snapshot (its cut-off, and whether the extras are out of it), the sources, the
-        // exclusions, the filters, the ceiling and the policy
+        // exclusions, the filters, the ceiling, the policy and the studio fold of the format version
         // (`PoolEvaluator`, "What a pool depends on"), so rules that agree on all of those (a recipe as resolved and as
         // the lineup has it, a hidden channel that is an unedited starter) are evaluated once.
         private val evaluations = HashMap<EvaluationKey, Pool>()
@@ -1142,6 +1142,7 @@ internal class LineupDays(
                     rules.filters,
                     rules.maxRating,
                     policy,
+                    rules.matchesStudiosByFold2,
                 )
             evaluations[key]?.let { return it }
             evaluated()
@@ -1578,6 +1579,7 @@ internal class LineupDays(
         val filters: Filters?,
         val maxRating: String?,
         val policy: PoolPolicy,
+        val studioFold2: Boolean,
     )
 
     /**

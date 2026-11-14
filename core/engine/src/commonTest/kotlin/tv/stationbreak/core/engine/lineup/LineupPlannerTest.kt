@@ -355,6 +355,25 @@ class LineupPlannerTest {
         assertEquals(lineup.channels.filter { it.id != scifi.id }, next.channels.filter { it.id != scifi.id })
     }
 
+    // ADR-0026, never lower a file that says 4: a shelved studio starter stored at 4 is switched on at 4 though the
+    // gate is off (a fresh resolve writes 3); one stored at 3 stays at 3.
+    @Test
+    fun aShelvedStudioStarterThatSays4IsSwitchedOnAt4() {
+        val sources = listOf(Source.Genre("scifi"), Source.Studio("Studio A"))
+        val catalog = TestCatalog(base.recipes + recipeOf("scifi", 330, sources = sources))
+        for (stored in listOf(3, 4)) {
+            val lineup =
+                firstLineup(catalog, mapOf("scifi" to QUALIFYING_ITEMS - 1)).withChannel("scifi") {
+                    it.copy(source = it.starter.copy(rules = it.starter.rules.copy(formatVersion = stored)))
+                }
+            assertEquals(ChannelState.Shelf, lineup.channel("scifi").state)
+            val scifi = planOf(lineup, libraryOf(fills(catalog = catalog)), catalog, nowMs = 5_000L).channel("scifi")
+            assertEquals(ChannelState.On, scifi.state)
+            assertEquals(stored, scifi.starter.rules.formatVersion, "stored at $stored")
+            assertEquals(sources, scifi.starter.rules.sources)
+        }
+    }
+
     @Test
     fun atCapNewQualifierWaitsOnShelf() {
         // 50 recipes: r00 falls short, the other 49 qualify and 48 of them fit beside the two leftovers channels.
