@@ -118,4 +118,4 @@ The effect is that episodes of rated kids series (a TV-PG episode of a TV-Y seri
 grown-up hold drops them and they leave the grown-up Odds & Ends. This amends the Consequences line above that names "a
 TV-PG episode of a TV-Y7 series" as an item the kid table refuses: under `kid-hold-5` it is accepted. Days built under
 `grown-up-hold-3` (ADR-0026) or earlier are remade once, at once, with the kid days. `grown-up-hold-4` follows
-ADR-0026's `grown-up-hold-3` and, like `kid-hold-5`, is held until fold 2 is built.
+ADR-0026's `grown-up-hold-3` (fold 2 is built, ADR-0026 parts 1-2).

@@ -8,7 +8,9 @@ import tv.stationbreak.core.model.RuleSeries
  * The grown-up hold (ADR-0020): the name of the version of its gate, and the gate itself. A grown-up pool drops an item
  * only when a kid channel could take it ([dropsFromGrownUp]), so nothing airs nowhere because of the holds. The gate
  * is built from [KidHold.isMadeForKids] and [KidHold.passesKidCeiling], so it changes whenever either of them does:
- * `grown-up-hold-3` moves with `kid-hold-4` (the kid studio list matched by studio fold 2, ADR-0026).
+ * `grown-up-hold-3` moves with `kid-hold-4` (the kid studio list matched by studio fold 2, ADR-0026), and
+ * `grown-up-hold-4` moves with `kid-hold-5` (an episode of a rated series follows the series rating; ADR-0019 addendum
+ * 2026-11-13).
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */

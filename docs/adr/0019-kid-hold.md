@@ -4,7 +4,9 @@
 - **Date:** 2026-10-28
 - **Decided by:** the owner (kids means made for kids, 2026-10-27; spec 18 approved 2026-10-28) and Rincewind (the mechanism, the lists and the table)
 - **Amends:** [ADR-0002](0002-determinism-scope.md) §2
-- **Amended by:** [ADR-0020](0020-grown-up-hold.md) (the grown-up side of §7: children's ratings)
+- **Amended by:** [ADR-0020](0020-grown-up-hold.md) (the grown-up side of §7: children's ratings); the addenda of
+  2026-11-03 (`kid-hold-3`) and 2026-11-13 (`kid-hold-5`) below; [ADR-0026](0026-studio-fold-2.md) (`kid-hold-4`: the
+  studio list matched by studio fold 2)
 - **Informs:** spec 18 phases A and B, F2.6 and F5.1 ([BACKLOG.md](../BACKLOG.md)), ASSUMPTIONS A-VER-1
 
 ## Context
@@ -200,9 +202,8 @@ update (A-VER-1).
 
 - **Amended by:** this addendum; the decision is the owner's (2026-11-13).
 - **Sequence.** [ADR-0026](0026-studio-fold-2.md) owns `kid-hold-4` / `grown-up-hold-3` and `formatVersion` 4, and
-  ships first. `kid-hold-5` follows `kid-hold-4` and includes its studio fold 2 as well as this rule: `kid-hold-5` is
-  "studio fold 2 (ADR-0026) plus the series-rating rule". Until fold 2 is built, this change is held and does not
-  merge.
+  is built (parts 1-2, PRs #762 and #765). `kid-hold-5` follows fold 2 and includes it as well as this rule:
+  `kid-hold-5` is "studio fold 2 (ADR-0026) plus the series-rating rule".
 - **Supersedes:** the per-episode rating check in decision 6, for episodes of a known series that has a rating.
 
 **The gap.** Decision 6 judges an episode on its own rating as well as its series'. Fraggle Rock and VeggieTales are
@@ -242,7 +243,10 @@ safer evidence of its audience.
 (U+0020) passes as unrated, and one holding a tab or another non-space character does not. Before this addendum it used
 the library's `isBlank`, so a rating made only of tabs, no-break spaces or other Unicode spaces passed as unrated; that
 edge now fails (a rating of only U+0020 spaces still passes, as does null or empty). It can only make `isMadeForKids`
-narrower, and it applies to movies and to episodes with no series as well. Nothing that airs today changes unless it
+narrower, and it applies to movies and to episodes with no series as well. Through `AnimatedFamilySignal.holdsForSeries`
+it also reaches `KidHold.isSeriesMadeForKids` and so the curation's
+`Titles.madeForKids` (the tone of a series): a series rated only with a tab no longer counts as made for kids on the
+signal. `curation-1` is not bumped. Nothing that airs today changes unless it
 holds such a rating. The kid ceiling is not affected: it never read blank as absent, and a rating with no tier fails it.
 
 **`isMadeForKids` widens.** The animated-family signal now takes the decisive rating, so `isMadeForKids` widens
@@ -257,7 +261,7 @@ independent reference, and a test in `core/engine` reads the published file and 
 **Release gate for ports.** [ADR-0026](0026-studio-fold-2.md)'s release gate names `kid-hold-4` and its vector
 `kid-hold-4.json`. A port may meet that gate with `kid-hold-5` provided it also passes `kid-hold-4.json`, since
 `kid-hold-5` is `kid-hold-4` plus this rule. ADR-0026 carries a matching note (2026-11-13). A `kid-hold-5` port must
-pass both vectors once `kid-hold-4.json` exists.
+pass both vectors.
 
 **What does not change.** Movies, episodes with no series ID, and episodes whose series the snapshot lacks (these still
 fail closed), apart from the one edge in "One definition of absent": an entry whose own rating is only a tab or a

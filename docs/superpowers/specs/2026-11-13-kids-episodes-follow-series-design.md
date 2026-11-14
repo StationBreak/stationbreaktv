@@ -16,14 +16,16 @@ for a kids channel, its episodes qualify.**
 
 ## Goals
 
-- An episode of a known series that has a rating (present, not absent as above) is judged on the **series rating only**.
+- An episode of a known series that has a rating (present: not absent, as ADR-0019's "One definition of absent" defines
+  it) is judged on the **series rating only**.
   The episode's own rating is ignored.
 - Those episodes leave Odds & Ends, because the grown-up hold calls the same `passesKidCeiling`.
 
 ## Non-goals and anti-goals
 
 - No change for movies, episodes with no series ID, or episodes whose series the snapshot lacks (that last case still
-  fails closed).
+  fails closed), except for the one edge in ADR-0019's "One definition of absent" paragraph: an entry's own rating
+  that is only a tab or another non-U+0020 space no longer counts as absent for the animated-family signal.
 - **Anti-goal:** a grown-up series must not reach a kids channel through its studio or genre tags alone. So a known
   series with **no** rating keeps today's rule: each episode is judged on its own rating. (Example: The Jim Henson
   Company is on the kid-studio list and also made *Farscape*. If *Farscape* had no series rating, "the series qualifies"

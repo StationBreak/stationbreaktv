@@ -5,7 +5,8 @@ import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 
 /**
- * Which rating counts for an episode of a known series, and what makes a rating absent (`kid-hold-5`, ADR-0019 addendum
+ * Kid hold only; open and grown-up channels use RatingEligibility (rules-format rule 4). Which rating counts for an
+ * episode of a known series, and what makes a rating absent (`kid-hold-5`, ADR-0019 addendum
  * 2026-11-13). Both [KidHold] and [AnimatedFamilySignal] read it, so the two cannot drift. Pure.
  */
 internal object EpisodeRating {

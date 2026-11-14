@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
  */
 internal object KidHold5VectorCheck {
     private val showId = idOf(0x500)
-    private const val SECTIONS = 5
+    private const val SECTIONS = 6
 
     fun run(text: String) {
         val doc = VectorJson.parse(text)
@@ -43,6 +43,11 @@ internal object KidHold5VectorCheck {
             rows++
             val made = KidHold.isMadeForKids(episodeOf(row), seriesOf(row))
             assertEquals(row.flag("madeForKids"), made, row.string("name"))
+        }
+        for (row in doc.array("seriesMadeForKids").objects()) {
+            rows++
+            val got = KidHold.isSeriesMadeForKids(seriesOf(row))
+            assertEquals(row.flag("madeForKids"), got, row.string("name"))
         }
         for (row in doc.array("dropsFromGrownUp").objects()) {
             rows++
