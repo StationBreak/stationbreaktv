@@ -9,6 +9,9 @@ no release yet and must read 4 before their first.
 
 **Date:** 2026-11-12 (revised 2026-11-13)
 
+**Format 5:** writing rules format 5 (the spread day end, which also matches under fold 2) is an Android-only exception
+to this ADR's release gate; see [ADR-0027](0027-v5-release-rule.md).
+
 ## Context
 
 Studio names come from the media server's metadata (Jellyfin, filled from TMDB or by hand). Two features match them:
