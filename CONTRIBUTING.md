@@ -122,7 +122,7 @@ A repository ruleset on `main` is what stops the merge. The job ids it requires,
 | `publish` | Uploads the signed debug APK (and on `main` the benchmark APK and its R8 mapping) as the run's device-facing artifacts, only when `checks`, `verify`, `assemble`, `sign-debug` and `emulator` passed (`emulator` may be skipped), so an APK on a run is from a fully green run (#249). Same skips as `sign-debug`. CI debug and benchmark APKs carry the run number as `versionCode` (#146) | Nothing to fix in this job: look at the failing job it needs. The `internal-*` artifacts are hand-offs between jobs, kept a day: never install them |
 | `osv-scanner-result` | On a pull request that changes dependency files or build logic, passes only when the OSV scan succeeded. The scan job itself is `osv-scanner` / `osv-scan`. Every other pull request skips `osv-scanner-result` | The scan log names the new vulnerability. Fix it, or record an ignore in `gradle/osv-scanner.toml` with a reason and an `ignoreUntil` date |
 
-A run's APK is only for devices when the whole run concluded success; `assemble` does not wait for `verify`.
+Device-facing APKs are uploaded by `publish`, only after `verify` and the other jobs it waits for have passed, so a red run has none. Still install only from a run whose conclusion is success: a green attempt followed by a red re-run keeps the first attempt's APK.
 
 To run the Gradle checks locally (with an Android SDK installed):
 

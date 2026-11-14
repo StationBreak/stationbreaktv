@@ -33,7 +33,8 @@ acceptance criteria are checked during PR review.
    - CI uploads a debug APK for `main` builds and for pull requests whose branch is in this repository.
    - Pull requests from forks still build and run tests, but get no APK. They run on the `pull_request`
      trigger only, never `pull_request_target`, so they have no access to secrets or write tokens. The upload
-     step, not the whole job, is gated on `github.event.pull_request.head.repo.full_name == github.repository`.
+     jobs that sign and publish an APK (`sign-debug`, `publish`) are gated on
+     `github.event.pull_request.head.repo.full_name == github.repository`; `assemble` still builds fork PRs.
    - APKs are named by source: `stationbreak-github-debug-pr<N>-<shortsha>.apk` for pull requests and
      `stationbreak-github-debug-main-<shortsha>.apk` for `main`. The owner checks that the SHA matches the pull
      request's head commit before installing.
@@ -83,7 +84,11 @@ administrator token, so Angua rated the risk HIGH before the repository goes pub
    `$GITHUB_PATH` or a background process), so no step in `assemble` could hold the key safely.
 3. `sign-debug` checks that the debug APK has exactly one signer, the CI debug key, before it hands it on. It uploads
    the signed APKs only as a one-day `internal-signed-apks` artifact; the `publish` job, which holds no secret, makes
-   them downloadable under their device-facing names once `verify` and the other required jobs have passed (#249).
+   them downloadable under their device-facing names once `checks`, `verify`, `assemble`, `sign-debug`, `emulator`
+   (or skipped because `checks` said it was not needed) and `osv-scanner-result` (success or skipped) have passed (#249).
+   `sign-debug` itself waits for `checks`, `assemble`, `verify` and `emulator`, so a red run has no CI-key-signed
+   artifact. A re-run of a green attempt that then fails still carries the first attempt's APK: install only from a run
+   whose conclusion is success.
 4. A push to `main` without the secrets fails. A pull request from a fork gets no secrets (`pull_request`, never
    `pull_request_target`), never reaches `sign-debug`, and uploads no APK, as before (item 5).
 5. Local builds and the `emulator` job use Android's per-machine debug key. They can't update a CI install.

@@ -592,8 +592,10 @@ jobs:
   # build step could have left behind in the environment, PATH or a background process. Only this job reads the
   # DEBUG_KEYSTORE_* secrets. Fork PRs and Renovate's PRs never reach it. A push to main without the key fails.
   sign-debug:
-    needs: assemble
-    if: ${{ !cancelled() && needs.assemble.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'renovate[bot]')) }}
+    # Waits for the same jobs as `publish` (bar osv-scanner-result), so on a red run no artifact signed with the CI key
+    # exists at all. It still runs no repository code and takes no part in building.
+    needs: [checks, assemble, verify, emulator]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.assemble.result == 'success' && needs.verify.result == 'success' && (needs.emulator.result == 'success' || (needs.emulator.result == 'skipped' && needs.checks.outputs.emulator != 'true')) && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'renovate[bot]')) }}
     runs-on: ubuntu-latest
     # Under a minute: a download, a re-sign and an upload.
     timeout-minutes: 10
@@ -698,10 +700,16 @@ jobs:
   # run. The device bridge and the download scripts read the names below: do not rename them. Same fork and Renovate
   # gating as `sign-debug`. It holds no secret and runs no repository code: it downloads, and uploads. The internal
   # artifacts it reads are run-scoped, kept a day, and named `internal-*` so they are not taken for a device APK.
-  # `emulator` is skipped when a change can't affect it; a skip counts as a pass here, a failure does not.
+  # `emulator` and `osv-scanner-result` count as passed when they succeeded or were skipped, but `emulator` only
+  # when `checks` decided it was not needed: a skip after a failed `checks` is not a pass. A failed OSV scan keeps a
+  # dependency it flags out of an APK the TVs trust.
+  # Re-runs: re-running a failed `verify` after a day fails closed, as the internal artifacts have expired. A green
+  # attempt followed by a red re-run still carries attempt 1's device-facing APK, so an install must also check that the
+  # run's conclusion is success.
   publish:
-    needs: [checks, verify, assemble, sign-debug, emulator]
-    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.verify.result == 'success' && needs.assemble.result == 'success' && needs.sign-debug.result == 'success' && (needs.emulator.result == 'success' || needs.emulator.result == 'skipped') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'renovate[bot]')) }}
+    needs: [checks, verify, assemble, sign-debug, emulator, osv-scanner-result]
+    permissions: {}
+    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.verify.result == 'success' && needs.assemble.result == 'success' && needs.sign-debug.result == 'success' && (needs.emulator.result == 'success' || (needs.emulator.result == 'skipped' && needs.checks.outputs.emulator != 'true')) && (needs.osv-scanner-result.result == 'success' || needs.osv-scanner-result.result == 'skipped') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'renovate[bot]')) }}
     runs-on: ubuntu-latest
     # Downloads and uploads of a few APKs: well under a minute.
     timeout-minutes: 10
