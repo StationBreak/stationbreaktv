@@ -53,6 +53,15 @@ class GuideGeometryTest {
     }
 
     @Test
+    fun aBreakIsAFocusStopFromTheTimeThatDraws48DpWide() {
+        val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
+        // 48 dp of 780 dp over 120 minutes is 443,076.9 ms, rounded up: the first length drawn 48 dp or wider.
+        assertEquals(443_077L, geometry.narrowBreakBelowMs)
+        assertTrue(geometry.widthOf(geometry.narrowBreakBelowMs) >= CompactBelow)
+        assertTrue(geometry.widthOf(geometry.narrowBreakBelowMs - 1) < CompactBelow)
+    }
+
+    @Test
     fun theGridShowsTwoHoursAt6Point5DpAMinute() {
         val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
         assertEquals(120L * 60_000L, geometry.spanMs)

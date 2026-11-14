@@ -22,10 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,6 +78,7 @@ import tv.stationbreak.feature.guide.ShownHoldings
 import tv.stationbreak.feature.guide.indexOf
 import tv.stationbreak.feature.guide.isAwayFrom
 import kotlin.math.abs
+import kotlin.math.ceil
 
 // The guide's layout in dp (the guide UX notes, on a 960 x 540 dp screen with a 5% safe area).
 internal val ChannelColumnWidth = 84.dp
@@ -147,6 +150,9 @@ internal class GuideGeometry(
 
     /** How wide [ms] of time is on the grid. */
     fun widthOf(ms: Long): Dp = viewportWidth * (ms.toFloat() / spanMs)
+
+    /** The time a break must last to be drawn [CompactBelow] wide or wider: a shorter one is not a focus stop. */
+    val narrowBreakBelowMs: Long = ceil(CompactBelow.value / viewportWidth.value * spanMs).toLong()
 }
 
 /**
@@ -169,6 +175,7 @@ internal fun GuideScreen(
     syncNow: SyncNowState = SyncNowState.Idle,
     levelling: Boolean = true,
     holdings: StateFlow<ShownHoldings?> = NoHoldings,
+    onNarrowBreakBelow: (Long) -> Unit = {},
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
@@ -205,6 +212,8 @@ internal fun GuideScreen(
                 remember(maxWidth, maxHeight, pictureHole, fit) {
                     GuideGeometry(DpSize(maxWidth, maxHeight), pictureHole, fit)
                 }
+            val narrowBreakBelow by rememberUpdatedState(onNarrowBreakBelow)
+            LaunchedEffect(geometry) { narrowBreakBelow(geometry.narrowBreakBelowMs) }
             val colors = LocalGuideColors.current
             Box(Modifier.fillMaxSize().drawBehind { ground(pictureHole, colors) })
             Column(

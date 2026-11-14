@@ -79,19 +79,43 @@ internal fun GuideFocus.sameCellAs(o: GuideFocus): Boolean = channel == o.channe
  * flipping does: Down past the last row goes to the first, Up past the first to the last. They stay put when no other
  * row has any cells. They go by the focus's anchor, never earlier than now: an anchor kept from minutes ago would land
  * on a program that has ended since.
+ *
+ * A break narrower than [narrowBelowMs] ([isNarrowBreak]) is not a stop: Left and Right pass over it, and Up or Down
+ * landing on it go on to the cell after it (the one before it when it ends the row). Wider breaks are stops.
  */
 internal fun GuideModel.move(
     focus: GuideFocus,
     direction: GuideDirection,
     nowMs: Long,
+    narrowBelowMs: Long = 0L,
 ): GuideFocus {
     val (rowIndex, cellIndex) = indexOf(focus) ?: return focus
     val row = rows[rowIndex]
+    val stop = { cell: GuideCell -> !isNarrowBreak(cell, narrowBelowMs) }
     return when (direction) {
-        GuideDirection.Left -> row.cells.getOrNull(cellIndex - 1)?.let { focusOn(row, it, it.startMs) } ?: focus
-        GuideDirection.Right -> row.cells.getOrNull(cellIndex + 1)?.let { focusOn(row, it, it.startMs) } ?: focus
-        GuideDirection.Up -> moveVertically(focus, rowsUpFrom(rowIndex), nowMs)
-        GuideDirection.Down -> moveVertically(focus, rowsDownFrom(rowIndex), nowMs)
+        GuideDirection.Left -> {
+            row.cells
+                .subList(0, cellIndex)
+                .lastOrNull(stop)
+                ?.let { focusOn(row, it, it.startMs) }
+                ?: focus
+        }
+
+        GuideDirection.Right -> {
+            row.cells
+                .drop(cellIndex + 1)
+                .firstOrNull(stop)
+                ?.let { focusOn(row, it, it.startMs) }
+                ?: focus
+        }
+
+        GuideDirection.Up -> {
+            moveVertically(focus, rowsUpFrom(rowIndex), nowMs, stop)
+        }
+
+        GuideDirection.Down -> {
+            moveVertically(focus, rowsDownFrom(rowIndex), nowMs, stop)
+        }
     }
 }
 
@@ -99,14 +123,24 @@ private fun GuideModel.moveVertically(
     focus: GuideFocus,
     candidates: List<Int>,
     nowMs: Long,
+    stop: (GuideCell) -> Boolean,
 ): GuideFocus {
     val target = candidates.firstOrNull { rows[it].cells.isNotEmpty() }?.let { rows[it] }
     val anchor = maxOf(focus.anchorMs, originMs, nowMs)
     val cells = target?.cells.orEmpty()
+    val landed =
+        cells.indexOfFirst { anchor >= it.startMs && anchor < it.endMs }.takeIf { it >= 0 }
+            ?: cells.indexOfLast { it.startMs <= anchor }.takeIf { it >= 0 }
+            ?: cells.lastIndex
+    // A narrow break is not a stop: the cell after it, else the one before it (it ends the row), else it after all.
     val cell =
-        cells.firstOrNull { anchor >= it.startMs && anchor < it.endMs }
-            ?: cells.lastOrNull { it.startMs <= anchor }
-            ?: cells.lastOrNull()
+        cells.getOrNull(landed)?.let { at ->
+            if (stop(at)) {
+                at
+            } else {
+                cells.drop(landed + 1).firstOrNull(stop) ?: cells.subList(0, landed).lastOrNull(stop) ?: at
+            }
+        }
     return if (target == null || cell == null) focus else focusOn(target, cell, anchor)
 }
 

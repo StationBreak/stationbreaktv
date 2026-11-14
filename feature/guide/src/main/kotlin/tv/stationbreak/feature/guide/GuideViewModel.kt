@@ -142,6 +142,13 @@ internal class GuideViewModel
         /** Select on the Settings panel's Sync now row: starts a sync, or nothing while one runs (then false). */
         fun syncNow(): Boolean = sync.start()
 
+        /**
+         * The time a break must last on the grid to be a focus stop: a shorter one is drawn too narrow for its
+         * label and Left, Right, Up and Down pass it by ([isNarrowBreak]). The screen sets it from its geometry; 0
+         * until then, when every break is a stop.
+         */
+        @Volatile var narrowBreakBelowMs: Long = 0L
+
         /** Things for the screen to do once, in order. Events from an ended session are dropped. */
         val events: Flow<GuideEvent> = eventChannel.receiveAsFlow()
 
@@ -390,11 +397,11 @@ internal class GuideViewModel
             val ready = current.state as? GuideState.Ready
             val from = current.focus
             if (from == null || ready == null) return
-            if (direction == GuideDirection.Left && ready.model.isEarliestCell(from)) {
+            if (direction == GuideDirection.Left && ready.model.isEarliestCell(from, narrowBreakBelowMs)) {
                 // Where Left used to do nothing: onto the channel column, which names this row.
                 shownSnapshot.value = current.copy(onChannel = true)
             } else {
-                val to = ready.model.move(from, direction, ready.nowMs)
+                val to = ready.model.move(from, direction, ready.nowMs, narrowBreakBelowMs)
                 val wraps = ready.model.wrapped(from, to, direction)
                 if (wrapHold.allows(wraps, repeat, atMs)) step(ready, from, to, direction)
             }

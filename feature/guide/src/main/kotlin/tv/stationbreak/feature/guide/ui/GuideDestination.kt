@@ -285,6 +285,7 @@ internal fun GuideRoot(
             themeChoice = themeChoice,
             syncNow = syncNow,
             levelling = levelling,
+            onNarrowBreakBelow = { viewModel.narrowBreakBelowMs = it },
             modifier =
                 Modifier
                     // Kept composed (its state and the key focus stay) but not drawn under the screen that covers it.
