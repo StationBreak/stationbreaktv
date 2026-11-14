@@ -305,10 +305,14 @@ class LaunchNavigationTest {
         if (!appIsGone()) fail("Select on Exit should leave the app. ${describeScreenAfterSelect(activity)}")
     }
 
+    // The shell here has no pipe, so the whole dump comes back and is filtered in code. No resumed line at all is not
+    // an answer, so it is not counted as gone.
     private fun appIsGone(): Boolean {
-        val resumed = shell(RESUMED).trim()
-        return resumed.isNotEmpty() && !resumed.contains(APP_PACKAGE)
+        val resumed = resumedLine() ?: return false
+        return !resumed.contains(APP_PACKAGE)
     }
+
+    private fun resumedLine(): String? = dumpLines().firstOrNull { it.contains("mResumedActivity") }?.trim()
 
     // Diagnostic for a failure seen only on CI's emulator: what the screen and the activity looked like after Select.
     private fun describeScreenAfterSelect(activity: android.app.Activity): String {
@@ -328,19 +332,27 @@ class LaunchNavigationTest {
                 "attached=${activity.window.decorView.isAttachedToWindow} " +
                 "visible=${activity.window.decorView.visibility} taskRoot=${activity.isTaskRoot} " +
                 "children=${(activity.window.decorView as android.view.ViewGroup).childCount}"
-        return "$state; $window; selected=$tree; sheets=$sheet; emptyGuide=$empty; activities=${shell(ACTIVITIES)}"
+        val screen = "selected=$tree; sheets=$sheet; emptyGuide=$empty"
+        return "$state; $window; $screen; resumed=${resumedLine()}; stack=${stackLines()}"
     }
 
-    private fun shell(command: String): String =
+    private fun dumpLines(): List<String> =
         runCatching {
-            val pipe = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+            val pipe =
+                InstrumentationRegistry
+                    .getInstrumentation()
+                    .uiAutomation
+                    .executeShellCommand("dumpsys activity activities")
             android.os.ParcelFileDescriptor
                 .AutoCloseInputStream(pipe)
                 .use { it.readBytes().decodeToString() }
-        }.getOrElse { "unreadable: $it" }
-            .lines()
+                .lines()
+        }.getOrElse { listOf("unreadable: $it") }
+
+    private fun stackLines(): String =
+        dumpLines()
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.contains("Hist #") || it.contains("TaskRecord{") || it.contains("mFocusedActivity") }
             .take(SHELL_LINES)
             .joinToString(" | ")
 
@@ -716,8 +728,6 @@ class LaunchNavigationTest {
         const val POLL_MS = 50L
         const val SHELL_LINES = 12
         const val APP_PACKAGE = "tv.stationbreak.app"
-        const val RESUMED = "dumpsys activity activities | grep mResumedActivity"
-        const val ACTIVITIES = "dumpsys activity activities | grep -E \"ResumedActivity|Hist #|state=\""
     }
 
     @Test
