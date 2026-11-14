@@ -57,6 +57,23 @@ class SpreadDayOrderedTest {
     }
 
     @Test
+    fun anOrderedCardUnderAMinuteComesAfterTheFill() {
+        // 40 minutes are left after f; the fill s is 30 s shorter, so the one card is 30 s and goes after s, at the
+        // very end of the day, not between f and s.
+        val f = cases.single("f", 1400)
+        val short = testItem(hexIdOf(0x900, 0), runtimeMs = 40 * MS_MINUTE - HALF_MINUTE, createdAtMs = LONG_AGO)
+        val s = cases.named(short, "s")
+        val blocks = cases.spreadOf(chronological, alone(f), listOf(s), 0, 1440)
+        val expected =
+            listOf(
+                ScheduleBlock(0, 1400 * MS_MINUTE, ScheduleContent.Program(f.id)),
+                ScheduleBlock(1400 * MS_MINUTE, 1440 * MS_MINUTE - HALF_MINUTE, ScheduleContent.Program(s.id)),
+                ScheduleBlock(1440 * MS_MINUTE - HALF_MINUTE, 1440 * MS_MINUTE, ScheduleContent.Break),
+            )
+        assertEquals(expected, blocks)
+    }
+
+    @Test
     fun anOrderedChannelNeverFillsLessThanFirstFit() {
         // The grouped fit sees only the first 64 shorts (30 of 40 minutes); first fit reaches z beyond them.
         val s = (0 until 64).map { cases.single("s$it", 15) }
@@ -256,3 +273,5 @@ class SpreadDayOrderedTest {
         return last.endMs
     }
 }
+
+private const val HALF_MINUTE = 30_000L

@@ -3349,7 +3349,7 @@
     },
     {
       "name": "spread grouped several prefixes",
-      "note": "chronological. Visit after c: F5 (50, cut), B1 6, A1 4, A2 3, A3 5. Budget 12.5 min (750 s). Group A's options are [A1] 4, [A1 A2] 7, [A1 A2 A3] 12; with B1 the best is 12, all of A. First fit takes B1 and A1 (10), then A2 does not fit and A is passed over. G wins; a 30-second card, then A1 A2 A3.",
+      "note": "chronological. Visit after c: F5 (50, cut), B1 6, A1 4, A2 3, A3 5. Budget 12.5 min (750 s). Group A's options are [A1] 4, [A1 A2] 7, [A1 A2 A3] 12; with B1 the best is 12, all of A. First fit takes B1 and A1 (10), then A2 does not fit and A is passed over. G wins; A1 A2 A3, then a 30-second card (a card under a minute goes after the fill).",
       "settings": {
         "seed": "8",
         "ordering": {
@@ -3476,23 +3476,23 @@
         },
         {
           "startMs": "576028050000",
-          "endMs": "576028080000",
-          "break": true
-        },
-        {
-          "startMs": "576028080000",
-          "endMs": "576028320000",
+          "endMs": "576028290000",
           "itemId": "00000000000000050012000000000007"
         },
         {
-          "startMs": "576028320000",
-          "endMs": "576028500000",
+          "startMs": "576028290000",
+          "endMs": "576028470000",
           "itemId": "00000000000000050012000000000008"
         },
         {
-          "startMs": "576028500000",
-          "endMs": "576028800000",
+          "startMs": "576028470000",
+          "endMs": "576028770000",
           "itemId": "00000000000000050012000000000009"
+        },
+        {
+          "startMs": "576028770000",
+          "endMs": "576028800000",
+          "break": true
         }
       ],
       "queries": [
@@ -3510,6 +3510,7 @@
           "t": "576028050001",
           "k": 1,
           "blockIndex": 4,
+          "offsetMs": "1",
           "nextIndexes": [
             5
           ]
@@ -3518,8 +3519,7 @@
           "t": "576028799999",
           "k": 3,
           "blockIndex": 7,
-          "nextIndexes": [],
-          "offsetMs": "299999"
+          "nextIndexes": []
         }
       ],
       "errorTimes": [
@@ -3711,7 +3711,7 @@
     },
     {
       "name": "spread plan tie",
-      "note": "chronological. Visit after c: F5 (40, cut), a 20, b 15, c 15, d 10; L = 30.5 min. G = {b, c} (30); first fit = {a, d} (30). Equal placed sums: the earlier candidate, G, is kept. A 30-second card, then b and c.",
+      "note": "chronological. Visit after c: F5 (40, cut), a 20, b 15, c 15, d 10; L = 30.5 min. G = {b, c} (30); first fit = {a, d} (30). Equal placed sums: the earlier candidate, G, is kept. b and c, then a 30-second card (a card under a minute goes after the fill).",
       "settings": {
         "seed": "8",
         "ordering": {
@@ -3826,18 +3826,18 @@
         },
         {
           "startMs": "576026970000",
-          "endMs": "576027000000",
-          "break": true
-        },
-        {
-          "startMs": "576027000000",
-          "endMs": "576027900000",
+          "endMs": "576027870000",
           "itemId": "00000000000000050014000000000007"
         },
         {
-          "startMs": "576027900000",
-          "endMs": "576028800000",
+          "startMs": "576027870000",
+          "endMs": "576028770000",
           "itemId": "00000000000000050014000000000008"
+        },
+        {
+          "startMs": "576028770000",
+          "endMs": "576028800000",
+          "break": true
         }
       ],
       "queries": [
@@ -3855,6 +3855,7 @@
           "t": "576026970001",
           "k": 1,
           "blockIndex": 4,
+          "offsetMs": "1",
           "nextIndexes": [
             5
           ]
@@ -3863,8 +3864,7 @@
           "t": "576028799999",
           "k": 3,
           "blockIndex": 6,
-          "nextIndexes": [],
-          "offsetMs": "899999"
+          "nextIndexes": []
         }
       ],
       "errorTimes": [

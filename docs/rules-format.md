@@ -1754,8 +1754,9 @@ compared on placed sums, after S3 has dropped what it must.
 **The blocks.** Break `b` goes right after the run that ends at its point (at `S` itself when no run was placed), and every
 later block moves later by the break's length. Inside a break, in `shuffle` and `curated`: its units in the order they were
 placed, each unit's items in its order, one program block each, then its card as one break block. In the other modes break
-`b` is its card, and break `k' - 1` is its card followed by the fill in visit order, so the day ends on a programme. A
-break with nothing in it adds no block. The breaks add up to `left`, so the day still ends at `E` exactly. Two breaks are
+`b` is its card, and break `k' - 1` is its card followed by the fill in visit order, so the day ends on a programme;
+but when the card of break `k' - 1` is under `MIN_CARD_MS`, it goes after the fill instead, so a card of a few seconds
+never sits between the last show and the fill. A break with nothing in it adds no block. The breaks add up to `left`, so the day still ends at `E` exactly. Two breaks are
 never next to each other (at least two runs lie between any two points, and a break holds at most one card), and a day
 off the grid has no slate.
 

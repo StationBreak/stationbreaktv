@@ -71,7 +71,9 @@ dead air before 06:00.
    break moves later by that break's length. The day still ends exactly at `E`.
 5. **Ordered modes** (`chronological`, `randomInOrder`, `rotation`, `inOrder`). My call: the fill items stay at the end
    of the day in order, because moving a later episode into a mid-day break would put it before earlier ones. Only the
-   card time `R` is spread. `shuffle` and `curated` (the starters) spread both.
+   card time `R` is spread. `shuffle` and `curated` (the starters) spread both. The last break's card comes before
+   the fill, so the day ends on a programme; a card under a minute goes after the fill instead (owner decision
+   2026-11-14).
 6. **A channel with no shorts** (all movies). `R` can be an hour or more, so it becomes cards a few minutes long
    between films. That is accepted.
 7. **Repairing today (ADR-0025, `layoutTail`).** A repair rebuilds the rest of the day from `fromMs` with the same

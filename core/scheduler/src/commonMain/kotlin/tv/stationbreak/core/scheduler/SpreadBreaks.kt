@@ -158,8 +158,8 @@ private fun SpreadEnd.emit(
     return out
 }
 
-// Break [index] at [at]: its units, then its card; the last break of an ordered mode is its card, then the fill.
-// Returns its length.
+// Break [index] at [at]: its units, then its card; the last break of an ordered mode is its card, then the fill, or
+// the fill, then its card when the card is under MIN_CARD_MS. Returns its length.
 private fun SpreadEnd.emitBreak(
     out: MutableList<ScheduleBlock>,
     plan: BreakPlan,
@@ -169,7 +169,7 @@ private fun SpreadEnd.emitBreak(
     var cursor = at
     val programmes = plan.units[index].flatten() + if (index == plan.points.lastIndex) plan.fill else emptyList()
     val card = plan.cards[index]
-    val cardFirst = !wraps
+    val cardFirst = !wraps && card >= MIN_CARD_MS
     if (cardFirst && card > 0) {
         out += ScheduleBlock(cursor, cursor + card, ScheduleContent.Break)
         cursor += card
