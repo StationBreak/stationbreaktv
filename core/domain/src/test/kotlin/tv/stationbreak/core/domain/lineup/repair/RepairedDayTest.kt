@@ -50,7 +50,8 @@ class RepairedDayTest {
     fun aRecordedBreakComposesAsABreakBlock_notASlate() {
         val repair = repairOf(dayEndMs = dayEnd)
         val third = repair.blocks[2]
-        val withBreak = repair.copy(blocks = repair.blocks.toMutableList().also { it[2] = third.copy(content = KeptContent.Break) })
+        val withBreak =
+            repair.copy(blocks = repair.blocks.toMutableList().also { it[2] = third.copy(content = KeptContent.Break) })
         val blocks = compose(withBreak).blocks
         assertCovers(blocks)
         assertEquals(ScheduleContent.Break, blocks.single { it.startMs == third.startMs }.content)
@@ -66,7 +67,10 @@ class RepairedDayTest {
             val pin = repair.blocks.first()
             assertEquals(pin.startMs, on.startMs)
             assertEquals(pin.endMs, on.endMs)
-            assertEquals((pin.content as KeptContent.Program).let { ScheduleContent.Program(it.itemId, it.mediaStartMs) }, on.content)
+            assertEquals(
+                (pin.content as KeptContent.Program).let { ScheduleContent.Program(it.itemId, it.mediaStartMs) },
+                on.content,
+            )
             assertEquals(repair.pinEndMs, on.endMs)
         }
     }

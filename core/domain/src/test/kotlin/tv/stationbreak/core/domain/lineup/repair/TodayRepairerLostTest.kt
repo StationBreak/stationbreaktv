@@ -113,7 +113,10 @@ internal class TodayRepairerLostTest : RepairTestBase() {
 
         val fix = rig.record().fixes.single()
         assertTrue(fix.isOfTheLostBlock())
-        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotEnd, KeptContent.Program(admittedLong.item.id, 0))), fix.pieces)
+        assertEquals(
+            listOf(KeptBlock(lostSlotStart, lostSlotEnd, KeptContent.Program(admittedLong.item.id, 0))),
+            fix.pieces,
+        )
         val cold = rig.restarted(lineupOf(laughs))
         val onAir = assertNotNull(cold.onAir(laughs.id, lostSlotStart + minute))
         assertEquals(admittedLong.item.id, assertIs<Airing.Program>(onAir.now.airing).itemId, "read from the record")
@@ -127,7 +130,10 @@ internal class TodayRepairerLostTest : RepairTestBase() {
         assertEquals(1, rig.lost(playable = null))
 
         val fix = rig.record().fixes.single()
-        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotStart + hour, KeptContent.Program(shortTail.item.id, 0))), fix.pieces)
+        assertEquals(
+            listOf(KeptBlock(lostSlotStart, lostSlotStart + hour, KeptContent.Program(shortTail.item.id, 0))),
+            fix.pieces,
+        )
         assertEquals(reads, rig.library.snapshotCutoffs.size, "no library read for a fill")
     }
 
@@ -190,7 +196,10 @@ internal class TodayRepairerLostTest : RepairTestBase() {
 
         val fix = rig.record().fixes.single()
         assertTrue(fix.isOfTheLostBlock())
-        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotEnd, KeptContent.Program(admittedLong.item.id, 7 * minute))), fix.pieces)
+        assertEquals(
+            listOf(KeptBlock(lostSlotStart, lostSlotEnd, KeptContent.Program(admittedLong.item.id, 7 * minute))),
+            fix.pieces,
+        )
     }
 
     @Test

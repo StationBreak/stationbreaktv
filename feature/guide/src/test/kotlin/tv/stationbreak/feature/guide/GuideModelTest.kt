@@ -109,7 +109,10 @@ class GuideModelTest {
             listOf(CellKind.Program, CellKind.Break, CellKind.Break, CellKind.Program),
             result.map { it.kind },
         )
-        assertEquals(listOf(T0 + 28 * MIN, T0 + 30 * MIN), result.filter { it.kind == CellKind.Break }.map { it.startMs })
+        assertEquals(
+            listOf(T0 + 28 * MIN, T0 + 30 * MIN),
+            result.filter { it.kind == CellKind.Break }.map { it.startMs },
+        )
         val brk = result[1]
         assertEquals(T0 + 30 * MIN, brk.endMs)
         assertNull(brk.title)

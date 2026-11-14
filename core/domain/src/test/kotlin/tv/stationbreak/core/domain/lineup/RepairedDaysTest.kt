@@ -451,7 +451,13 @@ class RepairedDaysTest {
                 block.startMs,
                 block.endMs,
                 gone,
-                listOf(KeptBlock(block.startMs, block.startMs + hour, KeptContent.Program(id(116).takeIf { it != gone } ?: id(115), 0))),
+                listOf(
+                    KeptBlock(
+                        block.startMs,
+                        block.startMs + hour,
+                        KeptContent.Program(id(116).takeIf { it != gone } ?: id(115), 0),
+                    ),
+                ),
                 0L,
             )
         val laughsBefore = p.day(laughs.id)
@@ -562,7 +568,13 @@ class RepairedDaysTest {
                 block.startMs,
                 block.endMs,
                 gone,
-                listOf(KeptBlock(block.startMs, block.startMs + hour, KeptContent.Program(id(116).takeIf { it != gone } ?: id(115), 0))),
+                listOf(
+                    KeptBlock(
+                        block.startMs,
+                        block.startMs + hour,
+                        KeptContent.Program(id(116).takeIf { it != gone } ?: id(115), 0),
+                    ),
+                ),
                 0L,
             )
         val repairs = TodayRepairs(selection = listOf(repairOf(laughs.id, laughsDay)), fixes = listOf(fix))
@@ -672,7 +684,11 @@ class RepairedDaysTest {
                 gone,
                 listOf(
                     KeptBlock(block.startMs, block.startMs + 40 * minute, KeptContent.Program(id(332), 0)),
-                    KeptBlock(block.startMs + 40 * minute, block.startMs + 60 * minute, KeptContent.Program(id(331), 0)),
+                    KeptBlock(
+                        block.startMs + 40 * minute,
+                        block.startMs + 60 * minute,
+                        KeptContent.Program(id(331), 0),
+                    ),
                 ),
                 0L,
             )

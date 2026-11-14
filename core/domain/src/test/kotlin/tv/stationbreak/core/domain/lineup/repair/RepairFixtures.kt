@@ -37,7 +37,12 @@ internal fun repairOf(
     var cursor = pinEnd
     for (i in 0 until tailBlocks) {
         val end = pinEnd + (dayEndMs - pinEnd) * (i + 1) / tailBlocks
-        blocks += KeptBlock(cursor, end, if (i == tailBlocks - 1) KeptContent.Slate else KeptContent.Program(id(firstItem + 1 + i % 3), 0L))
+        blocks +=
+            KeptBlock(
+                cursor,
+                end,
+                if (i == tailBlocks - 1) KeptContent.Slate else KeptContent.Program(id(firstItem + 1 + i % 3), 0L),
+            )
         cursor = end
     }
     return ChannelRepair(
@@ -90,4 +95,9 @@ internal fun fixOf(
  * checks it covers every subclass of [KeptContent] (`permittedSubclasses`), so a new kind fails until the codec and
  * this list handle it.
  */
-internal fun everyKeptContent(): List<KeptContent> = listOf(KeptContent.Program(id(7), 90_000L), KeptContent.Slate, KeptContent.Break)
+internal fun everyKeptContent(): List<KeptContent> =
+    listOf(
+        KeptContent.Program(id(7), 90_000L),
+        KeptContent.Slate,
+        KeptContent.Break,
+    )

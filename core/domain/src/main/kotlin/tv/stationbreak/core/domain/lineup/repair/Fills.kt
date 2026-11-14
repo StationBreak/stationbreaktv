@@ -89,6 +89,8 @@ internal class Fills(
             GapFill.pick(day.channel.id, pool, startMs, endMs, exclude) {
                 day.settings.isAirable(it.runtimeMs, it.kind)
             }
-        return pieces.filter { it.endMs > it.startMs }.map { KeptBlock(it.startMs, it.endMs, KeptContent.Program(it.item.id, 0)) }
+        return pieces
+            .filter { it.endMs > it.startMs }
+            .map { KeptBlock(it.startMs, it.endMs, KeptContent.Program(it.item.id, 0)) }
     }
 }

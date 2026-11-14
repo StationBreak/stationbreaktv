@@ -29,7 +29,10 @@ internal class TodayRepairerHeldPinsTest : RepairTestBase() {
         val n = Epochs.epochNumber(settings, atMs)
         val end = Epochs.epochStart(settings, n + 1)
         val blocks =
-            listOf(KeptBlock(noonMs, pinEndMs, KeptContent.Program(pinned.item.id, 0)), KeptBlock(pinEndMs, end, KeptContent.Slate))
+            listOf(
+                KeptBlock(noonMs, pinEndMs, KeptContent.Program(pinned.item.id, 0)),
+                KeptBlock(pinEndMs, end, KeptContent.Slate),
+            )
         return ChannelRepair(channel, n, end, atMs, seq, setOf(libA), noonMs, pinEndMs, pinLibrary, blocks, null)
     }
 

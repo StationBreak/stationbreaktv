@@ -329,7 +329,10 @@ class LineupCodecV4Test {
         val end = start + kinds.size * HALF_HOUR_MS
         val repair = repairOf().copy(keptFromMs = start, blocks = blocks, dayEndMs = end)
         val fix = fixOf().copy(blockStartMs = start, blockEndMs = end, pieces = blocks)
-        val read = loaded(LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repair), fixes = listOf(fix))))
+        val read =
+            loaded(
+                LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repair), fixes = listOf(fix))),
+            )
         assertFalse(read.repairsUnreadable)
         assertEquals(
             blocks,

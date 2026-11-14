@@ -84,8 +84,8 @@ private const val UP_NEXT_WINDOW = 48
 
 /**
  * The next program after [onAir]'s block as an "up next" banner, looking on across the day boundary if the blocks it
- * already holds are all slates or station breaks. It looks no further than the end of the next day ([ChannelOnAir.builtUntilMs]); null
- * if no program starts before that (the card then shows the channel only).
+ * already holds are all slates or station breaks. It looks no further than the end of the next day
+ * ([ChannelOnAir.builtUntilMs]); null if no program starts before that (the card then shows the channel only).
  */
 internal suspend fun Sitting.upNext(onAir: ChannelOnAir): Banner? =
     upNextBlock(onAir)?.let { bannerFor(onAir.channel, it, BannerLabel.UpNext, null, driftMs) }

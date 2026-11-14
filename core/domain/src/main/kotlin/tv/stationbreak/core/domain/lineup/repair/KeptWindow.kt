@@ -63,7 +63,14 @@ internal class KeptWindow(
             for (span in clipped) if (!span.gone) span.item()?.let { aired += it }
             val pin = clipped.first { atMs >= it.startMs && atMs < it.endMs }
             val pinItem = pin.item()?.takeUnless { pin.gone }
-            return KeptWindow(from, pinEnd, clipped.map { KeptBlock(it.startMs, it.endMs, it.content) }, fixes, aired, pinItem)
+            return KeptWindow(
+                from,
+                pinEnd,
+                clipped.map { KeptBlock(it.startMs, it.endMs, it.content) },
+                fixes,
+                aired,
+                pinItem,
+            )
         }
 
         // The window's start and the blocks of [day] that overlap it, up to the block on air at [atMs].
@@ -85,7 +92,8 @@ internal class KeptWindow(
             fills: Fills,
         ): List<Span> {
             val content =
-                block.content as? ScheduleContent.Program ?: return listOf(Span(block.startMs, block.endMs, block.kept().content))
+                block.content as? ScheduleContent.Program
+                    ?: return listOf(Span(block.startMs, block.endMs, block.kept().content))
             val kept = KeptContent.Program(content.itemId, content.mediaStartOffsetMs)
             return when {
                 fills.isLive(content.itemId) -> listOf(Span(block.startMs, block.endMs, kept))

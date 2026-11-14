@@ -337,9 +337,17 @@ internal open class RepairTestBase {
 
     protected fun kept(block: ScheduleBlock): KeptBlock =
         when (val c = block.content) {
-            is ScheduleContent.Program -> KeptBlock(block.startMs, block.endMs, KeptContent.Program(c.itemId, c.mediaStartOffsetMs))
-            ScheduleContent.Slate -> KeptBlock(block.startMs, block.endMs, KeptContent.Slate)
-            ScheduleContent.Break -> KeptBlock(block.startMs, block.endMs, KeptContent.Break)
+            is ScheduleContent.Program -> {
+                KeptBlock(block.startMs, block.endMs, KeptContent.Program(c.itemId, c.mediaStartOffsetMs))
+            }
+
+            ScheduleContent.Slate -> {
+                KeptBlock(block.startMs, block.endMs, KeptContent.Slate)
+            }
+
+            ScheduleContent.Break -> {
+                KeptBlock(block.startMs, block.endMs, KeptContent.Break)
+            }
         }
 
     // A curated starter's view, as the build makes it (CuratedDaysTest's helper).

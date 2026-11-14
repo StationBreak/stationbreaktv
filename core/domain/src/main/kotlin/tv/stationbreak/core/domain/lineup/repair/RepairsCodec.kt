@@ -17,9 +17,9 @@ import tv.stationbreak.core.model.ItemId
  * channel repair and per fix an `ids` table lists each item once, and a block is the integer array
  * `[startDelta, length, idIndex, mediaStart]`: `startDelta` from the end of the block before it (for the first block
  * from `from`, a fix's from its `blockStart`), `idIndex` into `ids`, or -1 for a slate, or -2 for a station break. A
- * slate and a break always write a media start of 0, and one that is not 0 makes [decode] throw. The -2 stays inside lineup file version 4, an
- * explicit exception to "any schema change bumps VERSION" (see `LineupCodec` and ADR-0025): an older build reads it as
- * an index outside the table, and so drops the whole record and loads the lineup.
+ * slate and a break always write a media start of 0, and one that is not 0 makes [decode] throw. The -2 stays inside
+ * lineup file version 4, an explicit exception to "any schema change bumps VERSION" (see `LineupCodec` and ADR-0025):
+ * an older build reads it as an index outside the table, and so drops the whole record and loads the lineup.
  *
  * `lastSeq` is the highest selection seq held (`TodayRepairs.lastSeq`), written only while a selection repair is.
  * The lost-block check (`TodayRepairs.lostCheck`) is never written.

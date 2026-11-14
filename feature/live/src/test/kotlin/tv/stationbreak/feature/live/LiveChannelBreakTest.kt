@@ -146,7 +146,10 @@ class LiveChannelBreakTest {
             r.at(resolveAt - 1)
             assertTrue(r.preResolves().none { it.item == itemOf(2) })
             r.at(resolveAt)
-            assertEquals(listOf(Call.PreResolve(itemOf(2), Duration.ZERO, resolveAt)), r.preResolves().filter { it.item == itemOf(2) })
+            assertEquals(
+                listOf(Call.PreResolve(itemOf(2), Duration.ZERO, resolveAt)),
+                r.preResolves().filter { it.item == itemOf(2) },
+            )
             assertIs<LiveState.Watching>(r.state)
             r.atMin(50)
             assertIs<LiveState.Ident>(r.state)
