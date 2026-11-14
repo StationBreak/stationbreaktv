@@ -2,9 +2,9 @@
 package tv.stationbreak.core.engine
 
 /**
- * The Kotlin copy of `docs/rules-format/vectors/kid-hold-5.json`, so the commonTest check (`KidHold5VectorTest`) can run
- * on linuxX64Test, which cannot read files. `KidHold5VectorInSyncTest` (jvmTest) fails if it differs from the published
- * file, and also runs the published file itself. The `\u` escapes are JSON escapes, decoded by the parser.
+ * The Kotlin copy of `docs/rules-format/vectors/kid-hold-5.json`, so the commonTest check (`KidHold5VectorTest`) can
+ * run on linuxX64Test, which cannot read files. `KidHold5VectorInSyncTest` (jvmTest) fails if it differs from the
+ * published file, and also runs the published file itself. The `\u` escapes are JSON escapes, decoded by the parser.
  */
 internal object KidHold5VectorFile {
     val json: String =
