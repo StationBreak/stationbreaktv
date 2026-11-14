@@ -14,8 +14,8 @@ import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 /**
  * The builder with rules format 4 (docs/adr/0026-studio-fold-2.md, Versioning and Tests): it writes at the rules'
@@ -45,8 +45,8 @@ class DraftRulesV4Test {
     private fun fromRules(rules: ChannelRules) = DraftRules.fromRules(rules, null) { it.key }
 
     @Test
-    fun theGateIsOff() {
-        assertFalse(StudioFold2Gate.WRITES_FORMAT_4)
+    fun theGateHasPassed() {
+        assertTrue(StudioFold2Gate.WRITES_FORMAT_4)
     }
 
     @Test
@@ -76,9 +76,10 @@ class DraftRulesV4Test {
     fun aFormat3StudioFileStays3WithTheGateOffAnd4WithItOn() {
         val stored = rules(3, ordering = null)
         val draft = fromRules(stored)
-        assertEquals(3, DraftRules.toRules(draft, offset, stored).formatVersion)
+        assertEquals(3, DraftRules.toRules(draft, offset, stored, gatePassed = false).formatVersion)
         val after = DraftRules.toRules(draft, offset, stored, gatePassed = true)
         assertEquals(stored.copy(formatVersion = 4), after)
+        assertEquals(after, DraftRules.toRules(draft, offset, stored), "the app's default: the gate has passed")
     }
 
     @Test
@@ -90,7 +91,8 @@ class DraftRulesV4Test {
         assertEquals(4, saved.formatVersion)
         assertEquals(Source.Studio("Studio A"), saved.sources.first())
         assertIs<RulesResult.Ok>(RulesReader.read(RulesWriter.write(saved)))
-        assertEquals(3, DraftRules.toRules(copy, offset, starter).formatVersion)
+        assertEquals(3, DraftRules.toRules(copy, offset, starter, gatePassed = false).formatVersion)
+        assertEquals(4, DraftRules.toRules(copy, offset, starter).formatVersion, "the app's default")
     }
 
     @Test

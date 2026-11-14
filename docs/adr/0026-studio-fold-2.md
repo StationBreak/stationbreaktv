@@ -1,7 +1,11 @@
 # ADR-0026: Studio fold 2 (closing look-alike gaps in studio matching)
 
 **Status:** Accepted 2026-11-13, after the owner's decisions and four rounds of security review. The implementation
-PRs (every port) get their own security review. Nothing is implemented yet.
+PRs (every port) get their own security review. The Fire app implements it in three parts (fold 2 and the holds;
+format 4 behind the gate; the gate flipped). On 2026-11-13 the owner **waived the gate's reader-before-writer order
+for the Fire app** (see the gate ruling under Versioning; it is a waiver, not a pass): from the release that ships
+part 3 the Fire app writes format 4 for studio rules and rewrites stored files once. The Roku and Vega OS ports have
+no release yet and must read 4 before their first.
 
 **Date:** 2026-11-12 (revised 2026-11-13)
 
@@ -224,14 +228,34 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
 
   | Port | Minimum version that reads 4 |
   | --- | --- |
-  | Fire OS (Kotlin, this repo) | to be filled at release |
-  | Vega OS | to be filled at release |
-  | Roku | to be filled at release |
+  | Fire OS (Kotlin, this repo) | to be filled at release (versionName/versionCode); parts 2 and 3 ship in the same release, or part 2 first |
+  | Vega OS | no release yet; must read 4 before the first release (Vega OS #38) |
+  | Roku | no release yet; must read 4 before the first release (Roku #29) |
 
   The owner verifies that every listed version is released and that every TV in the household runs at least it (the
   version and `rulesFormat` are on the app's diagnostics screen), and only then is the release that writes 4 shipped.
   A TV that missed the update (automatic updates off) or was downgraded reads a format-4 file as "update required":
   that channel is not scheduled, so the excluded titles do not air. It fails closed.
+
+  **Gate ruling (2026-11-13): a waiver for the Fire app, not a pass.** Neither the Roku nor the Vega OS port has a
+  release (both are private repositories with no releases); each has an open issue to implement this ADR (Roku #29,
+  Vega OS #38) and must read 4 before its first release. The only released app is the Fire app, and the owner asked to
+  ship the fix now, so the owner waived the reader-before-writer order for it. The waiver fails closed:
+  - lineup files are local to each TV: no other TV reads the file a Fire TV rewrites;
+  - a downgraded app reads 4 as "update required": the channel is not scheduled, and its source is kept verbatim, so
+    nothing is lost and the excluded titles do not air;
+  - fold 2 applies in memory from the first load of the release that writes 4, before the rewrite has landed.
+
+  A development build of a port that reads a lineup this app wrote sees "update required" for the upgraded channels
+  (it fails closed too). No copy of the fold-1 file is kept before the rewrite, on purpose: a copy would bring the
+  looser matching back if anything ever restored it. After the rewrite, an app older than part 2 shows those channels
+  as "update required".
+
+  No diagnostics screen exists yet (F3.6), so the Fire app logs the rules formats once per account, from the first
+  read of the stored lineup on any path, under the `Lineup` tag:
+  `rules formats v1=<n> v2=<n> v3=<n> v4=<n> upgraded=<n>` (counts only, no names). The versions count the lineup as loaded, after the in-memory upgrade, so
+  `v3=` is what still says 3 in memory; `upgraded=` above 0 on a second start means the earlier rewrite did not land.
+  The diagnostics screen (F3.6) should show the same counts when it is built.
 - **Upgrade to 4: a one-time rewrite, kept as an invariant.** In the release that ships after the gate has passed:
   - **The rewrite.** On its first start the app rewrites, once, every rules file that says `formatVersion` 3 and holds
     a `studio` source, a `studio` exclusion or a `studios` filter: `formatVersion` becomes 4 and nothing else changes
@@ -311,7 +335,7 @@ dropped, mapped and trimmed sets are inside R, and the `PersistedDays` hold name
 - Until the gate passes, the planner ranks starters and works out what opt-in starters withhold from the rules as a fresh
   resolve writes them (format 3, studio fold 1), even for a starter whose stored rules say 4. Only which starters are
   switched on and what the leftovers hold can differ; what a channel airs and what its exclusions remove is decided by
-  its stored rules, so this has no safety effect, and it ends when the gate flips.
+  its stored rules, so this has no safety effect, and it ends when the gate flips (for the Fire app, by the waiver of 2026-11-13).
 
 ## Owner decisions (2026-11-13)
 

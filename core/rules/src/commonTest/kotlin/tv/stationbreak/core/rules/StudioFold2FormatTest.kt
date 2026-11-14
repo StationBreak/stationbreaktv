@@ -23,8 +23,8 @@ class StudioFold2FormatTest {
     private val library = readOk(minimalRules().text()).sources.single()
 
     @Test
-    fun theGateIsOffInThisRelease() {
-        assertFalse(StudioFold2Gate.WRITES_FORMAT_4)
+    fun theGateHasPassedInThisRelease() {
+        assertTrue(StudioFold2Gate.WRITES_FORMAT_4)
         assertEquals(4, StudioFold2Gate.FORMAT_VERSION)
     }
 
@@ -85,10 +85,10 @@ class StudioFold2FormatTest {
 
     @Test
     fun withTheGateOffTheWriteVersionNeverLowersAStudioFile() {
-        assertEquals(3, studioRules(3).writeVersion)
-        assertEquals(4, studioRules(4).writeVersion)
-        assertEquals(4, studioRules(4).normalised().formatVersion)
-        assertEquals(3, studioRules(3).normalised().formatVersion)
+        assertEquals(3, studioRules(3).writeVersion(previousVersion = 3, gatePassed = false))
+        assertEquals(4, studioRules(4).writeVersion(previousVersion = 4, gatePassed = false))
+        assertEquals(4, studioRules(4).normalised(gatePassed = false).formatVersion)
+        assertEquals(3, studioRules(3).normalised(gatePassed = false).formatVersion)
         assertEquals(3, studioRules(4).writeVersion(previousVersion = null, gatePassed = false))
         assertEquals(4, studioRules(4).writeVersion(previousVersion = 4, gatePassed = false))
         assertEquals(3, studioRules(4).writeVersion(previousVersion = 2, gatePassed = false))
@@ -96,6 +96,10 @@ class StudioFold2FormatTest {
 
     @Test
     fun withTheGateOnAStudioFileIsWrittenAt4() {
+        // The app's defaults: the gate has passed.
+        assertEquals(4, studioRules(3).writeVersion)
+        assertEquals(4, studioRules(4).writeVersion)
+        assertEquals(4, studioRules(3).normalised().formatVersion)
         assertEquals(4, studioRules(3).writeVersion(previousVersion = 3, gatePassed = true))
         assertEquals(4, studioRules(3).writeVersion(previousVersion = null, gatePassed = true))
         assertEquals(4, studioRules(3).normalised(gatePassed = true).formatVersion)
@@ -124,8 +128,8 @@ class StudioFold2FormatTest {
     fun theUpgradeIsHeldBehindTheGate() {
         val three = studioRules(3)
         assertSame(three, three.upgradedToStudioFold2(gatePassed = false))
-        assertSame(three, three.upgradedToStudioFold2())
         val upgraded = three.upgradedToStudioFold2(gatePassed = true)
+        assertEquals(upgraded, three.upgradedToStudioFold2(), "the app's default: the gate has passed")
         assertEquals(three.copy(formatVersion = 4), upgraded, "only the version changes")
         assertEquals(upgraded, upgraded.upgradedToStudioFold2(gatePassed = true), "idempotent")
     }

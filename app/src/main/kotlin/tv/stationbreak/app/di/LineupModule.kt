@@ -160,6 +160,9 @@ internal object LineupModule {
             trimmed = { fixes, covering, selection ->
                 Log.i(TAG, "RepairsTrimmed fixes=$fixes coveringFixes=$covering selection=$selection")
             },
+            // The rules formats of the stored lineup, once, at its first read, and how many the read upgraded: counts
+            // only (ADR-0026, the gate check, until the diagnostics screen shows them).
+            rulesFormats = { Log.i(TAG, it.line()) },
         )
     }
 

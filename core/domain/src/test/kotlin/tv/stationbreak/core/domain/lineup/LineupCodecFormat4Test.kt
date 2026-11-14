@@ -92,7 +92,13 @@ class LineupCodecFormat4Test {
     fun withTheGateOffNothingIsUpgraded() {
         val bytes = LineupCodec.encode(lineup)
         assertEquals(lineup, loaded(bytes, gatePassed = false))
-        assertEquals(lineup, assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes)).lineup, "the default")
+    }
+
+    @Test
+    fun theAppDefaultIsPastTheGate() {
+        val bytes = LineupCodec.encode(lineup)
+        val byDefault = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes)).lineup
+        assertEquals(loaded(bytes, gatePassed = true), byDefault)
     }
 
     @Test
@@ -127,5 +133,27 @@ class LineupCodecFormat4Test {
             val read = rulesOf(loaded(LineupCodec.encode(lineup), gatePassed = gate))
             assertEquals(alreadyFour, read[6], "gate $gate")
         }
+    }
+
+    @Test
+    fun theDecodeCountsTheRulesItUpgraded() {
+        val bytes = LineupCodec.encode(lineup)
+        val upgraded = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes, gatePassed = true))
+        // Three custom channels, and the starter's rules and previous rules.
+        assertEquals(5, upgraded.upgradedRules)
+        val before = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes, gatePassed = false))
+        assertEquals(0, before.upgradedRules)
+        val again = LineupCodec.decode(LineupCodec.encode(upgraded.lineup), gatePassed = true)
+        assertEquals(0, assertIs<LineupCodec.Decoded.Loaded>(again).upgradedRules, "nothing is left to upgrade")
+    }
+
+    @Test
+    fun theRulesFormatsCountEveryRulesFileAndTheUpgrades() {
+        val bytes = LineupCodec.encode(lineup)
+        val upgraded = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes, gatePassed = true))
+        val formats = RulesFormats.of(upgraded.lineup, upgraded.upgradedRules)
+        assertEquals(RulesFormats(v1 = 1, v2 = 1, v3 = 1, v4 = 6, upgraded = 5), formats)
+        assertEquals("rules formats v1=1 v2=1 v3=1 v4=6 upgraded=5", formats.line())
+        assertEquals(RulesFormats(v1 = 1, v2 = 1, v3 = 6, v4 = 1, upgraded = 0), RulesFormats.of(lineup, 0))
     }
 }

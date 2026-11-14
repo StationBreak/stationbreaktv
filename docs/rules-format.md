@@ -1937,7 +1937,11 @@ U+3164 alone, is still a studio of the item; so an exclusion never matches less 
 
 **Writing version 4.** A file that says 3 is still valid with a studio feature (version 3 is the lowest version that has
 it), is read as it is, and is matched under studio fold 1. A client writes 4 only after a release gate: every client
-that shares rules files with it (each port of the app) has released a version that reads 4. Until then, when the rules
+that shares rules files with it (each port of the app) has released a version that reads 4 (for the Fire app the owner
+waived this order on 2026-11-13; see the gate ruling in `docs/adr/0026-studio-fold-2.md`). No build of any client,
+development builds included, accepts `formatVersion` 4 before it has studio fold 2 and `kid-hold-4` in the same change:
+a reader that took 4 without them would match the file's studios under fold 1, and its exclusions would miss the
+look-alikes fold 2 catches. Until the gate has passed, when the rules
 being written hold a studio source, studio exclusion or studios filter, a writer writes them at the version the file
 said (so a file that says 4 is **never** written back as 3), and new ones at 3; rules that no longer hold one are
 written at the lowest version they need. Once the gate has passed, a writer writes every file with a studio feature as 4, and every file that says 3

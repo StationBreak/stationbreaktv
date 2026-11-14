@@ -32,7 +32,9 @@ class V3CompatibilityTest {
             val rules = readOk(text)
             assertEquals(3, rules.formatVersion, name)
             assertEquals(3, rules.requiredVersion, name)
-            assertEquals(3, rules.normalised().formatVersion, name)
+            assertEquals(3, rules.normalised(gatePassed = false).formatVersion, name)
+            // Past the gate (ADR-0026) a file with a studio feature is written at 4, any other at 3.
+            assertEquals(if (rules.usesStudios) 4 else 3, rules.normalised().formatVersion, name)
             assertEquals(text, RulesWriter.write(rules), name)
         }
     }
@@ -62,7 +64,9 @@ class V3CompatibilityTest {
             )
         for ((i, rules) in features.withIndex()) {
             assertEquals(3, rules.requiredVersion, "feature $i")
-            assertEquals(3, rules.normalised().formatVersion, "feature $i")
+            assertEquals(3, rules.normalised(gatePassed = false).formatVersion, "feature $i")
+            // Past the gate (ADR-0026) the studio features (the first, second and fourth) are written at 4.
+            assertEquals(if (i in STUDIO_FEATURES) 4 else 3, rules.normalised().formatVersion, "feature $i")
         }
     }
 
@@ -84,3 +88,6 @@ class V3CompatibilityTest {
 
     private fun emptyFilters() = Filters(null, null, null, null, null, null)
 }
+
+// The indexes of the studio features in normalisedPicksThreeOnlyForAV3Feature.
+private val STUDIO_FEATURES = setOf(0, 1, 3)

@@ -355,8 +355,8 @@ class LineupPlannerTest {
         assertEquals(lineup.channels.filter { it.id != scifi.id }, next.channels.filter { it.id != scifi.id })
     }
 
-    // ADR-0026, never lower a file that says 4: a shelved studio starter stored at 4 is switched on at 4 though the
-    // gate is off (a fresh resolve writes 3); one stored at 3 stays at 3.
+    // ADR-0026, once the gate has passed: a shelved studio starter is switched on at 4, whether it was stored at 4 or
+    // at 3.
     @Test
     fun aShelvedStudioStarterThatSays4IsSwitchedOnAt4() {
         val sources = listOf(Source.Genre("scifi"), Source.Studio("Studio A"))
@@ -369,7 +369,7 @@ class LineupPlannerTest {
             assertEquals(ChannelState.Shelf, lineup.channel("scifi").state)
             val scifi = planOf(lineup, libraryOf(fills(catalog = catalog)), catalog, nowMs = 5_000L).channel("scifi")
             assertEquals(ChannelState.On, scifi.state)
-            assertEquals(stored, scifi.starter.rules.formatVersion, "stored at $stored")
+            assertEquals(4, scifi.starter.rules.formatVersion, "stored at $stored")
             assertEquals(sources, scifi.starter.rules.sources)
         }
     }

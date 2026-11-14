@@ -10,6 +10,7 @@ import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.Source
+import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,7 +48,8 @@ class DraftRulesV3Test {
     private fun toRules(
         draft: ChannelDraft,
         previous: ChannelRules? = null,
-    ) = DraftRules.toRules(draft, offset, previous)
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
+    ) = DraftRules.toRules(draft, offset, previous, gatePassed)
 
     // What "Use the builder's settings instead" does in the view model.
     private fun ChannelDraft.useBuildersSettings() =
@@ -101,9 +103,10 @@ class DraftRulesV3Test {
         assertTrue(KeptItem.StudioExclusion("Studio B") in items)
         assertEquals(listOf<DraftSource>(DraftSource.Genre("Comedy", "Comedy")), draft.sources)
         assertTrue(draft.hasPool(), "a studio source is a pool the builder cannot show")
-        val back = toRules(draft, themed)
+        val back = toRules(draft, themed, gatePassed = false)
         assertEquals(themed, back)
         assertEquals(3, back.formatVersion)
+        assertEquals(themed.copy(formatVersion = 4), toRules(draft, themed), "past the format 4 gate")
         // The builder's own genre edit does not touch the parts it cannot show.
         val edited = toRules(draft.copy(filters = draft.filters.copy(genres = listOf("Drama"))), themed)
         assertEquals(listOf("tag a"), edited.filters?.tags)
@@ -120,7 +123,8 @@ class DraftRulesV3Test {
         val draft = fromRules(onlyStudio)
 
         assertNull(draft.problem())
-        assertEquals(onlyStudio, toRules(draft, onlyStudio))
+        assertEquals(onlyStudio, toRules(draft, onlyStudio, gatePassed = false))
+        assertEquals(onlyStudio.copy(formatVersion = 4), toRules(draft, onlyStudio), "past the format 4 gate")
     }
 
     @Test
@@ -164,14 +168,17 @@ class DraftRulesV3Test {
     }
 
     @Test
-    fun useTheBuildersSettingsKeepsTheStudioSourceAndStaysV3() {
+    fun useTheBuildersSettingsKeepsTheStudioSourceAndStaysV3BeforeTheGate() {
         val curated = rules(sources = listOf(Source.Studio("Studio A")))
+        val draft = fromRules(curated).useBuildersSettings()
 
-        val written = toRules(fromRules(curated).useBuildersSettings(), curated)
+        val written = toRules(draft, curated, gatePassed = false)
 
         assertEquals(OrderingMode.Shuffle, written.orderingMode)
         assertEquals(listOf<Source>(Source.Studio("Studio A")), written.sources)
         assertEquals(3, written.formatVersion)
+        // Past the format 4 gate (ADR-0026, the app's default) the same save writes 4 and nothing else differs.
+        assertEquals(written.copy(formatVersion = 4), toRules(draft, curated))
     }
 
     @Test
