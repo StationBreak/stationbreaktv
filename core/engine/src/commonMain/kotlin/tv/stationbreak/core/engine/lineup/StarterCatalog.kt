@@ -23,9 +23,13 @@ object StarterCatalog : StarterCatalogView {
      * Version 3 (spec 23): the themed, programmed recipes ([CATALOG_V3_RECIPES]), every key, number, band, ceiling and
      * opt-in kept. A lineup moves to it from the next day boundary (the planner keeps today's rules, D1).
      *
-     * Version 4 (the spread day end, ADR-0027): the recipes are unchanged. The bump makes the planner resolve every
-     * unedited starter again, now at rules format 5, through its usual path: a starter on the air (a keeper) keeps
-     * today's rules and switches at the next boundary, any other switches at once. Edited starters keep their version.
+     * Version 4 (the spread day end, ADR-0027): the recipes are unchanged. Catalog 4 means starters at rules format 5:
+     * the bump makes the planner resolve every unedited starter again, now at 5 (`ChannelRules.newRulesWriteVersion`),
+     * through its usual path: a starter on the air (a keeper) keeps today's rules and switches at the next boundary,
+     * any other switches at once. Edited starters keep their version. Like any newer catalog it waits for a full
+     * collection pass: until one applies it, a selecting lineup is in `PlannerSelection.Mode.Hold`, so no starter is
+     * switched on or leaves in that window. The bump cannot be undone by a lower catalog: an older app freezes the
+     * planner on a catalog 4 lineup (`LineupPlanner.plan`).
      */
     const val VERSION = 4
 

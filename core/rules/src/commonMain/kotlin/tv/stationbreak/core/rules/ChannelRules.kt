@@ -103,6 +103,20 @@ data class ChannelRules(
             else -> maxOf(requiredVersion, previousVersion ?: requiredVersion)
         }
 
+    /**
+     * The version new rules are written at (ADR-0027, ADR-0022's addendum): a channel made in the app (from scratch or
+     * copied from another channel's rules, said at [previousVersion]) and a resolved starter. It is [writeVersion]
+     * with one floor, [SpreadDayEnd.FORMAT_VERSION], so new rules are always written at 5 and spread the end of the
+     * day. This and [writeVersion] are the one version policy: an edit of stored rules uses [writeVersion] alone.
+     *
+     * [gatePassed] (the format 4 gate) is passed through to [writeVersion] but cannot change the result: everything
+     * the gate decides is below the floor. The gate only ever matters for an edit.
+     */
+    fun newRulesWriteVersion(
+        previousVersion: Int?,
+        gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
+    ): Int = maxOf(SpreadDayEnd.FORMAT_VERSION, writeVersion(previousVersion, gatePassed))
+
     /** The ordering mode to use: `shuffle` when the file has no `ordering`. */
     val orderingMode: OrderingMode get() = ordering?.mode ?: OrderingMode.Shuffle
 

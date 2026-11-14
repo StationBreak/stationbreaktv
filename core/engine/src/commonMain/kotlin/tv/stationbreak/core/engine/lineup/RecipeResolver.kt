@@ -18,12 +18,11 @@ import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.RulesWriter
 import tv.stationbreak.core.rules.Source
-import tv.stationbreak.core.rules.SpreadDayEnd
 import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 
-// The newest version this app reads (5, the spread day end): the rules are built at it and then written at their write
-// version, never below [SpreadDayEnd.FORMAT_VERSION].
+// The newest version this app reads (5, the spread day end): the rules are built at it and then written at the version
+// of new rules (`ChannelRules.newRulesWriteVersion`).
 private const val LATEST_FORMAT = RulesLimits.SUPPORTED_FORMAT_VERSION.toInt()
 
 // The two quotes around a JSON string.
@@ -66,10 +65,10 @@ object RecipeResolver {
      * and films that match a title anchor, or a studio source; then a studio source for each studio of [names] a theme
      * studio matches. Anchors come before theme studios so the cap never cuts an anchor first. A source already present
      * is dropped (studio sources by folded name), and the first ones that fit [MAX_STARTER_SOURCES] and [STARTER_RULES_BUDGET_BYTES]
-     * are kept (so theme studios are cut first). Its ordering is curated. The format version is 5, the spread day end
-     * ([SpreadDayEnd.FORMAT_VERSION], ADR-0027): a floor over the rules' write version (`ChannelRules.writeVersion`,
-     * ADR-0026, with [gatePassed] its format 4 gate), the same floor as a new channel's, so every resolved starter is
-     * matched under studio fold 2 and spreads the end of its day.
+     * are kept (so theme studios are cut first). Its ordering is curated. The format version is the version of new
+     * rules (`ChannelRules.newRulesWriteVersion`, ADR-0027): 5, the spread day end, the same as a new channel's, so
+     * every resolved starter is matched under studio fold 2 and spreads the end of its day. [gatePassed] (the format 4
+     * gate, kept for ADR-0026's tests) is passed through but cannot change it: the gate only matters for an edit.
      */
     @Suppress("LongParameterList") // The recipe's context, and the format 4 gate, which tests set.
     fun resolve(
@@ -101,8 +100,7 @@ object RecipeResolver {
                 filters = recipe.filters,
             )
         val fitted = rules.copy(sources = withinBudget(rules, candidates))
-        val written = fitted.writeVersion(previousVersion = null, gatePassed = gatePassed)
-        return fitted.copy(formatVersion = maxOf(SpreadDayEnd.FORMAT_VERSION, written))
+        return fitted.copy(formatVersion = fitted.newRulesWriteVersion(previousVersion = null, gatePassed = gatePassed))
     }
 
     // The leading [candidates] that fit [MAX_STARTER_SOURCES] and [STARTER_RULES_BUDGET_BYTES], always at least the

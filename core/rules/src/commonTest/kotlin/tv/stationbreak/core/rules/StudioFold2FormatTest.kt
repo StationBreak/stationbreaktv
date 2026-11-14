@@ -85,6 +85,31 @@ class StudioFold2FormatTest {
         assertEquals(5, plain.writeVersion)
     }
 
+    // ADR-0027: new rules (a new channel, a copy, a resolved starter) are written at writeVersion with a floor of 5,
+    // whatever they need, whatever the format 4 gate says and whatever the rules they were copied from said.
+    @Test
+    fun newRulesAreWrittenAt5() {
+        val plain = readOk(at(1).text())
+        val tags =
+            readOk(
+                minimalRules()
+                    .with("formatVersion", JsonPrimitive(3))
+                    .with("filters", obj("tags" to array(JsonPrimitive("Tag A"))))
+                    .text(),
+            )
+        for (rules in listOf(plain, tags, studioRules(3), studioRules(4), studioRules(5))) {
+            for (previous in listOf(null, 1, 2, 3, 4, 5)) {
+                for (gate in listOf(false, true)) {
+                    val written = rules.newRulesWriteVersion(previousVersion = previous, gatePassed = gate)
+                    assertEquals(5, written, "${rules.requiredVersion} from $previous, gate $gate")
+                    assertEquals(maxOf(5, rules.writeVersion(previous, gate)), written)
+                }
+            }
+        }
+        assertEquals(5, plain.newRulesWriteVersion(previousVersion = null))
+        assertEquals(1, plain.writeVersion(previousVersion = null), "an edit keeps the lowest version")
+    }
+
     // ADR-0026's one-time rewrite and its invariant touch only files that say 3.
     @Test
     fun adr0026RewriteLeavesAV5StudioFileAlone() {

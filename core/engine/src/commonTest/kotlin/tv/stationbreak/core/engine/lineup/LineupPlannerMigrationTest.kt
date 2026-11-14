@@ -149,8 +149,8 @@ class LineupPlannerMigrationTest {
     }
 
     // D1: today keeps catalog 2. Every starter on the air, hidden or opt-in (what airs today, and what the leftovers
-    // withhold today) keeps its v2 rules for today and takes the v3 rules at the boundary; no channel goes on or off
-    // the air before it.
+    // withhold today) keeps its catalog 2 rules for today and takes the current catalog's at the boundary; no channel
+    // goes on or off the air before it.
     @Test
     fun theCatalogSwapLeavesTodayUnchanged() {
         val lineup =
@@ -183,8 +183,9 @@ class LineupPlannerMigrationTest {
         assertEquals(leftoversOf(lineup), leftoversOf(next), "the leftovers channels are as they were")
     }
 
+    // To the current catalog (4: catalog 3's recipes, starters at format 5).
     @Test
-    fun aCatalogTwoLineupMovesToThreeKeepingNumbersKeysAndSeeds() {
+    fun aCatalogTwoLineupMovesToTheCurrentCatalogKeepingNumbersKeysAndSeeds() {
         val lineup = before(real2, realLibrary)
 
         val next = swap(lineup, realLibrary, StarterCatalog)
@@ -298,7 +299,7 @@ class LineupPlannerMigrationTest {
         assertTrue(programmed.isNotEmpty(), "the next day is curated")
     }
 
-    // Every kid starter is held to made-for-kids content (kid-hold-3) under its v2 rules today and its v3 rules
+    // Every kid starter is held to made-for-kids content under its catalog 2 rules today and the current catalog's
     // from the boundary, as the planner and the day build read it.
     @Test
     fun kidChannelsOnlyEverSeeKidHoldThree() {

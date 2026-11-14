@@ -95,14 +95,18 @@ sealed interface ChannelPreview {
 interface ChannelPreviews {
     /**
      * The channel [draft] would air from [at]: the next [NEXT] items laid out by the same `buildDay`, the pool's size
-     * and runtime, and the picks the kids hold leaves out. A draft with kept settings reads them from the rules of its
-     * [ChannelDraft.origin]; with none, or one that is gone, the preview is [ChannelPreview.Unavailable]. Main-safe and
-     * cancellable; the caller debounces. Nothing is saved.
+     * and runtime, and the picks the kids hold leaves out. [editing] says which flow the preview is of, as the caller
+     * will save it: the custom channel being edited (`ChannelBuilder.save` with that id), or null for a new channel
+     * (`ChannelBuilder.create`). The rules are written as that flow writes them, at the same version. An edit reads
+     * kept settings from the stored rules of [editing], a new channel from the rules of its [ChannelDraft.origin]; with
+     * none, or a channel that is gone (or, for an edit, not custom), the preview is [ChannelPreview.Unavailable].
+     * Main-safe and cancellable; the caller debounces. Nothing is saved.
      */
     suspend fun preview(
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
+        editing: ChannelId?,
     ): ChannelPreview
 
     companion object {
@@ -135,11 +139,12 @@ class BuiltInChannelPreviews(
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
+        editing: ChannelId?,
     ): ChannelPreview =
         withContext(dispatcher) {
             try {
                 // A kids draft previews under the ceiling create and save would write.
-                previewOf(account, draft.kidsNormalised(), at) ?: ChannelPreview.Unavailable
+                previewOf(account, draft.kidsNormalised(), at, editing) ?: ChannelPreview.Unavailable
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -151,14 +156,15 @@ class BuiltInChannelPreviews(
         account: LibraryAccount,
         draft: ChannelDraft,
         at: Instant,
+        editing: ChannelId?,
     ): ChannelPreview? {
         val lineup = service.loaded(account)?.lineup
         val chosen = libraries()?.takeIf { it.isNotEmpty() }
         if (lineup == null) return null
-        val target = targetOf(lineup, draft)
+        val target = targetOf(lineup, draft, editing)
         // Kept settings come from the rules they were read from: without them the draft cannot be previewed.
-        val keptReadable = draft.kept == null || target.previous != null
-        return if (chosen == null || !keptReadable) {
+        val keptReadable = draft.kept == null || target?.previous != null
+        return if (chosen == null || target == null || !keptReadable) {
             null
         } else {
             previewFor(account, draft, at, Inputs(lineup, chosen, target))
@@ -226,19 +232,24 @@ class BuiltInChannelPreviews(
         return cuts.mapTo(HashSet()) { it.cutoffMs }
     }
 
-    // What the draft's rules are written for, as the flow it previews writes them: a draft opened from a custom
-    // channel is an edit of it (save), any other a new channel (create), carrying the rules of the built-in channel a
-    // copy was opened from. With no origin, or one that is gone, it is a new channel with nothing to carry.
+    // What the draft's rules are written for, as the flow the caller names writes them: an edit of the custom channel
+    // [editing] with its stored rules, as save does (null when it is gone or not custom: save refuses it), or a new
+    // channel carrying the rules of the draft's origin, starter or custom, as create does (none for no origin, or one
+    // that is gone).
     private fun targetOf(
         lineup: Lineup,
         draft: ChannelDraft,
-    ): RulesTarget {
-        val origin = draft.origin
-        return when (val held = lineup.channels.firstOrNull { it.id == origin }?.source) {
-            is ChannelSource.Custom -> RulesTarget.Edit(held.rules)
-            is ChannelSource.Starter -> RulesTarget.NewChannel(held.rules)
-            else -> RulesTarget.NewChannel(null)
-        }
+        editing: ChannelId?,
+    ): RulesTarget? {
+        fun sourceOf(id: ChannelId?) = id?.let { wanted -> lineup.channels.firstOrNull { it.id == wanted }?.source }
+        if (editing != null) return (sourceOf(editing) as? ChannelSource.Custom)?.let { RulesTarget.Edit(it.rules) }
+        val carry =
+            when (val held = sourceOf(draft.origin)) {
+                is ChannelSource.Starter -> held.rules
+                is ChannelSource.Custom -> held.rules
+                else -> null
+            }
+        return RulesTarget.NewChannel(carry)
     }
 
     // A channel as the lineup would hold it: the draft's number (a kids draft in the Kids band, so the hold and the

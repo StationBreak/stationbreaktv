@@ -15,7 +15,6 @@ import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.OrderingCaps
 import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
-import tv.stationbreak.core.rules.SpreadDayEnd
 import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 import tv.stationbreak.core.rules.normalised
@@ -45,13 +44,14 @@ internal object DraftRules {
 
     /**
      * The rules of [draft], under the lineup's [utcOffsetMinutes]. [target] says whether they are for a new channel
-     * (a copy carries the rules it was opened from) or an edit (with the stored rules), and [gatePassed] is the format
-     * 4 gate (`StudioFold2Gate`).
+     * (carrying the rules of the channel it was opened from, if any) or an edit (with the stored rules), and
+     * [gatePassed] is the format 4 gate (`StudioFold2Gate`). The gate only affects an edit: a new channel is written
+     * at `ChannelRules.newRulesWriteVersion`, which the gate cannot change.
      */
     fun toRules(
         draft: ChannelDraft,
         utcOffsetMinutes: Int,
-        target: RulesTarget = RulesTarget.NewChannel(null),
+        target: RulesTarget,
         gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4,
     ): ChannelRules {
         val previous = target.previous
@@ -65,8 +65,11 @@ internal object DraftRules {
         // every new channel, which has the floor of 5 (so the lowering below is never reached for one).
         val carryNewest = carry?.withVersion(NEWEST)
         val newest = assemble(draft, utcOffsetMinutes, NEWEST, carryNewest)
-        val written = newest.writeVersion(previous?.formatVersion, gatePassed)
-        val version = if (target is RulesTarget.NewChannel) maxOf(SpreadDayEnd.FORMAT_VERSION, written) else written
+        val version =
+            when (target) {
+                is RulesTarget.NewChannel -> newest.newRulesWriteVersion(previous?.formatVersion, gatePassed)
+                is RulesTarget.Edit -> newest.writeVersion(previous?.formatVersion, gatePassed)
+            }
         if (version >= FORMAT_3) return newest.withVersion(version)
         // Version 2 next, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
         // `caps` extra makes room for the real ones). A carry that needed 3 has lost it by now (the viewer took the

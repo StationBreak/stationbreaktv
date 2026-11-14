@@ -61,11 +61,13 @@ class DraftRulesV5Test {
         assertTrue(saved.requiredVersion < 5, "5 is the floor, not what the rules need")
         assertTrue(saved.spreadsDayEnd)
         assertReadable(saved)
-        assertEquals(saved, DraftRules.toRules(newDraft(), offset), "a new channel is the default target")
         // A new studio channel (a copy of a studio starter that says 4) is at 5 too.
+        // Above ADR-0026's 4, whatever its gate says.
         val starter = rules(4)
-        val studio = DraftRules.toRules(fromRules(starter).copy(name = "Mine"), offset, RulesTarget.NewChannel(starter))
+        val copy = fromRules(starter).copy(name = "Mine")
+        val studio = DraftRules.toRules(copy, offset, RulesTarget.NewChannel(starter), gatePassed = true)
         assertEquals(5, studio.formatVersion)
+        assertEquals(studio, DraftRules.toRules(copy, offset, RulesTarget.NewChannel(starter), gatePassed = false))
         assertEquals(Source.Studio("Studio A"), studio.sources.first())
         assertReadable(studio)
     }
