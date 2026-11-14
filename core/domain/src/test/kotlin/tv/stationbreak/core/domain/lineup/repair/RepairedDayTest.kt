@@ -47,6 +47,17 @@ class RepairedDayTest {
     }
 
     @Test
+    fun aRecordedBreakComposesAsABreakBlock_notASlate() {
+        val repair = repairOf(dayEndMs = dayEnd)
+        val third = repair.blocks[2]
+        val withBreak = repair.copy(blocks = repair.blocks.toMutableList().also { it[2] = third.copy(content = KeptContent.Break) })
+        val blocks = compose(withBreak).blocks
+        assertCovers(blocks)
+        assertEquals(ScheduleContent.Break, blocks.single { it.startMs == third.startMs }.content)
+        assertEquals(ScheduleContent.Slate, blocks.last().content, "the record's slate stays a slate")
+    }
+
+    @Test
     fun currentProgrammeKeepsItsSlot_onEveryChannel() {
         for (i in 0 until 50) {
             val at = NOW_MS - 2 * 3_600_000L + i * 400_000L
@@ -93,7 +104,7 @@ class RepairedDayTest {
             repair.copy(
                 blocks =
                     repair.blocks.toMutableList().also {
-                        it[1] = tail.copy(itemId = gone, mediaStartMs = 7_000L)
+                        it[1] = tail.copy(content = KeptContent.Program(gone, 7_000L))
                     },
             )
         val half = tail.startMs + HALF_HOUR_MS / 3
@@ -105,7 +116,7 @@ class RepairedDayTest {
                 tail.startMs,
                 tail.endMs,
                 gone,
-                listOf(KeptBlock(tail.startMs, half, id(50), 0L)),
+                listOf(KeptBlock(tail.startMs, half, KeptContent.Program(id(50), 0L))),
                 0L,
             )
         val composed = compose(goneRepair, listOf(fix))
@@ -148,13 +159,13 @@ class RepairedDayTest {
     fun fixWithOverrunningOrGappedPieces_leavesBlockWhole() {
         val base = fixOf(blockStartMs = NOW_MS, lengthMs = 2 * HALF_HOUR_MS, gone = 90)
         val overrun =
-            base.copy(pieces = listOf(KeptBlock(NOW_MS, NOW_MS + 3 * HALF_HOUR_MS, id(50), 0L)))
+            base.copy(pieces = listOf(KeptBlock(NOW_MS, NOW_MS + 3 * HALF_HOUR_MS, KeptContent.Program(id(50), 0L))))
         val gapped =
             base.copy(
                 pieces =
                     listOf(
-                        KeptBlock(NOW_MS, NOW_MS + HALF_HOUR_MS / 3, id(50), 0L),
-                        KeptBlock(NOW_MS + HALF_HOUR_MS / 2, NOW_MS + HALF_HOUR_MS, id(51), 0L),
+                        KeptBlock(NOW_MS, NOW_MS + HALF_HOUR_MS / 3, KeptContent.Program(id(50), 0L)),
+                        KeptBlock(NOW_MS + HALF_HOUR_MS / 2, NOW_MS + HALF_HOUR_MS, KeptContent.Program(id(51), 0L)),
                     ),
             )
         for (bad in listOf(overrun, gapped)) {

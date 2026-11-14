@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import tv.stationbreak.core.domain.lineup.repair.ChannelRepair
 import tv.stationbreak.core.domain.lineup.repair.KeptBlock
+import tv.stationbreak.core.domain.lineup.repair.KeptContent
 import tv.stationbreak.core.domain.lineup.repair.LostFix
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.engine.lineup.ChannelSource
@@ -173,5 +174,22 @@ class LineupFieldTripwireTest {
         )
 
     @Test
-    fun keptBlock() = pinned(KeptBlock::class.java, setOf("startMs", "endMs", "itemId", "mediaStartMs"))
+    fun keptBlock() = pinned(KeptBlock::class.java, setOf("startMs", "endMs", "content"))
+
+    // A new kind of kept content is a new block index in RepairsCodec and a new marker in the digest. The station
+    // break (-2, "~") was added inside lineup file version 4 by an explicit exception (ADR-0025, amendment 2026-11-13).
+    @Test
+    fun keptContent() {
+        pinned(KeptContent.Program::class.java, setOf("itemId", "mediaStartMs"))
+        // The kinds: a new one fails to compile here until it is given an index and a marker.
+        val kinds =
+            listOf(KeptContent.Program(id(1), 0), KeptContent.Slate, KeptContent.Break).map {
+                when (it) {
+                    is KeptContent.Program -> "Program"
+                    KeptContent.Slate -> "Slate"
+                    KeptContent.Break -> "Break"
+                }
+            }
+        assertEquals(listOf("Program", "Slate", "Break"), kinds)
+    }
 }

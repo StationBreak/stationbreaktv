@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import tv.stationbreak.core.domain.lineup.repair.HALF_HOUR_MS
 import tv.stationbreak.core.domain.lineup.repair.KeptBlock
+import tv.stationbreak.core.domain.lineup.repair.KeptContent
 import tv.stationbreak.core.domain.lineup.repair.NOW_MS
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.domain.lineup.repair.fixOf
@@ -280,7 +281,7 @@ class LineupCodecV4Test {
     @Test
     fun veryLargeTimes_roundTrip() {
         val big = (1L shl 52) - 1_000_000L
-        val block = KeptBlock(big, big + HALF_HOUR_MS, id(7), big / 2)
+        val block = KeptBlock(big, big + HALF_HOUR_MS, KeptContent.Program(id(7), big / 2))
         val repair =
             repairOf().copy(
                 dayEndMs = big + HALF_HOUR_MS,
@@ -292,6 +293,70 @@ class LineupCodecV4Test {
             )
         val fix = fixOf().copy(dayEndMs = big + HALF_HOUR_MS, blockStartMs = big, blockEndMs = big + HALF_HOUR_MS)
         roundTrips(TodayRepairs(listOf(repair), listOf(fix.copy(pieces = listOf(block))), lastSeq = Long.MAX_VALUE))
+    }
+
+    // A repair with a station break in its tail, and a fix whose last piece is a break.
+    private fun withABreak(): TodayRepairs {
+        val base = repairOf(seq = 4L)
+        val blocks =
+            base.blocks.mapIndexed { i, b ->
+                if (i == 2) b.copy(content = KeptContent.Break) else b
+            }
+        val fix = fixOf(seq = 4L)
+        val pieces = fix.pieces.dropLast(1) + fix.pieces.last().copy(content = KeptContent.Break)
+        return TodayRepairs(selection = listOf(base.copy(blocks = blocks)), fixes = listOf(fix.copy(pieces = pieces)))
+    }
+
+    @Test
+    fun aBreakBlockRoundTripsThroughTheRepairsCodec() {
+        val record = withABreak()
+        roundTrips(record)
+        val rows = tree(LineupCodec.encode(lineup, meta, record))["repairs"]!!.jsonObject.toString()
+        assertTrue("-2,0]" in rows, "a break is the index -2 with the media start a slate writes: $rows")
+    }
+
+    @Test
+    fun everyKeptContentKindRoundTripsThroughTheRepairsCodec() {
+        val start = NOW_MS
+        val blocks =
+            listOf(
+                KeptBlock(start, start + HALF_HOUR_MS, KeptContent.Program(id(7), 90_000L)),
+                KeptBlock(start + HALF_HOUR_MS, start + 2 * HALF_HOUR_MS, KeptContent.Slate),
+                KeptBlock(start + 2 * HALF_HOUR_MS, start + 2 * HALF_HOUR_MS + 5_000L, KeptContent.Break),
+                KeptBlock(start + 2 * HALF_HOUR_MS + 5_000L, start + 3 * HALF_HOUR_MS, KeptContent.Program(id(8), 0L)),
+            )
+        val repair = repairOf().copy(keptFromMs = start, blocks = blocks, dayEndMs = start + 3 * HALF_HOUR_MS)
+        val bytes = LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repair)))
+        assertEquals(
+            blocks,
+            loaded(bytes)
+                .repairs.selection
+                .single()
+                .blocks,
+        )
+    }
+
+    @Test
+    fun aLineupWithABreakInItsRepairsIsStillVersion4() {
+        val bytes = LineupCodec.encode(lineup, meta, withABreak())
+        assertEquals(4, (tree(bytes)["version"] as JsonPrimitive).content.toInt())
+        assertEquals(4, loaded(bytes).fileVersion)
+        assertFalse(loaded(bytes).repairsUnreadable)
+    }
+
+    @Test
+    fun anExistingV4FileWithRepairsStillLoads() {
+        // Written by the build before the break kind, with this test's lineup, meta and repairs: its bytes are frozen.
+        val file = checkNotNull(javaClass.getResourceAsStream("/lineup/lineup-v4-repairs.json")).readBytes()
+        assertEquals(LineupCodec.Decoded.Loaded(lineup, meta, repairs, fileVersion = 4), LineupCodec.decode(file))
+        val read = loaded(file)
+        assertTrue(file.contentEquals(LineupCodec.encode(read.lineup, read.meta, read.repairs)), "writes back as is")
+    }
+
+    @Test
+    fun anUnknownBlockIndexBelowTheBreak_loadsTheLineupWithNoRecord() {
+        val text = LineupCodec.encode(lineup, meta, repairs).decodeToString()
+        assertRecordUnreadable(text.replaceFirst(",-1,0]", ",-3,0]").encodeToByteArray())
     }
 
     private companion object {

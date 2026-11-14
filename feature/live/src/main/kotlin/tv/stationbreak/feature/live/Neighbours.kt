@@ -122,13 +122,18 @@ internal class Neighbours(
 
     private suspend fun prepare(channel: ChannelId) {
         val now = clock.now()
-        // No following blocks: only what is on now matters here.
-        val block = schedule.onAir(channel, now, 0)?.now
+        // No following blocks: only what is on now matters here, unless it is a station break.
+        val onNow = schedule.onAir(channel, now, 0)?.now
+        // A break is a card with the next programme close behind it, so that programme is the one resolved (for its
+        // start), as the next programme after a programme is: a flip once it is on takes this handle. A flip during
+        // the break shows the card, and the sitting resolves the programme itself.
+        val block =
+            if (onNow?.airing == Airing.Break) schedule.onAir(channel, now, 1)?.next?.firstOrNull() else onNow
         val program = (block?.airing as? Airing.Program)?.takeIf { it.info != null }
         val kept = held[channel]
         if (kept != null && kept.isFor(program, block)) return
         held.remove(channel)?.let { discard(it) }
-        val start = block?.positionAt(now.toEpochMilliseconds())
+        val start = block?.positionAt(maxOf(now.toEpochMilliseconds(), block.startMs))
         if (program != null && start != null) {
             tuner.preResolve(session, ItemId(program.itemId.value), start)?.let {
                 held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs)

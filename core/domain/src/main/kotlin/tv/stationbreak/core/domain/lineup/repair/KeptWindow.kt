@@ -14,8 +14,8 @@ internal const val KEPT_STEP_MS = 30 * 60 * 1000L
  * repair, never before the day's start) to [pinEndMs] (the end of the block on air, the pin), exactly as the viewer
  * sees it now. A gone block in it is kept as the schedule source names it: the gap fill's pieces as programmes, and
  * the time they leave as the gone item, with an empty fix ([fixes]) so it is never filled again. [aired] is what
- * aired or airs before the pin's end, for the tail to leave out; [pinItem] is the programme on air (null for a slate
- * or a gone rest).
+ * aired or airs before the pin's end, for the tail to leave out; [pinItem] is the programme on air (null for a slate,
+ * a break or a gone rest).
  */
 internal class KeptWindow(
     val fromMs: Long,
@@ -82,7 +82,9 @@ internal class KeptWindow(
             block: ScheduleBlock,
             fills: Fills,
         ): List<Span> {
-            val content = block.content as? ScheduleContent.Program ?: return listOf(Span(block.startMs, block.endMs))
+            val content =
+                block.content as? ScheduleContent.Program
+                    ?: return listOf(Span(block.startMs, block.endMs, isBreak = block.content == ScheduleContent.Break))
             val item = content.itemId
             val media = content.mediaStartOffsetMs
             return when {
@@ -115,22 +117,33 @@ internal class KeptWindow(
         }
     }
 
-    // One stretch of the window: a slate (no item), a programme from [media], or the rest of a gone item ([gone]).
+    // One stretch of the window: a slate (no item), a station break ([isBreak], no item), a programme from [media],
+    // or the rest of a gone item ([gone]).
     private class Span(
         val startMs: Long,
         val endMs: Long,
         val item: CanonicalId? = null,
         val media: Long = 0,
         val gone: Boolean = false,
+        val isBreak: Boolean = false,
     ) {
         // This span from [fromMs] on (its media start moved on by what is cut), or null when it ends by then.
         fun from(fromMs: Long): Span? =
             when {
                 endMs <= fromMs -> null
                 startMs >= fromMs -> this
-                else -> Span(fromMs, endMs, item, if (item == null) 0 else media + (fromMs - startMs), gone)
+                else -> Span(fromMs, endMs, item, if (item == null) 0 else media + (fromMs - startMs), gone, isBreak)
             }
 
-        fun kept(): KeptBlock = KeptBlock(startMs, endMs, item, if (item == null) 0 else media)
+        fun kept(): KeptBlock =
+            KeptBlock(
+                startMs,
+                endMs,
+                when {
+                    item != null -> KeptContent.Program(item, media)
+                    isBreak -> KeptContent.Break
+                    else -> KeptContent.Slate
+                },
+            )
     }
 }

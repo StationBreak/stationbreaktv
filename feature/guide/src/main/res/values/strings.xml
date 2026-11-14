@@ -82,6 +82,9 @@
     <!-- A slate cell on the grid: a plate, not a missing title. The panel still says when it comes back. -->
     <string name="guide_off_air">Off air</string>
 
+    <!-- A station-break cell on the grid (leftover time spread through the day): a plate in the slate's style. The panel says what is up next. -->
+    <string name="guide_station_break">STATION BREAK</string>
+
     <!-- DESIGN(#633): placeholder. A program whose item left the library: the cell's title and the panel's line, instead of a blank. -->
     <string name="guide_unavailable">Unavailable</string>
 

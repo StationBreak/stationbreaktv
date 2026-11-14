@@ -159,7 +159,7 @@ internal class ReferenceSelectionRepair(
         val start = if (offAir) day.epochStartMs else fromMs
         val blocks =
             if (offAir) {
-                listOf(KeptBlock(day.epochStartMs, day.epochEndMs, null, 0))
+                listOf(KeptBlock(day.epochStartMs, day.epochEndMs, KeptContent.Slate))
             } else {
                 kept?.blocks.orEmpty() + tail.map { it.kept() }
             }

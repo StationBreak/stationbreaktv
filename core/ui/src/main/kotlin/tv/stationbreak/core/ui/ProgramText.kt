@@ -20,6 +20,7 @@ class ProgramCopy(
     val episodeNumber: (episode: Int, title: String) -> String,
     val next: (title: String, time: String) -> String,
     val offAirUntil: (time: String) -> String,
+    val breakUpNext: (time: String) -> String,
     val startsIn: (minutes: Int) -> String,
     val minutesLeft: (minutes: Int) -> String,
 ) {
@@ -31,6 +32,7 @@ class ProgramCopy(
                 episodeNumber = { e, t -> resources.getString(R.string.program_episode_number, e, t) },
                 next = { t, at -> resources.getString(R.string.program_next, t, at) },
                 offAirUntil = { resources.getString(R.string.program_off_air_until, it) },
+                breakUpNext = { resources.getString(R.string.program_station_break_up_next, it) },
                 startsIn = { resources.getString(R.string.program_starts_in, it) },
                 minutesLeft = { resources.getString(R.string.program_minutes_left, it) },
             )

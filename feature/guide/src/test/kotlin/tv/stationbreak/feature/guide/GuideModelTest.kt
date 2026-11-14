@@ -17,6 +17,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.episodeInfo
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.id
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.stationBreak
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
@@ -88,6 +89,32 @@ class GuideModelTest {
         // The same item again, restarting at its own start: a repeat, not a continuation.
         val result = cells(window(program(0, 60, 1), program(60, 120, 1)), nowMin = 0)
         assertEquals(2, result.size)
+    }
+
+    @Test
+    fun aBreakBlockBecomesAnUnmergedBreakCell() {
+        // A programme split around a break, and two breaks back to back: each break is its own cell, and the
+        // programme's halves are not joined across it.
+        val result =
+            cells(
+                window(
+                    program(0, 28, 1, mediaStartMs = 0),
+                    stationBreak(28, 30),
+                    stationBreak(30, 31),
+                    program(31, 60, 1, mediaStartMs = 28 * MIN),
+                ),
+                nowMin = 0,
+            )
+        assertEquals(
+            listOf(CellKind.Program, CellKind.Break, CellKind.Break, CellKind.Program),
+            result.map { it.kind },
+        )
+        assertEquals(listOf(T0 + 28 * MIN, T0 + 30 * MIN), result.filter { it.kind == CellKind.Break }.map { it.startMs })
+        val brk = result[1]
+        assertEquals(T0 + 30 * MIN, brk.endMs)
+        assertNull(brk.title)
+        assertNull(brk.itemId)
+        assertNull(brk.info)
     }
 
     @Test

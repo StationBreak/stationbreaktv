@@ -28,7 +28,8 @@ internal class TodayRepairerHeldPinsTest : RepairTestBase() {
         val settings = laughsRules.toSchedulerSettings()
         val n = Epochs.epochNumber(settings, atMs)
         val end = Epochs.epochStart(settings, n + 1)
-        val blocks = listOf(KeptBlock(noonMs, pinEndMs, pinned.item.id, 0), KeptBlock(pinEndMs, end, null, 0))
+        val blocks =
+            listOf(KeptBlock(noonMs, pinEndMs, KeptContent.Program(pinned.item.id, 0)), KeptBlock(pinEndMs, end, KeptContent.Slate))
         return ChannelRepair(channel, n, end, atMs, seq, setOf(libA), noonMs, pinEndMs, pinLibrary, blocks, null)
     }
 

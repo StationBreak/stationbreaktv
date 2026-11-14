@@ -314,6 +314,24 @@ holds. A completed run is `Done`, a failed one is `Failed` with its reason, and 
 press while one runs starts nothing. Lost blocks are repaired by the lineup refresher's hook once the run's writing
 ends, as for a background pass.
 
+## Amendment 2026-11-13: the station-break block in the record
+
+Rules format 5 (the spread end of the day) adds a station-break block (`ScheduleContent.Break`). A repaired day keeps
+its breaks, so the record stores them. A kept block is now a programme (an item from a media start), a slate or a
+break, and in the `repairs` object a break is the block index **-2** (a slate is -1). A slate and a break write the
+media start a slate writes, 0. The wire layout is otherwise unchanged. The digest marks a break with `~` and a slate
+with `-` as before, so the digest of a record of programmes and slates is unchanged.
+
+**The -2 stays inside lineup file version 4.** This is an explicit exception to the codec's rule that any schema change
+bumps `LineupCodec.VERSION` (owner decision 2026-11-13, option a). The `repairs` contents are a per-TV record that the
+next repair rebuilds, and a bump would make every older build show a planned default lineup and refuse to save.
+
+The real downgrade radius: an older build reads the file as version 4 as before, but its `RepairsCodec.decode` throws
+on the first -2 row (an index outside the table). `LineupCodec.repairsOf` then drops the **entire** per-TV record
+(`TodayRepairs.NONE`, reported as unreadable), not only the channel with the break. On that TV every channel's
+selection repairs and lost-block fixes are lost until the next repair, so a repaired day goes back to its day as
+built from the saved selection, which can change the programme on air. The lineup itself loads, and is not set aside.
+
 ## Consequences
 
 - The rest of today follows the viewer's change, a Sync now or a background pass, and no block is blank. The tune path reads

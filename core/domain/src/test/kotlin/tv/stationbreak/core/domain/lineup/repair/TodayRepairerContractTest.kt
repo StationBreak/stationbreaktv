@@ -272,7 +272,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
         assertEquals(lineup.channels.map { it.id }.toSet(), repaired, "every switched-on channel")
         val hidden = rig.repairOf(westerns.id)
         assertEquals(HiddenReason.NoMatches, hidden.tailHidden)
-        assertEquals(listOf(KeptBlock(hidden.keptFromMs, hidden.dayEndMs, null, 0)), hidden.blocks)
+        assertEquals(listOf(KeptBlock(hidden.keptFromMs, hidden.dayEndMs, KeptContent.Slate)), hidden.blocks)
         val cold = rig.restarted(lineup)
         rig.library.snapshotCutoffs.clear()
 

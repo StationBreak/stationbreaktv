@@ -1388,6 +1388,10 @@ private fun ScheduleBlock.toAiring(info: Map<CanonicalId, ProgramInfo>): AiringB
         ScheduleContent.Slate -> {
             AiringBlock(startMs, endMs, Airing.Slate)
         }
+
+        ScheduleContent.Break -> {
+            AiringBlock(startMs, endMs, Airing.Break)
+        }
     }
 
 /**

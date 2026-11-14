@@ -389,7 +389,7 @@ internal class SelectionRepair(
         val start = if (offAir) day.epochStartMs else fromMs
         val blocks =
             if (offAir) {
-                listOf(KeptBlock(day.epochStartMs, day.epochEndMs, null, 0))
+                listOf(KeptBlock(day.epochStartMs, day.epochEndMs, KeptContent.Slate))
             } else {
                 kept?.blocks.orEmpty() + tail.map { it.kept() }
             }
@@ -607,6 +607,7 @@ private const val THREE = 3
 /** [this] block as the record keeps it. */
 internal fun ScheduleBlock.kept(): KeptBlock =
     when (val c = content) {
-        is ScheduleContent.Program -> KeptBlock(startMs, endMs, c.itemId, c.mediaStartOffsetMs)
-        ScheduleContent.Slate -> KeptBlock(startMs, endMs, null, 0)
+        is ScheduleContent.Program -> KeptBlock(startMs, endMs, KeptContent.Program(c.itemId, c.mediaStartOffsetMs))
+        ScheduleContent.Slate -> KeptBlock(startMs, endMs, KeptContent.Slate)
+        ScheduleContent.Break -> KeptBlock(startMs, endMs, KeptContent.Break)
     }

@@ -16,7 +16,10 @@ import tv.stationbreak.core.model.ItemId
  * The `repairs` object of a version-4 lineup file (spec 26), compact because it shares the file's size cap. Per
  * channel repair and per fix an `ids` table lists each item once, and a block is the integer array
  * `[startDelta, length, idIndex, mediaStart]`: `startDelta` from the end of the block before it (for the first block
- * from `from`, a fix's from its `blockStart`), `idIndex` into `ids` or -1 for a slate.
+ * from `from`, a fix's from its `blockStart`), `idIndex` into `ids`, or -1 for a slate, or -2 for a station break. A
+ * slate and a break write the media start a slate always has (0). The -2 stays inside lineup file version 4, an
+ * explicit exception to "any schema change bumps VERSION" (see `LineupCodec` and ADR-0025): an older build reads it as
+ * an index outside the table, and so drops the whole record and loads the lineup.
  *
  * `lastSeq` is the highest selection seq held (`TodayRepairs.lastSeq`), written only while a selection repair is.
  * The lost-block check (`TodayRepairs.lostCheck`) is never written.
@@ -53,6 +56,7 @@ internal object RepairsCodec {
 
     private const val BLOCK_FIELDS = 4
     private const val SLATE = -1L
+    private const val BREAK = -2L
 
     // A channel day holds the repair it shows and, while that change is being saved, a later one: never more.
     private const val MAX_REPAIRS_PER_DAY = 2
@@ -185,7 +189,11 @@ internal object RepairsCodec {
                     listOf(
                         block.startMs - cursor,
                         block.endMs - block.startMs,
-                        block.itemId?.let { table.of(it).toLong() } ?: SLATE,
+                        when (val c = block.content) {
+                            is KeptContent.Program -> table.of(c.itemId).toLong()
+                            KeptContent.Slate -> SLATE
+                            KeptContent.Break -> BREAK
+                        },
                         block.mediaStartMs,
                     )
                 cursor = block.endMs
@@ -208,11 +216,19 @@ internal object RepairsCodec {
             val index = numbers[2]
             val mediaStart = numbers[3]
             require(delta >= 0 && length > 0 && mediaStart >= 0) { "A block runs backwards" }
-            require(index == SLATE || index in ids.indices.map(Int::toLong)) { "A block names an id outside the table" }
+            require(index == SLATE || index == BREAK || index in ids.indices.map(Int::toLong)) {
+                "A block names an id outside the table"
+            }
             val start = Math.addExact(cursor, delta)
             val end = Math.addExact(start, length)
             cursor = end
-            KeptBlock(start, end, if (index == SLATE) null else ids[index.toInt()], mediaStart)
+            val content =
+                when (index) {
+                    SLATE -> KeptContent.Slate
+                    BREAK -> KeptContent.Break
+                    else -> KeptContent.Program(ids[index.toInt()], mediaStart)
+                }
+            KeptBlock(start, end, content)
         }
     }
 

@@ -7,17 +7,37 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 
+/** What a [KeptBlock] airs: a programme from a point in its media, a slate, or a station break. */
+internal sealed interface KeptContent {
+    /** [itemId] from [mediaStartMs] into its media. */
+    data class Program(
+        val itemId: CanonicalId,
+        val mediaStartMs: Long,
+    ) : KeptContent
+
+    /** Nothing airs. */
+    data object Slate : KeptContent
+
+    /** A station break (rules-format v5): nothing airs, and the ident shows what is up next. */
+    data object Break : KeptContent
+}
+
 /**
- * One block of a repaired day: [startMs] to [endMs] airs [itemId] from [mediaStartMs] into it. A null [itemId] is a
- * slate (nothing airs). Blocks are in order and have length: a block that starts before the one before it ends, a block
- * of no length or a negative [mediaStartMs] cannot be stored, and the save of a record holding one is refused.
+ * One block of a repaired day: [startMs] to [endMs] airs [content]. Blocks are in order and have length: a block that
+ * starts before the one before it ends, a block of no length or a programme with a negative media start cannot be
+ * stored, and the save of a record holding one is refused.
  */
 internal data class KeptBlock(
     val startMs: Long,
     val endMs: Long,
-    val itemId: CanonicalId?,
-    val mediaStartMs: Long,
-)
+    val content: KeptContent,
+) {
+    /** The programme's item, or null for a slate or a break. */
+    val itemId: CanonicalId? get() = (content as? KeptContent.Program)?.itemId
+
+    /** Where in the media a programme starts; 0 for a slate or a break. */
+    val mediaStartMs: Long get() = (content as? KeptContent.Program)?.mediaStartMs ?: 0L
+}
 
 /**
  * A repaired channel day (spec 26): the blocks of one channel's broadcast day [n] as they stand after a change of the
@@ -294,8 +314,17 @@ private fun canonical(fix: LostFix): String =
         append("|P").append(canonical(fix.pieces)).append(';')
     }
 
+// A slate is "-" and a break "~", so the digest of a record of programmes and slates is what it was before breaks.
 private fun canonical(blocks: List<KeptBlock>): String =
-    blocks.joinToString(",") { "${it.startMs}:${it.endMs}:${it.itemId?.value ?: "-"}:${it.mediaStartMs}" }
+    blocks.joinToString(",") {
+        val item =
+            when (val c = it.content) {
+                is KeptContent.Program -> c.itemId.value
+                KeptContent.Slate -> "-"
+                KeptContent.Break -> "~"
+            }
+        "${it.startMs}:${it.endMs}:$item:${it.mediaStartMs}"
+    }
 
 /** A test seam: [hashed] is told each time a record works out the digest of one channel day. Never set in the app. */
 internal object DigestProbe {

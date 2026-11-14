@@ -82,10 +82,10 @@ internal class TodayRepairerLostTest : RepairTestBase() {
         val short = film(710, "Comedy", minutes = 90)
         val blocks =
             listOf(
-                KeptBlock(start, noonMs, null, 0),
-                KeptBlock(noonMs, noonMs + 2 * hour, lost.item.id, 0),
-                KeptBlock(noonMs + 2 * hour, noonMs + 2 * hour + 90 * minute, short.item.id, 0),
-                KeptBlock(noonMs + 2 * hour + 90 * minute, end, null, 0),
+                KeptBlock(start, noonMs, KeptContent.Slate),
+                KeptBlock(noonMs, noonMs + 2 * hour, KeptContent.Program(lost.item.id, 0)),
+                KeptBlock(noonMs + 2 * hour, noonMs + 2 * hour + 90 * minute, KeptContent.Program(short.item.id, 0)),
+                KeptBlock(noonMs + 2 * hour + 90 * minute, end, KeptContent.Slate),
             )
         val repair = ChannelRepair(laughs.id, n, end, atMs, 3, setOf(libA), start, noonMs, null, blocks, null)
         val rig = Rig(lineupOf(laughs), comedies.take(2) + lost + short, setOf(libA), TodayRepairs(listOf(repair)))
@@ -113,7 +113,7 @@ internal class TodayRepairerLostTest : RepairTestBase() {
 
         val fix = rig.record().fixes.single()
         assertTrue(fix.isOfTheLostBlock())
-        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotEnd, admittedLong.item.id, 0)), fix.pieces)
+        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotEnd, KeptContent.Program(admittedLong.item.id, 0))), fix.pieces)
         val cold = rig.restarted(lineupOf(laughs))
         val onAir = assertNotNull(cold.onAir(laughs.id, lostSlotStart + minute))
         assertEquals(admittedLong.item.id, assertIs<Airing.Program>(onAir.now.airing).itemId, "read from the record")
@@ -127,7 +127,7 @@ internal class TodayRepairerLostTest : RepairTestBase() {
         assertEquals(1, rig.lost(playable = null))
 
         val fix = rig.record().fixes.single()
-        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotStart + hour, shortTail.item.id, 0)), fix.pieces)
+        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotStart + hour, KeptContent.Program(shortTail.item.id, 0))), fix.pieces)
         assertEquals(reads, rig.library.snapshotCutoffs.size, "no library read for a fill")
     }
 
@@ -158,7 +158,7 @@ internal class TodayRepairerLostTest : RepairTestBase() {
     @Test
     fun repairLost_matchFailingHoldOrRules_isFilledInstead() {
         val secondLost = film(706, "Comedy")
-        val extra = listOf(KeptBlock(noonMs + 4 * hour, noonMs + 6 * hour, secondLost.item.id, 0))
+        val extra = listOf(KeptBlock(noonMs + 4 * hour, noonMs + 6 * hour, KeptContent.Program(secondLost.item.id, 0)))
         val successors =
             Successors { _, _, gone ->
                 val all = mapOf(lost.item.id to horrorFilm.item.id, secondLost.item.id to kidsComedy.item.id)
@@ -190,7 +190,7 @@ internal class TodayRepairerLostTest : RepairTestBase() {
 
         val fix = rig.record().fixes.single()
         assertTrue(fix.isOfTheLostBlock())
-        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotEnd, admittedLong.item.id, 7 * minute)), fix.pieces)
+        assertEquals(listOf(KeptBlock(lostSlotStart, lostSlotEnd, KeptContent.Program(admittedLong.item.id, 7 * minute))), fix.pieces)
     }
 
     @Test

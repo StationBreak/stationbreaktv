@@ -17,16 +17,17 @@ import kotlin.time.Duration.Companion.minutes
 // that rebuilds an equal model would recompose every cell on the grid.
 
 /**
- * What a guide cell shows: a program (or a stand-in for one), a slate (nothing to play), or a program whose item left
- * the library ([Unavailable]: an `Airing.Program` with no info; it keeps its item id and is labelled, not blank).
+ * What a guide cell shows: a program (or a stand-in for one), a slate (nothing to play), a station break ([Break]:
+ * leftover time spread between programmes, rules-format v5), or a program whose item left the library ([Unavailable]:
+ * an `Airing.Program` with no info; it keeps its item id and is labelled, not blank).
  */
-internal enum class CellKind { Program, Slate, Unavailable }
+internal enum class CellKind { Program, Slate, Break, Unavailable }
 
 /**
  * One cell of a guide row, half-open `[startMs, endMs)` in milliseconds since 1970. The first cell of a row may start
  * before [GuideModel.originMs]. [title] is derived from [info], the display title: the series name for an episode of a
- * known series, else the item's own title. It and [info] are null for a slate and for an [CellKind.Unavailable]
- * program (no longer in the library); [itemId] is null for a slate. Whether it is too narrow for a title is the
+ * known series, else the item's own title. It and [info] are null for a slate, a break and an [CellKind.Unavailable]
+ * program (no longer in the library); [itemId] is null for a slate and a break. Whether it is too narrow for a title is the
  * screen's call (`CellPlace`).
  */
 @Immutable
@@ -95,7 +96,8 @@ internal fun buildGuideModel(
  * Joins a program that carries on into the next block. The window does not say where a broadcast day ends, so a
  * continuation is recognised by what it is: the next block starts exactly where this one ends, airs the same item, and
  * picks the media up where this one left off (`mediaStartMs` plus the block's length). A repeat restarts the item at
- * its own start offset, so it never matches and stays a cell of its own; neither does a block after a gap.
+ * its own start offset, so it never matches and stays a cell of its own; neither does a block after a gap. A station
+ * break is never a program, so it is never merged, and never joins the programmes either side of it.
  *
  * The v1 built-in scheduler never produces split blocks (`mediaStartOffsetMs` is always 0 and days are never split), so
  * this only covers future sources that do.
@@ -139,6 +141,10 @@ private fun cellOf(block: AiringBlock): GuideCell {
 
             Airing.Slate -> {
                 Triple(CellKind.Slate, null, null)
+            }
+
+            Airing.Break -> {
+                Triple(CellKind.Break, null, null)
             }
         }
     return GuideCell(block.startMs, block.endMs, kind, info?.let(::displayTitle), info, itemId)

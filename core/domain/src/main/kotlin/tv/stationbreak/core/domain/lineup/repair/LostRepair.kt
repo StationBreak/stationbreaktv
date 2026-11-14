@@ -126,7 +126,7 @@ internal class LostRepair(
 
             match != null -> {
                 val media = (block.content as ScheduleContent.Program).mediaStartOffsetMs
-                fixOf(day, block, g.item, listOf(KeptBlock(block.startMs, block.endMs, match, media)))
+                fixOf(day, block, g.item, listOf(KeptBlock(block.startMs, block.endMs, KeptContent.Program(match, media))))
             }
 
             else -> {

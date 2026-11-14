@@ -32,7 +32,7 @@ internal fun bannerFor(
         when (val airing = block.airing) {
             is Airing.Program -> airing.info
             is Airing.StandIn -> airing.info
-            Airing.Slate -> null
+            Airing.Slate, Airing.Break -> null
         }
     val start = block.startMs - driftMs
     val after = next?.let { nextOf(it, driftMs) }
@@ -60,12 +60,12 @@ internal fun nextOf(
     return titleOf(info)?.let { NextProgram(it, block.startMs - driftMs) }
 }
 
-/** The item a block plays, for the details lookup; null for a slate. */
+/** The item a block plays, for the details lookup; null for a slate or a station break. */
 internal fun Airing.itemId(): CanonicalId? =
     when (this) {
         is Airing.Program -> itemId
         is Airing.StandIn -> itemId
-        Airing.Slate -> null
+        Airing.Slate, Airing.Break -> null
     }
 
 /**
@@ -84,7 +84,7 @@ private const val UP_NEXT_WINDOW = 48
 
 /**
  * The next program after [onAir]'s block as an "up next" banner, looking on across the day boundary if the blocks it
- * already holds are all slates. It looks no further than the end of the next day ([ChannelOnAir.builtUntilMs]); null
+ * already holds are all slates or station breaks. It looks no further than the end of the next day ([ChannelOnAir.builtUntilMs]); null
  * if no program starts before that (the card then shows the channel only).
  */
 internal suspend fun Sitting.upNext(onAir: ChannelOnAir): Banner? =

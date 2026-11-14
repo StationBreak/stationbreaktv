@@ -279,6 +279,13 @@ internal class Sitting(
                         holdIdent(this, onAir, onAir.now.endMs)
                     }
 
+                    // A station break is a slate on screen: the ident with Up next, then the next programme, which
+                    // the look-ahead started above resolves during the card.
+                    Airing.Break -> {
+                        reportFlipEnded("break")
+                        holdIdent(this, onAir, onAir.now.endMs)
+                    }
+
                     is Airing.Program -> {
                         // The reporter's visit spans all the block's tries and ends when the block is left for good.
                         val visiting = Visiting(reporter)
@@ -321,7 +328,7 @@ internal class Sitting(
                 when (airing) {
                     is Airing.Program -> resumeProgram(this, onAir, airing, place, visiting)
                     is Airing.StandIn -> resumeStandIn(this, onAir, airing, place)
-                    Airing.Slate -> null.also { resumeSettled() }
+                    Airing.Slate, Airing.Break -> null.also { resumeSettled() }
                 }
             } finally {
                 visiting.leave()

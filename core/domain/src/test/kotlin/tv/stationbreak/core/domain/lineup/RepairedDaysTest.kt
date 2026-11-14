@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.lineup.repair.ChannelRepair
 import tv.stationbreak.core.domain.lineup.repair.DigestProbe
 import tv.stationbreak.core.domain.lineup.repair.KeptBlock
+import tv.stationbreak.core.domain.lineup.repair.KeptContent
 import tv.stationbreak.core.domain.lineup.repair.LostFix
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.engine.lineup.ChannelSource
@@ -217,16 +218,16 @@ class RepairedDaysTest {
         val (n, _, end) = day
         val keptFrom = atMs - Math.floorMod(atMs, 30 * minute)
         val pinEnd = keptFrom + hour
-        val blocks = arrayListOf(KeptBlock(keptFrom, pinEnd, pin, 5 * minute))
+        val blocks = arrayListOf(KeptBlock(keptFrom, pinEnd, KeptContent.Program(pin, 5 * minute)))
         var cursor = pinEnd
         var i = 0
         if (!slateTail) {
             while (cursor + 2 * tailMs <= end) {
-                blocks += KeptBlock(cursor, cursor + tailMs, tail[i++ % tail.size], 0)
+                blocks += KeptBlock(cursor, cursor + tailMs, KeptContent.Program(tail[i++ % tail.size], 0))
                 cursor += tailMs
             }
         }
-        blocks += KeptBlock(cursor, end, null, 0)
+        blocks += KeptBlock(cursor, end, KeptContent.Slate)
         return ChannelRepair(
             channel = channel,
             n = n,
@@ -446,7 +447,7 @@ class RepairedDaysTest {
                 block.startMs,
                 block.endMs,
                 gone,
-                listOf(KeptBlock(block.startMs, block.startMs + hour, id(116).takeIf { it != gone } ?: id(115), 0)),
+                listOf(KeptBlock(block.startMs, block.startMs + hour, KeptContent.Program(id(116).takeIf { it != gone } ?: id(115), 0))),
                 0L,
             )
         val laughsBefore = p.day(laughs.id)
@@ -557,7 +558,7 @@ class RepairedDaysTest {
                 block.startMs,
                 block.endMs,
                 gone,
-                listOf(KeptBlock(block.startMs, block.startMs + hour, id(116).takeIf { it != gone } ?: id(115), 0)),
+                listOf(KeptBlock(block.startMs, block.startMs + hour, KeptContent.Program(id(116).takeIf { it != gone } ?: id(115), 0))),
                 0L,
             )
         val repairs = TodayRepairs(selection = listOf(repairOf(laughs.id, laughsDay)), fixes = listOf(fix))
@@ -629,7 +630,7 @@ class RepairedDaysTest {
                 block.startMs,
                 block.endMs,
                 gone,
-                listOf(KeptBlock(block.startMs, block.startMs + 30 * minute, piece, 0)),
+                listOf(KeptBlock(block.startMs, block.startMs + 30 * minute, KeptContent.Program(piece, 0))),
                 0L,
             )
         store(lineupOf(laughs), TodayRepairs(fixes = listOf(fix)))
@@ -666,8 +667,8 @@ class RepairedDaysTest {
                 block.endMs,
                 gone,
                 listOf(
-                    KeptBlock(block.startMs, block.startMs + 40 * minute, id(332), 0),
-                    KeptBlock(block.startMs + 40 * minute, block.startMs + 60 * minute, id(331), 0),
+                    KeptBlock(block.startMs, block.startMs + 40 * minute, KeptContent.Program(id(332), 0)),
+                    KeptBlock(block.startMs + 40 * minute, block.startMs + 60 * minute, KeptContent.Program(id(331), 0)),
                 ),
                 0L,
             )

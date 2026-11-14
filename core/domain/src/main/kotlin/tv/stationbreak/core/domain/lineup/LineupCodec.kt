@@ -51,6 +51,11 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
  * or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside).
  *
+ * One explicit exception (owner decision 2026-11-13, ADR-0025): the contents of `repairs` are a per-TV, disposable
+ * record, so the station-break block index (-2, [RepairsCodec]) was added inside version 4 without a bump. An older
+ * build that meets a block index it does not know drops the **entire** repair record (every channel's selection
+ * repairs and lost fixes on that TV, until the next repair) and loads the lineup.
+ *
  * What is rejected and what is dropped: an unknown key or value, and a field of a later version in an older file,
  * make the file [Decoded.Unreadable]. A few values this app could have written itself are read leniently and dropped
  * instead, so a save writes them back without them: `leavesAtMs` and `shelfReason` on a channel that is not a starter

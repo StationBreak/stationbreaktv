@@ -255,11 +255,17 @@ internal fun GuideCellView(
     }
     LocalCellComposed.current?.invoke(channel, cell.startMs)
     val copy = programCopy()
-    // Both are always read, so a cell that changes kind does not change which composables run. A slate on the grid is
-    // the "OFF AIR" plate; the panel keeps [cellTitle]'s "Off air until".
+    // All are always read, so a cell that changes kind does not change which composables run. A slate on the grid is
+    // the "OFF AIR" plate and a break the "STATION BREAK" plate; the panel keeps [cellTitle]'s longer lines.
     val spoken = cellTitle(cell, copy)
     val offAir = stringResource(R.string.guide_off_air)
-    val title = if (cell.kind == CellKind.Slate) offAir.uppercase() else spoken
+    val stationBreak = stringResource(R.string.guide_station_break)
+    val title =
+        when (cell.kind) {
+            CellKind.Slate -> offAir.uppercase()
+            CellKind.Break -> stationBreak
+            else -> spoken
+        }
     // Read here, in composition, so the cell whose "on now" flips (and only it) composes again and its semantics with
     // it; the description itself is put together only when something asks for the semantics (a screen reader, a
     // test), not in every cell's composition.
@@ -270,7 +276,8 @@ internal fun GuideCellView(
     val resources = LocalResources.current
     val is24h = is24Hour()
     val marks = LocalEllipsisMarks.current
-    val mark = if (cell.kind == CellKind.Slate) marks?.slate else marks?.program
+    val plate = cell.kind.isPlate()
+    val mark = if (plate) marks?.slate else marks?.program
     val colors = LocalGuideColors.current
     // The fill animates. The title does not: its weight stays put, so a focus move recolours it and does not lay it
     // out again.
@@ -279,7 +286,7 @@ internal fun GuideCellView(
         animationSpec = guideFocusMotion(),
         label = "guideCellFocus",
     )
-    val slate = cell.kind == CellKind.Slate
+    val slate = plate
     Box(
         Modifier
             .offset(x = place.x)
@@ -351,10 +358,13 @@ private class CellTextSlots(
     val layout: Modifier,
 )
 
+/** A slate and a station break are plates on the grid: the slate's fill and face, no progress line, no second line. */
+private fun CellKind.isPlate(): Boolean = this == CellKind.Slate || this == CellKind.Break
+
 /**
- * The cell's title, a slate's "OFF AIR", and under an episode's title its "S2 E5" when two lines fit ([secondLineOf]).
- * The one or two lines are a block, centred in the cell by the box around it; the sticky layout [modifier] places the
- * block ([CellTextSlots.layout]) and the title alone is tagged.
+ * The cell's title, a slate's "OFF AIR" or a break's "STATION BREAK", and under an episode's title its "S2 E5" when two
+ * lines fit ([secondLineOf]). The one or two lines are a block, centred in the cell by the box around it; the sticky
+ * layout [modifier] places the block ([CellTextSlots.layout]) and the title alone is tagged.
  */
 @Composable
 private fun CellText(
@@ -365,7 +375,7 @@ private fun CellText(
     slots: CellTextSlots,
 ) {
     val colors = LocalGuideColors.current
-    val slate = cell.kind == CellKind.Slate
+    val slate = cell.kind.isPlate()
     val resting = if (slate) colors.textSecondary else colors.programmeText
     val main = if (focused) colors.focusText else resting
     val fontScale = LocalDensity.current.fontScale
