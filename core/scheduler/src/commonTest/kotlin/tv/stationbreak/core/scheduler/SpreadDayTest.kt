@@ -251,26 +251,26 @@ class SpreadDayTest {
                 listOf(s, f1),
                 1300,
                 1440,
-                airedBefore = listOf(AiredBefore(f1, 1300 * MS_MINUTE)),
+                pastAirings = listOf(PastAiring(f1, 1300 * MS_MINUTE)),
             )
         assertEquals(listOf("1300-1320:s", "1320-1440:break"), cases.describe(late))
     }
 
     @Test
-    fun aShuffleShortAiredBeforeFromNeedsABoundaryAfterItsEnd() {
+    fun aShuffleShortPastAiringFromNeedsABoundaryAfterItsEnd() {
         val s = cases.single("s", 10)
         val t = cases.single("t", 10)
         val f = listOf(cases.single("f1", 300), cases.single("f2", 300), cases.single("f3", 280))
-        val before = listOf(AiredBefore(s, 540 * MS_MINUTE))
+        val before = listOf(PastAiring(s, 540 * MS_MINUTE))
         // The tail runs from 540. s ended at 540, so its run end is 540 and the break at 840 is after it.
         val laid = cases.laid(540, f.map { listOf(it) })
-        val blocks = cases.spreadOf(shuffle, laid, listOf(s, t) + f, 540, 1440, airedBefore = before)
+        val blocks = cases.spreadOf(shuffle, laid, listOf(s, t) + f, 540, 1440, pastAirings = before)
         assertEquals(
             listOf("540-840:f1", "840-850:s", "850-1150:f2", "1150-1430:f3", "1430-1440:t"),
             cases.describe(blocks),
         )
         // With no run in the tail the only point is 540 itself, which is not after s's end: s is dropped.
-        val empty = cases.spreadOf(shuffle, cases.laid(540, emptyList()), listOf(s, t), 540, 1440, airedBefore = before)
+        val empty = cases.spreadOf(shuffle, cases.laid(540, emptyList()), listOf(s, t), 540, 1440, pastAirings = before)
         assertEquals(listOf("540-550:t", "550-1440:break"), cases.describe(empty))
     }
 
@@ -350,7 +350,7 @@ class SpreadDayTest {
                 listOf(s, a[0], b, g),
                 0,
                 1440,
-                airedBefore = listOf(AiredBefore(s, 0L)),
+                pastAirings = listOf(PastAiring(s, 0L)),
             )
         assertEquals(listOf("0-1410:g", "1410-1425:a0", "1425-1440:b"), cases.describe(tieU))
 
@@ -363,7 +363,7 @@ class SpreadDayTest {
                 w + g,
                 0,
                 1440,
-                airedBefore = w.map { AiredBefore(it, 0L) },
+                pastAirings = w.map { PastAiring(it, 0L) },
             )
         assertEquals(listOf("0-1410:g", "1410-1422:w12", "1422-1440:w18"), cases.describe(tieA))
     }
@@ -399,6 +399,29 @@ class SpreadDayTest {
     }
 
     @Test
+    fun aGridCuratedChannelPrefersShortsThatHaveNotAired() {
+        val grid = spreadSettings(OrderingMode.Curated, grid = true)
+        val f = cases.single("f", 1380)
+        val s = cases.single("s", 25)
+        val a = cases.single("a", 25)
+        val b = cases.single("b", 25)
+        // 60 minutes to the end. All items: {s, a} (slots 30 + 30); the unaired: {a, b}, as much, so they are kept.
+        val blocks =
+            cases.spreadOf(
+                grid,
+                cases.laid(0, listOf(listOf(f))),
+                listOf(s, a, b, f),
+                0,
+                1440,
+                pastAirings = listOf(PastAiring(s, 0L)),
+            )
+        assertEquals(
+            listOf("0-1380:f", "1380-1405:a", "1405-1410:slate", "1410-1435:b", "1435-1440:break"),
+            cases.describe(blocks),
+        )
+    }
+
+    @Test
     fun aOneHourEpochHasOneBreak() {
         val f = cases.single("f", 25)
         val g = cases.single("g", 25)
@@ -426,7 +449,7 @@ class SpreadDayTest {
                 540,
                 1440,
                 firstItem = 4,
-                airedBefore = listOf(AiredBefore(x1, 530 * MS_MINUTE)),
+                pastAirings = listOf(PastAiring(x1, 530 * MS_MINUTE)),
             )
         val expected =
             listOf(
@@ -450,7 +473,7 @@ class SpreadDayTest {
                 540,
                 1440,
                 firstItem = 4,
-                airedBefore = listOf(AiredBefore(x1, 600 * MS_MINUTE)),
+                pastAirings = listOf(PastAiring(x1, 600 * MS_MINUTE)),
             )
         val waited =
             listOf(

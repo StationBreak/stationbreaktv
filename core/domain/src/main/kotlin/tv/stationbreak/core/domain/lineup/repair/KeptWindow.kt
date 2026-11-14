@@ -3,10 +3,11 @@ package tv.stationbreak.core.domain.lineup.repair
 
 import tv.stationbreak.core.domain.lineup.ChannelDay
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.schedule.LeftoverPolicy
 import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
-import tv.stationbreak.core.scheduler.AiredBefore
+import tv.stationbreak.core.scheduler.PastAiring
 
 /** The length of the steps the kept window starts on: it starts at the half hour at or before the repair. */
 internal const val KEPT_STEP_MS = 30 * 60 * 1000L
@@ -16,8 +17,9 @@ internal const val KEPT_STEP_MS = 30 * 60 * 1000L
  * repair, never before the day's start) to [pinEndMs] (the end of the block on air, the pin), exactly as the viewer
  * sees it now. A gone block in it is kept as the schedule source names it: the gap fill's pieces as programmes, and
  * the time they leave as the gone item, with an empty fix ([fixes]) so it is never filled again. [aired] is what
- * aired or airs before the pin's end, for the tail to leave out; [airings] is the same airings each with its end, for
- * the spread end of the day; [pinItem] is the programme on air (null for a slate, a break or a gone rest).
+ * aired or airs before the pin's end, for the tail to leave out; [airings] is what the viewer saw air before the pin's
+ * end, each with its end, for the spread end of the day (empty on a day that does not spread: nothing reads it);
+ * [pinItem] is the programme on air (null for a slate, a break or a gone rest).
  */
 @Suppress("LongParameterList") // The window's facts, one for one.
 internal class KeptWindow(
@@ -30,25 +32,36 @@ internal class KeptWindow(
     val pinItem: CanonicalId?,
 ) {
     /**
-     * [airings] as the tail's `airedBefore` (ADR-0025): each item resolved by ID from [dayPool], the day's pool. An
-     * item no longer in it is left out, so a short that aired only as such an item is not held back by that airing.
-     * An airing may be listed twice (a block that starts before the window's start, and its span in the window);
-     * the tail reads only the latest end of each group, so that does not change it.
+     * [airings] as the tail's `pastAirings` (ADR-0025), each item resolved by ID: from [day]'s pool as built, else its
+     * day pool (on a repaired day the recorded tail's items), else read by ID at the day's cut-off (on a repaired day,
+     * what an earlier repair kept before its tail). An item none of them gives (it was deleted before the cut-off) is
+     * left out. Every ID is in [aired].
      */
-    fun airedBefore(dayPool: List<ScheduleItem>): List<AiredBefore> {
+    suspend fun pastAirings(
+        day: ChannelDay,
+        fills: Fills,
+    ): List<PastAiring> {
         if (airings.isEmpty()) return emptyList()
-        val byId = dayPool.associateBy { it.id }
-        return airings.mapNotNull { airing -> byId[airing.itemId]?.let { AiredBefore(it, airing.endMs) } }
+        val byId = HashMap<CanonicalId, ScheduleItem>()
+        for (item in fills.dayPool(day)) byId[item.id] = item
+        for (item in day.pool) byId[item.id] = item
+        val missing = airings.mapNotNullTo(HashSet()) { it.itemId.takeIf { id -> id !in byId } }
+        for (item in fills.itemsAt(day, missing)) byId.putIfAbsent(item.id, item)
+        return airings.mapNotNull { airing -> byId[airing.itemId]?.let { PastAiring(it, airing.endMs) } }
     }
 
     companion object {
-        /** The ids of the programmes of [day] that [of] reads for the window at [atMs], to ask about at once. */
+        /**
+         * The ids of the programmes of [day] that [of] reads for the window at [atMs], to ask about at once: the
+         * window's, and on a day that spreads its end also those that ended before the window.
+         */
         fun programmesOf(
             day: ChannelDay,
             atMs: Long,
         ): List<CanonicalId> {
-            val window = windowOf(day, atMs).second
-            return window.mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
+            val (from, window) = windowOf(day, atMs)
+            val before = if (spreads(day)) day.day.blocks.filter { it.endMs <= from } else emptyList()
+            return (before + window).mapNotNull { (it.content as? ScheduleContent.Program)?.itemId }
         }
 
         /**
@@ -71,15 +84,13 @@ internal class KeptWindow(
                     val gone = checkNotNull(it.item())
                     LostFix(day.channel.id, day.n, day.epochEndMs, it.startMs, it.endMs, gone, emptyList(), seq)
                 }
-            // What aired before the window as the day laid it, then the window's spans as the viewer sees them (the
-            // gap fill's pieces among them), each with its real end.
-            val airings = ArrayList<KeptAiring>()
+            val aired = HashSet<CanonicalId>()
             for (block in day.day.blocks) {
                 if (block.startMs >= from) break
-                (block.content as? ScheduleContent.Program)?.let { airings += KeptAiring(it.itemId, block.endMs) }
+                (block.content as? ScheduleContent.Program)?.let { aired += it.itemId }
             }
-            for (span in clipped) if (!span.gone) span.item()?.let { airings += KeptAiring(it, span.endMs) }
-            val aired = airings.mapTo(HashSet()) { it.itemId }
+            for (span in clipped) if (!span.gone) span.item()?.let { aired += it }
+            val airings = if (spreads(day)) airingsOf(day, from, clipped, fills) else emptyList()
             val pin = clipped.first { atMs >= it.startMs && atMs < it.endMs }
             val pinItem = pin.item()?.takeUnless { pin.gone }
             return KeptWindow(
@@ -91,6 +102,28 @@ internal class KeptWindow(
                 airings,
                 pinItem,
             )
+        }
+
+        private fun spreads(day: ChannelDay): Boolean = day.settings.leftover == LeftoverPolicy.Spread
+
+        // What the viewer saw air before the pin's end, each with its real end: the programmes that ended before the
+        // window, less a gone one (its item has no current row, or it is a fix's rest), then the window's spans that
+        // are not gone (the gap fill's pieces among them). A gone block before the window was shown as its gap fill,
+        // which is not worked out again here, so it counts for nothing.
+        private fun airingsOf(
+            day: ChannelDay,
+            from: Long,
+            clipped: List<Span>,
+            fills: Fills,
+        ): List<KeptAiring> {
+            val airings = ArrayList<KeptAiring>()
+            for (block in day.day.blocks.takeWhile { it.endMs <= from }) {
+                val item = (block.content as? ScheduleContent.Program)?.itemId
+                val gone = item == null || !fills.isLive(item) || block.startMs in day.fixRemainders
+                if (!gone) airings += KeptAiring(checkNotNull(item), block.endMs)
+            }
+            for (span in clipped) if (!span.gone) span.item()?.let { airings += KeptAiring(it, span.endMs) }
+            return airings
         }
 
         // The window's start and the blocks of [day] that overlap it, up to the block on air at [atMs].

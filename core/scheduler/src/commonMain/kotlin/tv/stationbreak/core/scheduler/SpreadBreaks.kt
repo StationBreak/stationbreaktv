@@ -30,19 +30,12 @@ internal class BreakPlan(
  */
 internal fun SpreadEnd.spread(regular: List<ScheduleBlock>): List<ScheduleBlock> {
     val leftover = end - c
-    val all = visit.indices.toList()
     val runtime = { item: ScheduleItem -> item.runtimeMs }
     val candidates =
         if (wraps) {
-            val airedIds = aired.mapTo(HashSet()) { it.item.id }
-            val unaired = all.filter { visit[it].id !in airedIds }
-            listOf(
-                indicesOf(bestFit(itemsAt(unaired), leftover, runtime), unaired),
-                indicesOf(bestFit(visit, leftover, runtime), all),
-                firstFit(),
-            )
+            listOf(bestFitOf(unaired(), leftover, runtime), bestFit(visit, leftover, runtime), firstFit())
         } else {
-            listOf(indicesOf(bestGroupedFit(visit, { groupKey(it) }, leftover, runtime), all), firstFit())
+            listOf(bestGroupedFit(visit, { groupKey(it) }, leftover, runtime), firstFit())
         }
     val earliest = earliestPoints()
     var best: BreakPlan? = null

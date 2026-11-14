@@ -152,9 +152,10 @@ class SpreadDayOrderedTest {
                     val before =
                         day.blocks
                             .filter { it.endMs <= from && it.content is ScheduleContent.Program }
-                            .map { AiredBefore(itemOf(items, it), it.endMs) }
-                    val tail = layoutTail(s, day.pool, n, noFilms(), noWeights(), from, emptySet(), before)
-                    val plain = layoutTail(s, day.pool, n, noFilms(), noWeights(), from, emptySet(), emptyList())
+                            .map { PastAiring(itemOf(items, it), it.endMs) }
+                    val ids = before.mapTo(HashSet()) { it.item.id }
+                    val tail = layoutTail(s, day.pool, n, noFilms(), noWeights(), from, ids, before)
+                    val plain = layoutTail(s, day.pool, n, noFilms(), noWeights(), from, ids, emptyList())
                     assertEquals(plain, tail)
                 }
             }
@@ -225,8 +226,8 @@ class SpreadDayOrderedTest {
             val from = built.startMs + 9 * MS_HOUR
             val before = built.blocks.filter { it.startMs < from && it.content is ScheduleContent.Program }
             val aired = before.mapTo(HashSet()) { (it.content as ScheduleContent.Program).itemId }
-            val airedBefore = before.map { AiredBefore(itemOf(items, it), minOf(it.endMs, from)) }
-            val tail = layoutTail(s, built.pool, n, noFilms(), noWeights(), from, aired, airedBefore)
+            val pastAirings = before.map { PastAiring(itemOf(items, it), minOf(it.endMs, from)) }
+            val tail = layoutTail(s, built.pool, n, noFilms(), noWeights(), from, aired, pastAirings)
             assertTiles(tail, from, built.endMs, grid = false)
         }
     }

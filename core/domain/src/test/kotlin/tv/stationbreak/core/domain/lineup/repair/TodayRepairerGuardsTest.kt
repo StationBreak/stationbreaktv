@@ -391,7 +391,7 @@ internal class TodayRepairerGuardsTest : RepairTestBase() {
     ): List<KeptBlock> {
         val aired = programmesBefore(day, fromMs)
         val sides = FilmCollections.of(films) to TitleWeights.of(weights)
-        val before = airedBefore(day, fromMs)
+        val before = pastAirings(day, fromMs)
         val tail = layoutTail(day.settings, pool, day.n, sides.first, sides.second, fromMs, aired, before)
         return tail.map { kept(it) }
     }

@@ -23,7 +23,7 @@ internal const val MIN_CARD_MS = 60_000L
  * - [visit]: the items the planned end visits, from the first item of the run that did not fit; [firstItem] is that
  *   item's index in the cycle's items, so a visit item's cycle index is `(firstItem + v) mod visit.size` in the modes
  *   that wrap.
- * - [aired]: what aired before [layoutStart] (`layoutTail`'s `airedBefore`) and every programme of [regular], each with
+ * - [aired]: what aired before [layoutStart] (`layoutTail`'s `pastAirings`) and every programme of [regular], each with
  *   its end before any shift. An airing that ends after [layoutStart] is one of the regular layout's.
  */
 @Suppress("LongParameterList") // The layout's facts, one for one.
@@ -33,7 +33,7 @@ internal fun spread(
     runEnds: List<Long>,
     visit: List<ScheduleItem>,
     firstItem: Int,
-    aired: List<AiredBefore>,
+    aired: List<PastAiring>,
     groups: GroupRules,
     layoutStart: Long,
     layoutEnd: Long,
@@ -49,7 +49,7 @@ internal class SpreadEnd(
     val runEnds: List<Long>,
     val visit: List<ScheduleItem>,
     val firstItem: Int,
-    val aired: List<AiredBefore>,
+    val aired: List<PastAiring>,
     val groups: GroupRules,
     val start: Long,
     val end: Long,
@@ -93,20 +93,18 @@ internal class SpreadEnd(
         return chosen
     }
 
-    /** [chosen] (a subsequence of the items at [candidates], the same objects) as visit indices. */
-    fun indicesOf(
-        chosen: List<ScheduleItem>,
-        candidates: List<Int>,
-    ): List<Int> {
-        val out = ArrayList<Int>(chosen.size)
-        var at = 0
-        for (item in chosen) {
-            while (visit[candidates[at]] !== item) at++
-            out += candidates[at]
-            at++
-        }
-        return out
+    /** The visit indices of the items that have not aired (by canonical ID), in visit order. */
+    fun unaired(): List<Int> {
+        val airedIds = aired.mapTo(HashSet()) { it.item.id }
+        return visit.indices.filter { visit[it].id !in airedIds }
     }
+
+    /** [bestFit] over the visit items at [subset] (visit indices, ascending), as visit indices. */
+    fun bestFitOf(
+        subset: List<Int>,
+        budgetMs: Long,
+        weightMs: (ScheduleItem) -> Long,
+    ): List<Int> = bestFit(itemsAt(subset), budgetMs, weightMs).map { subset[it] }
 
     /** The visit items at [indices]. */
     fun itemsAt(indices: List<Int>): List<ScheduleItem> = indices.map { visit[it] }
@@ -131,7 +129,7 @@ internal class SpreadEnd(
     }
 
     // The end of the run [a] aired in: an entry of runEnds for the regular layout's airings, its own end otherwise.
-    private fun runEnd(a: AiredBefore): Long {
+    private fun runEnd(a: PastAiring): Long {
         if (a.endMs <= start) return a.endMs
         var low = 0
         var high = runEnds.size - 1
@@ -144,20 +142,23 @@ internal class SpreadEnd(
 }
 
 /**
- * Grid first: today's planned end with the best fit by slot length added, and no spreading. The kept selection is laid
+ * Grid first: today's planned end with the best fit by slot length added (in `shuffle` and `curated` the best fit of
+ * the unaired items unless all items fill more), and no spreading. The kept selection is laid
  * out as the planned end lays it (each item at the next grid mark, gaps as slates), then one break to [SpreadEnd.end].
  */
 internal fun SpreadEnd.onGrid(regular: List<ScheduleBlock>): List<ScheduleBlock> {
     val budget = end - Timeline.startAtOrAfter(settings, c)
-    val all = visit.indices.toList()
     val slot = { item: ScheduleItem -> slotOf(item) }
-    val best =
+    val chosen =
         if (wraps) {
-            bestFit(visit, budget, slot)
+            // As off the grid, the items that have not aired come first: their best fit is kept unless the best fit of
+            // all fills more slot time (ties to the unaired).
+            val fresh = bestFitOf(unaired(), budget, slot)
+            val any = bestFit(visit, budget, slot)
+            if (any.sumOf { slotOf(visit[it]) } > fresh.sumOf { slotOf(visit[it]) }) any else fresh
         } else {
             bestGroupedFit(visit, { groupKey(it) }, budget, slot)
         }
-    val chosen = indicesOf(best, all)
     val withExtra = chosen + listOfNotNull(extraItem(chosen))
     val first = firstFit()
     val kept = if (endOnGrid(first) > endOnGrid(withExtra)) first else withExtra

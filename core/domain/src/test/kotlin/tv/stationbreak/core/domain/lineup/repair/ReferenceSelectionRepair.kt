@@ -21,7 +21,7 @@ import tv.stationbreak.core.model.schedule.ScheduleBlock
 import tv.stationbreak.core.model.schedule.ScheduleContent
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.TitleWeights
-import tv.stationbreak.core.scheduler.AiredBefore
+import tv.stationbreak.core.scheduler.PastAiring
 import tv.stationbreak.core.scheduler.layoutTail
 import kotlin.time.Instant
 
@@ -39,7 +39,12 @@ import kotlin.time.Instant
 // moving the oracle silently. `snapshotsOf` is inlined below (frozen with it), because the one-walk PR rewrites it.
 //
 // Differences from the original, and only these: the class name, no `RepairClock` parameter (timing changes nothing),
-// `snapshotsOf` inlined as `referenceSnapshotsOf`, and the KDoc is cut down.
+// `snapshotsOf` inlined as `referenceSnapshotsOf`, the KDoc is cut down, and (the spread day end, rules format 5)
+// `layoutTail`'s required `pastAirings`, built here from `KeptWindow.pastAirings` as the live code builds it, an empty
+// list on a day that gathers its end. A day that spreads its end is outside what this oracle checks independently:
+// it shares that construction with the live code, and it does not join a break at the pin with a tail's first break
+// as the live code does (`RepairSeam`). Every golden case is a gathering day, which this edit leaves as it
+// was.
 
 /**
  * The reference repair of one selection change: [SelectionRepair] as it was at be035da2. See the note above.
@@ -120,7 +125,7 @@ internal class ReferenceSelectionRepair(
         val fromMs: Long,
         val tailFromMs: Long,
         val pool: List<ScheduleItem>?,
-        val airedBefore: List<AiredBefore>,
+        val pastAirings: List<PastAiring>,
     )
 
     // [day] made ready for its repair: with no [kept] window (a day hidden at the change) its tail starts at the half
@@ -141,8 +146,8 @@ internal class ReferenceSelectionRepair(
             } else {
                 tailPool(day, s, snapshot, day.record?.repair != null, today)
             }
-        val airedBefore = if (pool == null || kept == null) emptyList() else kept.airedBefore(fills.dayPool(day))
-        return Prepared(day, s, snapshot, kept, fromMs, tailFromMs, pool, airedBefore)
+        val pastAirings = if (pool == null || kept == null) emptyList() else kept.pastAirings(day, fills)
+        return Prepared(day, s, snapshot, kept, fromMs, tailFromMs, pool, pastAirings)
     }
 
     // [p]'s repair, its tail pool kept to the items in [live]. When the tail holds nothing either, a day hidden at the
@@ -157,7 +162,7 @@ internal class ReferenceSelectionRepair(
         val kept = p.kept
         val fromMs = p.fromMs
         val pool = p.pool?.filter { it.id in live }
-        val tail = tailOf(day, s, snapshot, pool, p.tailFromMs, kept?.aired.orEmpty(), p.airedBefore)
+        val tail = tailOf(day, s, snapshot, pool, p.tailFromMs, kept?.aired.orEmpty(), p.pastAirings)
         val nothing = tail.isNotEmpty() && tail.none { it.content is ScheduleContent.Program }
         // Hidden at the change and after it: hidden all day, from its start, so no window ever shows it.
         val offAir = kept == null && nothing
@@ -184,7 +189,7 @@ internal class ReferenceSelectionRepair(
         )
     }
 
-    // The scheduler's tail of [day] from [fromMs] over its tail [pool], with [aired] left out and [airedBefore] for a
+    // The scheduler's tail of [day] from [fromMs] over its tail [pool], with [aired] left out and [pastAirings] for a
     // spread end of the day; none at the day's end (where there is no pool).
     @Suppress("LongParameterList") // The day, what it reads, where the tail starts and what aired before it.
     private fun tailOf(
@@ -194,12 +199,12 @@ internal class ReferenceSelectionRepair(
         pool: List<ScheduleItem>?,
         fromMs: Long,
         aired: Set<CanonicalId>,
-        airedBefore: List<AiredBefore>,
+        pastAirings: List<PastAiring>,
     ): List<ScheduleBlock> {
         if (pool == null) return emptyList()
         val repaired = day.record?.repair != null
         val (films, weights) = sidesOf(day, pool, repaired, addedIn(s, snapshot))
-        return layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired, airedBefore)
+        return layoutTail(day.settings, pool, day.n, films, weights, fromMs, aired, pastAirings)
     }
 
     // The tail pool of [day]: its base (the day pool as built; on a repaired day the record's tail pool and what the

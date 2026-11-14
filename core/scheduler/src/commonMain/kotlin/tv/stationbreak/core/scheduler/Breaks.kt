@@ -12,20 +12,21 @@ private const val UNSET = -1
 private const val START = -2
 
 /**
- * The items, in candidate order, whose weights add up to the most seconds that fit in [budgetMs] (a whole-second
- * subset-sum). Weights round up and the budget rounds down, so the real sum never exceeds the budget. Ties go to the
- * set reached first when candidates are taken in order. Only the first [MAX_FIT_CANDIDATES] candidates that fit alone
- * count. A weight is at least one second ([IllegalArgumentException] otherwise), and a budget over one day counts as
- * one day.
+ * The positions in [candidates] (ascending) of the items whose weights add up to the most seconds that fit in
+ * [budgetMs] (a whole-second subset-sum). Weights round up and the budget rounds down, so the real sum never exceeds
+ * the budget. Ties go to the set reached first when candidates are taken in order. Only the first
+ * [MAX_FIT_CANDIDATES] candidates that fit alone count. A weight is at least one second ([IllegalArgumentException]
+ * otherwise), and a budget over one day counts as one day.
  */
 internal fun bestFit(
     candidates: List<ScheduleItem>,
     budgetMs: Long,
     weightMs: (ScheduleItem) -> Long,
-): List<ScheduleItem> {
+): List<Int> {
     val budget = budgetSeconds(budgetMs)
     if (budget <= 0) return emptyList()
-    val pool = candidates.filter { seconds(weightMs(it)) <= budget }.take(MAX_FIT_CANDIDATES)
+    val positions = candidates.indices.filter { seconds(weightMs(candidates[it])) <= budget }.take(MAX_FIT_CANDIDATES)
+    val pool = positions.map { candidates[it] }
     // reach[s]: the index in pool of the item that first made s reachable; the sum before it is s - w(item).
     val reach = IntArray(budget + 1) { UNSET }
     reach[0] = START
@@ -42,23 +43,24 @@ internal fun bestFit(
         chosen[index] = true
         s -= seconds(weightMs(pool[index]))
     }
-    return pool.filterIndexed { i, _ -> chosen[i] }
+    return positions.filterIndexed { i, _ -> chosen[i] }
 }
 
 /**
  * Like [bestFit] for the ordered modes, where within a group only a prefix (in candidate order) may be taken. A group's
  * first candidate that does not fit alone passes the group over: it and the group's later candidates are dropped, as
- * in the end-of-day fill. At most one prefix is taken per group.
+ * in the end-of-day fill. At most one prefix is taken per group. Returns positions in [candidates], ascending.
  */
 internal fun bestGroupedFit(
     candidates: List<ScheduleItem>,
     groupOf: (ScheduleItem) -> CanonicalId,
     budgetMs: Long,
     weightMs: (ScheduleItem) -> Long,
-): List<ScheduleItem> {
+): List<Int> {
     val budget = budgetSeconds(budgetMs)
     if (budget <= 0) return emptyList()
-    val pool = groupedPool(candidates, groupOf, budget, weightMs)
+    val positions = groupedPool(candidates, groupOf, budget, weightMs)
+    val pool = positions.map { candidates[it] }
     // Pool indexes per group, in order of the group's first kept candidate.
     val groups = LinkedHashMap<CanonicalId, MutableList<Int>>()
     pool.forEachIndexed { i, item -> groups.getOrPut(groupOf(item)) { ArrayList() }.add(i) }
@@ -92,23 +94,26 @@ internal fun bestGroupedFit(
         for (index in groups.getValue(groupOf(pool[last])).takeWhile { it <= last }) chosen[index] = true
         s -= prefixSum[last]
     }
-    return pool.filterIndexed { i, _ -> chosen[i] }
+    return positions.filterIndexed { i, _ -> chosen[i] }
 }
 
-/** The cut and the cap: a passed-over group loses its tail, then the first [MAX_FIT_CANDIDATES] remain. */
+/**
+ * The cut and the cap, as positions in [candidates]: a passed-over group loses its tail, then the first
+ * [MAX_FIT_CANDIDATES] remain.
+ */
 private fun groupedPool(
     candidates: List<ScheduleItem>,
     groupOf: (ScheduleItem) -> CanonicalId,
     budget: Int,
     weightMs: (ScheduleItem) -> Long,
-): List<ScheduleItem> {
+): List<Int> {
     val passedOver = HashSet<CanonicalId>()
-    val pool = ArrayList<ScheduleItem>()
-    for (candidate in candidates) {
+    val pool = ArrayList<Int>()
+    for ((position, candidate) in candidates.withIndex()) {
         val group = groupOf(candidate)
         val fits = seconds(weightMs(candidate)) <= budget
         if (!fits) passedOver.add(group)
-        if (fits && group !in passedOver) pool.add(candidate)
+        if (fits && group !in passedOver) pool.add(position)
     }
     return pool.take(MAX_FIT_CANDIDATES)
 }

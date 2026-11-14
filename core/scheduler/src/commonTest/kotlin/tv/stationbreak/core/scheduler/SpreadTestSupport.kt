@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 internal class Laid(
     val blocks: List<ScheduleBlock>,
     val runEnds: List<Long>,
-    val aired: List<AiredBefore>,
+    val aired: List<PastAiring>,
 )
 
 /**
@@ -61,13 +61,13 @@ internal class SpreadCases {
     ): Laid {
         val blocks = ArrayList<ScheduleBlock>()
         val ends = ArrayList<Long>()
-        val aired = ArrayList<AiredBefore>()
+        val aired = ArrayList<PastAiring>()
         var t = startMinute * MS_MINUTE
         for (run in runs) {
             for (item in run) {
                 blocks += ScheduleBlock(t, t + item.runtimeMs, ScheduleContent.Program(item.id))
                 t += item.runtimeMs
-                aired += AiredBefore(item, t)
+                aired += PastAiring(item, t)
             }
             ends += t
         }
@@ -86,12 +86,12 @@ internal class SpreadCases {
         startMinute: Int,
         endMinute: Int,
         firstItem: Int = 0,
-        airedBefore: List<AiredBefore> = emptyList(),
+        pastAirings: List<PastAiring> = emptyList(),
         groups: GroupRules = noGroups(),
     ): List<ScheduleBlock> {
         val start = startMinute * MS_MINUTE
         val end = endMinute * MS_MINUTE
-        val aired = airedBefore + laid.aired
+        val aired = pastAirings + laid.aired
         val blocks = spread(settings, laid.blocks, laid.runEnds, visit, firstItem, aired, groups, start, end)
         assertTiles(blocks, start, end, settings.alignToGrid)
         return blocks

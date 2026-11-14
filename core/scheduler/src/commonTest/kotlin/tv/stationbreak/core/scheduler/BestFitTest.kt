@@ -23,7 +23,10 @@ class BestFitTest {
     private fun fit(
         candidates: List<ScheduleItem>,
         budgetMinutes: Int,
-    ) = bestFit(candidates, budgetMinutes * MS_MINUTE) { it.runtimeMs }
+    ) = bestFit(candidates, budgetMinutes * MS_MINUTE) { it.runtimeMs }.of(candidates)
+
+    /** The candidates at these positions, which the fits return. */
+    private fun List<Int>.of(candidates: List<ScheduleItem>): List<ScheduleItem> = map { candidates[it] }
 
     private fun List<ScheduleItem>.minutes() = map { (it.runtimeMs / MS_MINUTE).toInt() }
 
@@ -60,7 +63,7 @@ class BestFitTest {
         val a = testItem(idAt(1), runtimeMs = 1_001L)
         // 1.001 s weighs 2 s; a 1.999 s budget is 1 s.
         assertEquals(emptyList(), bestFit(listOf(a), 1_999L) { it.runtimeMs })
-        assertEquals(listOf(a), bestFit(listOf(a), 2_000L) { it.runtimeMs })
+        assertEquals(listOf(0), bestFit(listOf(a), 2_000L) { it.runtimeMs })
     }
 
     @Test
@@ -74,7 +77,7 @@ class BestFitTest {
         // 1440 minutes is the whole day; with two days of budget only one day counts, so the extra minute is left out.
         val c = items(1440, 1)
         assertEquals(c.take(1), fit(c, 2 * 1440))
-        assertEquals(c.take(1), bestGroupedFit(c, { it.id }, 2 * MS_DAY) { it.runtimeMs })
+        assertEquals(listOf(0), bestGroupedFit(c, { it.id }, 2 * MS_DAY) { it.runtimeMs })
         assertEquals(emptyList(), bestFit(items(1), MS_DAY) { Long.MAX_VALUE })
         assertEquals(emptyList(), bestGroupedFit(items(1), { it.id }, MS_DAY) { Long.MAX_VALUE })
     }
@@ -84,7 +87,7 @@ class BestFitTest {
         forAllCases("realSumWithinBudget", 0x5EEDuL, cases = 300) { gen ->
             val candidates = (1..gen.nextInt(1..80)).map { randomItem(gen, it, 3_600_000) }
             val budget = gen.nextInt(0..4_000_000).toLong()
-            val chosen = bestFit(candidates, budget) { it.runtimeMs }
+            val chosen = bestFit(candidates, budget) { it.runtimeMs }.of(candidates)
             assertTrue(chosen.sumOf { it.runtimeMs } <= budget, "sum over budget")
             var at = -1
             for (c in chosen) {
@@ -92,7 +95,7 @@ class BestFitTest {
                 assertTrue(next > at, "not in candidate order")
                 at = next
             }
-            assertEquals(chosen, bestFit(candidates, budget) { it.runtimeMs }, "not deterministic")
+            assertEquals(chosen, bestFit(candidates, budget) { it.runtimeMs }.of(candidates), "not deterministic")
         }
     }
 
@@ -100,7 +103,10 @@ class BestFitTest {
         candidates: List<ScheduleItem>,
         groups: Map<CanonicalId, CanonicalId>,
         budgetMinutes: Int,
-    ) = bestGroupedFit(candidates, { groups.getValue(it.id) }, budgetMinutes * MS_MINUTE) { it.runtimeMs }
+    ): List<ScheduleItem> {
+        val chosen = bestGroupedFit(candidates, { groups.getValue(it.id) }, budgetMinutes * MS_MINUTE) { it.runtimeMs }
+        return chosen.of(candidates)
+    }
 
     @Test
     fun groupedFitOnlyTakesPrefixes() {
@@ -142,7 +148,7 @@ class BestFitTest {
             val groupIds = (1..4).map { idAt(1000 + it) }
             val groups = c.associate { it.id to gen.pick(groupIds) }
             val budget = gen.nextInt(0..2_000_000).toLong()
-            val chosen = bestGroupedFit(c, { groups.getValue(it.id) }, budget) { it.runtimeMs }
+            val chosen = bestGroupedFit(c, { groups.getValue(it.id) }, budget) { it.runtimeMs }.of(c)
             assertTrue(chosen.sumOf { it.runtimeMs } <= budget, "sum over budget")
             for (g in groupIds) {
                 val all = c.filter { groups.getValue(it.id) == g }

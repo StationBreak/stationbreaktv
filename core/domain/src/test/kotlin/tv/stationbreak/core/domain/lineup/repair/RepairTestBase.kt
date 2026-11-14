@@ -64,8 +64,8 @@ import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.model.schedule.TitleWeights
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Source
-import tv.stationbreak.core.scheduler.AiredBefore
 import tv.stationbreak.core.scheduler.Epochs
+import tv.stationbreak.core.scheduler.PastAiring
 import tv.stationbreak.core.scheduler.layoutTail
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicInteger
@@ -442,17 +442,17 @@ internal open class RepairTestBase {
             .filter { it.startMs < endMs }
             .mapNotNullTo(HashSet()) { (it.content as? ScheduleContent.Program)?.itemId }
 
-    /** The programmes of [day] that start before [endMs], each with its end: `airedBefore` when nothing is gone. */
-    protected fun airedBefore(
+    /** The programmes of [day] that start before [endMs], each with its end: `pastAirings` when nothing is gone. */
+    protected fun pastAirings(
         day: ChannelDay,
         endMs: Long,
-    ): List<AiredBefore> {
+    ): List<PastAiring> {
         val byId = day.pool.associateBy { it.id }
         return day.day.blocks
             .filter { it.startMs < endMs }
             .mapNotNull { block ->
                 val item = (block.content as? ScheduleContent.Program)?.itemId?.let { byId[it] }
-                item?.let { AiredBefore(it, block.endMs) }
+                item?.let { PastAiring(it, block.endMs) }
             }
     }
 }

@@ -343,22 +343,32 @@ on air. The lineup itself loads, and is not set aside.
 On a day of rules format 5 the tail's end is spread as station breaks, and two of its rules read what has aired today:
 the fill prefers items that have not aired, and in `shuffle` and `curated` a short that already aired goes only into a
 break after that airing (in `shuffle`, past a run boundary after it; in `curated`, `repeatGapMs` after it). A repair's
-tail starts at the pin's end, so `layoutTail` is given what aired before it as a required `airedBefore` list: each
-programme with the moment it ended.
+tail starts at the pin's end, so `layoutTail` is given what aired before it as a required `pastAirings` list: each
+programme (`PastAiring`) with the moment it ended.
 
-**The repair rule.** `airedBefore` is the kept spans as the viewer saw them. It is built from the same source as the
-kept window's `aired` set (`KeptWindow.airings`): the day's programme blocks that start before the window's start,
-each with its end, then the window's spans that are not the rest of a gone item, each with its real end. The second
-part includes the gap fill's pieces of a gone block, so a piece counts with its own times, not the gone item's. Each
-airing counts for the group rule (the fill prefers what has not aired), for `curated`'s repeat gap, and for `shuffle`'s
-run-boundary rule, where an airing before the tail counts as ending its own run (its run end is its end). Breaks are
-planned over the tail, `[pin's end, day's end)`, only.
+**The repair rule.** `pastAirings` is what the viewer saw air before the pin's end (`KeptWindow.airings`): the day's
+programme blocks that ended before the kept window's start, each with its end, then the window's spans that are not the
+rest of a gone item, each with its real end. The second part includes the gap fill's pieces of a gone block, so a piece
+counts with its own times, not the gone item's. A gone programme before the window (its item has no current row, or it
+is a fix's rest) counts for nothing: it was shown as its gap fill, which is not worked out again. Each airing counts for
+the group rule (the fill prefers what has not aired), for `curated`'s repeat gap, and for `shuffle`'s run-boundary rule,
+where an airing before the tail counts as ending its own run (its run end is its end). Breaks are planned over the
+tail, `[pin's end, day's end)`, only.
 
-Items are resolved by ID from the day's pool (`Fills.dayPool`: the pool as built, or on a repaired day the recorded
-tail's items). An item that is no longer in it is left out, so its airing does not hold a short back. On a repaired
-day that includes what the first repair kept from before its own tail (only the tail's items are recorded), so a short
-that aired only there may replay sooner than the gap. This matches the existing limit of a second change (above, "A
-second change on a repaired day"). Versions 1 to 4 ignore `airedBefore`; their tails are unchanged.
+Items are resolved by ID: from the day's pool as built, else from its day pool (`Fills.dayPool`; on a repaired day the
+recorded tail's items), else read by ID at the day's cut-off (`scheduleItemsOf`, as a repaired day's tail pool is read).
+The read covers a repaired day, which keeps no pool as built: what an earlier repair kept before its own tail still
+counts in a later repair. Only an item deleted before the cut-off is left out.
+
+`layoutTail` keeps its `aired` set (the leave-out rule, unchanged for every version) and requires every ID of
+`pastAirings` to be in it: both come from the same airings, and `aired` may hold more (a gone item stays left out).
+Only a day that spreads its end builds `pastAirings` and reads the programmes before the window to do so; a day of
+versions 1 to 4 passes an empty list, so its repairs read and lay out exactly as before.
+
+**The seam.** A break on air at the pin and a tail that starts with a break (nothing fits before the tail's first
+break) would be two breaks in a row. The repair joins them into one kept break and moves the pin's end to its end: the
+pin is still the block on air, and the tail starts after it (`RepairSeam`). A slate on air at the pin of a grid day can
+still be followed by the tail's closing break; that is left as it is.
 
 This rule is ADR-0025's, not the rules format's: the rules format describes a day as built, and a repair is per TV.
 

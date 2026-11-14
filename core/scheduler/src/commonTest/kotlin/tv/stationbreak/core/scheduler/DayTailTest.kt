@@ -74,6 +74,17 @@ class DayTailTest {
     }
 
     @Test
+    fun tail_rejectsAPastAiringThatIsNotAired() {
+        val from = dayStart + MS_HOUR
+        val past = listOf(PastAiring(pool[0], from))
+        assertFailsWith<IllegalArgumentException> {
+            layoutTail(settings, pool, n, noFilms(), noWeights(), from, emptySet(), past)
+        }
+        val aired = setOf(pool[0].id)
+        assertEquals(tail(from, aired), layoutTail(settings, pool, n, noFilms(), noWeights(), from, aired, past))
+    }
+
+    @Test
     fun tail_emptyPool_isOneSlate() {
         val from = dayStart + MS_HOUR
         assertEquals(listOf(ScheduleBlock(from, dayEnd, ScheduleContent.Slate)), tail(from, items = emptyList()))

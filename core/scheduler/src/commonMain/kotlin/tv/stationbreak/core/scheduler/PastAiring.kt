@@ -8,7 +8,7 @@ import tv.stationbreak.core.model.schedule.ScheduleItem
  * every programme that aired before the tail starts, so the spread end of the day (rules format version 5) can keep a
  * short that aired from playing again too soon.
  */
-data class AiredBefore(
+data class PastAiring(
     val item: ScheduleItem,
     val endMs: Long,
 )

@@ -220,7 +220,7 @@ internal object Timeline {
     /**
      * Lays the day out: runs from [startRun] at [dayStart], each at the first grid mark at or after the previous run's
      * end when aligned. When the next run would end after [dayEnd], the end of the day is planned by [fillEnd]
-     * ([LeftoverPolicy.Gather]) or by [spread] ([LeftoverPolicy.Spread]), which also reads [airedBefore]: what aired
+     * ([LeftoverPolicy.Gather]) or by [spread] ([LeftoverPolicy.Spread]), which also reads [pastAirings]: what aired
      * before [dayStart] in a repair's tail, empty for a whole day.
      */
     @Suppress("LongParameterList") // The day's window, the group rules and what aired are each an input.
@@ -231,12 +231,13 @@ internal object Timeline {
         dayStart: Long,
         dayEnd: Long,
         groups: GroupRules,
-        airedBefore: List<AiredBefore> = emptyList(),
+        pastAirings: List<PastAiring> = emptyList(),
     ): Layout {
         val blocks = ArrayList<ScheduleBlock>()
         val runEnds = ArrayList<Long>()
         val spreads = settings.leftover == LeftoverPolicy.Spread
-        val aired = if (spreads) ArrayList(airedBefore) else null
+        val aired = ArrayList<PastAiring>()
+        if (spreads) aired.addAll(pastAirings)
         var cursor = dayStart
         var index = startRun
         var started = 0
@@ -253,13 +254,13 @@ internal object Timeline {
             for (item in run.items) {
                 blocks.add(ScheduleBlock(cursor, cursor + item.runtimeMs, ScheduleContent.Program(item.id)))
                 cursor += item.runtimeMs
-                aired?.add(AiredBefore(item, cursor))
+                if (spreads) aired.add(PastAiring(item, cursor))
             }
             runEnds.add(cursor)
             started++
             index = (index + 1) % cycle.size
         }
-        if (aired != null) {
+        if (spreads) {
             val spread = spreadEnd(settings, cycle, unstarted, blocks, runEnds, aired, groups, dayStart, dayEnd)
             return Layout(spread, started, runEnds)
         }
@@ -284,7 +285,7 @@ internal object Timeline {
         unstarted: Int,
         regular: List<ScheduleBlock>,
         runEnds: List<Long>,
-        aired: List<AiredBefore>,
+        aired: List<PastAiring>,
         groups: GroupRules,
         dayStart: Long,
         dayEnd: Long,
