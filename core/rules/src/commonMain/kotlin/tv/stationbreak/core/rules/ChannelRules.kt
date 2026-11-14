@@ -63,12 +63,22 @@ data class ChannelRules(
     val matchesStudiosByFold2: Boolean get() = formatVersion >= StudioFold2Gate.FORMAT_VERSION
 
     /**
+     * True when the time left at the end of a broadcast day is spread through the day as station breaks (a file that
+     * says 5 or more, [SpreadDayEnd]), false when it is gathered at the end (1 to 4).
+     */
+    val spreadsDayEnd: Boolean get() = formatVersion >= SpreadDayEnd.FORMAT_VERSION
+
+    /**
      * The version the app writes these rules at (ADR-0026, Versioning): [requiredVersion], except for rules that
      * [usesStudios]: 4 once the gate has passed, and before it never lower than the version they were read at, so a
      * file that says 4 is not written back as 3. A file that says 5 or more is written at the version it says.
      *
      * Version 5 is a behaviour version (the spread day end), not a feature version. `requiredVersion` never reports
      * it. `writeVersion` keeps a v5 file at 5, and callers must not normalise a v5 file down by any other path.
+     *
+     * Rules built at SUPPORTED_FORMAT_VERSION (new rules) must use writeVersion(previousVersion), never normalised():
+     * this property reads the rules' own [formatVersion] as the previous one, so it would write them at the newest
+     * version.
      */
     val writeVersion: Int get() = writeVersion(previousVersion = formatVersion)
 
@@ -177,6 +187,9 @@ data class ChannelRules(
  *
  * Version 5 is a behaviour version (the spread day end), not a feature version. `requiredVersion` never reports it.
  * `writeVersion` keeps a v5 file at 5, and callers must not normalise a v5 file down by any other path.
+ *
+ * Rules built at SUPPORTED_FORMAT_VERSION (new rules) must use writeVersion(previousVersion), never normalised(): it
+ * reads the rules' own [ChannelRules.formatVersion] as the previous one, so it would write them at the newest version.
  */
 fun ChannelRules.normalised(gatePassed: Boolean = StudioFold2Gate.WRITES_FORMAT_4): ChannelRules =
     withVersion(writeVersion(formatVersion, gatePassed))

@@ -15,7 +15,6 @@ import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.OrderingCaps
 import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
-import tv.stationbreak.core.rules.SpreadDayEnd
 import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.Timing
 import tv.stationbreak.core.rules.normalised
@@ -56,14 +55,12 @@ internal object DraftRules {
         // The newest version first (it knows every field of version 3): a copy's studio sources, theme filters and
         // curated order are carried, and the rules need 3 or more only when they are still in them. They are then
         // written at their write version, which reads `previous` (set even when nothing is carried), so a studio file
-        // that says 4 stays at 4. An edit of a file that says 5 or more takes this path too, whatever it needs, so it
-        // is never written below the version it said (`writeVersion` keeps it).
+        // that says 4 stays at 4. The write version is never below the required one, so this path is taken whenever
+        // the rules need 3 or more, and also for an edit of a file that says 5 or more, which `writeVersion` keeps.
         val carryNewest = carry?.withVersion(NEWEST)
         val newest = assemble(draft, utcOffsetMinutes, NEWEST, carryNewest)
-        val keepsItsVersion = (previous?.formatVersion ?: 0) >= SpreadDayEnd.FORMAT_VERSION
-        if (newest.requiredVersion >= FORMAT_3 || keepsItsVersion) {
-            return newest.withVersion(newest.writeVersion(previous?.formatVersion, gatePassed))
-        }
+        val target = newest.writeVersion(previous?.formatVersion, gatePassed)
+        if (target >= FORMAT_3) return newest.withVersion(target)
         // Version 2 next, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
         // `caps` extra makes room for the real ones). A carry that needed 3 has lost it by now (the viewer took the
         // builder's order), so it is read at the newest version.

@@ -6,7 +6,7 @@ import kotlinx.serialization.json.JsonObject
 /**
  * The fixed names and ranges of format versions 1 to 5, shared by the reader and by the checks on the types. Version 4
  * knows the same fields as version 3 (it changes only how studios match), and version 5 the same as version 4 (it
- * changes only where the day's leftover time goes), so every "3 or later" below covers both; 5 is named explicitly.
+ * changes only where the day's leftover time goes), so every "3 or later" below covers both.
  */
 internal object RulesVocabulary {
     /** The names a `maxRating` may take: the rating ladder. */
@@ -62,30 +62,21 @@ internal object RulesVocabulary {
     const val MAX_OFFSET = 840
     const val OFFSET_STEP = 15
 
-    /** The top-level field names that [version] knows. Version 5 knows those of version 4. */
-    fun topLevel(version: Int): Set<String> =
-        when {
-            version == VERSION_5 -> TOP_LEVEL_V2
-            version >= VERSION_2 -> TOP_LEVEL_V2
-            else -> TOP_LEVEL_V1
-        }
+    // Version 5 has exactly the fields of version 4 (and so of version 3): every "3 or later" below covers it.
 
-    /** The `ordering` field names that [version] knows. Version 5 knows those of version 4. */
+    /** The top-level field names that [version] knows. */
+    fun topLevel(version: Int): Set<String> = if (version >= VERSION_2) TOP_LEVEL_V2 else TOP_LEVEL_V1
+
+    /** The `ordering` field names that [version] knows. */
     fun ordering(version: Int): Set<String> =
         when {
-            version == VERSION_5 -> ORDERING_V3
             version >= VERSION_3 -> ORDERING_V3
             version >= VERSION_2 -> ORDERING_V2
             else -> ORDERING_V1
         }
 
-    /** The `filters` field names that [version] knows. Version 5 knows those of version 4. */
-    fun filters(version: Int): Set<String> =
-        when {
-            version == VERSION_5 -> FILTERS_V3
-            version >= VERSION_3 -> FILTERS_V3
-            else -> FILTERS
-        }
+    /** The `filters` field names that [version] knows. */
+    fun filters(version: Int): Set<String> = if (version >= VERSION_3) FILTERS_V3 else FILTERS
 
     /** The `filters.runtime` field names that [version] knows. */
     fun filterRuntime(version: Int): Set<String> = if (version >= VERSION_3) FILTER_RUNTIME_V3 else FILTER_RUNTIME

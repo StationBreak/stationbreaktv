@@ -4,7 +4,9 @@ package tv.stationbreak.core.rules
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class FormatVersionGateTest {
     private fun read(version: String): RulesResult {
@@ -95,6 +97,22 @@ class FormatVersionGateTest {
         assertEquals(5, readOk(written).formatVersion)
         assertEquals(written, RulesWriter.write(readOk(written)), "byte for byte")
         assertEquals(5, readOk(minimalRules().with("formatVersion", JsonPrimitive(5)).text()).formatVersion)
+    }
+
+    @Test
+    fun aVersion5FileKnowsExactlyTheFieldsOfVersion4() {
+        assertEquals(RulesVocabulary.topLevel(4), RulesVocabulary.topLevel(5))
+        assertEquals(RulesVocabulary.ordering(4), RulesVocabulary.ordering(5))
+        assertEquals(RulesVocabulary.filters(4), RulesVocabulary.filters(5))
+        assertEquals(RulesVocabulary.filterRuntime(4), RulesVocabulary.filterRuntime(5))
+    }
+
+    @Test
+    fun onlyAVersion5FileSpreadsTheDayEnd() {
+        assertTrue(readOk(minimalRules().with("formatVersion", JsonPrimitive(5)).text()).spreadsDayEnd)
+        for (version in 1..4) {
+            assertFalse(readOk(minimalRules().with("formatVersion", JsonPrimitive(version)).text()).spreadsDayEnd)
+        }
     }
 
     @Test

@@ -168,6 +168,12 @@ class RecipeResolverTest {
         assertEquals(4, RecipeResolver.resolve(studio, server, 0, noCollections, NO_LIBRARY).formatVersion)
         val before = RecipeResolver.resolve(studio, server, 0, noCollections, NO_LIBRARY, gatePassed = false)
         assertEquals(3, before.formatVersion)
+        // Every catalog starter, as the app resolves it: built at the newest version, written at its write version.
+        for (r in StarterCatalog.recipes) {
+            val rules = RecipeResolver.resolve(r, server, 0, noCollections, NO_LIBRARY)
+            assertTrue(rules.formatVersion < 5, r.key)
+            assertEquals(false, rules.spreadsDayEnd, r.key)
+        }
     }
 
     @Test

@@ -253,7 +253,7 @@ Changing the fold changes which items air, so by `docs/rules-format.md`'s own ru
 
   No diagnostics screen exists yet (F3.6), so the Fire app logs the rules formats once per account, from the first
   read of the stored lineup on any path, under the `Lineup` tag:
-  `rules formats v1=<n> v2=<n> v3=<n> v4=<n> upgraded=<n>` (counts only, no names). The versions count the lineup as loaded, after the in-memory upgrade, so
+  `rules formats v1=<n> v2=<n> v3=<n> v4=<n> v5=<n> upgraded=<n>` (counts only, no names). The versions count the lineup as loaded, after the in-memory upgrade, so
   `v3=` is what still says 3 in memory; `upgraded=` above 0 on a second start means the earlier rewrite did not land.
   The diagnostics screen (F3.6) should show the same counts when it is built.
 - **Upgrade to 4: a one-time rewrite, kept as an invariant.** In the release that ships after the gate has passed:

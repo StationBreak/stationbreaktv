@@ -12,7 +12,6 @@ import tv.stationbreak.core.model.schedule.SchedulerSettings
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Ordering
-import tv.stationbreak.core.rules.SpreadDayEnd
 import tv.stationbreak.core.rules.Timing
 
 private const val MS_PER_SECOND = 1_000L
@@ -23,7 +22,7 @@ private const val MINUTES_PER_HOUR = 60
  * The scheduler's numbers for a channel: its ordering, seed and timing with the rules-format defaults applied
  * (`effective…`), so the defaults are written once, in `core:rules`. The caps are the caps in force
  * ([ChannelRules.effectiveCaps]: `rotation`, or a `shuffle` that has them), and the runtime filter is in milliseconds.
- * The day end is `Spread` for rules that say 5 or more ([SpreadDayEnd]) and `Gather` for 1 to 4.
+ * The day end is `Spread` for rules that spread it ([ChannelRules.spreadsDayEnd]) and `Gather` otherwise.
  */
 fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
     // Rules with no `ordering` object take the tunables' defaults from core:rules too (only `curated` reads them).
@@ -40,7 +39,7 @@ fun ChannelRules.toSchedulerSettings(): SchedulerSettings {
         caps = effectiveCaps?.let { Caps(it.effectiveSeries, it.effectiveFilm) },
         runtimeFilter = filters?.let { runtimeFilterOf(it) },
         curated = curated,
-        leftover = if (formatVersion >= SpreadDayEnd.FORMAT_VERSION) LeftoverPolicy.Spread else LeftoverPolicy.Gather,
+        leftover = if (spreadsDayEnd) LeftoverPolicy.Spread else LeftoverPolicy.Gather,
     )
 }
 
