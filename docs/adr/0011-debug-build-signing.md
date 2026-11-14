@@ -126,22 +126,35 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
   of 2100000000 (`ReleaseVersion` in build-logic, with a unit test). A malformed value fails the build. A release
   build without `RELEASE_VERSION` keeps versionCode 1 and versionName 0.0.1. CI's debug and benchmark builds use the
   workflow run number as `versionCode` (#146) and are never shipped, so the two numbering schemes never meet.
-- **A keyless build, then a separate signing job**, the same shape as the debug key's (Amendment 2026-10-18). The
-  `build` job checks out the repository and runs Gradle with no environment and no secret (`contents: read`, no cache).
-  Gradle has no release signing config at all, so release builds are always unsigned. It uploads the unsigned APKs as a
-  one-day `internal-` artifact. The `sign` job has no checkout, no Gradle and no cache: it downloads that artifact,
-  decodes the key to the runner's temporary directory, aligns and signs with the runner's `apksigner` (build-tools
-  36.0.0), deletes the key when the step ends, and runs the checks, all inline in the workflow YAML. No repository code
-  runs where the key is.
-- **The `release` environment.** The `sign` job runs in the GitHub environment `release`, which has a required
-  reviewer (the owner): the secrets exist only after approval, and never in pull request runs. Its secrets are
-  `RELEASE_KEYSTORE_BASE64` (the keystore file, base64; PKCS12 recommended), `RELEASE_KEYSTORE_PASSWORD`,
-  `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. The job fails if any is empty, so a tag never produces an unsigned
-  release. `contents: write`, `id-token: write` and `attestations: write` are granted to `sign` only.
+- **A keyless build, a signing job, then a publishing job.** The `build` job checks out the repository and runs Gradle
+  with no environment and no secret (`contents: read`, no cache, an empty `dist/` that ends up holding exactly the two
+  APKs). Gradle has no release signing config at all, so release builds are always unsigned. The unsigned APKs go to a
+  one-day `internal-` artifact. The `sign` job has no checkout, no Gradle, no cache and no token permission: it fails
+  unless the artifact holds exactly `stationbreak-github-vX.Y.Z.apk` and `stationbreak-amazon-vX.Y.Z.apk`, decodes the
+  key to the runner's temporary directory, aligns and signs those two files with the runner's `apksigner` (build-tools
+  36.0.0), deletes the key when the step ends, and runs the checks inline in the workflow YAML. The `publish` job has
+  no key and no checkout, and is the only one with `contents: write`, `id-token: write` and `attestations: write`: it
+  gets the verified APKs and `SHA256SUMS` as another one-day `internal-` artifact, checks that the tag still points at
+  the built commit (an annotated tag is followed to its commit), attests both APKs and creates the draft release. No
+  repository code runs where the key is.
+- **Required owner settings.** The workflow runs from the tagged commit, so the on-main check in its first job is
+  only as strong as who can push the tag: a tag on a branch that edits `release.yml` would run the edited workflow.
+  These settings are therefore the real gate, and a release must not be cut until all are in place:
+  1. A tag ruleset for `v*` that lets only the owner create, update or delete those tags.
+  2. A deployment policy on the environment `release`, limited to tags `v*`, and a required reviewer (the owner).
+  3. The four secrets are **environment** secrets of `release`, never repository secrets (a repository secret would
+     reach any workflow), and so is the variable `RELEASE_CERT_SHA256` below.
+  4. The environment variable `RELEASE_CERT_SHA256` (a variable, not a secret: the value is public) holds the release
+     certificate's SHA-256, set from the keystore before the first tag:
+     `keytool -list -v -keystore <keystore> -alias <alias> | grep 'SHA256:'`. The workflow fails unless every APK's
+     signer equals it, so a wrong or swapped key stops the release.
+- **The `release` environment and its secrets.** Secrets: `RELEASE_KEYSTORE_BASE64` (the keystore file, base64; PKCS12
+  recommended), `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. The job fails if any is
+  empty, so a tag never produces an unsigned release.
 - **Checks that fail the release.** For both flavors (`github`, `amazon`): `aapt2 dump badging` shows package
   `tv.stationbreak.app`, the versionCode and versionName from the tag, and not debuggable; `apksigner verify
-  --print-certs` succeeds with exactly one signer, and that signer's SHA-256 matches neither the CI debug key
-  (`00:47:8A:2B:…:21:65:22`) nor the retired key (`57:4B:E8:75:…:BA:80:B1`). Both fingerprints are listed once, in
+  --print-certs` succeeds with exactly one signer; that signer's SHA-256 equals the pinned `RELEASE_CERT_SHA256`, and neither the pin nor the signer is the CI debug key
+  (`00:47:8A:2B:…:21:65:22`) or the retired key (`57:4B:E8:75:…:BA:80:B1`). Both fingerprints are listed once, in
   `release.yml`.
 - **Outputs.** A draft GitHub release for the tag, with both APKs, a `SHA256SUMS` file and the signing certificate's
   SHA-256 in the notes, plus a build-provenance attestation for each APK. Nothing is published or uploaded to a store:

@@ -250,10 +250,23 @@ Until 2026-10-18 debug builds were signed with a public key committed as `debug.
 
 Owner only. Releases are built and signed by CI from a tag ([ADR-0011](docs/adr/0011-debug-build-signing.md)).
 
+**Required before the first tag.** The release workflow runs from the tagged commit, so its own checks can't protect
+it from a tag pushed by someone else. These repository settings are the real gate:
+
+- a tag ruleset for `v*` that only the owner can create, update or delete;
+- a deployment policy on the environment `release` limited to tags `v*`, with the owner as required reviewer;
+- the four secrets (`RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
+  `RELEASE_KEY_PASSWORD`) as **environment** secrets of `release`, never repository secrets;
+- the environment variable `RELEASE_CERT_SHA256` (a variable, not a secret) set to the release certificate's SHA-256:
+  `keytool -list -v -keystore <keystore> -alias <alias> | grep 'SHA256:'`.
+
+Then:
+
 1. Push a `vMAJOR.MINOR.PATCH` tag on a commit that is on `main`, for example `v1.2.3` (MAJOR 1 or more, MINOR and
    PATCH 0 to 99). Any other `v*` tag, or a tag off `main`, fails the run.
 2. CI builds both flavors unsigned with no secrets, then waits for your approval of the `release` environment. After
-   you approve, a separate job (no checkout) signs, checks them, and creates a draft release.
+   you approve, a separate job (no checkout) signs and checks them against the pinned certificate, and a last job
+   attests them and creates a draft release.
 3. Read the draft (APKs, `SHA256SUMS`, signing certificate fingerprint), then publish it by hand.
 
 ## Code of conduct and security
