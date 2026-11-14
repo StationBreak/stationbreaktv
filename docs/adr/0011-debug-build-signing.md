@@ -22,8 +22,8 @@ acceptance criteria are checked during PR review.
    overwrite each other.
 2. **The debug key never signs a release.** Release signing comes only from secrets in a protected
    environment. CI runs `apksigner verify --print-certs` on every release APK and fails if its certificate
-   matches the debug certificate's SHA-256 fingerprint. *(Pending S4.1.1: release APKs are unsigned today, so the
-   fingerprint check lands with release signing. It must reject both the CI debug key and the retired key.)*
+   matches the debug certificate's SHA-256 fingerprint. The release workflow rejects both the CI debug key and the
+   retired key (see the 2026-11-14 amendment).
 3. **Release builds are never debuggable.** CI checks that the release manifest isn't debuggable. The `.debug`
    suffix and the debuggable flag are set only in the debug build type.
 4. **The key is single-purpose:** generated fresh for this project, documented in the repo as public and
@@ -114,3 +114,50 @@ On `main`, CI also builds the non-debuggable `benchmark` variant (release code, 
 `tv.stationbreak.app.benchmark`) and `sign-debug` signs it with the CI debug key, for device measurement (#392). It is
 never published and never carries the release application ID: CI fails unless its package name is exactly
 `tv.stationbreak.app.benchmark`. Item 7 (a low-privilege Jellyfin user, ADB off when idle) applies to benchmark installs too.
+
+## Amendment, 2026-11-14: tagged releases are built and signed by CI
+
+Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github/workflows/release.yml`.
+
+- **Trigger and version.** Only a pushed tag `vMAJOR.MINOR.PATCH` starts it (MAJOR 1 or more, MINOR and PATCH 0 to 99, no
+  leading zeros); any other `v*` tag fails the first job, before anything is built, and so does a tag whose commit is
+  not on `main`. The workflow passes the tag without the `v` to Gradle as `RELEASE_VERSION`: `versionName` is that
+  value and `versionCode = MAJOR * 10000 + MINOR * 100 + PATCH` (so `1.2.3` is 10203), checked against Android's limit
+  of 2100000000 (`ReleaseVersion` in build-logic, with a unit test). A malformed value fails the build. A release
+  build without `RELEASE_VERSION` keeps versionCode 1 and versionName 0.0.1. CI's debug and benchmark builds use the
+  workflow run number as `versionCode` (#146) and are never shipped, so the two numbering schemes never meet.
+- **A keyless build, a signing job, then a publishing job.** The `build` job checks out the repository and runs Gradle
+  with no environment and no secret (`contents: read`, no cache, an empty `dist/` that ends up holding exactly the two
+  APKs). Gradle has no release signing config at all, so release builds are always unsigned. The unsigned APKs go to a
+  one-day `internal-` artifact. The `sign` job has no checkout, no Gradle, no cache and no token permission: it fails
+  unless the artifact holds exactly `stationbreak-github-vX.Y.Z.apk` and `stationbreak-amazon-vX.Y.Z.apk` and each
+  matches the SHA-256 the `build` job published as a job output (checked before the key is decoded), decodes the key to the runner's temporary directory, aligns and signs those two files with the runner's `apksigner` (build-tools
+  36.0.0), deletes the key when the step ends, and runs the checks inline in the workflow YAML. The `publish` job has
+  no key and no checkout, and is the only one with `contents: write`, `id-token: write` and `attestations: write`: it
+  gets the verified APKs as another one-day `internal-` artifact, but does not trust that artifact: `sign` publishes
+  each signed APK's SHA-256 (and the certificate's) as job outputs, and `publish` fails unless the outputs are real
+  SHA-256 values and every downloaded APK matches its output. It writes `SHA256SUMS` itself from the outputs. It checks
+  that the tag still points at the built commit (an annotated tag is followed to its commit) before attesting and again
+  right before creating the draft release. No repository code runs where the key is.
+- **Required owner settings.** The workflow runs from the tagged commit, so the on-main check in its first job is
+  only as strong as who can push the tag: a tag on a branch that edits `release.yml` would run the edited workflow.
+  These settings are therefore the real gate, and a release must not be cut until all are in place:
+  1. A tag ruleset for `v*` that lets only the owner create, update or delete those tags.
+  2. A deployment policy on the environment `release`, limited to tags `v*`, and a required reviewer (the owner).
+  3. The four secrets are **environment** secrets of `release`, never repository secrets (a repository secret would
+     reach any workflow), and so is the variable `RELEASE_CERT_SHA256` below.
+  4. The environment variable `RELEASE_CERT_SHA256` (a variable, not a secret: the value is public) holds the release
+     certificate's SHA-256, set from the keystore before the first tag:
+     `keytool -list -v -keystore <keystore> -alias <alias> | sed -n 's/^[[:space:]]*SHA256: //p'` (the hex digest only; colons are
+     allowed). The workflow fails unless every APK's signer equals it, so a wrong or swapped key stops the release.
+- **The `release` environment and its secrets.** Secrets: `RELEASE_KEYSTORE_BASE64` (the keystore file, base64; PKCS12
+  recommended), `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. The job fails if any is
+  empty, so a tag never produces an unsigned release.
+- **Checks that fail the release.** For both flavors (`github`, `amazon`): `aapt2 dump badging` shows package
+  `tv.stationbreak.app`, the versionCode and versionName from the tag, and not debuggable; `apksigner verify
+  --print-certs` succeeds with exactly one signer; that signer's SHA-256 equals the pinned `RELEASE_CERT_SHA256`, and neither the pin nor the signer is the CI debug key
+  (`00:47:8A:2B:…:21:65:22`) or the retired key (`57:4B:E8:75:…:BA:80:B1`). Both fingerprints are listed once, in
+  `release.yml`.
+- **Outputs.** A draft GitHub release for the tag, with both APKs, a `SHA256SUMS` file and the signing certificate's
+  SHA-256 in the notes, plus a build-provenance attestation for each APK. Nothing is published or uploaded to a store:
+  the owner publishes the draft.
