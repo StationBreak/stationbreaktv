@@ -119,7 +119,7 @@ internal class LostRepair(
         return when {
             holding != null -> {
                 val before = holding.pieces.filter { it.endMs <= block.startMs }
-                val around = holding.pieces.mapNotNullTo(HashSet()) { it.itemId }
+                val around = holding.pieces.mapNotNullTo(HashSet()) { it.programId() }
                 val picked = fills.pick(day, poolOf(g), block.startMs, holding.blockEndMs, g.item, around)
                 holding.copy(pieces = before + picked)
             }

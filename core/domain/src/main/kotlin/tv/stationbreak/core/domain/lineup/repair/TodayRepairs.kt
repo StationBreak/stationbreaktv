@@ -7,7 +7,14 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 
-/** What a [KeptBlock] airs: a programme from a point in its media, a slate, or a station break. */
+/**
+ * What a [KeptBlock] airs: a programme from a point in its media, a slate, or a station break.
+ *
+ * It deliberately mirrors `ScheduleContent` rather than reusing it: this is the stored, per-TV repair record, whose
+ * wire form (`RepairsCodec`) and digest are pinned separately from the schedule model, so a change to the model never
+ * silently changes what is stored. The mappings both ways are exhaustive `when`s, so the compiler forces each new kind
+ * through `kept()`, `RepairedDay` and the codec.
+ */
 internal sealed interface KeptContent {
     /** [itemId] from [mediaStartMs] into its media. */
     data class Program(
@@ -31,13 +38,10 @@ internal data class KeptBlock(
     val startMs: Long,
     val endMs: Long,
     val content: KeptContent,
-) {
-    /** The programme's item, or null for a slate or a break. */
-    val itemId: CanonicalId? get() = (content as? KeptContent.Program)?.itemId
+)
 
-    /** Where in the media a programme starts; 0 for a slate or a break. */
-    val mediaStartMs: Long get() = (content as? KeptContent.Program)?.mediaStartMs ?: 0L
-}
+/** The item of a programme block; null for a slate or a break (neither names an item). */
+internal fun KeptBlock.programId(): CanonicalId? = (content as? KeptContent.Program)?.itemId
 
 /**
  * A repaired channel day (spec 26): the blocks of one channel's broadcast day [n] as they stand after a change of the
@@ -317,13 +321,13 @@ private fun canonical(fix: LostFix): String =
 // A slate is "-" and a break "~", so the digest of a record of programmes and slates is what it was before breaks.
 private fun canonical(blocks: List<KeptBlock>): String =
     blocks.joinToString(",") {
-        val item =
+        val (item, media) =
             when (val c = it.content) {
-                is KeptContent.Program -> c.itemId.value
-                KeptContent.Slate -> "-"
-                KeptContent.Break -> "~"
+                is KeptContent.Program -> c.itemId.value to c.mediaStartMs
+                KeptContent.Slate -> "-" to 0L
+                KeptContent.Break -> "~" to 0L
             }
-        "${it.startMs}:${it.endMs}:$item:${it.mediaStartMs}"
+        "${it.startMs}:${it.endMs}:$item:$media"
     }
 
 /** A test seam: [hashed] is told each time a record works out the digest of one channel day. Never set in the app. */

@@ -84,3 +84,10 @@ internal fun fixOf(
             ),
         seq = seq,
     )
+
+/**
+ * One of each kind of kept content, a programme with a media start. The codec round-trip test runs over it and
+ * checks it covers every subclass of [KeptContent] (`permittedSubclasses`), so a new kind fails until the codec and
+ * this list handle it.
+ */
+internal fun everyKeptContent(): List<KeptContent> = listOf(KeptContent.Program(id(7), 90_000L), KeptContent.Slate, KeptContent.Break)

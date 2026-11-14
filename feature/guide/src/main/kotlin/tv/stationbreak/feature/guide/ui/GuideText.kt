@@ -32,10 +32,21 @@ internal fun cellTitle(
     copy: ProgramCopy,
 ): String =
     when (cell.kind) {
-        CellKind.Slate -> copy.offAirUntil(ProgramText.time(cell.endMs, ZoneId.systemDefault(), is24Hour()))
-        CellKind.Break -> copy.breakUpNext(ProgramText.time(cell.endMs, ZoneId.systemDefault(), is24Hour()))
-        CellKind.Program -> cell.title.orEmpty()
-        CellKind.Unavailable -> stringResource(R.string.guide_unavailable)
+        CellKind.Slate -> {
+            copy.offAirUntil(ProgramText.time(cell.endMs, ZoneId.systemDefault(), is24Hour()))
+        }
+
+        CellKind.Break -> {
+            copy.breakUpNext(ProgramText.time(cell.upNextMs ?: cell.endMs, ZoneId.systemDefault(), is24Hour()))
+        }
+
+        CellKind.Program -> {
+            cell.title.orEmpty()
+        }
+
+        CellKind.Unavailable -> {
+            stringResource(R.string.guide_unavailable)
+        }
     }
 
 /**

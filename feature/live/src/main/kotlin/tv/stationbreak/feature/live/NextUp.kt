@@ -60,35 +60,62 @@ internal class NextUp(
     private val tuner: TunePort,
     private val timings: LiveTimings,
     private val now: () -> Long,
-    /** A neighbour channel's handle for the first block of the sitting; tried when no handle was prepared for it. */
-    private var lead: Pending.Retarget? = null,
+    /**
+     * A neighbour channel's handle for the sitting's start: a [Pending.Retarget] for the block on air, tried when no
+     * handle was prepared for it, or a [Pending.AtBoundary] for the programme after the station break on air, held
+     * through the break and cut to at its start.
+     */
+    first: Pending? = null,
 ) {
-    private var pending: Pending.AtBoundary? = null
+    private var lead: Pending.Retarget? = first as? Pending.Retarget
+
+    private var pending: Pending.AtBoundary? = first as? Pending.AtBoundary
 
     /** A behind play's catch-up, held for the next [takeFor]. */
     private var caughtUp: Pending.CatchUp? = null
 
-    /** Starts resolving [onAir]'s next block [LiveTimings.preResolveLead] before this one ends, if it is a program. */
+    /**
+     * Starts resolving [onAir]'s next block [LiveTimings.preResolveLead] before this one ends, if it is a program.
+     * When station breaks come next, it resolves the programme after them [LiveTimings.preResolveLead] before that
+     * programme starts, so a card of a few seconds ends into a resolved programme ([takeFor] holds the handle through
+     * the breaks). A break longer than the lead is left to the break's own look-ahead. Nothing is resolved for a block
+     * a handle is already held for (one kept through a break, or a neighbour's).
+     */
     fun prepare(
         scope: CoroutineScope,
         onAir: ChannelOnAir,
     ): Deferred<Pending.AtBoundary?>? {
-        val next = onAir.next.firstOrNull()
+        val first = onAir.next.firstOrNull()
+        val next = if (first?.airing == Airing.Break) onAir.next.pastBreaks() else first
         val program = (next?.airing as? Airing.Program)?.takeIf { it.info != null }
         val start = next?.positionAt(next.startMs)
-        if (next == null || program == null || start == null) return null
+        if (next == null || program == null || start == null || holds(program, next)) return null
+        val leadMs = timings.preResolveLead.inWholeMilliseconds
+        val resolveAt = if (next === first) onAir.now.endMs - leadMs else next.startMs - leadMs
+        if (next !== first && resolveAt >= onAir.now.endMs) return null
         return scope.async {
-            val wait = onAir.now.endMs - timings.preResolveLead.inWholeMilliseconds - now()
+            val wait = resolveAt - now()
             if (wait > 0) delay(wait)
             val handle = tuner.preResolve(session, ItemId(program.itemId.value), start)
             handle?.let { Pending.AtBoundary(it, program.itemId, next.startMs, start) }
         }
     }
 
-    /** Holds what [prepare] finished with (nothing if it had not finished). Safe when the caller is cancelled. */
+    /**
+     * Holds what [prepare] finished with (nothing if it had not finished), or else the handle already kept through a
+     * station break. Safe when the caller is cancelled.
+     */
     suspend fun keep(ahead: Deferred<Pending.AtBoundary?>?) {
-        pending = ahead.finishedOrCancel()
+        val done = ahead.finishedOrCancel() ?: return
+        pending?.takeIf { it !== done }?.let { discard(it) }
+        pending = done
     }
+
+    // True when a handle for exactly [block]'s [program] is already held: kept through a break, or a neighbour's.
+    private fun holds(
+        program: Airing.Program,
+        block: AiringBlock,
+    ): Boolean = listOfNotNull(pending, lead).any { it.item == program.itemId && it.blockStartMs == block.startMs }
 
     /**
      * Ends what [prepare] started, unused: a finished handle is discarded and a resolve still running is cancelled
@@ -132,6 +159,11 @@ internal class NextUp(
         }
         val held = pending
         pending = null
+        // A station break: a handle for a programme after it is kept through it, for the cut at that programme.
+        if (held != null && block.airing == Airing.Break && held.blockStartMs >= block.endMs) {
+            pending = held
+            return takeLead(block)
+        }
         val program = block.airing as? Airing.Program
         val fits =
             held != null &&
@@ -158,6 +190,11 @@ internal class NextUp(
     private suspend fun takeLead(block: AiringBlock): Pending.Retarget? {
         val held = lead ?: return null
         lead = null
+        // A station break: a lead for a programme after it is kept for that programme's block.
+        if (block.airing == Airing.Break && held.blockStartMs >= block.endMs) {
+            lead = held
+            return null
+        }
         val program = block.airing as? Airing.Program
         val fits = program?.itemId == held.item && block.startMs == held.blockStartMs && now() < block.endMs
         if (!fits) discard(held)
@@ -183,6 +220,13 @@ internal class NextUp(
         const val CUT_SLACK_MS = 2_000L
     }
 }
+
+/**
+ * The programme past the station breaks at the head of [this]: the first block that is not a break, when it is a
+ * program; null when the breaks lead to a slate or run out.
+ */
+internal fun List<AiringBlock>.pastBreaks(): AiringBlock? =
+    firstOrNull { it.airing != Airing.Break }?.takeIf { it.airing is Airing.Program }
 
 /**
  * What this resolve finished with, or null when it had not (or failed); it is cancelled either way, and a resolve

@@ -52,9 +52,12 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * or an unknown `state` or `kind` value is [Decoded.Unreadable] (set aside).
  *
  * One explicit exception (owner decision 2026-11-13, ADR-0025): the contents of `repairs` are a per-TV, disposable
- * record, so the station-break block index (-2, [RepairsCodec]) was added inside version 4 without a bump. An older
- * build that meets a block index it does not know drops the **entire** repair record (every channel's selection
- * repairs and lost fixes on that TV, until the next repair) and loads the lineup.
+ * record, so the station-break block index (-2, [RepairsCodec]) was added inside version 4 without a bump. Only a
+ * channel at rules `formatVersion` 5 lays out breaks, and an older build already shows that channel as unusable. An
+ * older build that meets a block index it does not know drops the **entire** repair record (every channel's selection
+ * repairs and lost fixes on that TV, until the next repair) and loads the lineup; as for any unreadable record it
+ * reports `LineupEvent.RepairsUnreadable`, keeps the one-time `repairs-unreadable` copy (`UNREADABLE_RECORD_COPY`) and
+ * writes the file at once without the record.
  *
  * What is rejected and what is dropped: an unknown key or value, and a field of a later version in an older file,
  * make the file [Decoded.Unreadable]. A few values this app could have written itself are read leniently and dropped

@@ -17,7 +17,7 @@ import tv.stationbreak.core.model.ItemId
  * channel repair and per fix an `ids` table lists each item once, and a block is the integer array
  * `[startDelta, length, idIndex, mediaStart]`: `startDelta` from the end of the block before it (for the first block
  * from `from`, a fix's from its `blockStart`), `idIndex` into `ids`, or -1 for a slate, or -2 for a station break. A
- * slate and a break write the media start a slate always has (0). The -2 stays inside lineup file version 4, an
+ * slate and a break always write a media start of 0, and one that is not 0 makes [decode] throw. The -2 stays inside lineup file version 4, an
  * explicit exception to "any schema change bumps VERSION" (see `LineupCodec` and ADR-0025): an older build reads it as
  * an index outside the table, and so drops the whole record and loads the lineup.
  *
@@ -186,16 +186,13 @@ internal object RepairsCodec {
         val rows =
             blocks.map { block ->
                 val row =
-                    listOf(
-                        block.startMs - cursor,
-                        block.endMs - block.startMs,
-                        when (val c = block.content) {
-                            is KeptContent.Program -> table.of(c.itemId).toLong()
-                            KeptContent.Slate -> SLATE
-                            KeptContent.Break -> BREAK
-                        },
-                        block.mediaStartMs,
-                    )
+                    when (val c = block.content) {
+                        is KeptContent.Program -> table.of(c.itemId).toLong() to c.mediaStartMs
+                        KeptContent.Slate -> SLATE to 0L
+                        KeptContent.Break -> BREAK to 0L
+                    }.let { (index, mediaStart) ->
+                        listOf(block.startMs - cursor, block.endMs - block.startMs, index, mediaStart)
+                    }
                 cursor = block.endMs
                 JsonArray(row.map(::JsonPrimitive))
             }
@@ -222,6 +219,7 @@ internal object RepairsCodec {
             val start = Math.addExact(cursor, delta)
             val end = Math.addExact(start, length)
             cursor = end
+            require(index >= 0 || mediaStart == 0L) { "A slate or a break has no media start" }
             val content =
                 when (index) {
                     SLATE -> KeptContent.Slate

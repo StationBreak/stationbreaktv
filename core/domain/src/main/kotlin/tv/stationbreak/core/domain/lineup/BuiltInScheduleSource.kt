@@ -24,6 +24,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.WalkClock
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.programId
 import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -631,7 +632,7 @@ class BuiltInScheduleSource(
                 day.record
                     ?.fixHolding(startMs)
                     ?.pieces
-                    ?.mapNotNullTo(HashSet()) { it.itemId }
+                    ?.mapNotNullTo(HashSet()) { it.programId() }
                     .orEmpty()
             val exclude = fillExclusions(pool, liveIds, goneId, fixPieces)
             picks[laid] =

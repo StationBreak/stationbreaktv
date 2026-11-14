@@ -27,8 +27,9 @@ internal enum class CellKind { Program, Slate, Break, Unavailable }
  * One cell of a guide row, half-open `[startMs, endMs)` in milliseconds since 1970. The first cell of a row may start
  * before [GuideModel.originMs]. [title] is derived from [info], the display title: the series name for an episode of a
  * known series, else the item's own title. It and [info] are null for a slate, a break and an [CellKind.Unavailable]
- * program (no longer in the library); [itemId] is null for a slate and a break. Whether it is too narrow for a title is the
- * screen's call (`CellPlace`).
+ * program (no longer in the library); [itemId] is null for a slate and a break. [upNextMs] is set on a break only: the
+ * start of the program its row goes on to past any breaks, for "Up next at" (null when a slate or nothing follows).
+ * Whether it is too narrow for a title is the screen's call (`CellPlace`).
  */
 @Immutable
 internal data class GuideCell(
@@ -38,6 +39,7 @@ internal data class GuideCell(
     val title: String?,
     val info: ProgramInfo?,
     val itemId: CanonicalId?,
+    val upNextMs: Long? = null,
 )
 
 /**
@@ -83,7 +85,7 @@ internal fun buildGuideModel(
                 row.channel.id,
                 row.channel.number,
                 row.channel.name,
-                mergeContinuations(row.blocks).filter { it.endMs > origin }.map(::cellOf),
+                mergeContinuations(row.blocks).filter { it.endMs > origin }.map(::cellOf).withUpNext(),
                 markKey = row.channel.recipeKey,
                 initials = initials[row.channel.id] ?: "?",
             )
@@ -149,6 +151,15 @@ private fun cellOf(block: AiringBlock): GuideCell {
         }
     return GuideCell(block.startMs, block.endMs, kind, info?.let(::displayTitle), info, itemId)
 }
+
+// Each break cell with the start of the program past the breaks that follow it; other cells as they are.
+private fun List<GuideCell>.withUpNext(): List<GuideCell> =
+    mapIndexed { i, cell ->
+        if (cell.kind != CellKind.Break) return@mapIndexed cell
+        val next = subList(i + 1, size).firstOrNull { it.kind != CellKind.Break }
+        val program = next?.takeIf { it.kind == CellKind.Program || it.kind == CellKind.Unavailable }
+        cell.copy(upNextMs = program?.startMs)
+    }
 
 private fun displayTitle(info: ProgramInfo): String {
     val series = info.seriesName

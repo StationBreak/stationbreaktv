@@ -138,7 +138,7 @@ internal class TodayRepairerTest : RepairTestBase() {
         rig.change(before = setOf(libA, libB), after = setOf(libA, libC))
 
         for ((channel, titles) in before) {
-            val tail = rig.repairOf(channel).tail().mapNotNull { it.itemId }
+            val tail = rig.repairOf(channel).tail().mapNotNull { it.programId() }
             val tailTitles = tail.mapTo(HashSet()) { item -> if (item in ids(airing + newEpisodes)) series else item }
             assertTrue(tail.isNotEmpty())
             assertTrue(titles.containsAll(tailTitles), "every title of $channel's tail was its own already")
@@ -276,7 +276,7 @@ internal class TodayRepairerTest : RepairTestBase() {
         rig.change(before = setOf(libA, libB), after = setOf(libA, libB, libC))
         val first = rig.repairOf(mine.id)
         val second = atMs + 4 * hour
-        val aired = first.blocks.filter { it.startMs < second }.mapNotNullTo(HashSet()) { it.itemId }
+        val aired = first.blocks.filter { it.startMs < second }.mapNotNullTo(HashSet()) { it.programId() }
 
         assertNotNull(rig.change(before = setOf(libA, libB, libC), after = setOf(libA, libC, libD), at = second))
 
@@ -298,9 +298,9 @@ internal class TodayRepairerTest : RepairTestBase() {
         rig.change(before = setOf(libA), after = setOf(libA, libB), at = end - 4 * hour - 10 * minute)
         val first = rig.repairOf(laughs.id)
         assertTrue(first.tailIds().isNotEmpty() && ids(comediesB).containsAll(first.tailIds()), "the set-up")
-        val leftOut = ids(comedies) - first.blocks.mapNotNullTo(HashSet()) { it.itemId }
+        val leftOut = ids(comedies) - first.blocks.mapNotNullTo(HashSet()) { it.programId() }
         val secondAt = first.pinEndMs + minute
-        val aired = first.blocks.filter { it.startMs < secondAt }.mapNotNullTo(HashSet()) { it.itemId }
+        val aired = first.blocks.filter { it.startMs < secondAt }.mapNotNullTo(HashSet()) { it.programId() }
 
         // The second change takes that library away again: the first record's tail pool has nothing left to lay.
         assertNotNull(rig.change(before = setOf(libA, libB), after = setOf(libA), at = secondAt))

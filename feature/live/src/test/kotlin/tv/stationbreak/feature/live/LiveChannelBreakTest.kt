@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live
 
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -124,16 +126,64 @@ class LiveChannelBreakTest {
         }
 
     @Test
-    fun aNeighbourOnABreakHasTheProgrammeAfterItResolved() =
+    fun aTwoSecondBreakAfterAProgrammeCutsToAnAlreadyResolvedProgramme() =
         runTest {
             val r = Rig(this)
-            r.schedule.channel(CH5, 5, listOf(program(0, 600, 5)))
-            r.schedule.channel(CH7, 7, listOf(program(0, 600, 7)))
-            r.schedule.channel(CH9, 9, listOf(stationBreak(0, 12), program(12, 600, 19)))
-            r.lastChannel.save(r.account, CH7)
+            val breakStart = T0 + 60 * MIN
+            val breakEnd = breakStart + 2_000
+            r.schedule.channel(
+                CH7,
+                7,
+                listOf(
+                    program(0, 60, 1),
+                    AiringBlock(breakStart, breakEnd, Airing.Break),
+                    AiringBlock(breakEnd, T0 + 120 * MIN, Airing.Program(id(2), 0, info(2))),
+                ),
+            )
             r.start()
+            // Movie 1 looks past the break: the programme after it is resolved the lead before it starts.
+            val resolveAt = 50 * MIN + 2_000 - 45_000
+            r.at(resolveAt - 1)
+            assertTrue(r.preResolves().none { it.item == itemOf(2) })
+            r.at(resolveAt)
+            assertEquals(listOf(Call.PreResolve(itemOf(2), Duration.ZERO, resolveAt)), r.preResolves().filter { it.item == itemOf(2) })
+            assertIs<LiveState.Watching>(r.state)
+            r.atMin(50)
+            assertIs<LiveState.Ident>(r.state)
+            r.at(50 * MIN + 2_000)
+            assertEquals(Call.TuneHandle(itemOf(2), Duration.ZERO, 50 * MIN + 2_000), r.handleTunes().single())
+            // Held through the card: one resolve, never discarded, no plain tune.
+            assertEquals(1, r.preResolves().count { it.item == itemOf(2) })
+            assertTrue(r.tune.calls.none { it is Call.Discard && it.item == itemOf(2) })
+            assertTrue(r.tunes.none { it.item == itemOf(2) })
+        }
+
+    @Test
+    fun aNeighbourOnABreakHasTheProgrammeAfterItResolvedWarmedAndKeptThroughAFlip() =
+        runTest {
+            val r = Rig(this)
+            // Seven plays; five (the neighbour Down, the one warmed before any flip) is on a break to minute 12.
+            r.schedule.channel(CH5, 5, listOf(stationBreak(0, 12), program(12, 600, 15)))
+            r.schedule.channel(CH7, 7, listOf(program(0, 600, 7)))
+            r.schedule.channel(CH9, 9, listOf(program(0, 600, 9)))
+            r.lastChannel.save(r.account, CH7)
+            val keys = Channel<LiveCommand>(Channel.UNLIMITED)
+            r.start(commands = keys.receiveAsFlow())
             advanceTimeBy(1.seconds)
             runCurrent()
-            assertTrue("the programme after nine's break", r.preResolves().any { it.item == itemOf(19) })
+            assertTrue("the programme after five's break", r.preResolves().any { it.item == itemOf(15) })
+            assertTrue("and its standby", r.tune.calls.any { it is Call.Warm && it.item == itemOf(15) })
+
+            // Flip down onto five during its break: the card, and the handle is kept for the cut at minute 12.
+            keys.trySend(LiveCommand.Flip(FlipDirection.Down))
+            keys.trySend(LiveCommand.FlipReleased)
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            assertIs<LiveState.Ident>(r.state)
+            r.atMin(2) // 12 on the clock
+            assertTrue(r.tune.calls.any { it is Call.TuneHandle && it.item == itemOf(15) })
+            assertEquals(1, r.preResolves().count { it.item == itemOf(15) })
+            assertTrue(r.tune.calls.none { it is Call.Discard && it.item == itemOf(15) })
+            assertTrue(r.tunes.none { it.item == itemOf(15) })
         }
 }

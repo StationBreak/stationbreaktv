@@ -150,7 +150,7 @@ internal class TodayRepairerLostTest : RepairTestBase() {
         val namedPieces = named.filter { (it.airing as? Airing.Program)?.info != null }
         assertEquals(
             namedPieces.map { Triple(it.startMs, it.endMs, (it.airing as Airing.Program).itemId) },
-            fix.pieces.map { Triple(it.startMs, it.endMs, it.itemId) },
+            fix.pieces.map { Triple(it.startMs, it.endMs, it.programId()) },
         )
         assertEquals(named, rig.window(laughs.id, later.startMs, hours = 1).filter { it.startMs < later.endMs })
     }
@@ -173,7 +173,7 @@ internal class TodayRepairerLostTest : RepairTestBase() {
         val fixes = rig.record().fixes
         assertEquals(2, fixes.size)
         for (fix in fixes) {
-            val ids = fix.pieces.mapNotNull { it.itemId }
+            val ids = fix.pieces.mapNotNull { it.programId() }
             assertTrue(horrorFilm.item.id !in ids, "the channel's rules refuse the horror film")
             assertTrue(kidsComedy.item.id !in ids, "the grown-up hold refuses the kids' film")
             assertTrue(ids.isNotEmpty(), "it is filled instead")

@@ -66,7 +66,7 @@ internal object RepairedDay {
             kept.isNotEmpty() &&
                 repair.keptFromMs >= dayStartMs &&
                 kept.all { block ->
-                    val ok = block.startMs == cursor && block.endMs > block.startMs && block.mediaStartMs >= 0
+                    val ok = block.startMs == cursor && block.endMs > block.startMs && block.content.mediaOk()
                     cursor = block.endMs
                     ok
                 } &&
@@ -90,11 +90,14 @@ internal object RepairedDay {
     private fun fits(fix: LostFix): Boolean {
         var cursor = fix.blockStartMs
         for (piece in fix.pieces) {
-            if (piece.startMs != cursor || piece.endMs <= piece.startMs || piece.mediaStartMs < 0) return false
+            if (piece.startMs != cursor || piece.endMs <= piece.startMs || !piece.content.mediaOk()) return false
             cursor = piece.endMs
         }
         return cursor <= fix.blockEndMs
     }
+
+    // A programme's media start is not negative; a slate and a break have none.
+    private fun KeptContent.mediaOk(): Boolean = this !is KeptContent.Program || mediaStartMs >= 0
 
     private fun KeptBlock.asBlock(): ScheduleBlock = ScheduleBlock(startMs, endMs, content.toContent())
 

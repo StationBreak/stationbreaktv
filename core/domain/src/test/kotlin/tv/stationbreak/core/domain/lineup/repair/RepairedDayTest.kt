@@ -66,7 +66,7 @@ class RepairedDayTest {
             val pin = repair.blocks.first()
             assertEquals(pin.startMs, on.startMs)
             assertEquals(pin.endMs, on.endMs)
-            assertEquals(ScheduleContent.Program(pin.itemId!!, pin.mediaStartMs), on.content)
+            assertEquals((pin.content as KeptContent.Program).let { ScheduleContent.Program(it.itemId, it.mediaStartMs) }, on.content)
             assertEquals(repair.pinEndMs, on.endMs)
         }
     }

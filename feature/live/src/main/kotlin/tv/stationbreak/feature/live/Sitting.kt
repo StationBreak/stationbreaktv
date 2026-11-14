@@ -133,8 +133,11 @@ internal class Sitting(
     val report: (TuneReport) -> Unit = {},
     /** Set for a sitting a flip started: its first block reports the flip's line (once), then this is null. */
     var flip: FlipTiming? = null,
-    /** Resolved ahead while this channel was a neighbour: the first block plays it if it still fits. */
-    lead: Pending.Retarget? = null,
+    /**
+     * Resolved ahead while this channel was a neighbour: the first block plays it if it still fits, or, on a station
+     * break, the programme after the break is cut to with it.
+     */
+    lead: Pending? = null,
     /** The run's playback reporter (spec 16), null where reporting is off, and this sitting's id in it. */
     internal val reporter: PlaybackReporter? = null,
     internal val sittingId: Long = 0,

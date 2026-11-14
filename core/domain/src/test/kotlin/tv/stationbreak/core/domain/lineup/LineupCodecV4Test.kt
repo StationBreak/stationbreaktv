@@ -12,6 +12,7 @@ import tv.stationbreak.core.domain.lineup.repair.KeptBlock
 import tv.stationbreak.core.domain.lineup.repair.KeptContent
 import tv.stationbreak.core.domain.lineup.repair.NOW_MS
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.everyKeptContent
 import tv.stationbreak.core.domain.lineup.repair.fixOf
 import tv.stationbreak.core.domain.lineup.repair.repairOf
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -317,23 +318,39 @@ class LineupCodecV4Test {
 
     @Test
     fun everyKeptContentKindRoundTripsThroughTheRepairsCodec() {
+        val kinds = everyKeptContent()
+        assertEquals(
+            KeptContent::class.java.permittedSubclasses.toSet(),
+            kinds.map { it.javaClass }.toSet(),
+            "every kind of kept content is in everyKeptContent(), so this round trip covers it",
+        )
         val start = NOW_MS
-        val blocks =
-            listOf(
-                KeptBlock(start, start + HALF_HOUR_MS, KeptContent.Program(id(7), 90_000L)),
-                KeptBlock(start + HALF_HOUR_MS, start + 2 * HALF_HOUR_MS, KeptContent.Slate),
-                KeptBlock(start + 2 * HALF_HOUR_MS, start + 2 * HALF_HOUR_MS + 5_000L, KeptContent.Break),
-                KeptBlock(start + 2 * HALF_HOUR_MS + 5_000L, start + 3 * HALF_HOUR_MS, KeptContent.Program(id(8), 0L)),
-            )
-        val repair = repairOf().copy(keptFromMs = start, blocks = blocks, dayEndMs = start + 3 * HALF_HOUR_MS)
-        val bytes = LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repair)))
+        val blocks = kinds.mapIndexed { i, c -> KeptBlock(start + i * HALF_HOUR_MS, start + (i + 1) * HALF_HOUR_MS, c) }
+        val end = start + kinds.size * HALF_HOUR_MS
+        val repair = repairOf().copy(keptFromMs = start, blocks = blocks, dayEndMs = end)
+        val fix = fixOf().copy(blockStartMs = start, blockEndMs = end, pieces = blocks)
+        val read = loaded(LineupCodec.encode(lineup, meta, TodayRepairs(selection = listOf(repair), fixes = listOf(fix))))
+        assertFalse(read.repairsUnreadable)
         assertEquals(
             blocks,
-            loaded(bytes)
-                .repairs.selection
+            read.repairs.selection
                 .single()
                 .blocks,
         )
+        assertEquals(
+            blocks,
+            read.repairs.fixes
+                .single()
+                .pieces,
+        )
+    }
+
+    @Test
+    fun aSlateOrBreakRowWithAMediaStart_loadsTheLineupWithNoRecord() {
+        val text = LineupCodec.encode(lineup, meta, withABreak()).decodeToString()
+        assertTrue(",-1,0]" in text && ",-2,0]" in text)
+        assertRecordUnreadable(text.replaceFirst(",-1,0]", ",-1,5]").encodeToByteArray())
+        assertRecordUnreadable(text.replaceFirst(",-2,0]", ",-2,5]").encodeToByteArray())
     }
 
     @Test

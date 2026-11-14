@@ -326,11 +326,17 @@ with `-` as before, so the digest of a record of programmes and slates is unchan
 bumps `LineupCodec.VERSION` (owner decision 2026-11-13, option a). The `repairs` contents are a per-TV record that the
 next repair rebuilds, and a bump would make every older build show a planned default lineup and refuse to save.
 
-The real downgrade radius: an older build reads the file as version 4 as before, but its `RepairsCodec.decode` throws
-on the first -2 row (an index outside the table). `LineupCodec.repairsOf` then drops the **entire** per-TV record
-(`TodayRepairs.NONE`, reported as unreadable), not only the channel with the break. On that TV every channel's
-selection repairs and lost-block fixes are lost until the next repair, so a repaired day goes back to its day as
-built from the saved selection, which can change the programme on air. The lineup itself loads, and is not set aside.
+The real downgrade radius. Only a channel whose rules are at `formatVersion` 5 lays out breaks, so only such a channel
+can put a -2 in the record. An older build already shows that channel as unusable (off air, its source kept byte for
+byte), and that is the main thing a viewer sees after a downgrade. The record drop is secondary: the older build reads
+the file as version 4 as before, but its `RepairsCodec.decode` throws on the first -2 row (an index outside the
+table). `LineupCodec.repairsOf` then drops the **entire** per-TV record (`TodayRepairs.NONE`), not only the channel
+with the break. As for any unreadable record (§6), the older build reports `LineupEvent.RepairsUnreadable`, so a report
+after a downgrade is expected and is not a bug. It keeps a copy of the file's bytes in the one-time
+`repairs-unreadable` slot (`UNREADABLE_RECORD_COPY`; an earlier unreadable copy is never replaced), and then writes the
+file at once without the record. On that TV every channel's selection repairs and lost-block fixes are lost until the
+next repair, so a repaired day goes back to its day as built from the saved selection, which can change the programme
+on air. The lineup itself loads, and is not set aside.
 
 ## Consequences
 

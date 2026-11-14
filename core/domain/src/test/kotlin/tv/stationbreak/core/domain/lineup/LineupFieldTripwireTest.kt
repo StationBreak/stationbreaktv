@@ -176,20 +176,18 @@ class LineupFieldTripwireTest {
     @Test
     fun keptBlock() = pinned(KeptBlock::class.java, setOf("startMs", "endMs", "content"))
 
-    // A new kind of kept content is a new block index in RepairsCodec and a new marker in the digest. The station
-    // break (-2, "~") was added inside lineup file version 4 by an explicit exception (ADR-0025, amendment 2026-11-13).
+    // A new kind of kept content needs a new block index in RepairsCodec and a new marker in the digest. The kinds are
+    // pinned here; LineupCodecV4Test round-trips everyKeptContent() and checks it covers every kind, so a new kind
+    // fails both until it is handled. The station break (-2, "~") was added inside lineup file version 4 by an explicit
+    // exception (ADR-0025, amendment 2026-11-13).
     @Test
     fun keptContent() {
         pinned(KeptContent.Program::class.java, setOf("itemId", "mediaStartMs"))
-        // The kinds: a new one fails to compile here until it is given an index and a marker.
-        val kinds =
-            listOf(KeptContent.Program(id(1), 0), KeptContent.Slate, KeptContent.Break).map {
-                when (it) {
-                    is KeptContent.Program -> "Program"
-                    KeptContent.Slate -> "Slate"
-                    KeptContent.Break -> "Break"
-                }
-            }
-        assertEquals(listOf("Program", "Slate", "Break"), kinds)
+        assertEquals(
+            setOf("Program", "Slate", "Break"),
+            KeptContent::class.java.permittedSubclasses
+                .map { it.simpleName }
+                .toSet(),
+        )
     }
 }

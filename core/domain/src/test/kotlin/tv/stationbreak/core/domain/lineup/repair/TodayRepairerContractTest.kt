@@ -245,7 +245,7 @@ internal class TodayRepairerContractTest : RepairTestBase() {
 
         val fix = rig.record().fixes.first { it.blockStartMs == later.startMs }
         assertTrue(fix.pieces.isNotEmpty(), "filled from the built day pool")
-        assertTrue(fix.pieces.all { piece -> day.pool.any { it.id == piece.itemId } })
+        assertTrue(fix.pieces.all { piece -> day.pool.any { it.id == piece.programId() } })
         assertEquals(snapshots, rig.library.snapshotCutoffs.size, "no snapshot is read")
         assertEquals(byId, rig.library.scheduleItemsOfCalls, "no item is read by id")
         assertTrue(rig.library.currentIdsCalls > liveness, "only the pool's liveness is read")

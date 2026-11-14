@@ -77,7 +77,7 @@ internal class SelectionRepairEqualityTest {
         assertTrue(all.any { it.pins.isNotEmpty() }, "some change pins a programme of a removed library")
         assertTrue(repairs.any { it.tailHidden != null }, "some day has nothing to air after the change")
         assertTrue(repairs.any { it.pinLibrary == null }, "some day has no pin (hidden at the change, or none on air)")
-        assertTrue(repairs.any { r -> r.blocks.any { it.itemId != null } }, "some day airs programmes after it")
+        assertTrue(repairs.any { r -> r.blocks.any { it.programId() != null } }, "some day airs programmes after it")
         val seqs = RepairMatrix.scenarios().map { s -> RepairMatrix.referenceOf(s.name).map { it.record.lastSeq } }
         assertTrue(seqs.any { it.size > 1 && it.distinct().size > 1 }, "some scenario changes twice, on repaired days")
         assertTrue(all.map { it.digest }.toSet().size > all.size / 2, "the stored files differ between scenarios")

@@ -16,13 +16,15 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Session
 import kotlin.time.Clock
+import kotlin.time.Duration
 
-/** A handle resolved for the block of [item] that starts at [blockStartMs] on one channel. */
+/** A handle resolved for the block of [item] that starts at [blockStartMs] on one channel, at [start] in its media. */
 private class Resolved(
     val handle: NextHandle,
     val item: CanonicalId,
     val blockStartMs: Long,
     val blockEndMs: Long,
+    val start: Duration,
 ) {
     /** True when [program] in [block] is the very block this handle was resolved for. */
     fun isFor(
@@ -124,11 +126,15 @@ internal class Neighbours(
         val now = clock.now()
         // No following blocks: only what is on now matters here, unless it is a station break.
         val onNow = schedule.onAir(channel, now, 0)?.now
-        // A break is a card with the next programme close behind it, so that programme is the one resolved (for its
-        // start), as the next programme after a programme is: a flip once it is on takes this handle. A flip during
-        // the break shows the card, and the sitting resolves the programme itself.
+        // A break is a card with the next programme close behind it, so the programme past the breaks is the one
+        // resolved (for its start) and warmed: a flip during the break hands it to the sitting, which cuts to it when
+        // the break ends ([take]); a flip once it is on takes it as for any programme on air.
         val block =
-            if (onNow?.airing == Airing.Break) schedule.onAir(channel, now, 1)?.next?.firstOrNull() else onNow
+            if (onNow?.airing == Airing.Break) {
+                schedule.onAir(channel, now, Sitting.WINDOW)?.next?.pastBreaks()
+            } else {
+                onNow
+            }
         val program = (block?.airing as? Airing.Program)?.takeIf { it.info != null }
         val kept = held[channel]
         if (kept != null && kept.isFor(program, block)) return
@@ -136,29 +142,49 @@ internal class Neighbours(
         val start = block?.positionAt(maxOf(now.toEpochMilliseconds(), block.startMs))
         if (program != null && start != null) {
             tuner.preResolve(session, ItemId(program.itemId.value), start)?.let {
-                held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs)
+                held[channel] = Resolved(it, program.itemId, block.startMs, block.endMs, start)
             }
         }
     }
 
     /**
-     * The handle for [channel] if it is still for the item on air at [onAir]; the caller tunes it from the position at
-     * that time, not the one it was resolved for. A handle for an item no longer on air is discarded and null returned.
-     * Every other handle is ended too: the viewer is leaving the channel they were neighbours of.
+     * The handle for [channel] as the sitting's lead, if it is still for the item on air at [onAir] (a
+     * [Pending.Retarget]: the tune plays it from the position at that time, not the one it was resolved for), or, with
+     * a station break on air, for the programme past the breaks at its start (a [Pending.AtBoundary], held through the
+     * break, so the resolve and the warm standby are kept). Any other handle is discarded and null returned. Every
+     * other channel's handle is ended too: the viewer is leaving the channel they were neighbours of.
      */
     suspend fun take(
         channel: ChannelId,
         onAir: ChannelOnAir,
-    ): NextHandle? {
+    ): Pending? {
         val mine = held.remove(channel)
         warmed = null
         val rest = held.values.toList()
         held.clear()
         rest.forEach { discard(it) }
         if (mine == null) return null
-        val fits = mine.isFor(onAir.now.airing as? Airing.Program, onAir.now)
-        if (!fits) discard(mine)
-        return mine.handle.takeIf { fits }
+        val lead = leadOf(mine, onAir)
+        if (lead == null) discard(mine)
+        return lead
+    }
+
+    private fun leadOf(
+        mine: Resolved,
+        onAir: ChannelOnAir,
+    ): Pending? {
+        val now = onAir.now
+        if (now.airing == Airing.Break) {
+            val after = onAir.next.pastBreaks()
+            val program = after?.airing as? Airing.Program
+            val start = after?.positionAt(after.startMs)
+            return Pending.AtBoundary(mine.handle, mine.item, mine.blockStartMs, mine.start).takeIf {
+                mine.isFor(program, after) && start == mine.start
+            }
+        }
+        return Pending.Retarget(mine.handle, mine.item, mine.blockStartMs).takeIf {
+            mine.isFor(now.airing as? Airing.Program, now)
+        }
     }
 
     /** Ends every handle held; the sitting machine has stopped. The caller stops the tuner. */

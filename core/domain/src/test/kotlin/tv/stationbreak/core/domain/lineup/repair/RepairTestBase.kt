@@ -307,7 +307,7 @@ internal open class RepairTestBase {
 
     protected fun ChannelRepair.tail(): List<KeptBlock> = blocks.filter { it.startMs >= pinEndMs }
 
-    protected fun ChannelRepair.tailIds(): Set<CanonicalId> = tail().mapNotNullTo(HashSet()) { it.itemId }
+    protected fun ChannelRepair.tailIds(): Set<CanonicalId> = tail().mapNotNullTo(HashSet()) { it.programId() }
 
     protected fun ChannelDay.blockAt(at: Long): ScheduleBlock = day.blocks.first { at >= it.startMs && at < it.endMs }
 

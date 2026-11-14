@@ -118,6 +118,25 @@ class GuideModelTest {
     }
 
     @Test
+    fun aBreakIsUpNextToTheProgramPastTheBreaksAfterIt() {
+        val result =
+            cells(
+                window(
+                    program(0, 28, 1),
+                    stationBreak(28, 29),
+                    stationBreak(29, 31),
+                    program(31, 60, 2),
+                    stationBreak(60, 61),
+                    slate(61, 90),
+                ),
+                nowMin = 0,
+            )
+        val breaks = result.filter { it.kind == CellKind.Break }
+        assertEquals(listOf(T0 + 31 * MIN, T0 + 31 * MIN, null), breaks.map { it.upNextMs })
+        assertNull("only a break has one", result.first().upNextMs)
+    }
+
+    @Test
     fun slateIsASlateCell() {
         val result = cells(window(slate(0, 30), program(30, 60, 2)), nowMin = 0)
         assertEquals(CellKind.Slate, result[0].kind)

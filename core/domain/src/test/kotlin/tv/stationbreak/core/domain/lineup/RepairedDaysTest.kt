@@ -10,6 +10,7 @@ import tv.stationbreak.core.domain.lineup.repair.KeptBlock
 import tv.stationbreak.core.domain.lineup.repair.KeptContent
 import tv.stationbreak.core.domain.lineup.repair.LostFix
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.programId
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -251,9 +252,12 @@ class RepairedDaysTest {
         val past = listOf(ScheduleBlock(startMs, repair.keptFromMs, ScheduleContent.Slate))
         return past +
             repair.blocks.map {
-                val item = it.itemId
                 val content: ScheduleContent =
-                    if (item == null) ScheduleContent.Slate else ScheduleContent.Program(item, it.mediaStartMs)
+                    when (val c = it.content) {
+                        is KeptContent.Program -> ScheduleContent.Program(c.itemId, c.mediaStartMs)
+                        KeptContent.Slate -> ScheduleContent.Slate
+                        KeptContent.Break -> ScheduleContent.Break
+                    }
                 ScheduleBlock(it.startMs, it.endMs, content)
             }
     }
@@ -572,7 +576,7 @@ class RepairedDaysTest {
         assertEquals(laughsBefore, two.window(laughs.id))
         assertEquals(whodunitBefore, two.window(whodunit.id))
         val airing = programAt(assertNotNull(whodunitBefore), block.startMs)
-        assertEquals(fix.pieces.single().itemId, airing.itemId, "the fix applies")
+        assertEquals(fix.pieces.single().programId(), airing.itemId, "the fix applies")
     }
 
     @Test
@@ -733,7 +737,7 @@ class RepairedDaysTest {
         // id(342) has no current row: its tail blocks are gone, and are filled from the tail pool alone.
         val repair = repairOf(laughs.id, dayOf(laughsRules), tail = listOf(id(340), id(341), id(342)))
         store(lineupOf(laughs), TodayRepairs(selection = listOf(repair)))
-        val goneBlock = repair.blocks.first { it.itemId == id(342) }
+        val goneBlock = repair.blocks.first { it.programId() == id(342) }
         val p = Process()
 
         val first = assertNotNull(p.window(laughs.id))

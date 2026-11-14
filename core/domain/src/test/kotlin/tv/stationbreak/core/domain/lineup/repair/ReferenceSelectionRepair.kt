@@ -212,7 +212,7 @@ internal class ReferenceSelectionRepair(
             if (repaired) {
                 val aired = HashSet<CanonicalId>()
                 for (block in checkNotNull(day.record?.repair).blocks) {
-                    if (block.startMs < change.atMs) block.itemId?.let { aired += it }
+                    if (block.startMs < change.atMs) block.programId()?.let { aired += it }
                 }
                 // The record keeps only the tail's items: the rest of the day's pool comes from what the channel
                 // admits now, so a second change can lay out what the first tail did not.

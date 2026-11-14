@@ -263,9 +263,11 @@ internal fun GuideCellView(
     val title =
         when (cell.kind) {
             CellKind.Slate -> offAir.uppercase()
-            CellKind.Break -> stationBreak
-            else -> spoken
+            CellKind.Break -> stationBreak.uppercase()
+            CellKind.Program, CellKind.Unavailable -> spoken
         }
+    // A screen reader hears a break's panel line ("Station break · Up next at 9:30 PM"), not the shouted plate.
+    val described = if (cell.kind == CellKind.Break) spoken else title
     // Read here, in composition, so the cell whose "on now" flips (and only it) composes again and its semantics with
     // it; the description itself is put together only when something asks for the semantics (a screen reader, a
     // test), not in every cell's composition.
@@ -286,7 +288,6 @@ internal fun GuideCellView(
         animationSpec = guideFocusMotion(),
         label = "guideCellFocus",
     )
-    val slate = plate
     Box(
         Modifier
             .offset(x = place.x)
@@ -297,20 +298,20 @@ internal fun GuideCellView(
                 CellPaint(
                     resting = colors.card,
                     colors = colors,
-                    slate = slate,
+                    slate = plate,
                     focusAmount = { focusAmount },
                 ),
                 place,
                 viewportOf,
                 mark.takeIf { title.isNotEmpty() },
-                nowOf.takeIf { !slate },
+                nowOf.takeIf { !plate },
             ).testTag(GuideTags.cell(channel, cell.startMs))
             // The description carries the title, so the title Text's own semantics are cleared from the merged tree
             // (a screen reader would otherwise read the cell, then the title again). The tag stays outside, so it is
             // kept; the unmerged tree still has the Text node.
             .clearAndSetSemantics {
                 selected = focused
-                contentDescription = cellDescription(resources, cell, title, onNow, is24h)
+                contentDescription = cellDescription(resources, cell, described, onNow, is24h)
             },
         contentAlignment = Alignment.CenterStart,
     ) {
