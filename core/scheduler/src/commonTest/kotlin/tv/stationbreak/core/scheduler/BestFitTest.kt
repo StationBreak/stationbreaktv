@@ -5,6 +5,7 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class BestFitTest {
@@ -60,6 +61,22 @@ class BestFitTest {
         // 1.001 s weighs 2 s; a 1.999 s budget is 1 s.
         assertEquals(emptyList(), bestFit(listOf(a), 1_999L) { it.runtimeMs })
         assertEquals(listOf(a), bestFit(listOf(a), 2_000L) { it.runtimeMs })
+    }
+
+    @Test
+    fun aWeightUnderOneSecondIsRejected() {
+        assertFailsWith<IllegalArgumentException> { bestFit(items(1), MS_MINUTE) { 999L } }
+        assertFailsWith<IllegalArgumentException> { bestGroupedFit(items(1), { it.id }, MS_MINUTE) { 0L } }
+    }
+
+    @Test
+    fun aBudgetOverADayCountsAsADayAndAHugeWeightDoesNotOverflow() {
+        // 1440 minutes is the whole day; with two days of budget only one day counts, so the extra minute is left out.
+        val c = items(1440, 1)
+        assertEquals(c.take(1), fit(c, 2 * 1440))
+        assertEquals(c.take(1), bestGroupedFit(c, { it.id }, 2 * MS_DAY) { it.runtimeMs })
+        assertEquals(emptyList(), bestFit(items(1), MS_DAY) { Long.MAX_VALUE })
+        assertEquals(emptyList(), bestGroupedFit(items(1), { it.id }, MS_DAY) { Long.MAX_VALUE })
     }
 
     @Test

@@ -15,7 +15,8 @@ private const val START = -2
  * The items, in candidate order, whose weights add up to the most seconds that fit in [budgetMs] (a whole-second
  * subset-sum). Weights round up and the budget rounds down, so the real sum never exceeds the budget. Ties go to the
  * set reached first when candidates are taken in order. Only the first [MAX_FIT_CANDIDATES] candidates that fit alone
- * count.
+ * count. A weight is at least one second ([IllegalArgumentException] otherwise), and a budget over one day counts as
+ * one day.
  */
 internal fun bestFit(
     candidates: List<ScheduleItem>,
@@ -73,8 +74,9 @@ internal fun bestGroupedFit(
     // reach[s]: the pool index of the last item of the prefix that first made s reachable.
     val reach = IntArray(budget + 1) { UNSET }
     reach[0] = START
+    val snapshot = IntArray(budget + 1)
     for (members in groups.values) {
-        val snapshot = reach.copyOf()
+        reach.copyInto(snapshot)
         for (s in budget downTo 1) {
             for (index in members) {
                 val w = prefixSum[index]
@@ -111,16 +113,19 @@ private fun groupedPool(
     return pool.take(MAX_FIT_CANDIDATES)
 }
 
-private const val MAX_SECONDS = Int.MAX_VALUE - 1
+/**
+ * The largest budget looked at, in seconds: one day, the longest epoch. A longer budget is cut to it, so a weight (at
+ * most this plus one once clamped) and the sum of [MAX_FIT_CANDIDATES] of them stay far inside an Int.
+ */
+private const val MAX_BUDGET_SECONDS = 86_400L
 
-private fun budgetSeconds(budgetMs: Long): Int {
-    val whole = budgetMs / MS_PER_SECOND
-    return whole.coerceAtMost(MAX_SECONDS.toLong()).toInt()
-}
+private fun budgetSeconds(budgetMs: Long): Int = (budgetMs / MS_PER_SECOND).coerceAtMost(MAX_BUDGET_SECONDS).toInt()
 
+/** [ms] in whole seconds, rounded up, without overflow; past the largest budget it is clamped to one more. */
 private fun seconds(ms: Long): Int {
-    val up = (ms + MS_PER_SECOND - 1) / MS_PER_SECOND
-    return up.coerceAtMost(MAX_SECONDS.toLong()).toInt()
+    require(ms >= MS_PER_SECOND) { "A weight is at least one second, got $ms ms" }
+    val up = ms / MS_PER_SECOND + if (ms % MS_PER_SECOND > 0) 1 else 0
+    return up.coerceAtMost(MAX_BUDGET_SECONDS + 1).toInt()
 }
 
 private fun IntArray.lastSet(): Int {
