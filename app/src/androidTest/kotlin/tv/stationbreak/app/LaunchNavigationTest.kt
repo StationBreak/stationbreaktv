@@ -297,17 +297,18 @@ class LaunchNavigationTest {
         assertFalse("reaching Exit did not leave", activity.isFinishing)
         compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
-        // CI's emulator showed the activity destroyed with the launcher on top while isFinishing was still false when
-        // sampled, so a destroyed activity counts as left, as well as a finishing one.
+        // The activity the rule holds is not reliably the one that finishes (CI showed it DESTROYED with isFinishing
+        // false, and a real TV finishes within 16 ms of the key), so the check is what a viewer sees: our app is no
+        // longer the foreground app.
         val deadline = System.currentTimeMillis() + TIMEOUT_MS
-        while (!hasLeft(activity) && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
-        if (!hasLeft(activity)) fail("Select on Exit should leave the app. ${describeScreenAfterSelect(activity)}")
+        while (!appIsGone() && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MS)
+        if (!appIsGone()) fail("Select on Exit should leave the app. ${describeScreenAfterSelect(activity)}")
     }
 
-    private fun hasLeft(activity: android.app.Activity): Boolean =
-        activity.isFinishing ||
-            (activity as androidx.lifecycle.LifecycleOwner).lifecycle.currentState ==
-            androidx.lifecycle.Lifecycle.State.DESTROYED
+    private fun appIsGone(): Boolean {
+        val resumed = shell(RESUMED).trim()
+        return resumed.isNotEmpty() && !resumed.contains(APP_PACKAGE)
+    }
 
     // Diagnostic for a failure seen only on CI's emulator: what the screen and the activity looked like after Select.
     private fun describeScreenAfterSelect(activity: android.app.Activity): String {
@@ -714,6 +715,8 @@ class LaunchNavigationTest {
         const val SHORT_WAIT_MS = 3_000L
         const val POLL_MS = 50L
         const val SHELL_LINES = 12
+        const val APP_PACKAGE = "tv.stationbreak.app"
+        const val RESUMED = "dumpsys activity activities | grep mResumedActivity"
         const val ACTIVITIES = "dumpsys activity activities | grep -E \"ResumedActivity|Hist #|state=\""
     }
 
