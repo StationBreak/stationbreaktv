@@ -36,17 +36,21 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Reads the day cases of `lineup.json`, `lineup-v2.json` and `lineup-v3.json` (and the items of the key-order files)
+ * Reads the day cases of `lineup.json` to `lineup-v3.json` and `lineup-v5.json` (and the items of the key-order files)
  * and checks a case against `buildDay` and `Day.whatsOn`. A case is never changed to suit the code; a disagreement is
- * reported with the case's name.
+ * reported with the case's name. The caller says whether the file is `lineup-v5.json` (`v5`): its cases are rules of
+ * format 5, which spread the end of the day.
  */
 internal object DayCases {
     private const val MS_SECOND = 1000L
 
     fun JsonObject.optional(name: String): String? = (this[name] as? JsonPrimitive)?.contentOrNull
 
-    /** The settings of a case. The v2 fields (`caps`, `runtimeFilter`) are absent from a version 1 case. */
-    fun JsonObject.settings(): SchedulerSettings {
+    /**
+     * The settings of a case. The v2 fields (`caps`, `runtimeFilter`) are absent from a version 1 case. [v5]: the case
+     * is a rules file of format 5, which spreads the end of the day; the earlier files gather it.
+     */
+    fun JsonObject.settings(v5: Boolean = false): SchedulerSettings {
         val timing = obj("timing")
         val day = timing.obj("broadcastDay")
         val (hours, minutes) = day.string("start").split(":").map { it.toInt() }
@@ -71,8 +75,8 @@ internal object DayCases {
                     optional("repeatGapMs")?.toLong() ?: DEFAULT_REPEAT_GAP_MS,
                     optional("pairUpToMs")?.toLong() ?: DEFAULT_PAIR_UP_MS,
                 ).takeIf { mode == OrderingMode.Curated },
-            // The day cases of lineup.json to lineup-v3.json are rules of format 1 to 3: they gather the day end.
-            leftover = LeftoverPolicy.Gather,
+            // lineup.json to lineup-v3.json are rules of format 1 to 3 (they gather the day end); lineup-v5.json is 5.
+            leftover = if (v5) LeftoverPolicy.Spread else LeftoverPolicy.Gather,
         )
     }
 
@@ -167,18 +171,22 @@ internal object DayCases {
             else -> throw IllegalArgumentException("unknown kind $kind")
         }
 
+    /** A block of a case: a program, a slate (`"slate": true`) or, in `lineup-v5.json`, a break (`"break": true`). */
     fun JsonObject.block(): ScheduleBlock {
         val content =
-            if (this["slate"]?.jsonPrimitive?.content == "true") {
-                ScheduleContent.Slate
-            } else {
-                ScheduleContent.Program(CanonicalId.parse(string("itemId")))
+            when {
+                this["slate"]?.jsonPrimitive?.content == "true" -> ScheduleContent.Slate
+                this["break"]?.jsonPrimitive?.content == "true" -> ScheduleContent.Break
+                else -> ScheduleContent.Program(CanonicalId.parse(string("itemId")))
             }
         return ScheduleBlock(string("startMs").toLong(), string("endMs").toLong(), content)
     }
 
-    /** Every way [case] disagrees with the reference: its blocks, every query, and every error. */
-    fun failuresOf(case: JsonObject): List<String> {
+    /** Every way [case] disagrees with the reference: its blocks, each query and each error. [v5]: as in [settings]. */
+    fun failuresOf(
+        case: JsonObject,
+        v5: Boolean = false,
+    ): List<String> {
         val name = case.string("name")
         val failures = mutableListOf<String>()
 
@@ -195,7 +203,7 @@ internal object DayCases {
             var stage = "reading the settings"
             val thrown =
                 runCatching {
-                    val settings = case.obj("settings").settings()
+                    val settings = case.obj("settings").settings(v5)
                     stage = "reading the items"
                     val items = case.array("items").objects().map { it.item() }
                     stage = "building the day"
@@ -213,7 +221,7 @@ internal object DayCases {
         val items = case.array("items").objects().map { it.item() }
         val day =
             buildDay(
-                settings.settings(),
+                settings.settings(v5),
                 items,
                 case.string("n").toLong(),
                 settings.filmMap(),
@@ -246,10 +254,13 @@ internal object DayCases {
     }
 
     /** Every day of [cases] starts at its epoch's start, ends at the epoch's end, and has no gap or overlap. */
-    fun assertEveryDayTilesItsEpoch(cases: List<JsonObject>) {
+    fun assertEveryDayTilesItsEpoch(
+        cases: List<JsonObject>,
+        v5: Boolean = false,
+    ) {
         for (case in cases.filter { it["inputError"] == null }) {
             val blocks = case.array("blocks").objects().map { it.block() }
-            val settings = case.obj("settings").settings()
+            val settings = case.obj("settings").settings(v5)
             val n = case.string("n").toLong()
             val start = Epochs.epochStart(settings, n)
             assertEquals(start, blocks.first().startMs, case.string("name"))
@@ -258,9 +269,12 @@ internal object DayCases {
         }
     }
 
-    /** Asserts that every case agrees, reporting all disagreements at once. */
-    fun assertEveryCaseAgrees(cases: List<JsonObject>) {
-        val failures = cases.flatMap { failuresOf(it) }
+    /** Asserts that every case agrees, reporting all disagreements at once. [v5]: see [settings]. */
+    fun assertEveryCaseAgrees(
+        cases: List<JsonObject>,
+        v5: Boolean = false,
+    ) {
+        val failures = cases.flatMap { failuresOf(it, v5) }
         val report = "${failures.size} disagreements with the reference:\n" + failures.joinToString("\n")
         assertTrue(failures.isEmpty(), report)
     }
