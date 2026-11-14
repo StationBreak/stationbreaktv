@@ -8,7 +8,7 @@ import tv.stationbreak.core.rules.RatingLadder
 /**
  * The animated-family signal (added in `kid-hold-3`, ADR-0019 addendum), behind [KidHold.isAnimatedFamily]. Pure; it
  * reads the folded genres and the ratings and nothing else. Its lists are frozen under `KidHold.VERSION_NAME`. Under
- * `kid-hold-5` a known series' rating decides when present (not absent, `KidHold.isAbsentRating`) and the entry's own
+ * `kid-hold-5` a known series' rating decides when present (not absent, `EpisodeRating.isAbsent`) and the entry's own
  * is ignored; a known series with no rating leaves the entry's own to decide (the Farscape guard).
  */
 internal object AnimatedFamilySignal {
@@ -30,7 +30,7 @@ internal object AnimatedFamilySignal {
         series: RuleSeries?,
     ): Boolean {
         if (!genresHold(entry.foldedGenres, series?.foldedGenres)) return false
-        val decisive = if (series == null) entry.officialRating else KidHold.decisiveEpisodeRating(entry, series)
+        val decisive = if (series == null) entry.officialRating else EpisodeRating.decisive(entry, series)
         return ratingPasses(decisive)
     }
 
@@ -57,10 +57,10 @@ internal object AnimatedFamilySignal {
     }
 
     private fun ratingPasses(rating: String?): Boolean {
-        val absent = KidHold.isAbsentRating(rating)
-        val name = if (rating == null || absent) null else RatingLadder.normalise(rating)
+        if (rating == null || EpisodeRating.isAbsent(rating)) return true
+        val name = RatingLadder.normalise(rating)
+        // trim() below only matches the NR spellings (kept from kid-hold-3); it never decides absent.
         return when {
-            rating == null || absent -> true
             name != null -> name in RATINGS
             else -> upperAscii(rating.trim()) in UNRATED_SPELLINGS
         }

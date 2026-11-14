@@ -22,6 +22,10 @@ import kotlin.test.assertTrue
 /**
  * `kid-hold-4` and `grown-up-hold-3` (ADR-0026): the kid studio list is matched by studio fold 2 key, against
  * `docs/rules-format/vectors/kid-hold-4.json`.
+ *
+ * The `kidHold4` and `grownUpHold3Drops` answers are asserted against the CURRENT [KidHold] and [GrownUpHold]
+ * (`kid-hold-5`, `grown-up-hold-4`), on purpose: those versions keep studio fold 2 unchanged, and no row here has an
+ * episode whose own rating differs from its series', so the series-rating rule of `kid-hold-5` cannot change an answer.
  */
 class KidHold4Test {
     private val file = Json.parseToJsonElement(KidHold4VectorFile.json).jsonObject

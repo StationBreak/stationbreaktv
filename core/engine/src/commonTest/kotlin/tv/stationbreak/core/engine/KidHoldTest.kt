@@ -563,9 +563,9 @@ class KidHoldTest {
 
     @Test
     fun aSeriesRatingIsAbsentOnlyWhenNullOrEmptyAfterTrimmingSpaces() {
-        for (absent in listOf(null, "", " ", "   ")) assertTrue(KidHold.isAbsentRating(absent), "[$absent]")
+        for (absent in listOf(null, "", " ", "   ")) assertTrue(EpisodeRating.isAbsent(absent), "[$absent]")
         for (present in listOf("\t", "\u00A0", "\u3000", " \t ", "TV-Y")) {
-            assertFalse(KidHold.isAbsentRating(present), present)
+            assertFalse(EpisodeRating.isAbsent(present), present)
         }
     }
 

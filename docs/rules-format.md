@@ -2086,9 +2086,9 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `3`),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-5`), `grownUpHold` (`grown-up-hold-4`),
-  `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
-  give the same lineup or the same days;
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-5`), `grownUpHold`
+  (`grown-up-hold-4`), `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of
+  these is not expected to give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
   `standardOffsetMinutes` (`0`), `nowMs` (the moment of the first setup: a fixed instant, not a clock), `days` (how many
   days are written out) and `planner`: no current lineup (`current` null, so a first choice), the "Use my collections" flag on,

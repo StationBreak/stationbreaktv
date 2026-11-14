@@ -212,7 +212,7 @@ Odds & Ends.
 
 **Owner decision (2026-11-13): if the series qualifies for a kids channel, its episodes qualify.** An episode of a known
 series whose rating is present (not absent, defined below) is judged on the series rating only; the episode's own rating
-is ignored. `KidHold.decisiveEpisodeRating(entry, series)` holds the rule. `KidHold.passesKidCeiling` and
+is ignored. `EpisodeRating.decisive(entry, series)` holds the rule. `KidHold.passesKidCeiling` and
 `AnimatedFamilySignal` (the `isAnimatedFamily` rating test) both call it, so the two cannot drift. This works in both
 directions: a TV-Y series with a TV-PG or unrated episode passes. A TV-PG series with a TV-Y episode still fails, as
 before: the series rating is the one that counts, and it is above the table's cap.
@@ -237,10 +237,13 @@ owner rejected a backstop (an episode ceiling over the series rating) because it
 is set aside for kid channels is the per-episode reasoning of rules-format rule 4: that an episode's own rating is the
 safer evidence of its audience.
 
-**One definition of absent.** The animated-family rating test also reads "null or blank" through the same definition: a
-rating that is only spaces passes as unrated, and one holding a tab or another non-space character does not. Before
-this addendum it used a library trim of all whitespace, so a rating of only tabs passed; that edge now fails (it can
-only make `isMadeForKids` narrower).
+**One definition of absent.** The animated-family rating test reads "absent" through the same definition
+(`EpisodeRating.isAbsent`), for any entry's own rating as well as a series': a rating that is null or only spaces
+(U+0020) passes as unrated, and one holding a tab or another non-space character does not. Before this addendum it used
+the library's `isBlank`, so a rating made only of tabs, no-break spaces or other Unicode spaces passed as unrated; that
+edge now fails (a rating of only U+0020 spaces still passes, as does null or empty). It can only make `isMadeForKids`
+narrower, and it applies to movies and to episodes with no series as well. Nothing that airs today changes unless it
+holds such a rating. The kid ceiling is not affected: it never read blank as absent, and a rating with no tier fails it.
 
 **`isMadeForKids` widens.** The animated-family signal now takes the decisive rating, so `isMadeForKids` widens
 through it: a TV-14 episode of a TV-G Animation+Family series is now made for kids, and an NR series' PG episodes
@@ -253,11 +256,13 @@ independent reference, and a test in `core/engine` reads the published file and 
 
 **Release gate for ports.** [ADR-0026](0026-studio-fold-2.md)'s release gate names `kid-hold-4` and its vector
 `kid-hold-4.json`. A port may meet that gate with `kid-hold-5` provided it also passes `kid-hold-4.json`, since
-`kid-hold-5` is `kid-hold-4` plus this rule. ADR-0026 will get a matching note when this branch is rebased onto fold 2;
-it is not edited here. A `kid-hold-5` port must pass both vectors once `kid-hold-4.json` exists.
+`kid-hold-5` is `kid-hold-4` plus this rule. ADR-0026 carries a matching note (2026-11-13). A `kid-hold-5` port must
+pass both vectors once `kid-hold-4.json` exists.
 
 **What does not change.** Movies, episodes with no series ID, and episodes whose series the snapshot lacks (these still
-fail closed). The kids genres, the studio list, the animated-family genre test and the ceiling choices are unchanged.
+fail closed), apart from the one edge in "One definition of absent": an entry whose own rating is only a tab or a
+non-U+0020 Unicode space no longer passes the animated-family rating test. The kids genres, the studio list, the
+animated-family genre test and the ceiling choices are unchanged.
 `RatingEligibility` (rules-format rule 4) keeps its per-episode check for open and grown-up channels; the change is in
 the kid hold and the predicates built on it.
 

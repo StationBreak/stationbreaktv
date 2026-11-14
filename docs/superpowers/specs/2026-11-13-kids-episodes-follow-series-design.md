@@ -1,5 +1,7 @@
 # Kids episodes follow their series' rating
 
+> Superseded in part: shipped as kid-hold-5 / grown-up-hold-4 on top of ADR-0026; see the ADR-0019 addendum 2026-11-13.
+
 - **Date:** 2026-11-13
 - **Size:** small change
 - **Decided by:** Phil Critchfield
@@ -14,8 +16,8 @@ for a kids channel, its episodes qualify.**
 
 ## Goals
 
-- An episode of a known series that has a non-empty rating is judged on the **series rating only**. The episode's own
-  rating is ignored.
+- An episode of a known series that has a rating (present, not absent as above) is judged on the **series rating only**.
+  The episode's own rating is ignored.
 - Those episodes leave Odds & Ends, because the grown-up hold calls the same `passesKidCeiling`.
 
 ## Non-goals and anti-goals
@@ -41,7 +43,8 @@ for a kids channel, its episodes qualify.**
 ## Decided how
 
 - `KidHold.passesKidCeiling` (`core/engine/.../KidHold.kt`), episode branch with a known series: if
-  `series.officialRating` is non-empty, return `within(series.officialRating, ceiling)`. Otherwise return
+  `series.officialRating` is present (not absent: null, or only U+0020 spaces; `EpisodeRating.isAbsent`), return
+  `within(series.officialRating, ceiling)`. Otherwise return
   `within(entry.officialRating, ceiling)`.
 - `AnimatedFamilySignal` reads the rating "as `passesKidCeiling` reads an episode". Make it use the same precedence, so
   the two can't drift.

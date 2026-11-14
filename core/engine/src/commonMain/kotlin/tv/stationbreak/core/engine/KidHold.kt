@@ -15,7 +15,7 @@ import tv.stationbreak.core.rules.RatingLadder
  * `kid-hold-4` matches [KID_STUDIOS] by studio fold 2 key ([studioKey2], ADR-0026) instead of studio fold 1, so a kid
  * studio spelled with a space, blank or invisible look-alike still counts; the lists are unchanged.
  * `kid-hold-5` is `kid-hold-4` plus the rule that the rating of a known, rated series decides for its episodes
- * ([decisiveEpisodeRating]; ADR-0019 addendum 2026-11-13).
+ * ([EpisodeRating.decisive]; ADR-0019 addendum 2026-11-13).
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
@@ -171,12 +171,12 @@ object KidHold {
 
     /**
      * The animated-family signal: the genres of [entry], together with those of its known [series], include both
-     * Animation and Family, and the decisive rating ([decisiveEpisodeRating]) passes. When [series] is known and has a
-     * rating (see [isAbsentRating]), that rating decides and the entry's own is ignored; a known series with no rating
-     * leaves the entry's own to decide (the Farscape guard). A rating passes when absent; or after `RatingLadder.normalise`
-     * it is `G`, `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and trimmed, it is `NR`,
-     * `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails. Tags never take part. A
-     * null [series] contributes nothing.
+     * Animation and Family, and the decisive rating ([EpisodeRating.decisive]) passes. When [series] is known and has a
+     * rating (see [EpisodeRating.isAbsent]), that rating decides and the entry's own is ignored; a known series with no
+     * rating leaves the entry's own to decide (the Farscape guard). A rating passes when absent; or after
+     * `RatingLadder.normalise` it is `G`, `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and
+     * trimmed, it is `NR`, `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails.
+     * Tags never take part. A null [series] contributes nothing.
      */
     internal fun isAnimatedFamily(
         entry: RuleItem,
@@ -219,11 +219,11 @@ object KidHold {
      * Whether [entry] passes the kid rating table under [maxRating], with [series] as in [isMadeForKids]. The ceiling
      * is the kid tier of [maxRating] capped at PG (a null ceiling is PG too, and one with no kid tier is the lowest
      * tier). A movie passes when its own tier exists and is within it. An episode of a known series is judged on the
-     * series' rating when it has one (not absent, see [isAbsentRating]), and the episode's own rating is ignored; when
-     * the series has no rating, the episode is judged on its own (the Farscape guard). This deliberately departs from
-     * `RatingEligibility` (rules-format rule 4) for a known rated series; that rule keeps the per-episode check for
-     * open and grown-up channels. A series ID the snapshot lacks fails; an episode with no series ID is checked on its
-     * own rating.
+     * series' rating when it has one (not absent, see [EpisodeRating.isAbsent]), and the episode's own rating is
+     * ignored; when the series has no rating, the episode is judged on its own (the Farscape guard). This deliberately
+     * departs from `RatingEligibility` (rules-format rule 4) for a known rated series; that rule keeps the per-episode
+     * check for open and grown-up channels. A series ID the snapshot lacks fails; an episode with no series ID is
+     * checked on its own rating.
      */
     fun passesKidCeiling(
         entry: RuleItem,
@@ -245,7 +245,7 @@ object KidHold {
             }
 
             else -> {
-                within(decisiveEpisodeRating(entry, series), ceiling)
+                within(EpisodeRating.decisive(entry, series), ceiling)
             }
         }
     }
@@ -267,26 +267,4 @@ object KidHold {
         }
         return false
     }
-
-    /**
-     * Whether a series rating counts as absent: it is null, or it is empty after trimming spaces (U+0020) from both
-     * ends, the same trim as `RatingLadder.normalise`. Any other character, a tab, a no-break space or an ideographic
-     * space included, makes the rating present (and, being off the ladder, a rating that fails the kid table). Written
-     * without a library notion of whitespace so every port reads it the same way.
-     */
-    internal fun isAbsentRating(rating: String?): Boolean {
-        if (rating == null) return true
-        for (c in rating) if (c != ' ') return false
-        return true
-    }
-
-    /**
-     * The rating that counts for an episode of a known [series]: the series' when it is present (not absent, see
-     * [isAbsentRating]), otherwise the [entry]'s own. Shared by [passesKidCeiling] and the animated-family signal, so
-     * a series rating of spaces counts as absent in both.
-     */
-    internal fun decisiveEpisodeRating(
-        entry: RuleItem,
-        series: RuleSeries,
-    ): String? = if (isAbsentRating(series.officialRating)) entry.officialRating else series.officialRating
 }

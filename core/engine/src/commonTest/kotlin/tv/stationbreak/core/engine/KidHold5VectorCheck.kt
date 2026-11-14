@@ -14,7 +14,8 @@ import kotlin.test.assertTrue
 
 /**
  * Holds `KidHold`, `GrownUpHold` and `AnimatedFamilySignal` to every case of `kid-hold-5.json` (the text is given, so
- * the same check runs on the copy in commonTest and on the published file in jvmTest).
+ * the same check runs on the copy in commonTest and on the published file in jvmTest). A row of `animatedFamily` with
+ * `"shape": "movie"` is a movie whose own rating is the row's `episode`, with no series.
  */
 internal object KidHold5VectorCheck {
     private val showId = idOf(0x500)
@@ -30,15 +31,23 @@ internal object KidHold5VectorCheck {
         }
         for (row in doc.array("animatedFamily").objects()) {
             rows++
-            assertEquals(row.flag("holds"), KidHold.isAnimatedFamily(episodeOf(row), seriesOf(row)), row.string("name"))
+            val (entry, series) =
+                if (row.stringOrNull("shape") == "movie") {
+                    movie(idOf(1), rating = row.stringOrNull("episode"), genres = genres(row, "episodeGenres")) to null
+                } else {
+                    episodeOf(row) to seriesOf(row)
+                }
+            assertEquals(row.flag("holds"), KidHold.isAnimatedFamily(entry, series), row.string("name"))
         }
         for (row in doc.array("madeForKids").objects()) {
             rows++
-            assertEquals(row.flag("madeForKids"), KidHold.isMadeForKids(episodeOf(row), seriesOf(row)), row.string("name"))
+            val made = KidHold.isMadeForKids(episodeOf(row), seriesOf(row))
+            assertEquals(row.flag("madeForKids"), made, row.string("name"))
         }
         for (row in doc.array("dropsFromGrownUp").objects()) {
             rows++
-            assertEquals(row.flag("drops"), GrownUpHold.dropsFromGrownUp(episodeOf(row), seriesOf(row)), row.string("name"))
+            val drops = GrownUpHold.dropsFromGrownUp(episodeOf(row), seriesOf(row))
+            assertEquals(row.flag("drops"), drops, row.string("name"))
         }
         for (row in doc.array("unchanged").objects()) {
             rows++
@@ -51,7 +60,8 @@ internal object KidHold5VectorCheck {
                     "episodeSeriesUnknown" -> episode(idOf(2), showId, rating = rating) to null
                     else -> error("unknown shape $shape")
                 }
-            assertEquals(row.flag("passes"), KidHold.passesKidCeiling(entry, series, row.string("ceiling")), row.string("name"))
+            val passes = KidHold.passesKidCeiling(entry, series, row.string("ceiling"))
+            assertEquals(row.flag("passes"), passes, row.string("name"))
         }
         assertTrue(rows > SECTIONS * 2, "the vector has rows")
     }

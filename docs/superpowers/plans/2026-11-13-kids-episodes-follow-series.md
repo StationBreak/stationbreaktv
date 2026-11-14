@@ -3,6 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> Superseded in part: shipped as kid-hold-5 / grown-up-hold-4 on top of ADR-0026; see the ADR-0019 addendum 2026-11-13.
+
 **Goal:** An episode of a known series that has a rating is judged on that series rating alone, so a TV-Y series's
 TV-PG or unrated episodes reach kids channels and leave Odds & Ends.
 
@@ -21,8 +23,9 @@ remakes held days once.
   ignored.
 - When the series is known and has no rating, the episode is judged on its own rating, as today (the Farscape guard).
 - Unchanged: movies, episodes with no series ID, and episodes whose series the snapshot lacks (still fail closed).
-- One shared helper decides which rating counts: `internal fun decisiveEpisodeRating(entry: RuleItem, series:
-  RuleSeries): String?` inside the `KidHold` object, which returns `series.officialRating` when it is present (not null,
+- One shared helper decides which rating counts: `EpisodeRating.decisive(entry: RuleItem, series:
+  RuleSeries): String?` in `internal object EpisodeRating` (with `isAbsent`; moved out of `KidHold` in the fix round
+  after the fold-2 rebase), which returns `series.officialRating` when it is present (not null,
   and not only U+0020 spaces; see ADR-0019), otherwise `entry.officialRating`. Both `passesKidCeiling` and
   `AnimatedFamilySignal.holds` call it, so a series rating of spaces counts as absent in both.
 - No `StarterCatalog.VERSION` bump: nothing in the catalog refers to the hold names (only `PersistedDays.HOLDS` does).

@@ -23,10 +23,10 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /**
- * The kid audit (spec 23; kid-hold-5 today): over a week of the shipped catalog's lineup (catalog 3, programmed), and of one
- * upgraded to it in the middle of a day, everything on every kid channel is made for kids and within the channel's
- * ceiling, whatever the library holds. The library mixes the animated-family signal
- * with its near misses (live action, no Family, PG and above, a grown-up series). Invented names only.
+ * The kid audit (spec 23; kid-hold-5 today): over a week of the shipped catalog's lineup (catalog 3, programmed), and
+ * of one upgraded to it in the middle of a day, everything on every kid channel is made for kids and within the
+ * channel's ceiling, whatever the library holds. The library mixes the animated-family signal with its near
+ * misses (live action, no Family, PG and above, a grown-up series). Invented names only.
  */
 class KidAuditTest {
     private val library = CountingLibrary()
