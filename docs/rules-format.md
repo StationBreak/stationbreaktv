@@ -2322,7 +2322,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-4`), `grownUpHold` (`grown-up-hold-3`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-5`), `grownUpHold` (`grown-up-hold-4`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2458,6 +2458,12 @@ Everything below is in this repository, under `docs/`:
   break points with a skipped target and a tie, units that wait for a repeat gap, are dropped or wrap inside a group, the
   ordered modes, the grid, a one-hour epoch and a pool of more than 64 candidates), worked out by hand from this
   document. The version 1 to 4 vectors are unchanged.
+- `docs/rules-format/vectors/` (kid hold): `kid-hold-5.json` (the series-rating rule of `kid-hold-5` /
+  `grown-up-hold-4`: an episode of a known series follows the series rating when it is present, with the cases for the
+  kid ceiling, the animated-family signal, the grown-up drop and the shapes that do not change). Exception to the
+  statement above: this one was written by hand from the text of the ADR-0019 addendum (2026-11-13), not computed with
+  an independent reference and not from the code. A test in `core/engine` reads this file and holds the code to it. It
+  is not a rules-file vector: it covers the app's kid hold, which is outside the rules format.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

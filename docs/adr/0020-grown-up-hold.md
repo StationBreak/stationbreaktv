@@ -65,8 +65,9 @@ app-side, like the kid hold.
   made-for-kids, per the 2026-11-03 addendum).
 - Where a dropped item lands. With both leftovers on (the default), Kids' Odds & Ends claims first, so a
   children's-rated item a grown-up starter drops lands on a kid channel or on Kids' Odds & Ends, where the kid hold
-  admits it. Only items the kid table refuses (a TV-PG episode of a TV-Y7 series, say), or everything when Kids' Odds
-  & Ends is off, reach the grown-up Odds & Ends, which keeps them (2026-11-03 addendum).
+  admits it. Only items the kid table refuses (a TV-PG episode of a TV-Y7 series, say; superseded for a known rated
+  series by the 2026-11-13 addendum), or everything when Kids' Odds & Ends is off, reach the grown-up Odds & Ends, which
+  keeps them (2026-11-03 addendum).
 - Mixed app versions can disagree on grown-up starters during an update, as for kid channels (A-VER-1).
 
 ## Addendum (2026-11-03, spec 23): `grown-up-hold-2`
@@ -105,3 +106,16 @@ channel airs) also stays, and the grown-up channel's usual ladder ceiling applie
   matches no kid channel. A made-for-kids title a kid channel cannot take counts as `airingNowhere` in that case.
 - **Applies at once.** Like `kid-hold-3`, this is safety policy: it applies at the update, and a programme on now can be
   cut once.
+
+## Note (2026-11-13): `grown-up-hold-4` follows `kid-hold-5`
+
+`GrownUpHold.VERSION_NAME` is `grown-up-hold-4`. The grown-up hold is built from `KidHold.passesKidCeiling`, and
+[ADR-0019's 2026-11-13 addendum](0019-kid-hold.md) changes that predicate: an episode of a known series with a rating
+is judged on the series rating, not its own. That is a new version name of both holds, as the `grown-up-hold-2`
+addendum says. The grown-up rule itself is unchanged.
+
+The effect is that episodes of rated kids series (a TV-PG episode of a TV-Y series, say) now pass the kid table, so the
+grown-up hold drops them and they leave the grown-up Odds & Ends. This amends the Consequences line above that names "a
+TV-PG episode of a TV-Y7 series" as an item the kid table refuses: under `kid-hold-5` it is accepted. Days built under
+`grown-up-hold-3` (ADR-0026) or earlier are remade once, at once, with the kid days. `grown-up-hold-4` follows
+ADR-0026's `grown-up-hold-3` (fold 2 is built, ADR-0026 parts 1-2).

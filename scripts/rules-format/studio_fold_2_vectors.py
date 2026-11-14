@@ -344,6 +344,10 @@ def hold_cases():
     cases.append(hold_case("a joiner after a non-Latin letter does not match", "movie", "PG",
                            [cps(0x6771, ZWJ) + "Pixar"]))
     for case in cases:
+        series = case["series"]
+        if case["kind"] == "episode" and series is not None and case["officialRating"] != series["officialRating"]:
+            sys.exit(f"{case['name']}: an episode row must have its own rating equal to its series' rating, so the"
+                     " answers do not depend on the series-rating rule of kid-hold-5")
         if case["kidHold3"] and case["kidHold4"] is False:
             sys.exit(f"{case['name']}: fold 2 split a fold-1 match")
     return cases
@@ -375,6 +379,9 @@ HOLD_DESCRIPTION = (
     " the answer of kid-hold-3 (studio fold 1), 'kidHold4' that of kid-hold-4. 'grownUpHold3Drops' is whether"
     " grown-up-hold-3 drops the title from a grown-up channel: made for kids under kid-hold-4 and passing the widest"
     " kid ceiling (PG; for an episode its effective rating and a non-empty series rating must both pass)."
+    " Under kid-hold-5 the series' rating decides for an episode of a rated series, so every episode row here has"
+    " its own rating equal to its series' rating, and its answers hold under kid-hold-4 and kid-hold-5 alike"
+    " (the generator refuses an episode row that breaks this)."
     " Whitespace, control and format characters are written as JSON escapes so that they can be seen; this file is"
     " all ASCII."
 )

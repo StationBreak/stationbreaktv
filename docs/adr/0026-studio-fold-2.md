@@ -12,6 +12,14 @@ no release yet and must read 4 before their first.
 **Format 5:** writing rules format 5 (the spread day end, which also matches under fold 2) is an Android-only exception
 to this ADR's release gate; see [ADR-0027](0027-v5-release-rule.md).
 
+> **Note (2026-11-13): hold names superseded.** The hold names this ADR introduced, `kid-hold-4` and `grown-up-hold-3`,
+> are superseded by `kid-hold-5` and `grown-up-hold-4` (ADR-0019 addendum 2026-11-13, which adds the series-rating
+> rule on top of this ADR). Studio fold 2 is unchanged in them, so `kid-hold-4` is no longer the current hold name:
+> `kid-hold-5` is `kid-hold-4` plus that rule. The `PersistedDays` hold-names test (the Tests text near its end, which
+> names `kid-hold-4` and `grown-up-hold-3`) is superseded: it now asserts the newer names. A port
+> may meet this ADR's release gate with `kid-hold-5` if it also passes `kid-hold-4.json`. Where this text says
+> `kid-hold-4` or `grown-up-hold-3`, read the pair as "studio fold 2 in the holds".
+
 ## Context
 
 Studio names come from the media server's metadata (Jellyfin, filled from TMDB or by hand). Two features match them:
