@@ -209,7 +209,8 @@ class KidHoldTest {
         assertFalse(KidHold.isMadeForKids(film(studios = listOf(chars(0x200B), chars(9, 10))), null))
     }
 
-    // --- kid-hold-3: animated + Family + a rating that is G, TV-G or unrated ---
+    // --- The animated-family signal (added in kid-hold-3, unchanged by kid-hold-5 except that a known series' rating
+    // decides): animated + Family + a rating that is G, TV-G or unrated ---
 
     private val animatedFamily = listOf("Animation", "Family")
 
@@ -237,8 +238,13 @@ class KidHoldTest {
     @Test
     fun anAnimatedFamilyEpisodeInAGrownUpRatedSeriesIsNot() {
         assertFalse(KidHold.isMadeForKids(episodeOf("TV-G"), show("TV-14", genres = animatedFamily)))
-        assertFalse(KidHold.isMadeForKids(episodeOf("TV-14"), show("TV-G", genres = animatedFamily)))
         assertFalse(KidHold.isMadeForKids(episodeOf(null), show("TV-PG", genres = animatedFamily)))
+    }
+
+    @Test
+    fun anAnimatedFamilyEpisodeInAKidRatedSeriesIsMadeForKidsWhateverItsOwnRating() {
+        // The series rating decides (kid-hold-5): a TV-G series makes its TV-14 episode animated family.
+        assertTrue(KidHold.isMadeForKids(episodeOf("TV-14"), show("TV-G", genres = animatedFamily)))
     }
 
     @Test
@@ -286,8 +292,8 @@ class KidHoldTest {
     }
 
     @Test
-    fun theVersionIsKidHoldFour() {
-        assertEquals("kid-hold-4", KidHold.VERSION_NAME)
+    fun theVersionIsKidHoldFive() {
+        assertEquals("kid-hold-5", KidHold.VERSION_NAME)
     }
 
     // --- the frozen manifest ---
@@ -295,7 +301,7 @@ class KidHoldTest {
     // A change to either list is a new version name: the hold's behaviour is versioned by it.
     @Test
     fun theManifestIsFrozenUnderItsVersionName() {
-        assertEquals("kid-hold-4", KidHold.VERSION_NAME)
+        assertEquals("kid-hold-5", KidHold.VERSION_NAME)
         assertEquals(
             listOf("Children", "Children's", "Children’s", "Childrens", "Kids", "Kid", "Preschool", "Pre-school"),
             KidHold.KIDS_GENRES,
@@ -389,8 +395,8 @@ class KidHoldTest {
     // A change to the set is a new version name of BOTH holds: this test names both.
     @Test
     fun theChildrensRatingsAreFrozenUnderBothHoldVersions() {
-        assertEquals("kid-hold-4", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-3", GrownUpHold.VERSION_NAME)
+        assertEquals("kid-hold-5", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-4", GrownUpHold.VERSION_NAME)
         assertEquals(setOf("TV-Y", "TV-Y7", "TV-Y7-FV"), KidHold.CHILDRENS_RATINGS)
     }
 
@@ -409,8 +415,8 @@ class KidHoldTest {
     // The signal's lists are frozen under both hold versions: a change is a new version name of each.
     @Test
     fun theAnimatedFamilyListsAreFrozenUnderBothHoldVersions() {
-        assertEquals("kid-hold-4", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-3", GrownUpHold.VERSION_NAME)
+        assertEquals("kid-hold-5", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-4", GrownUpHold.VERSION_NAME)
         assertEquals("animation", AnimatedFamilySignal.GENRE_ANIMATION)
         assertEquals("family", AnimatedFamilySignal.GENRE_FAMILY)
         assertEquals(setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved"), AnimatedFamilySignal.RATINGS)
@@ -421,7 +427,7 @@ class KidHoldTest {
     @Test
     fun theHoldVersionNamesMoveTogether() {
         assertEquals(
-            mapOf("kid-hold-4" to "grown-up-hold-3"),
+            mapOf("kid-hold-5" to "grown-up-hold-4"),
             mapOf(KidHold.VERSION_NAME to GrownUpHold.VERSION_NAME),
         )
     }
@@ -429,8 +435,8 @@ class KidHoldTest {
     // The gate's behaviour is pinned under both version names: a change to any vector is a new version of each hold.
     @Test
     fun theGrownUpGateIsPinnedUnderBothHoldVersions() {
-        assertEquals("kid-hold-4", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-3", GrownUpHold.VERSION_NAME)
+        assertEquals("kid-hold-5", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-4", GrownUpHold.VERSION_NAME)
         val animated = listOf("Animation", "Family")
         val drops =
             mapOf(
@@ -451,7 +457,8 @@ class KidHoldTest {
         // An episode: the series is read; a missing series fails the kid ceiling, so it is kept.
         assertTrue(GrownUpHold.dropsFromGrownUp(episodeOf(rating = "TV-Y7"), show(rating = "TV-Y7")))
         assertFalse(GrownUpHold.dropsFromGrownUp(episodeOf(rating = "TV-Y7"), null))
-        assertFalse(GrownUpHold.dropsFromGrownUp(episodeOf(rating = "TV-PG"), show(rating = "TV-Y7")))
+        // kid-hold-5: the series rating decides, so an off-rated episode of a TV-Y7 series drops too.
+        assertTrue(GrownUpHold.dropsFromGrownUp(episodeOf(rating = "TV-PG"), show(rating = "TV-Y7")))
     }
 
     @Test
@@ -516,6 +523,57 @@ class KidHoldTest {
                 val expected = checkNotNull(KidHold.kidRank(r)) <= tier
                 assertEquals(expected, KidHold.passesKidCeiling(film(r), null, choice), "$r under $choice")
             }
+        }
+    }
+
+    @Test
+    fun aKnownRatedSeriesDecidesForItsEpisodes() {
+        assertTrue(KidHold.passesKidCeiling(episodeOf("TV-PG"), show("TV-Y"), "PG"))
+        assertTrue(KidHold.passesKidCeiling(episodeOf("NR"), show("TV-Y"), "PG"))
+        assertTrue(KidHold.passesKidCeiling(episodeOf("TV-14"), show("TV-Y7"), "TV-Y7"))
+        assertFalse(KidHold.passesKidCeiling(episodeOf("TV-Y"), show("TV-PG"), "PG"))
+        assertFalse(KidHold.passesKidCeiling(episodeOf("TV-Y"), show("NR"), "PG"))
+        assertFalse(KidHold.passesKidCeiling(episodeOf("TV-Y"), show("Not Rated"), "PG"))
+        assertFalse(KidHold.passesKidCeiling(episodeOf("G"), show("TV-Y7"), "G"))
+    }
+
+    @Test
+    fun aKnownSeriesWithNoRatingFallsBackToTheEpisode() {
+        assertFalse(KidHold.passesKidCeiling(episodeOf("TV-PG"), show(""), "PG"))
+        assertFalse(KidHold.passesKidCeiling(episodeOf("TV-PG"), show(null), "PG"))
+        assertFalse(KidHold.passesKidCeiling(episodeOf("TV-PG"), show("  "), "PG"))
+        assertTrue(KidHold.passesKidCeiling(episodeOf("TV-Y"), show(null), "PG"))
+    }
+
+    @Test
+    fun theGrownUpHoldDropsOffRatedEpisodesOfAKidsSeries() {
+        val kids = show("TV-Y", genres = listOf("Children"))
+        assertTrue(GrownUpHold.dropsFromGrownUp(episodeOf("TV-PG"), kids))
+        assertTrue(GrownUpHold.dropsFromGrownUp(episodeOf("Unrated"), kids))
+        assertFalse(GrownUpHold.dropsFromGrownUp(episodeOf("TV-PG"), show(null, genres = listOf("Children"))))
+    }
+
+    @Test
+    fun theAnimatedFamilySignalTakesTheSeriesRatingWhenPresent() {
+        val af = listOf("Animation", "Family")
+        assertTrue(KidHold.isAnimatedFamily(episodeOf("PG", genres = af), show("TV-Y")))
+        assertFalse(KidHold.isAnimatedFamily(episodeOf("TV-Y", genres = af), show("PG")))
+        assertFalse(KidHold.isAnimatedFamily(episodeOf("PG", genres = af), show(" ")))
+    }
+
+    @Test
+    fun aSeriesRatingIsAbsentOnlyWhenNullOrEmptyAfterTrimmingSpaces() {
+        for (absent in listOf(null, "", " ", "   ")) assertTrue(KidHold.isAbsentRating(absent), "[$absent]")
+        for (present in listOf("\t", "\u00A0", "\u3000", " \t ", "TV-Y")) {
+            assertFalse(KidHold.isAbsentRating(present), present)
+        }
+    }
+
+    @Test
+    fun aSeriesRatingOfOtherWhitespaceIsPresentSoItFailsTheKidCeiling() {
+        for (odd in listOf("\t", "\u00A0", "\u3000")) {
+            assertFalse(KidHold.passesKidCeiling(episodeOf("TV-Y"), show(odd), "PG"), odd)
+            assertTrue(KidHold.passesKidCeiling(episodeOf("TV-Y"), show("  "), "PG"))
         }
     }
 }

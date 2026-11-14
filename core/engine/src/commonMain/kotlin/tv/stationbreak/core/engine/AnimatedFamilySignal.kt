@@ -6,8 +6,10 @@ import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.rules.RatingLadder
 
 /**
- * The animated-family signal of `kid-hold-3` (ADR-0019 addendum), behind [KidHold.isAnimatedFamily]. Pure; it reads
- * the folded genres and the ratings and nothing else. Its lists are frozen under `KidHold.VERSION_NAME`.
+ * The animated-family signal (added in `kid-hold-3`, ADR-0019 addendum), behind [KidHold.isAnimatedFamily]. Pure; it
+ * reads the folded genres and the ratings and nothing else. Its lists are frozen under `KidHold.VERSION_NAME`. Under
+ * `kid-hold-5` a known series' rating decides when present (not absent, `KidHold.isAbsentRating`) and the entry's own
+ * is ignored; a known series with no rating leaves the entry's own to decide (the Farscape guard).
  */
 internal object AnimatedFamilySignal {
     private const val ASCII_CASE_OFFSET = 'a' - 'A'
@@ -28,10 +30,8 @@ internal object AnimatedFamilySignal {
         series: RuleSeries?,
     ): Boolean {
         if (!genresHold(entry.foldedGenres, series?.foldedGenres)) return false
-        val own = entry.officialRating
-        val seriesRating = series?.officialRating
-        val effective = if (own.isNullOrBlank()) seriesRating else own
-        return ratingPasses(effective) && ratingPasses(seriesRating)
+        val decisive = if (series == null) entry.officialRating else KidHold.decisiveEpisodeRating(entry, series)
+        return ratingPasses(decisive)
     }
 
     /** The signal on [series] alone. */
@@ -57,9 +57,10 @@ internal object AnimatedFamilySignal {
     }
 
     private fun ratingPasses(rating: String?): Boolean {
-        val name = if (rating == null || rating.isBlank()) null else RatingLadder.normalise(rating)
+        val absent = KidHold.isAbsentRating(rating)
+        val name = if (rating == null || absent) null else RatingLadder.normalise(rating)
         return when {
-            rating == null || rating.isBlank() -> true
+            rating == null || absent -> true
             name != null -> name in RATINGS
             else -> upperAscii(rating.trim()) in UNRATED_SPELLINGS
         }

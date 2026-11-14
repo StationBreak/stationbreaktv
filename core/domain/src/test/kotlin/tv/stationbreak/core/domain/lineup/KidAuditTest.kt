@@ -23,7 +23,7 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /**
- * The kid audit (spec 23, kid-hold-3): over a week of the shipped catalog's lineup (catalog 3, programmed), and of one
+ * The kid audit (spec 23; kid-hold-5 today): over a week of the shipped catalog's lineup (catalog 3, programmed), and of one
  * upgraded to it in the middle of a day, everything on every kid channel is made for kids and within the channel's
  * ceiling, whatever the library holds. The library mixes the animated-family signal
  * with its near misses (live action, no Family, PG and above, a grown-up series). Invented names only.
@@ -44,7 +44,7 @@ class KidAuditTest {
     private val nearMisses = mutableSetOf<CanonicalId>()
 
     // Made for kids, and over every kid ceiling (an unrated animated family film, and a film rated R in a kids genre):
-    // no kid channel takes it, so a grown-up channel keeps it (grown-up-hold-2, option C).
+    // no kid channel takes it, so a grown-up channel keeps it (grown-up-hold-4, option C).
     private val overEveryCeiling = mutableSetOf<CanonicalId>()
 
     // Made for kids by a list or the signal, and seeded as such: never on a grown-up channel.
@@ -232,7 +232,7 @@ class KidAuditTest {
         }
 
     // Catalog 2's own recipes are test code of core:engine, out of reach here: its real kid rules on the day of the
-    // swap are audited there (`LineupPlannerMigrationTest.kidChannelsOnlyEverSeeKidHoldThree`).
+    // swap are audited there (`LineupPlannerMigrationTest.kidChannelsOnlyEverSeeKidHoldFive`).
     // A lineup chosen under catalog 2 (a stand-in: the shipped recipes, plain) moves to catalog 3 at noon on day 0:
     // day 0 airs the old rules, days 1 to 6 the programmed ones. Every day, every kid channel airs only what is made
     // for kids and within its ceiling, and kid channels do take part in the curation once it applies.

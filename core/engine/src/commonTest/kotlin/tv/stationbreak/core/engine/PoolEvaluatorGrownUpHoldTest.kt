@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The grown-up hold of `grown-up-hold-2` (ADR-0020 addendum): a grown-up pool drops only what a kid channel could take
+ * The grown-up hold of `grown-up-hold-4` (ADR-0020 addendum): a grown-up pool drops only what a kid channel could take
  * (made for kids and within the widest kid ceiling); the rest stays (option C).
  */
 class PoolEvaluatorGrownUpHoldTest {

@@ -261,11 +261,12 @@ class PersistedDaysTest {
         assertEquals(DaySnapshotMiss.App, lastMiss())
     }
 
-    // ADR-0026: the holds moved to studio fold 2, so every day built under kid-hold-3 or grown-up-hold-2 rebuilds once.
+    // ADR-0026 moved the holds to studio fold 2 (kid-hold-4, grown-up-hold-3); the ADR-0019 addendum of 2026-11-13 made a
+    // rated series decide for its episodes (kid-hold-5, grown-up-hold-4). Each rename rebuilds every held day once.
     @Test
-    fun theHoldNamesAreKidHoldFourAndGrownUpHoldThree() {
-        assertTrue("kid-hold-4" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
-        assertTrue("grown-up-hold-3" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+    fun theHoldNamesAreKidHoldFiveAndGrownUpHoldFour() {
+        assertTrue("kid-hold-5" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+        assertTrue("grown-up-hold-4" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
     }
 
     @Test

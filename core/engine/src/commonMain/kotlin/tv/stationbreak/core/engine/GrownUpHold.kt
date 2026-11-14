@@ -12,7 +12,7 @@ import tv.stationbreak.core.model.RuleSeries
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-3"
+    const val VERSION_NAME = "grown-up-hold-4"
 
     /**
      * Whether a grown-up pool drops [entry]: it is made for kids ([KidHold.isMadeForKids]) and passes the widest kid

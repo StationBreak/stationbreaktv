@@ -95,8 +95,9 @@ The owner decisions of 2026-10-27:
    | 4 | every other name above these on the ladder |
 
    "Approved" and any name off the ladder count as unrated, and unrated stays off kid channels. The ceiling is still
-   capped at PG, so a PG ceiling admits PG films but not TV-PG shows. The check applies to an episode's effective
-   rating and to its series' rating. An episode whose series is unknown fails closed.
+   capped at PG, so a PG ceiling admits PG films but not TV-PG shows. The check applies to an episode's effective rating
+   and to its series' rating. An episode whose series is unknown fails closed. (Superseded for a known rated series by
+   the 2026-11-13 addendum.)
 7. **Catalog version 2.** Every recipe outside the Kids band excludes the same eight kids genre spellings as the gate
    (§5, built from `KidHold.KIDS_GENRES`, so a grown-up channel drops exactly what a kid channel would take), so
    preschool shows stop appearing on grown-up channels. Children's *ratings* are not a genre: see
@@ -120,7 +121,8 @@ The owner decisions of 2026-10-27:
   channels, except where a grown-up channel now excludes a kids genre.
 - Kids' shows the hold refuses (unrated, TV-PG) mostly reach the grown-up leftovers (Odds & Ends), not grown-up
   channels in general, because grown-up starters exclude the kids genres. Spec 18 measures that and sets a target for
-  it.
+  it. (Amended 2026-11-13, `kid-hold-5`: an episode of a rated kids series no longer counts as refused for its own
+  rating, so it does not reach Odds & Ends for that reason. See the addendum below.)
 - Grown-up starters also drop episodes of a series the snapshot lacks, when the exclusion cannot be checked against
   the series genres (rules-format rule 3 fails closed). Those episodes fall to Odds & Ends too.
 - ADR-0002's "same account, same lineup" now reads "same account, same lineup, same app version" for kid channels.
@@ -193,4 +195,82 @@ for kids by the new rule.
 **The version.** `KidHold.VERSION_NAME` is `kid-hold-3`. The studio, genre and rating lists are the `kid-hold-2` ones,
 frozen under the new name; the manifest tests hold them. Mixed app versions can disagree on a kid channel during an
 update (A-VER-1).
+
+## Addendum (2026-11-13): `kid-hold-5`
+
+- **Amended by:** this addendum; the decision is the owner's (2026-11-13).
+- **Sequence.** [ADR-0026](0026-studio-fold-2.md) owns `kid-hold-4` / `grown-up-hold-3` and `formatVersion` 4, and
+  ships first. `kid-hold-5` follows `kid-hold-4` and includes its studio fold 2 as well as this rule: `kid-hold-5` is
+  "studio fold 2 (ADR-0026) plus the series-rating rule". Until fold 2 is built, this change is held and does not
+  merge.
+- **Supersedes:** the per-episode rating check in decision 6, for episodes of a known series that has a rating.
+
+**The gap.** Decision 6 judges an episode on its own rating as well as its series'. Fraggle Rock and VeggieTales are
+rated TV-Y, but some of their episodes carry their own TV-PG or no rating. Those episodes failed every kids ceiling.
+They also failed the grown-up hold's "made for kids and passes the kid table" test, so they fell into the grown-up
+Odds & Ends.
+
+**Owner decision (2026-11-13): if the series qualifies for a kids channel, its episodes qualify.** An episode of a known
+series whose rating is present (not absent, defined below) is judged on the series rating only; the episode's own rating
+is ignored. `KidHold.decisiveEpisodeRating(entry, series)` holds the rule. `KidHold.passesKidCeiling` and
+`AnimatedFamilySignal` (the `isAnimatedFamily` rating test) both call it, so the two cannot drift. This works in both
+directions: a TV-Y series with a TV-PG or unrated episode passes. A TV-PG series with a TV-Y episode still fails, as
+before: the series rating is the one that counts, and it is above the table's cap.
+
+**A series with no rating keeps the per-episode check.** When the known series has an absent rating, each episode is
+judged on its own rating, as under `kid-hold-3`. **Absent, exactly:** a series rating is absent when it is null, or is
+empty after trimming spaces (U+0020) from both ends, the same trim `RatingLadder.normalise` uses. Any other character
+makes it present: a tab, a no-break space (U+00A0) or an ideographic space (U+3000) is not trimmed, so a series rating
+made of those is present, is off the ladder, and fails the kid table (the episode is not judged on its own rating). No
+library notion of "blank" or "whitespace" is used, so every port reads this the same way. This differs from
+[rules-format](../rules-format.md), where "a blank rating blocks its episodes" (rule 4); that still holds for open and
+grown-up channels. Reason: a series can be on the kid-studio or kids-genre lists without being made for kids. The Jim
+Henson Company is a kid studio and also made *Farscape*. If *Farscape* has no series rating and "the series qualifies"
+were enough, it would reach a kids channel on its studio alone. The episode's own rating is then the only evidence of
+audience, so it still decides. A grown-up series must not reach a kids channel through its studio or genre tags alone.
+
+**Accepted risk, on purpose: no backstop.** A series rating is not a maximum over its episodes. Any episode of a
+series whose rating is within the kid table airs on a kid channel, whatever its own rating: a TV-MA episode of a TV-Y
+series airs. A wrong series rating in Jellyfin is one way to get there, and not the only one: a series can legitimately
+hold an episode its rating does not describe (a special, a crossover, an episode filed under the wrong series). The
+owner rejected a backstop (an episode ceiling over the series rating) because it defeats the purpose of the rule. What
+is set aside for kid channels is the per-episode reasoning of rules-format rule 4: that an episode's own rating is the
+safer evidence of its audience.
+
+**One definition of absent.** The animated-family rating test also reads "null or blank" through the same definition: a
+rating that is only spaces passes as unrated, and one holding a tab or another non-space character does not. Before
+this addendum it used a library trim of all whitespace, so a rating of only tabs passed; that edge now fails (it can
+only make `isMadeForKids` narrower).
+
+**`isMadeForKids` widens.** The animated-family signal now takes the decisive rating, so `isMadeForKids` widens
+through it: a TV-14 episode of a TV-G Animation+Family series is now made for kids, and an NR series' PG episodes
+count as made for kids but still fail every kid ceiling (an unrated series stays off kid channels). `isMadeForKids`
+itself is not edited.
+
+**Every port ships this rule under the same name** (`kid-hold-5`; `grown-up-hold-4` on the grown-up side). The shared
+vector is `docs/rules-format/vectors/kid-hold-5.json`. It was written by hand from this addendum, not computed with an
+independent reference, and a test in `core/engine` reads the published file and holds the code to it.
+
+**Release gate for ports.** [ADR-0026](0026-studio-fold-2.md)'s release gate names `kid-hold-4` and its vector
+`kid-hold-4.json`. A port may meet that gate with `kid-hold-5` provided it also passes `kid-hold-4.json`, since
+`kid-hold-5` is `kid-hold-4` plus this rule. ADR-0026 will get a matching note when this branch is rebased onto fold 2;
+it is not edited here. A `kid-hold-5` port must pass both vectors once `kid-hold-4.json` exists.
+
+**What does not change.** Movies, episodes with no series ID, and episodes whose series the snapshot lacks (these still
+fail closed). The kids genres, the studio list, the animated-family genre test and the ceiling choices are unchanged.
+`RatingEligibility` (rules-format rule 4) keeps its per-episode check for open and grown-up channels; the change is in
+the kid hold and the predicates built on it.
+
+**The version.** `KidHold.VERSION_NAME` is `kid-hold-5`. [ADR-0020](0020-grown-up-hold.md) follows with
+`grown-up-hold-4`, because the grown-up hold is built from `passesKidCeiling`. `StarterCatalog.VERSION` is not bumped:
+the rules and recipes do not change.
+
+**The rollout.** `PersistedDays` keys its files by `VERSION_NAME`, so every day made under `kid-hold-4` or earlier is
+remade once, for kid channels and for the grown-up channels that share the hold. As with `kid-hold-3` this applies at
+once, not at the next day boundary, and a programme on now can be cut once at the update. This is accepted for kid
+safety. Mixed app versions can disagree on a kid channel during an update (A-VER-1).
+
+**The consequence.** Off-rated episodes of rated kids series leave the grown-up Odds & Ends and air on kid channels and
+Kids' Odds & Ends. Kid channels get fuller. The trade is that a kid channel can air an episode whose own rating is
+higher than the series': the owner accepts that the series rating speaks for its episodes.
 

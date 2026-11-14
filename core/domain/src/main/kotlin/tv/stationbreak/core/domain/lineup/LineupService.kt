@@ -685,7 +685,7 @@ class LineupService internal constructor(
     /**
      * How many of the items [airingNowhereCount] leaves out are ones a grown-up pool drops
      * (`GrownUpHold.dropsFromGrownUp`: made for kids and takeable by a kid channel) and air nowhere. Under
-     * `grown-up-hold-2` (ADR-0020, option C) this is normally zero; it remains as a guard, counted apart.
+     * `grown-up-hold-4` (ADR-0020, option C) this is normally zero; it remains as a guard, counted apart.
      */
     internal suspend fun turnedAwayByBothHoldsCount(
         account: LibraryAccount,
