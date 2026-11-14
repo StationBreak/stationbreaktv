@@ -129,7 +129,7 @@ private object ScreenshotLineup : ChannelRepository {
  * The guide's focus treatment on the API 25 emulator (#566, #569), as PNG files for the proof. The same path as
  * `FirstSyncScreenshotTest`: UiAutomation's screenshot, because Compose's `captureToImage` needs API 26, written under
  * the test app's external files in [SCREENSHOT_DIR]. The lineup, the 960 by 540 host and the keys are the guide screen
- * test's. Dark is the default. The same three frames are taken again in Light. The focused cell is a wide episode with
+ * test's. Dark is the default. The same frames are taken again in Light. The focused cell is a wide episode with
  * its "S1 E19" line and the panel's year, runtime and genres; a long movie title elsewhere is cut at its cell's end. A
  * focused slate reads OFF AIR and the panel still says when it returns.
  */
@@ -286,7 +286,7 @@ class GuideScreenshotTest {
         return bitmap.asImageBitmap()
     }
 
-    /** The Settings panel with its five rows: the last (Even out volume) must end above the menu row. */
+    /** The Settings panel with its five rows: the last (Even out volume) must end above the grid's clock strip. */
     @Test
     fun theSettingsPanel() = shootSettings(GuideTheme.Dark, suffix = "")
 
@@ -294,7 +294,7 @@ class GuideScreenshotTest {
     @Test
     fun theSettingsPanelLight() = shootSettings(GuideTheme.Light, suffix = "-light")
 
-    // All five rows clear of the menu row at both screen fits and at the font scales a TV is set to, with the Sync now
+    // All five rows clear of the grid at both screen fits and at the font scales a TV is set to, with the Sync now
     // line as long as it gets (and room for it on two lines).
     @Test
     fun theSettingsPanelFitsAtSafeAndFontScale1() = shootSettings(GuideTheme.Dark, "-safe-1", ScreenFit.Safe, 1f)
@@ -318,14 +318,15 @@ class GuideScreenshotTest {
         fit.value = chosen
         fontScale.floatValue = scale
         showReady(CH7)
+        // Back opens the menu sheet, Down is Settings, and Select opens the panel (the sheet steps aside for it).
         back()
         channels().assertIsSelected()
-        press(Key.DirectionRight)
+        press(Key.DirectionDown)
         press(Key.DirectionCenter)
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
         }
-        val menuTop = bounds(GuideTags.CHANNELS_BUTTON).top
+        val gridTop = bounds(GuideTags.GRID).top
         // The longest Sync now line the guide has is one line at this width, so a line more is added to each row's
         // bottom: the fit holds when the line wraps too.
         val status = bounds(GuideTags.SETTINGS_SYNC_STATUS)
@@ -334,7 +335,7 @@ class GuideScreenshotTest {
             val rect = bounds(tag)
             assertTrue("$tag was squeezed out of the panel ($rect)", rect.height > 0f)
             val bottom = rect.bottom + wrapExtra
-            assertTrue("$tag (bottom $bottom) runs into the menu row (top $menuTop)", bottom <= menuTop)
+            assertTrue("$tag (bottom $bottom) runs into the grid (top $gridTop)", bottom <= gridTop)
         }
         val picked = if (chosen == ScreenFit.Safe) GuideTags.FIT_SAFE else GuideTags.FIT_EDGE
         compose.onNodeWithTag(picked).assertIsSelected()
@@ -435,7 +436,7 @@ class GuideScreenshotTest {
             ?.config
             ?.getOrNull(MarkKindKey)
 
-    /** Focused cell, focused menu and resting menu, then (dark only) the off-air cell. */
+    /** Focused cell and the menu sheet over it (#756), then the focused movie and (dark only) the off-air cell. */
     private fun shootTheme(
         shown: GuideTheme,
         suffix: String,
@@ -443,7 +444,7 @@ class GuideScreenshotTest {
         theme.value = shown
         showReady(CH7)
         cell(CH7, 60).assertIsSelected()
-        channels().assertIsNotSelected()
+        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
         assertEquals(SERIES, text(GuideTags.cellText(CH7, T0 + 60 * MIN)))
         assertEquals("S1 E19", text(GuideTags.cellSecondLine(CH7, T0 + 60 * MIN)))
         assertEquals(OTHER_SERIES, text(GuideTags.cellText(CH5, T0 + 60 * MIN)))
@@ -453,14 +454,16 @@ class GuideScreenshotTest {
         assertTrue("the long title ends inside the cell", ellipsized(longTitle))
         shoot("$FOCUSED_CELL$suffix.png")
 
+        // Back on the playing cell opens the menu sheet (#756) over the guide, on Channels.
         back()
         channels().assertIsSelected()
-        shoot("$FOCUSED_MENU$suffix.png")
+        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertIsDisplayed()
+        shoot("$MENU_SHEET_FRAME$suffix.png")
 
-        press(Key.DirectionDown)
+        // The Menu key closes it (Back would leave live TV from a sheet Back opened); the focus is on the cell again.
+        press(Key.Menu)
+        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
         cell(CH7, 60).assertIsSelected()
-        channels().assertIsNotSelected()
-        shoot("$RESTING_MENU$suffix.png")
 
         shootFocusedMovie(suffix)
         if (shown != GuideTheme.Dark) return
@@ -696,7 +699,7 @@ class GuideScreenshotTest {
         const val SCREENSHOT_DIR = "guide-screenshots"
         const val FOCUSED_CELL = "guide-focused-cell"
         const val FOCUSED_MOVIE = "guide-focused-movie"
-        const val FOCUSED_MENU = "guide-focused-menu"
+        const val MENU_SHEET_FRAME = "guide-menu-sheet"
         const val OFF_AIR = "guide-off-air.png"
         const val MARKS_FRAME = "guide-marks"
         const val DETAILS_FRAME = "guide-details"
@@ -705,7 +708,6 @@ class GuideScreenshotTest {
         val MARK_ROBOTS = ChannelId("ch-marks-robots")
         val MARK_LONG = ChannelId("ch-marks-long")
         val MARK_CUSTOM = ChannelId("ch-marks-custom")
-        const val RESTING_MENU = "guide-resting-menu"
         const val HOST_WIDTH_DP = 960
         const val HOST_HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L

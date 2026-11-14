@@ -471,7 +471,7 @@ class GuideScreenTest {
     fun dpadMovesFocusAndPanelFollows() {
         showReady(CH7)
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch"))
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu   Menu Open the menu"))
         press(Key.DirectionRight)
         cell(CH7, 90).assertIsSelected()
         cell(CH7, 60).assertIsNotSelected()
@@ -482,11 +482,11 @@ class GuideScreenTest {
         cell(CH5, 60).assertIsSelected()
         assertEquals("Test Movie 201", text(GuideTags.PANEL_TITLE))
         // Off the playing channel (7): Back goes back to it before it exits.
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To what's playing"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back To what's playing"))
     }
 
     @Test
-    fun backAwayFromThePlayingCellReturnsToItAndTheNextBackExits() {
+    fun backAwayFromThePlayingCellReturnsToItAndThenOpensTheMenuSheetAndTheNextBackExits() {
         showReady(CH7)
         cell(CH7, 60).assertIsSelected()
         // Away: down two rows and right, the grid scrolled to the right.
@@ -494,16 +494,16 @@ class GuideScreenTest {
         press(Key.DirectionDown)
         repeat(3) { press(Key.DirectionRight) }
         cell(CH7, 60).assertIsNotSelected()
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To what's playing"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back To what's playing"))
         back()
         cell(CH7, 60).assertIsSelected()
         assertEquals("Test Movie 102", text(GuideTags.PANEL_TITLE))
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back To the menu"))
         assertEquals(0, exits)
-        // On the playing cell: the next Back goes to the menu row, whose Back leaves live TV.
+        // On the playing cell: the next Back opens the menu sheet, whose Back leaves live TV.
         back()
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Exit live TV"))
+        assertEquals("Back Exit live TV", text(GuideTags.HINT))
         assertEquals(0, exits)
         back()
         assertEquals(1, exits)
@@ -520,10 +520,10 @@ class GuideScreenTest {
         press(Key.DirectionUp)
         cell(CH9, 0).assertIsSelected()
         assertEquals("Test Movie 300", text(GuideTags.PANEL_TITLE))
-        compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsNotSelected()
+        compose.onNodeWithTag(GuideTags.MENU_SHEET).assertDoesNotExist()
         press(Key.DirectionDown)
         cell(ch3, 0).assertIsSelected()
-        // Back goes to the playing channel, then to the menu row, then leaves.
+        // Back goes to the playing channel, then opens the menu sheet, then leaves.
         back()
         cell(CH5, 60).assertIsSelected()
         back()
@@ -534,7 +534,7 @@ class GuideScreenTest {
     }
 
     @Test
-    fun backOnTheOpeningCellGoesToTheMenuAndTheNextExits() {
+    fun backOnTheOpeningCellOpensTheMenuSheetAndTheNextExits() {
         showReady(CH5)
         back()
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
@@ -544,11 +544,11 @@ class GuideScreenTest {
     }
 
     @Test
-    fun backWithNoPlayingChannelOnTheGridGoesToTheMenuAndSaysSo() {
-        // The guide opens on the first row, which is not what is playing: nothing to go back to but the menu row.
+    fun backWithNoPlayingChannelOnTheGridOpensTheMenuSheetAndSaysSo() {
+        // The guide opens on the first row, which is not what is playing: nothing to go back to but the menu.
         showReady(null)
         press(Key.DirectionRight)
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back To the menu"))
         back()
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertEquals(0, exits)
@@ -668,8 +668,8 @@ class GuideScreenTest {
         val slate = text(GuideTags.cellText(CH9, min(150)))
         assertEquals("OFF AIR", slate)
         assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Off air until "))
-        // Nothing to watch or read about: the hint only says what Back does (here, back to the playing channel).
-        assertEquals("Back To what's playing", text(GuideTags.HINT))
+        // Nothing to watch or read about: the hint says what Back does (here, back to the playing channel) and Menu.
+        assertEquals("Back To what's playing   Menu Open the menu", text(GuideTags.HINT))
     }
 
     @Test
@@ -726,8 +726,8 @@ class GuideScreenTest {
             assertEquals("$key: $roots", 2, roots.count { it == "ui.GuideCellView" })
             val others = roots.filterNot { it == "ui.GuideCellView" || it.startsWith("ui.DetailsPanel") }
             assertTrue("$key: $roots", others.all { it.startsWith("ui.HintRow") })
-            // The menu entries read only whether the focus is on them: a move on the grid leaves them alone.
-            assertTrue("$key: $roots", roots.none { it.startsWith("ui.GuideMenu") || it.startsWith("ui.MenuButton") })
+            // The menu sheet is not composed while it is closed, and a move on the grid never touches it.
+            assertTrue("$key: $roots", roots.none { it.startsWith("ui.GuideMenu") || it.startsWith("ui.MenuRow") })
         }
     }
 
@@ -986,7 +986,7 @@ class GuideScreenTest {
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state == GuideState.Loading }
         compose.waitForIdle()
         compose.onNodeWithTag(GuideTags.LOADING).assertExists()
-        assertEquals("Back Exit live TV", text(GuideTags.HINT))
+        assertEquals("Back Exit live TV   Menu Open the menu", text(GuideTags.HINT))
         schedule.gate?.complete(Unit)
         compose.waitUntil(TIMEOUT_MS) { vm.snapshot.value.state is GuideState.Ready }
         compose.waitForIdle()
