@@ -149,6 +149,21 @@ private class ShelfHoldings(
     ): ChannelHoldings? = held[id]
 }
 
+/** Holdings that wait for [open] before they answer, so a test can look at the box before and after they arrive. */
+private class GatedHoldings(
+    val held: Map<ChannelId, ChannelHoldings>,
+) : ChannelHoldingsReader {
+    val open = CompletableDeferred<Unit>()
+
+    override suspend fun read(
+        id: ChannelId,
+        at: Instant,
+    ): ChannelHoldings? {
+        open.await()
+        return held[id]
+    }
+}
+
 /** The guide on screen (spec 17): focus, the panel, cells of every kind, the info overlay and Back. */
 @Suppress("LargeClass") // One function per behaviour of the screen, over one shared rig of fixtures.
 @RunWith(AndroidJUnit4::class)
@@ -1158,6 +1173,39 @@ class GuideScreenTest {
         compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertDoesNotExist()
         press(Key.DirectionLeft)
         compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    private fun nameTop() =
+        compose
+            .onNodeWithTag(GuideTags.CHANNEL_PANEL_NAME, useUnmergedTree = true)
+            .getBoundsInRoot()
+            .top
+
+    @Test
+    fun theNameStaysPutWhenTheHoldingsArriveAndOnAChannelWithNone() {
+        val gate = GatedHoldings(shelf(CH5, 412, 37, HomeShows.Known(1, listOf(title(1)))).held)
+        holdings = gate
+        showReady(CH5)
+
+        press(Key.DirectionLeft)
+        compose.waitForIdle()
+        Thread.sleep(REST_AFTER_MS)
+        compose.waitForIdle()
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true).assertCountEquals(0)
+        val before = nameTop()
+
+        gate.open.complete(Unit)
+        awaitHoldings()
+        assertEquals("the name does not move when the holdings arrive", before, nameTop())
+
+        // Channel 7 holds nothing in this lineup: the box has no holdings lines and the name is where it was.
+        press(Key.DirectionDown)
+        compose.waitForIdle()
+        Thread.sleep(REST_AFTER_MS)
+        compose.waitForIdle()
+        assertEquals("Test Channel 7", text(GuideTags.CHANNEL_PANEL_NAME))
+        compose.onAllNodesWithTag(GuideTags.CHANNEL_PANEL_HOURS, useUnmergedTree = true).assertCountEquals(0)
+        assertEquals("a channel with no holdings puts its name in the same place", before, nameTop())
     }
 
     private companion object {

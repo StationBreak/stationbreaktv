@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -123,7 +124,7 @@ internal fun ChannelPanel(
         if (tags.isNotEmpty()) {
             Slot(ChannelSlot.Tags) { TagRow(tags, GuideTags.CHANNEL_PANEL_TAGS, GuideTags.CHANNEL_PANEL_TAG) }
         }
-        onNow?.let { Slot(ChannelSlot.OnNow) { SmallLine(it, GuideTags.CHANNEL_PANEL_ON_NOW) } }
+        onNow?.let { Slot(ChannelSlot.OnNow) { OnNowRow(it) } }
         held?.holdings?.let { HoldingsSlots(it) }
     }
 }
@@ -159,7 +160,7 @@ private fun IdentityBlock(
 }
 
 @Composable
-private fun SmallLine(
+private fun SmallText(
     text: String,
     tag: String,
 ) = Text(
@@ -169,7 +170,42 @@ private fun SmallLine(
     color = LocalGuideColors.current.textSecondary,
     maxLines = 1,
     overflow = TextOverflow.Ellipsis,
+    softWrap = false,
 )
+
+/**
+ * The On now / Next line on one line (#778 review): "<N> min left" always shows whole after the on-air title; "Next:
+ * ..." shows when the whole line fits, else it is dropped; only then does the title give way, ellipsized, so the line
+ * never ends in a cut word.
+ */
+@Composable
+private fun OnNowRow(line: OnNowLine) =
+    Layout(
+        content = {
+            SmallText(line.onNow, GuideTags.CHANNEL_PANEL_ON_NOW_TITLE)
+            SmallText(ON_NOW_SEPARATOR + line.minutesLeft, GuideTags.CHANNEL_PANEL_ON_NOW_LEFT)
+            line.next?.let { SmallText(ON_NOW_SEPARATOR + it, GuideTags.CHANNEL_PANEL_ON_NOW_NEXT) }
+        },
+        modifier = Modifier.testTag(GuideTags.CHANNEL_PANEL_ON_NOW).semantics(mergeDescendants = true) {},
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0, maxWidth = Constraints.Infinity)
+        val left = measurables[1].measure(loose)
+        val next = measurables.getOrNull(2)?.measure(loose)
+        val titleWidth = measurables[0].maxIntrinsicWidth(Constraints.Infinity)
+        val nextWidth = next?.width ?: 0
+        val keepNext = next != null && titleWidth + left.width + nextWidth <= constraints.maxWidth
+        val room = (constraints.maxWidth - left.width - if (keepNext) nextWidth else 0).coerceAtLeast(0)
+        val title = measurables[0].measure(loose.copy(maxWidth = minOf(titleWidth, room)))
+        val parts = listOfNotNull(title, left, next?.takeIf { keepNext })
+        val height = parts.maxOf { it.height }
+        layout(constraints.constrainWidth(parts.sumOf { it.width }), height) {
+            var x = 0
+            parts.forEach {
+                it.placeRelative(x, 0)
+                x += it.width
+            }
+        }
+    }
 
 // The hours line and the list, each a slot of its own so the list can give way while the hours stay.
 @Composable
@@ -222,8 +258,9 @@ private fun Slot(
 
 /**
  * The [ChannelSlot] lines in their own order, kept by [KeepOrder] while they fit the height and left out whole when
- * they do not, so the box's clip never cuts a glyph. The kept lines sit in the middle of the height, as the box's
- * column did before. The hours line and the list under it sit closer together, as one block.
+ * they do not, so the box's clip never cuts a glyph. The kept lines sit at the top, as the program panel's do, so the
+ * identity block, the tags and On now / Next stay put when the holdings arrive (#778 review). The hours line and the
+ * list under it sit closer together, as one block.
  */
 @Composable
 private fun ChannelColumn(
@@ -246,10 +283,9 @@ private fun ChannelColumn(
         if (height <= constraints.maxHeight) kept += slot
     }
     val lines = ChannelSlot.entries.filter { it in kept }
-    val used = lines.foldIndexed(0) { i, sum, s -> sum + measured.getValue(s).height + if (i > 0) gapAbove(s) else 0 }
     val width = lines.maxOfOrNull { measured.getValue(it).width } ?: 0
     layout(constraints.constrainWidth(width), constraints.maxHeight) {
-        var y = (constraints.maxHeight - used) / 2
+        var y = 0
         lines.forEachIndexed { i, slot ->
             if (i > 0) y += gapAbove(slot)
             val placeable = measured.getValue(slot)

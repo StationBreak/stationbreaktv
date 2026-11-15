@@ -142,7 +142,7 @@ class ChannelBoxTextTest {
         val cells = listOf(cell(0, 30), cell(30, 90), cell(90, 120))
         assertEquals(
             "On now: Show 30 · 48 min left · Next: Show 90 at t90",
-            onNowNextLine(cells, 42 * MIN, onNow, time),
+            onNowNextLine(cells, 42 * MIN, onNow, time)?.text,
         )
     }
 
@@ -158,13 +158,13 @@ class ChannelBoxTextTest {
             )
         assertEquals(
             "On now: Station break · 3 min left · Next: Show 35 at t35",
-            onNowNextLine(cells, 32 * MIN, onNow, time),
+            onNowNextLine(cells, 32 * MIN, onNow, time)?.text,
         )
         assertEquals(
             "On now: Show 35 · 15 min left · Next: Off air at t62",
-            onNowNextLine(cells, 45 * MIN, onNow, time),
+            onNowNextLine(cells, 45 * MIN, onNow, time)?.text,
         )
-        assertEquals("On now: Off air · 50 min left", onNowNextLine(cells, 70 * MIN, onNow, time))
+        assertEquals("On now: Off air · 50 min left", onNowNextLine(cells, 70 * MIN, onNow, time)?.text)
     }
 
     @Test
@@ -172,8 +172,8 @@ class ChannelBoxTextTest {
         val cells = listOf(cell(0, 30, CellKind.Unavailable), cell(30, 60))
         assertEquals(
             "On now: Unavailable · 20 min left · Next: Show 30 at t30",
-            onNowNextLine(cells, 10 * MIN, onNow, time),
+            onNowNextLine(cells, 10 * MIN, onNow, time)?.text,
         )
-        assertNull(onNowNextLine(cells, 60 * MIN, onNow, time))
+        assertNull(onNowNextLine(cells, 60 * MIN, onNow, time)?.text)
     }
 }

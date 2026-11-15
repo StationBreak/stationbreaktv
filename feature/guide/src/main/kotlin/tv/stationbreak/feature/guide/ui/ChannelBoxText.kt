@@ -158,7 +158,20 @@ internal class OnNowCopy(
     }
 }
 
-private const val ON_NOW_SEPARATOR = " · "
+internal const val ON_NOW_SEPARATOR = " · "
+
+/**
+ * The On now / Next line in its three parts, so the box can give way inside it (#778 review): [onNow] ("On now:
+ * <title>") is the part that ellipsizes, [minutesLeft] always shows whole, and [next] ("Next: <title> at <time>")
+ * shows only when it fits whole. [text] is the whole line, as it reads with room for all of it.
+ */
+internal data class OnNowLine(
+    val onNow: String,
+    val minutesLeft: String,
+    val next: String?,
+) {
+    val text: String get() = listOfNotNull(onNow, minutesLeft, next).joinToString(ON_NOW_SEPARATOR)
+}
 
 /**
  * "On now: <title> · <N> min left · Next: <title> at <time>" from the row's own [cells]: the cell airing at
@@ -171,14 +184,14 @@ internal fun onNowNextLine(
     nowMs: Long,
     copy: OnNowCopy,
     time: (Long) -> String,
-): String? {
+): OnNowLine? {
     val now = cells.firstOrNull { it.startMs <= nowMs && nowMs < it.endMs } ?: return null
     val next = cells.firstOrNull { it.startMs >= now.endMs && it.kind != CellKind.Break }
-    return listOfNotNull(
-        copy.onNow(gridLabel(now, copy)),
-        copy.minutesLeft(ProgramText.minutesUntil(now.endMs, nowMs)),
-        next?.let { copy.next(gridLabel(it, copy), time(it.startMs)) },
-    ).joinToString(ON_NOW_SEPARATOR)
+    return OnNowLine(
+        onNow = copy.onNow(gridLabel(now, copy)),
+        minutesLeft = copy.minutesLeft(ProgramText.minutesUntil(now.endMs, nowMs)),
+        next = next?.let { copy.next(gridLabel(it, copy), time(it.startMs)) },
+    )
 }
 
 private fun gridLabel(

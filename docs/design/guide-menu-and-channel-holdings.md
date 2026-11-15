@@ -43,11 +43,13 @@ Top to bottom:
 | **Mark, CHANNEL n, name** | unchanged. |
 | **Tag line** | under the name, inside the identity block. A starter's personality (`ChannelProperties.personality`), 13 sp Regular `textPrimary`, two lines at most, no quotation marks. A channel with none says one line in the properties sheet's words, in 13 sp `textSecondary`: leftovers `Plays whatever nothing else does`; a custom channel the first row of the sheet's "What it plays" that has anything in it, as `Collections: Star Trek, Stargate`. Left out when there is nothing to say. |
 | **Tags** | the programme panel's outlined tags (`PanelTagRow`): `KIDS · UP TO <rating>` (or `KIDS` with no ceiling) for a kids channel, then `BUILT-IN`, `CUSTOM` or `LEFTOVERS`. |
-| **On now / Next** | 11 sp `textSecondary`, one line with an ellipsis: `On now: <title> · <N> min left · Next: <title> at <time>`, from the row's own cells. A slate, a break or an unavailable programme reads as the grid labels it (`Off air`, `Station break`, `Unavailable`); Next passes over breaks; it is left out when nothing follows. |
+| **On now / Next** | 11 sp `textSecondary`, one line: `On now: <title> · <N> min left · Next: <title> at <time>`, from the row's own cells. When it is too long, `Next: …` is dropped whole first, then the on-air title is ellipsized; `<N> min left` always shows. A slate, a break or an unavailable programme reads as the grid labels it (`Off air`, `Station break`, `Unavailable`); Next passes over breaks; it is left out when nothing follows. |
 | **Hours, "Home to:" / "Mostly:"** | as above, unchanged. |
 
 - The tag line and the tags show at once with the channel, with no dwell: the guide reads every channel's identity (`ChannelIdentityReader`, the properties reader's own recipe, rules and lookups) when it opens. What needs no lookup (kind, kids, ceiling, personality) comes first; a custom channel's plays row follows once its sources are named, and a reopen with the same lineup looks nothing up. The holdings still come after the 200 ms rest.
 - The sheet and the box list what a channel plays from one `playsRowsOf` in `core:domain`, and word it with the same `core:ui` strings, so they word a channel one way.
+
+**Position.** The box's lines sit at the top of the panel, as the programme panel's do, so the identity block, the tags and On now / Next stay in place when the holdings arrive and on a channel with none.
 
 **When the box is short**, lines give way whole, never clipped, in this order: "Home to:" / "Mostly:" first, then the hours line, then On now / Next, then the tags. The identity block, with the tag line, always stays.
 
