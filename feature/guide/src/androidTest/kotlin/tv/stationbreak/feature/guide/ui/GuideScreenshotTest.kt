@@ -192,6 +192,7 @@ private object ScreenshotLineup : ChannelRepository {
  * its "S1 E19" line and the panel's year, runtime and genres; a long movie title elsewhere is cut at its cell's end. A
  * focused slate reads OFF AIR and the panel still says when it returns.
  */
+@Suppress("LargeClass") // One function per frame of the guide, over one shared rig of fixtures.
 @RunWith(AndroidJUnit4::class)
 class GuideScreenshotTest {
     @get:Rule

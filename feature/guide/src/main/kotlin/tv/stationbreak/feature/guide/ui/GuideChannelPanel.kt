@@ -274,7 +274,7 @@ private fun ChannelColumn(
         (if (slot == ChannelSlot.List) HoldingsGap else SlotGap).roundToPx()
     }
     val kept = mutableSetOf<ChannelSlot>()
-    for ((slot, placeable) in measured) {
+    for (slot in measured.keys) {
         val trial = kept + slot
         val height =
             ChannelSlot.entries.filter { it in trial }.foldIndexed(0) { i, sum, s ->

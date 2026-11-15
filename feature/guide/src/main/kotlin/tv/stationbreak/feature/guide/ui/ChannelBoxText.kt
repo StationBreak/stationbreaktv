@@ -23,6 +23,7 @@ import tv.stationbreak.core.ui.R as UiR
 // properties sheet uses, so the box and the sheet word a channel one way.
 
 /** The words of the tag line and the tags, from core:ui's resources: the properties sheet's own. */
+@Suppress("LongParameterList") // One holder of words, each a string or a format, filled in one place.
 internal class ChannelLineCopy(
     val builtIn: String,
     val custom: String,
@@ -89,7 +90,7 @@ internal fun tagLineOf(
     val personality =
         identity.personality
             ?.trim()
-            ?.trim(*QUOTES)
+            ?.trim { it in QUOTES }
             ?.trim()
     return when {
         !personality.isNullOrEmpty() -> TagLine(personality, personality = true)
