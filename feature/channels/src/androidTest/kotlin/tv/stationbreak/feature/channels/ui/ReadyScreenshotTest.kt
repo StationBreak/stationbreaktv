@@ -145,10 +145,10 @@ class ReadyScreenshotTest {
 
     /** A second batch joined a showing notice: the count grew from 2 to 3. */
     @Test
-    fun theNoticeAfterItGrew() = shootNotice("ready-notice-grown.png", GuideColors.Dark, TWO + (507 to "Late Late Show"))
+    fun theNoticeAfterItGrew() = shootNotice("ready-notice-grown.png", GuideColors.Dark, THREE)
 
     @Test
-    fun theNoticeAfterItGrewLight() = shootNotice("ready-notice-grown-light.png", GuideColors.Light, TWO + (507 to "Late Late Show"))
+    fun theNoticeAfterItGrewLight() = shootNotice("ready-notice-grown-light.png", GuideColors.Light, THREE)
 
     private fun save(name: String) {
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
@@ -198,5 +198,6 @@ class ReadyScreenshotTest {
         const val PNG_QUALITY = 100
         val ONE = listOf(352 to "Neon Rain")
         val TWO = listOf(352 to "Neon Rain", 424 to "Noir")
+        val THREE = TWO + (507 to "Late Late Show")
     }
 }
