@@ -36,12 +36,15 @@ import tv.stationbreak.core.domain.getOrNull
 import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInChannelHoldings
 import tv.stationbreak.core.domain.lineup.BuiltInChannelProperties
+import tv.stationbreak.core.domain.lineup.BuiltInChannelReadiness
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelManager
 import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
+import tv.stationbreak.core.domain.lineup.ChannelReadiness
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelSwitchOns
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupRefresher
@@ -184,7 +187,29 @@ internal object LineupModule {
     fun channelEditor(
         service: LineupService,
         settings: ServerSettings,
-    ): ChannelEditor = ChannelManager(service) { settings.loadPlayableLibraries() }
+        switchOns: ChannelSwitchOns,
+    ): ChannelEditor = ChannelManager(service, switchOns) { settings.loadPlayableLibraries() }
+
+    /**
+     * The channels the viewer switched on that are getting ready, and the notice that they are ready (#776): one for
+     * the whole app, on the [AppScope] that outlives any screen. Only the channel manager tells it of a switch-on.
+     */
+    @Provides
+    @Singleton
+    fun channelReadiness(
+        schedule: ScheduleSource,
+        sessions: SessionRepository,
+        @AppScope scope: CoroutineScope,
+    ): BuiltInChannelReadiness =
+        BuiltInChannelReadiness(schedule, Clock.System, scope, {
+            sessions.current.value?.let { LibraryAccount(it.server.id, it.userId) }
+        })
+
+    @Provides
+    fun channelReadinessView(readiness: BuiltInChannelReadiness): ChannelReadiness = readiness
+
+    @Provides
+    fun channelSwitchOns(readiness: BuiltInChannelReadiness): ChannelSwitchOns = readiness
 
     /** The draw of a new channel's or a reshuffle's seed: 64 bits from the platform's secure random source. */
     @Provides
