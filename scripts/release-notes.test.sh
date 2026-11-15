@@ -43,19 +43,11 @@ commit() { # <subject> [body]
 sha() { git rev-parse --short=7 HEAD; }
 notes() { bash "$here/release-notes.sh" "$1"; }
 
-# First release: no previous tag, so every commit up to it.
+# First release: no previous tag, so no commit list.
 commit "feat(guide): first feature (#1)"
-a="$(sha)"
 commit "docs: write the readme"
-b="$(sha)"
 git tag v1.0.0
-check "first release: all commits, no previous tag" "### Features
-
-- **guide:** first feature (#1) ($a)
-
-### Other changes
-
-- write the readme ($b)" "$(notes v1.0.0)"
+check "first release: one line, no commit list" "First release." "$(notes v1.0.0)"
 
 # Second release: every group. Newest first inside a group.
 commit "feat: plain feature without scope (#2)"
@@ -70,10 +62,12 @@ commit "ci: pin the runner (#5)"
 c5="$(sha)"
 commit "Update stuff without a type"
 c6="$(sha)"
-commit "# Heading attempt <!-- hidden -->"
+commit "## Heading attempt <!-- hidden -->"
 c7="$(sha)"
 commit "revert: put it back (#6)"
 c8="$(sha)"
+commit "fix: #12 crash keeps its issue number"
+c11="$(sha)"
 commit "fix: BREAKING CHANGE: in the subject is not a footer"
 c9="$(sha)"
 commit "Feat(Menu): capitalised type is still a feature"
@@ -93,6 +87,7 @@ check "second release: every group, breaking by ! and by footer" "### Breaking c
 ### Fixes
 
 - BREAKING CHANGE: in the subject is not a footer ($c9)
+- #12 crash keeps its issue number ($c11)
 - **player:** stop the crash (#3) ($c2)
 
 ### Performance

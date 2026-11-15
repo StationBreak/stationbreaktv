@@ -35,6 +35,8 @@ jobs:
       # The unsigned APKs' hashes: `sign` checks what it downloads against these before it touches the key.
       github-sha256: ${{ steps.collect.outputs.github-sha256 }}
       amazon-sha256: ${{ steps.collect.outputs.amazon-sha256 }}
+      # The release notes file's hash: `publish` checks what it downloads against it.
+      notes-sha256: ${{ steps.notes.outputs.notes-sha256 }}
     steps:
       - name: Check the tag
         id: tag
@@ -67,12 +69,14 @@ jobs:
       # untrusted: it is only written to a Markdown file, which `publish` puts in the draft's body for the owner to edit.
       # A file in its own artifact rather than a job output, because the notes can be long.
       - name: Generate the release notes
+        id: notes
         env:
           TAG: ${{ github.ref_name }}
         run: |
           mkdir -p "$RUNNER_TEMP/notes"
           bash scripts/release-notes.sh "$TAG" > "$RUNNER_TEMP/notes/release-notes.md"
           cat "$RUNNER_TEMP/notes/release-notes.md"
+          echo "notes-sha256=$(sha256sum "$RUNNER_TEMP/notes/release-notes.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Upload the release notes
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -374,8 +378,7 @@ jobs:
           # Fails on any APK that is not byte-for-byte what `sign` verified.
           sha256sum --check --strict "$RUNNER_TEMP/SHA256SUMS"
 
-      # The notes are text for a draft the owner reads and edits before publishing, so they are not hash-checked like the
-      # APKs; the check is that exactly one file came.
+      # The artifact store is not trusted, so the notes are checked against the hash `build` published, as the APKs are.
       - name: Download the release notes
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -383,12 +386,20 @@ jobs:
           path: ${{ runner.temp }}/notes
 
       - name: Check the release notes
+        env:
+          NOTES_SHA256: ${{ needs.build.outputs.notes-sha256 }}
         run: |
+          if ! [[ "$NOTES_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::the notes hash output from the build job is empty or not a SHA-256"
+            exit 1
+          fi
           found="$(cd "$RUNNER_TEMP/notes" && find . -mindepth 1 | sort | tr '\n' ' ')"
           if [ "$found" != "./release-notes.md " ]; then
             echo "::error::the release notes artifact must hold exactly release-notes.md; found: $found"
             exit 1
           fi
+          printf '%s  %s\n' "$NOTES_SHA256" "$RUNNER_TEMP/notes/release-notes.md" > "$RUNNER_TEMP/notes.sha256"
+          sha256sum --check --strict "$RUNNER_TEMP/notes.sha256"
 
       # The tag could have been moved while the run waited for approval. It must still point at the commit that was
       # built; an annotated tag is followed to its commit. The check is a script so the same code runs twice: here, and

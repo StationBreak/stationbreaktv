@@ -7,7 +7,7 @@
 # Usage: scripts/release-notes.sh <tag>
 #
 # The range is the commits after the previous `v*` tag reachable from <tag> (highest version first, <tag> itself
-# excluded) up to <tag>; with no previous tag, every commit up to <tag>. Merge commits are skipped. Groups, in order:
+# excluded) up to <tag>; with no previous tag it prints just `First release.` (the whole history is no use as a draft). Merge commits are skipped. Groups, in order:
 # Breaking changes (a `!` after the type or scope, or a `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer), Features
 # (feat), Fixes (fix), Performance (perf), Other changes (everything else, including subjects that are not Conventional
 # Commits). A breaking commit is listed in Breaking changes and again in its own group. Empty groups are left out.
@@ -15,7 +15,7 @@
 # trailing `(#NNN)`.
 #
 # Commit text is untrusted. It is only ever printed as Markdown text, never evaluated or used as a command or option.
-# Leading `#` heading markers are stripped, and `<!--` is escaped so a subject can't open an HTML comment.
+# Leading Markdown heading markers (one to six `#` and a space) are stripped, `#12` is kept, and `<!--` is escaped so a subject can't open an HTML comment.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
@@ -45,20 +45,23 @@ for candidate in "${reachable[@]}"; do
   fi
 done
 
-if [ -n "$previous" ]; then
-  range="refs/tags/$previous..refs/tags/$tag"
-else
-  range="refs/tags/$tag"
+if [ -z "$previous" ]; then
+  echo "First release."
+  exit 0
 fi
+range="refs/tags/$previous..refs/tags/$tag"
 
 # Text that is safe to print: no heading marker at the start, no HTML comment opener anywhere.
 clean() {
   local text="$1" escaped='&lt;!--'
   # Quoted so bash 5.2 doesn't read the & as "the matched text".
   text="${text//<!--/"$escaped"}"
-  while [[ "$text" == [[:space:]#]* ]]; do
-    text="${text#[[:space:]#]}"
+  # Only a real heading marker (one to six #, then a space or the end) goes: `#12` is an issue number and stays.
+  local heading_re='^[[:space:]]*#{1,6}([[:space:]]+|$)'
+  while [[ "$text" =~ $heading_re ]]; do
+    text="${text#"${BASH_REMATCH[0]}"}"
   done
+  text="${text#"${text%%[![:space:]]*}"}"
   printf '%s' "$text"
 }
 
@@ -114,7 +117,7 @@ out="$(
   emit "Other changes" "$other"
 )"
 if [ -z "$out" ]; then
-  echo "No changes since ${previous:-the start of the history}."
+  echo "No changes since $previous."
 else
   printf '%s\n' "$out"
 fi
