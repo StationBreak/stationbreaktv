@@ -210,8 +210,8 @@ These are accepted. Each is in the planner's KDoc, which is the authority.
   file takes its rules at once, so what the leftovers withhold can shift once in the middle of a day.
 - **A starter switched on mid-day by the viewer** airs from now. A programmed one is not in the basis, so until the
   boundary it airs its whole pool: the titles no basis channel homes as its own (weight 2) and the titles a basis channel
-  homes as guests (weight 1), so it is not empty for the day. A made-for-kids title never guests on a grown-up channel,
-  and the anime rule holds. The curation's tone test and guest cap are not applied: they read a channel's home hours,
+  homes as guests (weight 1), so it is not empty for the day. A made-for-kids title never guests on a grown-up channel (a kid channel airs its whole pool, already held to kid
+  content), and the anime rule holds for every title. The curation's tone test and guest cap are not applied: they read a channel's home hours,
   which it has none of. Both it and a basis channel can air the same title until the boundary. *Amended 2026-11-14
   ([#776](https://github.com/StationBreak/stationbreaktv/issues/776)): before, it aired only what the basis did not
   home, which could be nothing, and then it was hidden for the day with its reason.*

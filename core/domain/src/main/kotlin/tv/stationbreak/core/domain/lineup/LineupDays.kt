@@ -1443,7 +1443,11 @@ internal class LineupDays(
             } else {
                 // The basis is frozen: the channel is its own home for the titles no basis channel homes and a guest
                 // on the rest, until the boundary (the curation's guest tests need homes it has not got).
-                val late = lateOnPool(s, ruled, policy, pool.items, snapshot, day.homes)
+                // A curated day is a starter's, so the channel has a recipe.
+                val source = s.channel.source as ChannelSource.Starter
+                val recipe = checkNotNull(recipes[source.recipeKey]) { "A curated starter has a recipe" }
+                val channel = curationChannelFor(s.channel, recipe, ruled, policy, s.settings, pool.items)
+                val late = Curation.lateOn(snapshot, channel, day.homes)
                 epoch = EpochPool.build(s.settings, late.items, s.n)
                 keeps = TitleKeeps.NONE
                 weights = weightsIn(late.weights, epoch)
@@ -1455,31 +1459,6 @@ internal class LineupDays(
             // The window keeps at least one episode of each series, so emptiness (and its reason) is unchanged by it.
             val hidden = hiddenReason(pool, epoch, notChosen(rules))
             return dayOf(s, epoch, films, hidden, keeps, weights, homed)
-        }
-
-        // What the starter [s], which the basis does not hold, airs of [items] until the boundary ([Curation.lateOn]).
-        @Suppress("LongParameterList") // The channel's day, its rules and policy, its pool, and the basis it reads.
-        private fun lateOnPool(
-            s: Scheduled,
-            rules: ChannelRules,
-            policy: PoolPolicy,
-            items: List<ScheduleItem>,
-            snapshot: RuleSnapshot,
-            homes: Homes?,
-        ): LateOnPool {
-            val source = s.channel.source as ChannelSource.Starter
-            val recipe = checkNotNull(recipes[source.recipeKey]) { "A curated starter has a recipe" }
-            val channel =
-                CurationChannel(
-                    s.channel.id,
-                    recipe.number,
-                    recipe,
-                    policy == PoolPolicy.KidsOnly,
-                    rules,
-                    s.settings,
-                    items,
-                )
-            return Curation.lateOn(snapshot, channel, homes)
         }
 
         // The titles of [items] the curation gave their home to [channel]; a guest spot is not a home.
@@ -1595,6 +1574,19 @@ internal class LineupDays(
             val (ruled, policy) = ceilings.policyRules(rules, channel)
             val settings = settingsOrNull(ruled) ?: return null
             val pool = evaluate(ruled, cut, policy).items
+            return curationChannelFor(channel, recipe, ruled, policy, settings, pool)
+        }
+
+        // The curation's view of a starter: the one place that decides its kid flag and its number for the ties.
+        @Suppress("LongParameterList") // The channel, its recipe, its rules under policy and settings, and its pool.
+        private fun curationChannelFor(
+            channel: LineupChannel,
+            recipe: Recipe,
+            ruled: ChannelRules,
+            policy: PoolPolicy,
+            settings: SchedulerSettings,
+            pool: List<ScheduleItem>,
+        ): CurationChannel {
             val kid = policy == PoolPolicy.KidsOnly
             return CurationChannel(channel.id, recipe.number, recipe, kid, ruled, settings, pool)
         }

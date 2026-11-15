@@ -97,4 +97,26 @@ class LateOnTest {
         assertEquals(setOf(anime), onlyAnime.titles(), "an anime-only channel keeps only anime")
         assertEquals(1, onlyAnime.weights[anime])
     }
+
+    @Test
+    fun theAnimeRuleHoldsForItsOwnTitlesToo() {
+        val lib = Library()
+        val anime = lib.show(eps = 3, genres = listOf("Anime", "Drama"))
+        val live = lib.show(eps = 3, genres = listOf("Drama"))
+        val other = lib.show(eps = 3, genres = listOf("Comedy"))
+        // The basis homes neither title, and has no anime-only channel: both are homed nowhere.
+        val basis = channel("ch-a", 100, listOf("Comedy"), lib.itemsOf(listOf(other)))
+        val snap = lib.snapshot()
+        val homes = Curation.homes(snap, listOf(basis))
+        val both = lib.itemsOf(listOf(anime, live))
+        val animeTheme = Theme(emptyList(), emptyList(), null, animeOnly = true)
+
+        val grownUp = Curation.lateOn(snap, channel("ch-l", 200, listOf("Drama"), both), homes)
+        assertEquals(setOf(live), grownUp.titles(), "a grown-up channel drops anime, homed or not")
+        assertEquals(setOf(live), grownUp.homed)
+
+        val onlyAnime = Curation.lateOn(snap, channel("ch-y", 301, listOf("Anime"), both, theme = animeTheme), homes)
+        assertEquals(setOf(anime), onlyAnime.titles(), "an anime-only channel keeps only anime")
+        assertEquals(2, onlyAnime.weights[anime])
+    }
 }

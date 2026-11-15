@@ -232,9 +232,8 @@ class CuratedDaysTest {
 
         // Its western films as its own, and the comedy-western films its basis comedy channel homes, as guests.
         assertEquals(ids(lib.western + lib.comedyWestern), day.ids())
-        val weight = day.weights.entries.toMap()
-        for (film in lib.western) assertEquals(2, weight[film.item.id], "its own: weight 2")
-        for (film in lib.comedyWestern) assertEquals(1, weight[film.item.id], "a guest: weight 1")
+        for (film in lib.western) assertEquals(2, day.weights[film.item.id], "its own: weight 2")
+        for (film in lib.comedyWestern) assertEquals(1, day.weights[film.item.id], "a guest: weight 1")
         // Only its own titles are its homes: a guest is not shown as one.
         assertEquals(ids(lib.western), checkNotNull(day.homed))
         // Tomorrow it is curated with the others: the comedy-western films have one home among them.
@@ -278,7 +277,7 @@ class CuratedDaysTest {
         val day = days.curatedDays(onlyShared, noon).dayOf(westerns)
         assertTrue(day.pool.isNotEmpty(), "every title is a guest, so there is a day")
         assertNull(day.hidden)
-        assertTrue(day.weights.entries.all { it.second == 1 }, "guests weigh 1")
+        assertTrue(day.weights.isEmpty, "guests weigh 1, the weight of no entry")
         assertEquals(emptySet(), checkNotNull(day.homed), "it homes none of them")
     }
 
