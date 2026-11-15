@@ -268,7 +268,9 @@ Then:
 2. CI builds both flavors unsigned with no secrets, then waits for your approval of the `release` environment. After
    you approve, a separate job (no checkout) signs and checks them against the pinned certificate, and a last job
    attests them and creates a draft release.
-3. Read the draft (APKs, `SHA256SUMS`, signing certificate fingerprint), then publish it by hand.
+3. Read the draft (APKs, `SHA256SUMS`, signing certificate fingerprint), then publish it by hand. The draft's body
+   also carries release notes generated from the Conventional Commits since the previous `v*` tag
+   (`scripts/release-notes.sh`): edit them before publishing.
 
 ## Code of conduct and security
 
