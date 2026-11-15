@@ -24,7 +24,8 @@ import kotlin.time.Instant
  * the summary the Channels screen shows (so the two agree), the hidden reason from [schedule], and the words for its
  * sources from [labels] and [studioNames] (the lookups the builder's open uses, through the same [DraftReader]).
  *
- * What the channel holds comes from [holdings], the same reader the guide's channel box uses.
+ * What the channel holds comes from [holdings], the same reader the guide's channel box uses. It reads the guide's
+ * [ChannelIdentity] of every channel too, from the same recipe, rules and lookups, so the box and the sheet agree.
  *
  * It takes no lineup lock and writes nothing. A lookup that fails costs the words (a source shows its key), as in the
  * builder, and an unreadable schedule costs the hidden reason; neither fails the read.
@@ -36,7 +37,8 @@ class BuiltInChannelProperties(
     labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
     studioNames: StudioNames,
     private val holdings: ChannelHoldingsReader,
-) : ChannelPropertiesReader {
+) : ChannelPropertiesReader,
+    ChannelIdentityReader {
     private val reader = DraftReader(labels, studioNames)
 
     override suspend fun read(
@@ -58,6 +60,37 @@ class BuiltInChannelProperties(
         } else {
             propertiesOf(account, channel, summary, at)
         }
+    }
+
+    override suspend fun identities(): Map<ChannelId, ChannelIdentity> {
+        val account = library.activeAccount().first() ?: return emptyMap()
+        val channels =
+            service
+                .loaded(account)
+                ?.lineup
+                ?.channels
+                .orEmpty()
+        val summaries = service.channels(account).first().associateBy { it.id }
+        return channels
+            .mapNotNull { channel -> summaries[channel.id]?.let { channel.id to identityOf(account, channel, it) } }
+            .toMap()
+    }
+
+    // A starter's line is its personality; only a channel without one has its rules described (a lookup per source).
+    private suspend fun identityOf(
+        account: LibraryAccount,
+        channel: LineupChannel,
+        summary: ChannelSummary,
+    ): ChannelIdentity {
+        val rules = channel.rules()
+        val personality = starterRecipe(channel)?.personality
+        return ChannelIdentity(
+            kind = summary.kind,
+            kid = summary.kid,
+            ceiling = rules?.maxRating ?: leftoversCeiling(channel),
+            personality = personality,
+            description = if (personality == null) rules?.let { describe(account, it, channel) } else null,
+        )
     }
 
     private suspend fun propertiesOf(
@@ -129,32 +162,6 @@ class BuiltInChannelProperties(
             blockLength = rules.timing.effectiveBlockLength.takeIf { it > 1 },
             scheduleCode = scheduleCodeOf(rules.seed),
         )
-
-    private fun Anchor.shown() = ThemeAnchor(kind.shown(), name(match))
-
-    private fun AnchorKind.shown() =
-        when (this) {
-            AnchorKind.Collection -> ThemeAnchorKind.Collection
-            AnchorKind.Title -> ThemeAnchorKind.Title
-            AnchorKind.Studio -> ThemeAnchorKind.Studio
-        }
-
-    private fun name(matcher: NameMatcher): String =
-        when (matcher) {
-            is NameMatcher.Exact -> matcher.name
-            is NameMatcher.Prefix -> matcher.name
-            is NameMatcher.Contains -> matcher.name
-            is NameMatcher.Word -> matcher.name
-        }
-
-    // The rules a viewer can read: a starter's and a custom channel's own. Leftovers and unreadable channels have none.
-    private fun LineupChannel.rules(): ChannelRules? =
-        when (val source = source) {
-            is ChannelSource.Starter -> source.rules
-            is ChannelSource.Custom -> source.rules
-            is ChannelSource.Leftovers -> null
-            is ChannelSource.Unusable -> null
-        }
 }
 
 // A read that fails costs the holdings, not the properties.
@@ -168,4 +175,30 @@ private suspend fun ChannelHoldingsReader.readOrNull(
         throw cancelled
     } catch (_: Exception) {
         null
+    }
+
+private fun Anchor.shown() = ThemeAnchor(kind.shown(), name(match))
+
+private fun AnchorKind.shown() =
+    when (this) {
+        AnchorKind.Collection -> ThemeAnchorKind.Collection
+        AnchorKind.Title -> ThemeAnchorKind.Title
+        AnchorKind.Studio -> ThemeAnchorKind.Studio
+    }
+
+private fun name(matcher: NameMatcher): String =
+    when (matcher) {
+        is NameMatcher.Exact -> matcher.name
+        is NameMatcher.Prefix -> matcher.name
+        is NameMatcher.Contains -> matcher.name
+        is NameMatcher.Word -> matcher.name
+    }
+
+// The rules a viewer can read: a starter's and a custom channel's own. Leftovers and unreadable channels have none.
+private fun LineupChannel.rules(): ChannelRules? =
+    when (val source = source) {
+        is ChannelSource.Starter -> source.rules
+        is ChannelSource.Custom -> source.rules
+        is ChannelSource.Leftovers -> null
+        is ChannelSource.Unusable -> null
     }

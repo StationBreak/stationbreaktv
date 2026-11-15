@@ -295,6 +295,48 @@ class ChannelPropertiesTest {
         }
 
     @Test
+    fun theIdentitiesAgreeWithThePropertiesAndDescribeOnlyAChannelWithoutAPersonality() =
+        runBlocking<Unit> {
+            seed(laughs, themed, mine, kidsLeftovers, grownUpLeftovers, unreadable)
+
+            val identities = reader.identities()
+
+            assertEquals(
+                setOf(laughs, themed, mine, kidsLeftovers, grownUpLeftovers, unreadable).map { it.id }.toSet(),
+                identities.keys,
+            )
+            for ((id, identity) in identities) {
+                val props = propertiesOf(id)
+                assertEquals(props.summary.kind, identity.kind)
+                assertEquals(props.summary.kid, identity.kid)
+                assertEquals(props.personality, identity.personality)
+                assertEquals(props.description?.ceiling ?: props.leftoversCeiling, identity.ceiling)
+            }
+            val starter = checkNotNull(identities[themed.id])
+            assertEquals("Rain on the glass.", starter.personality)
+            assertNull(starter.description, "a starter's line is its personality: no source lookups")
+            val custom = checkNotNull(identities[mine.id])
+            assertEquals(propertiesOf(mine.id).description, custom.description)
+            assertEquals("PG", custom.ceiling)
+            assertEquals("PG", identities[kidsLeftovers.id]?.ceiling)
+            assertTrue(identities[kidsLeftovers.id]?.kid == true)
+            assertNull(identities[grownUpLeftovers.id]?.ceiling)
+            assertNull(identities[grownUpLeftovers.id]?.description)
+            assertNull(identities[unreadable.id]?.description)
+        }
+
+    @Test
+    fun aSignedOutReaderHasNoIdentities() =
+        runBlocking<Unit> {
+            seed(laughs)
+            val noLabels: Labels = { _, _ -> emptyMap() }
+            val noStudios: StudioNames = { _, _ -> emptyMap() }
+            val none = ChannelHoldingsReader.None
+            val signedOut = BuiltInChannelProperties(service, CountingLibrary(), schedule, noLabels, noStudios, none)
+            assertEquals(emptyMap(), signedOut.identities())
+        }
+
+    @Test
     fun anUnknownChannelAndASignedOutReaderGiveNothing() =
         runBlocking<Unit> {
             seed(laughs)

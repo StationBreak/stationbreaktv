@@ -89,6 +89,9 @@
     <!-- The same line when the program that follows has no title (it left the library), or nothing follows: the time alone. -->
     <string name="guide_up_next_at">Up next at %1$s</string>
 
+    <!-- The channel box's line about what a channel airs now (#777), before the minutes left and what is next. -->
+    <string name="guide_channel_on_now">On now: %1$s</string>
+
     <!-- DESIGN(#633): placeholder. A program whose item left the library: the cell's title and the panel's line, instead of a blank. -->
     <string name="guide_unavailable">Unavailable</string>
 

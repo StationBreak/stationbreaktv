@@ -47,15 +47,20 @@ internal fun tagCopy(): PanelTagCopy =
 
 /**
  * One row of outlined tags (#723): as many as fit the width, in order, the rest left out whole. Flat: no fills, no
- * icons. Each is its own node, so a screen reader reads the facts one by one.
+ * icons. Each is its own node, so a screen reader reads the facts one by one. The channel box (#777) draws its tags
+ * with it too, under its own [rowTag] and [tagPrefix].
  */
 @Composable
-internal fun TagRow(tags: List<PanelTag>) {
+internal fun TagRow(
+    tags: List<PanelTag>,
+    rowTag: String = GuideTags.PANEL_TAGS,
+    tagPrefix: String = GuideTags.PANEL_TAG,
+) {
     Layout(
         content = {
-            tags.forEachIndexed { index, tag -> Tag(tag, "${GuideTags.PANEL_TAG}$index") }
+            tags.forEachIndexed { index, tag -> Tag(tag, "$tagPrefix$index") }
         },
-        modifier = Modifier.fillMaxWidth().testTag(GuideTags.PANEL_TAGS),
+        modifier = Modifier.fillMaxWidth().testTag(rowTag),
     ) { measurables, constraints ->
         val gap = TagGap.roundToPx()
         val loose = constraints.copy(minWidth = 0)

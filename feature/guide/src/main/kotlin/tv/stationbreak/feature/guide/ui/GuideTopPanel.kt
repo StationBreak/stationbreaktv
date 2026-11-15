@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
+import tv.stationbreak.core.domain.lineup.ChannelIdentity
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.GuideSnapshot
@@ -54,7 +56,13 @@ internal class TopPanelParts(
     val fit: ScreenFit,
     val syncNow: SyncNowState,
     val levelling: Boolean = true,
+    val channelBox: ChannelBoxReaders = ChannelBoxReaders(),
+)
+
+/** What the channel box reads: the focused channel's holdings (#757) and every channel's identity (#777). */
+internal class ChannelBoxReaders(
     val holdings: StateFlow<ShownHoldings?> = NoHoldings,
+    val identities: StateFlow<Map<ChannelId, ChannelIdentity>> = NoIdentities,
 )
 
 /** The top-left panel of [kind], in [modifier]'s place; [GuidePanelKind.Empty] keeps the place and draws nothing. */
@@ -75,7 +83,7 @@ internal fun TopPanel(
         }
 
         GuidePanelKind.Channel -> {
-            ChannelPanel(parts.snapshotOf, parts.holdings, modifier)
+            ChannelPanel(parts.snapshotOf, parts.channelBox, parts.nowOf, modifier)
         }
 
         GuidePanelKind.Details -> {

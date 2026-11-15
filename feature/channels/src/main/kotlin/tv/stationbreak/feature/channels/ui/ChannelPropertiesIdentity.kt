@@ -27,6 +27,7 @@ import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.R
 import java.text.DateFormat
 import java.util.Date
+import tv.stationbreak.core.ui.R as UiR
 
 // The top and the bottom line of the properties sheet: who the channel is, and whether it is on the air.
 
@@ -101,9 +102,9 @@ private fun Tags(
 ) {
     val kind =
         when (row.kind) {
-            ChannelKind.Starter -> stringResource(R.string.channel_props_tag_builtin)
-            ChannelKind.Custom -> stringResource(R.string.channels_label_custom)
-            ChannelKind.Leftovers -> stringResource(R.string.channels_label_leftovers)
+            ChannelKind.Starter -> stringResource(UiR.string.channel_tag_builtin)
+            ChannelKind.Custom -> stringResource(UiR.string.channel_tag_custom)
+            ChannelKind.Leftovers -> stringResource(UiR.string.channel_tag_leftovers)
             ChannelKind.Unusable, ChannelKind.UnusableCustom -> stringResource(R.string.channels_label_unusable)
         }
     val ceiling = properties?.description?.ceiling ?: properties?.leftoversCeiling
@@ -112,9 +113,9 @@ private fun Tags(
         if (row.kid) {
             val kids =
                 if (ceiling == null) {
-                    stringResource(R.string.channel_props_tag_kids_plain)
+                    stringResource(UiR.string.channel_tag_kids_plain)
                 } else {
-                    stringResource(R.string.channel_props_tag_kids, ceiling)
+                    stringResource(UiR.string.channel_tag_kids, ceiling)
                 }
             Text(kids.uppercase(), style = small(), color = ChannelsPalette.kidsTag)
         }

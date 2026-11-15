@@ -34,6 +34,23 @@ Below the mark, number and name, add:
 - A channel that is off, or has nothing today, shows its status line as now and none of the above.
 - No text under 10 sp.
 
+### The box leads with the channel's tag line (#777)
+
+Top to bottom:
+
+| Line | Spec |
+|---|---|
+| **Mark, CHANNEL n, name** | unchanged. |
+| **Tag line** | under the name, inside the identity block. A starter's personality (`ChannelProperties.personality`), 13 sp Regular `textPrimary`, two lines at most, no quotation marks. A channel with none says one line in the properties sheet's words, in 13 sp `textSecondary`: leftovers `Plays whatever nothing else does`; a custom channel the first row of the sheet's "What it plays" that has anything in it, as `Collections: Star Trek, Stargate`. Left out when there is nothing to say. |
+| **Tags** | the programme panel's outlined tags (`PanelTagRow`): `KIDS · UP TO <rating>` (or `KIDS` with no ceiling) for a kids channel, then `BUILT-IN`, `CUSTOM` or `LEFTOVERS`. |
+| **On now / Next** | 11 sp `textSecondary`, one line with an ellipsis: `On now: <title> · <N> min left · Next: <title> at <time>`, from the row's own cells. A slate, a break or an unavailable programme reads as the grid labels it (`Off air`, `Station break`, `Unavailable`); Next passes over breaks; it is left out when nothing follows. |
+| **Hours, "Home to:" / "Mostly:"** | as above, unchanged. |
+
+- The tag line and the tags show at once with the channel, with no dwell: the guide reads every channel's identity (`ChannelIdentityReader`, the properties reader's own recipe, rules and lookups) when it opens. The holdings still come after the 200 ms rest.
+- The sheet and the box take the tag and "What it plays" words from the same `core:ui` strings, so they word a channel one way.
+
+**When the box is short**, lines give way whole, never clipped, in this order: "Home to:" / "Mostly:" first, then the hours line, then On now / Next, then the tags. The identity block, with the tag line, always stays.
+
 ### Data (facts from the code)
 
 - `Curation.curate` already yields `Homes` (`homeOf(title)`, and per channel `ChannelStats.titles`, `totalMs`, `anchors`) and each `CuratedPool`'s weights (3 anchor, 2 home, 1 guest). None of it reaches the screen today.

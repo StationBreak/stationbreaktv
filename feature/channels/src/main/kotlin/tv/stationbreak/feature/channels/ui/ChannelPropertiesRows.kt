@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.lineup.builder.ShownOrder
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.ui.joined
 import tv.stationbreak.feature.channels.builder.ui.orderName
+import tv.stationbreak.core.ui.R as UiR
 
 // The words of the properties sheet's two blocks, as label and value pairs. The domain holds structured values
 // (RulesDescription, the one the builder's edit sheet words too); every line of text is made here.
@@ -30,18 +31,18 @@ internal fun playRows(properties: ChannelProperties): List<PropertyRow> {
     val years = kept.filterIsInstance<KeptItem.YearsSource>()
     val labelled =
         listOf(
-            R.string.channel_props_row_genres to sources.filterIsInstance<DraftSource.Genre>().map { it.label },
-            R.string.channel_props_row_tags to sources.filterIsInstance<DraftSource.Tag>().map { it.label },
-            R.string.channel_props_row_collections to
+            UiR.string.channel_plays_genres to sources.filterIsInstance<DraftSource.Genre>().map { it.label },
+            UiR.string.channel_plays_tags to sources.filterIsInstance<DraftSource.Tag>().map { it.label },
+            UiR.string.channel_plays_collections to
                 sources.filterIsInstance<DraftSource.Collection>().map { it.label },
-            R.string.channel_props_row_shows to sources.filterIsInstance<DraftSource.Show>().map { it.label },
-            R.string.channel_props_row_titles to sources.filterIsInstance<DraftSource.Pick>().map { it.label },
-            R.string.channel_props_row_libraries to sources.filterIsInstance<DraftSource.Library>().map { it.label },
-            R.string.channel_props_row_studios to kept.filterIsInstance<KeptItem.StudioSource>().map { it.name },
-            R.string.channel_props_row_years to
-                years.map { stringResource(R.string.channel_props_years_range, it.from, it.to) },
-            R.string.channel_props_row_always to properties.anchors.map { it.name },
-            R.string.channel_props_row_never to neverItems(properties),
+            UiR.string.channel_plays_shows to sources.filterIsInstance<DraftSource.Show>().map { it.label },
+            UiR.string.channel_plays_titles to sources.filterIsInstance<DraftSource.Pick>().map { it.label },
+            UiR.string.channel_plays_libraries to sources.filterIsInstance<DraftSource.Library>().map { it.label },
+            UiR.string.channel_plays_studios to kept.filterIsInstance<KeptItem.StudioSource>().map { it.name },
+            UiR.string.channel_plays_years to
+                years.map { stringResource(UiR.string.channel_plays_years_range, it.from, it.to) },
+            UiR.string.channel_plays_always to properties.anchors.map { it.name },
+            UiR.string.channel_plays_never to neverItems(properties),
             R.string.channel_props_row_narrowed to narrowedItems(description?.narrowing),
         )
     return labelled.mapNotNull { (label, items) ->
@@ -61,7 +62,7 @@ private fun neverItems(properties: ChannelProperties): List<String> {
             .filterIsInstance<KeptItem.StudioExclusion>()
             .map { it.name }
     val ceiling = description?.ceiling ?: properties.leftoversCeiling
-    return left + studios + listOfNotNull(ceiling?.let { stringResource(R.string.channel_props_never_rating, it) })
+    return left + studios + listOfNotNull(ceiling?.let { stringResource(UiR.string.channel_plays_never_rating, it) })
 }
 
 @Composable

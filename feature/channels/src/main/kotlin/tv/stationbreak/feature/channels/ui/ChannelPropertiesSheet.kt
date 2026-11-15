@@ -42,6 +42,7 @@ import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.choicesOf
 import java.text.DateFormat
 import java.util.Date
+import tv.stationbreak.core.ui.R as UiR
 
 // The sheet's measures, from the design (docs/design/channel-properties.md): 380 dp of the 960 dp layout.
 private val SheetWidth = 380.dp
@@ -101,7 +102,7 @@ private fun Rules(
         return
     }
     Section(stringResource(R.string.channel_props_section_plays), ChannelsTags.ABOUT_PLAYS) {
-        if (properties.description == null) Plain(stringResource(R.string.channel_props_leftovers), null)
+        if (properties.description == null) Plain(stringResource(UiR.string.channel_plays_leftovers), null)
         playRows(properties).forEach { (label, value) -> KeyValue(label, value) }
     }
     properties.holdings?.let { Holds(it) }
