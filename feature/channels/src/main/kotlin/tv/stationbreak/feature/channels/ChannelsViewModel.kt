@@ -27,10 +27,10 @@ import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
+import tv.stationbreak.core.domain.lineup.ChannelReadiness
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
-import tv.stationbreak.core.domain.lineup.ChannelReadiness
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess

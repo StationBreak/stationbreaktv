@@ -73,7 +73,14 @@ class ChannelManager(
         account: LibraryAccount,
         id: ChannelId,
     ): Boolean {
-        val state = service.lineup(account).value?.lineup?.channels?.firstOrNull { it.id == id }?.state
+        val state =
+            service
+                .lineup(account)
+                .value
+                ?.lineup
+                ?.channels
+                ?.firstOrNull { it.id == id }
+                ?.state
         return state != null && state != ChannelState.On
     }
 

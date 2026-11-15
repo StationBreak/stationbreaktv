@@ -24,7 +24,11 @@ class ChannelsGettingReadyTest {
 
             val row = rig.ui.rows.first { it.id == A }
             assertTrue(row.gettingReady)
-            assertFalse(rig.ui.rows.first { it.id == B }.gettingReady)
+            assertFalse(
+                rig.ui.rows
+                    .first { it.id == B }
+                    .gettingReady,
+            )
             assertFalse(actionsOf(row, LineupAccess.Editable, reasonsRead = true).contains(Choice.Watch))
         }
 
@@ -35,7 +39,12 @@ class ChannelsGettingReadyTest {
             rig.readiness.held.value = setOf(A)
             rig.open(this)
 
-            assertEquals(null, rig.ui.rows.single().reason)
+            assertEquals(
+                null,
+                rig.ui.rows
+                    .single()
+                    .reason,
+            )
         }
 
     @Test
@@ -46,7 +55,9 @@ class ChannelsGettingReadyTest {
             rig.open(this)
             val before = rig.schedule.airingsCalls
 
-            rig.schedule.channels.getValue(A).hidden = HiddenReason.NoMatches
+            rig.schedule.channels
+                .getValue(A)
+                .hidden = HiddenReason.NoMatches
             rig.readiness.held.value = emptySet()
             runCurrent()
             advanceTimeBy(1_100)

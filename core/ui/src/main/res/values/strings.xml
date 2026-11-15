@@ -24,6 +24,13 @@
     <!-- The overlay's last line: it holds no focus, so this is how the viewer learns to close it. -->
     <string name="program_back_to_close">Back to close</string>
 
+    <!-- The notice that a channel the viewer switched on is ready (#776): its number and name, or how many. -->
+    <string name="ready_notice_one">%1$d %2$s is ready</string>
+    <plurals name="ready_notice_many">
+        <item quantity="one">%1$d channel is ready</item>
+        <item quantity="other">%1$d channels are ready</item>
+    </plurals>
+
     <!-- What a channel holds (#757): the box beside the guide's channel and the properties sheet's "What it holds". -->
     <plurals name="holdings_hours">
         <item quantity="one">%1$d hour of programmes</item>

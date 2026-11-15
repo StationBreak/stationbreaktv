@@ -433,6 +433,15 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   `ChannelEditor` (every change a viewer makes, and the reset), `ChannelBuilder`, `CatalogPicker`, `ChannelPreviews`,
   `ScheduleSource`, `ChannelNumbers` (the bands, taken from the engine), `DraftChoices` (what the builder offers) and, for
   the account the builder works for, `LibraryRepository.activeAccount()`.
+- **Ready notice ([#776](https://github.com/StationBreak/stationbreaktv/issues/776)).** `ChannelReadiness` (a read-only
+  port: `pending`, the channels the viewer switched on whose day is still being built, and `notice`, a state holder, not an
+  event stream) is owned by `BuiltInChannelReadiness`, one per process on the `AppScope`. `ChannelManager` tells it, through
+  `ChannelSwitchOns`, only of a switch-on that changes a channel from off to on. One loop settles every pending channel with
+  one `ScheduleSource.airings` call (which builds the days): a channel with no hidden reason is *ready* and goes in the
+  notice, and every other outcome (hidden, off, another account, a build that fails three times) drops it without a word.
+  The notice shows for 8 seconds and a second batch joins it. Nothing is saved: a restart forgets what was getting ready.
+  Channels the builder creates are not watched. The Channels list shows "Getting ready" for a pending row; `app` draws the
+  notice (`core:ui` `ChannelReadyNotice`) over the live route, and it takes no focus and no key.
 - Performance: the double refresh on every launch was fixed in [#309](https://github.com/StationBreak/stationbreaktv/issues/309)
   (closed 2026-10-21, before F1.3). Later work is in PRs #406, #481 and #484.
 

@@ -96,7 +96,12 @@ class ChannelReadinessTest {
             advanceTimeBy(5.seconds)
 
             assertEquals(1, calls.size)
-            assertEquals(listOf(352, 424), readiness.notice.value?.channels?.map { it.number })
+            assertEquals(
+                listOf(352, 424),
+                readiness.notice.value
+                    ?.channels
+                    ?.map { it.number },
+            )
         }
 
     @Test
@@ -173,7 +178,12 @@ class ChannelReadinessTest {
 
             // The timer started over with the second batch: 8 seconds on from it, not from the first.
             advanceTimeBy(7.seconds)
-            assertEquals(listOf(352, 424), readiness.notice.value?.channels?.map { it.number })
+            assertEquals(
+                listOf(352, 424),
+                readiness.notice.value
+                    ?.channels
+                    ?.map { it.number },
+            )
             advanceTimeBy(2.seconds)
             assertNull(readiness.notice.value)
         }

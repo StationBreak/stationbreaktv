@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+package tv.stationbreak.app.nav
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import tv.stationbreak.core.domain.lineup.ChannelReadiness
+import tv.stationbreak.core.ui.ChannelReadyNotice
+
+/** How the screen reaches the app-wide readiness: it is not a screen's own, so no ViewModel holds it. */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface ChannelReadinessEntryPoint {
+    fun readiness(): ChannelReadiness
+}
+
+/**
+ * Draws [content] and, over it, the notice that a channel the viewer switched on is ready (#776), while there is one.
+ * The notice takes no focus and no key. It reads the app-wide state, so a recreated activity shows the same notice.
+ */
+@Composable
+internal fun ReadyNoticeHost(content: @Composable () -> Unit) {
+    val context = LocalContext.current.applicationContext
+    val readiness =
+        remember(context) { EntryPointAccessors.fromApplication(context, ChannelReadinessEntryPoint::class.java).readiness() }
+    val notice by readiness.notice.collectAsState()
+    Box {
+        content()
+        notice?.let { ChannelReadyNotice(it.channels.map { channel -> channel.number to channel.name }) }
+    }
+}
