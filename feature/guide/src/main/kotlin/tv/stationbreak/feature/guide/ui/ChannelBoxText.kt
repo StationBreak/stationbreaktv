@@ -7,9 +7,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalResources
 import tv.stationbreak.core.domain.lineup.ChannelIdentity
 import tv.stationbreak.core.domain.lineup.ChannelKind
-import tv.stationbreak.core.domain.lineup.builder.DraftSource
-import tv.stationbreak.core.domain.lineup.builder.KeptItem
-import tv.stationbreak.core.domain.lineup.builder.RulesDescription
+import tv.stationbreak.core.domain.lineup.builder.PlaysItem
+import tv.stationbreak.core.domain.lineup.builder.PlaysKind
+import tv.stationbreak.core.domain.lineup.builder.PlaysRow
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.guide.CellKind
@@ -22,10 +22,7 @@ import tv.stationbreak.core.ui.R as UiR
 // functions over plain holders of words, so they are tested on the JVM; the words come from core:ui, the ones the
 // properties sheet uses, so the box and the sheet word a channel one way.
 
-/** The rows of the properties sheet's "What it plays" that a tag line can be, in the sheet's order. */
-internal enum class PlaysRow { Genres, Tags, Collections, Shows, Titles, Libraries, Studios, Years, Never }
-
-/** The words of the tag line and the tags, from core:ui's resources. */
+/** The words of the tag line and the tags, from core:ui's resources: the properties sheet's own. */
 internal class ChannelLineCopy(
     val builtIn: String,
     val custom: String,
@@ -34,7 +31,8 @@ internal class ChannelLineCopy(
     val kidsPlain: String,
     val playsLeftovers: String,
     val playsLine: (label: String, values: String) -> String,
-    val rowLabels: Map<PlaysRow, String>,
+    val join: (so: String, next: String) -> String,
+    val rowLabels: Map<PlaysKind, String>,
     val yearsRange: (from: Int, to: Int) -> String,
     val neverRating: (ceiling: String) -> String,
 ) {
@@ -48,23 +46,25 @@ internal class ChannelLineCopy(
                 kidsPlain = resources.getString(UiR.string.channel_tag_kids_plain),
                 playsLeftovers = resources.getString(UiR.string.channel_plays_leftovers),
                 playsLine = { label, values -> resources.getString(UiR.string.channel_plays_line, label, values) },
-                rowLabels = PlaysRow.entries.associateWith { resources.getString(it.label) },
+                join = { so, next -> resources.getString(UiR.string.channel_plays_join, so, next) },
+                rowLabels = PlaysKind.entries.associateWith { resources.getString(it.label) },
                 yearsRange = { from, to -> resources.getString(UiR.string.channel_plays_years_range, from, to) },
                 neverRating = { resources.getString(UiR.string.channel_plays_never_rating, it) },
             )
 
-        private val PlaysRow.label: Int
+        private val PlaysKind.label: Int
             get() =
                 when (this) {
-                    PlaysRow.Genres -> UiR.string.channel_plays_genres
-                    PlaysRow.Tags -> UiR.string.channel_plays_tags
-                    PlaysRow.Collections -> UiR.string.channel_plays_collections
-                    PlaysRow.Shows -> UiR.string.channel_plays_shows
-                    PlaysRow.Titles -> UiR.string.channel_plays_titles
-                    PlaysRow.Libraries -> UiR.string.channel_plays_libraries
-                    PlaysRow.Studios -> UiR.string.channel_plays_studios
-                    PlaysRow.Years -> UiR.string.channel_plays_years
-                    PlaysRow.Never -> UiR.string.channel_plays_never
+                    PlaysKind.Genres -> UiR.string.channel_plays_genres
+                    PlaysKind.Tags -> UiR.string.channel_plays_tags
+                    PlaysKind.Collections -> UiR.string.channel_plays_collections
+                    PlaysKind.Shows -> UiR.string.channel_plays_shows
+                    PlaysKind.Titles -> UiR.string.channel_plays_titles
+                    PlaysKind.Libraries -> UiR.string.channel_plays_libraries
+                    PlaysKind.Studios -> UiR.string.channel_plays_studios
+                    PlaysKind.Years -> UiR.string.channel_plays_years
+                    PlaysKind.Always -> UiR.string.channel_plays_always
+                    PlaysKind.Never -> UiR.string.channel_plays_never
                 }
     }
 }
@@ -75,12 +75,12 @@ internal data class TagLine(
     val personality: Boolean,
 )
 
-private val QUOTES = charArrayOf('"', '“', '”', '\'', '‘', '’')
+private val QUOTES = charArrayOf('"', '\u201C', '\u201D', '\'', '\u2018', '\u2019')
 
 /**
  * The line under the channel's name: a starter's personality, without quotation marks; for a channel with none, one
- * line in the properties sheet's words: a leftovers channel's "Plays whatever nothing else does", or the first row of
- * the sheet's "What it plays" as "Label: values". Null when there is nothing to say.
+ * line in the properties sheet's words: a leftovers channel's "Plays whatever nothing else does", else the first row
+ * of the sheet's "What it plays" ([ChannelIdentity.plays]) as "Label: values". Null when there is nothing to say.
  */
 internal fun tagLineOf(
     identity: ChannelIdentity,
@@ -94,36 +94,24 @@ internal fun tagLineOf(
     return when {
         !personality.isNullOrEmpty() -> TagLine(personality, personality = true)
         identity.kind == ChannelKind.Leftovers -> TagLine(copy.playsLeftovers, personality = false)
-        else -> identity.description?.let { firstPlaysRow(it, copy) }?.let { TagLine(it, personality = false) }
+        else -> identity.plays?.let { TagLine(playsLine(it, copy), personality = false) }
     }
 }
 
-// The sheet's rows in its order (the theme's anchors are a starter's, which has a personality instead); the first
-// with anything in it, as "Label: a, b".
-private fun firstPlaysRow(
-    description: RulesDescription,
+// "Label: a, b", in the sheet's words.
+private fun playsLine(
+    row: PlaysRow,
     copy: ChannelLineCopy,
-): String? {
-    val sources = description.sources
-    val kept = description.kept
-    val never =
-        description.leaveOut.map { it.label } +
-            kept.filterIsInstance<KeptItem.StudioExclusion>().map { it.name } +
-            listOfNotNull(description.ceiling?.let(copy.neverRating))
-    val rows =
-        listOf(
-            PlaysRow.Genres to sources.filterIsInstance<DraftSource.Genre>().map { it.label },
-            PlaysRow.Tags to sources.filterIsInstance<DraftSource.Tag>().map { it.label },
-            PlaysRow.Collections to sources.filterIsInstance<DraftSource.Collection>().map { it.label },
-            PlaysRow.Shows to sources.filterIsInstance<DraftSource.Show>().map { it.label },
-            PlaysRow.Titles to sources.filterIsInstance<DraftSource.Pick>().map { it.label },
-            PlaysRow.Libraries to sources.filterIsInstance<DraftSource.Library>().map { it.label },
-            PlaysRow.Studios to kept.filterIsInstance<KeptItem.StudioSource>().map { it.name },
-            PlaysRow.Years to kept.filterIsInstance<KeptItem.YearsSource>().map { copy.yearsRange(it.from, it.to) },
-            PlaysRow.Never to never,
-        )
-    val (row, items) = rows.firstOrNull { (_, items) -> items.isNotEmpty() } ?: return null
-    return copy.playsLine(copy.rowLabels.getValue(row), items.joinToString(", "))
+): String {
+    val items =
+        row.items.map {
+            when (it) {
+                is PlaysItem.Name -> it.text
+                is PlaysItem.Years -> copy.yearsRange(it.from, it.to)
+                is PlaysItem.RatedAbove -> copy.neverRating(it.rating)
+            }
+        }
+    return copy.playsLine(copy.rowLabels.getValue(row.kind), items.reduce(copy.join))
 }
 
 /**

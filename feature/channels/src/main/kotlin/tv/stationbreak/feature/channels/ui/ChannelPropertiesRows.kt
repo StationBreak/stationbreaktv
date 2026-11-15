@@ -4,13 +4,15 @@ package tv.stationbreak.feature.channels.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import tv.stationbreak.core.domain.lineup.ChannelProperties
-import tv.stationbreak.core.domain.lineup.builder.DraftSource
-import tv.stationbreak.core.domain.lineup.builder.KeptItem
 import tv.stationbreak.core.domain.lineup.builder.KeptOrder
 import tv.stationbreak.core.domain.lineup.builder.MinuteWindow
 import tv.stationbreak.core.domain.lineup.builder.Narrowing
 import tv.stationbreak.core.domain.lineup.builder.OnlyKind
+import tv.stationbreak.core.domain.lineup.builder.PlaysItem
+import tv.stationbreak.core.domain.lineup.builder.PlaysKind
+import tv.stationbreak.core.domain.lineup.builder.PlaysRow
 import tv.stationbreak.core.domain.lineup.builder.ShownOrder
+import tv.stationbreak.core.domain.lineup.builder.playsRowsOf
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.ui.joined
 import tv.stationbreak.feature.channels.builder.ui.orderName
@@ -22,48 +24,55 @@ import tv.stationbreak.core.ui.R as UiR
 /** A row with a label and its value; an empty one is never made. */
 internal typealias PropertyRow = Pair<String, String>
 
-/** "What it plays": sources by kind, the theme's anchors, what is left out, and what narrows the rest. */
+/**
+ * "What it plays": the rows core:domain lists ([playsRowsOf], the ones the guide's channel box words too: sources by
+ * kind, the theme's anchors, what it never plays), then what narrows the rest.
+ */
 @Composable
 internal fun playRows(properties: ChannelProperties): List<PropertyRow> {
-    val description = properties.description
-    val sources = description?.sources.orEmpty()
-    val kept = description?.kept.orEmpty()
-    val years = kept.filterIsInstance<KeptItem.YearsSource>()
-    val labelled =
-        listOf(
-            UiR.string.channel_plays_genres to sources.filterIsInstance<DraftSource.Genre>().map { it.label },
-            UiR.string.channel_plays_tags to sources.filterIsInstance<DraftSource.Tag>().map { it.label },
-            UiR.string.channel_plays_collections to
-                sources.filterIsInstance<DraftSource.Collection>().map { it.label },
-            UiR.string.channel_plays_shows to sources.filterIsInstance<DraftSource.Show>().map { it.label },
-            UiR.string.channel_plays_titles to sources.filterIsInstance<DraftSource.Pick>().map { it.label },
-            UiR.string.channel_plays_libraries to sources.filterIsInstance<DraftSource.Library>().map { it.label },
-            UiR.string.channel_plays_studios to kept.filterIsInstance<KeptItem.StudioSource>().map { it.name },
-            UiR.string.channel_plays_years to
-                years.map { stringResource(UiR.string.channel_plays_years_range, it.from, it.to) },
-            UiR.string.channel_plays_always to properties.anchors.map { it.name },
-            UiR.string.channel_plays_never to neverItems(properties),
-            R.string.channel_props_row_narrowed to narrowedItems(description?.narrowing),
-        )
-    return labelled.mapNotNull { (label, items) ->
-        items.takeIf { it.isNotEmpty() }?.let { stringResource(label) to joined(it, R.string.builder_join) }
-    }
+    val rows = playsRowsOf(properties.description, properties.anchors.map { it.name }, properties.leftoversCeiling)
+    val words = rows.map { row -> playsLabel(row.kind) to playsValue(row) }
+    val narrowed =
+        narrowedItems(properties.description?.narrowing).takeIf { it.isNotEmpty() }?.let {
+            stringResource(R.string.channel_props_row_narrowed) to listed(it)
+        }
+    return words + listOfNotNull(narrowed)
 }
 
-// What is left out, then the ceiling in words; a leftovers channel has only its ceiling.
+/** The sheet's label of a row of what a channel plays: core:ui's, the box's too. */
 @Composable
-private fun neverItems(properties: ChannelProperties): List<String> {
-    val description = properties.description
-    val left = description?.leaveOut.orEmpty().map { it.label }
-    val studios =
-        description
-            ?.kept
-            .orEmpty()
-            .filterIsInstance<KeptItem.StudioExclusion>()
-            .map { it.name }
-    val ceiling = description?.ceiling ?: properties.leftoversCeiling
-    return left + studios + listOfNotNull(ceiling?.let { stringResource(UiR.string.channel_plays_never_rating, it) })
-}
+internal fun playsLabel(kind: PlaysKind): String =
+    stringResource(
+        when (kind) {
+            PlaysKind.Genres -> UiR.string.channel_plays_genres
+            PlaysKind.Tags -> UiR.string.channel_plays_tags
+            PlaysKind.Collections -> UiR.string.channel_plays_collections
+            PlaysKind.Shows -> UiR.string.channel_plays_shows
+            PlaysKind.Titles -> UiR.string.channel_plays_titles
+            PlaysKind.Libraries -> UiR.string.channel_plays_libraries
+            PlaysKind.Studios -> UiR.string.channel_plays_studios
+            PlaysKind.Years -> UiR.string.channel_plays_years
+            PlaysKind.Always -> UiR.string.channel_plays_always
+            PlaysKind.Never -> UiR.string.channel_plays_never
+        },
+    )
+
+// Items joined in the words the box joins them in.
+@Composable
+private fun listed(items: List<String>): String = joined(items, UiR.string.channel_plays_join)
+
+@Composable
+private fun playsValue(row: PlaysRow): String =
+    joined(
+        row.items.map {
+            when (it) {
+                is PlaysItem.Name -> it.text
+                is PlaysItem.Years -> stringResource(UiR.string.channel_plays_years_range, it.from, it.to)
+                is PlaysItem.RatedAbove -> stringResource(UiR.string.channel_plays_never_rating, it.rating)
+            }
+        },
+        UiR.string.channel_plays_join,
+    )
 
 @Composable
 private fun narrowedItems(narrowing: Narrowing?): List<String> {
@@ -79,21 +88,21 @@ private fun narrowedItems(narrowing: Narrowing?): List<String> {
         narrowing.genres
             .takeIf {
                 it.isNotEmpty()
-            }?.let { stringResource(R.string.channel_props_narrow_genres, joined(it, R.string.builder_join)) },
+            }?.let { stringResource(R.string.channel_props_narrow_genres, listed(it)) },
         narrowing.notGenres
             .takeIf {
                 it.isNotEmpty()
-            }?.let { stringResource(R.string.channel_props_narrow_not_genres, joined(it, R.string.builder_join)) },
+            }?.let { stringResource(R.string.channel_props_narrow_not_genres, listed(it)) },
         narrowing.tags.takeIf { it.isNotEmpty() }?.let {
             stringResource(
                 R.string.channel_props_narrow_tags,
-                joined(it, R.string.builder_join),
+                listed(it),
             )
         },
         narrowing.studios
             .takeIf {
                 it.isNotEmpty()
-            }?.let { stringResource(R.string.channel_props_narrow_studios, joined(it, R.string.builder_join)) },
+            }?.let { stringResource(R.string.channel_props_narrow_studios, listed(it)) },
         yearsText(narrowing.yearFrom, narrowing.yearTo),
         narrowing.runtime?.let { windowText(it) },
         narrowing.episodeRuntime?.let { stringResource(R.string.channel_props_narrow_episodes, windowText(it)) },

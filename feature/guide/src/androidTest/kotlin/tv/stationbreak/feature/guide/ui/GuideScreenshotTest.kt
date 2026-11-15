@@ -94,11 +94,9 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.stationBreak
-import tv.stationbreak.core.domain.lineup.builder.DraftSource
-import tv.stationbreak.core.domain.lineup.builder.Narrowing
-import tv.stationbreak.core.domain.lineup.builder.PlayOrder
-import tv.stationbreak.core.domain.lineup.builder.RulesDescription
-import tv.stationbreak.core.domain.lineup.builder.ShownOrder
+import tv.stationbreak.core.domain.lineup.builder.PlaysItem
+import tv.stationbreak.core.domain.lineup.builder.PlaysKind
+import tv.stationbreak.core.domain.lineup.builder.PlaysRow
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -155,29 +153,24 @@ private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, FRAME_KNOW
  * custom channel of two collections, 9 a leftovers channel.
  */
 private object FrameIdentities : ChannelIdentityReader {
-    override suspend fun identities(): Map<ChannelId, ChannelIdentity> =
-        mapOf(
-            CH7 to ChannelIdentity(ChannelKind.Starter, false, null, FRAME_PERSONALITY, null),
-            CH5 to ChannelIdentity(ChannelKind.Starter, true, "TV-Y7", FRAME_KIDS_PERSONALITY, null),
-            ChannelId("ch-3") to
-                ChannelIdentity(
-                    ChannelKind.Custom,
-                    false,
-                    "PG-13",
-                    null,
-                    RulesDescription(
-                        listOf(DraftSource.Collection("c1", "Star Trek"), DraftSource.Collection("c2", "Stargate")),
-                        emptyList(),
-                        emptyList(),
-                        Narrowing(),
+    override fun identities(): Flow<Map<ChannelId, ChannelIdentity>> =
+        flowOf(
+            mapOf(
+                CH7 to ChannelIdentity(ChannelKind.Starter, false, null, FRAME_PERSONALITY, null),
+                CH5 to ChannelIdentity(ChannelKind.Starter, true, "TV-Y7", FRAME_KIDS_PERSONALITY, null),
+                ChannelId("ch-3") to
+                    ChannelIdentity(
+                        ChannelKind.Custom,
+                        false,
                         "PG-13",
-                        ShownOrder.Play(PlayOrder.Shuffle),
-                        showsCaps = false,
-                        seriesCap = null,
-                        filmCap = null,
+                        null,
+                        PlaysRow(
+                            PlaysKind.Collections,
+                            listOf(PlaysItem.Name("Star Trek"), PlaysItem.Name("Stargate")),
+                        ),
                     ),
-                ),
-            CH9 to ChannelIdentity(ChannelKind.Leftovers, false, null, null, null),
+                CH9 to ChannelIdentity(ChannelKind.Leftovers, false, null, null, null),
+            ),
         )
 }
 

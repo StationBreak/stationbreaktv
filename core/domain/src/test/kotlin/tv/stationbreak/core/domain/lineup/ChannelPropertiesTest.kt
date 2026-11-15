@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.builder.DraftSource
@@ -10,8 +11,12 @@ import tv.stationbreak.core.domain.lineup.builder.KeptOrder
 import tv.stationbreak.core.domain.lineup.builder.MinuteWindow
 import tv.stationbreak.core.domain.lineup.builder.OnlyKind
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
+import tv.stationbreak.core.domain.lineup.builder.PlaysItem
+import tv.stationbreak.core.domain.lineup.builder.PlaysKind
+import tv.stationbreak.core.domain.lineup.builder.PlaysRow
 import tv.stationbreak.core.domain.lineup.builder.ShownOrder
 import tv.stationbreak.core.domain.lineup.builder.StudioNames
+import tv.stationbreak.core.domain.lineup.builder.playsRowsOf
 import tv.stationbreak.core.engine.lineup.Anchor
 import tv.stationbreak.core.engine.lineup.AnchorKind
 import tv.stationbreak.core.engine.lineup.Band
@@ -52,6 +57,7 @@ class ChannelPropertiesTest {
         }
     private val schedule = FakeSchedule()
     private var labelsFail = false
+    private var labelReads = 0
 
     private val noir =
         Recipe(
@@ -93,6 +99,7 @@ class ChannelPropertiesTest {
             library,
             schedule,
             labels = { _, sources ->
+                labelReads++
                 check(!labelsFail) { "the library is unreachable" }
                 sources.associateWith { "Label ${it.key}" }
             },
@@ -295,34 +302,52 @@ class ChannelPropertiesTest {
         }
 
     @Test
-    fun theIdentitiesAgreeWithThePropertiesAndDescribeOnlyAChannelWithoutAPersonality() =
+    fun theIdentitiesComeFirstWithoutLookupsThenWithThePlaysRowAndAgreeWithTheProperties() =
         runBlocking<Unit> {
             seed(laughs, themed, mine, kidsLeftovers, grownUpLeftovers, unreadable)
 
-            val identities = reader.identities()
+            val maps = reader.identities().toList()
 
+            assertEquals(2, maps.size, "what needs no lookup, then the whole map")
+            val (first, whole) = maps
             assertEquals(
                 setOf(laughs, themed, mine, kidsLeftovers, grownUpLeftovers, unreadable).map { it.id }.toSet(),
-                identities.keys,
+                whole.keys,
             )
-            for ((id, identity) in identities) {
+            assertTrue(first.values.all { it.plays == null })
+            assertEquals(whole.mapValues { it.value.copy(plays = null) }, first)
+            for ((id, identity) in whole) {
                 val props = propertiesOf(id)
                 assertEquals(props.summary.kind, identity.kind)
                 assertEquals(props.summary.kid, identity.kid)
                 assertEquals(props.personality, identity.personality)
                 assertEquals(props.description?.ceiling ?: props.leftoversCeiling, identity.ceiling)
             }
-            val starter = checkNotNull(identities[themed.id])
-            assertEquals("Rain on the glass.", starter.personality)
-            assertNull(starter.description, "a starter's line is its personality: no source lookups")
-            val custom = checkNotNull(identities[mine.id])
-            assertEquals(propertiesOf(mine.id).description, custom.description)
+            assertEquals("Rain on the glass.", whole[themed.id]?.personality)
+            assertNull(whole[themed.id]?.plays, "a starter's line is its personality: no source lookups")
+            val custom = checkNotNull(whole[mine.id])
+            val props = propertiesOf(mine.id)
+            assertEquals(playsRowsOf(props.description).first(), custom.plays)
+            assertEquals(PlaysKind.Genres, custom.plays?.kind)
             assertEquals("PG", custom.ceiling)
-            assertEquals("PG", identities[kidsLeftovers.id]?.ceiling)
-            assertTrue(identities[kidsLeftovers.id]?.kid == true)
-            assertNull(identities[grownUpLeftovers.id]?.ceiling)
-            assertNull(identities[grownUpLeftovers.id]?.description)
-            assertNull(identities[unreadable.id]?.description)
+            assertEquals("PG", whole[kidsLeftovers.id]?.ceiling)
+            assertTrue(whole[kidsLeftovers.id]?.kid == true)
+            assertEquals(PlaysRow(PlaysKind.Never, listOf(PlaysItem.RatedAbove("PG"))), whole[kidsLeftovers.id]?.plays)
+            assertNull(whole[grownUpLeftovers.id]?.ceiling)
+            assertNull(whole[grownUpLeftovers.id]?.plays)
+            assertNull(whole[unreadable.id]?.plays)
+        }
+
+    @Test
+    fun aSecondReadOfTheSameLineupLooksNothingUp() =
+        runBlocking<Unit> {
+            seed(laughs, mine)
+            val whole = reader.identities().toList().last()
+            val reads = labelReads
+            assertTrue(reads > 0, "the custom channel's sources were looked up")
+
+            assertEquals(listOf(whole), reader.identities().toList())
+            assertEquals(reads, labelReads)
         }
 
     @Test
@@ -333,7 +358,7 @@ class ChannelPropertiesTest {
             val noStudios: StudioNames = { _, _ -> emptyMap() }
             val none = ChannelHoldingsReader.None
             val signedOut = BuiltInChannelProperties(service, CountingLibrary(), schedule, noLabels, noStudios, none)
-            assertEquals(emptyMap(), signedOut.identities())
+            assertEquals(listOf(emptyMap()), signedOut.identities().toList())
         }
 
     @Test

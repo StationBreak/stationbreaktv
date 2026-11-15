@@ -6,12 +6,9 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelIdentity
 import tv.stationbreak.core.domain.lineup.ChannelKind
-import tv.stationbreak.core.domain.lineup.builder.DraftSource
-import tv.stationbreak.core.domain.lineup.builder.KeptItem
-import tv.stationbreak.core.domain.lineup.builder.Narrowing
-import tv.stationbreak.core.domain.lineup.builder.PlayOrder
-import tv.stationbreak.core.domain.lineup.builder.RulesDescription
-import tv.stationbreak.core.domain.lineup.builder.ShownOrder
+import tv.stationbreak.core.domain.lineup.builder.PlaysItem
+import tv.stationbreak.core.domain.lineup.builder.PlaysKind
+import tv.stationbreak.core.domain.lineup.builder.PlaysRow
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.PanelTag
@@ -30,18 +27,8 @@ class ChannelBoxTextTest {
             kidsPlain = "Kids",
             playsLeftovers = "Plays whatever nothing else does",
             playsLine = { label, values -> "$label: $values" },
-            rowLabels =
-                mapOf(
-                    PlaysRow.Genres to "Genres",
-                    PlaysRow.Tags to "Tags",
-                    PlaysRow.Collections to "Collections",
-                    PlaysRow.Shows to "Shows",
-                    PlaysRow.Titles to "Titles",
-                    PlaysRow.Libraries to "Libraries",
-                    PlaysRow.Studios to "Studios",
-                    PlaysRow.Years to "Years",
-                    PlaysRow.Never to "Never",
-                ),
+            join = { so, next -> "$so, $next" },
+            rowLabels = PlaysKind.entries.associateWith { it.name },
             yearsRange = { from, to -> "$from to $to" },
             neverRating = { "Anything rated above $it" },
         )
@@ -56,25 +43,8 @@ class ChannelBoxTextTest {
             unavailable = "Unavailable",
         )
 
-    private fun description(
-        sources: List<DraftSource> = emptyList(),
-        leaveOut: List<DraftSource> = emptyList(),
-        kept: List<KeptItem> = emptyList(),
-        ceiling: String? = null,
-    ) = RulesDescription(
-        sources,
-        leaveOut,
-        kept,
-        Narrowing(),
-        ceiling,
-        ShownOrder.Play(PlayOrder.Shuffle),
-        showsCaps = false,
-        seriesCap = null,
-        filmCap = null,
-    )
-
     private val builtIn =
-        ChannelIdentity(ChannelKind.Starter, kid = false, ceiling = null, "Rain on the glass.", description = null)
+        ChannelIdentity(ChannelKind.Starter, kid = false, ceiling = null, "Rain on the glass.", plays = null)
     private val kids =
         ChannelIdentity(ChannelKind.Starter, kid = true, ceiling = "TV-Y7", "Saturday morning, all week.", null)
     private val custom =
@@ -83,13 +53,16 @@ class ChannelBoxTextTest {
             kid = false,
             ceiling = "PG-13",
             personality = null,
-            description =
-                description(
-                    sources = listOf(DraftSource.Collection("c1", "Star Trek"), DraftSource.Show("s1", "Stargate")),
-                    ceiling = "PG-13",
-                ),
+            plays = PlaysRow(PlaysKind.Collections, listOf(PlaysItem.Name("Star Trek"), PlaysItem.Name("Stargate"))),
         )
-    private val leftovers = ChannelIdentity(ChannelKind.Leftovers, kid = false, ceiling = null, null, null)
+    private val leftovers =
+        ChannelIdentity(
+            ChannelKind.Leftovers,
+            kid = false,
+            ceiling = "R",
+            personality = null,
+            plays = PlaysRow(PlaysKind.Never, listOf(PlaysItem.RatedAbove("R"))),
+        )
 
     @Test
     fun aBuiltInLeadsWithItsPersonalityAndIsTaggedBuiltIn() {
@@ -116,38 +89,24 @@ class ChannelBoxTextTest {
 
     @Test
     fun aCustomChannelSaysItsFirstPlaysRowInTheSheetsWords() {
-        assertEquals(TagLine("Collections: Star Trek", personality = false), tagLineOf(custom, lines))
+        assertEquals(TagLine("Collections: Star Trek, Stargate", personality = false), tagLineOf(custom, lines))
         assertEquals(listOf(PanelTag.Plain("CUSTOM")), channelTagsOf(custom, lines))
     }
 
     @Test
-    fun aCustomChannelTakesTheSheetsRowOrder() {
-        val genres =
-            custom.copy(
-                description =
-                    description(
-                        sources =
-                            listOf(
-                                DraftSource.Library("l1", "Films"),
-                                DraftSource.Genre("Comedy", "Comedy"),
-                                DraftSource.Genre("Drama", "Drama"),
-                            ),
-                    ),
-            )
-        assertEquals("Genres: Comedy, Drama", tagLineOf(genres, lines)?.text)
-        val years = custom.copy(description = description(kept = listOf(KeptItem.YearsSource(1990, 1999))))
+    fun yearsAndRatingsAreWordedAsTheSheetWordsThem() {
+        val years = custom.copy(plays = PlaysRow(PlaysKind.Years, listOf(PlaysItem.Years(1990, 1999))))
         assertEquals("Years: 1990 to 1999", tagLineOf(years, lines)?.text)
-        val onlyNever =
+        val never =
             custom.copy(
-                description = description(leaveOut = listOf(DraftSource.Tag("late", "Late")), ceiling = "PG"),
+                plays = PlaysRow(PlaysKind.Never, listOf(PlaysItem.Name("Late"), PlaysItem.RatedAbove("PG"))),
             )
-        assertEquals("Never: Late, Anything rated above PG", tagLineOf(onlyNever, lines)?.text)
+        assertEquals("Never: Late, Anything rated above PG", tagLineOf(never, lines)?.text)
     }
 
     @Test
     fun aCustomChannelWithNothingToSayHasNoTagLine() {
-        assertNull(tagLineOf(custom.copy(description = description()), lines))
-        assertNull(tagLineOf(custom.copy(description = null), lines))
+        assertNull(tagLineOf(custom.copy(plays = null), lines))
     }
 
     @Test
@@ -155,6 +114,7 @@ class ChannelBoxTextTest {
         assertEquals(TagLine("Plays whatever nothing else does", personality = false), tagLineOf(leftovers, lines))
         assertEquals(listOf(PanelTag.Plain("LEFTOVERS")), channelTagsOf(leftovers, lines))
         val kidsLeftovers = leftovers.copy(kid = true, ceiling = "PG")
+        assertEquals("Plays whatever nothing else does", tagLineOf(kidsLeftovers, lines)?.text)
         assertEquals(
             listOf(PanelTag.Plain("KIDS · UP TO PG"), PanelTag.Plain("LEFTOVERS")),
             channelTagsOf(kidsLeftovers, lines),
@@ -163,7 +123,7 @@ class ChannelBoxTextTest {
 
     @Test
     fun anUnreadableChannelHasNoKindTag() {
-        val unusable = ChannelIdentity(ChannelKind.Unusable, kid = false, ceiling = null, null, null)
+        val unusable = ChannelIdentity(ChannelKind.Unusable, kid = false, ceiling = null, null, plays = null)
         assertEquals(emptyList<PanelTag>(), channelTagsOf(unusable, lines))
         assertNull(tagLineOf(unusable, lines))
     }

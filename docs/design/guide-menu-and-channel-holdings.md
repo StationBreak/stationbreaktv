@@ -46,8 +46,8 @@ Top to bottom:
 | **On now / Next** | 11 sp `textSecondary`, one line with an ellipsis: `On now: <title> · <N> min left · Next: <title> at <time>`, from the row's own cells. A slate, a break or an unavailable programme reads as the grid labels it (`Off air`, `Station break`, `Unavailable`); Next passes over breaks; it is left out when nothing follows. |
 | **Hours, "Home to:" / "Mostly:"** | as above, unchanged. |
 
-- The tag line and the tags show at once with the channel, with no dwell: the guide reads every channel's identity (`ChannelIdentityReader`, the properties reader's own recipe, rules and lookups) when it opens. The holdings still come after the 200 ms rest.
-- The sheet and the box take the tag and "What it plays" words from the same `core:ui` strings, so they word a channel one way.
+- The tag line and the tags show at once with the channel, with no dwell: the guide reads every channel's identity (`ChannelIdentityReader`, the properties reader's own recipe, rules and lookups) when it opens. What needs no lookup (kind, kids, ceiling, personality) comes first; a custom channel's plays row follows once its sources are named, and a reopen with the same lineup looks nothing up. The holdings still come after the 200 ms rest.
+- The sheet and the box list what a channel plays from one `playsRowsOf` in `core:domain`, and word it with the same `core:ui` strings, so they word a channel one way.
 
 **When the box is short**, lines give way whole, never clipped, in this order: "Home to:" / "Mostly:" first, then the hours line, then On now / Next, then the tags. The identity block, with the tag line, always stays.
 

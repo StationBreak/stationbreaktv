@@ -146,7 +146,7 @@ internal class GuideViewModel
         /**
          * Who each channel is, read once a session opens (and again at each reload), with no rest on a channel: the
          * channel box draws its tag line and tags from it the moment focus reaches the column. Empty until the first
-         * read, and after one that failed; a later read replaces it whole.
+         * read; each map the reader gives replaces the last whole, and a read that fails keeps the last.
          */
         internal val channelIdentities: StateFlow<Map<ChannelId, ChannelIdentity>> = shownIdentities.asStateFlow()
 
@@ -228,18 +228,20 @@ internal class GuideViewModel
             startWatch(s)
             s.launch { followSelection(s) }
             s.launch { followHoldings() }
-            s.launch { readIdentities()?.let { shownIdentities.value = it } }
+            s.launch { followIdentities() }
         }
 
-        // Every channel's identity; null when the read failed, which keeps what the box had.
-        private suspend fun readIdentities(): Map<ChannelId, ChannelIdentity>? =
+        // Every channel's identity: what needs no lookup at once, then the whole map. A read that fails keeps what the
+        // box had.
+        private suspend fun followIdentities() {
             try {
-                identities.identities()
+                identities.identities().collect { shownIdentities.value = it }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                null
+                // Nothing more to show: the box keeps the identities it has.
             }
+        }
 
         // The channel the focus is on while it is on the channel column; its holdings are read after a rest on it. A
         // move to another channel or off the column drops them at once, and ends a read still out. The follower

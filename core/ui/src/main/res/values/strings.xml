@@ -51,6 +51,7 @@
          personality (its first row, as "Label: values"). -->
     <string name="channel_plays_leftovers">Plays whatever nothing else does</string>
     <string name="channel_plays_line">%1$s: %2$s</string>
+    <string name="channel_plays_join">%1$s, %2$s</string>
     <string name="channel_plays_genres">Genres</string>
     <string name="channel_plays_tags">Tags</string>
     <string name="channel_plays_years">Years</string>
