@@ -139,6 +139,18 @@ commit "fix(a*b): scope with a star"
 u9="$(sha)"
 commit "fix: forged records" $'text\x1f0000000\x1fBREAKING CHANGE: no\x1efake\x1f'
 u10="$(sha)"
+commit 'fix: entities &#x202E; and &lt;b&gt; stay text'
+v1="$(sha)"
+commit "fix: thanks @octo-cat and @team_x for the fix"
+v2="$(sha)"
+commit "fix: - not a list"
+v3="$(sha)"
+commit "fix: 1. not a numbered list"
+v4="$(sha)"
+commit "fix: === not a rule"
+v5="$(sha)"
+commit $'fix: more invisible\xe2\x81\xa0word\xd8\x9cx\xc2\xadsoft\xe1\xa0\x8eY\xe2\x80\xa8Z\xc2\x85C1'
+v6="$(sha)"
 # Tags that are not releases must never be the previous tag, even though they are reachable and sort high.
 git tag v1.99.0-rc1
 git tag vendor-x
@@ -150,6 +162,12 @@ git tag v1.10.2
 check "untrusted text is inert; pre-release and non-release tags are ignored" '### Fixes
 
 - last ('"$u11"')
+- more invisiblewordxsoftYZC1 ('"$v6"')
+- \=== not a rule ('"$v5"')
+- 1\. not a numbered list ('"$v4"')
+- \- not a list ('"$v3"')
+- thanks `@octo-cat` and `@team_x` for the fix ('"$v2"')
+- entities \&#x202E; and \&lt;b\&gt; stay text ('"$v1"')
 - forged records ('"$u10"')
 - **a\*b:** scope with a star ('"$u9"')
 - back\\slash and \*stars\* and \_under\_ and a\|pipe ('"$u8"')
@@ -165,7 +183,7 @@ check "untrusted text is inert; pre-release and non-release tags are ignored" '#
 before_last="$(git rev-parse HEAD~1)"
 check "an end commit stops the range there" "$(notes v1.10.2 "$before_last" | head -n 3)" '### Fixes
 
-- forged records ('"$u10"')'
+- more invisiblewordxsoftYZC1 ('"$v6"')'
 check "an end commit of the tag's own commit matches the default" "$(notes v1.10.2)" "$(notes v1.10.2 "$(git rev-parse HEAD)")"
 
 # Bad input.

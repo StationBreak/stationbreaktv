@@ -23,6 +23,9 @@
 # markers (one to six `#` and a space; `#12` stays) and backslash-escapes Markdown punctuation, so a subject can't make
 # a link, image, fence, HTML tag or comment. Bare URLs may still autolink. The script's output is not echoed to a CI log.
 set -euo pipefail
+# A UTF-8 locale, so [[:cntrl:]] and [[:space:]] know Unicode. If the runner lacks it bash keeps the C locale, and the
+# C1 controls and the invisible characters are removed byte by byte below anyway: that part works in either locale.
+export LC_ALL=C.UTF-8
 
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   echo "usage: release-notes.sh <tag> [<end-commit>]" >&2
@@ -75,13 +78,29 @@ previous_commit="$(git rev-parse --verify "refs/tags/$previous^{commit}")"
 # Text that is safe to print: no control, bidi or zero-width characters, no heading marker at the start, no live Markdown.
 invisible=(
   $'\xe2\x80\x8b' $'\xe2\x80\x8c' $'\xe2\x80\x8d' $'\xe2\x80\x8e' $'\xe2\x80\x8f' # U+200B-U+200F
+  $'\xe2\x80\xa8' $'\xe2\x80\xa9'                                                 # U+2028, U+2029
   $'\xe2\x80\xaa' $'\xe2\x80\xab' $'\xe2\x80\xac' $'\xe2\x80\xad' $'\xe2\x80\xae' # U+202A-U+202E
+  $'\xe2\x81\xa0' $'\xe2\x81\xa1' $'\xe2\x81\xa2' $'\xe2\x81\xa3' $'\xe2\x81\xa4' # U+2060-U+2064
   $'\xe2\x81\xa6' $'\xe2\x81\xa7' $'\xe2\x81\xa8' $'\xe2\x81\xa9'                 # U+2066-U+2069
-  $'\xef\xbb\xbf'                                                                 # U+FEFF
+  $'\xef\xbb\xbf' $'\xd8\x9c' $'\xc2\xad' $'\xe1\xa0\x8e'                         # U+FEFF, U+061C, U+00AD, U+180E
 )
-markdown_chars=("\\" '`' '*' '_' '[' ']' '(' ')' '<' '>' '!' '|' '~') # the backslash first
+# The C1 controls U+0080-U+009F, listed byte by byte: [[:cntrl:]] only reaches them in a UTF-8 locale.
+for byte in 80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f; do
+  invisible+=("$(printf '%b' "\\xc2\\x$byte")")
+done
+markdown_chars=("\\" '&' '`' '*' '_' '[' ']' '(' ')' '<' '>' '!' '|' '~') # the backslash first
+
+# Backslash-escapes the Markdown punctuation.
+escape() {
+  local text="$1" c
+  for c in "${markdown_chars[@]}"; do
+    text="${text//"$c"/"\\$c"}"
+  done
+  printf '%s' "$text"
+}
+
 clean() {
-  local text="$1" s c
+  local text="$1" s
   text="${text//[[:cntrl:]]/}"
   for s in "${invisible[@]}"; do
     text="${text//"$s"/}"
@@ -92,10 +111,23 @@ clean() {
     text="${text#"${BASH_REMATCH[0]}"}"
   done
   text="${text#"${text%%[![:space:]]*}"}"
-  for c in "${markdown_chars[@]}"; do
-    text="${text//"$c"/"\\$c"}"
+  # An `@name` goes in a code span, which notifies nobody when the release is published.
+  local mention_re='@[A-Za-z0-9][A-Za-z0-9_-]*' result="" before mention
+  while [[ "$text" =~ $mention_re ]]; do
+    mention="${BASH_REMATCH[0]}"
+    before="${text%%"$mention"*}"
+    result+="$(escape "$before")"'`'"$mention"'`'
+    text="${text#*"$mention"}"
   done
-  printf '%s' "$text"
+  result+="$(escape "$text")"
+  # A leading `-`, `+`, `=` or `N.` could start a nested list or a rule.
+  local list_re='^([0-9]+)\.'
+  if [[ "$result" == [-+=]* ]]; then
+    result="\\$result"
+  elif [[ "$result" =~ $list_re ]]; then
+    result="${BASH_REMATCH[1]}\\.${result#"${BASH_REMATCH[0]}"}"
+  fi
+  printf '%s' "$result"
 }
 
 breaking="" features="" fixes="" perf="" other=""
