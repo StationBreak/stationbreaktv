@@ -23,6 +23,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeChannelEditor
+import tv.stationbreak.core.domain.lineup.FakeReadiness
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.PlayKey
@@ -131,6 +132,7 @@ internal class ChannelsRig(
     val gated = GatedEditor(editor)
     val schedule = FakeSchedule()
     val properties = FakeProperties(repo)
+    val readiness = FakeReadiness()
     val clock: Clock =
         object : Clock {
             override fun now(): Instant = Instant.fromEpochMilliseconds(T0)
@@ -143,6 +145,7 @@ internal class ChannelsRig(
             gated,
             schedule,
             properties,
+            readiness,
             clock,
             StandardTestDispatcher(scope.testScheduler),
         )

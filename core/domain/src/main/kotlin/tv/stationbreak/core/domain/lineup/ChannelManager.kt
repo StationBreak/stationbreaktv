@@ -14,15 +14,18 @@ import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.EditRefusal
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 
 /**
  * Changes a lineup through [LineupService], under its lock (spec 21): the engine's edits stay on this side of the
  * port. [libraries] is the libraries the viewer chose, read when a reset plans a new lineup; null means none chosen
- * or unreadable.
+ * or unreadable. [switchOns] is told of each channel the viewer really switches on (one that was off), once it is
+ * saved.
  */
 class ChannelManager(
     private val service: LineupService,
+    private val switchOns: ChannelSwitchOns = ChannelSwitchOns { _, _ -> },
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ChannelEditor {
     // A failure to load (a store that throws, though none should) is shown as ReadOnly: nothing can be changed then.
@@ -49,6 +52,8 @@ class ChannelManager(
         account: LibraryAccount,
         change: ChannelChange,
     ): ChangeResult {
+        // "Done" also means "changed nothing", so a switch-on counts only for a channel known to be off before it.
+        val wasOff = change is ChannelChange.SwitchOn && isOff(account, change.id)
         val saved =
             try {
                 service.edit(account, change.toEdit(), librariesFor(change))
@@ -58,7 +63,26 @@ class ChannelManager(
                 service.reportEvent(LineupEvent.EditFailed)
                 return ChangeResult.Failed
             }
-        return resultOf(saved)
+        val result = resultOf(saved)
+        if (wasOff && result == ChangeResult.Done && change is ChannelChange.SwitchOn) {
+            switchOns.switchedOn(account, change.id)
+        }
+        return result
+    }
+
+    private fun isOff(
+        account: LibraryAccount,
+        id: ChannelId,
+    ): Boolean {
+        val state =
+            service
+                .lineup(account)
+                .value
+                ?.lineup
+                ?.channels
+                ?.firstOrNull { it.id == id }
+                ?.state
+        return state != null && state != ChannelState.On
     }
 
     // Only the household switch plans again, so only it reads the viewer's libraries; none known saves the edit alone.

@@ -45,6 +45,7 @@
     <string name="channels_reset_action">Reset</string>
     <string name="channels_choosing">Choosing channels…</string>
     <string name="channels_reset_not_chosen">Channels will be chosen after the next library check.</string>
+    <string name="channels_row_getting_ready">Getting ready</string>
     <string name="channels_reason_collections">Still reading your collections</string>
     <string name="channels_reason_household_off">Needs \"Use my collections\", which is off</string>
     <!-- DESIGN(#632): placeholder. A channel's empty reason when no library it names is chosen on this TV (spec 26). -->

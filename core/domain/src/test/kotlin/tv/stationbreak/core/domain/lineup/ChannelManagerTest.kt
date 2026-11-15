@@ -11,6 +11,7 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
@@ -249,5 +250,36 @@ class ChannelManagerTest {
             assertTrue(after.optIn && !after.kid)
             assertTrue(!laughs.kid && !laughs.optIn)
             assertEquals(110, laughs.defaultNumber)
+        }
+
+    @Test
+    fun aSwitchOnOfAChannelThatWasOffIsToldOnce() =
+        runBlocking<Unit> {
+            seed(lineup(ChannelState.On, starter("noir", 310, ChannelState.Shelf, rules("Noir", Source.Tag("noir")))))
+            service.loaded(ACCOUNT)
+            val told = mutableListOf<ChannelId>()
+            val watched = ChannelManager(service, { _, id -> told += id }) { chosen }
+            val noir = LineupIds.starter("noir")
+
+            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOn(noir)))
+            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOn(noir)))
+
+            assertEquals(listOf(noir), told)
+        }
+
+    @Test
+    fun aSwitchOnOfAChannelAlreadyOnIsNotTold() =
+        runBlocking<Unit> {
+            seed(lineup())
+            service.loaded(ACCOUNT)
+            val told = mutableListOf<ChannelId>()
+            val watched = ChannelManager(service, { _, id -> told += id }) { chosen }
+
+            val laughs = LineupIds.starter("laughs")
+
+            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOn(laughs)))
+            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOff(laughs)))
+
+            assertEquals(emptyList(), told)
         }
 }

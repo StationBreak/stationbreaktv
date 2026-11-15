@@ -27,6 +27,7 @@ import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
+import tv.stationbreak.core.domain.lineup.ChannelReadiness
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
@@ -73,6 +74,7 @@ internal class ChannelsViewModel
         private val editor: ChannelEditor,
         private val schedule: ScheduleSource,
         private val propertiesReader: ChannelPropertiesReader,
+        private val readiness: ChannelReadiness,
         private val clock: Clock,
         dispatcher: CoroutineDispatcher,
     ) : ViewModel() {
@@ -84,8 +86,19 @@ internal class ChannelsViewModel
             editor: ChannelEditor,
             schedule: ScheduleSource,
             propertiesReader: ChannelPropertiesReader,
+            readiness: ChannelReadiness,
             clock: Clock,
-        ) : this(library, repository, household, editor, schedule, propertiesReader, clock, Dispatchers.Default)
+        ) : this(
+            library,
+            repository,
+            household,
+            editor,
+            schedule,
+            propertiesReader,
+            readiness,
+            clock,
+            Dispatchers.Default,
+        )
 
         /** What one visit to the screen knows beyond what [ChannelsUi] shows. */
         private data class Model(
@@ -93,6 +106,8 @@ internal class ChannelsViewModel
             val account: LibraryAccount? = null,
             val channels: List<ChannelSummary> = emptyList(),
             val reasons: Map<ChannelId, HiddenReason?> = emptyMap(),
+            /** The channels the viewer switched on whose day is still being built (#776). */
+            val gettingReady: Set<ChannelId> = emptySet(),
             /** The first read of [reasons] has landed, or failed. */
             val reasonsRead: Boolean = false,
             /** [channels] and [reasons] as rows, made only when one of them changes. */
@@ -200,6 +215,21 @@ internal class ChannelsViewModel
                     }
                 var pending: Job? = reasons
                 var first = true
+                // A channel that stops getting ready has had its day built: its reason, if it has one, is read now.
+                val ready =
+                    launch {
+                        var before = emptySet<ChannelId>()
+                        var reread: Job? = null
+                        try {
+                            readiness.pending.collect { now ->
+                                change(generation) { it.copy(gettingReady = now) }
+                                if (!now.containsAll(before)) reread = rereadLater(generation, reread)
+                                before = now
+                            }
+                        } finally {
+                            reread?.cancel()
+                        }
+                    }
                 try {
                     repository.channels(account).collect { list ->
                         change(generation) { onList(it, list) }
@@ -207,6 +237,7 @@ internal class ChannelsViewModel
                     }
                 } finally {
                     pending?.cancel()
+                    ready.cancel()
                     access.cancel()
                     flag.cancel()
                 }
@@ -281,7 +312,9 @@ internal class ChannelsViewModel
             val old = model
             var next = f(old)
             // The rows are sorted only when the channels or their reasons changed: a key press does no sorting.
-            if (next.channels !== old.channels || next.reasons !== old.reasons) next = next.copy(rows = rowsOf(next))
+            val rowsChanged =
+                next.channels !== old.channels || next.reasons !== old.reasons || next.gettingReady !== old.gettingReady
+            if (rowsChanged) next = next.copy(rows = rowsOf(next))
             // A new panel (or the reset question) starts with its own choice and digits, in the same assignment.
             if (next.panel != old.panel || next.confirmingReset != old.confirmingReset || next.about != old.about) {
                 next =
@@ -497,7 +530,7 @@ internal class ChannelsViewModel
                 listed = m.listed,
             )
 
-        private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons)
+        private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons, m.gettingReady)
 
         /** Focus to the row above or below; the "Use my collections" switch is the first stop and Reset the last. */
         fun move(up: Boolean) {

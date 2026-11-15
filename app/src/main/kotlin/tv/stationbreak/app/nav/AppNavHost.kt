@@ -97,15 +97,20 @@ internal fun AppNavGraph(
             )
         }
         composable<LiveRoute> {
-            // The session ended while watching: the launch router decides where that leads, as for any lost session.
-            LiveDestination(
-                onSignedOut = { navController.replaceAll(LaunchRoute) },
-                // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so the
-                // graph hands it over. Live says where its picture is; the guide leaves that hole clear.
-                guide = { opening, pictureHole, onTune ->
-                    GuideWithChannels(opening, pictureHole, onTune)
-                },
-            )
+            // The ready notice (#776) is drawn over everything live TV shows: the picture, the guide, Channels and the
+            // properties sheet, which all render inside this route. It takes no key.
+            ReadyNoticeHost {
+                // The session ended while watching: the launch router decides where that leads, as for any lost
+                // session.
+                LiveDestination(
+                    onSignedOut = { navController.replaceAll(LaunchRoute) },
+                    // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so
+                    // the graph hands it over. Live says where its picture is; the guide leaves that hole clear.
+                    guide = { opening, pictureHole, onTune ->
+                        GuideWithChannels(opening, pictureHole, onTune)
+                    },
+                )
+            }
         }
     }
 }

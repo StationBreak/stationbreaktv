@@ -27,6 +27,8 @@ internal data class ChannelRow(
     val shelfReason: ShelfReason? = null,
     /** The viewer chose this number, so "Default number" shows. */
     val hasOverride: Boolean,
+    /** The viewer just switched this channel on and its day is still being built (#776): it has no reason yet. */
+    val gettingReady: Boolean = false,
 )
 
 /** The small dialog open over the list, about one channel. */
