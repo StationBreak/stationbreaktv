@@ -35,6 +35,7 @@ data class ReadyNotice(
 
 /** A channel that is ready, as the notice names it. */
 data class ReadyChannel(
+    val id: ChannelId,
     val number: Int,
     val name: String,
 )

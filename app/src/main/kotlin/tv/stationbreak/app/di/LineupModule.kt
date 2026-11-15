@@ -198,12 +198,10 @@ internal object LineupModule {
     @Singleton
     fun channelReadiness(
         schedule: ScheduleSource,
-        sessions: SessionRepository,
+        library: LibraryRepository,
+        clock: Clock,
         @AppScope scope: CoroutineScope,
-    ): BuiltInChannelReadiness =
-        BuiltInChannelReadiness(schedule, Clock.System, scope, {
-            sessions.current.value?.let { LibraryAccount(it.server.id, it.userId) }
-        })
+    ): BuiltInChannelReadiness = BuiltInChannelReadiness(schedule, clock, scope, library.activeAccount())
 
     @Provides
     fun channelReadinessView(readiness: BuiltInChannelReadiness): ChannelReadiness = readiness

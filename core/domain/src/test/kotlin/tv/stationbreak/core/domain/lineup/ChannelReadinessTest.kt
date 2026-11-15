@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -26,7 +27,7 @@ class ChannelReadinessTest {
     private val noir = LineupIds.starter("noir")
     private val calls = mutableListOf<Instant>()
     private var answer: () -> List<ChannelAiring> = { emptyList() }
-    private var active: LibraryAccount? = ACCOUNT
+    private val activeFlow = MutableStateFlow<LibraryAccount?>(ACCOUNT)
 
     private val clock =
         object : Clock {
@@ -59,7 +60,7 @@ class ChannelReadinessTest {
             ): ScheduleWindow? = error("not used")
         }
 
-    private fun TestScope.readiness() = BuiltInChannelReadiness(source, clock, backgroundScope, { active })
+    private fun TestScope.readiness() = BuiltInChannelReadiness(source, clock, backgroundScope, activeFlow)
 
     private fun airing(
         id: ChannelId,
@@ -81,7 +82,7 @@ class ChannelReadinessTest {
 
             advanceTimeBy(5.seconds)
             assertEquals(emptySet(), readiness.pending.first())
-            assertEquals(listOf(ReadyChannel(352, "Neon Rain")), readiness.notice.value?.channels)
+            assertEquals(listOf(ReadyChannel(neon, 352, "Neon Rain")), readiness.notice.value?.channels)
         }
 
     @Test
@@ -135,7 +136,7 @@ class ChannelReadinessTest {
         runTest {
             val readiness = readiness()
             answer = { listOf(airing(neon, 352, "Neon Rain")) }
-            active = null
+            activeFlow.value = null
 
             readiness.switchedOn(ACCOUNT, neon)
             advanceTimeBy(5.seconds)

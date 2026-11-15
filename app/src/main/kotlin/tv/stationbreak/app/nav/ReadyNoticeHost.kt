@@ -2,10 +2,12 @@
 package tv.stationbreak.app.nav
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import dagger.hilt.android.EntryPointAccessors
 import tv.stationbreak.core.ui.ChannelReadyNotice
@@ -22,7 +24,7 @@ internal fun ReadyNoticeHost(content: @Composable () -> Unit) {
             EntryPointAccessors.fromApplication(context, ChannelReadinessEntryPoint::class.java).readiness()
         }
     val notice by readiness.notice.collectAsState()
-    Box {
+    Box(Modifier.fillMaxSize(), propagateMinConstraints = true) {
         content()
         notice?.let { ChannelReadyNotice(it.channels.map { channel -> channel.number to channel.name }) }
     }
