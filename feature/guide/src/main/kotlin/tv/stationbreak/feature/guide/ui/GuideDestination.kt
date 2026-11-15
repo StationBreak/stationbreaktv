@@ -278,7 +278,8 @@ internal fun GuideRoot(
         GuideScreen(
             snapshot = viewModel.snapshot,
             panel = viewModel.panel,
-            holdings = viewModel.channelHoldings,
+            channelBox =
+                remember(viewModel) { ChannelBoxReaders(viewModel.channelHoldings, viewModel.channelIdentities) },
             current = current,
             pictureHole = pictureHole,
             settings = settings,

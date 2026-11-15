@@ -48,6 +48,26 @@ fun ChannelHoldingsLines(
     tags: HoldingsTags,
     modifier: Modifier = Modifier,
 ) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(LineGap)) {
+        ChannelHoldingsHours(hours, days, titles, secondary, tags)
+        ChannelHoldingsList(homeTo, names, more, primary, secondary, tags)
+    }
+}
+
+/**
+ * The hours line of [ChannelHoldingsLines] alone (11 sp, one line), for a screen that lays the lines out itself and may
+ * leave the list out while keeping it (the guide's channel box, #777).
+ */
+@Suppress("LongParameterList") // The numbers of one value, as the domain gives them.
+@Composable
+fun ChannelHoldingsHours(
+    hours: Long,
+    days: Long?,
+    titles: Int,
+    secondary: Color,
+    tags: HoldingsTags,
+    modifier: Modifier = Modifier,
+) {
     val hoursText = pluralStringResource(R.plurals.holdings_hours, hours.toInt(), hours.toInt())
     val titlesText = pluralStringResource(R.plurals.holdings_titles, titles, titles)
     val line =
@@ -57,32 +77,48 @@ fun ChannelHoldingsLines(
             val about = stringResource(R.string.holdings_days, days)
             stringResource(R.string.holdings_line_days, hoursText, about, titlesText)
         }
+    Text(
+        text = line,
+        modifier = modifier.testTag(tags.hours),
+        style = guideText(SMALL_SP.sp, FontWeight.Normal),
+        color = secondary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/**
+ * The list of [ChannelHoldingsLines] alone: its label ("Home to:" or "Mostly:", 11 sp) and the names (13 sp, two lines
+ * at most). Nothing at all with no [names].
+ */
+@Suppress("LongParameterList") // The numbers of one value, as the domain gives them.
+@Composable
+fun ChannelHoldingsList(
+    homeTo: Boolean,
+    names: List<String>,
+    more: Int,
+    primary: Color,
+    secondary: Color,
+    tags: HoldingsTags,
+    modifier: Modifier = Modifier,
+) {
+    if (names.isEmpty()) return
     Column(modifier, verticalArrangement = Arrangement.spacedBy(LineGap)) {
         Text(
-            text = line,
-            modifier = Modifier.testTag(tags.hours),
+            text = stringResource(if (homeTo) R.string.holdings_home_to else R.string.holdings_mostly),
+            modifier = Modifier.testTag(tags.label),
             style = guideText(SMALL_SP.sp, FontWeight.Normal),
             color = secondary,
             maxLines = 1,
+        )
+        val moreText = if (more > 0) stringResource(R.string.holdings_more, more) else null
+        Text(
+            text = namesLine(names, moreText),
+            modifier = Modifier.testTag(tags.names),
+            style = guideText(NAMES_SP.sp, FontWeight.Normal).copy(lineHeight = (NAMES_SP + 2).sp),
+            color = primary,
+            maxLines = NAMES_LINES,
             overflow = TextOverflow.Ellipsis,
         )
-        if (names.isNotEmpty()) {
-            Text(
-                text = stringResource(if (homeTo) R.string.holdings_home_to else R.string.holdings_mostly),
-                modifier = Modifier.testTag(tags.label),
-                style = guideText(SMALL_SP.sp, FontWeight.Normal),
-                color = secondary,
-                maxLines = 1,
-            )
-            val moreText = if (more > 0) stringResource(R.string.holdings_more, more) else null
-            Text(
-                text = namesLine(names, moreText),
-                modifier = Modifier.testTag(tags.names),
-                style = guideText(NAMES_SP.sp, FontWeight.Normal).copy(lineHeight = (NAMES_SP + 2).sp),
-                color = primary,
-                maxLines = NAMES_LINES,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
     }
 }

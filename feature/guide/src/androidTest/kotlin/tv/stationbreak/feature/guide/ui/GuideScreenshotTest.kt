@@ -74,6 +74,9 @@ import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
+import tv.stationbreak.core.domain.lineup.ChannelIdentity
+import tv.stationbreak.core.domain.lineup.ChannelIdentityReader
+import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
@@ -91,6 +94,9 @@ import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.slate
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.stationBreak
+import tv.stationbreak.core.domain.lineup.builder.PlaysItem
+import tv.stationbreak.core.domain.lineup.builder.PlaysKind
+import tv.stationbreak.core.domain.lineup.builder.PlaysRow
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -142,6 +148,35 @@ private val FRAME_HOMES =
 private val FRAME_KNOWN = HomeShows.Known(37, FRAME_HOMES)
 private val FRAME_HOLDINGS = ChannelHoldings(412 * FRAME_HOUR_MS, 37, FRAME_KNOWN, emptyList(), Long.MAX_VALUE)
 
+/**
+ * Who the frame lineup's channels are (#777): 7 a built-in with a personality, 5 a kids built-in with a ceiling, 3 a
+ * custom channel of two collections, 9 a leftovers channel.
+ */
+private object FrameIdentities : ChannelIdentityReader {
+    override fun identities(): Flow<Map<ChannelId, ChannelIdentity>> =
+        flowOf(
+            mapOf(
+                CH7 to ChannelIdentity(ChannelKind.Starter, false, null, FRAME_PERSONALITY, null),
+                CH5 to ChannelIdentity(ChannelKind.Starter, true, "TV-Y7", FRAME_KIDS_PERSONALITY, null),
+                ChannelId("ch-3") to
+                    ChannelIdentity(
+                        ChannelKind.Custom,
+                        false,
+                        "PG-13",
+                        null,
+                        PlaysRow(
+                            PlaysKind.Collections,
+                            listOf(PlaysItem.Name("Star Trek"), PlaysItem.Name("Stargate")),
+                        ),
+                    ),
+                CH9 to ChannelIdentity(ChannelKind.Leftovers, false, null, null, null),
+            ),
+        )
+}
+
+private const val FRAME_PERSONALITY = "Cartoons, toy commercials and the occasional robot uprising, all day long."
+private const val FRAME_KIDS_PERSONALITY = "Saturday morning, every morning."
+
 /** No lineup to watch: these shots never open channel management. */
 private object ScreenshotLineup : ChannelRepository {
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = flowOf(emptyList())
@@ -157,6 +192,7 @@ private object ScreenshotLineup : ChannelRepository {
  * its "S1 E19" line and the panel's year, runtime and genres; a long movie title elsewhere is cut at its cell's end. A
  * focused slate reads OFF AIR and the panel still says when it returns.
  */
+@Suppress("LargeClass") // One function per frame of the guide, over one shared rig of fixtures.
 @RunWith(AndroidJUnit4::class)
 class GuideScreenshotTest {
     @get:Rule
@@ -247,12 +283,51 @@ class GuideScreenshotTest {
             showReady(CH7)
             focusTheChannelColumn()
             assertEquals("Test Channel 7", text(GuideTags.CHANNEL_PANEL_NAME))
+            assertEquals(FRAME_PERSONALITY, text(GuideTags.CHANNEL_PANEL_TAG_LINE))
+            assertEquals("BUILT-IN", text(GuideTags.CHANNEL_PANEL_TAG + 0))
             awaitHoldings()
             assertEquals("412 hours of programmes (about 17 days) · 37 titles", text(GuideTags.CHANNEL_PANEL_HOURS))
             assertEquals("Home to:", text(GuideTags.CHANNEL_PANEL_LIST_LABEL))
             assertEquals(FRAME_HOMES.joinToString(", ") { it.name } + " + 31 more", text(GuideTags.CHANNEL_PANEL_LIST))
             shoot("$CHANNEL_BOX_FRAME$suffix.png")
         }
+    }
+
+    /**
+     * The channel box's tag line and tags for the other kinds (#777), dark then light: a kids built-in (channel 5, up
+     * from the playing channel), a custom channel (3, up again) and leftovers (9, down three). None of them has
+     * holdings in this lineup, so the box is the identity block, the tags and On now / Next.
+     */
+    @Test
+    fun theChannelBoxKinds() {
+        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
+            theme.value = shown
+            showReady(CH7)
+            focusTheChannelColumn()
+            press(Key.DirectionUp)
+            awaitTagLine(FRAME_KIDS_PERSONALITY)
+            assertEquals("KIDS · UP TO TV-Y7", text(GuideTags.CHANNEL_PANEL_TAG + 0))
+            assertEquals("BUILT-IN", text(GuideTags.CHANNEL_PANEL_TAG + 1))
+            shoot("$CHANNEL_BOX_FRAME-kids$suffix.png")
+            press(Key.DirectionUp)
+            awaitTagLine("Collections: Star Trek, Stargate")
+            assertEquals("CUSTOM", text(GuideTags.CHANNEL_PANEL_TAG + 0))
+            shoot("$CHANNEL_BOX_FRAME-custom$suffix.png")
+            repeat(3) { press(Key.DirectionDown) }
+            awaitTagLine("Plays whatever nothing else does")
+            assertEquals("LEFTOVERS", text(GuideTags.CHANNEL_PANEL_TAG + 0))
+            shoot("$CHANNEL_BOX_FRAME-leftovers$suffix.png")
+        }
+    }
+
+    private fun awaitTagLine(line: String) {
+        compose.waitUntil(TIMEOUT_MS) {
+            compose
+                .onAllNodesWithTag(GuideTags.CHANNEL_PANEL_TAG_LINE, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .any { it.config.getOrNull(SemanticsProperties.Text)?.joinToString("") == line }
+        }
+        compose.waitForIdle()
     }
 
     /**
@@ -638,6 +713,7 @@ class GuideScreenshotTest {
                     sync = syncNow,
                     logos = { logoArt() },
                     holdings = FrameHoldings,
+                    identities = FrameIdentities,
                 )
             compose.setContent { GuideHost(current) }
             composed = true

@@ -29,6 +29,15 @@ object GuideTags {
     const val CHANNEL_PANEL = "guide:channelPanel"
     const val CHANNEL_PANEL_NAME = "guide:channelPanel:name"
 
+    /** The channel box's tag line, its tags (the row, and each tag by its index) and its On now / Next line (#777). */
+    const val CHANNEL_PANEL_TAG_LINE = "guide:channelPanel:tagLine"
+    const val CHANNEL_PANEL_TAGS = "guide:channelPanel:tags"
+    const val CHANNEL_PANEL_TAG = "guide:channelPanel:tag:"
+    const val CHANNEL_PANEL_ON_NOW = "guide:channelPanel:onNow"
+    const val CHANNEL_PANEL_ON_NOW_TITLE = "guide:channelPanel:onNow:title"
+    const val CHANNEL_PANEL_ON_NOW_LEFT = "guide:channelPanel:onNow:left"
+    const val CHANNEL_PANEL_ON_NOW_NEXT = "guide:channelPanel:onNow:next"
+
     /** The channel box's holdings (#757): the hours line, the list's label ("Home to:", "Mostly:") and the list. */
     const val CHANNEL_PANEL_HOURS = "guide:channelPanel:hours"
     const val CHANNEL_PANEL_LIST_LABEL = "guide:channelPanel:listLabel"

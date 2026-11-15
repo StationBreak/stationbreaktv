@@ -30,6 +30,8 @@ import tv.stationbreak.core.domain.details.LogoCache
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
+import tv.stationbreak.core.domain.lineup.ChannelIdentity
+import tv.stationbreak.core.domain.lineup.ChannelIdentityReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.PlayingAiring
@@ -90,6 +92,8 @@ internal class GuideViewModel
         private val logos: GuideLogos = GuideLogos.None,
         /** What a channel holds (#757), read for the channel box once focus has rested on a channel. */
         private val holdings: ChannelHoldingsReader = ChannelHoldingsReader.None,
+        /** Who each channel is (#777), for the channel box at once: its tag line and tags. */
+        private val identities: ChannelIdentityReader = ChannelIdentityReader.None,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -102,6 +106,7 @@ internal class GuideViewModel
             syncNow: SyncNow,
             logos: LogoCache,
             holdings: ChannelHoldingsReader,
+            identities: ChannelIdentityReader,
         ) : this(
             schedule,
             details,
@@ -114,11 +119,13 @@ internal class GuideViewModel
             syncNow,
             CachedGuideLogos(logos),
             holdings,
+            identities,
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
         private val shownHoldings = MutableStateFlow<ShownHoldings?>(null)
+        private val shownIdentities = MutableStateFlow<Map<ChannelId, ChannelIdentity>>(emptyMap())
         private val eventChannel = Channel<GuideEvent>(Channel.BUFFERED)
 
         /** The grid and its focus, always consistent with each other. */
@@ -135,6 +142,13 @@ internal class GuideViewModel
          * then, off the column, and for a channel that is off or has nothing today. Never another channel's.
          */
         internal val channelHoldings: StateFlow<ShownHoldings?> = shownHoldings.asStateFlow()
+
+        /**
+         * Who each channel is, read once a session opens (and again at each reload), with no rest on a channel: the
+         * channel box draws its tag line and tags from it the moment focus reaches the column. Empty until the first
+         * read; each map the reader gives replaces the last whole, and a read that fails keeps the last.
+         */
+        internal val channelIdentities: StateFlow<Map<ChannelId, ChannelIdentity>> = shownIdentities.asStateFlow()
 
         /** Where Sync now stands, for the line beside the Settings panel's row (spec 26, Part 5). */
         val syncNowState: StateFlow<SyncNowState> = sync.state
@@ -214,6 +228,19 @@ internal class GuideViewModel
             startWatch(s)
             s.launch { followSelection(s) }
             s.launch { followHoldings() }
+            s.launch { followIdentities() }
+        }
+
+        // Every channel's identity: what needs no lookup at once, then the whole map. A read that fails keeps what the
+        // box had.
+        private suspend fun followIdentities() {
+            try {
+                identities.identities().collect { shownIdentities.value = it }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Nothing more to show: the box keeps the identities it has.
+            }
         }
 
         // The channel the focus is on while it is on the channel column; its holdings are read after a rest on it. A

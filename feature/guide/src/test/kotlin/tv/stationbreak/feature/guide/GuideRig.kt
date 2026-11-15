@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
+import tv.stationbreak.core.domain.lineup.ChannelIdentityReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
@@ -162,6 +163,7 @@ open class GuideRig {
 
     /** What the channel box is told a channel holds; nothing unless a test brings some (#757). */
     internal var holdings: ChannelHoldingsReader = ChannelHoldingsReader.None
+    internal var identities: ChannelIdentityReader = ChannelIdentityReader.None
 
     internal fun TestScope.clock(startMin: Long) =
         object : Clock {
@@ -191,6 +193,7 @@ open class GuideRig {
             sync = syncNow,
             logos = logos,
             holdings = holdings,
+            identities = identities,
         )
     }
 

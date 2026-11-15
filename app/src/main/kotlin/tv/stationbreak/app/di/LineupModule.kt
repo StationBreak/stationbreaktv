@@ -39,6 +39,7 @@ import tv.stationbreak.core.domain.lineup.BuiltInChannelProperties
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
+import tv.stationbreak.core.domain.lineup.ChannelIdentityReader
 import tv.stationbreak.core.domain.lineup.ChannelManager
 import tv.stationbreak.core.domain.lineup.ChannelPropertiesReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
@@ -242,17 +243,27 @@ internal object LineupModule {
     @Provides
     @Singleton
     @Suppress("LongParameterList") // One port for each thing the sheet reads.
-    fun channelProperties(
+    fun builtInChannelProperties(
         service: LineupService,
         library: LibraryRepository,
         schedule: ScheduleSource,
         sessions: SessionRepository,
         server: MediaServer,
         holdings: ChannelHoldingsReader,
-    ): ChannelPropertiesReader {
+    ): BuiltInChannelProperties {
         val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
         return BuiltInChannelProperties(service, library, schedule, labels::invoke, labels::studios, holdings)
     }
+
+    @Provides
+    fun channelProperties(properties: BuiltInChannelProperties): ChannelPropertiesReader = properties
+
+    /**
+     * Who each channel is (#777), for the guide's channel box the moment focus reaches it: the properties reader's own
+     * recipe, rules and lookups, so the box and the sheet word a channel the same way.
+     */
+    @Provides
+    fun channelIdentities(properties: BuiltInChannelProperties): ChannelIdentityReader = properties
 
     /**
      * What a channel holds today (#757), for the guide's channel box and the properties sheet: one reader, so the two
