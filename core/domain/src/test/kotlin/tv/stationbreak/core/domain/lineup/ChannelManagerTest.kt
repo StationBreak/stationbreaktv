@@ -275,8 +275,10 @@ class ChannelManagerTest {
             val told = mutableListOf<ChannelId>()
             val watched = ChannelManager(service, { _, id -> told += id }) { chosen }
 
-            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOn(LineupIds.starter("laughs"))))
-            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOff(LineupIds.starter("laughs"))))
+            val laughs = LineupIds.starter("laughs")
+
+            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOn(laughs)))
+            assertEquals(ChangeResult.Done, watched.change(ACCOUNT, ChannelChange.SwitchOff(laughs)))
 
             assertEquals(emptyList(), told)
         }

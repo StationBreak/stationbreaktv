@@ -20,7 +20,8 @@ import tv.stationbreak.core.model.ItemId
 /**
  * Changes a lineup through [LineupService], under its lock (spec 21): the engine's edits stay on this side of the
  * port. [libraries] is the libraries the viewer chose, read when a reset plans a new lineup; null means none chosen
- * or unreadable. [switchOns] is told of each channel the viewer really switches on (one that was off), once it is saved.
+ * or unreadable. [switchOns] is told of each channel the viewer really switches on (one that was off), once it is
+ * saved.
  */
 class ChannelManager(
     private val service: LineupService,

@@ -7,19 +7,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
-import tv.stationbreak.core.domain.lineup.ChannelReadiness
 import tv.stationbreak.core.ui.ChannelReadyNotice
-
-/** How the screen reaches the app-wide readiness: it is not a screen's own, so no ViewModel holds it. */
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-internal interface ChannelReadinessEntryPoint {
-    fun readiness(): ChannelReadiness
-}
 
 /**
  * Draws [content] and, over it, the notice that a channel the viewer switched on is ready (#776), while there is one.
@@ -29,7 +18,9 @@ internal interface ChannelReadinessEntryPoint {
 internal fun ReadyNoticeHost(content: @Composable () -> Unit) {
     val context = LocalContext.current.applicationContext
     val readiness =
-        remember(context) { EntryPointAccessors.fromApplication(context, ChannelReadinessEntryPoint::class.java).readiness() }
+        remember(context) {
+            EntryPointAccessors.fromApplication(context, ChannelReadinessEntryPoint::class.java).readiness()
+        }
     val notice by readiness.notice.collectAsState()
     Box {
         content()
