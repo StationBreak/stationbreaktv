@@ -47,3 +47,11 @@ tasks.named<Test>("contractTest") {
         exceptionFormat = TestExceptionFormat.FULL
     }
 }
+
+// The lineup audit exporter's fixtures (tools/audit-export/fixtures): the answers its stage-one test decodes.
+val auditExportFixtures = rootProject.layout.projectDirectory.dir("tools/audit-export/fixtures")
+
+tasks.named<Test>("test") {
+    systemProperty("auditExport.fixtures", auditExportFixtures.asFile.absolutePath)
+    inputs.files(auditExportFixtures.asFileTree).withPropertyName("auditExportFixtures").withPathSensitivity(PathSensitivity.RELATIVE)
+}
