@@ -74,8 +74,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           mkdir -p "$RUNNER_TEMP/notes"
-          bash scripts/release-notes.sh "$TAG" > "$RUNNER_TEMP/notes/release-notes.md"
-          cat "$RUNNER_TEMP/notes/release-notes.md"
+          # The range ends at the commit that is built, whatever the tag name resolves to now. The notes are deliberately
+          # not printed to the log: commit text is untrusted, and a log line can carry a workflow command.
+          bash scripts/release-notes.sh "$TAG" "$GITHUB_SHA" > "$RUNNER_TEMP/notes/release-notes.md"
           echo "notes-sha256=$(sha256sum "$RUNNER_TEMP/notes/release-notes.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Upload the release notes
@@ -462,7 +463,13 @@ jobs:
             echo "Generated from the commits since the previous release: edit before publishing."
             echo
             # A release body is limited to 125000 characters; stay well under it.
-            head -c 60000 "$RUNNER_TEMP/notes/release-notes.md"
+            # Over the limit: cut at a line boundary (the last line, possibly partial, is dropped) and say so.
+            if [ "$(wc -c < "$RUNNER_TEMP/notes/release-notes.md")" -le 60000 ]; then
+              cat "$RUNNER_TEMP/notes/release-notes.md"
+            else
+              head -c 60000 "$RUNNER_TEMP/notes/release-notes.md" | sed '$d'
+              echo "…(truncated)"
+            fi
           } > "$RUNNER_TEMP/notes.md"
           # Once more, right before the release exists.
           bash -eo pipefail "$RUNNER_TEMP/check-tag.sh"
