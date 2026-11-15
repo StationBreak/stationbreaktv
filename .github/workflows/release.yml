@@ -35,6 +35,8 @@ jobs:
       # The unsigned APKs' hashes: `sign` checks what it downloads against these before it touches the key.
       github-sha256: ${{ steps.collect.outputs.github-sha256 }}
       amazon-sha256: ${{ steps.collect.outputs.amazon-sha256 }}
+      # The release notes file's hash: `publish` checks what it downloads against it.
+      notes-sha256: ${{ steps.notes.outputs.notes-sha256 }}
     steps:
       - name: Check the tag
         id: tag
@@ -62,6 +64,28 @@ jobs:
             echo "::error::the tagged commit $GITHUB_SHA is not on main"
             exit 1
           fi
+
+      # Release notes from the Conventional Commits since the previous v* tag (scripts/release-notes.sh). Commit text is
+      # untrusted: it is only written to a Markdown file, which `publish` puts in the draft's body for the owner to edit.
+      # A file in its own artifact rather than a job output, because the notes can be long.
+      - name: Generate the release notes
+        id: notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/notes"
+          # The range ends at the commit that is built, whatever the tag name resolves to now. The notes are deliberately
+          # not printed to the log: commit text is untrusted, and a log line can carry a workflow command.
+          bash scripts/release-notes.sh "$TAG" "$GITHUB_SHA" > "$RUNNER_TEMP/notes/release-notes.md"
+          echo "notes-sha256=$(sha256sum "$RUNNER_TEMP/notes/release-notes.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the release notes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: internal-release-notes
+          path: ${{ runner.temp }}/notes/release-notes.md
+          retention-days: 1
+          if-no-files-found: error
 
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
@@ -355,6 +379,29 @@ jobs:
           # Fails on any APK that is not byte-for-byte what `sign` verified.
           sha256sum --check --strict "$RUNNER_TEMP/SHA256SUMS"
 
+      # The artifact store is not trusted, so the notes are checked against the hash `build` published, as the APKs are.
+      - name: Download the release notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: internal-release-notes
+          path: ${{ runner.temp }}/notes
+
+      - name: Check the release notes
+        env:
+          NOTES_SHA256: ${{ needs.build.outputs.notes-sha256 }}
+        run: |
+          if ! [[ "$NOTES_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::the notes hash output from the build job is empty or not a SHA-256"
+            exit 1
+          fi
+          found="$(cd "$RUNNER_TEMP/notes" && find . -mindepth 1 | sort | tr '\n' ' ')"
+          if [ "$found" != "./release-notes.md " ]; then
+            echo "::error::the release notes artifact must hold exactly release-notes.md; found: $found"
+            exit 1
+          fi
+          printf '%s  %s\n' "$NOTES_SHA256" "$RUNNER_TEMP/notes/release-notes.md" > "$RUNNER_TEMP/notes.sha256"
+          sha256sum --check --strict "$RUNNER_TEMP/notes.sha256"
+
       # The tag could have been moved while the run waited for approval. It must still point at the commit that was
       # built; an annotated tag is followed to its commit. The check is a script so the same code runs twice: here, and
       # again right before the release is created.
@@ -410,6 +457,19 @@ jobs:
             echo
             echo "Each APK has a build-provenance attestation: \`gh attestation verify <apk> --repo $GITHUB_REPOSITORY\`."
             echo "Check the certificate with \`apksigner verify --print-certs <apk>\`."
+            echo
+            echo "## What's changed"
+            echo
+            echo "Generated from the commits since the previous release: edit before publishing."
+            echo
+            # A release body is limited to 125000 characters; stay well under it.
+            # Over the limit: cut at a line boundary (the last line, possibly partial, is dropped) and say so.
+            if [ "$(wc -c < "$RUNNER_TEMP/notes/release-notes.md")" -le 60000 ]; then
+              cat "$RUNNER_TEMP/notes/release-notes.md"
+            else
+              head -c 60000 "$RUNNER_TEMP/notes/release-notes.md" | sed '$d'
+              echo "…(truncated)"
+            fi
           } > "$RUNNER_TEMP/notes.md"
           # Once more, right before the release exists.
           bash -eo pipefail "$RUNNER_TEMP/check-tag.sh"

@@ -138,7 +138,10 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
   each signed APK's SHA-256 (and the certificate's) as job outputs, and `publish` fails unless the outputs are real
   SHA-256 values and every downloaded APK matches its output. It writes `SHA256SUMS` itself from the outputs. It checks
   that the tag still points at the built commit (an annotated tag is followed to its commit) before attesting and again
-  right before creating the draft release. No repository code runs where the key is.
+  right before creating the draft release. No repository code runs where the key is. The draft's body also holds release
+  notes that `build` generates from the Conventional Commits since the previous `v*` tag (`scripts/release-notes.sh`)
+  and hands to `publish` as a one-day artifact; commit text is only ever written as Markdown, and the owner edits the
+  notes before publishing.
 - **Required owner settings.** The workflow runs from the tagged commit, so the on-main check in its first job is
   only as strong as who can push the tag: a tag on a branch that edits `release.yml` would run the edited workflow.
   These settings are therefore the real gate, and a release must not be cut until all are in place:
