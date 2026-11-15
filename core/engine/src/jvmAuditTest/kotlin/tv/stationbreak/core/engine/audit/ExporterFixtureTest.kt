@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+@file:Suppress("MagicNumber") // Test data: the numbers are the fixture's values.
+
 package tv.stationbreak.core.engine.audit
 
 import kotlinx.serialization.json.Json
@@ -36,7 +38,8 @@ class ExporterFixtureTest {
         assertEquals(ScheduleItemKind.Episode, episode.item.kind)
         assertEquals(1, episode.item.seasonNumber)
         assertEquals(3, episode.item.episodeNumber)
-        assertTrue(snapshot.collections.values.any { it.movies.isNotEmpty() && it.series.isNotEmpty() && it.seasons.isNotEmpty() })
+        val kinds = snapshot.collections.values.map { listOf(it.movies, it.episodes, it.series, it.seasons) }
+        assertTrue(kinds.any { sets -> sets.all { it.isNotEmpty() } })
     }
 
     @Test

@@ -2,8 +2,8 @@
 
 The audit runs the real lineup planner and curation on a library snapshot and explains the result: where each title
 lives, why a channel is on the shelf, how much channels overlap, and which titles have no home. It is the yardstick for
-the seat rule and the catalog gaps ([docs/design/lineup-seats-and-gaps.md](../../docs/design/lineup-seats-and-gaps.md),
-section 2) and a stand-in for someone else's server.
+the seat rule and the catalog gaps (`docs/design/lineup-seats-and-gaps.md`, section 2, from the design PR) and a
+stand-in for someone else's server.
 
 - **The audit** is a `jvmAudit` compilation of `core:engine` (it sees the module's `internal` code) and a Gradle task.
   There is no new module and no public API; nothing in the app, the feature modules or the published jar can call it.
@@ -86,4 +86,5 @@ The exporter's test runs the exporter against the fake server and holds its outp
 `AuditExportFixtureTest` in `data:library` gives the app's own `ScheduleInputs`, `RuleItemMapper` and `RuleInputs` the
 rows and holds what they make to the same file, with the same count of what was left out for each reason; and
 `ExporterFixtureTest` in `core:engine` reads the file with the audit's codec. The audit is a pure function of the
-snapshot, so equal snapshots give equal audits. The fixtures hold no real title and no address.
+snapshot, so equal snapshots give equal audits. The fixtures hold no real title and no address. `make_fixtures.py` makes
+them again (read the diff: the independent check is the `data:library` test).

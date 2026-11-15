@@ -42,7 +42,10 @@ stationbreaktv/
 │   ├── rules/          [KMP]    Portable channel-rules JSON format: schema, versioning, migrations, (de)serialization
 │   ├── engine/         [KMP]    Channel engine: evaluate source rules against a library snapshot (`ChannelRules` +
 │   │                            `RuleSnapshot` → the channel's pool); the scheduler orders it. Its `lineup` package holds
-│   │                            the themed starter catalog and the planner that chooses a household's channels (spec 12)
+│   │                            the themed starter catalog and the planner that chooses a household's channels (spec 12).
+│   │                            It also holds the lineup audit, a command-line tool in extra `jvmAudit` and `jvmAuditTest`
+│   │                            compilations (not a module, not published, nothing can depend on it; see
+│   │                            `tools/audit-export/README.md`)
 │   ├── scheduler/      [KMP]    Deterministic scheduler: ordering modes, epochs, filler packing,
 │   │                            "what's on at time T, at what offset". Input is the scheduler settings and an item list (any order), not rules.
 │   ├── domain/         [JVM]    Ports (MediaServer, LibraryRepository, ChannelRepository, ScheduleSource,
