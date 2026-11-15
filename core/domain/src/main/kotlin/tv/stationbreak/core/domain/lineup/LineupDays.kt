@@ -33,6 +33,7 @@ import tv.stationbreak.core.engine.lineup.curation.CuratedPool
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.engine.lineup.curation.CurationChannel
 import tv.stationbreak.core.engine.lineup.curation.Homes
+import tv.stationbreak.core.engine.lineup.curation.LateOnPool
 import tv.stationbreak.core.engine.lineup.householdFor
 import tv.stationbreak.core.engine.lineup.isCuratedOn
 import tv.stationbreak.core.engine.lineup.leavesBy
@@ -344,9 +345,10 @@ internal class Scheduled(
  * day pool is its pool (`PoolEvaluator`) for the day (`EpochPool.build`). A curated starter's (spec 23: an unedited
  * starter whose rules for the day are programmed) is its pool as `Curation.curate` cuts it over the day's on-set (the
  * basis's before its boundary, else the curated starters scheduled that day), worked out once per cut-off and on-set,
- * with the trim window of its keeps and its weights; one switched on after the basis was taken airs its pool without
- * the titles homed on the basis channels, at weight 2. The curation only ever takes items out of pools the holds
- * already narrowed. A leftovers channel airs what is left after claiming, against its own snapshot:
+ * with the trim window of its keeps and its weights; one switched on after the basis was taken airs its pool: the
+ * titles no basis channel homes as its own (weight 2) and the rest as guests (weight 1, [Curation.lateOn]). The
+ * curation only ever takes items out of pools the holds already narrowed. A leftovers channel airs what is left after
+ * claiming, against its own snapshot:
  * - every item in the epoch pool of every switched-on channel that is neither curated nor a leftovers channel, and
  *   every item the day's curation claims: the basis on-set's before its boundary, scheduled today or not, and the
  *   scheduled curated starters' from it (A5, F5), so a switch in the middle of a day leaves the leftovers' day alone;
@@ -939,7 +941,8 @@ internal class LineupDays(
      * A repaired day's tail pool (spec 26) for [day]: [base] without what the new selection no longer holds (an item
      * not in [present]), then what the channel takes of [added] (its admitted items of the libraries the change adds,
      * [Admitted.pool]): a curated starter only the titles [homes] gives it a home (its home alone, never a guest spot
-     * in the middle of a day), a starter switched on after the basis only titles homed nowhere, and any other channel
+     * in the middle of a day), a starter switched on after the basis only titles homed nowhere (no guest spot added in
+     * the middle of a day either), and any other channel
      * all of them (a custom channel or an edited starter never loses a title). A title already in one of today's day
      * pools ([today]) is never homed again: a curated starter or a leftovers channel takes its new items only when the
      * title is in its own day pool today ([own]). The leftovers' [added] is already what the build's claims leave
@@ -1413,8 +1416,9 @@ internal class LineupDays(
         /**
          * A curated starter's day (spec 23): its pool as the day's [curation] cuts it, the trim window of its keeps
          * (applied once, when the day is made) and its weights; the films map of the curated order (every box set).
-         * A starter switched on after the basis's on-set was taken is not in it: it airs its pool without the titles
-         * homed on the basis channels, each at weight 2, uncapped, until the boundary.
+         * A starter switched on after the basis's on-set was taken is not in it: until the boundary it airs its pool,
+         * uncapped: the titles no basis channel homes as its own, each at weight 2, and the titles a basis channel
+         * homes as guests, each at weight 1 ([Curation.lateOn]).
          */
         private fun curatedDay(
             s: Scheduled,
@@ -1437,11 +1441,17 @@ internal class LineupDays(
                 // Of the titles the epoch pool holds, which is every title of the day: the window keeps them all.
                 homed = homedHere(epoch, day.homes, s.channel.id)
             } else {
-                epoch = EpochPool.build(s.settings, withoutHomes(pool.items, day.homes), s.n)
+                // The basis is frozen: the channel is its own home for the titles no basis channel homes and a guest
+                // on the rest, until the boundary (the curation's guest tests need homes it has not got).
+                // A curated day is a starter's, so the channel has a recipe.
+                val source = s.channel.source as ChannelSource.Starter
+                val recipe = checkNotNull(recipes[source.recipeKey]) { "A curated starter has a recipe" }
+                val channel = curationChannelFor(s.channel, recipe, ruled, policy, s.settings, pool.items)
+                val late = Curation.lateOn(snapshot, channel, day.homes)
+                epoch = EpochPool.build(s.settings, late.items, s.n)
                 keeps = TitleKeeps.NONE
-                weights = newOnWeights(epoch)
-                // As if it homed them all: the titles no channel of the basis homes are this channel's.
-                homed = epoch.mapTo(HashSet()) { it.groupId }
+                weights = weightsIn(late.weights, epoch)
+                homed = homedIn(late.homed, epoch)
             }
             // What the leftovers and the airing-nowhere count read: the epoch pool, before the window (H3).
             epochPools[s] = epoch
@@ -1564,6 +1574,19 @@ internal class LineupDays(
             val (ruled, policy) = ceilings.policyRules(rules, channel)
             val settings = settingsOrNull(ruled) ?: return null
             val pool = evaluate(ruled, cut, policy).items
+            return curationChannelFor(channel, recipe, ruled, policy, settings, pool)
+        }
+
+        // The curation's view of a starter: the one place that decides its kid flag and its number for the ties.
+        @Suppress("LongParameterList") // The channel, its recipe, its rules under policy and settings, and its pool.
+        private fun curationChannelFor(
+            channel: LineupChannel,
+            recipe: Recipe,
+            ruled: ChannelRules,
+            policy: PoolPolicy,
+            settings: SchedulerSettings,
+            pool: List<ScheduleItem>,
+        ): CurationChannel {
             val kid = policy == PoolPolicy.KidsOnly
             return CurationChannel(channel.id, recipe.number, recipe, kid, ruled, settings, pool)
         }
@@ -1734,17 +1757,6 @@ internal class Admitted(
 /** No title has a weight: a day that is not curated. */
 internal val NO_WEIGHTS: TitleWeights = TitleWeights.NONE
 
-// [items] without those of the titles [homes] gives a home (on a basis channel). A plain loop: it runs per item.
-private fun withoutHomes(
-    items: List<ScheduleItem>,
-    homes: Homes?,
-): List<ScheduleItem> {
-    if (homes == null) return items
-    val out = ArrayList<ScheduleItem>(items.size)
-    for (item in items) if (homes.homeOf(item.groupId) == null) out.add(item)
-    return out
-}
-
 // [weights] of the titles [pool] (the windowed day pool) holds only: a title none of whose items is in the day weighs
 // nothing in it, and the days file then holds no weight a reader would refuse.
 private fun weightsIn(
@@ -1769,16 +1781,6 @@ private fun homedIn(
     for (item in pool) titles.add(item.groupId)
     return homed.filterTo(HashSet()) { it in titles }
 }
-
-// Weight 2 for every title of [pool]: a starter switched on after the basis was taken, as if it homed them all.
-private fun newOnWeights(pool: List<ScheduleItem>): TitleWeights {
-    val weights = HashMap<CanonicalId, Int>()
-    for (item in pool) weights[item.groupId] = NEW_ON_WEIGHT
-    return TitleWeights.of(weights)
-}
-
-/** The weight of a home (`CurationDefaults.WEIGHT_HOME`). */
-private const val NEW_ON_WEIGHT = 2
 
 private fun LineupChannel.isUneditedStarter(): Boolean {
     val source = source

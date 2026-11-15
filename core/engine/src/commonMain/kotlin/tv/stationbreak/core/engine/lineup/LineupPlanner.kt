@@ -44,8 +44,9 @@ import tv.stationbreak.core.rules.ChannelRules
  *   (nothing of it airs or is withheld today); and one that starts at the boundary (it airs nothing before). A shelved
  *   starter that switches on takes its new rules at once too.
  * - A starter the viewer switches on in the middle of a day airs from now (`onSinceMs`). A programmed one is not in the
- *   basis's on-set, so until the boundary it airs what the basis channels do not home (nothing at all, hidden for the
- *   day with its reason, when they home every title of it), and the leftovers claim from the basis on-set (spec 23,
+ *   basis's on-set, so until the boundary it airs its whole pool: the titles no basis channel homes as its own, and the
+ *   titles a basis channel homes as guests (`Curation.lateOn`; never a made-for-kids title on a grown-up channel, and
+ *   the anime rule holds), so it is not empty for the day, and the leftovers claim from the basis on-set (spec 23,
  *   A5, F5): their current day does not move, and both can air the same title until the boundary. A starter that is
  *   not programmed claims its day pool at once, so the leftovers' current day moves once for it.
  * - With a catalog that selects by identity (`StarterCatalogView.selectsByIdentity`, version 3 on, every recipe themed)

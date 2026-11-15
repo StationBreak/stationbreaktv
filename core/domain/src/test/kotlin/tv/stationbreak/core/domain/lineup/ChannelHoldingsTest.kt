@@ -6,6 +6,9 @@ import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.EditOutcome
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItem
@@ -14,6 +17,7 @@ import tv.stationbreak.core.model.schedule.TitleWeights
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -331,6 +335,38 @@ class ChannelHoldingsTest {
         // A curated channel has homes, a custom one none: both known.
         assertTrue(restored.any { it.homed?.isNotEmpty() == true })
         assertEquals(emptySet(), restored.first { it.channel.id.value == "custom-1" }.homed)
+    }
+
+    @Test
+    fun aLateOnDaySavedAndRestoredKeepsItsGuestsAndItsOwnHomes() {
+        // A channel the viewer switched on mid-day: its own titles are its homes, the basis's homes air as guests.
+        val days = LineupDays(TestCatalog)
+        val noon = NOON.toEpochMilliseconds()
+        val shelved = CuratedLibrary.lineup(westernsState = ChannelState.Shelf)
+        val outcome =
+            LineupEdits.apply(
+                shelved,
+                LineupEdit.SwitchOn(CuratedLibrary.westernsId),
+                noon,
+                CuratedLibrary.boundaryMs,
+                TestCatalog,
+            )
+        val lineup = assertIs<EditOutcome.Applied>(outcome).lineup
+        val scheduled = days.scheduled(lineup, noon, null)
+        val persisted = PersistedDays(MemoryDayStore(), "app-1", {}, PersistedDays.HOLDS)
+        val key = persisted.keyOf(ACCOUNT, LIBRARIES, 1L, 0, days.inputsOf(lineup, null), 1, scheduled)
+        val built = days.curatedDays(lineup, noon)
+        val westerns = built.first { it.channel.id == CuratedLibrary.westernsId }
+        val titles = westerns.pool.mapTo(HashSet()) { it.groupId }
+        assertTrue(checkNotNull(westerns.homed).isNotEmpty() && checkNotNull(westerns.homed).size < titles.size)
+        assertTrue(runBlocking { persisted.save(ACCOUNT, key, built) })
+
+        val restored = checkNotNull(runBlocking { persisted.load(ACCOUNT, key, scheduled, days::restore) })
+
+        val after = restored.first { it.channel.id == CuratedLibrary.westernsId }
+        assertEquals(westerns.homed, after.homed)
+        assertEquals(westerns.weights, after.weights)
+        assertEquals(westerns.pool, after.pool)
     }
 
     @Test
