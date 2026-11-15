@@ -143,7 +143,12 @@ private fun RowLine(
     row: ChannelRow,
     focused: Boolean,
 ) {
-    val reason = row.reason?.let { stringResource(reasonText(it)) }
+    val reason =
+        if (row.gettingReady) {
+            stringResource(R.string.channels_row_getting_ready)
+        } else {
+            row.reason?.let { stringResource(reasonText(it)) }
+        }
     val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it)) }
     val labels = labelsOf(row)
     val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason)

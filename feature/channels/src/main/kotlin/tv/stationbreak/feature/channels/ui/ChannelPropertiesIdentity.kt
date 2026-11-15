@@ -134,7 +134,9 @@ internal fun Status(
                 val on = since?.let { stringResource(R.string.channel_props_status_on_since, it) }.orEmpty()
                 val hidden = row.reason
                 on to
-                    if (hidden == null) {
+                    if (row.gettingReady) {
+                        stringResource(R.string.channels_row_getting_ready)
+                    } else if (hidden == null) {
                         stringResource(R.string.channel_props_status_showing)
                     } else {
                         stringResource(R.string.channel_props_status_hidden, stringResource(reasonText(hidden)))

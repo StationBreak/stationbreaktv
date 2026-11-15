@@ -13,11 +13,14 @@ import tv.stationbreak.core.model.ChannelId
 internal fun channelRows(
     channels: List<ChannelSummary>,
     reasons: Map<ChannelId, HiddenReason?>,
+    gettingReady: Set<ChannelId> = emptySet(),
 ): List<ChannelRow> =
     channels
         .sortedWith(compareBy<ChannelSummary>({ groupOf(it) }, { it.number ?: Int.MAX_VALUE }))
         .map { c ->
             val group = groupOf(c)
+            // A channel getting ready is On and waits for its day: any reason on file is from before and not shown.
+            val waiting = group == ChannelGroup.On && c.id in gettingReady
             ChannelRow(
                 id = c.id,
                 number = c.number,
@@ -26,10 +29,11 @@ internal fun channelRows(
                 kind = c.kind,
                 kid = c.kid,
                 optIn = c.optIn,
-                reason = if (group == ChannelGroup.On) reasons[c.id] else null,
+                reason = if (group == ChannelGroup.On && !waiting) reasons[c.id] else null,
                 // A switched-off row never explains a shelf; an On row's is the leave the planner set.
                 shelfReason = if (group == ChannelGroup.Off) null else c.shelfReason,
                 hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
+                gettingReady = waiting,
             )
         }
 

@@ -35,7 +35,7 @@ internal fun actionsOf(
     buildList {
         val on = row.group == ChannelGroup.On
         // Until the reasons have been read an On row may be one with nothing to air, so Watch is not offered yet.
-        if (on && reasonsRead && row.reason == null) add(Choice.Watch)
+        if (on && reasonsRead && row.reason == null && !row.gettingReady) add(Choice.Watch)
         addChanges(row, on, access)
         add(Choice.About)
     }
