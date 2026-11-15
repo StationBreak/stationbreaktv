@@ -1,0 +1,598 @@
+LINEUP AUDIT (catalog 4, curation-1, extras-1)
+SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
+
+LIBRARY: 679 items, 115 titles (16 series, 99 films)
+EXTRAS FILTER DROPPED: nothing
+
+TOTALS
+  titles: 115, with a home: 114, with no home: 1
+  titles with no home, by cause:
+    no-source-match                    0
+    excluded-by-recipe                 0
+    held-by-kid-or-grown-up-hold       0
+    filtered-or-rated                  0
+    not-airable                        0
+    anime-rule                         0
+    only-on-shelved-channels           1
+  channels per title: 1 channels: 6 titles, 2 channels: 105 titles, 3 channels: 4 titles
+  titles per channel that is on:
+    dial-up                         28
+    flip-phone                      46
+    binge-row                       33
+    prestige                        15
+    cold-case-cable                 29
+    dead-drop                       30
+    big-rumble                      20
+    starport                        20
+    twist-ending                     6
+    leftovers:kids-odds-and-ends     0
+    leftovers:odds-and-ends          1
+
+STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
+  key                          num  state  reason    cand  selection                          on air
+  little-farm                     4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  sing-along-station              8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  once-upon                      12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  saturday-morning               16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  backyard-fort                  20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  robot-factory                  28  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  hey-science                    32  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rainy-day-matinee              36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-spirits                 40  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  pocket-heroes                  48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  flipbook                       52  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  snowglobe                      56  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  giggle-garage                  60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  wheels-and-whistles            64  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  small-sleuths                  68  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  spooky-sleepover               76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tiny-chefs                     80  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  laugh-track                   102  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  punchline                     106  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rabbit-ears                   110  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  shag-carpet                   114  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  neon-decade                   118  off    TooThin       1  1t 1.00h 0a score   200 THIN       -
+  dial-up                       122  on(p)               28  28t 54.80h 0a score  8280          28t 54.80h 0a
+  flip-phone                    126  on(p)               48  48t 281.10h 0a score 11000         48t 281.10h 0a
+  binge-row                     130  on(p)               37  37t 299.82h 0a score 11000         37t 299.82h 0a
+  fresh-cut                     134  off    TooThin       1  1t 1.00h 0a score   200 THIN       -
+  glass-house                   138  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  game-night                    142  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  couch-talk                    146  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  matinee-tears                 150  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  sideline                      154  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  spoof-central                 158  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  date-night                    162  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  open-road                     166  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  simmer                        170  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  fixer-hour                    174  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  backstage-pass                178  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  always-december               182  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  prestige                      204  on(p)               16  10t 306.67h 0a score  9000         10t 306.67h 0a
+  cold-case-cable               208  on(p)               39  22t 44.68h 0a score  6668          25t 49.93h 0a
+  order-in-the-court            212  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  code-blue                     216  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  silver-screen                 220  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  dead-drop                     224  on(p)               30  26t 49.82h 0a score  7581          30t 57.85h 0a
+  big-rumble                    228  on(p)               20  20t 39.50h 0a score  5950          20t 39.50h 0a
+  kung-fu-theater               232  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  docs-and-dusters              236  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  front-lines                   240  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  dusty-trails                  244  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  noir-nights                   248  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  corsets-and-candlelight       252  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  case-files                    256  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  life-stories                  260  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  disaster-zone                 264  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  starport                      304  on(p)               26  20t 42.83h 0a score  6283          20t 42.83h 0a
+  dragons-and-doorways          308  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rubber-suit-theatre           312  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  midnight-projector            316  off    TooThin       4  4t 7.20h 0a score  1120 THIN       -
+  the-cheap-seats               320  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  drive-in-double               324  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cape-and-cowl                 328  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cult-following                332  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  shuffle-and-groan             336  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  jack-o-lantern-lounge         340  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  campfire-tales                344  off    TooThin       3  3t 3.94h 0a score   693 THIN       -
+  paradox                       348  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  neon-rain                     352  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  deep-space-drift              356  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  creature-feature              360  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  end-times                     364  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  haunted-house                 368  off    TooThin       4  4t 7.80h 0a score  1180 THIN       -
+  twist-ending                  372  on(p)                6  6t 135.00h 0a score  8600          6t 135.00h 0a
+  gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tokyo-after-school            404  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  giant-robot-hour              408  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  power-level                   412  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tea-time                      416  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  whodunit-isles                420  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  continental-drift             424  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  seoul-sundays                 428  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  masala-hour                   432  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  telenovela-tonight            436  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cherry-blossom-hour           440  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  after-hours                   504  off    OptIn         0  -                                  -
+  graveyard-shift               508  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  one-season-only               512  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cartoons-after-dark           516  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  satire-desk                   528  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  directors-chair               532  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+
+OVERLAP: pairs of channels that are on and air the same titles (most hours first)
+  binge-row                    prestige                     5 titles, 153.33h
+  flip-phone                   prestige                     5 titles, 153.33h
+  prestige                     twist-ending                 5 titles, 112.50h
+  dial-up                      cold-case-cable              12 titles, 23.32h
+  flip-phone                   starport                     10 titles, 21.42h
+  flip-phone                   cold-case-cable              10 titles, 20.42h
+  flip-phone                   big-rumble                   10 titles, 19.75h
+  binge-row                    dead-drop                    10 titles, 19.25h
+  flip-phone                   dead-drop                    10 titles, 19.25h
+  dial-up                      dead-drop                    9 titles, 17.48h
+  binge-row                    cold-case-cable              7 titles, 14.23h
+  binge-row                    starport                     5 titles, 10.88h
+  dial-up                      starport                     5 titles, 10.53h
+  binge-row                    big-rumble                   5 titles, 10.05h
+  dial-up                      big-rumble                   5 titles, 9.70h
+  cold-case-cable              dead-drop                    4 titles, 8.03h
+
+TITLES (scores in points; a term that is zero is left out)
+  00000000 Kyzupe Lodarxi [film, 1 items, 1.67h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: neon-decade (TooThin), midnight-projector (TooThin)
+    airs on: leftovers:odds-and-ends
+  00000001 Fabravel Mitorsen [film, 1 items, 1.80h]
+    home dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+  00000002 Quinkyol Renmaxi [film, 1 items, 1.93h]
+    home flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+  00000003 Zupefa Olbralo [film, 1 items, 2.07h]
+    home binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+  00000004 Velmami Pefator [film, 1 items, 1.75h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000005 Torrenlo Mixisen [film, 1 items, 1.87h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000006 Miloky Fadarlo [film, 1 items, 1.98h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000007 Sensenxi Makyzu [film, 1 items, 2.10h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000008 Darvelmi Tortorol [film, 1 items, 1.75h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000009 Quinpequin Lofape [film, 1 items, 1.87h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000000a Lokyren Olpebra [film, 1 items, 1.98h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000000b Fafape Veldarmi [film, 1 items, 2.10h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000000c Zudartor Quinkydar [film, 1 items, 1.75h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000000d Rentorquin Kyvelfa [film, 1 items, 1.87h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000000e Kyxizu Brafaren [film, 1 items, 1.98h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000000f Ololma Darpeol [film, 1 items, 2.10h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000010 Mazuvel Rensenxi [film, 1 items, 1.75h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000011 Pequindar Xirenvel [film, 1 items, 1.87h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000012 Ximizu Senvelsen [film, 1 items, 1.98h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000013 Bravelma Zuloquin [film, 1 items, 2.10h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000014 Velpebra Pemafa [film, 1 items, 1.75h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000015 Torkysen Misenky [film, 1 items, 1.87h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000016 Mifafa Farenma [film, 1 items, 1.98h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000017 Sendarol Mabrabra [film, 1 items, 2.10h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000018 Dartorbra Torlotor [film, 1 items, 1.75h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000019 Quinximi Lomasen [film, 1 items, 1.87h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000001a Loollo Olmilo [film, 1 items, 1.98h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000001b Fazuky Velrenzu [film, 1 items, 2.10h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000001c Zuquinxi Quinbraol [film, 1 items, 1.75h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000001d Renmimi Kyquinpe [film, 1 items, 1.87h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+  0000001e Kybralo Bramabra [film, 1 items, 1.83h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: dial-up, cold-case-cable
+  0000001f Olmaren Darmimi [film, 1 items, 1.95h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: dial-up, cold-case-cable
+  00000020 Marenpe Renzudar [film, 1 items, 2.07h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: dial-up, cold-case-cable
+  00000021 Pelotor Xixilo [film, 1 items, 2.18h]
+    home dead-drop 120.00 = specificity 20.00 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: dial-up, cold-case-cable
+  00000022 Xisenquin Senquinren [film, 1 items, 1.63h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000023 Bratorren Zuolol [film, 1 items, 1.75h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000024 Velxima Petorxi [film, 1 items, 1.87h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000025 Torolvel Mizuvel [film, 1 items, 1.87h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000026 Mizudar Faximi [film, 1 items, 1.98h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000027 Senquinzu Madarquin [film, 1 items, 2.10h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000028 Darmima Torolfa [film, 1 items, 2.22h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000029 Quinbravel Lotorky [film, 1 items, 1.87h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  0000002a Lomasen Olfama [film, 1 items, 1.98h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000002b Farenfa Velxixi [film, 1 items, 2.10h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000002c Zulool Quindartor [film, 1 items, 2.22h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000002d Rensenbra Kykysen [film, 1 items, 1.87h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000002e Kyvelsen Bratorlo [film, 1 items, 1.98h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000002f Olpelo Darfazu [film, 1 items, 2.10h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000030 Makyky Renpeky [film, 1 items, 2.22h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000031 Pefaxi Xisenpe [film, 1 items, 1.87h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000032 Xidarmi Senkybra [film, 1 items, 1.98h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000033 Bramilo Zuvelmi [film, 1 items, 2.10h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000034 Velbraky Pelodar [film, 1 items, 2.22h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000035 Tormape Mipelo [film, 1 items, 1.87h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000036 Mirentor Fasenren [film, 1 items, 1.98h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000037 Senloquin Marenol [film, 1 items, 2.10h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000038 Darsenren Torvelxi [film, 1 items, 2.22h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000039 Quinvelpe Lolovel [film, 1 items, 1.87h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000003a Lopevel Olmami [film, 1 items, 1.98h]
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000003b Fakydar Velsenquin [film, 1 items, 1.97h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  0000003c Zufazu Quinrenfa [film, 1 items, 2.08h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  0000003d Rendarma Kybraky [film, 1 items, 2.20h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  0000003e Kytorvel Braloma [film, 1 items, 2.32h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  0000003f Olxisen Darmaxi [film, 1 items, 1.97h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000040 Maolfa Renmitor [film, 1 items, 2.08h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000041 Pezuol Xizusen [film, 1 items, 2.20h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000042 Xiquinbra Senbralo [film, 1 items, 2.32h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000043 Brasensen Zuquinzu [film, 1 items, 1.97h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000044 Velvelfa Peolky [film, 1 items, 2.08h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000045 Torpeky Mimipe [film, 1 items, 2.20h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000046 Mikyxi Fazubra [film, 1 items, 2.32h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000047 Senfami Maxitor [film, 1 items, 1.97h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000048 Dardarlo Torquindar [film, 1 items, 2.08h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000049 Quintorky Loollo [film, 1 items, 2.20h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000004a Loxipe Oltorren [film, 1 items, 2.32h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000004b Faoltor Velzuol [film, 1 items, 1.97h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000004c Zuzuquin Quinxipe [film, 1 items, 2.08h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000004d Renquinren Kydarvel [film, 1 items, 2.20h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000004e Kymipe Braolmi [film, 1 items, 2.32h]
+    home starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000004f Olbrator Dartorquin [film, 1 items, 1.80h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000050 Mamadar Renfafa [film, 1 items, 1.92h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000051 Perenzu Xiperen [film, 1 items, 2.03h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000052 Xiloma Sendarma [film, 1 items, 2.15h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000053 Bradarvel Zukyxi [film, 1 items, 1.80h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -69.62 = specificity 20.38 decade -150.00 tone 60.00
+    guest spots: dial-up
+  00000054 Veltordar Peveltor [film, 1 items, 1.92h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000055 Torxifa Mifasen [film, 1 items, 2.03h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000056 Miolol Fapequin [film, 1 items, 2.15h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000057 Senzubra Masenzu [film, 1 items, 1.80h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000058 Darquinsen Torkyky [film, 1 items, 1.92h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  00000059 Quinmifa Lovelpe [film, 1 items, 2.03h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000005a Lobraol Ollobra [film, 1 items, 2.15h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000005b Famaxi Velpetor [film, 1 items, 1.80h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000005c Zurenmi Quinsendar [film, 1 items, 1.92h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000005d Renlolo Kyrenlo [film, 1 items, 2.03h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
+    guest spots: flip-phone
+  0000005e Kysenky Bravelren [film, 1 items, 2.15h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  0000005f Olvelxi Darlool [film, 1 items, 1.80h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000060 Mapetor Renmape [film, 1 items, 1.92h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000061 Pekyquin Ximivel [film, 1 items, 2.03h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000062 Xifaren Senrenmi [film, 1 items, 2.15h]
+    home big-rumble 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
+    guest spots: binge-row
+  00000000 Braquinpe Zubraquin [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: flip-phone
+  00000001 Velmitor Pequinfa [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: flip-phone
+  00000002 Torbraquin Mimaren [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: flip-phone
+  00000003 Mimazu Famima [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: flip-phone
+  00000004 Senrenma Mazuxi [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: flip-phone
+  00000005 Darlovel Torbrator [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: binge-row
+  00000006 Quinsendar Loquinsen [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: binge-row
+  00000007 Lovelzu Ololquin [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: binge-row
+  00000008 Fapeol Velmizu [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: binge-row
+  00000009 Zukybra Quinzuky [series, 40 items, 30.67h]
+    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    guest spots: binge-row
+  0000000a Renfasen Kyxima [series, 30 items, 22.50h]
+    home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
+    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    guest spots: prestige
+  0000000b Kydarfa Braquinbra [series, 30 items, 22.50h]
+    home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
+    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    guest spots: prestige
+  0000000c Oltorol Daroltor [series, 30 items, 22.50h]
+    home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
+    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    guest spots: prestige
+  0000000d Maxixi Rentordar [series, 30 items, 22.50h]
+    home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
+    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    guest spots: prestige
+  0000000e Peolmi Xifalo [series, 30 items, 22.50h]
+    home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
+    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    guest spots: prestige
+  0000000f Xizulo Senxizu [series, 30 items, 22.50h]
+    home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
+    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00

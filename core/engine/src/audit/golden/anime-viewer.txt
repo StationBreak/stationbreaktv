@@ -1,0 +1,354 @@
+LINEUP AUDIT (catalog 4, curation-1, extras-1)
+SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
+
+LIBRARY: 1940 items, 58 titles (44 series, 14 films)
+EXTRAS FILTER DROPPED: nothing
+NOTE: Not finalised: fewer than 5 recipes fill, so nothing is on.
+
+TOTALS
+  titles: 58, with a home: 0, with no home: 58
+  titles with no home, by cause:
+    no-source-match                    0
+    excluded-by-recipe                 0
+    held-by-kid-or-grown-up-hold       0
+    filtered-or-rated                  0
+    not-airable                        0
+    anime-rule                         0
+    only-on-shelved-channels          58
+  channels per title: 0 channels: 58 titles
+  titles per channel that is on:
+
+STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
+  key                          num  state  reason    cand  selection                          on air
+  little-farm                     4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  sing-along-station              8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  once-upon                      12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  saturday-morning               16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  backyard-fort                  20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  robot-factory                  28  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  hey-science                    32  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rainy-day-matinee              36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-spirits                 40  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  pocket-heroes                  48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  flipbook                       52  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  snowglobe                      56  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  giggle-garage                  60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  wheels-and-whistles            64  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  small-sleuths                  68  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  spooky-sleepover               76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tiny-chefs                     80  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  laugh-track                   102  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  punchline                     106  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rabbit-ears                   110  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  shag-carpet                   114  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  neon-decade                   118  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  dial-up                       122  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  flip-phone                    126  off    TooThin       5  5t 71.50h 0a score  7650 THIN      -
+  binge-row                     130  off    NotFinalised     9  9t 190.30h 0a score  8900          -
+  fresh-cut                     134  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  glass-house                   138  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  game-night                    142  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  couch-talk                    146  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  matinee-tears                 150  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  sideline                      154  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  spoof-central                 158  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  date-night                    162  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  open-road                     166  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  simmer                        170  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  fixer-hour                    174  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  backstage-pass                178  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  always-december               182  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  prestige                      204  off    NotFinalised     8  8t 176.00h 0a score  8800          -
+  cold-case-cable               208  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  order-in-the-court            212  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  code-blue                     216  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  silver-screen                 220  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  dead-drop                     224  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  big-rumble                    228  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  kung-fu-theater               232  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  docs-and-dusters              236  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  front-lines                   240  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  dusty-trails                  244  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  noir-nights                   248  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  corsets-and-candlelight       252  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  case-files                    256  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  life-stories                  260  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  disaster-zone                 264  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  starport                      304  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  dragons-and-doorways          308  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rubber-suit-theatre           312  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  midnight-projector            316  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  the-cheap-seats               320  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  drive-in-double               324  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cape-and-cowl                 328  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cult-following                332  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  shuffle-and-groan             336  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  jack-o-lantern-lounge         340  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  campfire-tales                344  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  paradox                       348  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  neon-rain                     352  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  deep-space-drift              356  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  creature-feature              360  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  end-times                     364  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  haunted-house                 368  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tokyo-after-school            404  off    NotFinalised    44  38t 537.92h 0a score 11000         -
+  giant-robot-hour              408  off    NotFinalised     6  6t 62.40h 0a score  6840           -
+  power-level                   412  off    TooThin       6  0t 0.00h 0a score     0 THIN       -
+  tea-time                      416  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  whodunit-isles                420  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  continental-drift             424  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  seoul-sundays                 428  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  masala-hour                   432  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  telenovela-tonight            436  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cherry-blossom-hour           440  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  after-hours                   504  off    Empty         0  -                                  -
+  graveyard-shift               508  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  one-season-only               512  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cartoons-after-dark           516  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  satire-desk                   528  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  directors-chair               532  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+
+OVERLAP: pairs of channels that are on and air the same titles (most hours first)
+  none
+
+TITLES (scores in points; a term that is zero is left out)
+  000005ac Xisenquin Senquinren [film, 1 items, 1.75h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005ad Bratorren Zuolol [film, 1 items, 1.87h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005ae Velxima Petorxi [film, 1 items, 1.98h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005af Torolvel Mizuvel [film, 1 items, 2.10h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b0 Mizudar Faximi [film, 1 items, 1.75h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b1 Senquinzu Madarquin [film, 1 items, 1.87h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b2 Darmima Torolfa [film, 1 items, 1.98h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b3 Quinbravel Lotorky [film, 1 items, 2.10h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b4 Lomasen Olfama [film, 1 items, 1.75h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b5 Farenfa Velxixi [film, 1 items, 1.87h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b6 Zulool Quindartor [film, 1 items, 1.98h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b7 Rensenbra Kykysen [film, 1 items, 2.10h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b8 Kyvelsen Bratorlo [film, 1 items, 1.75h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  000005b9 Olpelo Darfazu [film, 1 items, 1.87h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000000 Velmami Pefator [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000001 Torrenlo Mixisen [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000002 Miloky Fadarlo [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000003 Sensenxi Makyzu [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000004 Darvelmi Tortorol [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000005 Quinpequin Lofape [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000006 Lokyren Olpebra [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000007 Fafape Veldarmi [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000008 Zudartor Quinkydar [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000009 Rentorquin Kyvelfa [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  0000000a Kyxizu Brafaren [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  0000000b Ololma Darpeol [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  0000000c Mazuvel Rensenxi [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  0000000d Pequindar Xirenvel [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  0000000e Ximizu Senvelsen [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  0000000f Bravelma Zuloquin [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000010 Velpebra Pemafa [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000011 Torkysen Misenky [series, 48 items, 19.20h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn)
+    airs on: no channel
+  00000012 Mifafa Farenma [series, 26 items, 10.40h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), giant-robot-hour (NotOn)
+    airs on: no channel
+  00000013 Sendarol Mabrabra [series, 26 items, 10.40h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), giant-robot-hour (NotOn)
+    airs on: no channel
+  00000014 Dartorbra Torlotor [series, 26 items, 10.40h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), giant-robot-hour (NotOn)
+    airs on: no channel
+  00000015 Quinximi Lomasen [series, 26 items, 10.40h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), giant-robot-hour (NotOn)
+    airs on: no channel
+  00000016 Loollo Olmilo [series, 26 items, 10.40h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), giant-robot-hour (NotOn)
+    airs on: no channel
+  00000017 Fazuky Velrenzu [series, 26 items, 10.40h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), giant-robot-hour (NotOn)
+    airs on: no channel
+  00000018 Zuquinxi Quinbraol [series, 72 items, 27.60h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), power-level (NotOn)
+    airs on: no channel
+  00000019 Renmimi Kyquinpe [series, 72 items, 27.60h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), power-level (NotOn)
+    airs on: no channel
+  0000001a Kybralo Bramabra [series, 72 items, 27.60h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), power-level (NotOn)
+    airs on: no channel
+  0000001b Olmaren Darmimi [series, 72 items, 27.60h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), power-level (NotOn)
+    airs on: no channel
+  0000001c Marenpe Renzudar [series, 72 items, 27.60h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), power-level (NotOn)
+    airs on: no channel
+  0000001d Pelotor Xixilo [series, 72 items, 27.60h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: tokyo-after-school (NotOn), power-level (NotOn)
+    airs on: no channel
+  0000001e Makyky Renpeky [series, 39 items, 14.30h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (NotOn)
+    airs on: no channel
+  0000001f Pefaxi Xisenpe [series, 39 items, 14.30h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (NotOn)
+    airs on: no channel
+  00000020 Xidarmi Senkybra [series, 39 items, 14.30h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (NotOn)
+    airs on: no channel
+  00000021 Bramilo Zuvelmi [series, 39 items, 14.30h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (NotOn)
+    airs on: no channel
+  00000022 Velbraky Pelodar [series, 39 items, 14.30h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (NotOn)
+    airs on: no channel
+  00000023 Tormape Mipelo [series, 39 items, 14.30h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn)
+    airs on: no channel
+  00000024 Mirentor Fasenren [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel
+  00000025 Senloquin Marenol [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel
+  00000026 Darsenren Torvelxi [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel
+  00000027 Quinvelpe Lolovel [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel
+  00000028 Lopevel Olmami [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel
+  00000029 Fakydar Velsenquin [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel
+  0000002a Zufazu Quinrenfa [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel
+  0000002b Rendarma Kybraky [series, 30 items, 22.00h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (NotOn), prestige (NotOn)
+    airs on: no channel

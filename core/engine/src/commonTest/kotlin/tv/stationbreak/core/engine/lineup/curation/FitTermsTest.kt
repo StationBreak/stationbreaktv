@@ -10,27 +10,32 @@ class FitTermsTest {
     private val counts = listOf(0, 1, 2, 5)
     private val toneShares = listOf(0L to 0L, 0L to 10L, 3L to 9L, 10L to 10L, 1L to 7L)
 
-    private fun everyInput(): List<FitInputs> {
-        val out = ArrayList<FitInputs>()
-        for (genre in counts) {
-            for (tag in counts) {
-                for (studio in flags) {
-                    for (guest in flags) {
-                        for (anchor in flags) {
-                            for (kid in flags) {
-                                for (format in flags) {
-                                    for ((tone, total) in toneShares) {
-                                        out += FitInputs(genre, tag, studio, guest, anchor, kid, format, tone, total)
-                                    }
-                                }
-                            }
-                        }
+    private fun everyInput(): List<FitInputs> =
+        counts.flatMap { genre ->
+            counts.flatMap { tag ->
+                flags.flatMap { studio ->
+                    flags.flatMap { guest ->
+                        everyFlagAndTone(genre, tag, studio, guest)
                     }
                 }
             }
         }
-        return out
-    }
+
+    private fun everyFlagAndTone(
+        genre: Int,
+        tag: Int,
+        studio: Boolean,
+        guest: Boolean,
+    ): List<FitInputs> =
+        flags.flatMap { anchor ->
+            flags.flatMap { kid ->
+                flags.flatMap { format ->
+                    toneShares.map { (tone, total) ->
+                        FitInputs(genre, tag, studio, guest, anchor, kid, format, tone, total)
+                    }
+                }
+            }
+        }
 
     @Test
     fun theTermsAddUpToTheSharedPointsForEveryCombination() {

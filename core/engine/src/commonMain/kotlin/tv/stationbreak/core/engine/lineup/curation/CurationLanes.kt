@@ -246,7 +246,7 @@ internal fun admits(
 }
 
 // Films promise a title that is not a series; short series promise a series; no promise gives no bonus.
-private fun formatFits(
+internal fun formatFits(
     promise: FormatPromise?,
     title: Title,
 ): Boolean =
@@ -268,7 +268,7 @@ private fun studioAnchorsOf(recipe: Recipe): List<NameMatcher> {
     return out
 }
 
-private fun foldedDistinct(names: List<String>): List<String> {
+internal fun foldedDistinct(names: List<String>): List<String> {
     val out = ArrayList<String>(names.size)
     for (n in names) {
         val f = foldNameAscii(n)
@@ -277,7 +277,7 @@ private fun foldedDistinct(names: List<String>): List<String> {
     return out
 }
 
-private fun hits(
+internal fun hits(
     wanted: List<String>,
     have: List<String>,
 ): Int {
@@ -286,7 +286,7 @@ private fun hits(
     return n
 }
 
-private fun matchesAny(
+internal fun matchesAny(
     matchers: List<NameMatcher>,
     foldedNames: List<String>,
 ): Boolean {
