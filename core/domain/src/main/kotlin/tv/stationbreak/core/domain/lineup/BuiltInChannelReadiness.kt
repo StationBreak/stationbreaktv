@@ -36,9 +36,7 @@ class BuiltInChannelReadiness(
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val activeAccount: () -> LibraryAccount?,
-    private val settle: Duration = SETTLE,
-    private val showFor: Duration = SHOWN_FOR,
-    private val retryAfter: Duration = RETRY_AFTER,
+    private val times: ReadinessTimes = ReadinessTimes(),
 ) : ChannelReadiness,
     ChannelSwitchOns {
     private data class Held(
@@ -68,7 +66,7 @@ class BuiltInChannelReadiness(
     }
 
     private suspend fun settlePending() {
-        delay(settle)
+        delay(times.settle)
         val batch = held.value
         if (batch.ids.isEmpty()) return
         val airings = airingsOrNull()
@@ -88,7 +86,7 @@ class BuiltInChannelReadiness(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                if (attempt < ATTEMPTS - 1) delay(retryAfter)
+                if (attempt < ATTEMPTS - 1) delay(times.retryAfter)
             }
         }
         return null
@@ -103,20 +101,23 @@ class BuiltInChannelReadiness(
             clearing?.cancel()
             clearing =
                 scope.launch {
-                    delay(showFor)
+                    delay(times.showFor)
                     shown.value = null
                 }
         }
     }
 
     private companion object {
-        /** Long enough for a viewer to switch on a few channels one after the other. */
-        val SETTLE = 400.milliseconds
-
-        /** How long a notice stays. */
-        val SHOWN_FOR = 8.seconds
-
-        val RETRY_AFTER = 2.seconds
         const val ATTEMPTS = 3
     }
 }
+
+/**
+ * How long each wait lasts: for more switch-ons to settle, for a notice to stay, and before a failed build is asked
+ * again.
+ */
+data class ReadinessTimes(
+    val settle: Duration = 400.milliseconds,
+    val showFor: Duration = 8.seconds,
+    val retryAfter: Duration = 2.seconds,
+)

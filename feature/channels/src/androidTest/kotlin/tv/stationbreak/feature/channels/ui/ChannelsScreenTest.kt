@@ -65,6 +65,7 @@ import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.ChannelTiming
+import tv.stationbreak.core.domain.lineup.FakeReadiness
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.HeldTitle
 import tv.stationbreak.core.domain.lineup.HiddenReason
@@ -317,7 +318,7 @@ class ChannelsScreenTest {
         currentNow.value = current
         runBlocking { library.useAccount(account) }
         val properties = SamplePropertiesReader { lineup }
-        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, properties, clock, work)
+        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, properties, FakeReadiness(), clock, work)
         val builderVm =
             BuilderViewModel(library, builder, FakeCatalogPicker(), FakeChannelPreviews(), lineup, clock, work)
         compose.setContent {
