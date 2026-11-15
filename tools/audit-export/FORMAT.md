@@ -153,15 +153,16 @@ report. It says first that it is **the planner's view**: `LineupPlanner.plan` an
 without the rating ceilings and the late-on pools of a built day (`LineupDays.curationChannelOf`); what a day airs is out
 of scope.
 
+- Hours are whole hundredths of an hour (`centiHours`), as integers; a title has `centiHours` too.
 - `termOrder`: the order of a score's terms: `specificity, genre, tag, studio, decade, anchor, kids, format, tone`. Every
   score is its terms in 16-bit fixed point (65,536 is one point); `total` is their sum, the score the curation compares.
   `decade` is the guest-only penalty: a decade channel is a guest-only one.
 - `starters`: one row for every starter of the catalog: `state` (`on` or `off`), `by` (`planner` or `viewer`), its
   `shelfReason` when it is off (`Empty`, `TooThin`, `BelowCap`, `OptIn`; with nothing on yet, `NotFinalised`), `candidates`,
   and two readings of its stats: `selection` (homed over every candidate, the planner's selection) and `onAir` (homed over
-  the channels that are on), each with `titles`, `totalHours`, `usableHours` (under the share cap), `anchors`,
+  the channels that are on), each with `titles`, `totalCentiHours`, `usableCentiHours` (under the share cap), `anchors`,
   `qualifies` and, for `selection`, the selection `score`.
-- `overlaps`: each pair of channels that are on and air the same items: `titles` and `hours`.
+- `overlaps`: each pair of channels that are on and air the same items: `titles` and `centiHours`.
 - `totals`: titles, how many have a home, the titles with no home by cause, the titles each channel airs, and how many
   channels air how many titles.
 - `titles`: per title (a series, or a film), its `home` and `runnerUp` (the channel, the total and the terms), its

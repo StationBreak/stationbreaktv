@@ -38,15 +38,13 @@ internal class PlannedLineup(
 
     /** Whether the planner or the viewer switched [channel] on, for a channel that is on the air on [day]. */
     fun by(channel: LineupChannel): String {
-        val viewers = channel.chosenByViewer || channel.id.value.startsWith("custom:")
+        val viewers = channel.chosenByViewer || channel.source is ChannelSource.Custom
         return if (viewers) "viewer" else "planner"
     }
 
     companion object {
         private val SERVER = CanonicalId.parse("00000000000000000000000000000001")
         private val USER = CanonicalId.parse("00000000000000000000000000000002")
-        private const val HOUR_MS = 3_600_000L
-        private const val DAY_START_HOUR = 6L
         private const val FIRST_CUSTOM_NUMBER = 600
 
         fun of(
@@ -88,11 +86,13 @@ internal class PlannedLineup(
             return lineup.copy(channels = lineup.channels + starters)
         }
 
-        // The first broadcast-day start after [now] at offset 0: the planner's next boundary.
+        // The first broadcast-day start after [now]: the epoch arithmetic of `LineupService.nextBoundary`
+        // (`Epochs.epochStart(settings, Epochs.epochNumber(settings, now) + 1)`) on the settings a leftovers channel
+        // resolves to. core:engine may not depend on core:scheduler (MODULES.md), so the two lines are written here.
         private fun nextBoundary(now: Long): Long {
-            val dayMs = RecipeResolver.DAY_MS
-            val start = DAY_START_HOUR * HOUR_MS
-            return ((now - start).floorDiv(dayMs) + 1) * dayMs + start
+            val settings = RecipeResolver.leftoversSettings(StarterCatalog.leftovers.first(), SERVER, 0)
+            val epoch = (now + settings.offsetMs - settings.startMs).floorDiv(settings.epochMs)
+            return (epoch + 1) * settings.epochMs + settings.startMs - settings.offsetMs
         }
 
         private fun customChannels(

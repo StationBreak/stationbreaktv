@@ -165,6 +165,16 @@ internal class LaneBuilder(
         return anchor
     }
 
+    // The theme's inputs to a channel's scores, folded once.
+    private class ThemeInputs(
+        recipe: Recipe,
+    ) {
+        val genres = foldedDistinct(recipe.themeGenres)
+        val tags = foldedDistinct(recipe.themeTags)
+        val studios = recipe.theme?.themeStudios.orEmpty()
+        val promise = recipe.theme?.format
+    }
+
     // score(n, t) for t in cand(n): the channel's specificity once, plus each title's points (no allocation).
     private fun scoresOf(
         channel: CurationChannel,
@@ -173,30 +183,56 @@ internal class LaneBuilder(
         candTone: LongArray,
         candMs: Long,
     ): LongArray {
-        val recipe = channel.recipe
-        val genres = foldedDistinct(recipe.themeGenres)
-        val tags = foldedDistinct(recipe.themeTags)
-        val studios = recipe.theme?.themeStudios.orEmpty()
-        val promise = recipe.theme?.format
-        val guestOnly = recipe.guestOnly
+        val theme = ThemeInputs(channel.recipe)
+        val guestOnly = channel.recipe.guestOnly
         val specificity = specificityQ16(cand.size)
         val score = LongArray(cand.size)
         for (p in cand.indices) {
             val t = titles[cand[p]]
             score[p] = specificity +
                 fitPointsQ16(
-                    hits(genres, t.genres),
-                    hits(tags, t.tags),
-                    matchesAny(studios, t.studios),
+                    hits(theme.genres, t.genres),
+                    hits(theme.tags, t.tags),
+                    matchesAny(theme.studios, t.studios),
                     guestOnly,
                     anchor[p],
                     t.title.madeForKids && channel.kid,
-                    formatFits(promise, t.title),
+                    formatFits(theme.promise, t.title),
                     candTone[t.tone],
                     candMs,
                 )
         }
         return score
+    }
+
+    private val themes = HashMap<Lane, ThemeInputs>()
+
+    /**
+     * The terms of the score of candidate [position] of [lane], from the inputs [scoresOf] scored it with (for the
+     * lineup audit; it allocates, so the per-title path never calls it). The terms must add up to the score the lane
+     * holds: if the inputs ever drift apart this fails, on any snapshot.
+     */
+    internal fun termsOf(
+        lane: Lane,
+        position: Int,
+    ): FitTerms {
+        val theme = themes.getOrPut(lane) { ThemeInputs(lane.channel.recipe) }
+        val title = titles[lane.cand[position]]
+        val inputs =
+            FitInputs(
+                hits(theme.genres, title.genres),
+                hits(theme.tags, title.tags),
+                matchesAny(theme.studios, title.studios),
+                lane.guestOnly,
+                lane.anchor[position],
+                title.title.madeForKids && lane.kid,
+                formatFits(theme.promise, title.title),
+                lane.candTone[title.tone],
+                lane.candMs,
+            )
+        val terms = fitTermsQ16(lane.cand.size, inputs)
+        check(terms.total == lane.score[position]) { "The score's terms do not add up to the lane's score" }
+        return terms
     }
 }
 
@@ -246,7 +282,7 @@ internal fun admits(
 }
 
 // Films promise a title that is not a series; short series promise a series; no promise gives no bonus.
-internal fun formatFits(
+private fun formatFits(
     promise: FormatPromise?,
     title: Title,
 ): Boolean =
@@ -268,7 +304,7 @@ private fun studioAnchorsOf(recipe: Recipe): List<NameMatcher> {
     return out
 }
 
-internal fun foldedDistinct(names: List<String>): List<String> {
+private fun foldedDistinct(names: List<String>): List<String> {
     val out = ArrayList<String>(names.size)
     for (n in names) {
         val f = foldNameAscii(n)
@@ -277,7 +313,7 @@ internal fun foldedDistinct(names: List<String>): List<String> {
     return out
 }
 
-internal fun hits(
+private fun hits(
     wanted: List<String>,
     have: List<String>,
 ): Int {
@@ -286,7 +322,7 @@ internal fun hits(
     return n
 }
 
-internal fun matchesAny(
+private fun matchesAny(
     matchers: List<NameMatcher>,
     foldedNames: List<String>,
 ): Boolean {

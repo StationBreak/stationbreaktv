@@ -29,6 +29,7 @@ internal class TitleRows(
     private val causes = TitleCauses(snapshot, lanes)
     private val placesOf = HashMap<CanonicalId, MutableList<Place>>()
     private val shelvedOf = HashMap<CanonicalId, MutableList<String>>()
+    private val leftoverKeys: Set<String> = onAir.channels.filter { it.leftovers }.mapTo(HashSet()) { it.key }
     private val airsOn = HashMap<CanonicalId, MutableList<String>>()
 
     init {
@@ -99,12 +100,12 @@ internal class TitleRows(
             runtimeMs = runtimeMs,
             home = home,
             runnerUp = places.getOrNull(1)?.let(::scored),
-            guestSpots = aired.filter { it != homeKey && !it.startsWith("leftovers:") },
+            guestSpots = aired.filter { it != homeKey && it !in leftoverKeys },
             cause = reach?.cause,
             // For a title that is a candidate somewhere, the shelved lanes say it; "closest" is for one that is not.
             closest = if (reach?.cause == Cause.OnlyOnShelvedChannels) emptyList() else reach?.closest.orEmpty(),
             shelvedLanes = if (homeId == null) shelvedOf[id].orEmpty() else emptyList(),
-            fallback = if (homeId == null) aired.filter { it.startsWith("leftovers:") } else emptyList(),
+            fallback = if (homeId == null) aired.filter { it in leftoverKeys } else emptyList(),
         )
     }
 

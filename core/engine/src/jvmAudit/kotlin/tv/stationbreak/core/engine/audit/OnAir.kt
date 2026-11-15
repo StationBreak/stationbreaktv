@@ -22,6 +22,8 @@ internal class OnChannel(
     val id: ChannelId,
     val items: Set<CanonicalId>,
     val titles: Set<CanonicalId>,
+    /** True for a leftovers channel, which airs what no other channel does. */
+    val leftovers: Boolean = false,
 )
 
 /**
@@ -75,9 +77,10 @@ internal class OnAir(
         key: String,
         id: ChannelId,
         items: Collection<ScheduleItem>,
+        leftovers: Boolean = false,
     ): OnChannel {
         val ids = items.mapTo(LinkedHashSet()) { it.id }
-        return OnChannel(key, id, ids, ids.mapTo(LinkedHashSet()) { groupOf.getValue(it) })
+        return OnChannel(key, id, ids, ids.mapTo(LinkedHashSet()) { groupOf.getValue(it) }, leftovers)
     }
 
     private fun customChannels(on: List<LineupChannel>): List<OnChannel> =
@@ -97,7 +100,7 @@ internal class OnAir(
             val policy = KidStatus.policyOf(c, planned.lineup, planned.day)
             val recipe = planned.catalog.leftovers.firstOrNull { it.key == source.recipeKey }
             val pool = Leftovers.pool(planned.snapshot, claimed, recipe?.maxRating ?: source.maxRating, policy)
-            channel("leftovers:${source.recipeKey}", c.id, pool.items)
+            channel("leftovers:${source.recipeKey}", c.id, pool.items, leftovers = true)
         }
     }
 

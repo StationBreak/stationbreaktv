@@ -9,8 +9,8 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The audit's JSON output, `lineup-audit` version 1 (tools/audit-export/README.md). Every score is its terms in
- * 16-bit fixed point, in the order of `termOrder` (divide by 65,536 for points); hours are given in milliseconds where
- * a threshold reads them and in hours to two places.
+ * 16-bit fixed point, in the order of `termOrder` (divide by 65,536 for points); hours are whole hundredths of an hour
+ * (`centiHours`), and `usableMs` is exact.
  */
 internal object AuditJson {
     const val FORMAT = "lineup-audit"
@@ -63,7 +63,7 @@ internal object AuditJson {
             "a" to JsonPrimitive(o.a),
             "b" to JsonPrimitive(o.b),
             "titles" to JsonPrimitive(o.titles),
-            "hours" to JsonParts.hours(o.runtimeMs),
+            "centiHours" to JsonParts.hours(o.runtimeMs),
         )
 
     private fun title(t: TitleRow): JsonObject =
@@ -72,7 +72,7 @@ internal object AuditJson {
             "name" to JsonParts.text(t.name),
             "kind" to JsonPrimitive(if (t.series) "series" else "film"),
             "items" to JsonPrimitive(t.items),
-            "hours" to JsonParts.hours(t.runtimeMs),
+            "centiHours" to JsonParts.hours(t.runtimeMs),
             "home" to JsonParts.place(t.home),
             "runnerUp" to JsonParts.place(t.runnerUp),
             "guestSpots" to JsonParts.strings(t.guestSpots),
@@ -96,13 +96,11 @@ internal object AuditJson {
 
 /** The small pieces the audit's JSON is made of. */
 internal object JsonParts {
-    private const val HUNDRED = 100.0
-
     fun obj(vararg pairs: Pair<String, JsonElement>): JsonObject = JsonObject(linkedMapOf(*pairs))
 
     fun text(value: String?): JsonElement = if (value == null) JsonNull else JsonPrimitive(value)
 
-    fun hours(ms: Long): JsonElement = JsonPrimitive(AuditFormat.centiHours(ms) / HUNDRED)
+    fun hours(ms: Long): JsonElement = JsonPrimitive(AuditFormat.centiHours(ms))
 
     fun strings(values: Collection<String>): JsonElement = JsonArray(values.map(::JsonPrimitive))
 
@@ -125,8 +123,8 @@ internal object JsonParts {
         } else {
             obj(
                 "titles" to JsonPrimitive(s.titles),
-                "totalHours" to hours(s.totalMs),
-                "usableHours" to hours(s.usableMs),
+                "totalCentiHours" to hours(s.totalMs),
+                "usableCentiHours" to hours(s.usableMs),
                 "usableMs" to JsonPrimitive(s.usableMs),
                 "anchors" to JsonPrimitive(s.anchors),
                 "qualifies" to JsonPrimitive(s.qualifies),

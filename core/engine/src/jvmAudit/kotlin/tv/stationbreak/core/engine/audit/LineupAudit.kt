@@ -2,9 +2,8 @@
 package tv.stationbreak.core.engine.audit
 
 import tv.stationbreak.core.engine.ExtrasFilter
-import tv.stationbreak.core.engine.lineup.ChannelSource
-import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.PlannerSelection
 import tv.stationbreak.core.engine.lineup.curation.ChannelStats
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.engine.lineup.curation.Selection
@@ -73,7 +72,7 @@ internal object LineupAudit {
         onAir: OnAir,
     ): List<StarterRow> {
         val onSet = onAir.curatedChannels.mapTo(HashSet()) { it.id }
-        val candidates = lanes.channels.filter { isCandidate(planned, lanes, it.id) }.mapTo(HashSet()) { it.id }
+        val candidates = lanes.channels.filter { isCandidate(planned, it.id) }.mapTo(HashSet()) { it.id }
         val selection = lanes.homes(candidates)
         val aired = lanes.homes(onSet)
         return lanes.lanes.map { lane ->
@@ -114,17 +113,11 @@ internal object LineupAudit {
             else -> "NotFinalised"
         }
 
+    // What the planner's selection treats as a candidate (PlannerSelection.isCandidate).
     private fun isCandidate(
         planned: PlannedLineup,
-        lanes: AuditLanes,
         id: ChannelId,
-    ): Boolean {
-        val channel = planned.lineup.channels.first { it.id == id }
-        val source = channel.source as ChannelSource.Starter
-        val recipe = checkNotNull(planned.planning.recipe(source.recipeKey))
-        val pinned = channel.chosenByViewer && channel.state == ChannelState.On
-        return channel.number != null && (!recipe.optIn || pinned) && lanes.channels.any { it.id == id }
-    }
+    ): Boolean = PlannerSelection.isCandidate(planned.lineup.channels.first { it.id == id }, planned.planning)
 
     private fun stats(
         s: ChannelStats,
@@ -136,7 +129,7 @@ internal object LineupAudit {
 
     private fun overlaps(onAir: OnAir): List<OverlapRow> {
         val out = ArrayList<OverlapRow>()
-        val on = onAir.channels.filter { !it.key.startsWith("leftovers:") }
+        val on = onAir.channels.filter { !it.leftovers }
         val runtime = onAir.runtimeOfItems
         for (i in on.indices) {
             for (j in i + 1 until on.size) {

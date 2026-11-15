@@ -65,7 +65,9 @@ val jvmAuditTest =
         inputs.files(fileTree(auditGoldenDir)).withPropertyName("auditGoldens").withPathSensitivity(PathSensitivity.RELATIVE)
     }
 // The kmp-lib convention names the detekt tasks of main and test; the audit's compilations are this module's own, so
-// `check` runs their detekt tasks here.
+// `check` runs their detekt tasks here. The names are the ones the detekt plugin makes for a compilation called `audit`
+// (`detekt<Compilation>Jvm`) and for a source set called `jvmAudit` (`detekt<SourceSet>SourceSet`), pinned like the
+// convention plugin's: a task that does not exist fails the build, so a rename is caught.
 tasks.named("check") {
     dependsOn(jvmAuditTest, "detektAuditJvm", "detektAuditTestJvm", "detektJvmAuditSourceSet", "detektJvmAuditTestSourceSet")
 }
@@ -81,7 +83,7 @@ val mainCompilation = kotlin.jvm().compilations.getByName("main")
 val auditClasspath = files(auditCompilation.output.allOutputs, mainCompilation.output.allOutputs, auditCompilation.runtimeDependencyFiles)
 
 tasks.register<JavaExec>("lineupAudit") {
-    group = "verification"
+    group = "lineup audit"
     description = "Runs the real lineup planner and curation on a library snapshot and explains the result."
     classpath = auditClasspath
     mainClass.set("tv.stationbreak.core.engine.audit.AuditMain")
@@ -102,7 +104,7 @@ tasks.register<JavaExec>("lineupAudit") {
 }
 
 tasks.register<JavaExec>("lineupAuditGoldens") {
-    group = "verification"
+    group = "lineup audit"
     description = "Writes the pinned audit outputs of the profile libraries again (src/audit/golden)."
     classpath = auditClasspath
     mainClass.set("tv.stationbreak.core.engine.audit.AuditMain")
