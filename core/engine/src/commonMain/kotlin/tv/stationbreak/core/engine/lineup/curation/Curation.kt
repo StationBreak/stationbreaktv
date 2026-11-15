@@ -100,6 +100,16 @@ object Curation {
         channels: List<CurationChannel>,
     ): Homing = CurationHoming(snapshot, channels)
 
+    /**
+     * The pool [channel] airs when it is switched on after the basis [homes] were taken, until the next boundary (see
+     * [LateOnPool]): its own titles, and the basis's homed titles as guests.
+     */
+    fun lateOn(
+        snapshot: RuleSnapshot,
+        channel: CurationChannel,
+        homes: Homes?,
+    ): LateOnPool = lateOnPool(snapshot, channel, homes)
+
     /** The curated pools of the switched-on channels [on]: homes over [on], then guests, keeps and weights. */
     fun pools(
         snapshot: RuleSnapshot,
@@ -108,7 +118,7 @@ object Curation {
 
     /**
      * [pools] and the [homes] over [on] they were made from, in one run: the day build reads both (a channel switched
-     * on in the middle of a day airs what the basis channels do not home).
+     * on in the middle of a day airs what the basis channels do not home as its own and the rest as guests, [lateOn]).
      */
     fun curate(
         snapshot: RuleSnapshot,

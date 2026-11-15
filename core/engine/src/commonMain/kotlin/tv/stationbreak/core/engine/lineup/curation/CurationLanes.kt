@@ -233,7 +233,7 @@ private fun foldTitle(title: Title): FoldedTitle {
 }
 
 // The anime rule: an anime-only channel keeps only anime; a grown-up channel that is not anime-only drops it.
-private fun admits(
+internal fun admits(
     channel: CurationChannel,
     title: Title,
 ): Boolean {

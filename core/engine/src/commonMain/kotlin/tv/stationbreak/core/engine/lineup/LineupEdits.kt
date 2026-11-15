@@ -447,7 +447,8 @@ object LineupEdits {
             }
 
             // Switched on by the planner to start at the boundary: the viewer pressing On expects it on now, so it
-            // airs from now, as any mid-day switch-on does (its pool less the basis's homes until the boundary).
+            // airs from now, as any mid-day switch-on does (its whole pool until the boundary: its own titles and
+            // the basis's homes as guests).
             channel.state == ChannelState.On -> {
                 applied(lineup, channel.copy(onSinceMs = nowMs, leavesAtMs = null, shelfReason = null))
             }

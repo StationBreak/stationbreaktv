@@ -209,8 +209,12 @@ These are accepted. Each is in the planner's KDoc, which is the authority.
 - **Many hidden starters on a full lineup.** A starter that withholds content from the leftovers beyond the room in the
   file takes its rules at once, so what the leftovers withhold can shift once in the middle of a day.
 - **A starter switched on mid-day by the viewer** airs from now. A programmed one is not in the basis, so until the
-  boundary it airs what the basis channels do not home. That can be nothing at all, and then it is hidden for the day with
-  its reason. Both it and a basis channel can air the same title until the boundary.
+  boundary it airs its whole pool: the titles no basis channel homes as its own (weight 2) and the titles a basis channel
+  homes as guests (weight 1), so it is not empty for the day. A made-for-kids title never guests on a grown-up channel,
+  and the anime rule holds. The curation's tone test and guest cap are not applied: they read a channel's home hours,
+  which it has none of. Both it and a basis channel can air the same title until the boundary. *Amended 2026-11-14
+  ([#776](https://github.com/StationBreak/stationbreaktv/issues/776)): before, it aired only what the basis did not
+  home, which could be nothing, and then it was hidden for the day with its reason.*
 - **A switch-on that is not curated.** A starter the viewer switches on mid-day that is not curated (an edited one) claims
   its pool at once, so the leftovers' current day moves once.
 - **Rules over the budget.** A starter whose stored rules are over the per-copy budget (rules from an older app) is never

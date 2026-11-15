@@ -142,8 +142,8 @@ class SharedDayRuleTest {
     }
 
     // A viewer's SwitchOn of a channel the planner switched on for the boundary airs it now (conventions: On means on
-    // now). It is then a viewer's mid-day switch-on: the pending basis keeps today's on-set, so it airs its pool less
-    // the basis's homes (#299) and every other channel's day and play key stay as they were.
+    // now). It is then a viewer's mid-day switch-on: the pending basis keeps today's on-set, so it airs its pool, the
+    // basis's homes as guests (#776), and every other channel's day and play key stay as they were.
     @Test
     fun switchingOnAChannelThatStartsAtTheBoundaryAirsItNowAndLeavesTheOthersAlone() {
         val now = noon + 20 * 60_000L
@@ -164,7 +164,8 @@ class SharedDayRuleTest {
         assertTrue(before.dayOf(lib.westernsId.value).pool.isEmpty(), "it did not air before the switch-on")
         assertTrue(after.dayOf(lib.westernsId.value).pool.isNotEmpty(), "it airs today")
         val homedOnBasis = before.filter { it.channel.id in setOf(lib.laughsId, lib.whodunitId) }.flatMap { it.ids() }
-        assertTrue(after.dayOf(lib.westernsId.value).ids().none { it in homedOnBasis }, "less the basis's homes")
+        val westernsIds = after.dayOf(lib.westernsId.value).ids()
+        assertTrue(westernsIds.any { it in homedOnBasis }, "the basis's homes air as guests")
         val keysBefore = days.playKeysOf(lineup, now)
         val keysAfter = days.playKeysOf(switched, now)
         for (day in before.filter { it.channel.id != lib.westernsId }) {

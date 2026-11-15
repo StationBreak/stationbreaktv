@@ -35,6 +35,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** A curated starter airs its homes and guests, with the share cap's window and the weights (spec 23, Task 21). */
@@ -223,16 +224,19 @@ class CuratedDaysTest {
     }
 
     @Test
-    fun aNewChannelTodayAirsWhatTheBasisDidNotHome() {
+    fun aNewChannelTodayAirsItsOwnTitlesAndTheBasisHomesAsGuests() {
         val before = lib.lineup(westernsState = ChannelState.Shelf)
         val after = applied(before, LineupEdit.SwitchOn(lib.westernsId))
 
         val day = days.curatedDays(after, noon).dayOf(westerns)
 
-        // Its western films, but not those the basis's comedy channel homes.
-        assertEquals(ids(lib.western), day.ids())
-        assertTrue(day.weights.entries.all { it.second == 2 }, "weight 2 each")
-        assertEquals(ids(lib.western), day.weights.entries.mapTo(HashSet()) { it.first })
+        // Its western films as its own, and the comedy-western films its basis comedy channel homes, as guests.
+        assertEquals(ids(lib.western + lib.comedyWestern), day.ids())
+        val weight = day.weights.entries.toMap()
+        for (film in lib.western) assertEquals(2, weight[film.item.id], "its own: weight 2")
+        for (film in lib.comedyWestern) assertEquals(1, weight[film.item.id], "a guest: weight 1")
+        // Only its own titles are its homes: a guest is not shown as one.
+        assertEquals(ids(lib.western), checkNotNull(day.homed))
         // Tomorrow it is curated with the others: the comedy-western films have one home among them.
         val next = days.curatedDays(after.rolled(boundaryMs), tomorrow)
         for (film in lib.comedyWestern) {
@@ -241,11 +245,11 @@ class CuratedDaysTest {
         }
     }
 
-    // A starter the VIEWER switches on in the middle of a day airs its candidates minus the basis homes (the planner
-    // switches nothing on before the boundary, fix round 1). When every one of its titles is homed on a basis channel
-    // it has nothing until the boundary, and is hidden from the guide for that day with its reason (#299): accepted.
+    // A starter the VIEWER switches on in the middle of a day airs its whole pool: the titles no basis channel homes as
+    // its own and the rest as guests (the planner switches nothing on before the boundary, fix round 1). When every
+    // one of its titles is homed on a basis channel it airs them all as guests, so it is never hidden for the day.
     @Test
-    fun aViewerSwitchOnMidDayIsEmptyTodayOnlyWhenTheBasisHomesAllOfIt() {
+    fun aViewerSwitchOnMidDayWhoseTitlesAreAllHomedOnTheBasisAirsThemAsGuests() {
         val before = lib.lineup(westernsState = ChannelState.Shelf)
         val after = applied(before, LineupEdit.SwitchOn(lib.westernsId))
         assertTrue(
@@ -271,9 +275,11 @@ class CuratedDaysTest {
                         }
                     },
             )
-        val empty = days.curatedDays(onlyShared, noon).dayOf(westerns)
-        assertTrue(empty.pool.isEmpty())
-        assertEquals(HiddenReason.EmptyToday, empty.hidden)
+        val day = days.curatedDays(onlyShared, noon).dayOf(westerns)
+        assertTrue(day.pool.isNotEmpty(), "every title is a guest, so there is a day")
+        assertNull(day.hidden)
+        assertTrue(day.weights.entries.all { it.second == 1 }, "guests weigh 1")
+        assertEquals(emptySet(), checkNotNull(day.homed), "it homes none of them")
     }
 
     @Test
