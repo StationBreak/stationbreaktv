@@ -41,6 +41,8 @@ dependencies {
     // The edit-cutoff property test builds real days from the as-of read (spec 09 task 2.11). Test only (checkArchitecture).
     testImplementation(project(":core:scheduler"))
     testImplementation(libs.kotlinx.coroutines.test)
+    // The audit exporter's fidelity test reads the fixture files as JSON (test only).
+    testImplementation(libs.kotlinx.serialization.json)
     // The JVM build of the bundled SQLite driver: Room runs on the host in unit tests (test only, never in an APK).
     testImplementation(libs.androidx.sqlite.bundled.jvm)
     // One test class declares a second schema, to prove a different schema is dropped and rebuilt (CacheRebuildTest).
@@ -65,4 +67,12 @@ tasks.withType<Test>().configureEach {
         .dir("schemas")
         .withPropertyName("exportedSchemas")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+// The lineup audit exporter's fixtures (tools/audit-export/fixtures): the rows and the snapshot its fidelity test compares.
+val auditExportFixtures = rootProject.layout.projectDirectory.dir("tools/audit-export/fixtures")
+
+tasks.withType<Test>().configureEach {
+    systemProperty("auditExport.fixtures", auditExportFixtures.asFile.absolutePath)
+    inputs.files(auditExportFixtures.asFileTree).withPropertyName("auditExportFixtures").withPathSensitivity(PathSensitivity.RELATIVE)
 }

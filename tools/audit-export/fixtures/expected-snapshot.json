@@ -1,0 +1,24 @@
+{
+  "format": "audit-snapshot",
+  "version": 1,
+  "cutoffMs": 1800000000000,
+  "collectionsSynced": true,
+  "libraries": ["a00000000000000000000000000000a1","a00000000000000000000000000000a2","a00000000000000000000000000000a4"],
+  "items": [
+    {"id":"11111111111111111111111111110001","libraryId":"a00000000000000000000000000000a1","seasonId":null,"kind":"Movie","runtimeMs":5400000,"createdAtMs":1680674828123,"deletedAtMs":null,"premiereDate":"2000-01-01","productionYear":1999,"seriesId":null,"seasonNumber":null,"episodeNumber":null,"officialRating":"PG-13","genres":["Drama","Crime"],"tags":["slow burn"],"studios":["Invented Pictures","Net One"],"name":"Velmiren Zudar"},
+    {"id":"11111111111111111111111111110008","libraryId":"a00000000000000000000000000000a1","seasonId":null,"kind":"Movie","runtimeMs":3600000,"createdAtMs":1577836800000,"deletedAtMs":null,"premiereDate":null,"productionYear":2020,"seriesId":null,"seasonNumber":null,"episodeNumber":null,"officialRating":"","genres":["Comedy"],"tags":[],"studios":[],"name":"Renol Bratu"},
+    {"id":"11111111111111111111111111110011","libraryId":"a00000000000000000000000000000a1","seasonId":null,"kind":"Movie","runtimeMs":5400000,"createdAtMs":1680674828123,"deletedAtMs":null,"premiereDate":null,"productionYear":null,"seriesId":null,"seasonNumber":null,"episodeNumber":null,"officialRating":" ","genres":[],"tags":[],"studios":[],"name":"Fabra Mizu"},
+    {"id":"11111111111111111111111111110012","libraryId":"a00000000000000000000000000000a1","seasonId":null,"kind":"Movie","runtimeMs":5400000,"createdAtMs":1623046150999,"deletedAtMs":null,"premiereDate":"2001-03-05","productionYear":2001,"seriesId":null,"seasonNumber":null,"episodeNumber":null,"officialRating":null,"genres":["Animation","Comedy"],"tags":[],"studios":[],"name":"Tormi Quenxi"},
+    {"id":"33333333333333333333333333330001","libraryId":"a00000000000000000000000000000a2","seasonId":"44444444444444444444444444440001","kind":"Episode","runtimeMs":1320000,"createdAtMs":1641092645000,"deletedAtMs":null,"premiereDate":null,"productionYear":null,"seriesId":"55555555555555555555555555550001","seasonNumber":1,"episodeNumber":1,"officialRating":null,"genres":[],"tags":[],"studios":[],"name":"Pilot"},
+    {"id":"33333333333333333333333333330002","libraryId":"a00000000000000000000000000000a2","seasonId":null,"kind":"Episode","runtimeMs":1320000,"createdAtMs":1641092645000,"deletedAtMs":null,"premiereDate":null,"productionYear":null,"seriesId":"55555555555555555555555555550001","seasonNumber":1,"episodeNumber":2,"officialRating":null,"genres":[],"tags":[],"studios":[],"name":"Second"},
+    {"id":"33333333333333333333333333330004","libraryId":"a00000000000000000000000000000a2","seasonId":"44444444444444444444444444440001","kind":"Episode","runtimeMs":1320000,"createdAtMs":1641092645000,"deletedAtMs":null,"premiereDate":null,"productionYear":null,"seriesId":"66666666666666666666666666660009","seasonNumber":1,"episodeNumber":4,"officialRating":"TV-MA","genres":[],"tags":[],"studios":[],"name":"Fourth"},
+    {"id":"33333333333333333333333333330006","libraryId":"a00000000000000000000000000000a2","seasonId":"44444444444444444444444444440001","kind":"Episode","runtimeMs":1320000,"createdAtMs":1641092645000,"deletedAtMs":null,"premiereDate":null,"productionYear":null,"seriesId":"55555555555555555555555555550001","seasonNumber":1,"episodeNumber":3,"officialRating":null,"genres":["Comedy"],"tags":["sitcom"],"studios":[],"name":"Sixth"}
+  ],
+  "series": [
+    {"id":"55555555555555555555555555550001","officialRating":"TV-14","genres":["Comedy"],"tags":["sitcom"],"studios":["Net One"],"name":"Fabra Quinzu"}
+  ],
+  "collections": [
+    {"id":"77777777777777777777777777770001","movies":["11111111111111111111111111110001"],"episodes":["33333333333333333333333333330001"],"series":["55555555555555555555555555550001"],"seasons":["44444444444444444444444444440001"],"name":"Velmiren Collection"},
+    {"id":"77777777777777777777777777770002","movies":[],"episodes":[],"series":[],"seasons":[],"name":"Mine"}
+  ]
+}

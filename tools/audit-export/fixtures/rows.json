@@ -1,0 +1,479 @@
+{
+  "rows": [
+    {
+      "itemId": "11111111-1111-1111-1111-111111110001",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": "2000-01-01",
+      "productionYear": 1999,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": "PG-13",
+      "genres": [
+        "Drama",
+        "Crime"
+      ],
+      "tags": [
+        "slow burn"
+      ],
+      "studios": [
+        "Invented Pictures",
+        "Net One"
+      ],
+      "name": "Velmiren Zudar"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110002",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": null,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Zumaren Kyol"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110003",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": null,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Pelo Maxi"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110004",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": null,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Daror Fabra"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110005",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": 0,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Senol Quinma"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110006",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Video",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Kyvel Torpe"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110007",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": "55555555-5555-5555-5555-555555550001",
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Maxi Lozu"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110008",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 3600000,
+      "createdAtMs": 1577836800000,
+      "premiereDate": null,
+      "productionYear": 2020,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": "",
+      "genres": [
+        "Comedy"
+      ],
+      "tags": [],
+      "studios": [],
+      "name": "Renol Bratu"
+    },
+    {
+      "itemId": "not-an-id",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Olpe Dartor"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110001",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Velmiren Zudar Again"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110011",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": " ",
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Fabra Mizu"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110012",
+      "libraryId": "A0000000-0000-0000-0000-0000000000A1",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1623046150999,
+      "premiereDate": "2001-03-05",
+      "productionYear": 2001,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [
+        "Animation",
+        "Comedy"
+      ],
+      "tags": [],
+      "studios": [],
+      "name": "Tormi Quenxi"
+    },
+    {
+      "itemId": "33333333-3333-3333-3333-333333330001",
+      "libraryId": "a0000000-0000-0000-0000-0000000000a2",
+      "kind": "Episode",
+      "seriesId": "55555555-5555-5555-5555-555555550001",
+      "seasonId": "44444444-4444-4444-4444-444444440001",
+      "seasonNumber": 1,
+      "episodeNumber": 1,
+      "runtimeMs": 1320000,
+      "createdAtMs": 1641092645000,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Pilot"
+    },
+    {
+      "itemId": "33333333-3333-3333-3333-333333330002",
+      "libraryId": "a0000000-0000-0000-0000-0000000000a2",
+      "kind": "Episode",
+      "seriesId": "55555555-5555-5555-5555-555555550001",
+      "seasonId": "season-one",
+      "seasonNumber": 1,
+      "episodeNumber": 2,
+      "runtimeMs": 1320000,
+      "createdAtMs": 1641092645000,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Second"
+    },
+    {
+      "itemId": "33333333-3333-3333-3333-333333330003",
+      "libraryId": "a0000000-0000-0000-0000-0000000000a2",
+      "kind": "Episode",
+      "seriesId": "55555555-5555-5555-5555-555555550001",
+      "seasonId": "44444444-4444-4444-4444-444444440001",
+      "seasonNumber": -1,
+      "episodeNumber": 3,
+      "runtimeMs": 1320000,
+      "createdAtMs": 1641092645000,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Third"
+    },
+    {
+      "itemId": "33333333-3333-3333-3333-333333330004",
+      "libraryId": "a0000000-0000-0000-0000-0000000000a2",
+      "kind": "Episode",
+      "seriesId": "66666666-6666-6666-6666-666666660009",
+      "seasonId": "44444444-4444-4444-4444-444444440001",
+      "seasonNumber": 1,
+      "episodeNumber": 4,
+      "runtimeMs": 1320000,
+      "createdAtMs": 1641092645000,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": "TV-MA",
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Fourth"
+    },
+    {
+      "itemId": "33333333-3333-3333-3333-333333330005",
+      "libraryId": "a0000000-0000-0000-0000-0000000000a2",
+      "kind": "Episode",
+      "seriesId": "series-x",
+      "seasonId": "44444444-4444-4444-4444-444444440001",
+      "seasonNumber": 1,
+      "episodeNumber": 5,
+      "runtimeMs": 1320000,
+      "createdAtMs": 1641092645000,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Fifth"
+    },
+    {
+      "itemId": "33333333-3333-3333-3333-333333330006",
+      "libraryId": "a0000000-0000-0000-0000-0000000000a2",
+      "kind": "Episode",
+      "seriesId": "55555555-5555-5555-5555-555555550001",
+      "seasonId": "44444444-4444-4444-4444-444444440001",
+      "seasonNumber": 1,
+      "episodeNumber": 3,
+      "runtimeMs": 1320000,
+      "createdAtMs": 1641092645000,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [
+        "Comedy"
+      ],
+      "tags": [
+        "sitcom"
+      ],
+      "studios": [],
+      "name": "Sixth"
+    },
+    {
+      "itemId": "11111111-1111-1111-1111-111111110001",
+      "libraryId": "a0000000-0000-0000-0000-0000000000a2",
+      "kind": "Movie",
+      "seriesId": null,
+      "seasonId": null,
+      "seasonNumber": null,
+      "episodeNumber": null,
+      "runtimeMs": 5400000,
+      "createdAtMs": 1680674828123,
+      "premiereDate": null,
+      "productionYear": null,
+      "deletedAtMs": null,
+      "seenFromMs": 0,
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": [],
+      "name": "Velmiren Zudar Elsewhere"
+    }
+  ],
+  "series": [
+    {
+      "seriesId": "55555555-5555-5555-5555-555555550001",
+      "name": "Fabra Quinzu",
+      "officialRating": "TV-14",
+      "genres": [
+        "Comedy"
+      ],
+      "tags": [
+        "sitcom"
+      ],
+      "studios": [
+        "Net One"
+      ]
+    },
+    {
+      "seriesId": "55555555-5555-5555-5555-555555550002",
+      "name": "Unwatched Series",
+      "officialRating": null,
+      "genres": [],
+      "tags": [],
+      "studios": []
+    },
+    {
+      "seriesId": "55555555-5555-5555-5555-555555550001",
+      "name": "Duplicate Series Row",
+      "officialRating": null,
+      "genres": [
+        "Drama"
+      ],
+      "tags": [],
+      "studios": []
+    }
+  ],
+  "collections": [
+    {
+      "collectionId": "77777777-7777-7777-7777-777777770001",
+      "name": "Velmiren Collection",
+      "members": [
+        {
+          "memberId": "11111111-1111-1111-1111-111111110001",
+          "kind": "movie"
+        },
+        {
+          "memberId": "33333333-3333-3333-3333-333333330001",
+          "kind": "episode"
+        },
+        {
+          "memberId": "55555555-5555-5555-5555-555555550001",
+          "kind": "series"
+        },
+        {
+          "memberId": "44444444-4444-4444-4444-444444440001",
+          "kind": "season"
+        },
+        {
+          "memberId": "bad-id",
+          "kind": "movie"
+        },
+        {
+          "memberId": "11111111-1111-1111-1111-111111110001",
+          "kind": "movie"
+        }
+      ]
+    },
+    {
+      "collectionId": "77777777-7777-7777-7777-777777770002",
+      "name": "Mine",
+      "members": []
+    }
+  ],
+  "libraries": [
+    "A0000000-0000-0000-0000-0000000000A1",
+    "a0000000-0000-0000-0000-0000000000a2",
+    "a0000000-0000-0000-0000-0000000000a4"
+  ],
+  "cutoffMs": 1800000000000,
+  "collectionsSynced": true
+}

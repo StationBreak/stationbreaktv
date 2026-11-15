@@ -27,3 +27,10 @@ keystore.properties
 
 # Python bytecode
 __pycache__/
+
+# The lineup audit exporter's output (tools/audit-export). A snapshot holds titles. It is written outside the repository
+# by design; these patterns keep one that was copied in by hand out of a commit.
+/audit-snapshots/
+audit-snapshot-*.json
+/tools/audit-export/out/
+stationbreak-audit/

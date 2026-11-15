@@ -51,6 +51,7 @@ tasks.withType<Test>().configureEach {
 // The audit's own tests (jvmAuditTest): the golden outputs of the profile libraries, the snapshot codec and the
 // per-term scores. `check` runs them. The goldens are inputs, so a changed golden reruns them.
 val auditGoldenDir = layout.projectDirectory.dir("src/audit/golden")
+val auditExportFixtures = rootProject.layout.projectDirectory.dir("tools/audit-export/fixtures")
 val auditTestCompilation = kotlin.jvm().compilations.getByName("auditTest")
 val jvmAuditTest =
     tasks.register<Test>("jvmAuditTest") {
@@ -59,6 +60,8 @@ val jvmAuditTest =
         testClassesDirs = auditTestCompilation.output.classesDirs
         classpath = files(auditTestCompilation.output.allOutputs, auditTestCompilation.runtimeDependencyFiles)
         systemProperty("audit.golden.dir", auditGoldenDir.asFile.absolutePath)
+        systemProperty("audit.export.fixtures", auditExportFixtures.asFile.absolutePath)
+        inputs.files(auditExportFixtures.asFileTree).withPropertyName("auditExportFixtures").withPathSensitivity(PathSensitivity.RELATIVE)
         inputs.files(fileTree(auditGoldenDir)).withPropertyName("auditGoldens").withPathSensitivity(PathSensitivity.RELATIVE)
     }
 // The kmp-lib convention names the detekt tasks of main and test; the audit's compilations are this module's own, so

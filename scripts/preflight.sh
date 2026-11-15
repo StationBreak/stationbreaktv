@@ -119,6 +119,7 @@ script_tests() {
   bash scripts/release-notes.test.sh
   bash .github/scripts/connected-results.test.sh
   bash scripts/playback-matrix/playback-matrix.test.sh
+  bash tools/audit-export/audit-export.test.sh
 }
 
 # The guards walk the tree they are given. On the repo root that includes agent worktrees under .claude/, each a full
