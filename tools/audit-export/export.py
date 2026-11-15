@@ -16,6 +16,7 @@ Standard library only.
 
 import argparse
 import datetime
+import http.client
 import ipaddress
 import json
 import os
@@ -74,7 +75,7 @@ def read_server(environ):
 
 
 def _on_this_network(host):
-    if host == "localhost" or host.endswith(".local") or "." not in host and ":" not in host:
+    if host == "localhost" or host.endswith(".local"):
         return True
     try:
         address = ipaddress.ip_address(host)
@@ -129,7 +130,7 @@ class Server:
     def __init__(self, base, key):
         self._base = base
         self._header = f'MediaBrowser Client="StationBreak Audit Export", Device="audit-export", DeviceId="audit-export", Version="1", Token="{key}"'
-        self._opener = urllib.request.build_opener(_NoRedirect)
+        self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)  # no proxy: the key goes to the server only
         self.requests = 0
 
     def get(self, path, params):
@@ -144,6 +145,8 @@ class Server:
             raise ExportError(f"The server answered with status {error.code}.") from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise ExportError("The server did not answer (a network error).") from None
+        except (http.client.HTTPException, ValueError):
+            raise ExportError("The server sent an answer that is not HTTP.") from None
         if len(body) > MAX_BODY_BYTES:
             raise ExportError("An answer was bigger than the limit.")
         return parse_json(body)
@@ -287,14 +290,31 @@ def _compact(value):
     return json.dumps(value, separators=(",", ":"), ensure_ascii=True)
 
 
+def _check_folder(folder):
+    """The folder must be ours alone to write: owned by this user, with no group or world write."""
+    info = folder.stat()
+    if info.st_uid != os.geteuid() or info.st_mode & 0o022:
+        raise ExportError("The output folder must be owned by you and not writable by others.")
+
+
 def write_snapshot(folder, snapshot, now):
-    """Writes the file under a name made here (never from the server), readable by this user only. Never overwrites."""
+    """Writes the file under a name made here (never from the server), readable by this user only, never over another
+    file: the text is made first, written to a temporary name with O_EXCL, and renamed."""
+    text = layout(snapshot)
     folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-    name = "audit-snapshot-" + now.strftime("%Y%m%dT%H%M%SZ") + ".json"
-    path = folder / name
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(descriptor, "w", encoding="ascii") as out:
-        out.write(layout(snapshot))
+    _check_folder(folder)
+    path = folder / ("audit-snapshot-" + now.strftime("%Y%m%dT%H%M%SZ") + ".json")
+    temporary = folder / (path.name + ".tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii") as out:
+            out.write(text)
+        if path.exists():
+            raise ExportError("The snapshot file already exists.")
+        os.rename(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     return path
 
 
@@ -312,6 +332,9 @@ def main(argv, environ, out=sys.stdout, err=sys.stderr):
         path = write_snapshot(folder, snapshot, now)
     except (ExportError, acceptance.BadAnswer, OSError) as problem:
         err.write(f"Export failed: {_message(problem)}\n")
+        return 1
+    except Exception as problem:  # noqa: BLE001 - nothing unexpected may print server content
+        err.write(f"Export failed: unexpected {type(problem).__name__}.\n")
         return 1
     out.write(f"Wrote {path}\n")
     for name in sorted(counts):

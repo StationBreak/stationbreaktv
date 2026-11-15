@@ -258,11 +258,21 @@ def _text_list(dto, key, counts, what):
 
 def _name(dto, counts):
     name = _typed(dto, "Name", str, "an item") or ""
-    if u16len(name) > MAX_TEXT:
+    if len(name) > MAX_TEXT // 2 and u16len(name) > MAX_TEXT:
         counts.bump("names_cut_to_the_bound")
-        while u16len(name) > MAX_TEXT:
-            name = name[:-1]
+        name = _cut(name)
     return name
+
+
+def _cut(text):
+    """The longest prefix of [text] within MAX_TEXT UTF-16 units, found in one pass over at most MAX_TEXT characters
+    (never through a surrogate pair)."""
+    units = 0
+    for index, ch in enumerate(text[:MAX_TEXT]):
+        units += 2 if ord(ch) > 0xFFFF else 1
+        if units > MAX_TEXT:
+            return text[:index]
+    return text[:MAX_TEXT]
 
 
 def _rating(dto, counts):

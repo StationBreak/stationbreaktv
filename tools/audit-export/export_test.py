@@ -8,16 +8,19 @@ Nothing here contacts a real server: the exporter runs against a fake one on 127
 
 import contextlib
 import copy
+import datetime
 import io
 import json
 import os
 import stat
 import tempfile
 import threading
+import time
 import unittest
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
 import acceptance
 import export
@@ -158,6 +161,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if f'Token="{KEY}"' not in self.headers.get("Authorization", ""):
             return self._send(401, b"{}")
+        if self.mode == "garbage":
+            self.wfile.write(b"NOT HTTP AT ALL\r\n\r\n")
+            return
+        if self.mode == "truncated":
+            self.wfile.write(b"HTTP/1.1 200 OK\r\nContent-Length: 500\r\n\r\n{")
+            return
         if self.mode == "redirect":
             return self._send(302, b"", [("Location", "http://127.0.0.1:1/elsewhere")])
         if self.mode == "huge":
@@ -269,6 +278,44 @@ class ExportAgainstAFakeServerTest(unittest.TestCase):
         self.assertNotIn(wrong, str(caught.exception))
 
 
+class HostileServerTest(unittest.TestCase):
+    def test_proxyVariablesAreIgnoredSoTheKeyNeverGoesToAProxy(self):
+        dead = {"http_proxy": "http://127.0.0.1:9", "HTTP_PROXY": "http://127.0.0.1:9", "all_proxy": "http://127.0.0.1:9"}
+        with mock.patch.dict(os.environ, dead):
+            with FakeServer(load("server.json")) as fake:
+                snapshot, _ = export.export(export.Server(fake.address, KEY), [], CUTOFF)
+        self.assertEqual(load("expected-snapshot.json"), snapshot)
+
+    def test_aBrokenHttpAnswerIsAFixedMessageWithNoServerContent(self):
+        for mode in ("garbage", "truncated"):
+            with FakeServer(load("server.json"), mode) as fake:
+                with self.assertRaises(export.ExportError, msg=mode) as caught:
+                    export.export(export.Server(fake.address, KEY), [], CUTOFF)
+            self.assertNotIn("NOT HTTP", str(caught.exception))
+            self.assertNotIn(fake.address, str(caught.exception))
+
+    def test_anUnexpectedErrorPrintsOnlyItsTypeName(self):
+        err = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"SB_AUDIT_SERVER": "http://127.0.0.1:9", "SB_AUDIT_API_KEY": KEY, "SB_AUDIT_OUT": tmp}
+            with mock.patch.object(export, "export", side_effect=RuntimeError("secret-from-server")):
+                self.assertEqual(1, export.main([], env, io.StringIO(), err))
+        self.assertIn("RuntimeError", err.getvalue())
+        self.assertNotIn("secret-from-server", err.getvalue())
+
+    def test_aHugeNameIsCutInOneStepAndQuickly(self):
+        started = time.monotonic()
+        row = acceptance.held_row({"Id": "x", "Type": "Movie", "Name": "\U0001f600" * 3_000_000}, "l", acceptance.Counts())
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertLessEqual(acceptance.u16len(row["name"]), acceptance.MAX_TEXT)
+        self.assertEqual(acceptance.MAX_TEXT // 2, len(row["name"]))
+
+    def test_aNameIsNeverCutThroughASurrogatePair(self):
+        name = "a" * (acceptance.MAX_TEXT - 1) + "\U0001f600"
+        row = acceptance.held_row({"Id": "x", "Type": "Movie", "Name": name}, "l", acceptance.Counts())
+        self.assertEqual("a" * (acceptance.MAX_TEXT - 1), row["name"])
+
+
 class EnvironmentTest(unittest.TestCase):
     def test_theServerAndTheKeyComeFromTheEnvironmentOnly(self):
         with contextlib.redirect_stderr(io.StringIO()):
@@ -314,6 +361,36 @@ class EnvironmentTest(unittest.TestCase):
                 export.output_folder({"SB_AUDIT_OUT": str(work_tree / "snapshots")})
             fine = export.output_folder({"SB_AUDIT_OUT": str(Path(tmp) / "snapshots")})
             self.assertEqual(Path(tmp).resolve() / "snapshots", fine)
+
+    def test_aFolderOthersCanWriteToOrWeDoNotOwnIsRefused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            open_folder = Path(tmp) / "open"
+            open_folder.mkdir()
+            open_folder.chmod(0o777)
+            with self.assertRaises(export.ExportError):
+                export.write_snapshot(open_folder, load("expected-snapshot.json"), datetime.datetime.now(datetime.timezone.utc))
+            self.assertEqual([], list(open_folder.iterdir()))
+            with mock.patch.object(os, "geteuid", return_value=os.geteuid() + 1):
+                with self.assertRaises(export.ExportError):
+                    export.write_snapshot(Path(tmp) / "mine", load("expected-snapshot.json"), datetime.datetime.now(datetime.timezone.utc))
+
+    def test_aFailedWriteLeavesNoFileAndASuccessLeavesNoTemporaryOne(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(export, "layout", side_effect=ValueError("x")):
+                with self.assertRaises(ValueError):
+                    export.write_snapshot(Path(tmp) / "out", {}, now)
+            self.assertFalse((Path(tmp) / "out").exists())
+            path = export.write_snapshot(Path(tmp) / "out", load("expected-snapshot.json"), now)
+            self.assertEqual([path], list((Path(tmp) / "out").iterdir()))
+
+    def test_onlyLiteralLocalAddressesNeedNoOptInForPlainHttp(self):
+        self.assertTrue(export._on_this_network("localhost"))
+        self.assertTrue(export._on_this_network("nas.local"))
+        self.assertTrue(export._on_this_network("10.0.0.2"))
+        self.assertTrue(export._on_this_network("::1"))
+        self.assertFalse(export._on_this_network("nas"))
+        self.assertFalse(export._on_this_network("example.invalid"))
 
     def test_theDefaultFolderIsInTheUsersDataFolder(self):
         with tempfile.TemporaryDirectory() as tmp:
