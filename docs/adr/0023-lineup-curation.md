@@ -414,7 +414,10 @@ kung-fu-theater.
 
 ### Open: pending the owner's device test session
 
-No Insignia timings are recorded here. Still to measure: build, restore and guide-open at 50, 60, 75 and every starter on
-(95 plus the leftovers plus a few custom channels), against the 10% bar; the worst-case days file against
-`FileDayStore.MAX_BYTES`; and the threshold for the "More channels make the guide slower to get ready" warning, derived from
-those. Nothing is shelved to make the guide faster.
+**The days file, measured on the JVM** (`PersistedDaysSizeTest`, a generated library of 20,000 items, custom channels over
+genre sources): 1,716 KB at 50 channels, 1,749 KB at 60, 1,799 KB at 75 and 1,881 KB at 100, against
+`FileDayStore.MAX_BYTES` of 16 MiB. A curated 50-channel day is 2,402 KB; the curated file was not scaled to 100.
+
+No Insignia timings are recorded here yet. Still to measure: build, restore and guide-open at 50, 60, 75 and every starter
+on (95 plus the leftovers plus a few custom channels), against the 10% bar, and the threshold for the "More channels make the
+guide slower to get ready" warning, derived from those. Nothing is shelved to make the guide faster.

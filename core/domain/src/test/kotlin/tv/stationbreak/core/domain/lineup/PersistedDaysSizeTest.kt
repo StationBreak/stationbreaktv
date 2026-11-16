@@ -45,7 +45,7 @@ class PersistedDaysSizeTest {
             ChannelSource.Custom(rules("Custom $n", Source.Genre(genres[n % genres.size]))),
         )
 
-    private val lineup =
+    private fun lineupWith(customs: Int) =
         lineupOf(
             starter("toons", 10, ChannelState.On, rules("Toons", Source.Genre("Animation"), maxRating = "G")),
             starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy"))),
@@ -53,10 +53,46 @@ class PersistedDaysSizeTest {
             starter("westerns", 220, ChannelState.On, rules("Westerns", Source.Genre("Western"))),
             starter("frights", 310, ChannelState.On, rules("Frights", Source.Genre("Horror"))),
             starter("rockets", 320, ChannelState.On, rules("Rockets", Source.Genre("Science Fiction"))),
-            *(0 until CUSTOMS).map(::custom).toTypedArray(),
+            *(0 until customs).map(::custom).toTypedArray(),
             leftovers("kids-odds-and-ends", 99, "PG"),
             leftovers("odds-and-ends", 199, null),
         )
+
+    private val lineup = lineupWith(CUSTOMS)
+
+    // The seat rule (ADR-0023 addendum) lets the viewer's channels sit on top of the planner's 48, so a lineup of
+    // 60, 75 or every starter on (about 100) is normal. The file of those days must still stay well under the
+    // store's cap; the sizes are printed so the addendum can quote them.
+    @Test
+    fun theFileOfALargerLineupStaysUnderTheCap() {
+        val items = library(ITEMS)
+        for (target in LARGER_LINEUPS) {
+            val larger = lineupWith(target - BASE_CHANNELS)
+            val scheduled = lineupDays.scheduled(larger, NOON.toEpochMilliseconds(), null)
+            assertTrue(scheduled.size >= target - 2, "about $target channels: ${scheduled.size}")
+            val snapshots =
+                scheduled.map { it.cutoffMs }.distinct().associateWith {
+                    RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
+                }
+            val built = lineupDays.days(larger, scheduled, snapshots)
+            val store = MemoryDayStore()
+            val persisted = PersistedDays(store, "1:1")
+            val key =
+                persisted.keyOf(
+                    ACCOUNT,
+                    LIBRARIES,
+                    1,
+                    larger.utcOffsetMinutes,
+                    lineupDays.inputsOf(larger, null),
+                    TestCatalog.version,
+                    scheduled,
+                )
+            runBlocking { persisted.save(ACCOUNT, key, built) }
+            val fileBytes = store.only().second.size
+            println("PersistedDaysSize larger channels=${scheduled.size} items=$ITEMS fileKb=${fileBytes / KB}")
+            assertTrue(fileBytes < CAP_BYTES / 2, "the file of $target channels is $fileBytes bytes")
+        }
+    }
 
     private fun allocated(): Long {
         val threads = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
@@ -188,6 +224,10 @@ class PersistedDaysSizeTest {
         const val ITEMS = 20_000
         const val CUSTOMS = 42
         const val FIFTY = 48
+
+        // The six starters and two leftovers channels every lineup here has, besides its custom channels.
+        const val BASE_CHANNELS = 8
+        val LARGER_LINEUPS = intArrayOf(60, 75, 100)
         const val KB = 1024
         const val RUNS = 5
         const val CAP_BYTES = 16 * 1024 * 1024
