@@ -204,6 +204,9 @@ class BuiltInScheduleSource(
             remembered.forget(mine)
             inFlight.keys.removeAll { mine(it.account) }
             diskLooked.removeAll { mine(it.first) }
+            // Writes of days built before this are not wanted: stop those not yet written (one that has passed its
+            // epoch check may still land; the days key on disk then no longer matches a rebuilt lineup's inputs).
+            saves.forEach { it.cancel() }
         }
     }
 
@@ -975,7 +978,7 @@ class BuiltInScheduleSource(
             val totalMs = began.elapsedNow().inWholeMilliseconds
             keep(key, result, epoch, generation, dayInputs)
             val written = Wanted(revision, key, atMs, lineup, scheduled, generation, wanted.selection)
-            if (disk != null) save(account, disk, result, written)
+            if (disk != null) save(account, disk, result, written, epoch)
             // Pools and leftovers claims; the schedule layout of each day is worked out on first use (see [laidOut]).
             val after = Probed(probes)
             val allocated = Reading(probes.allocatedBytes()) - allocBefore
@@ -1132,13 +1135,14 @@ class BuiltInScheduleSource(
         disk: DayKey,
         result: List<ChannelDay>,
         wanted: Wanted,
+        epoch: Int,
     ) {
         val current =
             isCurrent(account, wanted.revision) ||
                 stillWanted(account, wanted.key, wanted.atMs, wanted.selection) != null
-        val to = persisted?.takeIf { current } ?: return
-        // An account forgotten (signed out, reset) after this point gets nothing written ([forget]).
-        val epoch = synchronized(lock) { forgets }
+        val to = persisted?.takeIf { current && synchronized(lock) { forgets } == epoch } ?: return
+        // An account forgotten (signed out, reset, rebuilt) since the build began gets nothing written ([forget]): the
+        // epoch is the build's own, not read here, so a build that ends after the forget cannot put its days back.
         val job =
             buildScope.launch(saveDispatcher, start = CoroutineStart.LAZY) {
                 val whole = if (result.all { it.built }) result else unrepaired(account, result, wanted)

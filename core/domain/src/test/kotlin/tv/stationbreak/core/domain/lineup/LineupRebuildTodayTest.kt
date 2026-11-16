@@ -135,7 +135,7 @@ class LineupRebuildTodayTest {
 
             assertEquals(RebuildTodayResult.Done, refresher.rebuildToday())
 
-            assertTrue(whodunit().rulesFromMs!! <= NOON.toEpochMilliseconds(), "the new rules began with today")
+            assertNull(whodunit().rulesFromMs, "the new rules began with today, so no boundary is waiting")
             assertTrue(whodunitToday().pool.isNotEmpty(), "and today's days are built from them")
             assertTrue(
                 stored().channels.count { it.state == ChannelState.On } > 2,

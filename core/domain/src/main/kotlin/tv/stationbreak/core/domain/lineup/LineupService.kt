@@ -56,6 +56,7 @@ import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.rolled
+import tv.stationbreak.core.engine.lineup.withPendingBroughtForward
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
@@ -287,10 +288,15 @@ class LineupService internal constructor(
      * ([forgetDerived]: the kept and remembered days in memory, and the days on disk), so the new plan and today's
      * schedule apply from the start of today, now, for every channel. For the debug and benchmark command that does it
      * (#812). A refresh starts the changes it makes at the next boundary; this starts them at today's (the planner is
-     * given the moment before today's day start as its now, and that day start as its boundary). The lineup is
-     * otherwise the one [refresh] plans, and the viewer's edits, channels and repair record are kept (it is not a
-     * reset). The days go before the new revision is published, so
-     * whatever reads the lineup next builds them from the planned lineup. Under the account's lock, like a refresh.
+     * given the moment before today's day start as its now, and that day start as its boundary). What an earlier plan
+     * left waiting for the next boundary is brought to today's start first ([withPendingBroughtForward]), and what the
+     * plan makes is rolled as of that start, so nothing is left pending for tomorrow. The lineup is otherwise the one
+     * [refresh] plans, and the viewer's edits and channels are kept (it is not a reset). The repair record is kept too
+     * ([Start.repairs], as in a refresh): a reset clears it because it replaces the lineup, so the repairs of the
+     * blocks it had would name channels and days that are gone, but a rebuild keeps the same channels, and a repair is
+     * the viewer's own fix of a block that left the library, which is as true after the rebuild as before it. The days
+     * go before the new revision is published, so whatever reads the lineup next builds them from the planned lineup.
+     * Under the account's lock, like a refresh.
      */
     internal suspend fun rebuildToday(
         account: LibraryAccount,
@@ -404,15 +410,23 @@ class LineupService internal constructor(
         // other plan works as of now and starts its changes at the next boundary.
         val rolledNow = current?.rolled(nowMs)
         val boundaryMs = nextBoundary(offsetFrom ?: rolledNow, nowMs)
-        val planNowMs = if (sinceDayStart) boundaryMs - MS_PER_DAY - 1 else nowMs
-        val planBoundaryMs = if (sinceDayStart) boundaryMs - MS_PER_DAY else boundaryMs
-        val rolled = if (sinceDayStart) current?.rolled(planNowMs) else rolledNow
+        val dayStartMs = dayStart(offsetFrom ?: rolledNow, nowMs)
+        val planNowMs = if (sinceDayStart) dayStartMs - 1 else nowMs
+        val planBoundaryMs = if (sinceDayStart) dayStartMs else boundaryMs
+        // What the plan before left waiting for the next boundary (a refresh at start records it) is brought to today's
+        // start too, or the engine would keep it pending as it does for every plan.
+        val rolled =
+            if (sinceDayStart) {
+                current?.withPendingBroughtForward(boundaryMs, dayStartMs)?.rolled(planNowMs)
+            } else {
+                rolledNow
+            }
         // #306: a finalised lineup is never shelved or reshaped from a snapshot with no items. That is a library not
         // synced (yet), not an empty one: keep the lineup as rolled and the meta passed in, so the generation is not
         // recorded and the next trigger plans again. A selection that really became empty is the selection-change
         // repair's to handle, not a plan's. Every plan of a current lineup passes here (refresh and edit).
         if (rolled != null && rolled.finalised && read.snapshot.items.isEmpty()) return rolled to before
-        val planned =
+        val plan =
             LineupPlanner.plan(
                 rolled,
                 owner.server,
@@ -431,6 +445,7 @@ class LineupService internal constructor(
                 snapshotGeneration = read.generation,
                 keptReasons = entryOf(owner).keptReasons,
             )
+        val planned = if (sinceDayStart) plan.rolled(dayStartMs) else plan
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
             RefreshMeta(
@@ -479,12 +494,24 @@ class LineupService internal constructor(
     internal fun nextBoundary(
         lineup: Lineup?,
         nowMs: Long,
+    ): Long = epochBoundary(lineup, nowMs, 1L)
+
+    /** The start of the broadcast day [nowMs] is in (the boundary that began today), by [nextBoundary]'s arithmetic. */
+    internal fun dayStart(
+        lineup: Lineup?,
+        nowMs: Long,
+    ): Long = epochBoundary(lineup, nowMs, 0L)
+
+    private fun epochBoundary(
+        lineup: Lineup?,
+        nowMs: Long,
+        epochsAhead: Long,
     ): Long {
         val offset = lineup?.utcOffsetMinutes ?: standardOffsetMinutes()
         val server = lineup?.serverId ?: NO_SERVER
         val recipe = catalog.leftovers.firstOrNull() ?: LeftoversRecipe(STAND_IN_KEY, STAND_IN_KEY, "", 0, null)
         val settings = RecipeResolver.leftoversSettings(recipe, server, offset)
-        return Epochs.epochStart(settings, Epochs.epochNumber(settings, nowMs) + 1)
+        return Epochs.epochStart(settings, Epochs.epochNumber(settings, nowMs) + epochsAhead)
     }
 
     /**

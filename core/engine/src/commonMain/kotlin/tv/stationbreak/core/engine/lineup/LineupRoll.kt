@@ -151,3 +151,41 @@ internal fun Lineup.withBasisFor(
     val basis = if (differs) CurationBasis(boundaryMs, checkNotNull(before), useMyCollections) else null
     return if (basis != null) change.copy(curationBasis = basis) else change
 }
+
+/**
+ * The lineup with the changes the planner has waiting for the next boundary ([boundaryMs]) brought forward to
+ * [dayStartMs], the start of today, so that planning and rolling as of that moment applies them now (the debug rebuild,
+ * #812). Only what the planner set: an unedited starter's new rules at the boundary (`rulesFromMs`, which then drop
+ * their previous rules when rolled), a starter on the air that the planner leaves out (on, with a shelf reason, leaving
+ * at the boundary), a channel the planner switched on at the boundary (no viewer mark, on since the boundary), and a
+ * curation basis for the boundary (dropped, so the plan makes the new one for today). What the viewer did is left as it
+ * is: a switch-off (hidden, with its own leaving time), a switch-on, any channel with a viewer mark. [this] when
+ * nothing is pending for [boundaryMs]. Pure.
+ */
+fun Lineup.withPendingBroughtForward(
+    boundaryMs: Long,
+    dayStartMs: Long,
+): Lineup {
+    val dropsBasis = curationBasis?.fromMs == boundaryMs
+    val moved = channels.map { it.broughtForward(boundaryMs, dayStartMs) }
+    if (!dropsBasis && moved.indices.all { moved[it] === channels[it] }) return this
+    return copy(channels = moved, curationBasis = if (dropsBasis) null else curationBasis)
+}
+
+private fun LineupChannel.broughtForward(
+    boundaryMs: Long,
+    dayStartMs: Long,
+): LineupChannel {
+    var next = this
+    val starter = source as? ChannelSource.Starter
+    if (starter != null && starter.rulesFromMs == boundaryMs) {
+        next = next.copy(source = starter.copy(rulesFromMs = dayStartMs))
+    }
+    if (state == ChannelState.On && shelfReason != null && leavesAtMs == boundaryMs) {
+        next = next.copy(leavesAtMs = dayStartMs)
+    }
+    if (state == ChannelState.On && viewerChoice == ViewerChoice.None && onSinceMs == boundaryMs) {
+        next = next.copy(onSinceMs = dayStartMs)
+    }
+    return next
+}

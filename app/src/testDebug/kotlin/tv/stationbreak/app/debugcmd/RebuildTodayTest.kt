@@ -35,7 +35,7 @@ class RebuildTodayTest {
                 "started",
                 "skipped: no libraries are chosen",
                 "started",
-                "skipped: account",
+                "skipped: the account has no lineup",
             ),
             lines,
         )
