@@ -7,10 +7,10 @@ import kotlin.time.Instant
 
 /** One title a channel holds: its [name], the [ms] of it the channel airs in its day, and whether it is an [anchor]. */
 data class HeldTitle(
-    val id: CanonicalId,
+    internal val id: CanonicalId,
     val name: String,
-    val ms: Long,
-    val anchor: Boolean,
+    internal val ms: Long,
+    internal val anchor: Boolean,
 )
 
 /** Which line lists a channel's titles: those that live there, or (a channel with none) those with the most hours. */
@@ -28,8 +28,8 @@ sealed interface HomeShows {
 
     /** [count] titles live on the channel; [titles] are the first up to [ChannelHoldings.LISTED] of them, named. */
     data class Known(
-        val count: Int,
-        val titles: List<HeldTitle>,
+        internal val count: Int,
+        internal val titles: List<HeldTitle>,
     ) : HomeShows {
         init {
             require(count >= titles.size) { "The titles named are some of those that live here" }
@@ -39,7 +39,9 @@ sealed interface HomeShows {
 
 /**
  * What a switched-on channel holds in its broadcast day, in the viewer's terms (#757); the channel box and the
- * properties sheet both read this one value and its derived figures, so they never disagree. Read-only.
+ * properties sheet both read this one value and its derived figures, so they never disagree. Read-only. What the
+ * features read is [titleCount], [validUntilMs] and the derived figures ([hours], [days], [homeTo], [listedNames],
+ * [more]); the rest is for the module that builds the value, and for tests that make one.
  *
  * - [totalMs]: everything the channel airs in the day as it was built (the build's pool: a repair record laid over a
  *   day later is not read), home shows and guests alike.
@@ -55,10 +57,10 @@ sealed interface HomeShows {
  * those hours, shown from two up.
  */
 data class ChannelHoldings(
-    val totalMs: Long,
+    internal val totalMs: Long,
     val titleCount: Int,
-    val homes: HomeShows,
-    val top: List<HeldTitle>,
+    internal val homes: HomeShows,
+    internal val top: List<HeldTitle>,
     val validUntilMs: Long,
 ) {
     init {
@@ -100,7 +102,7 @@ data class ChannelHoldings(
 
     companion object {
         /** How many titles a line names. */
-        const val LISTED = 6
+        internal const val LISTED = 6
         private const val MS_PER_HOUR = 3_600_000L
         private const val HOURS_PER_DAY = 24L
         private const val MIN_DAYS = 2L
