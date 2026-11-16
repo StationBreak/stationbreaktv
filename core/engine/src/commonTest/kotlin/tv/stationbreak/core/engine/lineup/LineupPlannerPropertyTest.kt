@@ -3,6 +3,7 @@ package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.engine.SeededGen
 import tv.stationbreak.core.engine.forAllCases
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.OrderingMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -94,6 +95,7 @@ class LineupPlannerPropertyTest {
                     source?.edited == false && !it.chosenByViewer && it.leavesAtMs == null
                 }
             assertTrue(free <= LineupDefaults.PLANNER_PICKS, "the planner's free picks: $free")
+            checkRoomIsFull(lineup, catalog, free)
             // Every pin stays on, and never leaves.
             for (pin in lineup.channels.filter { it.chosenByViewer && it.source is ChannelSource.Starter }) {
                 val edited = (pin.source as ChannelSource.Starter).edited
@@ -104,16 +106,58 @@ class LineupPlannerPropertyTest {
             val own = on.count { !it.chosenByViewer }
             assertTrue(own <= LineupDefaults.CAP, "on: $own")
         }
-        val optIn =
-            catalog.recipes
-                .filter { it.optIn }
-                .map { LineupIds.starter(it.key) }
-                .toSet()
+        val optIn = optInIds(catalog)
         assertTrue(on.none { it.id in optIn && !it.chosenByViewer }, "the planner switched an opt-in recipe on")
         val numbers = lineup.channels.mapNotNull { it.number }
         assertEquals(numbers.toSet().size, numbers.size, "numbers unique")
         if (!lineup.finalised) assertTrue(on.isEmpty(), "an unfinalised lineup has nothing on")
     }
+
+    // The room is the planner's own and never reduced by a switch-on: when a free starter that qualified is on
+    // the shelf for want of room (BelowCap), the room is full: the free picks and the pins the viewer touched, which
+    // are the only ones that can sit inside the top, reach it. A viewer's added starter takes no seat.
+    private fun checkRoomIsFull(
+        lineup: Lineup,
+        catalog: StarterCatalogView,
+        free: Int,
+    ) {
+        val missed =
+            lineup.channels.any {
+                val source = it.source as? ChannelSource.Starter
+                source?.edited == false && it.state == ChannelState.Shelf && it.number != null &&
+                    it.viewerChoice == ViewerChoice.None && it.shelfReason == ShelfReason.BelowCap
+            }
+        if (!missed) return
+        val optIn = optInIds(catalog)
+        val touched =
+            lineup.channels.count {
+                val source = it.source as? ChannelSource.Starter
+                val pinned = it.state == ChannelState.On && it.viewerChoice == ViewerChoice.Touched
+                source?.edited == false && pinned && it.id !in optIn
+            }
+        assertTrue(free + touched >= LineupDefaults.PLANNER_PICKS, "a free starter missed a room of $free+$touched")
+    }
+
+    // An on channel keeps its time; the planner's unpick stamps the plan's time, so it is never mistaken for the
+    // viewer's switch-off of a pick that waits (a time ahead).
+    private fun checkTime(
+        old: LineupChannel,
+        new: LineupChannel,
+        backOnShelf: Boolean,
+        selectingAt: Long?,
+    ) {
+        if (backOnShelf) {
+            assertEquals(selectingAt, new.onSinceMs, "${old.id} unpicked")
+        } else if (old.state == ChannelState.On) {
+            assertEquals(old.onSinceMs, new.onSinceMs, "${old.id} added")
+        }
+    }
+
+    private fun optInIds(catalog: StarterCatalogView): Set<ChannelId> =
+        catalog.recipes
+            .filter { it.optIn }
+            .map { LineupIds.starter(it.key) }
+            .toSet()
 
     private fun check(
         before: Lineup,
@@ -135,7 +179,7 @@ class LineupPlannerPropertyTest {
             val neverAired = selectingAt != null && old.state == ChannelState.On && old.onSinceMs > selectingAt
             val backOnShelf = neverAired && new.state == ChannelState.Shelf
             if (old.state != ChannelState.Shelf && !backOnShelf) assertEquals(old.state, new.state, "${old.id} state")
-            if (old.state == ChannelState.On) assertEquals(old.onSinceMs, new.onSinceMs, "${old.id} added")
+            checkTime(old, new, backOnShelf, selectingAt)
             // Without a full collection pass nothing is resolved again, except a starter that is switched on.
             val switchedOn = old.state == ChannelState.Shelf && new.state == ChannelState.On
             if (!collectionsSynced && !switchedOn) assertEquals(old.source, new.source, "${old.id} unsynced source")
@@ -196,8 +240,9 @@ class LineupPlannerPropertyTest {
         }
     }
 
-    // The viewer's own edits, through the real edit code, so `chosenByViewer` pins occur: a switch-on of a shelved
-    // starter (an opt-in one, confirmed, now and then) and a renumber of any starter. A refused edit changes nothing.
+    // The viewer's own edits, through the real edit code, so `chosenByViewer` pins occur: a switch-on of a shelved or
+    // hidden starter (an opt-in one, confirmed, now and then), a switch-off and a renumber. A refused edit changes
+    // nothing.
     private fun viewerEdits(
         gen: SeededGen,
         lineup: Lineup,
@@ -208,25 +253,7 @@ class LineupPlannerPropertyTest {
         val boundary = nextDayStart(now, lineup.utcOffsetMinutes)
         val taken = lineup.channels.flatMap { listOfNotNull(it.defaultNumber, it.numberOverride) }.toMutableSet()
         for (channel in lineup.channels) {
-            val starter = channel.source as? ChannelSource.Starter
-            val edit =
-                when {
-                    starter == null || starter.edited -> {
-                        null
-                    }
-
-                    channel.state == ChannelState.Shelf && gen.chance(PIN_PERCENT) -> {
-                        LineupEdit.SwitchOn(channel.id, confirmedOptIn = gen.chance(PERCENT / 2))
-                    }
-
-                    channel.state == ChannelState.On && gen.chance(PIN_PERCENT) -> {
-                        LineupEdit.SetNumber(channel.id, (700..899).first { it !in taken }.also { taken += it })
-                    }
-
-                    else -> {
-                        null
-                    }
-                }
+            val edit = viewerEditOf(gen, channel, taken)
             val outcome = edit?.let { LineupEdits.apply(edited, it, now, boundary, catalog) }
             if (outcome is EditOutcome.Applied) {
                 edited = outcome.lineup
@@ -234,6 +261,38 @@ class LineupPlannerPropertyTest {
             }
         }
         return edited
+    }
+
+    // The edit the viewer makes to [channel], if any: an unedited starter is switched on (shelved or hidden), off or
+    // renumbered, now and then.
+    private fun viewerEditOf(
+        gen: SeededGen,
+        channel: LineupChannel,
+        taken: MutableSet<Int>,
+    ): LineupEdit? {
+        val starter = channel.source as? ChannelSource.Starter
+        val off = channel.state == ChannelState.Shelf || channel.state == ChannelState.UserHidden
+        return when {
+            starter == null || starter.edited -> {
+                null
+            }
+
+            off && gen.chance(PIN_PERCENT) -> {
+                LineupEdit.SwitchOn(channel.id, confirmedOptIn = gen.chance(PERCENT / 2))
+            }
+
+            channel.state == ChannelState.On && gen.chance(PIN_PERCENT / 2) -> {
+                LineupEdit.SwitchOff(channel.id)
+            }
+
+            channel.state == ChannelState.On && gen.chance(PIN_PERCENT) -> {
+                LineupEdit.SetNumber(channel.id, (700..899).first { it !in taken }.also { taken += it })
+            }
+
+            else -> {
+                null
+            }
+        }
     }
 
     private fun userChanges(

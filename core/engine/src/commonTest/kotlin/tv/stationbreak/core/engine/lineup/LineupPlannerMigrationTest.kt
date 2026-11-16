@@ -92,6 +92,7 @@ class LineupPlannerMigrationTest {
 
         assertTrue(next.viewerChoicesKnown)
         assertTrue(next.channel("late").chosenByViewer)
+        assertEquals(ViewerChoice.Touched, next.channel("late").viewerChoice, "the inference never adds a channel")
         assertEquals(ChannelState.On, next.channel("late").state)
         assertNull(next.channel("late").leavesAtMs)
         assertFalse(next.channel("alpha").chosenByViewer, "a starter in the old top is the planner's")
@@ -107,6 +108,7 @@ class LineupPlannerMigrationTest {
 
         for (key in listOf("delta", "echo")) {
             assertTrue(next.channel(key).chosenByViewer, key)
+            assertEquals(ViewerChoice.Touched, next.channel(key).viewerChoice, "$key is never an addition")
             assertEquals(ChannelState.On, next.channel(key).state, key)
             assertNull(next.channel(key).leavesAtMs, "$key is pinned")
         }

@@ -186,19 +186,34 @@ object LineupEdits {
     ): EditOutcome {
         val channel = lineup.channels.firstOrNull { it.id == edit.id }
         return when {
-            edit is LineupEdit.AddCustom -> addCustom(lineup, edit, nowMs, catalog)
-            channel == null -> refused(EditRefusal.UnknownChannel)
-            else -> markChoice(lineup, edit, applyTo(lineup, channel, edit, nowMs, boundaryMs, catalog))
+            edit is LineupEdit.AddCustom -> {
+                addCustom(lineup, edit, nowMs, catalog)
+            }
+
+            channel == null -> {
+                refused(EditRefusal.UnknownChannel)
+            }
+
+            else -> {
+                val outcome = applyTo(lineup, channel, edit, nowMs, boundaryMs, catalog)
+                markChoice(lineup, edit, outcome, nowMs, boundaryMs, catalog)
+            }
         }
     }
 
     // A viewer's switch or number marks the edited channel as chosen, and any channel the edit moved (a swap holder); a
     // marked channel on the air stops leaving.
     // A ReplaceCustom marks only the channel it swapped with: the edited one is the viewer's own anyway.
+    // A mark only goes up (None, Touched, Added): the edited channel gets the mark its own edit earns ([ownChoice]),
+    // a moved holder is Touched, and neither lowers a mark the channel already has.
+    @Suppress("LongParameterList") // The edit, its outcome, the time, the boundary and the catalog.
     private fun markChoice(
         before: Lineup,
         edit: LineupEdit.ChannelEdit,
         outcome: EditOutcome,
+        nowMs: Long,
+        boundaryMs: Long,
+        catalog: StarterCatalogView,
     ): EditOutcome {
         val marksSelf = marksItself(edit)
         val viewerEdit = marksSelf || (edit is LineupEdit.ReplaceCustom && edit.swapWith != null)
@@ -209,23 +224,105 @@ object LineupEdits {
             outcome.lineup.channels.map {
                 val was = old[it.id]
                 val moved = was != null && it.id != edit.id && (was.number != it.number || was.state != it.state)
-                val own = marksSelf && it.id == edit.id
                 when {
-                    !own && !moved -> {
-                        it
+                    marksSelf && it.id == edit.id && was != null -> {
+                        marked(it, ownChoice(before, edit, was, nowMs, boundaryMs, catalog))
                     }
 
-                    // The viewer's choice beats the planner's: a channel on the air no longer leaves.
-                    it.state == ChannelState.On -> {
-                        it.copy(viewerChoice = ViewerChoice.Touched, leavesAtMs = null, shelfReason = null)
+                    moved -> {
+                        marked(it, ViewerChoice.Touched)
                     }
 
                     else -> {
-                        it.copy(viewerChoice = ViewerChoice.Touched)
+                        it
                     }
                 }
             }
         return EditOutcome.Applied(outcome.lineup.copy(channels = marked))
+    }
+
+    // [channel] with the mark raised to [earned] (never lowered); a channel on the air stops leaving: the viewer's
+    // choice beats the planner's.
+    private fun marked(
+        channel: LineupChannel,
+        earned: ViewerChoice,
+    ): LineupChannel {
+        val choice = maxOf(channel.viewerChoice, earned)
+        return if (channel.state == ChannelState.On) {
+            channel.copy(viewerChoice = choice, leavesAtMs = null, shelfReason = null)
+        } else {
+            channel.copy(viewerChoice = choice)
+        }
+    }
+
+    // The mark the viewer's own edit earns the edited channel [was] (before the edit), to be raised to, never lowered
+    // to. Only an unedited starter can be Added; anything else, an opt-in starter (the planner never picks one, so it
+    // is already unranked), a renumber and a swap are Touched.
+    @Suppress("LongParameterList") // The lineup and edit, the channel, the time, the boundary and the catalog.
+    private fun ownChoice(
+        before: Lineup,
+        edit: LineupEdit.ChannelEdit,
+        was: LineupChannel,
+        nowMs: Long,
+        boundaryMs: Long,
+        catalog: StarterCatalogView,
+    ): ViewerChoice {
+        val adds = was.source.canHoldAddedMark() && !isOptIn(was, catalog)
+        return when {
+            !adds -> {
+                ViewerChoice.Touched
+            }
+
+            // A leaving pick the viewer switches off is decided here: it holds Added while hidden, so the switch-on of
+            // the same day, an undo, restores Added; `Lineup.rolled` lowers it once the boundary has passed.
+            edit is LineupEdit.SwitchOff -> {
+                if (leavingPick(was)) ViewerChoice.Added else ViewerChoice.Touched
+            }
+
+            edit !is LineupEdit.SwitchOn -> {
+                ViewerChoice.Touched
+            }
+
+            isUndo(before, was, nowMs, boundaryMs) -> {
+                ViewerChoice.Touched
+            }
+
+            // A planner pick already chosen for the boundary and shown as starting: it was never outside the room.
+            was.state == ChannelState.On && was.startsAfter(LineupDay.endingAt(boundaryMs)) -> {
+                ViewerChoice.Touched
+            }
+
+            // A leaving pick kept, or a shelf, hidden, kept or numberless starter: a channel the planner had not
+            // picked, so it adds one.
+            else -> {
+                ViewerChoice.Added
+            }
+        }
+    }
+
+    // An unedited starter on the air that the planner has set to leave at the boundary.
+    private fun leavingPick(channel: LineupChannel): Boolean {
+        val leaves = channel.leavesAtMs != null
+        return channel.state == ChannelState.On && leaves
+    }
+
+    // A switch-on that takes back the viewer's own switch-off: the channel is in the pending basis's on-set and is not
+    // on now, or it is a shelf starter whose start is still ahead (a pick waiting for the boundary that the viewer
+    // switched off; the planner's own unpick stamps the plan's time, never one ahead) with a mark. It restores the
+    // channel with the mark it had, so an accidental off and on never grows the lineup.
+    private fun isUndo(
+        before: Lineup,
+        was: LineupChannel,
+        nowMs: Long,
+        boundaryMs: Long,
+    ): Boolean {
+        val basis = before.curationBasis
+        val inBasis = basis != null && basis.fromMs > nowMs && was.id in basis.on && was.state != ChannelState.On
+        val waiting =
+            was.state == ChannelState.Shelf &&
+                was.startsAfter(LineupDay.endingAt(boundaryMs)) &&
+                was.viewerChoice != ViewerChoice.None
+        return inBasis || waiting
     }
 
     private fun marksItself(edit: LineupEdit.ChannelEdit): Boolean =

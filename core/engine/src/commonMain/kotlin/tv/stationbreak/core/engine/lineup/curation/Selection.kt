@@ -19,8 +19,9 @@ internal class Selected(
  * title over all candidates but the dropped ones, scores the channels that qualify (the pinned ones too), orders them
  * all as one (score, then channel order), takes the top room, then re-homes over the chosen set and drops any chosen
  * channel that no longer qualifies. A pinned channel inside the top room uses one of its places; one outside it, or
- * with no score, is on and costs none, so the free places are the room less the pinned channels inside the top. At
- * most [CurationDefaults.ROUNDS] rounds;
+ * with no score, is on and costs none, so the free places are the room less the pinned channels inside the top. An
+ * unranked pinned channel (one the viewer added, or an opt-in one) is homed with the rest but never ranked, so it
+ * never uses a place and the free places are not reduced for it. At most [CurationDefaults.ROUNDS] rounds;
  * after the last, the set stands. Integer arithmetic only; ties go to the lower channel number, so input order never
  * matters.
  *
@@ -46,8 +47,26 @@ internal object Selection {
         pinned: Set<ChannelId>,
         optIn: Set<ChannelId>,
         room: Int,
-    ): Selected = select(snapshot, candidates, pinned, optIn, room, Curation::homing)
+    ): Selected = select(snapshot, candidates, pinned, optIn, room, emptySet())
 
+    /**
+     * As the five-argument form, and [unranked] are pinned channels that are never ranked, so they use no place
+     * wherever their score falls: the starters the viewer switched on that the planner had not picked ("added"). They
+     * take part in the homing like any pinned channel. Unlike [optIn] they do not leave the rounds when unpinned and do
+     * not give the OptIn shelf reason: passing a pinned opt-in channel's ID here or in [optIn] gives the same
+     * selection.
+     */
+    @Suppress("LongParameterList") // The five and the unranked set.
+    fun select(
+        snapshot: RuleSnapshot,
+        candidates: List<CurationChannel>,
+        pinned: Set<ChannelId>,
+        optIn: Set<ChannelId>,
+        room: Int,
+        unranked: Set<ChannelId>,
+    ): Selected = select(snapshot, candidates, pinned, optIn, room, unranked, Curation::homing)
+
+    // The homing is a parameter for a test to replace.
     @Suppress("LongParameterList") // The public five plus the homing, which a test replaces.
     internal fun select(
         snapshot: RuleSnapshot,
@@ -55,6 +74,17 @@ internal object Selection {
         pinned: Set<ChannelId>,
         optIn: Set<ChannelId>,
         room: Int,
+        homingOf: (RuleSnapshot, List<CurationChannel>) -> Homing,
+    ): Selected = select(snapshot, candidates, pinned, optIn, room, emptySet(), homingOf)
+
+    @Suppress("LongParameterList") // The public six plus the homing, which a test replaces.
+    internal fun select(
+        snapshot: RuleSnapshot,
+        candidates: List<CurationChannel>,
+        pinned: Set<ChannelId>,
+        optIn: Set<ChannelId>,
+        room: Int,
+        unranked: Set<ChannelId>,
         homingOf: (RuleSnapshot, List<CurationChannel>) -> Homing,
     ): Selected {
         val places = room.coerceAtLeast(0)
@@ -71,7 +101,7 @@ internal object Selection {
             val homes = homing.homes(idsOf(all))
             if (first == null) first = homes
             scores = scoresOf(all, homes)
-            on = pinned + top(all, scores, pinned, optIn, places)
+            on = pinned + top(all, scores, pinned, optIn + unranked, places)
             val chosen = all.filter { it.id in on }
             // Everything chosen means the same channels as the first homing: no need to work it out again.
             val homesOn = if (chosen.size == all.size) homes else homing.homes(idsOf(chosen))
@@ -110,7 +140,8 @@ internal object Selection {
 
     // The free channels in the top [places] of one order of every ranked channel, the pinned ones among them: score
     // high to low, then number low to high, then ID, so the order is total. A pinned channel in the top holds its
-    // place there, so the free ones that fit around it are the best free ones. An opt-in channel is never ranked.
+    // place there, so the free ones that fit around it are the best free ones. An opt-in or unranked channel is never
+    // ranked.
     private fun top(
         all: List<CurationChannel>,
         scores: Map<ChannelId, Long>,

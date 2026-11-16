@@ -94,9 +94,14 @@ internal object PlannerSelection {
      * - An untouched shelved starter the selection picks under the boundary's household flag and today's switches on
      *   now; an untouched starter on the air it leaves out leaves at the boundary (a time already set stays); one it
      *   picks again stays.
-     * - A starter the viewer switched on is pinned: on, and never leaving. It is ranked with the free starters (an
-     *   opt-in one is not): inside the top [LineupDefaults.PLANNER_PICKS] it uses a seat, outside it, or with no score,
-     *   it sits on top and costs none. The seats left are filled with the best free starters ([Selection.select]).
+     * - A starter the viewer switched on is pinned: on, and never leaving. One that is only touched (a renumber, a
+     *   swap, a switch on or off that was not an addition) is ranked with the free starters: inside the top
+     *   [LineupDefaults.PLANNER_PICKS] it uses a seat, outside it, or with no score, it sits on top and costs none.
+     *   The seats left are filled with the best free starters ([Selection.select]).
+     * - A starter the viewer added ([ViewerChoice.Added], switched on while the planner had not picked it) is homed
+     *   with the rest and always sits on top, never ranked: it takes no seat wherever its score falls, so the room is
+     *   always the planner's own [LineupDefaults.PLANNER_PICKS] free picks, short only when too few starters qualify.
+     *   Switched off, it is a kept starter (shelf) or hidden, and is no candidate.
      * - Every starter left on the shelf gets its current reason: the selection's; opt-in (N12); no room to air for
      *   one with no number; and for one the viewer chose or edited (never switched on by the planner) what the homing
      *   alongside the selected channels gives it.
@@ -118,7 +123,7 @@ internal object PlannerSelection {
         return channels.map { channel ->
             when (roles[channel.id]) {
                 null -> channel
-                Role.Pinned -> pinned(channel)
+                Role.Pinned, Role.Added -> pinned(channel)
                 Role.OptIn -> leftOut(channel, ShelfReason.OptIn, p)
                 Role.Numberless -> leftOut(channel, ShelfReason.BelowCap, p)
                 Role.Kept -> leftOut(channel, kept.getValue(channel.id), p)
@@ -128,13 +133,14 @@ internal object PlannerSelection {
     }
 
     // What a channel is to the selection:
-    // - Pinned: on and the viewer's, a candidate that is always on.
+    // - Pinned: on and the viewer's, a candidate that is always on; ranked, so inside the top it uses a seat.
+    // - Added: on and added by the viewer (an unedited starter only): homed and always on, never ranked, no seat.
     // - Free: untouched and numbered, a candidate.
     // - OptIn: an untouched opt-in starter, never a candidate unless pinned.
     // - Numberless: untouched, not opt-in, no number: it cannot go on.
     // - Kept: on the shelf by the viewer's choice or edit, never switched on by the planner; it still gets a reason.
     // - null: left as it is.
-    private enum class Role { Pinned, Free, OptIn, Numberless, Kept }
+    private enum class Role { Pinned, Added, Free, OptIn, Numberless, Kept }
 
     private fun roleOf(
         channel: LineupChannel,
@@ -159,6 +165,7 @@ internal object PlannerSelection {
         // Opt-in before Kept: a shelved opt-in starter the viewer touched is still off for being opt-in (N12), and
         // shows that reason, not one from the homing.
         return when {
+            channel.viewerChoice == ViewerChoice.Added && on -> Role.Added
             channel.chosenByViewer && on -> Role.Pinned
             recipe.optIn -> Role.OptIn
             channel.chosenByViewer -> Role.Kept
@@ -167,13 +174,16 @@ internal object PlannerSelection {
         }
     }
 
-    /** Whether the selection treats [channel] as a candidate: an untouched numbered starter (free) or a pinned one. */
+    /**
+     * Whether the selection treats [channel] as a candidate: an untouched numbered starter (free), a pinned one or an
+     * added one (the lineup audit and the planner agree on it).
+     */
     fun isCandidate(
         channel: LineupChannel,
         p: Planning,
     ): Boolean {
         val role = roleOf(channel, p)
-        return role == Role.Pinned || role == Role.Free
+        return role == Role.Pinned || role == Role.Added || role == Role.Free
     }
 
     // One selection and the channels it was made over.
@@ -182,9 +192,9 @@ internal object PlannerSelection {
         val selected: Selected,
     )
 
-    // Every pinned starter and every free one is in play. The room is the planner's picks, whatever else is on: only a
-    // pinned starter inside the top of the one order takes a seat from it. A pinned opt-in starter (the planner never
-    // picks one) takes part in the homing only and always sits on top (`Selection.select`).
+    // Every pinned, added and free starter is in play. The room is the planner's picks, whatever else is on: only a
+    // pinned (touched) starter inside the top of the one order takes a seat from it. An added one, and a pinned opt-in
+    // starter (the planner never picks one), take part in the homing only and always sit on top (`Selection.select`).
     @Suppress("LongParameterList") // What one selection reads.
     private fun select(
         lineup: Lineup,
@@ -195,15 +205,17 @@ internal object PlannerSelection {
     ): Run {
         val candidates = ArrayList<CurationChannel>()
         val pinned = HashSet<ChannelId>()
+        val unranked = HashSet<ChannelId>()
         val optIn = HashSet<ChannelId>()
         for (channel in channels) {
             val role = roles[channel.id]
-            if (role != Role.Pinned && role != Role.Free) continue
-            if (role == Role.Pinned) pinned += channel.id
+            if (role != Role.Pinned && role != Role.Added && role != Role.Free) continue
+            if (role == Role.Pinned || role == Role.Added) pinned += channel.id
+            if (role == Role.Added) unranked += channel.id
             if (p.recipe((channel.source as ChannelSource.Starter).recipeKey)?.optIn == true) optIn += channel.id
             candidates += curationOf(channel, lineup, p, household)
         }
-        val picked = Selection.select(p.snapshot, candidates, pinned, optIn, LineupDefaults.PLANNER_PICKS)
+        val picked = Selection.select(p.snapshot, candidates, pinned, optIn, LineupDefaults.PLANNER_PICKS, unranked)
         return Run(candidates, picked)
     }
 
@@ -298,7 +310,9 @@ internal object PlannerSelection {
 
             starting -> {
                 // Chosen for the boundary by an earlier plan and not now: it never aired, so it goes back on the shelf.
-                channel.copy(state = ChannelState.Shelf, leavesAtMs = null, shelfReason = reason)
+                // Its time is the plan's, never ahead: a Shelf starter whose start is still ahead is only ever one the
+                // viewer switched off (`LineupEdits`, the undo), so the two are told apart by the stored state.
+                channel.copy(state = ChannelState.Shelf, onSinceMs = p.nowMs, leavesAtMs = null, shelfReason = reason)
             }
 
             channel.state == ChannelState.On -> {

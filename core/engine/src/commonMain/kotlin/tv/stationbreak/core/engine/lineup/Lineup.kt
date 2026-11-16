@@ -114,8 +114,12 @@ data class CurationBasis(
  * starter the planner switched on for the next boundary has that boundary, a time ahead, and is not on the air until
  * then (as [leavesAtMs] in reverse).
  * [viewerChoice] is not [ViewerChoice.None] once the viewer switched the channel on or off or gave it a number
- * ([chosenByViewer] is that as a flag). [leavesAtMs] is when an
- * untouched starter the planner dropped goes to the shelf, and [shelfReason] why it is there (starters only).
+ * ([chosenByViewer] is that as a flag); it is [ViewerChoice.Added] for an unedited starter the viewer switched on that
+ * the planner had not picked, and the viewer's channels that add take no planner seat. The [onSinceMs] of a Shelf
+ * starter can also mean "when the planner unpicked it" (a pick for the next boundary it took back: the time of the
+ * plan, never ahead), as opposed to the time ahead of a viewer's switch-off of one waiting to start.
+ * [leavesAtMs] is when an untouched starter the planner dropped goes to the shelf, and [shelfReason] why it is there
+ * (starters only).
  */
 data class LineupChannel(
     val id: ChannelId,
@@ -142,14 +146,35 @@ data class LineupChannel(
     val chosenByViewer: Boolean get() = viewerChoice != ViewerChoice.None
 }
 
-/** What the viewer has done to a channel, as far as the planner is concerned. */
+/**
+ * What the viewer has done to a channel, as far as the planner is concerned. A mark only goes up (None, Touched,
+ * Added) through the viewer's edits; it drops on a reset, when the recipe leaves the catalog, and for a hidden
+ * channel once the boundary has passed (`Lineup.rolled`, which lowers Added to Touched there).
+ */
 enum class ViewerChoice {
     /** The viewer has not touched the channel. */
     None,
 
-    /** The viewer switched the channel on or off, renumbered it or swapped it. */
+    /**
+     * The viewer switched the channel on or off, renumbered it or swapped it. A starter that is on is a ranked pin: it
+     * uses a planner seat inside the top, none outside it.
+     */
     Touched,
+
+    /**
+     * The viewer switched an unedited starter on that the planner had not picked: it adds a channel. While it is on it
+     * takes part in the homing, is never ranked, uses no seat and always sits on top.
+     * Only [canHoldAddedMark] sources hold it; only meaningful while the channel is on (off, it counts as a kept
+     * starter, or as hidden, with the mark kept).
+     */
+    Added,
 }
+
+/**
+ * Whether a channel with this source can carry [ViewerChoice.Added]: an unedited starter. Public so the codec, which
+ * adds the stored-but-unreadable starter, can share the one definition.
+ */
+fun ChannelSource.canHoldAddedMark(): Boolean = this is ChannelSource.Starter && !edited
 
 /**
  * One account's channel lineup on one server (spec 12). Every starter and leftovers channel uses the one

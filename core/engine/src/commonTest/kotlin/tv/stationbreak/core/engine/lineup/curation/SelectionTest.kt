@@ -310,6 +310,37 @@ class SelectionTest {
         assertEquals(ShelfReason.TooThin, thinned.shelf.getValue(plain.id))
     }
 
+    // The viewer's added channel is pinned and unranked: on at any score, never in the ranking, so it takes no place
+    // and leaves the room to the free channels.
+    @Test
+    fun anUnrankedPinTakesNoPlaceWhereverItsScoreFalls() {
+        val lib = Library()
+        val c = ranked(lib)
+        val strong = channel("strong", 110, listOf("Strong"), qualifying(lib, "Strong", titles = 20))
+        val weak = channel("weak", 111, listOf("Weak"), qualifying(lib, "Weak", titles = 7))
+        for (added in listOf(strong, weak)) {
+            val pin = setOf(added.id)
+            val picked = Selection.select(lib.snapshot(), c + added, pin, emptySet(), room = 3, unranked = pin)
+            val free = setOf(c[0].id, c[1].id, c[2].id)
+            assertEquals(free + added.id, picked.on, "${added.id} is on and the three places stay free")
+        }
+        // A pin that is not unranked and in the top takes a place.
+        val ranked = Selection.select(lib.snapshot(), c + strong, setOf(strong.id), emptySet(), room = 3)
+        assertEquals(setOf(strong.id, c[0].id, c[1].id), ranked.on)
+    }
+
+    // The unranked set is the opt-in set of a pinned channel by another name: the same selection.
+    @Test
+    fun unrankedGivesTheSelectionOfAPinnedOptInChannel() {
+        val lib = Library()
+        val c = ranked(lib)
+        val opt = channel("opt", 110, listOf("Opt"), qualifying(lib, "Opt", titles = 20))
+        val viaOptIn = Selection.select(lib.snapshot(), c + opt, setOf(opt.id), setOf(opt.id), room = 3)
+        val viaUnranked = Selection.select(lib.snapshot(), c + opt, setOf(opt.id), emptySet(), room = 3, setOf(opt.id))
+        assertEquals(viaOptIn.on, viaUnranked.on)
+        assertEquals(viaOptIn.shelf, viaUnranked.shelf)
+    }
+
     // A homing that counts how often it is asked, to see how many rounds a selection took.
     private class CountingHoming(
         private val inner: Homing,
