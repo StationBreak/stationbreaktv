@@ -3,9 +3,13 @@ package tv.stationbreak.core.engine.audit
 
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupDay
+import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.LineupEdits
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Planning
 import tv.stationbreak.core.engine.lineup.RecipeResolver
@@ -13,6 +17,8 @@ import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.householdFor
+import tv.stationbreak.core.engine.lineup.rolled
+import tv.stationbreak.core.engine.lineup.startsAfter
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
@@ -21,8 +27,10 @@ import tv.stationbreak.core.model.RuleSnapshot
 /**
  * The lineup the real planner makes of a library ([LineupPlanner.plan], the shipped catalog), then the viewer's
  * choices on top: the custom channels go in as kept channels, as a reset keeps them, and a recipe the viewer switched
- * on is on and chosen by the viewer, planned again as the refresh at the next boundary does it. [day] is the day that
- * starts at that boundary: the one the report describes.
+ * on goes through the real edit ([LineupEdits.apply]), so it is on and marked as an addition, a renumber or an undo
+ * exactly as it is in the app, planned again as the refresh at the next boundary does it. [day] is the day that
+ * starts at that boundary: the one the report describes (for a viewer that hides picks and switches them on again,
+ * the boundary after the first).
  */
 @Suppress("LongParameterList") // A plain carrier: what the planner made, and what the audit reads of it.
 internal class PlannedLineup(
@@ -48,6 +56,9 @@ internal class PlannedLineup(
         private val USER = CanonicalId.parse("00000000000000000000000000000002")
         private const val FIRST_CUSTOM_NUMBER = 600
 
+        // An hour into the day after a boundary: past it, with the roll done, where a switch-on is an addition.
+        private const val NEXT_DAY_OFFSET_MS = 3_600_000L
+
         fun of(
             snapshot: RuleSnapshot,
             names: CollectionNames,
@@ -56,22 +67,147 @@ internal class PlannedLineup(
             val notes = ArrayList<String>()
             val catalog = StarterCatalog
             val now = snapshot.cutoffMs
-            val boundary = nextBoundary(now)
             val waited = !snapshot.collectionsSynced
             if (waited) notes += "The collection pass is not complete in this snapshot: planned without waiting for it."
-            val kept = customChannels(viewer, now)
-            var lineup =
-                LineupPlanner.plan(null, SERVER, USER, 0, snapshot, names, now, boundary, catalog, waited, kept)
+            val run = Run(snapshot, names, waited, notes)
+            var at = Moment(now, nextBoundary(now))
+            var lineup = run.firstChoice(customChannels(viewer, now), at)
             if (!lineup.finalised) notes += "Not finalised: fewer than 5 recipes fill, so nothing is on."
-            val chosen = viewer?.switchedOn.orEmpty()
-            if (chosen.isNotEmpty() && lineup.finalised) {
-                lineup = switchedOn(lineup, chosen, now, notes)
-                lineup = LineupPlanner.plan(lineup, SERVER, USER, 0, snapshot, names, now, boundary, catalog, waited)
+            if (viewer != null && lineup.finalised) {
+                val chosen = run.viewerChoices(lineup, viewer, at)
+                lineup = chosen.first
+                at = chosen.second
             }
-            val planning = Planning(SERVER, 0, snapshot, names, catalog, now, boundary, lineup.householdFor(boundary))
+            val household = lineup.householdFor(at.boundary)
+            val planning = Planning(SERVER, 0, snapshot, names, catalog, at.now, at.boundary, household)
             val shown = if (lineup.finalised) lineup else withEveryStarter(lineup, planning)
-            val day = LineupDay.startingAt(boundary)
+            val day = LineupDay.startingAt(at.boundary)
             return PlannedLineup(snapshot, names, shown, planning, day, notes, lineup.finalised)
+        }
+
+        // A time and the broadcast-day start after it: what an edit or a plan is made at.
+        private class Moment(
+            val now: Long,
+            val boundary: Long,
+        )
+
+        // The plans and edits of one audit: the real planner and the real edits, on the one library.
+        private class Run(
+            val snapshot: RuleSnapshot,
+            val names: CollectionNames,
+            val waited: Boolean,
+            val notes: MutableList<String>,
+        ) {
+            fun firstChoice(
+                kept: List<LineupChannel>,
+                at: Moment,
+            ): Lineup =
+                LineupPlanner.plan(
+                    null,
+                    SERVER,
+                    USER,
+                    0,
+                    snapshot,
+                    names,
+                    at.now,
+                    at.boundary,
+                    StarterCatalog,
+                    waited,
+                    kept,
+                )
+
+            fun plan(
+                lineup: Lineup,
+                at: Moment,
+            ): Lineup =
+                LineupPlanner.plan(
+                    lineup,
+                    SERVER,
+                    USER,
+                    0,
+                    snapshot,
+                    names,
+                    at.now,
+                    at.boundary,
+                    StarterCatalog,
+                    waited,
+                )
+
+            // The viewer's choices on the lineup of the first choice, and the moment the report describes. One that
+            // needs a second day (hidden picks, kept starters) lives the first one through, planner and boundary
+            // included, and switches on after it; the others switch on at once.
+            fun viewerChoices(
+                lineup: Lineup,
+                viewer: Viewer,
+                at: Moment,
+            ): Pair<Lineup, Moment> {
+                var current = lineup
+                var moment = at
+                val ons = ArrayList<ChannelId>()
+                if (viewer.needsSecondDay) {
+                    val first = dayOne(current, viewer, moment)
+                    val next = moment.boundary + NEXT_DAY_OFFSET_MS
+                    current = first.first.rolled(next)
+                    moment = Moment(next, nextBoundary(next))
+                    ons += viewer.hiddenThenOn.map { LineupIds.starter(it) }
+                    ons += first.second
+                }
+                val known = current.channels.mapNotNull { (it.source as? ChannelSource.Starter)?.recipeKey }.toSet()
+                for (key in viewer.switchedOn) {
+                    if (key in known) {
+                        ons += LineupIds.starter(key)
+                    } else {
+                        notes += "The viewer's switch-on names no starter of the catalog (${key.length} characters)."
+                    }
+                }
+                if (ons.isEmpty()) return current to moment
+                for (id in ons) current = edited(current, LineupEdit.SwitchOn(id, confirmedOptIn = true), moment)
+                return plan(current, moment) to moment
+            }
+
+            // Day one: the picks to hide go off; the planner plans again and puts the next picks in their places, to
+            // start at the boundary; the first of those the viewer then switches off before they air (the kept
+            // starters); and the planner plans once more. The kept starters' IDs come back.
+            private fun dayOne(
+                lineup: Lineup,
+                viewer: Viewer,
+                at: Moment,
+            ): Pair<Lineup, List<ChannelId>> {
+                var current = lineup
+                for (key in viewer.hiddenThenOn) {
+                    current = edited(current, LineupEdit.SwitchOff(LineupIds.starter(key)), at)
+                }
+                current = plan(current, at)
+                val today = LineupDay.endingAt(at.boundary)
+                val starting =
+                    current.channels
+                        .filter { it.source is ChannelSource.Starter && it.state == ChannelState.On }
+                        .filter { it.startsAfter(today) }
+                        .sortedBy { it.number }
+                        .take(viewer.keptThenOn)
+                        .map { it.id }
+                for (id in starting) current = edited(current, LineupEdit.SwitchOff(id), at)
+                return plan(current, at) to starting
+            }
+
+            // The edit through the real edit code. A refusal is a note (a recipe key of the catalog only, never what
+            // the viewer typed) and changes nothing.
+            private fun edited(
+                lineup: Lineup,
+                edit: LineupEdit.ChannelEdit,
+                at: Moment,
+            ): Lineup =
+                when (val outcome = LineupEdits.apply(lineup, edit, at.now, at.boundary, StarterCatalog)) {
+                    is EditOutcome.Applied -> {
+                        outcome.lineup
+                    }
+
+                    is EditOutcome.Refused -> {
+                        val source = lineup.channels.firstOrNull { it.id == edit.id }?.source as? ChannelSource.Starter
+                        notes += "The recipe ${source?.recipeKey} could not be switched: ${outcome.refusal}."
+                        lineup
+                    }
+                }
         }
 
         // An unfinalised lineup has no starters. The audit still looks at every recipe, each on the shelf, to say where
@@ -112,41 +248,5 @@ internal class PlannedLineup(
                     viewerChoice = ViewerChoice.Touched,
                 )
             }
-
-        private fun switchedOn(
-            lineup: Lineup,
-            keys: List<String>,
-            now: Long,
-            notes: MutableList<String>,
-        ): Lineup {
-            val wanted = keys.toSet()
-            val known = HashSet<String>()
-            val channels =
-                lineup.channels.map { channel ->
-                    val key = (channel.source as? ChannelSource.Starter)?.recipeKey
-                    if (key == null || key !in wanted) return@map channel
-                    known += key
-                    if (channel.number == null) {
-                        notes += "The recipe $key has no number, so it cannot be switched on."
-                        channel
-                    } else {
-                        channel.copy(
-                            state = ChannelState.On,
-                            viewerChoice = ViewerChoice.Touched,
-                            onSinceMs = now,
-                            leavesAtMs = null,
-                            shelfReason = null,
-                        )
-                    }
-                }
-            for (key in keys) {
-                if (key !in
-                    known
-                ) {
-                    notes += "The viewer's switch-on names no starter of the catalog (${key.length} characters)."
-                }
-            }
-            return lineup.copy(channels = channels)
-        }
     }
 }

@@ -14,15 +14,24 @@ import tv.stationbreak.core.rules.Timing
 
 /**
  * A household whose library fills most of the catalog, so the planner's lineup is full (its 48 picks, and starters
- * left on the shelf behind them), with the viewer's own choices on top: five starters switched on from the shelf and a
- * custom channel. It is there for the seat rule (#785): before it those six cost the planner six of its picks.
+ * left on the shelf behind them), with the viewer's own choices on top: five starters switched on from the shelf, a
+ * custom channel, three picks hidden on the first day and switched on again after the boundary, and two starters kept
+ * (switched off before they aired) and switched on again then. It is there for the seat rule (#785) and for the
+ * viewer's added channels (ADR-0023): before them those channels cost the planner seats, and each hidden or kept
+ * starter that is back in the top took one of its picks.
  *
  * Every titled shelf is made to be a candidate of one recipe, from the catalog's own sources (no name is written here),
  * so the library fills what the catalog can use. The titles are invented, as in every profile.
  */
 internal object SeatHousehold {
     /** Five starters that fill but wait on the shelf behind the planner's 48 picks, which the viewer switched on. */
-    val SWITCHED_ON = listOf("noir-nights", "starport", "paradox", "masala-hour", "graveyard-shift")
+    val SWITCHED_ON = listOf("case-files", "starport", "paradox", "masala-hour", "graveyard-shift")
+
+    /** Three of the planner's picks, hidden on the first day and switched on again after the boundary. */
+    val HIDDEN_THEN_ON = listOf("punchline", "rabbit-ears", "shag-carpet")
+
+    /** How many of the picks that start at the boundary the viewer switches off before they air, and on again. */
+    const val KEPT_THEN_ON = 2
 
     fun build(): Profile {
         val b = LibraryBuilder(SEAT_LIBRARY)
@@ -31,8 +40,10 @@ internal object SeatHousehold {
         }
         val description =
             "A household whose library fills most of the catalog: a full lineup, five starters the viewer switched " +
-                "on from the shelf and a custom channel of their own"
-        val viewer = Viewer(SWITCHED_ON, listOf(CustomChannel("My comedies", customRules("Comedy"))))
+                "on from the shelf, three picks hidden and switched on again, two kept starters switched on and a " +
+                "custom channel of their own"
+        val custom = listOf(CustomChannel("My comedies", customRules("Comedy")))
+        val viewer = Viewer(SWITCHED_ON, custom, HIDDEN_THEN_ON, KEPT_THEN_ON)
         return Profile("seat-household", description, AuditInput(b.build(), viewer), emptyList())
     }
 
