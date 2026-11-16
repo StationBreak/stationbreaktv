@@ -29,10 +29,12 @@ fun Lineup.householdFor(dayStartMs: Long): Boolean {
 /**
  * The lineup with what is past at [nowMs] taken off, and [this] when nothing is: an untouched starter that was to
  * leave ([LineupChannel.leavesAtMs] at or before [nowMs]) goes to the shelf, previous rules whose boundary has passed
- * are dropped, and a basis whose boundary has passed is cleared. With that basis, a hidden channel marked
+ * are dropped, and a basis whose boundary has passed is cleared. A starter the viewer hid leaves its hidden state at
+ * its boundary (`leavesAtMs`, set by the switch-off): that clears the time, and a hidden channel marked
  * [ViewerChoice.Added] (the viewer switched a leaving starter off, which holds Added only to make the same-day
  * switch-on an undo) is lowered to [ViewerChoice.Touched]: after the boundary a switch-on is an addition again by the
- * edit rules, and the lineup file no longer needs the version that holds the mark. Pure and idempotent.
+ * edit rules, and the lineup file no longer needs the version that holds the mark. This does not depend on a curation
+ * basis. Pure and idempotent.
  *
  * Dropping a starter's previous rules changes its day key once (they sit inside its source, which feeds every day
  * key), so its days rebuild. That is accepted and deterministic: the rules for every day after the boundary are the
@@ -48,7 +50,7 @@ fun Lineup.rolled(nowMs: Long): Lineup {
     val basisPast = basis != null && basis.fromMs <= nowMs
     // Checked first, so a lineup with nothing past (nearly always) allocates nothing.
     if (!basisPast && channels.none { it.isPast(nowMs) }) return this
-    return copy(channels = channels.map { it.rolled(nowMs, basisPast) }, curationBasis = if (basisPast) null else basis)
+    return copy(channels = channels.map { it.rolled(nowMs) }, curationBasis = if (basisPast) null else basis)
 }
 
 private fun LineupChannel.isPast(nowMs: Long): Boolean {
@@ -57,20 +59,18 @@ private fun LineupChannel.isPast(nowMs: Long): Boolean {
         (source is ChannelSource.Starter && source.rulesFromMs.let { it != null && it <= nowMs })
 }
 
-// A hidden channel the viewer's switch-off of a leaving starter marked Added, once its boundary has passed.
-private fun LineupChannel.lowered(basisPast: Boolean): LineupChannel =
-    if (basisPast && state == ChannelState.UserHidden && viewerChoice == ViewerChoice.Added) {
+// A hidden channel's Added, once the boundary it was hidden at has passed (its leave time, which a switch-off of an
+// on-air starter sets): the viewer's mark goes down to Touched.
+private fun LineupChannel.lowered(): LineupChannel =
+    if (state == ChannelState.UserHidden && viewerChoice == ViewerChoice.Added) {
         copy(viewerChoice = ViewerChoice.Touched)
     } else {
         this
     }
 
-private fun LineupChannel.rolled(
-    nowMs: Long,
-    basisPast: Boolean,
-): LineupChannel {
-    val lowered = lowered(basisPast)
+private fun LineupChannel.rolled(nowMs: Long): LineupChannel {
     val leaves = leavesAtMs.let { it != null && it <= nowMs }
+    val lowered = if (leaves) lowered() else this
     val source = source
     val dropsPrevious = source is ChannelSource.Starter && source.rulesFromMs.let { it != null && it <= nowMs }
     if (!leaves && !dropsPrevious) return lowered

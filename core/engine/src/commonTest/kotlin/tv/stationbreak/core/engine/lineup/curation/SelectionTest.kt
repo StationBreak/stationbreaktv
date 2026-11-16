@@ -129,7 +129,8 @@ class SelectionTest {
                     ch.id to stats(6, 200L - ch.number, qualifies = !(call == 1 && ch.id == b.id))
                 }
             }
-        val picked = Selection.select(emptySnapshot, listOf(a, b, c), emptySet(), emptySet(), 2, script::factory)
+        val picked =
+            Selection.select(emptySnapshot, listOf(a, b, c), emptySet(), emptySet(), 2, homingOf = script::factory)
         assertEquals(setOf(a.id, c.id), picked.on)
         assertEquals(ShelfReason.TooThin, picked.shelf.getValue(b.id))
     }
@@ -143,7 +144,7 @@ class SelectionTest {
             Script { call, channels ->
                 channels.associate { ch -> ch.id to stats(6, 20, qualifies = !(call == 1 && ch.id == b.id)) }
             }
-        Selection.select(emptySnapshot, listOf(c, b, a), emptySet(), emptySet(), 2, script::factory)
+        Selection.select(emptySnapshot, listOf(c, b, a), emptySet(), emptySet(), 2, homingOf = script::factory)
         // Round one: all three, then the chosen a and b. Round two: all but b, and the chosen a and c are everything
         // left, so the same homes serve (no second call).
         val want = listOf(setOf(a.id, b.id, c.id), setOf(a.id, b.id), setOf(a.id, c.id))
@@ -160,7 +161,8 @@ class SelectionTest {
             Script { call, channels ->
                 channels.associate { ch -> ch.id to stats(6, 20, qualifies = !(call == 1 && ch.id == b.id)) }
             }
-        val picked = Selection.select(emptySnapshot, listOf(a, b, c), setOf(b.id), emptySet(), 1, script::factory)
+        val picked =
+            Selection.select(emptySnapshot, listOf(a, b, c), setOf(b.id), emptySet(), 1, homingOf = script::factory)
         assertEquals(setOf(a.id, b.id), picked.on)
         assertEquals(2, script.calls.size)
         assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
@@ -188,7 +190,8 @@ class SelectionTest {
                     ch.id to stats(6, hours, qualifies = !(call == 1 && ch.id == a.id))
                 }
             }
-        val picked = Selection.select(emptySnapshot, listOf(a, b, c, p), setOf(p.id), emptySet(), 2, script::factory)
+        val picked =
+            Selection.select(emptySnapshot, listOf(a, b, c, p), setOf(p.id), emptySet(), 2, homingOf = script::factory)
         assertEquals(setOf(b.id, p.id), picked.on)
         assertEquals(ShelfReason.TooThin, picked.shelf.getValue(a.id))
         assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
@@ -203,7 +206,7 @@ class SelectionTest {
             Script { call, chans ->
                 chans.associate { ch -> ch.id to stats(6, 50L - (ch.number - 100), qualifies = call % 2 == 0) }
             }
-        val picked = Selection.select(emptySnapshot, channels, emptySet(), emptySet(), 1, script::factory)
+        val picked = Selection.select(emptySnapshot, channels, emptySet(), emptySet(), 1, homingOf = script::factory)
         // Two homings a round, six rounds; the set of the last round stands.
         assertEquals(2 * CurationDefaults.ROUNDS, script.calls.size)
         assertEquals(setOf(channels[CurationDefaults.ROUNDS - 1].id), picked.on)

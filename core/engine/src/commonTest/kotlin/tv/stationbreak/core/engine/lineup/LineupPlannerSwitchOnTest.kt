@@ -13,6 +13,7 @@ import kotlin.test.assertTrue
 private const val STARTERS = 56
 private const val THREE = 3
 private const val SIX = 6
+private const val MIXES = 12
 
 /**
  * A starter the viewer switches on adds a channel and takes no planner seat (ADR-0023, "the viewer's channels take no
@@ -64,7 +65,7 @@ class LineupPlannerSwitchOnTest {
     private fun Lineup.starters(at: Long): List<LineupChannel> =
         rolled(at).channels.filter { it.state == ChannelState.On && it.source is ChannelSource.Starter }
 
-    private fun Lineup.anyLeaving(): Boolean = channels.any { it.leavesAtMs != null }
+    private fun Lineup.anyLeaving(): Boolean = channels.any { it.state == ChannelState.On && it.leavesAtMs != null }
 
     // Day one: hide r00, r01 and r02 and let the boundary pass, so r48..r50 start in their places. Returns the
     // lineup on day two (after the boundary), where a switch-on is no longer an undo.
@@ -323,5 +324,137 @@ class LineupPlannerSwitchOnTest {
         assertEquals(ChannelState.UserHidden, next.channel("r50").state)
         assertEquals(ViewerChoice.Added, next.channel("r50").viewerChoice)
         assertFalse(next.anyLeaving())
+    }
+
+    // ---- The undo does not depend on the curation basis, which only a curated starter has ----
+
+    private val plainRules =
+        tv.stationbreak.core.engine
+            .rules(
+                listOf(
+                    tv.stationbreak.core.rules.Source
+                        .Genre("plain"),
+                ),
+            )
+
+    // Starters whose rules are not in the curated order: no basis is ever recorded for them.
+    private fun plainStarter(
+        key: String,
+        number: Int,
+        state: ChannelState = ChannelState.On,
+        leavesAtMs: Long? = null,
+        onSinceMs: Long = 5L,
+    ) = LineupChannel(
+        LineupIds.starter(key),
+        number,
+        null,
+        null,
+        state,
+        ChannelSource.Starter(key, false, plainRules),
+        onSinceMs,
+        ViewerChoice.None,
+        leavesAtMs,
+        if (state == ChannelState.Shelf) ShelfReason.BelowCap else null,
+    )
+
+    private val plainCatalog = TestCatalog(listOf(recipeOf("a", 110), recipeOf("b", 120), recipeOf("c", 130)))
+
+    private fun plainLineup(vararg channels: LineupChannel) = Lineup(SERVER, USER, 1, 0, true, channels.toList())
+
+    private fun plainEdit(
+        lineup: Lineup,
+        edit: LineupEdit,
+    ): Lineup = assertIs<EditOutcome.Applied>(LineupEdits.apply(lineup, edit, noon, boundary, plainCatalog)).lineup
+
+    // FAILS BEFORE THE FIX: with no basis the same-day switch-on read as an addition.
+    @Test
+    fun aNonCuratedPickSwitchedOffAndBackOnTheSameDayIsNotAnAddition() {
+        val lineup = plainLineup(plainStarter("a", 110), plainStarter("b", 120), plainStarter("c", 130))
+
+        val off = plainEdit(lineup, off("a"))
+        assertNull(off.curationBasis, "no basis is recorded for a starter that is not curated")
+        val on = plainEdit(off, on("a"))
+
+        assertEquals(ViewerChoice.Touched, on.channel("a").viewerChoice)
+    }
+
+    // FAILS BEFORE THE FIX: the lowering waited for a basis whose boundary had passed.
+    @Test
+    fun aHiddenAddedChannelIsLoweredAtTheBoundaryWithNoBasisRecorded() {
+        val leaving = plainLineup(plainStarter("a", 110, leavesAtMs = boundary), plainStarter("b", 120))
+
+        val hidden = plainEdit(leaving, off("a"))
+
+        assertNull(hidden.curationBasis)
+        assertEquals(ViewerChoice.Added, hidden.channel("a").viewerChoice)
+        assertEquals(ViewerChoice.Added, hidden.rolled(boundary - 1).channel("a").viewerChoice)
+        val after = hidden.rolled(boundary).channel("a")
+        assertEquals(ViewerChoice.Touched, after.viewerChoice)
+        assertEquals(ChannelState.UserHidden, after.state)
+        assertNull(after.leavesAtMs)
+        // After the boundary a switch-on is an addition again.
+        assertEquals(ViewerChoice.Added, plainEdit(hidden.rolled(boundary), on("a")).channel("a").viewerChoice)
+    }
+
+    // Undoing the switch-off of a leaving pick equals keeping it: it stays an addition.
+    @Test
+    fun undoingTheSwitchOffOfALeavingPickEqualsKeepingIt() {
+        val leaving = plainLineup(plainStarter("a", 110, leavesAtMs = boundary), plainStarter("b", 120))
+
+        val undone = plainEdit(plainEdit(leaving, off("a")), on("a"))
+
+        assertEquals(ViewerChoice.Added, undone.channel("a").viewerChoice)
+        assertNull(undone.channel("a").leavesAtMs)
+    }
+
+    // A planner unpick written by an older build (a Shelf starter whose time is still ahead, unmarked), then
+    // renumbered (so marked Touched), then switched on before the boundary: read as the undo of a switch-off, so
+    // Touched, until the boundary. After it, the same switch-on is an addition.
+    @Test
+    fun anOlderBuildsUnpickThenRenumberedAndSwitchedOnBeforeTheBoundaryReadsAsTouched() {
+        val unpicked = plainStarter("a", 110, ChannelState.Shelf, onSinceMs = boundary)
+        val start = plainLineup(unpicked, plainStarter("b", 120))
+        val renumbered = plainEdit(start, LineupEdit.SetNumber(LineupIds.starter("a"), 115))
+        assertEquals(ViewerChoice.Touched, renumbered.channel("a").viewerChoice)
+
+        val before = plainEdit(renumbered, on("a"))
+        assertEquals(ViewerChoice.Touched, before.channel("a").viewerChoice)
+
+        val later =
+            LineupEdits.apply(renumbered, on("a"), boundary + 1, boundary + DAY_MS, plainCatalog)
+        assertEquals(ViewerChoice.Added, assertIs<EditOutcome.Applied>(later).lineup.channel("a").viewerChoice)
+    }
+
+    // The edits raise a mark with `maxOf`: the declaration order is the rank.
+    @Test
+    fun theMarksAreRankedByDeclarationOrder() {
+        assertEquals(listOf(ViewerChoice.None, ViewerChoice.Touched, ViewerChoice.Added), ViewerChoice.entries)
+        assertTrue(ViewerChoice.None < ViewerChoice.Touched && ViewerChoice.Touched < ViewerChoice.Added)
+    }
+
+    // Over many mixes of switched-on shelf starters whose scores may rise above the picks', the planner's own
+    // (unmarked,
+    // not leaving) picks stay at the room: no addition ever takes a seat.
+    @Test
+    fun noMixOfAdditionsEverReducesThePlannersOwnPicks() {
+        val waiting = keys.drop(room)
+        for (seed in 0 until MIXES) {
+            val random = kotlin.random.Random(seed)
+            val chosen = waiting.filter { random.nextBoolean() }
+            val raised = chosen.filter { random.nextBoolean() }.associateWith { QUALIFYING_ITEMS * 3 }
+            var lineup = first()
+            for (key in chosen) lineup = edit(lineup, on(key))
+
+            val next = plan(lineup, noon, boundary, library(raised))
+
+            val on = next.channels.filter { it.state == ChannelState.On && it.leavesAtMs == null }
+            val own = on.count { it.isUnmarkedStarter() }
+            assertEquals(room, own, "seed $seed: ${chosen.size} added, ${raised.size} raised")
+        }
+    }
+
+    private fun LineupChannel.isUnmarkedStarter(): Boolean {
+        val starter = source is ChannelSource.Starter
+        return starter && viewerChoice == ViewerChoice.None
     }
 }

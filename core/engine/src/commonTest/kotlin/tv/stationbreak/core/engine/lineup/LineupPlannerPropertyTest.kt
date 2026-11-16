@@ -136,6 +136,9 @@ class LineupPlannerPropertyTest {
                 source?.edited == false && pinned && it.id !in optIn
             }
         assertTrue(free + touched >= LineupDefaults.PLANNER_PICKS, "a free starter missed a room of $free+$touched")
+        // With no touched pin, nothing but the planner's own picks can fill the room, so it is full exactly: no added
+        // starter (never ranked) has taken a seat, however many there are.
+        if (touched == 0) assertEquals(LineupDefaults.PLANNER_PICKS, free, "an addition took a seat")
     }
 
     // An on channel keeps its time; the planner's unpick stamps the plan's time, so it is never mistaken for the

@@ -1480,6 +1480,7 @@ class LineupService internal constructor(
 
             StoredBytes.Failed -> {
                 report(LineupEvent.ReadFailedLeftAlone)
+                leftAlone(entry)
                 false
             }
 
@@ -1487,7 +1488,13 @@ class LineupService internal constructor(
                 when (val decoded = LineupCodec.decode(stored.bytes)) {
                     is LineupCodec.Decoded.Loaded -> {
                         val ours = owner.owns(decoded.lineup)
-                        if (ours) entry.disk = Disk.Version(decoded.fileVersion)
+                        if (ours) {
+                            entry.disk = Disk.Version(decoded.fileVersion)
+                        } else {
+                            // Another account's lineup stands there: not written over, and said so, as `startOf` does.
+                            report(LineupEvent.UnreadableLeftAlone)
+                            leftAlone(entry)
+                        }
                         ours
                     }
 

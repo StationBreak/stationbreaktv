@@ -40,21 +40,10 @@ internal object Selection {
      * outside it (or unscored) costs none. [optIn] channels are on only when pinned, and are left out of the rounds
      * otherwise, so they take no titles; a pinned one takes part in the homing but never in the ranking, so it always
      * costs no place. [room] is how many places the top has, the planner's picks (`LineupDefaults.PLANNER_PICKS`).
-     */
-    fun select(
-        snapshot: RuleSnapshot,
-        candidates: List<CurationChannel>,
-        pinned: Set<ChannelId>,
-        optIn: Set<ChannelId>,
-        room: Int,
-    ): Selected = select(snapshot, candidates, pinned, optIn, room, emptySet())
-
-    /**
-     * As the five-argument form, and [unranked] are pinned channels that are never ranked, so they use no place
-     * wherever their score falls: the starters the viewer switched on that the planner had not picked ("added"). They
-     * take part in the homing like any pinned channel. Unlike [optIn] they do not leave the rounds when unpinned and do
-     * not give the OptIn shelf reason: passing a pinned opt-in channel's ID here or in [optIn] gives the same
-     * selection.
+     * [unranked] are pinned channels that are never ranked, so they use no place wherever their score falls: the
+     * starters the viewer switched on that the planner had not picked ("added"). They take part in the homing like any
+     * pinned channel; unlike [optIn] they do not leave the rounds when unpinned and give no OptIn shelf reason, so a
+     * pinned opt-in channel's ID in either set gives the same selection.
      */
     @Suppress("LongParameterList") // The five and the unranked set.
     fun select(
@@ -63,20 +52,10 @@ internal object Selection {
         pinned: Set<ChannelId>,
         optIn: Set<ChannelId>,
         room: Int,
-        unranked: Set<ChannelId>,
+        unranked: Set<ChannelId> = emptySet(),
     ): Selected = select(snapshot, candidates, pinned, optIn, room, unranked, Curation::homing)
 
     // The homing is a parameter for a test to replace.
-    @Suppress("LongParameterList") // The public five plus the homing, which a test replaces.
-    internal fun select(
-        snapshot: RuleSnapshot,
-        candidates: List<CurationChannel>,
-        pinned: Set<ChannelId>,
-        optIn: Set<ChannelId>,
-        room: Int,
-        homingOf: (RuleSnapshot, List<CurationChannel>) -> Homing,
-    ): Selected = select(snapshot, candidates, pinned, optIn, room, emptySet(), homingOf)
-
     @Suppress("LongParameterList") // The public six plus the homing, which a test replaces.
     internal fun select(
         snapshot: RuleSnapshot,
@@ -84,7 +63,7 @@ internal object Selection {
         pinned: Set<ChannelId>,
         optIn: Set<ChannelId>,
         room: Int,
-        unranked: Set<ChannelId>,
+        unranked: Set<ChannelId> = emptySet(),
         homingOf: (RuleSnapshot, List<CurationChannel>) -> Homing,
     ): Selected {
         val places = room.coerceAtLeast(0)

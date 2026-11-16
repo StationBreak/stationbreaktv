@@ -24,7 +24,11 @@ import tv.stationbreak.core.rules.Timing
  * so the library fills what the catalog can use. The titles are invented, as in every profile.
  */
 internal object SeatHousehold {
-    /** Five starters that fill but wait on the shelf behind the planner's 48 picks, which the viewer switched on. */
+    /**
+     * Five starters that fill but wait on the shelf behind the planner's 48 picks, which the viewer switched on. Not
+     * noir-nights: once three picks are hidden its place is a planner pick's (it is among the next in line), so
+     * switching it on is no addition. case-files stays on the shelf through the whole timeline.
+     */
     val SWITCHED_ON = listOf("case-files", "starport", "paradox", "masala-hour", "graveyard-shift")
 
     /** Three of the planner's picks, hidden on the first day and switched on again after the boundary. */

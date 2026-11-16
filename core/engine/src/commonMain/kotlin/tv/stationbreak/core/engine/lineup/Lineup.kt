@@ -149,7 +149,10 @@ data class LineupChannel(
 /**
  * What the viewer has done to a channel, as far as the planner is concerned. A mark only goes up (None, Touched,
  * Added) through the viewer's edits; it drops on a reset, when the recipe leaves the catalog, and for a hidden
- * channel once the boundary has passed (`Lineup.rolled`, which lowers Added to Touched there).
+ * channel once the boundary it was hidden at has passed (`Lineup.rolled`, which lowers Added to Touched there).
+ *
+ * The declaration order is the rank: the edits raise a mark with `maxOf`, which compares by it, so None < Touched <
+ * Added must hold (a test pins it).
  */
 enum class ViewerChoice {
     /** The viewer has not touched the channel. */
@@ -171,8 +174,9 @@ enum class ViewerChoice {
 }
 
 /**
- * Whether a channel with this source can carry [ViewerChoice.Added]: an unedited starter. Public so the codec, which
- * adds the stored-but-unreadable starter, can share the one definition.
+ * Whether a channel with this source can carry [ViewerChoice.Added]: an unedited starter. Public so the codec can
+ * share it: the codec's own `storedCanHoldAddedMark` is a superset of this (it adds a stored starter this app cannot
+ * read, whose JSON says it is not edited), so the file never costs such a channel its mark.
  */
 fun ChannelSource.canHoldAddedMark(): Boolean = this is ChannelSource.Starter && !edited
 

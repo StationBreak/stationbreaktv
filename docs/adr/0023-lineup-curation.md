@@ -435,24 +435,29 @@ kept starter (shelf) or as hidden, and keeps the mark. The edit rules, first mat
 an unedited starter:
 
 1. an opt-in starter: `Touched` (it is already unranked);
-2. an **undo**: the starter is in the pending basis's on-set and is not on now, or it is a Shelf starter whose start is
-   still ahead and has a mark. It comes back with `max(its mark, Touched)`, never `None`, so an accidental off and on never
-   grows the lineup;
+2. an **undo**: the viewer's own switch-off is taken back before the boundary. Either the starter was on the air today
+   and its switch-off recorded that (it is hidden with a leave time at the coming boundary, still ahead; this does not
+   depend on the curation basis, which only a curated starter has), or it is a Shelf starter whose start is still ahead
+   and has a mark. It comes back with `max(its mark, Touched)`, never `None`, so an accidental off and on of a pick of
+   the planner's does not grow the lineup. For a **leaving** pick the switch-off gave `Added`, so undoing it equals
+   keeping it: it stays on as an addition (a permanent one, until a reset). An older build's planner unpick (a Shelf
+   starter whose time is still ahead), then renumbered and switched on before the boundary, reads as an undo and so as
+   `Touched` until the boundary;
 3. a planner pick already chosen for the boundary and shown as starting: `Touched`;
 4. anything else, a shelf, hidden, kept or numberless starter or a leaving pick the viewer keeps: `Added`.
 
 A mark only goes up through the viewer's edits (a renumber, a swap, a swap holder and a clear are `max(mark, Touched)`).
 Switching off a pick that is leaving gives it `Added` while it is hidden, so the switch-on of the same day (an undo)
-restores `Added`; once the boundary has passed, `Lineup.rolled` lowers a hidden `Added` to `Touched`, and a switch-on
-after the boundary is an addition again by rule 4. Any other switch-off of an on-air or starting starter raises `None`
+restores `Added`; at the boundary `Lineup.rolled` clears the leave time the switch-off set and lowers a hidden `Added` to
+`Touched` (with no curation basis needed), and a switch-on after the boundary is an addition again by rule 4. Any other switch-off of an on-air or starting starter raises `None`
 to `Touched`, as before. Marks never clear except on a reset (the starters are rebuilt, so only custom channels are kept),
 when the recipe leaves the catalog (the channel becomes custom, which cannot hold the mark) and for that one-day lowering
 of a hidden channel. There is no hand-back yet.
 
 **No migration inference.** The marks of a file from before version 3 are still inferred as `Touched`, never `Added`
 (owner decision). An old file's switch-on that later drifts into the top takes a seat as it did, and so does one made
-before the update. The viewer can switch it off and on again on a later day, which makes it an addition (within the
-pending basis it is an undo and changes nothing). If a later decision wants the inference to give `Added`, this ADR must
+before the update. The viewer can switch it off and on again on a later day, which makes it an addition (on the same day
+it is an undo and changes nothing). If a later decision wants the inference to give `Added`, this ADR must
 then state the growth it causes and the version-5 trigger, and a test must pin the size.
 
 **Free and Pro (#793).** Not unaffected. What an added channel does when Pro lapses, or on free (for example: `Added`
@@ -468,8 +473,22 @@ or 4. The consequences, plainly:
 - The file leaves version 5 only when no channel holds the mark: after a reset (which drops every mark; the next save
   writes version 3 or 4), when the recipes leave the catalog, and after the boundary for a hidden channel.
 - Before the first save of a higher version the file it replaces is kept under `<name>.v<from>-to<to>.bak` (`v3-to5`,
-  `v4-to5`; the old `v1`, `v2` and `v3` tags are unchanged). The first copy written under a tag stays, so a copy can be
-  stale after a second upgrade.
+  `v4-to5`; the old `v1`, `v2` and `v3` tags are unchanged). The first copy written under a tag stays (first write
+  wins), so a `-to` copy kept at a first 3 to 5 save can be months old after a reset back to 3 and a later 3 to 5 save.
+  An older build's `forget` removes only the tags it knows, so it leaves the `v3-to5` and `v4-to5` files behind.
+- **The copy moved to save time, and saves read the file when they must.** The copy of an older file is now made at the
+  one place every save goes through (`LineupService.saveVerified`), from the version the service knows is on disk, and
+  not at start. So the `v1` and `v2` copies of a version 1 or 2 file are made at the first save of version 3, not when the
+  file is read. Where that version is not known (nothing was read, or a save failed or was cut off, so the file may be
+  either), the save reads the file again first and refuses to write when the file is unreadable, from a newer app,
+  another account's, or cannot be read: it reports the event and leaves the lineup unwritable for the session, as a
+  start does. That is a behaviour change from saving blind.
+- **The rollback cost is accepted (owner decision, 2026-11-16).** Version 5 is written on an ordinary switch-on and
+  stays until a reset. A rollback to a build before this change leaves those households with an older app that cannot
+  save: reset on the new build first, then downgrade; after a downgrade the only exit is `forget`. The owner weighed this
+  and accepted it, and chose not to ship a release that reads version 5 first. The context is that every release today is
+  local to the owner, for development and testing, with no public users, so the cost is accepted now. Revisit it before
+  any public release.
 - **Recovery, in this order.** On a downgraded build a version 5 file reads as newer, and a reset there changes nothing.
   So the supported way back is to **reset on the new build** (every mark drops, the next save writes version 3 or 4) and
   then downgrade. After a downgrade the only exit is `forget`, which deletes the lineup, custom channels included, and
