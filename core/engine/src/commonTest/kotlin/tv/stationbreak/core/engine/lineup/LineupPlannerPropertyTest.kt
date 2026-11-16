@@ -212,13 +212,17 @@ class LineupPlannerPropertyTest {
             if (starter.edited) continue
             val edit =
                 when {
-                    channel.state == ChannelState.Shelf && gen.chance(PIN_PERCENT) ->
+                    channel.state == ChannelState.Shelf && gen.chance(PIN_PERCENT) -> {
                         LineupEdit.SwitchOn(channel.id, confirmedOptIn = gen.chance(PERCENT / 2))
+                    }
 
-                    channel.state == ChannelState.On && gen.chance(PIN_PERCENT) ->
+                    channel.state == ChannelState.On && gen.chance(PIN_PERCENT) -> {
                         LineupEdit.SetNumber(channel.id, (700..899).first { it !in taken }.also { taken += it })
+                    }
 
-                    else -> null
+                    else -> {
+                        null
+                    }
                 }
             val outcome = edit?.let { LineupEdits.apply(edited, it, now, boundary, catalog) }
             if (outcome is EditOutcome.Applied) {

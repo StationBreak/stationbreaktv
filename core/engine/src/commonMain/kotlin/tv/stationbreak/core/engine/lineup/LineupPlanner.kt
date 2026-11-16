@@ -386,7 +386,8 @@ object LineupPlanner {
                         val rules = p.reResolved(recipe, source)
                         // Only a keeper (see [previousKeepers]) keeps today's rules until the boundary; any other takes
                         // them at once and the file holds no second copy of it. A protected starter that is not a
-                        // keeper exists only with more than the cap protected (see the known effects).
+                        // keeper exists only with more than KEEPER_COPIES (60) protected, which a day of heavy churn
+                        // can still reach (see the known effects).
                         val next =
                             if (keeper) {
                                 source.withNewRules(rules, p.nowMs, p.boundaryMs)
@@ -400,6 +401,10 @@ object LineupPlanner {
 
             is ChannelSource.Leftovers -> {
                 // The catalog's ceiling wins on every call; the stored one counts only once the key has left it.
+                // The state is never touched here, and the selection leaves a leftovers channel alone: one the old
+                // rule stored on the shelf (`added` at the cap, with a number) is not moved back on. That needs a
+                // leftovers recipe added by a newer catalog on a lineup already at the old cap; no such recipe is known
+                // to have shipped, so it is not known to be reachable, and the viewer can switch it on.
                 val recipe = p.catalog.leftovers.firstOrNull { it.key == source.recipeKey }
                 if (recipe != null) channel.copy(source = source.copy(maxRating = recipe.maxRating)) else channel
             }
@@ -612,8 +617,9 @@ private fun LineupChannel.starter(): ChannelSource.Starter = source as ChannelSo
 // The starters today's curation reads (D1): every member of a pending basis's on-set, and today's curated on-set
 // ([curatedOn]: the unedited starters on the air today, started, leaving or not, whose rules for today are programmed),
 // the one the day build reads. The ones that hold previous rules are keepers first, so they never drop them before the
-// boundary; a protected starter that is not a keeper (more than the cap protected) takes new rules at once (a known
-// effect).
+// boundary; a protected starter that is not a keeper (more than [LineupDefaults.KEEPER_COPIES] protected, which a day
+// of heavy churn can still reach: the on-air ones, those of a pending basis and those that left today) takes new rules
+// at once (a known effect).
 private fun protectedStarters(
     lineup: Lineup,
     p: Planning,
