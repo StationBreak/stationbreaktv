@@ -11,6 +11,11 @@ plan makes, or an earlier plan left waiting for tomorrow, applying from the star
 (in memory and on disk) so today's schedule is built again for every channel. The viewer's own edits, custom channels
 and switch-ons are kept: it is not a Reset. The channel playing picks up the new schedule.
 
+One consequence to know when reading results: a change the viewer made today (a switch-on, a switch-off, "Use my
+collections") leaves a pending note for tomorrow's boundary, and the rebuild drops that note, so the viewer's choices
+also take effect for today's schedule, as they would after the real boundary. The edits themselves stay as they were
+(a hidden channel stays hidden and still leaves at tomorrow's boundary).
+
 The app must be installed and signed in, and **in the foreground**: start it first and leave it on screen until the
 command is done (a force-stopped app does not get broadcasts, and the work is built to run with the app open).
 

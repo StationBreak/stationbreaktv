@@ -153,14 +153,20 @@ internal fun Lineup.withBasisFor(
 }
 
 /**
- * The lineup with the changes the planner has waiting for the next boundary ([boundaryMs]) brought forward to
- * [dayStartMs], the start of today, so that planning and rolling as of that moment applies them now (the debug rebuild,
- * #812). Only what the planner set: an unedited starter's new rules at the boundary (`rulesFromMs`, which then drop
- * their previous rules when rolled), a starter on the air that the planner leaves out (on, with a shelf reason, leaving
- * at the boundary), a channel the planner switched on at the boundary (no viewer mark, on since the boundary), and a
- * curation basis for the boundary (dropped, so the plan makes the new one for today). What the viewer did is left as it
- * is: a switch-off (hidden, with its own leaving time), a switch-on, any channel with a viewer mark. [this] when
- * nothing is pending for [boundaryMs]. Pure.
+ * For the debug rebuild command only (#812); nothing else may call it: it applies today what the normal rules hold
+ * back until the next boundary.
+ *
+ * The lineup with the changes waiting for the next boundary ([boundaryMs]) brought forward to [dayStartMs], the start
+ * of today, so that planning and rolling as of that moment applies them now, as if today's boundary had just run:
+ * - an unedited starter's new rules at the boundary (`rulesFromMs`, which then drop their previous rules when rolled);
+ * - a starter on the air that the planner leaves out (on, with a shelf reason, leaving at the boundary);
+ * - a channel the planner switched on at the boundary (no viewer mark, on since the boundary);
+ * - the curation basis for the boundary, dropped so the plan makes the new one for today. A basis is not told apart
+ *   by who made it: one a viewer's switch-on, switch-off or "Use my collections" made today goes too, so those pending
+ *   choices of the viewer also take effect today. The edits themselves are stored as they were (a switch-off stays
+ *   hidden with its own leaving time, a viewer mark stays); only the day they start from moves.
+ *
+ * [this] when nothing is pending for [boundaryMs]. Pure.
  */
 fun Lineup.withPendingBroughtForward(
     boundaryMs: Long,

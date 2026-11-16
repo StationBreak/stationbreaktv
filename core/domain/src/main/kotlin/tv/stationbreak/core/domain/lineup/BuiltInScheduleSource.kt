@@ -194,7 +194,8 @@ class BuiltInScheduleSource(
     /**
      * Drops what this source holds of [account]'s days (kept, in flight, looked for on disk): the service calls it when
      * it forgets or resets the account's lineup, beside the days on disk. A build already running finishes for its
-     * callers but keeps nothing.
+     * callers but keeps nothing. The epoch and the saves are global, not per account: another account's build under
+     * way also keeps nothing, which costs it one cold build (accepted).
      */
     internal fun forget(account: LibraryAccount) {
         val mine = { other: LibraryAccount -> canonicalAccount(other) == canonicalAccount(account) }
@@ -206,7 +207,8 @@ class BuiltInScheduleSource(
             diskLooked.removeAll { mine(it.first) }
             // Writes of days built before this are not wanted: stop those not yet written (one that has passed its
             // epoch check may still land; the days key on disk then no longer matches a rebuilt lineup's inputs).
-            saves.forEach { it.cancel() }
+            // A copy: a lazy job that completes inside the loop removes itself from [saves].
+            saves.toList().forEach { it.cancel() }
         }
     }
 

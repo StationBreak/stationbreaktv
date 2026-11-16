@@ -323,6 +323,9 @@ class LineupService internal constructor(
             val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs, savedSeq)
             if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key) }
             publish(entry, planned, meta, repairs)
+            // Again after the publish: a build that began between the first drop and the publish read the old lineup
+            // and must keep nothing of it either (the epoch it holds is the one before this).
+            if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key) }
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
         }

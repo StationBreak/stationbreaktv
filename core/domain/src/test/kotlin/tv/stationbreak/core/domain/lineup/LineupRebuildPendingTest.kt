@@ -9,12 +9,14 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -168,4 +170,44 @@ class LineupRebuildPendingTest {
         assertNotNull(after.leavesAtMs)
         assertEquals(boundaryMs, after.leavesAtMs, "it still leaves at tomorrow's boundary, as the viewer left it")
     }
+
+    // A viewer's own changes of today (a switch-on, a switch-off) leave a basis behind that waits for the boundary.
+    private fun viewerEdited(): Lineup =
+        runBlocking {
+            library.delegate.useAccount(ACCOUNT)
+            val base = CuratedLibrary.lineup().copy(catalogVersion = 3)
+            val frights = starter("frights", 310, ChannelState.Shelf, rules("Frights", Source.Genre("Horror")))
+            store.inner.save(ACCOUNT, LineupCodec.encode(base.copy(channels = base.channels + frights)))
+            assertTrue(service.edit(ACCOUNT, LineupEdit.SwitchOn(frights.id), LIBRARIES) is Saved.Ok<*>)
+            assertTrue(service.edit(ACCOUNT, LineupEdit.SwitchOff(CuratedLibrary.westernsId), LIBRARIES) is Saved.Ok<*>)
+            service.loaded(ACCOUNT)!!.lineup
+        }
+
+    @Test
+    fun aBasisTheViewersEditsMadeIsDroppedSoTheirCurationAppliesTodayAndTheEditsStay() {
+        val edited = viewerEdited()
+        assertEquals(boundaryMs, edited.curationBasis?.fromMs, "the viewer's changes left a basis for tomorrow")
+        runBlocking { service.refresh(ACCOUNT, LIBRARIES) }
+        val held = poolSizes()
+
+        val after = rebuilt()
+
+        // The edits are stored as they were.
+        val frights = after.starter("frights")
+        assertEquals(ChannelState.On, frights.state)
+        assertEquals(ViewerChoice.Added, frights.viewerChoice)
+        val westerns = after.starter("westerns")
+        assertEquals(ChannelState.UserHidden, westerns.state)
+        assertEquals(ViewerChoice.Touched, westerns.viewerChoice)
+        assertEquals(boundaryMs, westerns.leavesAtMs)
+        // The basis that kept today on the old on-set is gone, so today is curated with the viewer's on-set.
+        assertNull(after.curationBasis)
+        assertNotEquals(held, poolSizes(), "today's curated pools follow the edits, not the on-set before them")
+    }
+
+    private fun poolSizes(): Map<String, Int> =
+        runBlocking {
+            val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
+            source.channelDays(ACCOUNT, LIBRARIES, now).associate { it.channel.id.value to it.pool.size }
+        }
 }

@@ -38,14 +38,14 @@ class LineupRebuildRaceTest {
 
     // The days on disk are dropped inside the rebuild, before it publishes the new revision: the old build, still the
     // current revision to itself, is let go there and given time to save. What it wrote by the time the drop returns.
-    @Volatile private var writesBySecondDropEnds = -1
+    @Volatile private var writesWhenTheDropReturned = -1
     private val derived =
         object : DayStore by disk {
             override suspend fun forget(account: LibraryAccount) {
                 disk.forget(account)
                 rebuilt.countDown()
                 delay(SETTLE_MS)
-                writesBySecondDropEnds = disk.writes
+                writesWhenTheDropReturned = disk.writes
             }
         }
     private val service = LineupService(lineups, library, clock, { 0 }, {}, LineupSeams(TestCatalog, derived = derived))
@@ -87,7 +87,9 @@ class LineupRebuildRaceTest {
             caller.await()
             source.awaitSaves()
 
-            assertEquals(0, writesBySecondDropEnds, "the build the rebuild overtook wrote its days after the drop")
+            assertEquals(0, writesWhenTheDropReturned, "the build the rebuild overtook wrote its days after the drop")
+            assertEquals(0, disk.writes, "and none after it either, once the saves have run")
+            assertTrue(disk.files.isEmpty())
         }
 
     private companion object {
