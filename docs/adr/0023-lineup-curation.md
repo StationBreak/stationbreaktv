@@ -418,6 +418,13 @@ kung-fu-theater.
 genre sources): 1,716 KB at 50 channels, 1,749 KB at 60, 1,799 KB at 75 and 1,881 KB at 100, against
 `FileDayStore.MAX_BYTES` of 16 MiB. A curated 50-channel day is 2,402 KB; the curated file was not scaled to 100.
 
-No Insignia timings are recorded here yet. Still to measure: build, restore and guide-open at 50, 60, 75 and every starter
-on (95 plus the leftovers plus a few custom channels), against the 10% bar, and the threshold for the "More channels make the
-guide slower to get ready" warning, derived from those. Nothing is shelved to make the guide faster.
+**Insignia timings** (AFTJMST12, API 25, 2026-11-15; a library-module test over a generated library of 33,000 items in the
+real Room repository and `FileDayStore`; median of 3, against main at 50 channels on). The day build: +0.3% at 50 on the
+branch, +3.2% at 60, +10.7% at 75 and +26.8% with every starter on (97). The day restore passes at every count (+5.1% at
+97). The slope is about +0.3% per extra channel, so the build crosses the 10% bar at about 73 channels on (interpolated, not
+measured). Not measured: guide open and sync-to-lineup-ready (they need the app, which is bound to a real server), heap, and
+custom channels. On the generated library the planner switched on only 15 channels, so each count was reached by switching
+starters on in lineup order.
+
+**The warning is permanent.** The owner chose a heads-up that is always on the Channels panel, with no threshold: "The more
+channels you turn on, the longer the guide takes to get ready." Nothing is shelved to make the guide faster.
