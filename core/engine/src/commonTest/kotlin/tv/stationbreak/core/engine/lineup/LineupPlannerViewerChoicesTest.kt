@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.model.OrderingMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -53,7 +54,7 @@ class LineupPlannerViewerChoicesTest {
     }
 
     @Test
-    fun channelsTheViewerSwitchedOnAboveTheCapStayOn() {
+    fun withARankedCatalogChannelsTheViewerSwitchedOnAboveTheCapStayOn() {
         val keys = List(LineupDefaults.CAP + 10) { "r" + it.toString().padStart(2, '0') }
         val catalog = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
         var lineup = firstLineup(catalog)
@@ -80,6 +81,37 @@ class LineupPlannerViewerChoicesTest {
             val nova = next.channels.firstOrNull { it.id == LineupIds.starter("nova") }
             assertTrue(nova == null || nova.state == ChannelState.Shelf)
         }
+    }
+
+    // The seat rule (#785), a catalog that selects by identity: the three the viewer switched on sit outside the
+    // planner's top 48, so they cost it no seat; every pick stays, the three stay, and no other shelf channel comes on.
+    @Test
+    fun withASelectingCatalogChannelsTheViewerSwitchedOnStayOnAndShelveNoPick() {
+        val keys = List(LineupDefaults.CAP + 10) { "r" + it.toString().padStart(2, '0') }
+        val themed = Theme(emptyList(), emptyList(), null, false)
+        val recipes =
+            keys.mapIndexed { i, k -> recipeOf(k, 200 + i).copy(ordering = OrderingMode.Curated, theme = themed) }
+        val catalog = TestCatalog(recipes, selectsByIdentity = true)
+        var lineup = firstLineup(catalog)
+        val picks = lineup.channels.filter { it.state == ChannelState.On && it.source is ChannelSource.Starter }
+        assertEquals(LineupDefaults.PLANNER_PICKS, picks.size)
+        val shelf = lineup.channels.filter { it.state == ChannelState.Shelf }
+        shelf.take(3).forEach { lineup = edit(lineup, LineupEdit.SwitchOn(it.id), catalog) }
+        val on =
+            lineup.channels
+                .filter { it.state == ChannelState.On }
+                .map { it.id }
+                .toSet()
+        assertEquals(LineupDefaults.CAP + 3, on.size)
+
+        val next = replan(lineup, catalog)
+
+        val nextOn =
+            next.channels
+                .filter { it.state == ChannelState.On && it.leavesAtMs == null }
+                .map { it.id }
+                .toSet()
+        assertEquals(on, nextOn, "every switched-on channel stays, and no pick is shelved")
     }
 
     @Test

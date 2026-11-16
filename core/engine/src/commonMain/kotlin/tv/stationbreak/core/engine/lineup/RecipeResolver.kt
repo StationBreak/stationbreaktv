@@ -35,23 +35,28 @@ object RecipeResolver {
     /** The most sources a resolved starter keeps, whatever the budget allows. */
     const val MAX_STARTER_SOURCES: Int = 48
 
-    /** Room for catalog starters in the lineup file: today's catalog has 97, shelved ones included. */
-    const val MAX_CATALOG_STARTERS: Int = 120
+    /**
+     * Room for catalog starters in the lineup file: today's catalog has 95, shelved ones included (the two leftovers
+     * channels are not starters). `StarterCatalogTest` holds the catalog to it, so a later catalog cannot break the
+     * file bound below silently. It is 110, not 120, so the per-copy budget stays where it was when the keepers got
+     * their own bound: (1 MiB / 2) / (110 + 60) = 3,084 bytes.
+     */
+    const val MAX_CATALOG_STARTERS: Int = 110
 
     /**
      * The most bytes one copy of a starter's rules takes in the lineup file (the rules text as a JSON string, escapes
      * included). The file holds the rules of every catalog starter, and the rules again as `previousRules` for its
      * keepers (the planner gives a previous copy only to them: the protected starters, then the switched-on starters
-     * by number, together at most [LineupDefaults.CAP] however many the viewer switches on, then the hidden and
-     * opt-in starters whose pools the leftovers withhold, up to [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] less the
-     * starters in the lineup; any other starter takes new rules at once and holds no copy): at most
-     * [MAX_CATALOG_STARTERS] + [LineupDefaults.CAP] copies,
+     * by number, together at most [LineupDefaults.KEEPER_COPIES] however many the viewer switches on, then the hidden
+     * and opt-in starters whose pools the leftovers withhold, up to [MAX_CATALOG_STARTERS] +
+     * [LineupDefaults.KEEPER_COPIES] less the starters in the lineup; any other starter takes new rules at once and
+     * holds no copy): at most [MAX_CATALOG_STARTERS] + [LineupDefaults.KEEPER_COPIES] copies,
      * so all those copies together total at most half the file cap. The channel envelopes (IDs, numbers, state), the
      * leftovers, the custom channels, the curation basis and the meta sit in the other half; this bounds the copies
      * only, not each starter's whole entry.
      */
     const val STARTER_RULES_BUDGET_BYTES: Int =
-        (LineupLimits.MAX_FILE_BYTES / 2) / (MAX_CATALOG_STARTERS + LineupDefaults.CAP)
+        (LineupLimits.MAX_FILE_BYTES / 2) / (MAX_CATALOG_STARTERS + LineupDefaults.KEEPER_COPIES)
 
     /**
      * The rules for [recipe] on [serverId]. The sources are the recipe's own, then a collection source for every

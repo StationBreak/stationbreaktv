@@ -354,10 +354,11 @@ class LineupPlannerMigrationTest {
     }
 
     // The keepers' copies stay within the file's bound when a newer catalog adds recipes: the room counts the starters
-    // the plan ends with, the added ones included. 97 starters, half of them hidden, then a catalog of 120.
+    // the plan ends with, the added ones included. 95 starters, half of them hidden, then a catalog of 110
+    // (`MAX_CATALOG_STARTERS`).
     @Test
     fun theKeeperRoomCountsTheRecipesANewerCatalogAdds() {
-        val keysOf = (0 until 97).map { "r$it" to 200 + it }
+        val keysOf = (0 until 95).map { "r$it" to 200 + it }
         val older = TestCatalog(keysOf.map { (k, n) -> recipeOf(k, n) }, version = 2)
         val library = libraryOf(keysOf.associate { it.first to QUALIFYING_ITEMS })
         val chosen = planOf(null, library, older)
@@ -371,22 +372,23 @@ class LineupPlannerMigrationTest {
             )
         val hidden = lineup.channels.count { it.state == ChannelState.UserHidden }
         assertTrue(hidden >= 45, "$hidden hidden")
-        val more = (0 until 23).map { recipeOf("n$it", 300 + it) }
+        val more = (0 until 15).map { recipeOf("n$it", 300 + it) }
         val newer =
             TestCatalog(older.recipes.map { it.copy(sources = it.sources + Source.Genre("new")) } + more, version = 3)
 
         val next = swap(lineup, library, newer)
 
         val starters = next.channels.filter { it.source is ChannelSource.Starter }
-        assertEquals(120, starters.size)
+        assertEquals(RecipeResolver.MAX_CATALOG_STARTERS, starters.size)
         val copies = starters.size + starters.count { it.starter.previousRules != null }
-        assertEquals(RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.CAP, copies, "the room is used to the bound")
-        // Without the added recipes in the count the room would be 73 and the copies 193.
+        val bound = RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.KEEPER_COPIES
+        assertEquals(bound, copies, "the room is used to the bound")
+        // Without the added recipes in the count the room would be 75 and the copies 185.
         val withoutAdded =
-            swap(lineup, library, TestCatalog(newer.recipes.take(97), version = 3))
+            swap(lineup, library, TestCatalog(newer.recipes.take(95), version = 3))
                 .channels
                 .filter { it.source is ChannelSource.Starter }
-        assertEquals(97 + 73, withoutAdded.size + withoutAdded.count { it.starter.previousRules != null })
+        assertEquals(95 + 75, withoutAdded.size + withoutAdded.count { it.starter.previousRules != null })
     }
 
     // A starter whose rules are above the per-copy budget (an older app resolved without one) keeps no copy in any
@@ -445,29 +447,32 @@ class LineupPlannerMigrationTest {
         assertEquals(boundary, next.channel("bravo").starter.rulesFromMs)
     }
 
-    // The opt-in starter's holdback keeps its copy before an ordinary hidden starter's, whatever their numbers. 120
-    // starters leave room for 50 keepers: the 48 on the air and two more, which go to the opt-in one and the first
-    // hidden one by number; the second hidden one takes the new rules at once.
+    // The opt-in starter's holdback keeps its copy before an ordinary hidden starter's, whatever their numbers. 110
+    // starters (the catalog's bound) leave room for 60 keepers: the 48 on the air and twelve more, which go to the
+    // opt-in one and the first eleven hidden ones by number; the twelfth hidden one takes the new rules at once.
     @Test
     fun theOptInStarterKeepsItsCopyBeforeHiddenOnes() {
-        val keysOf = (0 until 100).map { "r$it" to 200 + it } + (0 until 19).map { "g$it" to 300 + it }
+        val keysOf = (0 until 100).map { "r$it" to 200 + it } + (0 until 9).map { "g$it" to 300 + it }
         val older = TestCatalog(keysOf.map { (k, n) -> recipeOf(k, n) } + recipeOf("late", 520, optIn = true), 2)
         val library = libraryOf(keysOf.associate { it.first to QUALIFYING_ITEMS } + ("late" to QUALIFYING_ITEMS))
         val chosen = planOf(null, library, older)
-        assertEquals(120, chosen.channels.count { it.source is ChannelSource.Starter })
+        assertEquals(RecipeResolver.MAX_CATALOG_STARTERS, chosen.channels.count { it.source is ChannelSource.Starter })
         val shelved = chosen.channels.filter { it.state == ChannelState.Shelf && it.id != LineupIds.starter("late") }
-        val (first, second) = shelved.sortedBy { it.number }.take(2).map { it.id.value.substringAfter(':') }
+        val hiddenKeys = shelved.sortedBy { it.number }.take(HIDDEN).map { it.id.value.substringAfter(':') }
         val lineup =
-            chosen
-                .withChannel(first) { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
-                .withChannel(second) { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+            hiddenKeys.fold(chosen) { l, key ->
+                l.withChannel(key) { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+            }
         val newer = TestCatalog(older.recipes.map { it.copy(sources = it.sources + Source.Genre("new")) }, 3)
 
         val next = swap(lineup, library, newer)
 
         assertEquals(lineup.channel("late").starter.rules, next.channel("late").starter.rulesFor(noon), "opt-in kept")
-        assertEquals(lineup.channel(first).starter.rules, next.channel(first).starter.rulesFor(noon), first)
-        assertNull(next.channel(second).starter.previousRules, "$second is beyond the room")
+        for (key in hiddenKeys.dropLast(1)) {
+            assertEquals(lineup.channel(key).starter.rules, next.channel(key).starter.rulesFor(noon), key)
+        }
+        val beyond = hiddenKeys.last()
+        assertNull(next.channel(beyond).starter.previousRules, "$beyond is beyond the room")
     }
 
     // A hidden opt-in starter follows its recipe on a synced plan, from the boundary (spec 23, D1): what the leftovers
@@ -630,6 +635,9 @@ class LineupPlannerMigrationTest {
     private fun leftoversOf(lineup: Lineup) = lineup.channels.filter { it.source is ChannelSource.Leftovers }
 
     private companion object {
+        // The hidden starters of the keeper-order test: the room has twelve places beyond the 48 on the air.
+        const val HIDDEN = 12
+
         const val STUDIO_KEY = "echo"
 
         // Catalog 2 as it shipped, for a lineup chosen before the swap.

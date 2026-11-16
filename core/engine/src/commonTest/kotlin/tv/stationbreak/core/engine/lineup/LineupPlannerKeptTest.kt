@@ -3,6 +3,7 @@ package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
@@ -136,7 +137,7 @@ class LineupPlannerKeptTest {
     }
 
     @Test
-    fun keptOnChannelsCountTowardTheCapAndTheBestRankedStartersStayOn() {
+    fun withARankedCatalogKeptOnChannelsCountTowardTheCapAndTheBestRankedStartersStayOn() {
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
         val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
         val mine = (0 until 40).map { kept("m$it", 600 + it) }
@@ -154,7 +155,7 @@ class LineupPlannerKeptTest {
     }
 
     @Test
-    fun theLeftoversChannelsAreExemptFromTheCapAndKeptChannelsAreNeverShelved() {
+    fun withARankedCatalogTheLeftoversChannelsAreExemptFromTheCapAndKeptChannelsAreNeverShelved() {
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
         val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
         val mine = (0 until 50).map { kept("m$it", 600 + it) }
@@ -169,7 +170,7 @@ class LineupPlannerKeptTest {
     }
 
     @Test
-    fun keptOffChannelsDoNotCount() {
+    fun withARankedCatalogKeptOffChannelsDoNotCount() {
         val mine = (0 until 10).map { kept("m$it", 600 + it, ChannelState.UserHidden) }
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
         val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
@@ -198,5 +199,46 @@ class LineupPlannerKeptTest {
 
         assertEquals(1, lineup.channels.count { it.id == LineupIds.starter("alpha") })
         assertTrue(retired in lineup.channels)
+    }
+
+    private fun selecting(keys: List<String>) =
+        TestCatalog(
+            keys.mapIndexed { i, k ->
+                recipeOf(k, 200 + i).copy(
+                    ordering = OrderingMode.Curated,
+                    theme = Theme(emptyList(), emptyList(), null, false),
+                )
+            },
+            selectsByIdentity = true,
+        )
+
+    // The seat rule (#785), a catalog that selects by identity: the kept channels and the leftovers sit on top and
+    // cost the planner no place, so a reset keeps its 48 picks whatever it keeps. (A ranked catalog keeps the cap of
+    // 50 with everything counted: the tests above.)
+    @Test
+    fun withASelectingCatalogKeptChannelsCostThePlannerNoPlace() {
+        val keys = List(60) { "r" + it.toString().padStart(2, '0') }
+        val mine = (0 until 40).map { kept("m$it", 600 + it) }
+
+        val lineup = plan(mine, selecting(keys), keys.associateWith { QUALIFYING_ITEMS })
+
+        val on = lineup.channels.filter { it.state == ChannelState.On }
+        assertEquals(LineupDefaults.PLANNER_PICKS + 40 + 2, on.size)
+        assertTrue(mine.all { it in lineup.channels && it.state == ChannelState.On })
+        assertEquals(LineupDefaults.PLANNER_PICKS, on.count { it.source is ChannelSource.Starter })
+    }
+
+    @Test
+    fun withASelectingCatalogEvenFiftyKeptChannelsLeaveEveryPlannerPick() {
+        val keys = List(60) { "r" + it.toString().padStart(2, '0') }
+        val mine = (0 until 50).map { kept("m$it", 600 + it) }
+
+        val lineup = plan(mine, selecting(keys), keys.associateWith { QUALIFYING_ITEMS })
+
+        assertTrue(mine.all { it in lineup.channels && it.state == ChannelState.On }, "kept all On")
+        val picks = lineup.channels.filter { it.state == ChannelState.On && it.source is ChannelSource.Starter }
+        val pickedKeys = picks.map { it.id.value.substringAfter(':') }.toSet()
+        assertEquals(keys.take(LineupDefaults.PLANNER_PICKS).toSet(), pickedKeys)
+        assertEquals(LineupDefaults.PLANNER_PICKS + 50 + 2, lineup.channels.count { it.state == ChannelState.On })
     }
 }

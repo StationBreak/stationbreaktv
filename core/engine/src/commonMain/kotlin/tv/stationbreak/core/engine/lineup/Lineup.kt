@@ -87,7 +87,7 @@ enum class ShelfReason {
     /** Too little fits once every show has its best home. */
     TooThin,
 
-    /** It fits, but stronger channels filled the lineup. */
+    /** It fits, but the planner's own picks (the 48 strongest) are stronger; the viewer's own channels cost no seat. */
     BelowCap,
 
     /** It is opt-in: only on if the viewer switches it on. */

@@ -214,7 +214,12 @@ class FileDayStore internal constructor(
         const val NEW = ".new"
         const val BUFFER = 64 * 1024
 
-        /** The largest file of days written or read: a realistic 50-channel day is under 2 MiB. */
+        /**
+         * The largest file of days written or read: a realistic day of about 50 channels (the planner's 48 picks and
+         * the leftovers) is under 2 MiB. The viewer's own channels, edited and opt-in starters and pinned ones outside
+         * the top cost the planner no seat (ADR-0023, the seat rule), so the lineup can be larger: the worst-case file
+         * at 50, 60, 75 and every starter on is to be measured on the Insignia against this bound (the test session).
+         */
         const val MAX_BYTES = 16 * 1024 * 1024
 
         private val NAME = Regex("[0-9a-z_-]{1,${DayStore.MAX_NAME}}")

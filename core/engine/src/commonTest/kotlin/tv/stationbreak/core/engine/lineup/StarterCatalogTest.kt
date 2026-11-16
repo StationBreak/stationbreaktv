@@ -2,6 +2,7 @@
 package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.core.rules.AutoSeed
 import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.rules.RulesLimits
@@ -48,6 +49,28 @@ class StarterCatalogTest {
         maxRating: String? = null,
         sources: List<Source> = listOf(Source.Genre("Comedy")),
     ) = Recipe(key, "Sample", "A sample.", band, number, false, sources, emptyList(), maxRating, null, emptyList())
+
+    // The lineup file is sized for MAX_CATALOG_STARTERS starters and KEEPER_COPIES previous copies (ADR-0023): a later
+    // catalog that outgrows the bound would break the file bound silently, so it fails here instead.
+    @Test
+    fun theCatalogFitsTheLineupFilesBound() {
+        assertTrue(
+            recipes.size <= RecipeResolver.MAX_CATALOG_STARTERS,
+            "${recipes.size} recipes, the lineup file is sized for ${RecipeResolver.MAX_CATALOG_STARTERS}",
+        )
+    }
+
+    // The per-copy budget is where it was before the keepers got their own bound: MAX_CATALOG_STARTERS went from 120
+    // to 110 as KEEPER_COPIES went from 50 to 60, so (1 MiB / 2) / (110 + 60) is still 3,084 bytes. Moving either
+    // number moves what every stored starter's rules may take.
+    @Test
+    fun thePerCopyBudgetIsStill3084Bytes() {
+        assertEquals(110, RecipeResolver.MAX_CATALOG_STARTERS)
+        assertEquals(60, LineupDefaults.KEEPER_COPIES)
+        assertEquals(3_084, RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+        val copies = RecipeResolver.MAX_CATALOG_STARTERS + LineupDefaults.KEEPER_COPIES
+        assertEquals((LineupLimits.MAX_FILE_BYTES / 2) / copies, RecipeResolver.STARTER_RULES_BUDGET_BYTES)
+    }
 
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
