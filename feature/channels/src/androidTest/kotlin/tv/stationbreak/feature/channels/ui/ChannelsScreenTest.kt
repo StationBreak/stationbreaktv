@@ -422,11 +422,11 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.shelfReason(CHARLIE)) }
         compose
             .onNodeWithTag(ChannelsTags.shelfReason(CHARLIE), useUnmergedTree = true)
-            .assertTextContains("Fits, but stronger channels were picked for you")
+            .assertTextContains("Fits, but it isn't in your lineup right now")
         compose
             .onNodeWithTag(ChannelsTags.row(CHARLIE))
             .assertContentDescriptionContains("Charlie", substring = true)
-            .assertContentDescriptionContains("Fits, but stronger channels were picked for you", substring = true)
+            .assertContentDescriptionContains("Fits, but it isn't in your lineup right now", substring = true)
         // Bravo's "nothing to air" line is spoken with its row too; Alpha has no reason line at all.
         compose
             .onNodeWithTag(ChannelsTags.row(BRAVO))
