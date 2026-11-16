@@ -26,7 +26,10 @@ enum class ShelfReason {
     /** Too little fits once every title has its best home. */
     TooThin,
 
-    /** It fits, but stronger channels filled the lineup. */
+    /**
+     * It fits but is not on: the planner's own picks (`LineupDefaults.PLANNER_PICKS`) are stronger, it has no free
+     * number, or it is one the viewer chose and switched off.
+     */
     BelowCap,
 
     /** An opt-in channel: on only if the viewer switches it on. */

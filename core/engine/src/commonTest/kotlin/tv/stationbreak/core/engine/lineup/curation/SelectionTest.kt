@@ -166,6 +166,35 @@ class SelectionTest {
         assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
     }
 
+    // The pin moves between rounds (scripted, as a real library cannot drop a channel): round one, the pin p sits
+    // outside the top two and costs no place; the best free channel a then fails the re-homing and is dropped; round
+    // two re-homes without a, p now scores into the top, takes a place, and the next free channel c is not picked.
+    @Test
+    fun aPinnedChannelLiftedIntoTheTopBetweenRoundsTakesThePlaceOfTheNextFreeChannel() {
+        val a = bareChannel("a", 100)
+        val b = bareChannel("b", 101)
+        val c = bareChannel("c", 102)
+        val p = bareChannel("p", 103)
+        val script =
+            Script { call, channels ->
+                channels.associate { ch ->
+                    val hours =
+                        when (ch.id) {
+                            a.id -> 70L
+                            b.id -> 60L
+                            c.id -> 50L
+                            else -> if (call < 2) 30L else 65L
+                        }
+                    ch.id to stats(6, hours, qualifies = !(call == 1 && ch.id == a.id))
+                }
+            }
+        val picked = Selection.select(emptySnapshot, listOf(a, b, c, p), setOf(p.id), emptySet(), 2, script::factory)
+        assertEquals(setOf(b.id, p.id), picked.on)
+        assertEquals(ShelfReason.TooThin, picked.shelf.getValue(a.id))
+        assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
+        assertEquals(4, script.calls.size, "two rounds: all and chosen, then all but a and chosen")
+    }
+
     @Test
     fun itStopsAfterSixRounds() {
         val channels = List(8) { bareChannel("ch-$it", 100 + it) }
@@ -226,6 +255,129 @@ class SelectionTest {
         val picked = Selection.select(lib.snapshot(), channels, emptySet(), emptySet(), room = 48)
         assertEquals(channels.map { it.id }.toSet(), picked.on)
         assertTrue(picked.shelf.isEmpty())
+    }
+
+    // Five channels in genres of their own that fill, the earlier the stronger: 10, 9, 8, 7 and 6 titles.
+    private fun ranked(lib: Library): List<CurationChannel> =
+        List(5) { i -> channel("c$i", 100 + i, listOf("G$i"), qualifying(lib, "G$i", titles = 10 - i)) }
+
+    // The seat rule (#785): pinned channels are ranked with the free ones. One in the top room uses a place; one
+    // outside it, or one that does not qualify, is on and costs none.
+    @Test
+    fun aPinnedChannelInsideTheTopUsesAPlace() {
+        val lib = Library()
+        val c = ranked(lib)
+        val picked = Selection.select(lib.snapshot(), c, setOf(c[1].id), emptySet(), room = 3)
+        assertEquals(setOf(c[0].id, c[1].id, c[2].id), picked.on)
+        assertEquals(setOf(c[3].id, c[4].id), picked.shelf.keys)
+    }
+
+    @Test
+    fun aPinnedChannelOutsideTheTopCostsNoPlace() {
+        val lib = Library()
+        val c = ranked(lib)
+        val picked = Selection.select(lib.snapshot(), c, setOf(c[4].id), emptySet(), room = 3)
+        assertEquals(setOf(c[0].id, c[1].id, c[2].id, c[4].id), picked.on, "the three best free ones and the pin")
+        assertEquals(setOf(c[3].id), picked.shelf.keys)
+    }
+
+    @Test
+    fun aPinnedChannelThatDoesNotQualifyCostsNoPlace() {
+        val lib = Library()
+        val c = ranked(lib)
+        val thin = channel("thin", 110, listOf("Thin"), qualifying(lib, "Thin", titles = 2))
+        val picked = Selection.select(lib.snapshot(), c + thin, setOf(thin.id), emptySet(), room = 3)
+        assertEquals(setOf(c[0].id, c[1].id, c[2].id, thin.id), picked.on)
+    }
+
+    @Test
+    fun aPinnedOptInChannelTakesPartInTheHomingButNeverInTheRanking() {
+        val lib = Library()
+        val c = ranked(lib)
+        // It heads every order (20 titles), so were it ranked it would take one of the three places.
+        val opt = channel("opt", 110, listOf("Opt"), qualifying(lib, "Opt", titles = 20))
+        val picked = Selection.select(lib.snapshot(), c + opt, setOf(opt.id), setOf(opt.id), room = 3)
+        assertEquals(setOf(c[0].id, c[1].id, c[2].id, opt.id), picked.on, "the pin sits on top, the places stay free")
+
+        // It takes part in the homing: it holds every title of a free channel's genre and leaves it too thin.
+        val shows = List(6) { lib.show(eps = 3, genres = listOf("Drama")) }
+        val plain = channel("plain", 120, listOf("Drama"), lib.itemsOf(shows))
+        val anchors = shows.map { Source.Series(it) }
+        val holder = channel("holder", 115, listOf("Drama"), lib.itemsOf(shows), anchors = anchors)
+        val both = listOf(plain, holder)
+        val thinned = Selection.select(lib.snapshot(), both, setOf(holder.id), setOf(holder.id), room = 3)
+        assertEquals(setOf(holder.id), thinned.on)
+        assertEquals(ShelfReason.TooThin, thinned.shelf.getValue(plain.id))
+    }
+
+    // A homing that counts how often it is asked, to see how many rounds a selection took.
+    private class CountingHoming(
+        private val inner: Homing,
+    ) : Homing {
+        var calls = 0
+
+        override fun homes(channels: Set<ChannelId>?): Homes {
+            calls++
+            return inner.homes(channels)
+        }
+    }
+
+    // The ranking oracle (a one-round check: it reuses channelScore and CHANNEL_ORDER, so it pins the ranking rule,
+    // not the settling of the rounds, which the scripted test above covers): with the homing never dropping a channel
+    // (the property above), the result is the pinned
+    // channels plus the free ones in the top room of one order of every qualifying channel, pinned and free alike,
+    // the pinned opt-in ones left out of it. Seeded, over generated libraries and pin sets.
+    @Test
+    fun theResultMatchesOneOrderOfPinnedAndFreeChannelsAndIsDeterministic() {
+        var inTopCases = 0
+        var outsideCases = 0
+        for (seed in 1..120) {
+            val random = Random(seed)
+            val lib = Library()
+            val genres = listOf("Drama", "Comedy", "Mystery", "Crime")
+            val shows = List(40) { lib.show(eps = 1 + random.nextInt(3), genres = listOf(genres[random.nextInt(4)])) }
+            val channels =
+                List(9) { i ->
+                    val picked = shows.filter { random.nextInt(3) != 0 }.take(2 + random.nextInt(30))
+                    channel("ch-$i", 100 + i, listOf(genres[i % genres.size]), lib.itemsOf(picked.distinct()))
+                }
+            val snap = lib.snapshot()
+            val pinned = channels.filter { random.nextInt(3) == 0 }.mapTo(HashSet()) { it.id }
+            val optIn = channels.filter { it.id in pinned && random.nextBoolean() }.mapTo(HashSet()) { it.id }
+            val room = random.nextInt(1, 4)
+
+            var counting: CountingHoming? = null
+            val got =
+                Selection.select(snap, channels, pinned, optIn, room) { s, c ->
+                    CountingHoming(Curation.homing(s, c)).also { counting = it }
+                }
+            // One round: the homing over everything and, unless everything was chosen, over the chosen set.
+            assertTrue(checkNotNull(counting).calls <= 2, "seed $seed: more than one round")
+
+            val homes = Curation.homes(snap, channels)
+            val ranked =
+                channels
+                    .filter { it.id !in optIn && homes.stats(it.id).qualifies }
+                    .sortedWith { a, b ->
+                        val scoreA = Selection.channelScore(homes.stats(a.id))
+                        val byScore = Selection.channelScore(homes.stats(b.id)).compareTo(scoreA)
+                        if (byScore != 0) byScore else CHANNEL_ORDER.compare(a, b)
+                    }
+            val top = ranked.take(room).map { it.id }.toSet()
+            assertEquals(pinned + (top - pinned), got.on, "seed $seed")
+            val inTopPins = top.count { it in pinned }
+            if (inTopPins > 0) inTopCases++
+            if (ranked.drop(room).any { it.id in pinned }) outsideCases++
+            assertTrue((got.on - pinned).size + inTopPins <= room, "seed $seed: free picks and in-top pins in the room")
+            for (shuffle in 1..3) {
+                val again = Selection.select(snap, channels.shuffled(Random(seed * 31 + shuffle)), pinned, optIn, room)
+                assertEquals(got.on, again.on, "seed $seed deterministic")
+                assertEquals(got.shelf, again.shelf, "seed $seed deterministic")
+            }
+        }
+        // The generator must reach both sides of the top, or the oracle proves little.
+        assertTrue(inTopCases > 10, "seeds with a pinned channel in the top: $inTopCases")
+        assertTrue(outsideCases > 10, "seeds with a pinned channel outside the top: $outsideCases")
     }
 
     @Test

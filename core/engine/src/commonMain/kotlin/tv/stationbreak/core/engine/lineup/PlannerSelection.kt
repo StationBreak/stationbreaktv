@@ -46,9 +46,11 @@ internal object PlannerSelection {
     }
 
     /**
-     * The first choice: the non-opt-in recipes with a number are the candidates (none is pinned), with [room] places.
-     * [shelf] holds the reason of every recipe left off: an opt-in one is off for being opt-in (N12), one with no
-     * number has no room to air (BelowCap). [qualifying] counts the candidates that would be on with room enough, for
+     * The first choice: the non-opt-in recipes with a number are the candidates (none is pinned), with
+     * [LineupDefaults.PLANNER_PICKS] places: the channels kept around it (a reset's custom channels) and the leftovers
+     * take no place, as at the next boundary, so a reset and the boundary after it agree. [shelf] holds the reason of
+     * every recipe left off: an opt-in one is off for being opt-in (N12), one with no number has no room to air
+     * (BelowCap). [qualifying] counts the candidates that would be on with room enough, for
      * the finalise threshold.
      */
     class Choice(
@@ -62,7 +64,6 @@ internal object PlannerSelection {
         recipes: List<Recipe>,
         numbers: Map<ChannelId, Int?>,
         rules: Map<String, ChannelRules>,
-        room: Int,
     ): Choice {
         val candidates = ArrayList<CurationChannel>()
         for (recipe in recipes) {
@@ -73,6 +74,7 @@ internal object PlannerSelection {
             // Ties order by the recipe's number, as in the day build.
             candidates += p.curationChannel(id, recipe.number, recipe, policy, rules.getValue(recipe.key), p.household)
         }
+        val room = LineupDefaults.PLANNER_PICKS
         val selected = Selection.select(p.snapshot, candidates, emptySet(), emptySet(), room)
         val belowCap = selected.shelf.values.count { it == ShelfReason.BelowCap }
         val shelf = LinkedHashMap(selected.shelf)
@@ -92,7 +94,9 @@ internal object PlannerSelection {
      * - An untouched shelved starter the selection picks under the boundary's household flag and today's switches on
      *   now; an untouched starter on the air it leaves out leaves at the boundary (a time already set stays); one it
      *   picks again stays.
-     * - A starter the viewer switched on is pinned: on, and never leaving.
+     * - A starter the viewer switched on is pinned: on, and never leaving. It is ranked with the free starters (an
+     *   opt-in one is not): inside the top [LineupDefaults.PLANNER_PICKS] it uses a seat, outside it, or with no score,
+     *   it sits on top and costs none. The seats left are filled with the best free starters ([Selection.select]).
      * - Every starter left on the shelf gets its current reason: the selection's; opt-in (N12); no room to air for
      *   one with no number; and for one the viewer chose or edited (never switched on by the planner) what the homing
      *   alongside the selected channels gives it.
@@ -108,9 +112,8 @@ internal object PlannerSelection {
         // The planner infers the viewer's choices of an older file before any selection (`withInferredChoices`).
         check(current.viewerChoicesKnown) { "The viewer's choices are inferred before a selection" }
         for (channel in channels) roleOf(channel, p)?.let { roles[channel.id] = it }
-        val room = LineupDefaults.CAP - channels.count { it.takesRoom(roles[it.id], p) }
         // Selected under the boundary's flag: a starter the selection switches on starts at the boundary.
-        val atBoundary = select(lineup, channels, roles, p, p.household, room)
+        val atBoundary = select(lineup, channels, roles, p, p.household)
         val kept = keptReasons(lineup, channels, roles, p, atBoundary)
         return channels.map { channel ->
             when (roles[channel.id]) {
@@ -164,20 +167,6 @@ internal object PlannerSelection {
         }
     }
 
-    // A channel that holds a place for the days after the boundary: a pinned one, and any other channel on and not
-    // leaving that is not an untouched candidate (the leftovers, own channels, edited starters). A leaving channel
-    // goes at the boundary ([leavesBy] the day that starts there), so it holds no place in the selection after it.
-    private fun LineupChannel.takesRoom(
-        role: Role?,
-        p: Planning,
-    ): Boolean =
-        state == ChannelState.On &&
-            when (role) {
-                Role.Pinned -> true
-                Role.Free, Role.OptIn -> false
-                else -> !leavesBy(LineupDay.startingAt(p.boundaryMs))
-            }
-
     /** Whether the selection treats [channel] as a candidate: an untouched numbered starter (free) or a pinned one. */
     fun isCandidate(
         channel: LineupChannel,
@@ -193,6 +182,9 @@ internal object PlannerSelection {
         val selected: Selected,
     )
 
+    // Every pinned starter and every free one is in play. The room is the planner's picks, whatever else is on: only a
+    // pinned starter inside the top of the one order takes a seat from it. A pinned opt-in starter (the planner never
+    // picks one) takes part in the homing only and always sits on top (`Selection.select`).
     @Suppress("LongParameterList") // What one selection reads.
     private fun select(
         lineup: Lineup,
@@ -200,17 +192,19 @@ internal object PlannerSelection {
         roles: Map<ChannelId, Role>,
         p: Planning,
         household: Boolean,
-        room: Int,
     ): Run {
         val candidates = ArrayList<CurationChannel>()
         val pinned = HashSet<ChannelId>()
+        val optIn = HashSet<ChannelId>()
         for (channel in channels) {
             val role = roles[channel.id]
             if (role != Role.Pinned && role != Role.Free) continue
             if (role == Role.Pinned) pinned += channel.id
+            if (p.recipe((channel.source as ChannelSource.Starter).recipeKey)?.optIn == true) optIn += channel.id
             candidates += curationOf(channel, lineup, p, household)
         }
-        return Run(candidates, Selection.select(p.snapshot, candidates, pinned, emptySet(), room))
+        val picked = Selection.select(p.snapshot, candidates, pinned, optIn, LineupDefaults.PLANNER_PICKS)
+        return Run(candidates, picked)
     }
 
     // The curation's view of a starter in the lineup: what it airs on the air, or would air once switched on (an

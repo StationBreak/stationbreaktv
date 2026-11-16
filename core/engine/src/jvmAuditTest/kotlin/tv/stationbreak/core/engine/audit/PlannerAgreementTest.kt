@@ -6,9 +6,11 @@ package tv.stationbreak.core.engine.audit
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupDefaults
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.PlannerSelection
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.curation.Selection
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
@@ -17,29 +19,62 @@ import kotlin.test.assertTrue
 
 /** The audit reads the planner's own choices, not copies of them: they agree, and a drift fails loudly. */
 class PlannerAgreementTest {
+    // The audit's own call of the selection, made as the planner makes it (`PlannerSelection`): every candidate pinned
+    // or free, the viewer's switch-ons pinned, an opt-in one never ranked, and the planner's picks as the room.
+    private fun chosenAsThePlannerDoes(planned: PlannedLineup): Set<ChannelId> {
+        val lanes = AuditLanes(planned)
+        val byId = planned.lineup.channels.associateBy { it.id }
+        val candidates =
+            lanes.channels.filter { c -> PlannerSelection.isCandidate(byId.getValue(c.id), planned.planning) }
+        val ids = candidates.map { it.id }
+        val pinned =
+            ids.filterTo(HashSet()) {
+                val channel = byId.getValue(it)
+                channel.chosenByViewer && channel.state == ChannelState.On
+            }
+        val optIn =
+            ids.filterTo(HashSet()) {
+                val source = byId.getValue(it).source as ChannelSource.Starter
+                planned.planning.recipe(source.recipeKey)?.optIn == true
+            }
+        return Selection.select(planned.snapshot, candidates, pinned, optIn, LineupDefaults.PLANNER_PICKS).on.toSet()
+    }
+
+    // What the planner put on for the day the report describes: the starters on and not leaving at its boundary.
+    private fun plannersOnSet(planned: PlannedLineup): Set<ChannelId> =
+        planned.lineup.channels
+            .filter { it.source is ChannelSource.Starter && it.state == ChannelState.On && it.leavesAtMs == null }
+            .mapTo(HashSet()) { it.id }
+
     @Test
     fun theAuditsSelectionOfTheStartersIsThePlannersOnSetForEveryFinalisedProfile() {
         var finalised = 0
         for (profile in ProfileLibraries.all()) {
-            val planned = PlannedLineup.of(profile.input.snapshot, CollectionNames(emptyMap()), null)
-            if (!planned.finalised) continue
-            finalised++
-            val lanes = AuditLanes(planned)
-            val candidates =
-                lanes.channels.filter { c ->
-                    PlannerSelection.isCandidate(planned.lineup.channels.first { it.id == c.id }, planned.planning)
-                }
-            val leftoversOn =
-                planned.lineup.channels.count { it.source is ChannelSource.Leftovers && it.state == ChannelState.On }
-            val room = LineupDefaults.CAP - leftoversOn
-            val chosen = Selection.select(planned.snapshot, candidates, emptySet(), emptySet(), room)
-            val planners =
-                planned.lineup.channels
-                    .filter { it.source is ChannelSource.Starter && it.state == ChannelState.On }
-                    .mapTo(HashSet()) { it.id }
-            assertEquals(planners, chosen.on.toSet(), profile.key)
+            // Without the viewer's choices, then with them (the profile that has any).
+            for (viewer in listOf(null, profile.input.viewer).distinct()) {
+                val planned = PlannedLineup.of(profile.input.snapshot, CollectionNames(emptyMap()), viewer)
+                if (!planned.finalised) continue
+                if (viewer == null) finalised++
+                val label = "${profile.key} with the viewer: ${viewer != null}"
+                assertEquals(plannersOnSet(planned), chosenAsThePlannerDoes(planned), label)
+            }
         }
         assertTrue(finalised >= 4, "Most profiles are finalised ($finalised)")
+    }
+
+    // The seat rule (#785) on the profile built for it: the viewer's five switch-ons and a custom channel cost the
+    // planner none of its 48 picks, and the five stay on, outside the top.
+    @Test
+    fun theSeatHouseholdKeepsAllFortyEightPicksBesideTheViewersChannels() {
+        val profile = ProfileLibraries.build("seat-household")
+        val none = CollectionNames(emptyMap())
+        val planned = PlannedLineup.of(profile.input.snapshot, none, profile.input.viewer)
+        val switchedOn = SeatHousehold.SWITCHED_ON.map { LineupIds.starter(it) }.toSet()
+        val bareOn = plannersOnSet(PlannedLineup.of(profile.input.snapshot, none, null))
+        assertEquals(LineupDefaults.PLANNER_PICKS, bareOn.size, "a full lineup")
+        assertEquals(bareOn + switchedOn, plannersOnSet(planned), "the picks stay and the five are on beside them")
+        val custom = planned.lineup.channels.single { it.source is ChannelSource.Custom }
+        assertEquals(ChannelState.On, custom.state)
     }
 
     @Test

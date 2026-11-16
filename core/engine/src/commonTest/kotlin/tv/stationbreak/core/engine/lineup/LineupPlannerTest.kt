@@ -376,6 +376,8 @@ class LineupPlannerTest {
 
     @Test
     fun atCapNewQualifierWaitsOnShelf() {
+        // The ranked rule, for a catalog that does not select by identity: it keeps the cap of 50 with the leftovers
+        // counted. The seat rule (`LineupPlannerSeatRuleTest`) governs a selecting catalog.
         // 50 recipes: r00 falls short, the other 49 qualify and 48 of them fit beside the two leftovers channels.
         val keys = List(50) { "r" + it.toString().padStart(2, '0') }
         val catalog = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
@@ -633,8 +635,10 @@ class LineupPlannerTest {
         assertNull(taken.number)
     }
 
+    // The seat rule (#785): a leftovers channel is always on, so a new one with a number is on at a full lineup too (it
+    // used to wait on the shelf at the cap), and the planner's picks are not touched.
     @Test
-    fun newLeftoversRecipeAtCapWaitsOnShelf() {
+    fun newLeftoversRecipeWithANumberIsOnAtACapToo() {
         val keys = List(48) { "r" + it.toString().padStart(2, '0') }
         val catalog = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
         val fill = keys.associateWith { QUALIFYING_ITEMS }
@@ -643,9 +647,9 @@ class LineupPlannerTest {
         val more = LeftoversRecipe("more-odds", "More Odds", "Synthetic.", 198, null)
         val v2 = TestCatalog(catalog.recipes, version = 2, leftovers = TEST_LEFTOVERS + more)
         val next = planOf(lineup, libraryOf(fill), v2)
-        assertEquals(ChannelState.Shelf, next.channel("more-odds").state)
+        assertEquals(ChannelState.On, next.channel("more-odds").state)
         assertEquals(198, next.channel("more-odds").number)
-        assertEquals(LineupDefaults.CAP, next.channels.count { it.state == ChannelState.On })
+        assertEquals(LineupDefaults.CAP + 1, next.channels.count { it.state == ChannelState.On })
     }
 
     @Test

@@ -21,7 +21,7 @@ says so. What a day airs is out of scope.
 
 ```bash
 # A profile library (invented titles, generated in code): sitcom-household, horror-fan, kids-household,
-# anime-viewer, broad-1900, thin-200, or all.
+# anime-viewer, broad-1900, thin-200, seat-household, or all.
 ./gradlew :core:engine:lineupAudit -PauditProfile=sitcom-household
 
 # A snapshot file, with the report written to a folder (KEY.txt and KEY.json), or the JSON to the terminal.
@@ -42,6 +42,11 @@ Six libraries generated in code from invented titles (`core/engine/src/jvmAudit/
 a thin 200-title server. Their titles are two made-up words from a fixed list of syllables: none is, or is meant to
 resemble, anything real, and a test holds every title to it. Each carries the cases it is there to test: an adult
 animated sitcom with no studio match, a small horror shelf, a sitcom with an extra genre.
+
+A seventh, `seat-household` (`SeatHousehold.kt`), is there for the seat rule: its library fills most of the catalog, so the
+planner's lineup is full (48 picks, the rest on the shelf), and the viewer has switched five of the shelved starters on
+and built a custom channel. Before the seat rule those six cost the planner six of its picks at the boundary; its golden
+shows all 48 kept beside them.
 
 The audit's output on each is **pinned** in `core/engine/src/audit/golden/KEY.txt` and `KEY.json`, and
 `:core:engine:jvmAuditTest` (part of `check`) compares them byte for byte. A change to the planner, the curation, the

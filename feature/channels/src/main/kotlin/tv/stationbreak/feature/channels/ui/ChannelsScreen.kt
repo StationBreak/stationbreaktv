@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -64,6 +65,7 @@ internal fun ChannelsScreen(
                     CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
                         Header(ui)
                         ChannelList(ui, Modifier.weight(1f))
+                        HeadsUp()
                     }
                 }
             }
@@ -106,6 +108,21 @@ private fun Header(ui: ChannelsUi) {
         if (ui.choosing) NoteLine(stringResource(R.string.channels_choosing), ChannelsTags.CHOOSING)
         if (ui.gettingReady) NoteLine(stringResource(R.string.channels_getting_ready), ChannelsTags.GETTING_READY)
     }
+}
+
+/**
+ * The permanent heads-up under the list: always there, plain text, no focus stop and no live region (it never changes,
+ * so it is not announced). Outside the list, so it is neither on every row nor scrolled away; the list, which has the
+ * weight, gives it its line.
+ */
+@Composable
+private fun HeadsUp() {
+    Text(
+        stringResource(R.string.channels_heads_up),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag(ChannelsTags.HEADS_UP),
+        style = channelsSecondaryLine(),
+        color = ChannelsPalette.secondary,
+    )
 }
 
 @Composable

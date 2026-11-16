@@ -16,8 +16,11 @@ internal class Selected(
 
 /**
  * Chooses the starter channels to switch on by identity (spec 23, A10, Resolution 28): each round re-homes every
- * title over all candidates but the dropped ones, scores the channels that qualify, takes the top room, then re-homes
- * over the chosen set and drops any chosen channel that no longer qualifies. At most [CurationDefaults.ROUNDS] rounds;
+ * title over all candidates but the dropped ones, scores the channels that qualify (the pinned ones too), orders them
+ * all as one (score, then channel order), takes the top room, then re-homes over the chosen set and drops any chosen
+ * channel that no longer qualifies. A pinned channel inside the top room uses one of its places; one outside it, or
+ * with no score, is on and costs none, so the free places are the room less the pinned channels inside the top. At
+ * most [CurationDefaults.ROUNDS] rounds;
  * after the last, the set stands. Integer arithmetic only; ties go to the lower channel number, so input order never
  * matters.
  *
@@ -32,8 +35,10 @@ internal class Selected(
 internal object Selection {
     /**
      * [candidates] are the channels in play (their pools under their own policy); [pinned] are on whatever their
-     * stats and never dropped; [optIn] channels are on only when pinned, and are left out of the rounds otherwise, so
-     * they take no titles. [room] is how many unpinned channels may be on.
+     * stats and never dropped, and are ranked with the rest: one in the top [room] of the order uses a place, one
+     * outside it (or unscored) costs none. [optIn] channels are on only when pinned, and are left out of the rounds
+     * otherwise, so they take no titles; a pinned one takes part in the homing but never in the ranking, so it always
+     * costs no place. [room] is how many places the top has, the planner's picks (`LineupDefaults.PLANNER_PICKS`).
      */
     fun select(
         snapshot: RuleSnapshot,
@@ -65,8 +70,8 @@ internal object Selection {
             rounds++
             val homes = homing.homes(idsOf(all))
             if (first == null) first = homes
-            scores = scoresOf(all, pinned, homes)
-            on = pinned + top(all, scores, places)
+            scores = scoresOf(all, homes)
+            on = pinned + top(all, scores, pinned, optIn, places)
             val chosen = all.filter { it.id in on }
             // Everything chosen means the same channels as the first homing: no need to work it out again.
             val homesOn = if (chosen.size == all.size) homes else homing.homes(idsOf(chosen))
@@ -93,31 +98,33 @@ internal object Selection {
 
     private fun scoresOf(
         all: List<CurationChannel>,
-        pinned: Set<ChannelId>,
         homes: Homes,
     ): Map<ChannelId, Long> {
         val scores = HashMap<ChannelId, Long>()
         for (c in all) {
-            if (c.id in pinned) continue
             val stats = homes.stats(c.id)
             if (stats.qualifies) scores[c.id] = channelScore(stats)
         }
         return scores
     }
 
-    // The best [places] scored channels: score high to low, then number low to high, then ID, so the order is total.
+    // The free channels in the top [places] of one order of every ranked channel, the pinned ones among them: score
+    // high to low, then number low to high, then ID, so the order is total. A pinned channel in the top holds its
+    // place there, so the free ones that fit around it are the best free ones. An opt-in channel is never ranked.
     private fun top(
         all: List<CurationChannel>,
         scores: Map<ChannelId, Long>,
+        pinned: Set<ChannelId>,
+        optIn: Set<ChannelId>,
         places: Int,
     ): List<ChannelId> {
-        val scored = all.filter { it.id in scores }
+        val scored = all.filter { it.id in scores && it.id !in optIn }
         val ordered =
             scored.sortedWith { a, b ->
                 val byScore = scores.getValue(b.id).compareTo(scores.getValue(a.id))
                 if (byScore != 0) byScore else CHANNEL_ORDER.compare(a, b)
             }
-        return ordered.take(places).map { it.id }
+        return ordered.take(places).map { it.id }.filter { it !in pinned }
     }
 
     private fun onInOrder(

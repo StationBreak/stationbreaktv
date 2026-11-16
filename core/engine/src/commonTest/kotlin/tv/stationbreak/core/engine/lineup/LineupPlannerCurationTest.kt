@@ -209,15 +209,19 @@ class LineupPlannerCurationTest {
     @Test
     fun shelvedStartersCarryTheirReason() {
         val late = themed(recipeOf("late", 520, optIn = true))
-        val withMore = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)) + late)
-        val library = libraryOf(fills("late" to QUALIFYING_ITEMS))
-        // 44 of the viewer's own channels and the two leftovers leave room for four starters.
+        // 44 more filling starters, numbered after "charlie" and before "delta", fill the planner's 48 picks with the
+        // four that come first: "delta" and "echo" qualify but wait behind them.
+        val fillers = (0 until 44).map { themed(recipeOf("f$it", 220 + it)) }
+        val withMore = selecting(catalog.recipes + themed(recipeOf("foxtrot", 130)) + late + fillers)
+        val library = libraryOf(fills("late" to QUALIFYING_ITEMS) + fillers.associate { it.key to QUALIFYING_ITEMS })
+        // The viewer's own channels cost the planner no seat (#785).
         val kept = (0 until 44).map(::custom)
 
         val lineup = firstAround(kept, library, withMore)
 
         val starterKeys = withMore.recipes.map { it.key }.toSet()
-        assertEquals(setOf("tots", "alpha", "bravo", "charlie"), lineup.onKeys() intersect starterKeys)
+        val fillerKeys = fillers.map { it.key }.toSet()
+        assertEquals(setOf("tots", "alpha", "bravo", "charlie") + fillerKeys, lineup.onKeys() intersect starterKeys)
         assertEquals(ShelfReason.BelowCap, lineup.channel("delta").shelfReason)
         assertEquals(ShelfReason.BelowCap, lineup.channel("echo").shelfReason)
         assertEquals(ShelfReason.TooThin, lineup.channel("dup").shelfReason)
@@ -234,20 +238,18 @@ class LineupPlannerCurationTest {
         assertEquals(ShelfReason.BelowCap, next.channel("delta").shelfReason)
     }
 
+    // The seat rule (#785): 44 own channels and a pinned starter inside the top take no seat from the planner's picks.
+    // The old rule (50 - 2 leftovers - 44 - 1 pinned) left room for three and shelved delta and echo.
     @Test
-    fun theCapCountsPinnedAndCustomChannels() {
-        // 50 - 2 leftovers - 44 own channels - 1 pinned (alpha) leaves room for three untouched starters.
+    fun customAndPinnedChannelsTakeNoSeatFromThePlannersPicks() {
         val lineup = first().withCustoms(44).withChannel("alpha") { it.copy(chosenByViewer = true) }
 
         val next = replan(lineup, libraryOf(fills()))
 
         assertTrue(next.staying("alpha"))
         val staying = listOf("tots", "bravo", "charlie", "delta", "echo").filter { next.staying(it) }
-        assertEquals(listOf("tots", "bravo", "charlie"), staying, "the room, ties to the lower number")
-        for (key in listOf("delta", "echo")) {
-            assertEquals(boundary, next.channel(key).leavesAtMs, key)
-            assertEquals(ShelfReason.BelowCap, next.channel(key).shelfReason, key)
-        }
+        assertEquals(listOf("tots", "bravo", "charlie", "delta", "echo"), staying, "every pick stays")
+        assertTrue(next.channels.all { it.shelfReason == null || it.state == ChannelState.Shelf })
     }
 
     @Test
@@ -271,10 +273,11 @@ class LineupPlannerCurationTest {
         assertEquals(ShelfReason.TooThin, next.channel("latest").shelfReason)
     }
 
+    // The seat rule (#785): the room is the planner's picks whatever else is on or leaving, so with 45 own channels
+    // "alpha" leaving (and now empty) and delta and echo waiting on the shelf, both waiting ones start at the
+    // boundary. The old rule left room for three: delta and echo stayed on the shelf as BelowCap.
     @Test
-    fun aLeavingChannelDoesNotTakeRoom() {
-        // 50 - 2 leftovers - 45 own channels leaves room for three. "alpha" is leaving (and now empty); delta and
-        // echo wait on the shelf.
+    fun aLeavingChannelAndOwnChannelsLeaveThePlannersRoomWhole() {
         val lineup =
             first()
                 .withCustoms(45)
@@ -284,9 +287,11 @@ class LineupPlannerCurationTest {
 
         val next = replan(lineup, libraryOf(fills("alpha" to 0)))
 
-        assertEquals(listOf("tots", "bravo", "charlie"), next.stayingOf("tots", "bravo", "charlie", "delta", "echo"))
+        val all = next.stayingOf("tots", "bravo", "charlie", "delta", "echo")
+        assertEquals(listOf("tots", "bravo", "charlie", "delta", "echo"), all)
         assertEquals(boundary, next.channel("alpha").leavesAtMs)
-        assertEquals(ShelfReason.BelowCap, next.channel("delta").shelfReason)
+        assertTrue(next.channel("delta").startsAtTheBoundary())
+        assertTrue(next.channel("echo").startsAtTheBoundary())
     }
 
     @Test
@@ -305,9 +310,10 @@ class LineupPlannerCurationTest {
     }
 
     @Test
-    fun thePreviousRulesStayWithinTheCap() {
-        // 60 starters, every one switched on by the viewer: more than the cap are on.
-        val keys = List(60) { "r" + it.toString().padStart(2, '0') }
+    fun thePreviousRulesStayWithinTheKeeperBound() {
+        // 70 starters, every one switched on by the viewer: more than the keeper bound (60) are on. The bound was the
+        // cap (50) before the seat rule gave the keepers their own.
+        val keys = List(70) { "r" + it.toString().padStart(2, '0') }
         val v1 = selecting(keys.mapIndexed { i, k -> themed(recipeOf(k, 200 + i)) })
         val library = libraryOf(keys.associateWith { QUALIFYING_ITEMS })
         val chosen = first(library, v1)
@@ -330,11 +336,11 @@ class LineupPlannerCurationTest {
 
         for ((n, planned) in listOf(2 to next, 3 to again)) {
             val on = planned.channels.filter { it.state == ChannelState.On && it.source is ChannelSource.Starter }
-            assertEquals(60, on.size)
+            assertEquals(70, on.size)
             val copies = planned.channels.count { (it.source as? ChannelSource.Starter)?.previousRules != null }
-            assertTrue(copies <= LineupDefaults.CAP, "$copies previous copies")
-            // The keepers keep today's rules; a starter beyond the cap holds no copy and takes the new rules at once
-            // (the documented edge of more than the cap on).
+            assertTrue(copies <= LineupDefaults.KEEPER_COPIES, "$copies previous copies")
+            // The keepers keep today's rules; a starter beyond the keeper bound holds no copy and takes the new rules
+            // at once (the documented edge of more than the bound on).
             for (key in keys.take(10)) {
                 assertEquals(lineup.channel(key).starter.rules, planned.channel(key).starter.rulesFor(noon), key)
             }
@@ -583,13 +589,16 @@ class LineupPlannerCurationTest {
         assertTrue(selected.channel("delta").startsAtTheBoundary())
     }
 
+    // The seat rule (#785): a custom channel costs the planner no seat, however many there are. The old rule left no
+    // room for any starter once the customs filled the cap, and shelved every untouched one at the boundary.
     @Test
-    fun noRoomShelvesEveryUntouchedStarterAtTheBoundary() {
+    fun noNumberOfCustomChannelsShelvesAnUntouchedStarterAtTheBoundary() {
         for (customs in listOf(LineupDefaults.CAP - 2, LineupDefaults.CAP + 5)) {
             val next = replan(first().withCustoms(customs), libraryOf(fills()))
             for (key in listOf("tots", "alpha", "bravo", "charlie", "delta", "echo")) {
-                assertEquals(boundary, next.channel(key).leavesAtMs, "$customs: $key")
-                assertEquals(ShelfReason.BelowCap, next.channel(key).shelfReason, "$customs: $key")
+                assertNull(next.channel(key).leavesAtMs, "$customs: $key")
+                assertNull(next.channel(key).shelfReason, "$customs: $key")
+                assertTrue(next.staying(key), "$customs: $key")
             }
         }
     }

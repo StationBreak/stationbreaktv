@@ -112,10 +112,11 @@ class BoundaryRulesTest {
         assertEquals(3 * DAY_MS + DAY_START_MS, dropped.channel("alpha").leavesAtMs)
     }
 
-    // The viewer can switch on past the cap; the file is sized for LineupDefaults.CAP previous copies. Only the first
-    // CAP switched-on starters by number (override, else default; then recipe key) keep previous rules.
+    // The viewer can switch on past the keeper bound; the file is sized for LineupDefaults.KEEPER_COPIES previous
+    // copies. Only the first KEEPER_COPIES switched-on starters by number (override, else default; then recipe key)
+    // keep previous rules.
     @Test
-    fun withMoreThanTheCapOnOnlyTheLowestNumberedKeepPreviousRules() {
+    fun withMoreThanTheKeeperBoundOnOnlyTheLowestNumberedKeepPreviousRules() {
         val recipes = (0 until VIEWER_ON).map { recipeOf("r" + it.toString().padStart(2, '0'), 101 + it) }
         val catalog = TestCatalog(recipes)
         val fills = recipes.associate { it.key to QUALIFYING_ITEMS }
@@ -136,7 +137,7 @@ class BoundaryRulesTest {
         val lowest =
             starters
                 .sortedBy { it.number }
-                .take(LineupDefaults.CAP)
+                .take(LineupDefaults.KEEPER_COPIES)
                 .map { it.id }
                 .toSet()
         assertTrue(last in lowest)
@@ -150,7 +151,7 @@ class BoundaryRulesTest {
         val nextStarters = next.channels.mapNotNull { it.source as? ChannelSource.Starter }
         assertTrue(nextStarters.all { it.rules.sources == genreNew }, "every starter takes the new rules")
 
-        // Every plan drops previous rules beyond the cap, even one that resolves nothing again.
+        // Every plan drops previous rules beyond the keeper bound, even one that resolves nothing again.
         val stale = rulesOf("r00")
         val allStale =
             allOn.copy(
@@ -330,7 +331,7 @@ class BoundaryRulesTest {
     private fun ordering(mode: OrderingMode) = Ordering(mode)
 
     private companion object {
-        // Today's catalog has 97 starters.
-        const val VIEWER_ON = 97
+        // Today's catalog has 95 starters.
+        const val VIEWER_ON = 95
     }
 }

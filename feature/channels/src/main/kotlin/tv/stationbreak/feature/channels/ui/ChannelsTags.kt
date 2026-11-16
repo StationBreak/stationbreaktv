@@ -27,6 +27,9 @@ object ChannelsTags {
     /** The note shown while a New, Copy or Edit press waits for the lineup to be known. */
     const val GETTING_READY = "channels:gettingReady"
     const val PANEL = "channels:panel"
+
+    /** The permanent line under the list: more channels on make the guide slower to get ready. Never focusable. */
+    const val HEADS_UP = "channels:headsUp"
     const val PANEL_TEXT = "channels:panel:text"
 
     /** The Sources step of the channel builder, the first thing it shows for a new channel. */

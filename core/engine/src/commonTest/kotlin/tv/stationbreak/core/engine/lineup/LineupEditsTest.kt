@@ -142,11 +142,13 @@ class LineupEditsTest {
     }
 
     @Test
-    fun switchOnIgnoresTheCap() {
-        val on = (0 until LineupDefaults.CAP).map { starter("k$it", 300 + it) }
+    fun switchOnIsNeverRefusedForAFullLineup() {
+        // A full lineup: the planner's picks and two more channels. The switch-on is never refused, however full.
+        // What it costs at the boundary is the seat rule's (`LineupPlannerSeatRuleTest`), not an edit's.
+        val on = (0 until LineupDefaults.PLANNER_PICKS + 2).map { starter("k$it", 300 + it) }
         val lineup = lineupOf(starter("western", null, ChannelState.Shelf, id = western), *on.toTypedArray())
         val after = applied(lineup, LineupEdit.SwitchOn(western))
-        assertEquals(LineupDefaults.CAP + 1, after.channels.count { it.state == ChannelState.On })
+        assertEquals(LineupDefaults.PLANNER_PICKS + 3, after.channels.count { it.state == ChannelState.On })
     }
 
     @Test

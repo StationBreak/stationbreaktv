@@ -31,8 +31,9 @@ import kotlin.test.assertTrue
 
 /**
  * Today's curation is frozen (D1, Task 21 fix rounds 1 and 2): the rules of every starter today's curation reads stay
- * as they are until the boundary (keepers first; beyond the cap, a documented edge), and a themed refresh's switch-on
- * starts at the boundary (`onSinceMs`); ties follow the recipe's number in the planner and the day build alike.
+ * as they are until the boundary (keepers first; beyond the keeper bound, a documented edge), and a themed refresh's
+ * switch-on starts at the boundary (`onSinceMs`); ties follow the recipe's number in the planner and the day build
+ * alike.
  */
 class CuratedDayFreezeTest {
     private val hour = 3_600_000L
@@ -131,7 +132,7 @@ class CuratedDayFreezeTest {
     }
 
     @Test
-    fun aReResolveBeyondTheCapTakesNewRulesAtOnce() {
+    fun aReResolveBeyondTheKeeperBoundTakesNewRulesAtOnce() {
         val genres = (0 until MANY).map { "Genre $it" }
         val base = (0 until MANY).map { recipeOf(it, listOf(Source.Genre(genres[it]))) }
         val last = MANY - 1
@@ -162,13 +163,13 @@ class CuratedDayFreezeTest {
         val planned =
             LineupPlanner.plan(lineup, SERVER, USER, 0, snapshot(noon, items), noNames, noon, boundaryMs, v2)
 
-        // The documented edge of more than the cap on: a starter beyond the keepers takes its new rules at once (no
-        // previous copy), so its today, and the homes it now wins, change in the middle of the day.
+        // The documented edge of more than the keeper bound on: a starter beyond the keepers takes its new rules at
+        // once (no previous copy), so its today, and the homes it now wins, change in the middle of the day.
         val beyond =
             planned.channels
                 .first { it.number == 300 + last }
                 .source as ChannelSource.Starter
-        assertNull(beyond.previousRules, "no previous copy beyond the cap")
+        assertNull(beyond.previousRules, "no previous copy beyond the keeper bound")
         assertTrue(Source.Genre("Extra") in beyond.rulesFor(noon).sources)
         val today = built(lineup)
         val now = built(planned)
@@ -396,6 +397,7 @@ class CuratedDayFreezeTest {
     ) = RuleSnapshot(cutoffMs, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
 
     private companion object {
-        const val MANY = 52
+        // More than the keeper bound (`LineupDefaults.KEEPER_COPIES`, 60) on at once.
+        const val MANY = 62
     }
 }
