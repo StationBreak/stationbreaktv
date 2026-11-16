@@ -83,10 +83,10 @@ internal fun ChannelList(
         items(lines.size, key = { lines[it].key() }) { i ->
             when (val line = lines[i]) {
                 Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
-                Line.New -> NewLine(focused = i == focused)
+                Line.New -> NewLine(focused = i == focused, locked = !ui.canAddCustom)
                 is Line.Heading -> HeadingLine(line.group)
                 is Line.Channel -> RowLine(line.row, focused = i == focused)
-                Line.Reset -> ResetLine(focused = i == focused)
+                Line.Reset -> ResetLine(focused = i == focused, locked = !ui.isPro)
             }
         }
     }

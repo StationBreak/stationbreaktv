@@ -2,7 +2,14 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import tv.stationbreak.core.domain.FreeTier
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
@@ -16,6 +23,8 @@ import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
+import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.viewerCustomCount
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.ChannelRules
 import java.security.SecureRandom
@@ -25,11 +34,13 @@ import java.util.Random
  * Builds channels through [LineupService], under its lock (spec 22): every number is worked out inside the edit, and
  * [newSeed] is drawn only for a blank draft, a copy and a reshuffle, never by a create or a save. [newId] gives the
  * unique part of a new channel's ID. [labels] gives the words a viewer sees for the sources of a channel being opened,
- * and [studioNames] the spelling shown for each studio its rules hold folded (`SourceLabels.studios`).
+ * and [studioNames] the spelling shown for each studio its rules hold folded (`SourceLabels.studios`). Without [pro] a
+ * lineup may hold [FreeTier.CUSTOM_CHANNELS] custom channels, and creating one more is refused (#793).
  */
-@Suppress("TooManyFunctions") // The port's seven, and the steps they share.
+@Suppress("TooManyFunctions") // The port's eight, and the steps they share.
 class ChannelBuildManager(
     private val service: LineupService,
+    private val pro: ProEntitlement,
     private val newSeed: NewSeed,
     private val newId: () -> String,
     labels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String>,
@@ -148,10 +159,11 @@ class ChannelBuildManager(
                 }
 
                 else -> {
-                    val id = ChannelId("custom:" + newId())
+                    val id = LineupIds.custom(newId())
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.NewChannel(previous))
                     val number = sent.number.takeIf { sent.numberChosen }
-                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids), sent.kids, id)
+                    val limit = if (pro.pro.value) null else FreeTier.CUSTOM_CHANNELS
+                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids, limit), sent.kids, id)
                 }
             }
         }
@@ -206,6 +218,17 @@ class ChannelBuildManager(
         account: LibraryAccount,
         id: ChannelId,
     ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id) }
+
+    override fun canAddCustom(account: LibraryAccount): Flow<Boolean> =
+        flow {
+            service.loaded(account)
+            emitAll(
+                combine(pro.pro, service.lineup(account)) { isPro, held ->
+                    val lineup = held?.lineup
+                    if (lineup == null) isPro else isPro || lineup.viewerCustomCount() < FreeTier.CUSTOM_CHANNELS
+                },
+            )
+        }.distinctUntilChanged()
 
     private suspend fun edited(
         account: LibraryAccount,
@@ -263,6 +286,8 @@ class ChannelBuildManager(
             is EditRefusal.NumberTaken -> null
 
             EditRefusal.KidsBandOnly -> BuildRefusal.KidsBand
+
+            EditRefusal.CustomLimit -> BuildRefusal.CustomLimit
 
             EditRefusal.NotSwitchable,
             EditRefusal.OptInNotConfirmed,

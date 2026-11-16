@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.model.ChannelId
 
@@ -32,6 +33,9 @@ sealed interface BuildRefusal {
 
     /** The channel is the only one switched on. */
     data object LastOn : BuildRefusal
+
+    /** The lineup holds as many custom channels as the free tier allows, and there is no Pro (#793). */
+    data object CustomLimit : BuildRefusal
 
     /** Another channel, [holder], has the number. The builder never trades numbers: that is the Channels screen's. */
     data class NumberTaken(
@@ -134,6 +138,14 @@ interface ChannelBuilder {
         account: LibraryAccount,
         id: ChannelId,
     ): BuildResult
+
+    /**
+     * Whether another custom channel may be made now (#793): with Pro, always; without it, while the lineup holds fewer
+     * custom channels than the free tier allows (channels this app cannot read do not count). Follows the entitlement
+     * and the lineup. The one place that counts, so no screen counts on its own; [create] is the binding check. False
+     * while there is no lineup.
+     */
+    fun canAddCustom(account: LibraryAccount): Flow<Boolean>
 
     /**
      * Every number free for a channel of the band ([kids] or not), lowest first: no channel has it as its number, its

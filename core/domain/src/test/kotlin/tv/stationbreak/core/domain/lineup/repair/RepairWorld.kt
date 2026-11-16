@@ -181,7 +181,7 @@ internal class RepairWorld(
                     listOf(Source.Genre(genre), Source.Library(CanonicalId.parse(libs[n % libs.size].id.value)))
                 }
             val custom = rules("Custom $n", *sources.toTypedArray())
-            service.edit(ACCOUNT, LineupEdit.AddCustom(ChannelId("custom:c$n"), custom, 700 + n, false), allIds)
+            service.edit(ACCOUNT, LineupEdit.AddCustom(ChannelId("custom:c$n"), custom, 700 + n, false, null), allIds)
         }
     }
 

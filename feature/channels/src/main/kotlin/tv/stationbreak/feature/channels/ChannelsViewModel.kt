@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.lineup.ChangeRefusal
 import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
@@ -36,6 +37,7 @@ import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.builder.ChannelBuilder
 import tv.stationbreak.core.domain.lineup.neighbourOf
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.builder.BuilderMode
@@ -72,6 +74,8 @@ internal class ChannelsViewModel
         private val repository: ChannelRepository,
         private val household: HouseholdSetting,
         private val editor: ChannelEditor,
+        private val pro: ProEntitlement,
+        private val builder: ChannelBuilder,
         private val schedule: ScheduleSource,
         private val propertiesReader: ChannelPropertiesReader,
         private val readiness: ChannelReadiness,
@@ -84,6 +88,8 @@ internal class ChannelsViewModel
             repository: ChannelRepository,
             household: HouseholdSetting,
             editor: ChannelEditor,
+            pro: ProEntitlement,
+            builder: ChannelBuilder,
             schedule: ScheduleSource,
             propertiesReader: ChannelPropertiesReader,
             readiness: ChannelReadiness,
@@ -93,6 +99,8 @@ internal class ChannelsViewModel
             repository,
             household,
             editor,
+            pro,
+            builder,
             schedule,
             propertiesReader,
             readiness,
@@ -114,6 +122,9 @@ internal class ChannelsViewModel
             val rows: List<ChannelRow> = emptyList(),
             val access: LineupAccess = LineupAccess.Loading,
             val useMyCollections: Boolean = true,
+            /** The entitlement and the custom-channel cap, as last seen (#793). */
+            val isPro: Boolean = true,
+            val canAddCustom: Boolean = true,
             /** The value the viewer last asked "Use my collections" to take, until the change that sends it is done. */
             val householdWant: Boolean? = null,
             val focus: ChannelsFocus? = null,
@@ -176,7 +187,14 @@ internal class ChannelsViewModel
                 // New is always drawn, so with no channel to start on the focus is on it at once, without waiting for
                 // an account or a list; a channel to start on is waited for (until the first list, see onList).
                 val start = if (current == null) ChannelsFocus.New else null
-                model = Model(generation = generation, current = current, wantFocus = current, focus = start)
+                model =
+                    Model(
+                        generation = generation,
+                        current = current,
+                        wantFocus = current,
+                        focus = start,
+                        isPro = pro.pro.value,
+                    )
                 visible = true
                 shown.value = derive(model)
             }
@@ -206,6 +224,11 @@ internal class ChannelsViewModel
                 val access =
                     launch {
                         editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
+                    }
+                val entitled = launch { pro.pro.collect { p -> change(generation) { it.copy(isPro = p) } } }
+                val capped =
+                    launch {
+                        builder.canAddCustom(account).collect { c -> change(generation) { it.copy(canAddCustom = c) } }
                     }
                 val flag =
                     launch {
@@ -239,6 +262,8 @@ internal class ChannelsViewModel
                     pending?.cancel()
                     ready.cancel()
                     access.cancel()
+                    entitled.cancel()
+                    capped.cancel()
                     flag.cancel()
                 }
             }
@@ -374,9 +399,21 @@ internal class ChannelsViewModel
         private fun builderWhenKnown(m: Model): Model {
             val want = m.wantBuilder ?: return m
             return when (m.access) {
-                LineupAccess.Editable -> m.copy(builder = want, wantBuilder = null)
-                LineupAccess.ReadOnly -> m.copy(wantBuilder = null, message = ChannelsMessage.NotEditable)
-                LineupAccess.Loading -> m
+                LineupAccess.Editable -> {
+                    if (want !is BuilderMode.Edit && !m.canAddCustom) {
+                        m.copy(wantBuilder = null, message = ChannelsMessage.CustomLimit)
+                    } else {
+                        m.copy(builder = want, wantBuilder = null)
+                    }
+                }
+
+                LineupAccess.ReadOnly -> {
+                    m.copy(wantBuilder = null, message = ChannelsMessage.NotEditable)
+                }
+
+                LineupAccess.Loading -> {
+                    m
+                }
             }
         }
 
@@ -437,7 +474,7 @@ internal class ChannelsViewModel
                 }
 
                 else -> {
-                    choose(choice, checkNotNull(panel?.id ?: ui.about))
+                    choose(choice, checkNotNull(panel?.id ?: ui.about), ui)
                 }
             }
         }
@@ -446,7 +483,17 @@ internal class ChannelsViewModel
         private fun choose(
             choice: Choice,
             id: ChannelId,
+            ui: ChannelsUi,
         ): ChannelId? {
+            // A marked choice shows its note and does nothing else (#793); the domain refuses it too.
+            val row = ui.rows.firstOrNull { it.id == id }
+            val locked = row?.let { lockOf(choice, it, ui.isPro, ui.canAddCustom) }
+            if (locked != null) {
+                synchronized(lock) {
+                    apply { it.copy(panel = null, holder = null, about = null, properties = null, message = locked) }
+                }
+                return null
+            }
             when (choice) {
                 // The panel is closed in the model first, so the screen is finished with nothing open over it.
                 Choice.Watch -> dismiss()
@@ -525,6 +572,8 @@ internal class ChannelsViewModel
                 builder = m.builder,
                 gettingReady = m.wantBuilder != null,
                 useMyCollections = m.householdWant ?: m.useMyCollections,
+                isPro = m.isPro,
+                canAddCustom = m.canAddCustom,
                 about = m.about,
                 properties = m.properties,
                 listed = m.listed,
@@ -602,9 +651,17 @@ internal class ChannelsViewModel
                     giveUpWaitingLater(model.generation, mode)
                     return
                 }
-                if (notEditable()) return
+                if (notEditable() || atCustomCap(mode)) return
                 apply { it.copy(builder = mode, panel = null, holder = null, message = null, pendingFocus = null) }
             }
+        }
+
+        // A new channel (made or copied) is refused with a note while the free allowance is used up; an edit is free
+        // (#793). The domain's create is the binding check. Under [lock].
+        private fun atCustomCap(mode: BuilderMode): Boolean {
+            if (mode is BuilderMode.Edit || model.canAddCustom) return false
+            apply { it.copy(panel = null, holder = null, message = ChannelsMessage.CustomLimit) }
+            return true
         }
 
         // A wait that is still on after ACCESS_WAIT is dropped and says so; one that resolved (or was cancelled by a
@@ -800,6 +857,7 @@ internal class ChannelsViewModel
                 ChangeRefusal.KidsBandOnly -> closed.copy(message = ChannelsMessage.KidsBand)
                 ChangeRefusal.LastOn -> closed.copy(message = ChannelsMessage.LastOn)
                 ChangeRefusal.NoFreeNumber -> closed.copy(message = ChannelsMessage.NoNumber)
+                ChangeRefusal.NeedsPro -> closed.copy(message = ChannelsMessage.NeedsPro)
                 else -> closed.copy(message = ChannelsMessage.Failed)
             }
 
@@ -819,7 +877,11 @@ internal class ChannelsViewModel
 
         fun askReset() {
             synchronized(lock) {
-                if (!notEditable()) apply { it.copy(confirmingReset = true, panel = null) }
+                when {
+                    notEditable() -> Unit
+                    !model.isPro -> apply { it.copy(panel = null, message = ChannelsMessage.NeedsPro) }
+                    else -> apply { it.copy(confirmingReset = true, panel = null) }
+                }
             }
         }
 
@@ -858,6 +920,7 @@ internal class ChannelsViewModel
                 ResetResult.SaveFailed -> done.copy(message = ChannelsMessage.SaveFailed)
                 ResetResult.Failed -> done.copy(message = ChannelsMessage.Failed)
                 ResetResult.LibrariesUnavailable -> done.copy(message = ChannelsMessage.LibrariesUnavailable)
+                ResetResult.NeedsPro -> done.copy(message = ChannelsMessage.NeedsPro)
             }
         }
 

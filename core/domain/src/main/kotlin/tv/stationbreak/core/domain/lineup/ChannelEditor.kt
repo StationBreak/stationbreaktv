@@ -56,6 +56,9 @@ sealed interface ChangeRefusal {
 
     data object KidsBandOnly : ChangeRefusal
 
+    /** The change reshapes the planner's lineup, which is a Pro feature (#793). */
+    data object NeedsPro : ChangeRefusal
+
     /** Another channel, [holder], has the number (its name is in the channel list). */
     data class NumberTaken(
         val holder: ChannelId,
@@ -103,6 +106,9 @@ sealed interface ResetResult {
 
     /** Something other than the library failed; nothing changed. */
     data object Failed : ResetResult
+
+    /** A reset is a Pro feature (#793); nothing changed. */
+    data object NeedsPro : ResetResult
 }
 
 /** Whether a lineup can be changed on this TV. */

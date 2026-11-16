@@ -54,6 +54,13 @@ class CustomEditsTest {
 
     private fun lineupOf(vararg channels: LineupChannel) = Lineup(SERVER, USER, 1, 0, true, channels.toList())
 
+    private fun add(
+        id: ChannelId,
+        rules: ChannelRules,
+        number: Int?,
+        kids: Boolean,
+    ) = LineupEdit.AddCustom(id, rules, number, kids, customLimit = null)
+
     private fun apply(
         lineup: Lineup,
         edit: LineupEdit,
@@ -83,7 +90,7 @@ class CustomEditsTest {
     fun addCustomMakesAnOnChannelAtTheNumber() {
         val lineup = lineupOf(starter("western", 310))
 
-        val added = applied(lineup, LineupEdit.AddCustom(newId, rulesOf("New"), 650, kids = false)).byId(newId)
+        val added = applied(lineup, add(newId, rulesOf("New"), 650, kids = false)).byId(newId)
 
         assertEquals(ChannelState.On, added.state)
         assertEquals(650, added.number)
@@ -97,24 +104,24 @@ class CustomEditsTest {
     fun addCustomRefusesATakenIdAndANumberOrOutOfRange() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650))
 
-        assertEquals(EditRefusal.IdTaken, refusal(lineup, LineupEdit.AddCustom(mine, anyRules, 700, kids = false)))
+        assertEquals(EditRefusal.IdTaken, refusal(lineup, add(mine, anyRules, 700, kids = false)))
         assertEquals(
             EditRefusal.NumberTaken(mine),
-            refusal(lineup, LineupEdit.AddCustom(newId, anyRules, 650, kids = false)),
+            refusal(lineup, add(newId, anyRules, 650, kids = false)),
         )
         assertEquals(
             EditRefusal.NumberTaken(western),
-            refusal(lineup, LineupEdit.AddCustom(newId, anyRules, 310, kids = false)),
+            refusal(lineup, add(newId, anyRules, 310, kids = false)),
         )
-        assertEquals(EditRefusal.OutOfRange, refusal(lineup, LineupEdit.AddCustom(newId, anyRules, 0, kids = false)))
-        assertEquals(EditRefusal.OutOfRange, refusal(lineup, LineupEdit.AddCustom(newId, anyRules, 1000, kids = false)))
-        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.AddCustom(newId, anyRules, 700, kids = true)))
+        assertEquals(EditRefusal.OutOfRange, refusal(lineup, add(newId, anyRules, 0, kids = false)))
+        assertEquals(EditRefusal.OutOfRange, refusal(lineup, add(newId, anyRules, 1000, kids = false)))
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, add(newId, anyRules, 700, kids = true)))
     }
 
     @Test
     fun addCustomAtAKidNumberIsAKidChannel() {
         val added =
-            applied(lineupOf(starter("western", 310)), LineupEdit.AddCustom(newId, rulesOf("Kids"), 5, kids = true))
+            applied(lineupOf(starter("western", 310)), add(newId, rulesOf("Kids"), 5, kids = true))
                 .byId(newId)
 
         assertTrue(KidStatus.isKidChannel(added))
@@ -188,32 +195,69 @@ class CustomEditsTest {
 
     @Test
     fun addCustomWithNoNumberTakesTheFirstFreeInside() {
-        val add = LineupEdit.AddCustom(newId, rulesOf("a"), null, kids = false)
+        val add = add(newId, rulesOf("a"), null, kids = false)
         val first = applied(lineupOf(starter("western", 310)), add)
         assertEquals(600, first.byId(newId).number)
 
         // 601 is retired in this catalog, so the next free one is 602.
-        val second = applied(first, LineupEdit.AddCustom(ChannelId("custom:b"), rulesOf("b"), null, kids = false))
+        val second = applied(first, add(ChannelId("custom:b"), rulesOf("b"), null, kids = false))
         assertEquals(602, second.byId(ChannelId("custom:b")).number)
 
         // A stale pair: both read the same lineup; the second apply, on the first's result, cannot collide.
         val stale = lineupOf(starter("western", 310))
-        val a = applied(stale, LineupEdit.AddCustom(ChannelId("custom:a"), rulesOf("a"), null, kids = false))
-        val b = applied(a, LineupEdit.AddCustom(ChannelId("custom:b"), rulesOf("b"), null, kids = false))
+        val a = applied(stale, add(ChannelId("custom:a"), rulesOf("a"), null, kids = false))
+        val b = applied(a, add(ChannelId("custom:b"), rulesOf("b"), null, kids = false))
         assertEquals(setOf(600, 602), setOf(b.byId(ChannelId("custom:a")).number, b.byId(ChannelId("custom:b")).number))
+    }
+
+    private fun addWithLimit(limit: Int?): LineupEdit = LineupEdit.AddCustom(newId, anyRules, null, false, limit)
+
+    @Test
+    fun addCustomUnderTheLimitIsApplied() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602))
+
+        assertEquals(603, applied(lineup, addWithLimit(3)).byId(newId).number)
+    }
+
+    @Test
+    fun addCustomAtTheLimitIsRefused() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602))
+
+        assertEquals(EditRefusal.CustomLimit, refusal(lineup, addWithLimit(2)))
+    }
+
+    @Test
+    fun addCustomOverTheLimitIsRefused() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602), custom("c", 603))
+
+        assertEquals(EditRefusal.CustomLimit, refusal(lineup, addWithLimit(2)))
+    }
+
+    @Test
+    fun addCustomWithNoLimitIsNeverRefusedForTheCount() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602), custom("c", 603))
+
+        assertEquals(604, applied(lineup, addWithLimit(null)).byId(newId).number)
+    }
+
+    @Test
+    fun theLimitCountsOnlyCustomChannels() {
+        val lineup = lineupOf(starter("western", 310), starter("drama", 311), custom("a", 600))
+
+        assertEquals(602, applied(lineup, addWithLimit(2)).byId(newId).number)
     }
 
     @Test
     fun addCustomWithNoNumberAndAFullBandIsNoFreeNumber() {
         val full = lineupOf(starter("western", 310), *customsFilling(LineupDefaults.CUSTOM_NUMBERS))
 
-        assertEquals(EditRefusal.NoFreeNumber, refusal(full, LineupEdit.AddCustom(newId, anyRules, null, kids = false)))
+        assertEquals(EditRefusal.NoFreeNumber, refusal(full, add(newId, anyRules, null, kids = false)))
     }
 
     @Test
     fun addCustomForKidsWithNoNumberTakesTheKidsBand() {
         val lineup = lineupOf(starter("western", 310))
-        val added = applied(lineup, LineupEdit.AddCustom(newId, rulesOf("k"), null, kids = true))
+        val added = applied(lineup, add(newId, rulesOf("k"), null, kids = true))
 
         assertEquals(1, added.byId(newId).number)
     }
@@ -456,5 +500,45 @@ class CustomEditsTest {
 
     private companion object {
         val PoolPolicyKidsOnly = tv.stationbreak.core.engine.PoolPolicy.KidsOnly
+    }
+
+    // A starter whose recipe left the catalog is a Custom source with a starter: ID: the planner's, not the viewer's.
+    private fun retiredStarter(
+        key: String,
+        number: Int,
+    ) = LineupChannel(
+        LineupIds.starter(key),
+        number,
+        null,
+        null,
+        ChannelState.On,
+        ChannelSource.Custom(rulesOf(key)),
+        5L,
+    )
+
+    @Test
+    fun viewerCustomCountIgnoresRetiredStartersAndUnreadableChannels() {
+        val unreadable =
+            LineupChannel(ChannelId("custom:x"), 650, null, null, ChannelState.On, ChannelSource.Unusable("{}"), 5L)
+        val lineup =
+            lineupOf(
+                starter("western", 310),
+                retiredStarter("old", 311),
+                unreadable,
+                custom("a", 600),
+                custom("b", 602),
+            )
+
+        assertEquals(2, lineup.viewerCustomCount())
+    }
+
+    @Test
+    fun aRetiredStarterDoesNotCountTowardTheLimit() {
+        val five = arrayOf(custom("a", 600), custom("b", 602), custom("c", 603), custom("d", 604), custom("e", 605))
+        val full = lineupOf(retiredStarter("old", 311), *five)
+        assertEquals(EditRefusal.CustomLimit, refusal(full, addWithLimit(5)))
+
+        val four = lineupOf(retiredStarter("old", 311), retiredStarter("old2", 312), *five.copyOf(4).requireNoNulls())
+        assertEquals(605, applied(four, addWithLimit(5)).byId(newId).number)
     }
 }

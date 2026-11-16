@@ -16,11 +16,13 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsPanel
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.Choice
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.choicesOf
+import tv.stationbreak.feature.channels.lockOf
 
 /** The dialog over the list: [ui]'s panel, or the reset question. */
 @Composable
@@ -71,8 +73,9 @@ internal fun ChannelsPanelView(
         if (panel is ChannelsPanel.Number && picker != null) {
             NumberPicker(picker)
         } else {
+            val row = ui.rows.firstOrNull { it.id == panel?.id }
             choicesOf(ui).forEachIndexed { i, choice ->
-                ChoiceRow(choice, panel, focused = i == ui.choice)
+                ChoiceRow(choice, panel, focused = i == ui.choice, locked = isLocked(choice, row, ui))
             }
         }
     }
@@ -88,9 +91,10 @@ private fun ChoiceRow(
     choice: Choice,
     panel: ChannelsPanel?,
     focused: Boolean,
+    locked: Boolean,
 ) {
     Text(
-        labelOf(choice, panel),
+        labelOf(choice, panel, locked),
         Modifier
             .fillMaxWidth()
             .drawnFocus(focused)
@@ -101,8 +105,26 @@ private fun ChoiceRow(
     )
 }
 
+/** Whether [choice] on [row] carries the Pro mark (#793): see [lockOf]. */
+internal fun isLocked(
+    choice: Choice,
+    row: ChannelRow?,
+    ui: ChannelsUi,
+): Boolean = row != null && lockOf(choice, row, ui.isPro, ui.canAddCustom) != null
+
+/** The choice's words; a marked one (#793) ends with the Pro mark and shows a note when picked instead of acting. */
 @Composable
 internal fun labelOf(
+    choice: Choice,
+    panel: ChannelsPanel?,
+    locked: Boolean = false,
+): String {
+    val label = plainLabelOf(choice, panel)
+    return if (locked) stringResource(R.string.pro_marked_label, label) else label
+}
+
+@Composable
+private fun plainLabelOf(
     choice: Choice,
     panel: ChannelsPanel?,
 ): String =

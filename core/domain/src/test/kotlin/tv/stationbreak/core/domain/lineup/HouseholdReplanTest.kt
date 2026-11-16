@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.engine.lineup.Band
@@ -77,7 +78,7 @@ class HouseholdReplanTest {
         }
     private val service = LineupService(store, library, clock, { 0 }, {}, catalog)
     private val chosen: Set<ItemId>? = LIBRARIES
-    private val manager = ChannelManager(service) { chosen }
+    private val manager = ChannelManager(service, FakeProEntitlement()) { chosen }
     private val houseId = LineupIds.starter("house")
     private val westerns = LineupIds.starter("westerns")
     private val shelvedIds = setOf(houseId, westerns)
@@ -114,7 +115,8 @@ class HouseholdReplanTest {
             offAndShelved()
             val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
 
-            assertEquals(ChangeResult.Done, ChannelManager(fresh) { LIBRARIES }.change(ACCOUNT, on))
+            val freshManager = ChannelManager(fresh, FakeProEntitlement()) { LIBRARIES }
+            assertEquals(ChangeResult.Done, freshManager.change(ACCOUNT, on))
 
             val lineup = checkNotNull(fresh.loaded(ACCOUNT)).lineup
             assertEquals(true, lineup.useMyCollections)
@@ -137,7 +139,8 @@ class HouseholdReplanTest {
             val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
             val unsynced = setOf(ItemId("d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"))
 
-            assertEquals(ChangeResult.Done, ChannelManager(fresh) { unsynced }.change(ACCOUNT, on))
+            val freshManager = ChannelManager(fresh, FakeProEntitlement()) { unsynced }
+            assertEquals(ChangeResult.Done, freshManager.change(ACCOUNT, on))
 
             val held = checkNotNull(fresh.loaded(ACCOUNT))
             assertEquals(true, held.lineup.useMyCollections, "the edit is saved")
@@ -166,7 +169,7 @@ class HouseholdReplanTest {
         library.delegate.useAccount(ACCOUNT)
         offAndShelved()
         val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
-        ChannelManager(fresh) { LIBRARIES }.change(ACCOUNT, on)
+        ChannelManager(fresh, FakeProEntitlement()) { LIBRARIES }.change(ACCOUNT, on)
         assertEquals(boundary, storedMeta().replanFromMs, "the pending change is remembered, in the file")
         return fresh
     }
@@ -215,7 +218,7 @@ class HouseholdReplanTest {
 
             // An ordinary edit after the boundary does not plan, so it must not clear the pending re-plan.
             val off = ChannelChange.SwitchOff(westerns)
-            assertEquals(ChangeResult.Done, ChannelManager(broken) { null }.change(ACCOUNT, off))
+            assertEquals(ChangeResult.Done, ChannelManager(broken, FakeProEntitlement()) { null }.change(ACCOUNT, off))
 
             val meta = storedMeta()
             assertTrue(meta.replanDue(nowMs), "still due: $meta")
@@ -249,7 +252,7 @@ class HouseholdReplanTest {
             offAndShelved()
             val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
 
-            assertEquals(ChangeResult.Done, ChannelManager(fresh) { null }.change(ACCOUNT, on))
+            assertEquals(ChangeResult.Done, ChannelManager(fresh, FakeProEntitlement()) { null }.change(ACCOUNT, on))
 
             val lineup = checkNotNull(fresh.loaded(ACCOUNT)).lineup
             assertEquals(true, lineup.useMyCollections)

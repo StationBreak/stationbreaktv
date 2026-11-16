@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
+import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.HostTestBuilder
 import tv.stationbreak.buildlogic.ReleaseVersion
 
@@ -32,6 +33,19 @@ val ciVersionCode: Int =
 val releaseVersion: ReleaseVersion? =
     providers.environmentVariable("RELEASE_VERSION").orNull?.let { ReleaseVersion.parse(it) }
 
+// Whether StationBreak Pro is unlocked, by (build type, flavor) (#793). Debug and benchmark builds keep it open, so
+// dogfood and device runs see no gate. Release ships closed in both flavors: any pair not listed is closed. What the
+// GitHub release build does is #119's call, and one edit to this table. See di/ProModule and the testRelease guard.
+val proUnlockedByVariant: Map<Pair<String, String?>, Boolean> =
+    mapOf(
+        ("debug" to "amazon") to true,
+        ("debug" to "github") to true,
+        ("benchmark" to "amazon") to true,
+        ("benchmark" to "github") to true,
+        ("release" to "amazon") to false,
+        ("release" to "github") to false,
+    )
+
 // AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
 // benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13). The flavors
 // share every source set and dependency, so the github benchmark manifest stands for the amazon one: that one alone is
@@ -45,6 +59,16 @@ androidComponents {
     // kotlinx-coroutines' debug-agent file is for a JVM debugger attaching to the process; a non-debuggable build has no
     // use for it.
     onVariants { variant ->
+        val distribution = variant.productFlavors.firstOrNull { it.first == "distribution" }?.second
+        val proUnlocked = proUnlockedByVariant[(variant.buildType ?: "release") to distribution] ?: false
+        // A release build must ship with the gates closed (#793): fail the build, not just a test.
+        if (variant.buildType == "release" && proUnlocked) {
+            throw GradleException("PRO_UNLOCKED must be false in a release build (${variant.name})")
+        }
+        variant.buildConfigFields?.put(
+            "PRO_UNLOCKED",
+            BuildConfigField("boolean", proUnlocked, "StationBreak Pro unlocked (#793); see app/build.gradle.kts"),
+        )
         if (variant.buildType != "debug") {
             variant.packaging.resources.excludes
                 .add("DebugProbesKt.bin")

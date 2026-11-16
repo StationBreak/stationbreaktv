@@ -52,4 +52,5 @@ internal fun refusalMessage(reason: BuildRefusal): BuilderMessage =
         BuildRefusal.KidsBand -> BuilderMessage.KidsBand
         BuildRefusal.LastOn -> BuilderMessage.LastOn
         is BuildRefusal.NumberTaken -> BuilderMessage.NumberTaken
+        BuildRefusal.CustomLimit -> BuilderMessage.CustomLimit
     }

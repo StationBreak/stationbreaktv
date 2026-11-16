@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.CountingLibrary
 import tv.stationbreak.core.domain.lineup.LIBRARIES
@@ -58,6 +59,7 @@ class ChannelBuildManagerTest {
     private val builder =
         ChannelBuildManager(
             service,
+            FakeProEntitlement(),
             { Seed(1_000uL + drawn++.toULong()) },
             { "id${++ids}" },
             { _, sources -> sources.associateWith { "Label ${it.key}" } },
@@ -345,7 +347,13 @@ class ChannelBuildManagerTest {
             val withStudio = plain.copy(sources = plain.sources + Source.Studio("studio a"), formatVersion = 3)
             seed(starter("westerns", 220, ChannelState.On, withStudio))
             val shown =
-                ChannelBuildManager(service, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, names ->
+                ChannelBuildManager(
+                    service,
+                    FakeProEntitlement(),
+                    { Seed(1uL) },
+                    { "x" },
+                    { _, _ -> emptyMap() },
+                ) { _, names ->
                     names.associateWith { if (it == "studio a") "Studio A" else it }
                 }
 
@@ -546,7 +554,13 @@ class ChannelBuildManagerTest {
                     TestCatalog,
                 )
             val failing =
-                ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, _ -> emptyMap() }
+                ChannelBuildManager(
+                    broken,
+                    FakeProEntitlement(),
+                    { Seed(1uL) },
+                    { "x" },
+                    { _, _ -> emptyMap() },
+                ) { _, _ -> emptyMap() }
 
             val result = failing.delete(ACCOUNT, laughs)
 
@@ -569,7 +583,13 @@ class ChannelBuildManagerTest {
                     TestCatalog,
                 )
             val failing =
-                ChannelBuildManager(broken, { Seed(1uL) }, { "x" }, { _, _ -> emptyMap() }) { _, _ -> emptyMap() }
+                ChannelBuildManager(
+                    broken,
+                    FakeProEntitlement(),
+                    { Seed(1uL) },
+                    { "x" },
+                    { _, _ -> emptyMap() },
+                ) { _, _ -> emptyMap() }
 
             assertEquals(OpenResult.Failed, failing.open(ACCOUNT, laughs, copy = true))
             seed()
@@ -608,6 +628,7 @@ class ChannelBuildManagerTest {
             val retired =
                 ChannelBuildManager(
                     LineupService(store, library, clock, { 0 }, { events += it }, retiring),
+                    FakeProEntitlement(),
                     { Seed(1uL) },
                     { "x" },
                     { _, _ -> emptyMap() },

@@ -116,7 +116,7 @@ class LineupV3RoundTripTest {
                 LineupEdit.SetNumber(laughs, 500),
                 LineupEdit.SetNumber(laughs, 210, swapWith = ChannelId("starter:whodunit")),
                 LineupEdit.ClearNumber(laughs),
-                LineupEdit.AddCustom(ChannelId("custom:new"), shuffle, null, kids = false),
+                LineupEdit.AddCustom(ChannelId("custom:new"), shuffle, null, kids = false, customLimit = null),
                 LineupEdit.ReplaceCustom(ChannelId("custom:mine"), shuffle, null, kids = false),
                 LineupEdit.ReplaceCustom(mine, shuffle, 601, ChannelId("custom:other"), kids = false),
                 LineupEdit.Reseed(ChannelId("custom:mine"), Seed(5uL)),

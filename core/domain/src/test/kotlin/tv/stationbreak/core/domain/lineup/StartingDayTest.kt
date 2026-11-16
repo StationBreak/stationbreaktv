@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.lineup.CuratedLibrary.boundaryMs
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -97,7 +98,7 @@ class StartingDayTest {
                 }
             val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
             nowMs = now
-            val manager = ChannelManager(service) { null }
+            val manager = ChannelManager(service, FakeProEntitlement()) { null }
             for (id in switched) assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.SwitchOn(id)))
             val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
 

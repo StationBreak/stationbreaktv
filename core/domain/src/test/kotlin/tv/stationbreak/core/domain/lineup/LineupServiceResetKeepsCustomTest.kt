@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -136,7 +137,7 @@ class LineupServiceResetKeepsCustomTest {
             val bare = CountingLibrary()
             val early = LineupService(store, bare, clock, { 0 }, {}, TestCatalog)
             seedStored(lineupOf(custom("Mine", 600)))
-            ChannelManager(early) { LIBRARIES }.reset(ACCOUNT)
+            ChannelManager(early, FakeProEntitlement()) { LIBRARIES }.reset(ACCOUNT)
             bare.seed(fillingLibrary())
 
             early.refresh(ACCOUNT, LIBRARIES)
@@ -288,7 +289,7 @@ class LineupServiceResetKeepsCustomTest {
             val bare = LineupService(store, CountingLibrary(), clock, { 0 }, {}, TestCatalog)
             seedStored(lineupOf(custom("Mine", 600)))
 
-            val result = ChannelManager(bare) { LIBRARIES }.reset(ACCOUNT)
+            val result = ChannelManager(bare, FakeProEntitlement()) { LIBRARIES }.reset(ACCOUNT)
 
             assertEquals(ResetResult.Chosen, result)
             val after = checkNotNull(bare.lineup(ACCOUNT).first { it != null }).lineup

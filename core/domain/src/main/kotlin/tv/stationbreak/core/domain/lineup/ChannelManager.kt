@@ -9,11 +9,15 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.ProEntitlement
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.EditRefusal
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.isViewerCustom
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 
@@ -21,10 +25,12 @@ import tv.stationbreak.core.model.ItemId
  * Changes a lineup through [LineupService], under its lock (spec 21): the engine's edits stay on this side of the
  * port. [libraries] is the libraries the viewer chose, read when a reset plans a new lineup; null means none chosen
  * or unreadable. [switchOns] is told of each channel the viewer really switches on (one that was off), once it is
- * saved.
+ * saved. Without Pro ([pro]), a change that touches a built-in channel (the planner's lineup) and a reset are refused
+ * (#793): the viewer's own custom channels, and "use my collections", stay free.
  */
 class ChannelManager(
     private val service: LineupService,
+    private val pro: ProEntitlement,
     private val switchOns: ChannelSwitchOns = ChannelSwitchOns { _, _ -> },
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ChannelEditor {
@@ -45,29 +51,60 @@ class ChannelManager(
             emit(LineupAccess.ReadOnly)
         }.distinctUntilChanged()
 
-    // Any failure other than cancellation (a store that throws, though none should) is Failed, and reported: the
-    // service saves before it publishes, so nothing it has not saved is ever shown.
-    @Suppress("TooGenericExceptionCaught")
     override suspend fun change(
         account: LibraryAccount,
         change: ChannelChange,
     ): ChangeResult {
         // "Done" also means "changed nothing", so a switch-on counts only for a channel known to be off before it.
         val wasOff = change is ChannelChange.SwitchOn && isOff(account, change.id)
-        val saved =
-            try {
-                service.edit(account, change.toEdit(), librariesFor(change))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                service.reportEvent(LineupEvent.EditFailed)
-                return ChangeResult.Failed
-            }
-        val result = resultOf(saved)
+        val result = attempt(account, change)
         if (wasOff && result == ChangeResult.Done && change is ChannelChange.SwitchOn) {
             switchOns.switchedOn(account, change.id)
         }
         return result
+    }
+
+    // Any failure other than cancellation (a store that throws, though none should) is Failed, and reported: the
+    // service saves before it publishes, so nothing it has not saved is ever shown.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun attempt(
+        account: LibraryAccount,
+        change: ChannelChange,
+    ): ChangeResult =
+        try {
+            if (!pro.pro.value && touchesBuiltIn(account, change)) {
+                ChangeResult.Refused(ChangeRefusal.NeedsPro)
+            } else {
+                resultOf(service.edit(account, change.toEdit(), librariesFor(change)))
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            service.reportEvent(LineupEvent.EditFailed)
+            ChangeResult.Failed
+        }
+
+    // True when the change touches a channel that is not the viewer's own readable custom one, or swaps with one. An
+    // unknown ID is left to the engine to refuse as unknown. "Use my collections" touches no channel.
+    private suspend fun touchesBuiltIn(
+        account: LibraryAccount,
+        change: ChannelChange,
+    ): Boolean {
+        val touched =
+            when (change) {
+                is ChannelChange.SwitchOn -> listOf(change.id)
+                is ChannelChange.SwitchOff -> listOf(change.id)
+                is ChannelChange.SetNumber -> listOfNotNull(change.id, change.swapWith)
+                is ChannelChange.ClearNumber -> listOfNotNull(change.id, change.swapWith)
+                is ChannelChange.UseMyCollections -> emptyList()
+            }
+        // Fail closed: with no lineup to look at, a free viewer's change is gated.
+        val channels = service.loaded(account)?.lineup?.channels
+        return when {
+            touched.isEmpty() -> false
+            channels == null -> true
+            else -> touched.any { id -> channels.firstOrNull { it.id == id }?.let { !it.isViewerCustom() } == true }
+        }
     }
 
     private fun isOff(
@@ -122,6 +159,7 @@ class ChannelManager(
     // Only cancellation goes through.
     @Suppress("TooGenericExceptionCaught")
     override suspend fun reset(account: LibraryAccount): ResetResult {
+        if (!pro.pro.value) return ResetResult.NeedsPro
         val chosen =
             try {
                 libraries()
@@ -177,7 +215,11 @@ private fun EditRefusal.toRefusal(): ChangeRefusal =
         is EditRefusal.NumberTaken -> ChangeRefusal.NumberTaken(holder)
 
         // The custom-channel edits are not reachable from a ChannelChange.
-        EditRefusal.NotCustom, EditRefusal.NotShuffle, EditRefusal.IdTaken -> ChangeRefusal.Invalid
+        EditRefusal.NotCustom,
+        EditRefusal.NotShuffle,
+        EditRefusal.IdTaken,
+        EditRefusal.CustomLimit,
+        -> ChangeRefusal.Invalid
     }
 
 private fun Lineup.hasOn() = channels.any { it.state == ChannelState.On }
