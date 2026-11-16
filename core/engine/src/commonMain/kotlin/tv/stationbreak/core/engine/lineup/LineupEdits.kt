@@ -211,12 +211,18 @@ object LineupEdits {
                 val moved = was != null && it.id != edit.id && (was.number != it.number || was.state != it.state)
                 val own = marksSelf && it.id == edit.id
                 when {
-                    !own && !moved -> it
+                    !own && !moved -> {
+                        it
+                    }
 
                     // The viewer's choice beats the planner's: a channel on the air no longer leaves.
-                    it.state == ChannelState.On -> it.copy(chosenByViewer = true, leavesAtMs = null, shelfReason = null)
+                    it.state == ChannelState.On -> {
+                        it.copy(viewerChoice = ViewerChoice.Touched, leavesAtMs = null, shelfReason = null)
+                    }
 
-                    else -> it.copy(chosenByViewer = true)
+                    else -> {
+                        it.copy(viewerChoice = ViewerChoice.Touched)
+                    }
                 }
             }
         return EditOutcome.Applied(outcome.lineup.copy(channels = marked))

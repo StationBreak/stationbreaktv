@@ -128,7 +128,7 @@ class BoundaryRulesTest {
                 channels =
                     first.channels.map {
                         if (it.source !is ChannelSource.Starter) return@map it
-                        val on = it.copy(state = ChannelState.On, chosenByViewer = true)
+                        val on = it.copy(state = ChannelState.On, viewerChoice = ViewerChoice.Touched)
                         if (it.id == last) on.copy(numberOverride = 100) else on
                     },
             )

@@ -15,6 +15,7 @@ import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.engine.lineup.rulesFor
 import tv.stationbreak.core.model.CollectionNames
@@ -227,7 +228,7 @@ class CuratedDayFreezeTest {
                 channels =
                     first.channels.map {
                         if (it.id == twinId) {
-                            it.copy(state = ChannelState.On, numberOverride = 105, chosenByViewer = true)
+                            it.copy(state = ChannelState.On, numberOverride = 105, viewerChoice = ViewerChoice.Touched)
                         } else {
                             it
                         }

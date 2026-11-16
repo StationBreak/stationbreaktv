@@ -11,6 +11,7 @@ import tv.stationbreak.core.engine.lineup.Planning
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.householdFor
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -108,7 +109,7 @@ internal class PlannedLineup(
                     state = ChannelState.On,
                     source = ChannelSource.Custom(custom.rules),
                     onSinceMs = now,
-                    chosenByViewer = true,
+                    viewerChoice = ViewerChoice.Touched,
                 )
             }
 
@@ -131,7 +132,7 @@ internal class PlannedLineup(
                     } else {
                         channel.copy(
                             state = ChannelState.On,
-                            chosenByViewer = true,
+                            viewerChoice = ViewerChoice.Touched,
                             onSinceMs = now,
                             leavesAtMs = null,
                             shelfReason = null,

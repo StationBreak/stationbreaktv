@@ -13,6 +13,7 @@ import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.OrderingMode
@@ -72,7 +73,7 @@ class LineupV3RoundTripTest {
             first.channels.map {
                 when (it.id.value) {
                     "starter:rockets" -> it.copy(leavesAtMs = 9_000L, shelfReason = ShelfReason.BelowCap)
-                    "starter:laughs" -> it.copy(chosenByViewer = true)
+                    "starter:laughs" -> it.copy(viewerChoice = ViewerChoice.Touched)
                     else -> it
                 }
             } + custom + channel("custom:other", 601, ChannelState.On, ChannelSource.Custom(shuffle))

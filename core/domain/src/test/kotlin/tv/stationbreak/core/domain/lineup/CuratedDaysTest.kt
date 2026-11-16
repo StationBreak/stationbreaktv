@@ -19,6 +19,7 @@ import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.lineup.Theme
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.engine.lineup.curation.CurationChannel
 import tv.stationbreak.core.engine.lineup.rolled
@@ -350,7 +351,7 @@ class CuratedDaysTest {
                 starter("whodunit", 210, ChannelState.On, plain("Whodunit", "Crime")),
                 starter("westerns", 220, ChannelState.Shelf, plain("Westerns", "Western")),
                 starter("frights", 310, ChannelState.UserHidden, plain("Frights", "Horror"))
-                    .copy(chosenByViewer = true),
+                    .copy(viewerChoice = ViewerChoice.Touched),
                 starter("after-hours", 590, ChannelState.Shelf, plain("After Hours", "Documentary")),
                 leftovers("kids-odds-and-ends", 99, "PG"),
                 leftovers("odds-and-ends", 199, null),

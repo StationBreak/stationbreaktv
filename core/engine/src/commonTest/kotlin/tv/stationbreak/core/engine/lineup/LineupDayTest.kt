@@ -29,7 +29,17 @@ class LineupDayTest {
         leavesAtMs: Long? = null,
         edited: Boolean = false,
         source: ChannelSource.Starter = ChannelSource.Starter(key, edited, programmed),
-    ) = LineupChannel(LineupIds.starter(key), 110, null, null, ChannelState.On, source, onSinceMs, false, leavesAtMs)
+    ) = LineupChannel(
+        LineupIds.starter(key),
+        110,
+        null,
+        null,
+        ChannelState.On,
+        source,
+        onSinceMs,
+        ViewerChoice.None,
+        leavesAtMs,
+    )
 
     @Test
     fun theLineupsDaysMeetAtTheBoundary() {

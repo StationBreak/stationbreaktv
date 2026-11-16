@@ -475,7 +475,7 @@ internal class LineupDays(
      *   passes the account's value): it decides, with the day's start, which days are filtered;
      * - the day-boundary inputs (spec 23): "Use my collections" (`household`), the curation basis (`basis`), each
      *   channel's `leavesAt`, and a starter's previous rules and their boundary (inside its source). Not
-     *   `chosenByViewer`, `shelfReason` or `viewerChoicesKnown`: no day depends on them;
+     *   `viewerChoice`, `shelfReason` or `viewerChoicesKnown`: no day depends on them;
      * - the catalog's version (`catalog`: a curated day reads its recipes) and the curation's (`curation`,
      *   `Curation.VERSION_NAME`). Which starters a day curates, and their rules and flag, follow from the channels, the
      *   basis and the day; the curation reads a starter's recipe number, never the channel's, for its ties.

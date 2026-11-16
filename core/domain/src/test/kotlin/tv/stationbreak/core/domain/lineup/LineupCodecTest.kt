@@ -12,6 +12,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.rules.RulesLimits
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
@@ -407,7 +408,7 @@ class LineupCodecTest {
                     full.channels.map {
                         val chosen =
                             it.state == ChannelState.UserHidden || it.numberOverride != null || it.nameOverride != null
-                        it.copy(chosenByViewer = chosen)
+                        it.copy(viewerChoice = if (chosen) ViewerChoice.Touched else ViewerChoice.None)
                     },
             )
         assertEquals(inferred, loaded.lineup)

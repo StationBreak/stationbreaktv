@@ -503,7 +503,7 @@ private fun withInferredChoices(
         lineup.channels.map { channel ->
             val unedited = (channel.source as? ChannelSource.Starter)?.edited == false
             val chosen = unedited && channel.state == ChannelState.On && channel.id !in top
-            if (chosen && !channel.chosenByViewer) channel.copy(chosenByViewer = true) else channel
+            if (chosen && !channel.chosenByViewer) channel.copy(viewerChoice = ViewerChoice.Touched) else channel
         }
     return lineup.copy(channels = channels, viewerChoicesKnown = true)
 }

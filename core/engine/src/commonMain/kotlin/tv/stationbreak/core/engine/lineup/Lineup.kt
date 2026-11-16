@@ -113,7 +113,8 @@ data class CurationBasis(
  * [onSinceMs] is when the channel was last switched on (for a channel that was never on, when it joined the lineup); a
  * starter the planner switched on for the next boundary has that boundary, a time ahead, and is not on the air until
  * then (as [leavesAtMs] in reverse).
- * [chosenByViewer] is true once the viewer switched the channel on or off or gave it a number. [leavesAtMs] is when an
+ * [viewerChoice] is not [ViewerChoice.None] once the viewer switched the channel on or off or gave it a number
+ * ([chosenByViewer] is that as a flag). [leavesAtMs] is when an
  * untouched starter the planner dropped goes to the shelf, and [shelfReason] why it is there (starters only).
  */
 data class LineupChannel(
@@ -124,7 +125,7 @@ data class LineupChannel(
     val state: ChannelState,
     val source: ChannelSource,
     val onSinceMs: Long,
-    val chosenByViewer: Boolean = false,
+    val viewerChoice: ViewerChoice = ViewerChoice.None,
     val leavesAtMs: Long? = null,
     val shelfReason: ShelfReason? = null,
 ) {
@@ -136,6 +137,18 @@ data class LineupChannel(
 
     /** The number the channel is shown at, or null while it has none (it waits on the shelf for the user). */
     val number: Int? get() = numberOverride ?: defaultNumber
+
+    /** True once the viewer has touched the channel at all ([viewerChoice] is not [ViewerChoice.None]). */
+    val chosenByViewer: Boolean get() = viewerChoice != ViewerChoice.None
+}
+
+/** What the viewer has done to a channel, as far as the planner is concerned. */
+enum class ViewerChoice {
+    /** The viewer has not touched the channel. */
+    None,
+
+    /** The viewer switched the channel on or off, renumbered it or swapped it. */
+    Touched,
 }
 
 /**

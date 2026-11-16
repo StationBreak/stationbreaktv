@@ -25,6 +25,7 @@ import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.engine.lineup.Theme
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.LineupLimits
@@ -143,7 +144,7 @@ class LineupCodecV3Test {
 
     @Test
     fun everyNewFieldRoundTrips() {
-        val a = starterChannel("a", 110, previous = true).copy(chosenByViewer = true, leavesAtMs = 9_000L)
+        val a = starterChannel("a", 110, previous = true).copy(viewerChoice = ViewerChoice.Touched, leavesAtMs = 9_000L)
         val b = starterChannel("b", 111).copy(state = ChannelState.Shelf, shelfReason = ShelfReason.BelowCap)
         val lineup =
             lineupOf(a, b).copy(
@@ -344,7 +345,7 @@ class LineupCodecV3Test {
             (1..RecipeResolver.MAX_CATALOG_STARTERS).map { n ->
                 val now = resolved(n)
                 val source = ChannelSource.Starter("s$n", false, now).withPrevious(now, boundary)
-                channel("starter:s$n", 1000 + n, ChannelState.On, source).copy(chosenByViewer = true)
+                channel("starter:s$n", 1000 + n, ChannelState.On, source).copy(viewerChoice = ViewerChoice.Touched)
             }
         val others =
             listOf(leftovers("kids-odds-and-ends", 99, "PG"), leftovers("odds-and-ends", 199, null)) + customChannels()
@@ -395,7 +396,8 @@ class LineupCodecV3Test {
                         else -> ChannelState.Shelf
                     }
                 val source = ChannelSource.Starter("s$n", false, resolved(n))
-                channel("starter:s$n", 1000 + n, state, source).copy(chosenByViewer = state != ChannelState.Shelf)
+                val choice = if (state != ChannelState.Shelf) ViewerChoice.Touched else ViewerChoice.None
+                channel("starter:s$n", 1000 + n, state, source).copy(viewerChoice = choice)
             }
         val others =
             listOf(leftovers("kids-odds-and-ends", 99, "PG"), leftovers("odds-and-ends", 199, null)) + customChannels()

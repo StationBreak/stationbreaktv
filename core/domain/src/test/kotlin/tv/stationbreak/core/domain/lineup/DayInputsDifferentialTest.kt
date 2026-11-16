@@ -12,6 +12,7 @@ import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleCollection
@@ -278,7 +279,7 @@ class DayInputsDifferentialTest {
     }
 
     @Test
-    fun chosenByViewerAndShelfReasonDoNot() {
+    fun viewerChoiceAndShelfReasonDoNot() {
         val lineup = fixtures.first()
         val id = LineupIds.starter("westerns")
         val marked =
@@ -288,7 +289,7 @@ class DayInputsDifferentialTest {
                         if (it.id ==
                             id
                         ) {
-                            it.copy(chosenByViewer = true, shelfReason = ShelfReason.TooThin)
+                            it.copy(viewerChoice = ViewerChoice.Touched, shelfReason = ShelfReason.TooThin)
                         } else {
                             it
                         }

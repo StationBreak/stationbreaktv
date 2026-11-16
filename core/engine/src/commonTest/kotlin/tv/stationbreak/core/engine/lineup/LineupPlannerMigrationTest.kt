@@ -155,7 +155,9 @@ class LineupPlannerMigrationTest {
     fun theCatalogSwapLeavesTodayUnchanged() {
         val lineup =
             before(real2, realLibrary)
-                .withChannel("laugh-track") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+                .withChannel("laugh-track") {
+                    it.copy(state = ChannelState.UserHidden, viewerChoice = ViewerChoice.Touched)
+                }
 
         val next = swap(lineup, realLibrary, StarterCatalog)
 
@@ -253,8 +255,8 @@ class LineupPlannerMigrationTest {
         val edited = rules(listOf(Source.Genre("mine")))
         val lineup =
             before()
-                .withChannel("bravo") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
-                .withChannel("charlie") { it.copy(numberOverride = 299, chosenByViewer = true) }
+                .withChannel("bravo") { it.copy(state = ChannelState.UserHidden, viewerChoice = ViewerChoice.Touched) }
+                .withChannel("charlie") { it.copy(numberOverride = 299, viewerChoice = ViewerChoice.Touched) }
                 .withChannel("delta") {
                     it.copy(source = ChannelSource.Starter("delta", edited = true, rules = edited))
                 }
@@ -367,7 +369,11 @@ class LineupPlannerMigrationTest {
                 channels =
                     chosen.channels.map {
                         val shelved = it.source is ChannelSource.Starter && it.state == ChannelState.Shelf
-                        if (shelved) it.copy(state = ChannelState.UserHidden, chosenByViewer = true) else it
+                        if (shelved) {
+                            it.copy(state = ChannelState.UserHidden, viewerChoice = ViewerChoice.Touched)
+                        } else {
+                            it
+                        }
                     },
             )
         val hidden = lineup.channels.count { it.state == ChannelState.UserHidden }
@@ -399,11 +405,11 @@ class LineupPlannerMigrationTest {
         assertTrue(RecipeResolver.fileBytes(oversized) > RecipeResolver.STARTER_RULES_BUDGET_BYTES)
         val lineup =
             before()
-                .withChannel("bravo") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+                .withChannel("bravo") { it.copy(state = ChannelState.UserHidden, viewerChoice = ViewerChoice.Touched) }
                 .withChannel("charlie") {
                     it.copy(
                         state = ChannelState.UserHidden,
-                        chosenByViewer = true,
+                        viewerChoice = ViewerChoice.Touched,
                         source = it.starter.copy(rules = oversized.copy(timing = it.starter.rules.timing)),
                     )
                 }.withChannel("alpha") {
@@ -461,7 +467,7 @@ class LineupPlannerMigrationTest {
         val hiddenKeys = shelved.sortedBy { it.number }.take(HIDDEN).map { it.id.value.substringAfter(':') }
         val lineup =
             hiddenKeys.fold(chosen) { l, key ->
-                l.withChannel(key) { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+                l.withChannel(key) { it.copy(state = ChannelState.UserHidden, viewerChoice = ViewerChoice.Touched) }
             }
         val newer = TestCatalog(older.recipes.map { it.copy(sources = it.sources + Source.Genre("new")) }, 3)
 
@@ -490,8 +496,8 @@ class LineupPlannerMigrationTest {
             )
         val lineup =
             planOf(null, libraryOf(fills), hinted)
-                .withChannel("late") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
-                .withChannel("echo") { it.copy(state = ChannelState.UserHidden, chosenByViewer = true) }
+                .withChannel("late") { it.copy(state = ChannelState.UserHidden, viewerChoice = ViewerChoice.Touched) }
+                .withChannel("echo") { it.copy(state = ChannelState.UserHidden, viewerChoice = ViewerChoice.Touched) }
         val box = collection(boxId, name = "Box Set 1")
         val names =
             tv.stationbreak.core.model

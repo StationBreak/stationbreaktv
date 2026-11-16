@@ -19,6 +19,7 @@ import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.ShelfReason
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.BroadcastDay
@@ -319,11 +320,19 @@ internal object LineupCodec {
             state = state,
             source = source,
             onSinceMs = channel.onSinceMs,
-            chosenByViewer =
-                if (inferChoice) {
-                    state == ChannelState.UserHidden || channel.numberOverride != null || channel.nameOverride != null
+            viewerChoice =
+                if (
+                    if (inferChoice) {
+                        state == ChannelState.UserHidden ||
+                            channel.numberOverride != null ||
+                            channel.nameOverride != null
+                    } else {
+                        channel.chosenByViewer == true
+                    }
+                ) {
+                    ViewerChoice.Touched
                 } else {
-                    channel.chosenByViewer == true
+                    ViewerChoice.None
                 },
             // Only a starter leaves the lineup or sits on the shelf for a reason.
             leavesAtMs = channel.leavesAtMs.takeIf { starter },
