@@ -6,6 +6,7 @@ import tv.stationbreak.core.engine.forAllCases
 import tv.stationbreak.core.model.OrderingMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -23,6 +24,9 @@ class LineupPlannerPropertyTest {
 
     // How many edited, custom or unusable channels were compared across a plan.
     private var untouchedChecks = 0
+
+    // How many switch-ons and renumbers the generated viewer made.
+    private var pinsMade = 0
 
     @Test
     fun thePlannerKeepsItsPromisesOverRefreshes() {
@@ -59,7 +63,7 @@ class LineupPlannerPropertyTest {
                 }
                 checkAlways(next, current, selecting)
                 if (next.channels.count { it.state == ChannelState.On } == LineupDefaults.CAP) capped++
-                lineup = userChanges(gen, next)
+                lineup = userChanges(gen, next, current, now)
             }
             if (lineup?.finalised == true) finalisedCases++
         }
@@ -70,6 +74,7 @@ class LineupPlannerPropertyTest {
         assertTrue(newerCatalogs > 200, "newer catalogs: $newerCatalogs")
         assertTrue(deferredCatalogs > 30, "newer catalogs that waited for collections: $deferredCatalogs")
         assertTrue(untouchedChecks > 300, "edited, custom or unusable channels checked: $untouchedChecks")
+        assertTrue(pinsMade > 300, "viewer pins made through the edits: $pinsMade")
     }
 
     private fun checkAlways(
@@ -79,22 +84,32 @@ class LineupPlannerPropertyTest {
     ) {
         val on = lineup.channels.filter { it.state == ChannelState.On }
         if (selecting) {
-            // The seat rule: the planner's free picks and the pinned starters inside the top are at most
-            // PLANNER_PICKS. No history here pins a starter (the viewer's switch-ons are not generated), so what the
-            // planner picked is every untouched starter on that is not a leftovers channel; the custom and edited
-            // ones sit on top and are not counted.
-            // A channel leaving at the boundary is already counted out of the days after it.
-            val picked = on.count { (it.source as? ChannelSource.Starter)?.edited == false && it.leavesAtMs == null }
-            assertTrue(picked <= LineupDefaults.PLANNER_PICKS, "the planner's picks: $picked")
+            // The seat rule: the planner's free picks plus the pinned starters inside the top are at most
+            // PLANNER_PICKS. Which pins are inside the top is not visible here, so the free picks (untouched, not
+            // chosen by the viewer, not leaving) are held to the bound, which the in-top pins only tighten. Custom
+            // and edited channels and the pins outside the top sit on top and are not counted.
+            val free =
+                on.count {
+                    val source = it.source as? ChannelSource.Starter
+                    source?.edited == false && !it.chosenByViewer && it.leavesAtMs == null
+                }
+            assertTrue(free <= LineupDefaults.PLANNER_PICKS, "the planner's free picks: $free")
+            // Every pin stays on, and never leaves.
+            for (pin in lineup.channels.filter { it.chosenByViewer && it.source is ChannelSource.Starter }) {
+                val edited = (pin.source as ChannelSource.Starter).edited
+                if (pin.state == ChannelState.On && !edited) assertNull(pin.leavesAtMs, "${pin.id} pinned yet leaving")
+            }
         } else {
-            assertTrue(on.size <= LineupDefaults.CAP, "on: ${on.size}")
+            // The viewer's switch-ons may go past the cap (they are never refused); the ranked planner's own may not.
+            val own = on.count { !it.chosenByViewer }
+            assertTrue(own <= LineupDefaults.CAP, "on: $own")
         }
         val optIn =
             catalog.recipes
                 .filter { it.optIn }
                 .map { LineupIds.starter(it.key) }
                 .toSet()
-        assertTrue(on.none { it.id in optIn }, "an opt-in recipe is on")
+        assertTrue(on.none { it.id in optIn && !it.chosenByViewer }, "the planner switched an opt-in recipe on")
         val numbers = lineup.channels.mapNotNull { it.number }
         assertEquals(numbers.toSet().size, numbers.size, "numbers unique")
         if (!lineup.finalised) assertTrue(on.isEmpty(), "an unfinalised lineup has nothing on")
@@ -181,9 +196,44 @@ class LineupPlannerPropertyTest {
         }
     }
 
+    // The viewer's own edits, through the real edit code, so `chosenByViewer` pins occur: a switch-on of a shelved
+    // starter (an opt-in one, confirmed, now and then) and a renumber of any starter. A refused edit changes nothing.
+    private fun viewerEdits(
+        gen: SeededGen,
+        lineup: Lineup,
+        catalog: StarterCatalogView,
+        now: Long,
+    ): Lineup {
+        var edited = lineup
+        val boundary = nextDayStart(now, lineup.utcOffsetMinutes)
+        val taken = lineup.channels.flatMap { listOfNotNull(it.defaultNumber, it.numberOverride) }.toMutableSet()
+        for (channel in lineup.channels) {
+            val starter = channel.source as? ChannelSource.Starter ?: continue
+            if (starter.edited) continue
+            val edit =
+                when {
+                    channel.state == ChannelState.Shelf && gen.chance(PIN_PERCENT) ->
+                        LineupEdit.SwitchOn(channel.id, confirmedOptIn = gen.chance(PERCENT / 2))
+
+                    channel.state == ChannelState.On && gen.chance(PIN_PERCENT) ->
+                        LineupEdit.SetNumber(channel.id, (700..899).first { it !in taken }.also { taken += it })
+
+                    else -> null
+                }
+            val outcome = edit?.let { LineupEdits.apply(edited, it, now, boundary, catalog) }
+            if (outcome is EditOutcome.Applied) {
+                edited = outcome.lineup
+                pinsMade++
+            }
+        }
+        return edited
+    }
+
     private fun userChanges(
         gen: SeededGen,
         lineup: Lineup,
+        catalog: StarterCatalogView,
+        now: Long,
     ): Lineup {
         if (!lineup.finalised) return lineup
         val taken = lineup.channels.flatMap { listOfNotNull(it.defaultNumber, it.numberOverride) }.toSet()
@@ -205,7 +255,7 @@ class LineupPlannerPropertyTest {
                     placed.copy(source = source, leavesAtMs = null, shelfReason = null)
                 }
             }
-        return lineup.copy(channels = changed)
+        return viewerEdits(gen, lineup.copy(channels = changed), catalog, now)
     }
 
     // Sometimes the user edits a starter or makes it their own, and sometimes a stored channel could not be read.
@@ -257,5 +307,6 @@ class LineupPlannerPropertyTest {
         const val ROUNDS = 4
         const val BIG_PERCENT = 8
         const val PERCENT = 100
+        const val PIN_PERCENT = 4
     }
 }

@@ -148,6 +148,35 @@ class SelectionTest {
         assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
     }
 
+    // The pin moves between rounds (scripted, as a real library cannot drop a channel): round one, the pin p sits
+    // outside the top two and costs no place; the best free channel a then fails the re-homing and is dropped; round
+    // two re-homes without a, p now scores into the top, takes a place, and the next free channel c is not picked.
+    @Test
+    fun aPinnedChannelLiftedIntoTheTopBetweenRoundsTakesThePlaceOfTheNextFreeChannel() {
+        val a = bareChannel("a", 100)
+        val b = bareChannel("b", 101)
+        val c = bareChannel("c", 102)
+        val p = bareChannel("p", 103)
+        val script =
+            Script { call, channels ->
+                channels.associate { ch ->
+                    val hours =
+                        when (ch.id) {
+                            a.id -> 70L
+                            b.id -> 60L
+                            c.id -> 50L
+                            else -> if (call < 2) 30L else 65L
+                        }
+                    ch.id to stats(6, hours, qualifies = !(call == 1 && ch.id == a.id))
+                }
+            }
+        val picked = Selection.select(emptySnapshot, listOf(a, b, c, p), setOf(p.id), emptySet(), 2, script::factory)
+        assertEquals(setOf(b.id, p.id), picked.on)
+        assertEquals(ShelfReason.TooThin, picked.shelf.getValue(a.id))
+        assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
+        assertEquals(4, script.calls.size, "two rounds: all and chosen, then all but a and chosen")
+    }
+
     @Test
     fun itStopsAfterSixRounds() {
         val channels = List(8) { bareChannel("ch-$it", 100 + it) }
@@ -263,7 +292,21 @@ class SelectionTest {
         assertEquals(ShelfReason.TooThin, thinned.shelf.getValue(plain.id))
     }
 
-    // The ranking oracle: with the homing never dropping a channel (the property above), the result is the pinned
+    // A homing that counts how often it is asked, to see how many rounds a selection took.
+    private class CountingHoming(
+        private val inner: Homing,
+    ) : Homing {
+        var calls = 0
+
+        override fun homes(channels: Set<ChannelId>?): Homes {
+            calls++
+            return inner.homes(channels)
+        }
+    }
+
+    // The ranking oracle (a one-round check: it reuses channelScore and CHANNEL_ORDER, so it pins the ranking rule,
+    // not the settling of the rounds, which the scripted test above covers): with the homing never dropping a channel
+    // (the property above), the result is the pinned
     // channels plus the free ones in the top room of one order of every qualifying channel, pinned and free alike,
     // the pinned opt-in ones left out of it. Seeded, over generated libraries and pin sets.
     @Test
@@ -285,7 +328,13 @@ class SelectionTest {
             val optIn = channels.filter { it.id in pinned && random.nextBoolean() }.mapTo(HashSet()) { it.id }
             val room = random.nextInt(1, 4)
 
-            val got = Selection.select(snap, channels, pinned, optIn, room)
+            var counting: CountingHoming? = null
+            val got =
+                Selection.select(snap, channels, pinned, optIn, room) { s, c ->
+                    CountingHoming(Curation.homing(s, c)).also { counting = it }
+                }
+            // One round: the homing over everything and, unless everything was chosen, over the chosen set.
+            assertTrue(checkNotNull(counting).calls <= 2, "seed $seed: more than one round")
 
             val homes = Curation.homes(snap, channels)
             val ranked =
