@@ -18,6 +18,7 @@ class ProfileLibrariesTest {
                 CaseTitles.SITCOM_WITH_A_FREED_GENRE,
                 CaseTitles.PG_ANIMATED_FAMILY_FILM,
                 CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY,
+                CaseTitles.ADULT_CARTOON_WITH_FAMILY,
             )
 
     private fun titlesOf(key: String): Int {
@@ -68,6 +69,7 @@ class ProfileLibrariesTest {
                 CaseTitles.SITCOM_WITH_A_FREED_GENRE,
                 CaseTitles.PG_ANIMATED_FAMILY_FILM,
                 CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY,
+                CaseTitles.ADULT_CARTOON_WITH_FAMILY,
             ),
             sitcom,
         )

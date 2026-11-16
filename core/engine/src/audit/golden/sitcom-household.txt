@@ -1,11 +1,11 @@
 LINEUP AUDIT (catalog 5, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
-LIBRARY: 2006 items, 56 titles (40 series, 16 films)
+LIBRARY: 2045 items, 57 titles (41 series, 16 films)
 EXTRAS FILTER DROPPED: nothing
 
 TOTALS
-  titles: 56, with a home: 53, with no home: 3
+  titles: 57, with a home: 53, with no home: 4
   titles with no home, by cause:
     no-source-match                    0
     excluded-by-recipe                 0
@@ -13,8 +13,8 @@ TOTALS
     filtered-or-rated                  0
     not-airable                        0
     anime-rule                         0
-    only-on-shelved-channels           3
-  channels per title: 1 channels: 10 titles, 2 channels: 38 titles, 5 channels: 8 titles
+    only-on-shelved-channels           4
+  channels per title: 1 channels: 11 titles, 2 channels: 38 titles, 5 channels: 8 titles
   titles per channel that is on:
     saturday-morning                 8
     backyard-fort                    8
@@ -27,7 +27,7 @@ TOTALS
     date-night                       8
     prestige                        11
     leftovers:kids-odds-and-ends     0
-    leftovers:odds-and-ends          3
+    leftovers:odds-and-ends          4
 
 STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
   key                          num  state  reason    cand  selection                          on air
@@ -58,7 +58,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   neon-decade                   118  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   dial-up                       122  on(p)               16  16t 150.07h 0a score  9600         16t 150.07h 0a
   flip-phone                    126  on(p)               28  28t 560.42h 0a score 10800         28t 560.42h 0a
-  binge-row                     130  off    TooThin       4  4t 28.10h 0a score  3210 THIN      -
+  binge-row                     130  off    TooThin       5  5t 49.55h 0a score  5455 THIN      -
   fresh-cut                     134  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   glass-house                   138  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   game-night                    142  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -356,3 +356,7 @@ TITLES (scores in points; a term that is zero is left out)
     home laugh-track 237.42 = specificity 22.42 genre 40.00 tag 35.00 format 80.00 tone 60.00
     runner-up prestige 127.02 = specificity 27.02 genre 40.00 tone 60.00
     guest spots: prestige
+  00000028 Zukyfa Brapemi [series, 39 items, 14.30h]
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: binge-row (TooThin)
+    airs on: leftovers:odds-and-ends

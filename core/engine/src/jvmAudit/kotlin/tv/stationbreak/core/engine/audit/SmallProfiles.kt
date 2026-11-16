@@ -90,6 +90,16 @@ internal fun LibraryBuilder.addPgAnimatedFilms(): ProfileCase {
     return ProfileCase(listOf(CaseTitles.PG_ANIMATED_FAMILY_FILM, CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY), what)
 }
 
+internal fun LibraryBuilder.addAdultCartoonWithFamily(): ProfileCase {
+    // Tagged as adult animation, rated for adults, and carrying Family: on Cartoons After Dark at catalog 4 (by its
+    // tag), off it at catalog 5 (the Family exclusion; the trade-off is written in `StarterCatalog.VERSION`).
+    val genres = listOf("Animation", "Family")
+    val spec = TitleSpec(genres, listOf("adult animation"), emptyList(), "TV-MA", SITCOM_MINUTES, 2013)
+    series(spec, 3, 13, name = CaseTitles.ADULT_CARTOON_WITH_FAMILY)
+    val what = "An adult-tagged cartoon that also carries Family: the Family exclusion takes it off Cartoons After Dark"
+    return ProfileCase(listOf(CaseTitles.ADULT_CARTOON_WITH_FAMILY), what)
+}
+
 internal fun LibraryBuilder.addSmallHorrorShelf(): ProfileCase {
     // Four horror films of about two hours: a shelf too small for the horror starter to qualify.
     for ((i, name) in CaseTitles.SMALL_HORROR_SHELF.withIndex()) {
@@ -114,6 +124,7 @@ internal object SitcomHousehold {
         // Added last, so no title before them changes its name or ID.
         cases += b.addSitcomWithAFreedGenre()
         cases += b.addPgAnimatedFilms()
+        cases += b.addAdultCartoonWithFamily()
         val description = "A household that watches sitcoms, with some family films and kids' shows"
         return Profile("sitcom-household", description, AuditInput(b.build(), null), cases)
     }
