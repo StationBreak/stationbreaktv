@@ -98,7 +98,7 @@ class StartingDayTest {
                 }
             val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
             nowMs = now
-            val manager = ChannelManager(service, FakeProEntitlement()) { null }
+            val manager = ChannelManager(service, FakeProEntitlement(), IGNORED_SWITCH_ONS) { null }
             for (id in switched) assertEquals(ChangeResult.Done, manager.change(ACCOUNT, ChannelChange.SwitchOn(id)))
             val source = BuiltInScheduleSource(service, library) { selectionOf(LIBRARIES) }
 

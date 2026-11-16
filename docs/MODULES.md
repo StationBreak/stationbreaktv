@@ -442,7 +442,12 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   `ChannelSwitchOns`, only of a switch-on that changes a channel from off to on. One loop settles every pending channel with
   one `ScheduleSource.airings` call (which builds the days): a channel with no hidden reason is *ready* and goes in the
   notice, and every other outcome (hidden, off, another account, a build that fails three times) drops it without a word.
-  The notice shows for 8 seconds and a second batch joins it. Nothing is saved: a restart forgets what was getting ready.
+  The notice shows for 8 seconds and a second batch joins it. The 8 seconds, the settle wait and the retry waits
+  (`ReadinessTimes`) stay in `core:domain` on purpose ([#795](https://github.com/StationBreak/stationbreaktv/issues/795)):
+  the 8 seconds run on the `AppScope`, whether or not anything is drawing the notice, and `app` draws it only over the
+  live route. A timer owned by the screen would pause off that route and bring a stale "ready" back minutes later.
+  The clear stays next to the state, compare-and-clear, so a second batch restarts it. A notice that expires while the
+  viewer is off the live route is never seen. Nothing is saved: a restart forgets what was getting ready.
   Channels the builder creates are not watched. The Channels list shows "Getting ready" for a pending row; `app` draws the
   notice (`core:ui` `ChannelReadyNotice`) over the live route, and it takes no focus and no key.
 - Performance: the double refresh on every launch was fixed in [#309](https://github.com/StationBreak/stationbreaktv/issues/309)

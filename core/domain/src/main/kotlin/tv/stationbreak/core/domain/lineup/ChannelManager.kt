@@ -31,7 +31,7 @@ import tv.stationbreak.core.model.ItemId
 class ChannelManager(
     private val service: LineupService,
     private val pro: ProEntitlement,
-    private val switchOns: ChannelSwitchOns = ChannelSwitchOns { _, _ -> },
+    private val switchOns: ChannelSwitchOns,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ChannelEditor {
     // A failure to load (a store that throws, though none should) is shown as ReadOnly: nothing can be changed then.

@@ -137,7 +137,7 @@ class LineupServiceResetKeepsCustomTest {
             val bare = CountingLibrary()
             val early = LineupService(store, bare, clock, { 0 }, {}, TestCatalog)
             seedStored(lineupOf(custom("Mine", 600)))
-            ChannelManager(early, FakeProEntitlement()) { LIBRARIES }.reset(ACCOUNT)
+            ChannelManager(early, FakeProEntitlement(), IGNORED_SWITCH_ONS) { LIBRARIES }.reset(ACCOUNT)
             bare.seed(fillingLibrary())
 
             early.refresh(ACCOUNT, LIBRARIES)
@@ -289,7 +289,7 @@ class LineupServiceResetKeepsCustomTest {
             val bare = LineupService(store, CountingLibrary(), clock, { 0 }, {}, TestCatalog)
             seedStored(lineupOf(custom("Mine", 600)))
 
-            val result = ChannelManager(bare, FakeProEntitlement()) { LIBRARIES }.reset(ACCOUNT)
+            val result = ChannelManager(bare, FakeProEntitlement(), IGNORED_SWITCH_ONS) { LIBRARIES }.reset(ACCOUNT)
 
             assertEquals(ResetResult.Chosen, result)
             val after = checkNotNull(bare.lineup(ACCOUNT).first { it != null }).lineup

@@ -25,7 +25,7 @@ class ChannelManagerFreeTierTest {
         }
     private val service = LineupService(store, library, clock, { 0 }, { }, TestCatalog)
     private val pro = FakeProEntitlement(initial = false)
-    private val manager = ChannelManager(service, pro) { LIBRARIES }
+    private val manager = ChannelManager(service, pro, IGNORED_SWITCH_ONS) { LIBRARIES }
 
     private val laughs = LineupIds.starter("laughs")
     private val whodunit = LineupIds.starter("whodunit")
