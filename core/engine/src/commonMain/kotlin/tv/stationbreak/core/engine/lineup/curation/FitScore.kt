@@ -98,3 +98,45 @@ internal fun fitPointsQ16(
             (if (candidateMs > 0) TONE_POINTS * toneMs / candidateMs else 0L)
     return plain shl FRAC_BITS
 }
+
+/**
+ * A fit score taken apart, each term in 16-bit fixed point (the lineup audit's reading of [fitScoreQ16]). [decade] is
+ * the guest-only penalty: a guest-only channel is a decade channel (one of its sources is a year range), so a title
+ * on it pays that term. [points] is every term but [specificity], which [fitPointsQ16] sums; [total] is the score.
+ */
+@Suppress("LongParameterList") // A plain carrier: one field per term of the score.
+internal class FitTerms(
+    val specificity: Long,
+    val genre: Long,
+    val tag: Long,
+    val studio: Long,
+    val decade: Long,
+    val anchor: Long,
+    val kids: Long,
+    val format: Long,
+    val tone: Long,
+) {
+    val points: Long get() = genre + tag + studio + decade + anchor + kids + format + tone
+    val total: Long get() = specificity + points
+}
+
+/**
+ * The terms of [fitScoreQ16] for a channel with [candidateTitles] candidates, from the same constants as
+ * [fitPointsQ16]. For the audit only: it allocates, so the per-title path never calls it; a test holds that its
+ * [FitTerms.points] equal [fitPointsQ16] for every combination.
+ */
+internal fun fitTermsQ16(
+    candidateTitles: Int,
+    f: FitInputs,
+): FitTerms =
+    FitTerms(
+        specificity = specificityQ16(candidateTitles),
+        genre = (GENRE_POINTS * f.genreHits) shl FRAC_BITS,
+        tag = (TAG_POINTS * minOf(f.tagHits, TAG_HITS_MAX)) shl FRAC_BITS,
+        studio = (if (f.themeStudio) STUDIO_POINTS else 0L) shl FRAC_BITS,
+        decade = (if (f.guestOnly) -GUEST_ONLY_POINTS else 0L) shl FRAC_BITS,
+        anchor = (if (f.anchor) ANCHOR_POINTS else 0L) shl FRAC_BITS,
+        kids = (if (f.kidOnKid) KID_POINTS else 0L) shl FRAC_BITS,
+        format = (if (f.formatFits) FORMAT_POINTS else 0L) shl FRAC_BITS,
+        tone = (if (f.candidateMs > 0) TONE_POINTS * f.toneMs / f.candidateMs else 0L) shl FRAC_BITS,
+    )

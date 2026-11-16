@@ -1,0 +1,11 @@
+{
+  "CreatedAtMissing": 2,
+  "DuplicateId": 2,
+  "IdNotCanonical": 1,
+  "KindNotMovieOrEpisode": 1,
+  "MovieHasSeriesData": 1,
+  "ProductionYearOutOfRange": 1,
+  "RuntimeMissing": 1,
+  "SeasonNegative": 1,
+  "SeriesIdNotCanonical": 1
+}

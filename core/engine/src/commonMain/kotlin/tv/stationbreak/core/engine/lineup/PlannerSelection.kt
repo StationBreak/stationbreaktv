@@ -15,6 +15,7 @@ import tv.stationbreak.core.rules.ChannelRules
  * starters are candidates, which are pinned, how much room there is, and what the result does to each channel.
  * [LineupPlanner] calls it in place of its ranking.
  */
+@Suppress("TooManyFunctions") // The selection's steps, with the candidate test the lineup audit shares.
 internal object PlannerSelection {
     /**
      * How a refresh decides which starters are on, all by the one flag of [p]'s catalog,
@@ -177,6 +178,15 @@ internal object PlannerSelection {
                 else -> !leavesBy(LineupDay.startingAt(p.boundaryMs))
             }
 
+    /** Whether the selection treats [channel] as a candidate: an untouched numbered starter (free) or a pinned one. */
+    fun isCandidate(
+        channel: LineupChannel,
+        p: Planning,
+    ): Boolean {
+        val role = roleOf(channel, p)
+        return role == Role.Pinned || role == Role.Free
+    }
+
     // One selection and the channels it was made over.
     private class Run(
         val candidates: List<CurationChannel>,
@@ -205,7 +215,7 @@ internal object PlannerSelection {
 
     // The curation's view of a starter in the lineup: what it airs on the air, or would air once switched on (an
     // unedited one); an edited one airs its own rules, with no household change (`HouseholdSources`, F4).
-    private fun curationOf(
+    internal fun curationOf(
         channel: LineupChannel,
         lineup: Lineup,
         p: Planning,
@@ -318,7 +328,7 @@ internal object PlannerSelection {
 }
 
 // What [curationOf] reads of a starter, before any pool is evaluated: what the kept starters' reasons depend on.
-private fun reasonInputOf(
+internal fun reasonInputOf(
     channel: LineupChannel,
     lineup: Lineup,
     p: Planning,
@@ -333,7 +343,7 @@ private fun reasonInputOf(
 
 // One starter's part of [ReasonsKey]: what its curation channel is made from (its recipe follows from its ID and
 // the catalog's version).
-private data class ReasonInput(
+internal data class ReasonInput(
     val id: ChannelId,
     val rules: ChannelRules,
     val policy: PoolPolicy,

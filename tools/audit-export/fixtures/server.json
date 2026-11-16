@@ -1,0 +1,339 @@
+{
+  "virtualFolders": [
+    {
+      "Name": "Movies",
+      "CollectionType": "movies",
+      "ItemId": "A0000000-0000-0000-0000-0000000000A1"
+    },
+    {
+      "Name": "Shows",
+      "CollectionType": "tvshows",
+      "ItemId": "a0000000-0000-0000-0000-0000000000a2"
+    },
+    {
+      "Name": "Music",
+      "CollectionType": "music",
+      "ItemId": "A0000000-0000-0000-0000-0000000000A3"
+    },
+    {
+      "Name": "Mixed",
+      "ItemId": "a0000000-0000-0000-0000-0000000000a4"
+    }
+  ],
+  "items": {
+    "A0000000-0000-0000-0000-0000000000A1": [
+      {
+        "Id": "11111111-1111-1111-1111-111111110001",
+        "Name": "Velmiren Zudar",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1",
+        "PremiereDate": "1999-12-31T23:30:00-05:00",
+        "ProductionYear": 1999,
+        "OfficialRating": "PG-13",
+        "Genres": [
+          "Drama",
+          "Crime"
+        ],
+        "Tags": [
+          "slow burn"
+        ],
+        "Studios": [
+          {
+            "Name": " Invented Pictures​ "
+          },
+          {
+            "Name": null
+          },
+          {
+            "Name": ""
+          },
+          null,
+          {
+            "Name": "Net One"
+          }
+        ]
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110002",
+        "Name": "Zumaren Kyol",
+        "Type": "Movie",
+        "RunTimeTicks": 0,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110003",
+        "Name": "Pelo Maxi",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110004",
+        "Name": "Daror Fabra",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "yesterday",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110005",
+        "Name": "Senol Quinma",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1",
+        "ProductionYear": 0
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110006",
+        "Name": "Kyvel Torpe",
+        "Type": "Video",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110007",
+        "Name": "Maxi Lozu",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1",
+        "SeriesId": "55555555-5555-5555-5555-555555550001"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110008",
+        "Name": "Renol Bratu",
+        "Type": "Movie",
+        "RunTimeTicks": 36000000005,
+        "DateCreated": "2020-01-01T00:00:00",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1",
+        "PremiereDate": "not a date",
+        "OfficialRating": "",
+        "Genres": [
+          "Comedy"
+        ],
+        "Tags": [],
+        "ProductionYear": 2020
+      },
+      {
+        "Id": "not-an-id",
+        "Name": "Olpe Dartor",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110001",
+        "Name": "Velmiren Zudar Again",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110011",
+        "Name": "Fabra Mizu",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1",
+        "OfficialRating": " ",
+        "PremiereDate": "0001-01-01T00:00:00+01:00"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110012",
+        "Name": "Tormi Quenxi",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2021-06-07T08:09:10.9999999+02:00",
+        "ParentId": "A0000000-0000-0000-0000-0000000000A1",
+        "PremiereDate": "2001-03-04T23:30:00-05:00",
+        "ProductionYear": 2001,
+        "Genres": [
+          "Animation",
+          "Comedy"
+        ],
+        "Studios": []
+      }
+    ],
+    "a0000000-0000-0000-0000-0000000000a2": [
+      {
+        "Id": "33333333-3333-3333-3333-333333330001",
+        "Name": "Pilot",
+        "Type": "Episode",
+        "RunTimeTicks": 13200000000,
+        "DateCreated": "2022-01-02T03:04:05Z",
+        "SeriesId": "55555555-5555-5555-5555-555555550001",
+        "SeasonId": "44444444-4444-4444-4444-444444440001",
+        "ParentIndexNumber": 1,
+        "IndexNumber": 1,
+        "ParentId": "44444444-4444-4444-4444-444444440001"
+      },
+      {
+        "Id": "33333333-3333-3333-3333-333333330002",
+        "Name": "Second",
+        "Type": "Episode",
+        "RunTimeTicks": 13200000000,
+        "DateCreated": "2022-01-02T03:04:05Z",
+        "SeriesId": "55555555-5555-5555-5555-555555550001",
+        "SeasonId": "season-one",
+        "ParentIndexNumber": 1,
+        "IndexNumber": 2,
+        "ParentId": "44444444-4444-4444-4444-444444440001"
+      },
+      {
+        "Id": "33333333-3333-3333-3333-333333330003",
+        "Name": "Third",
+        "Type": "Episode",
+        "RunTimeTicks": 13200000000,
+        "DateCreated": "2022-01-02T03:04:05Z",
+        "SeriesId": "55555555-5555-5555-5555-555555550001",
+        "SeasonId": "44444444-4444-4444-4444-444444440001",
+        "ParentIndexNumber": -1,
+        "IndexNumber": 3,
+        "ParentId": "44444444-4444-4444-4444-444444440001"
+      },
+      {
+        "Id": "33333333-3333-3333-3333-333333330004",
+        "Name": "Fourth",
+        "Type": "Episode",
+        "RunTimeTicks": 13200000000,
+        "DateCreated": "2022-01-02T03:04:05Z",
+        "SeriesId": "66666666-6666-6666-6666-666666660009",
+        "SeasonId": "44444444-4444-4444-4444-444444440001",
+        "ParentIndexNumber": 1,
+        "IndexNumber": 4,
+        "ParentId": "44444444-4444-4444-4444-444444440001",
+        "OfficialRating": "TV-MA"
+      },
+      {
+        "Id": "33333333-3333-3333-3333-333333330005",
+        "Name": "Fifth",
+        "Type": "Episode",
+        "RunTimeTicks": 13200000000,
+        "DateCreated": "2022-01-02T03:04:05Z",
+        "SeriesId": "series-x",
+        "SeasonId": "44444444-4444-4444-4444-444444440001",
+        "ParentIndexNumber": 1,
+        "IndexNumber": 5,
+        "ParentId": "44444444-4444-4444-4444-444444440001"
+      },
+      {
+        "Id": "33333333-3333-3333-3333-333333330006",
+        "Name": "Sixth",
+        "Type": "Episode",
+        "RunTimeTicks": 13200000000,
+        "DateCreated": "2022-01-02T03:04:05Z",
+        "SeriesId": "55555555-5555-5555-5555-555555550001",
+        "SeasonId": "44444444-4444-4444-4444-444444440001",
+        "ParentIndexNumber": 1,
+        "IndexNumber": 3,
+        "ParentId": "44444444-4444-4444-4444-444444440001",
+        "Genres": [
+          "Comedy"
+        ],
+        "Tags": [
+          "sitcom"
+        ]
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110001",
+        "Name": "Velmiren Zudar Elsewhere",
+        "Type": "Movie",
+        "RunTimeTicks": 54000000000,
+        "DateCreated": "2023-04-05T06:07:08.1234567Z",
+        "ParentId": "a0000000-0000-0000-0000-0000000000a2"
+      }
+    ],
+    "a0000000-0000-0000-0000-0000000000a4": []
+  },
+  "series": {
+    "A0000000-0000-0000-0000-0000000000A1": [],
+    "a0000000-0000-0000-0000-0000000000a2": [
+      {
+        "Id": "55555555-5555-5555-5555-555555550001",
+        "Name": "Fabra Quinzu",
+        "OfficialRating": "TV-14",
+        "Genres": [
+          "Comedy"
+        ],
+        "Tags": [
+          "sitcom"
+        ],
+        "Studios": [
+          {
+            "Name": "Net One"
+          }
+        ]
+      },
+      {
+        "Id": "55555555-5555-5555-5555-555555550002",
+        "Name": "Unwatched Series",
+        "OfficialRating": null,
+        "Genres": [],
+        "Tags": [],
+        "Studios": []
+      },
+      {
+        "Id": "55555555-5555-5555-5555-555555550001",
+        "Name": "Duplicate Series Row",
+        "Genres": [
+          "Drama"
+        ]
+      }
+    ],
+    "a0000000-0000-0000-0000-0000000000a4": []
+  },
+  "boxsets": [
+    {
+      "Id": "77777777-7777-7777-7777-777777770001",
+      "Name": "Velmiren Collection"
+    },
+    {
+      "Id": "77777777-7777-7777-7777-777777770002",
+      "Name": "Mine"
+    }
+  ],
+  "members": {
+    "77777777-7777-7777-7777-777777770001": [
+      {
+        "Id": "11111111-1111-1111-1111-111111110001",
+        "Type": "Movie"
+      },
+      {
+        "Id": "33333333-3333-3333-3333-333333330001",
+        "Type": "Episode"
+      },
+      {
+        "Id": "55555555-5555-5555-5555-555555550001",
+        "Type": "Series"
+      },
+      {
+        "Id": "44444444-4444-4444-4444-444444440001",
+        "Type": "Season"
+      },
+      {
+        "Id": "77777777-7777-7777-7777-777777770002",
+        "Type": "BoxSet"
+      },
+      {
+        "Id": "88888888-8888-8888-8888-888888880001",
+        "Type": "Photo"
+      },
+      {
+        "Id": "bad-id",
+        "Type": "Movie"
+      },
+      {
+        "Id": "11111111-1111-1111-1111-111111110001",
+        "Type": "Movie"
+      }
+    ],
+    "77777777-7777-7777-7777-777777770002": []
+  }
+}
