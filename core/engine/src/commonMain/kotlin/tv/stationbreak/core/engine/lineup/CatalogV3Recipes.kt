@@ -363,13 +363,15 @@ private val COMEDY_TWIST_GENRES: List<String> =
 
 /**
  * The genres Laugh Track leaves out (catalog 5): the ones that mean "not a sitcom" (animation, documentary, reality,
- * news, talk, soaps, TV movies and the kids' genre) and a horror or thriller tone, plus [COMEDY_TWIST_GENRES]. Before
- * catalog 5 it left out every TMDB genre but Comedy, Family and Romance, so a sitcom with one more genre (Drama,
- * Adventure, History, War, Western) had no home.
+ * news, talk, soaps) plus [COMEDY_TWIST_GENRES]. Before catalog 5 it left out every TMDB genre but Comedy, Family and
+ * Romance, so a sitcom with one more genre (Drama, Adventure, History, War, Western) had no home. The kids' genre needs
+ * no entry (every grown-up recipe excludes it) and "TV Movie" does nothing under `kind = Episode`.
+ *
+ * Horror and Thriller go beyond the spec's example list (Animation, Documentary, Reality, News, Talk): they are kept
+ * out as a tone, not a form, and are flagged for the owner's sign-off.
  */
 private val NOT_A_SITCOM_GENRES: List<String> =
-    listOf("Animation", "Documentary", "Reality", "News", "Talk", "Soap", "TV Movie", "Kids", "Horror", "Thriller") +
-        COMEDY_TWIST_GENRES
+    listOf("Animation", "Documentary", "Reality", "News", "Talk", "Soap", "Horror", "Thriller") + COMEDY_TWIST_GENRES
 
 private val generalBand: List<Recipe> =
     listOf(

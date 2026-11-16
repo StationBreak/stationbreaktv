@@ -42,7 +42,10 @@ class FamilyExclusionTradeOffTest {
     @Test
     fun anAdultTaggedCartoonWithFamilyIsOffCartoonsAfterDarkNow() {
         val snapshot = ProfileLibraries.build("sitcom-household").input.snapshot
-        val id = snapshot.series.entries.single { it.value.name == CaseTitles.ADULT_CARTOON_WITH_FAMILY }.key
+        val id =
+            snapshot.series.entries
+                .single { it.value.name == CaseTitles.ADULT_CARTOON_WITH_FAMILY }
+                .key
         assertTrue(id in titlesOf(before, snapshot), "on at catalog 4")
         assertTrue(id !in titlesOf(now, snapshot), "off at catalog 5")
     }

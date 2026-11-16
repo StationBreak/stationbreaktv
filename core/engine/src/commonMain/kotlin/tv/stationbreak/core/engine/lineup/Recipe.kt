@@ -30,8 +30,11 @@ enum class Band(
 /**
  * What a starter must hold to qualify as a channel (catalog 5, #786). It is recipe data, frozen in the catalog
  * manifest, so it depends on the catalog and the library only, never on which channels are on, and the selection
- * rounds still settle. [Standard] is the global bar (12 usable hours, 6 titles; a kid channel 4 titles). [Niche] is for
- * the recipes that are the catalog's single lane for a niche theme, so a thin shelf of it still gets a channel.
+ * rounds still settle. [Standard] is the global bar (12 usable hours, 6 titles; a kid channel 4 titles). [Niche] is 6
+ * usable hours and 4 titles, so a thin shelf of a niche theme still gets a channel. Which recipes carry it is a
+ * judgement call, recorded by name in the catalog (`CatalogV3Recipes`, the `bar = QualifyingBar.Niche` recipes) and
+ * pinned in `CatalogGapsTest`; no rule derives it. A kid recipe never has it. An edited starter is not selected by the
+ * planner, and keeps its recipe's bar wherever the planner reads its stats.
  */
 enum class QualifyingBar(
     val usableMs: Long,

@@ -85,7 +85,7 @@ class CatalogV3Test {
         val sitcom = listOf(Source.Genre("Comedy"), Source.Tag("sitcom"), Source.Tag("situation comedy"))
         assertEquals(sitcom, laugh.sources)
         // Catalog 5 (#786) narrowed this from every TMDB genre but Comedy, Family and Romance (CatalogGapsTest).
-        val notASitcom = setOf("Animation", "Documentary", "Reality", "News", "Talk", "Soap", "TV Movie", "Kids")
+        val notASitcom = setOf("Animation", "Documentary", "Reality", "News", "Talk", "Soap")
         val twists = checkNotNull(recipe("satire-desk").filters?.genres)
         val shape = setOf("Horror", "Thriller")
         assertEquals(notASitcom + shape + twists, laugh.filters?.notGenres?.toSet())

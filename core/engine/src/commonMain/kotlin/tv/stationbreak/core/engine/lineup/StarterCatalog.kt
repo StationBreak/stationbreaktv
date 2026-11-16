@@ -14,8 +14,8 @@ package tv.stationbreak.core.engine.lineup
 object StarterCatalog : StarterCatalogView {
     /**
      * The catalog's version. It goes up with any change to what a recipe airs (sources, exclusions, collection hints,
-     * ordering), its ceiling or opt-in, or a recipe or leftovers recipe added or removed. The frozen manifests in the
-     * tests hold the catalog to that.
+     * ordering), its ceiling or opt-in, what it needs to qualify (`qualifyingBar`), or a recipe or leftovers recipe
+     * added or removed. The frozen manifests in the tests hold the catalog to that.
      *
      * Version 2: every recipe outside the Kids band excludes every spelling of the kids' genres the kid hold knows
      * (`KidHold.KIDS_GENRES`), so kids' shows stop airing on grown-up channels.
@@ -36,6 +36,12 @@ object StarterCatalog : StarterCatalogView {
      * genres that mean "not a sitcom" and Comedy County's twist genres (Comedy County is the channel to watch); the
      * single lanes of a niche theme carry a lower qualifying bar ([QualifyingBar.Niche]: 6 usable hours, 4 titles).
      * Unedited starters take it at the next boundary, as for any catalog update.
+     *
+     * Trade-off of the Family exclusion: an adult cartoon that reaches Cartoons After Dark through a tag or an anchor
+     * (not the genre) AND carries the Family genre was on it at catalog 4 and is off it at catalog 5. It then falls to
+     * another lane, or to Odds & Ends. That is accepted: Family is the signal that keeps PG family animation, which
+     * the grown-up hold passes, off a channel for grown-ups. The audit counts the titles it affects per profile
+     * library (`LineupAuditTest`).
      */
     const val VERSION = 5
 

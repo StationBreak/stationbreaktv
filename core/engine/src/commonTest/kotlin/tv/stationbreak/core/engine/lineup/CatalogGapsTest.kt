@@ -23,8 +23,10 @@ class CatalogGapsTest {
     private val comedyCounty = recipe("satire-desk")
     private val cartoons = recipe("cartoons-after-dark")
 
-    // The single lane of a niche theme: no other starter's pool reaches a title of this genre or form without also
-    // needing a tag or a second genre, so a thin shelf of it would otherwise have no home.
+    // The recipes given the lower bar, by name. Membership is a judgement call, recorded in the catalog: each is the
+    // starter a plain title of a niche genre or form (Horror, Western, War, Soap, Talk, Reality, grown-up Music,
+    // Anime, adult animation) most directly belongs on. No rule derives the set, and other recipes would fit a
+    // similar description; changing it is a catalog change (a new version), so this list is pinned.
     private val nicheKeys =
         setOf(
             "midnight-projector",
@@ -92,6 +94,26 @@ class CatalogGapsTest {
         // It is narrower than the 24 genres it excluded before, and every genre it frees is a TMDB genre.
         assertTrue(excluded.all { it in TMDB_GENRES })
         assertTrue(excluded.size < TMDB_GENRES.size - 3)
+    }
+
+    @Test
+    fun laughTrackLeavesOutNoGenreThatDoesNothing() {
+        val excluded = checkNotNull(laughTrack.filters?.notGenres)
+        // Every grown-up recipe excludes the kids' genre already, and "TV Movie" is no genre of an episode.
+        assertFalse("Kids" in excluded)
+        assertFalse("TV Movie" in excluded)
+        assertEquals(excluded.size, excluded.toSet().size, "no genre twice")
+    }
+
+    @Test
+    fun anAdultTaggedCartoonWithFamilyIsOffCartoonsAfterDark() {
+        val genres = listOf("Animation", "Family")
+        val tagged = movie(idOf(5), rating = "TV-MA", genres = genres, tags = listOf("adult animation"))
+        val library = snapshot(items = listOf(tagged))
+        val names = CollectionNames(emptyMap())
+        val rules = RecipeResolver.resolve(cartoons, SERVER, 0, names, LibraryNames(library, names))
+        val kept = PoolEvaluator.evaluate(rules, library, KidStatus.policyOf(cartoons)).items.map { it.id }
+        assertFalse(tagged.item.id in kept, "the Family exclusion takes it off, though its tag matches")
     }
 
     @Test

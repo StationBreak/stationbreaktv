@@ -53,7 +53,10 @@ internal class Lane(
     val kid: Boolean = channel.kid
     val guestOnly: Boolean = channel.recipe.guestOnly
 
-    /** The qualifying bar of the recipe: a kid channel's is its own ([CurationDefaults.MIN_TITLES_KIDS]). */
+    /**
+     * The recipe's qualifying bar. A kid lane still needs only [CurationDefaults.MIN_TITLES_KIDS] titles (see
+     * `Curation.statsOf`), whatever its bar says; a kid recipe always has the standard one.
+     */
     val bar: QualifyingBar = channel.recipe.qualifyingBar
 }
 
