@@ -7,9 +7,10 @@ import org.junit.Test
 class SpokenRowTest {
     @Test
     fun aRowSpeaksItsReasonsAfterItsName() {
+        val reason = "Fits, but stronger channels were picked for you"
         assertEquals(
-            "9, Charlie, (Kids), Nothing to air today, Fits, but stronger channels filled the lineup",
-            spokenRow(9, "Charlie", "(Kids)", "Nothing to air today", "Fits, but stronger channels filled the lineup"),
+            "9, Charlie, (Kids), Nothing to air today, $reason",
+            spokenRow(9, "Charlie", "(Kids)", "Nothing to air today", reason),
         )
     }
 
