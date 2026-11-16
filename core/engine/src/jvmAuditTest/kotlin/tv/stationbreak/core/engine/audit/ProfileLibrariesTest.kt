@@ -11,7 +11,14 @@ import kotlin.test.assertTrue
 
 class ProfileLibrariesTest {
     private val cases =
-        CaseTitles.SMALL_HORROR_SHELF + CaseTitles.ADULT_ANIMATED_SITCOM + CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE
+        CaseTitles.SMALL_HORROR_SHELF +
+            listOf(
+                CaseTitles.ADULT_ANIMATED_SITCOM,
+                CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE,
+                CaseTitles.SITCOM_WITH_A_FREED_GENRE,
+                CaseTitles.PG_ANIMATED_FAMILY_FILM,
+                CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY,
+            )
 
     private fun titlesOf(key: String): Int {
         val s = ProfileLibraries.build(key).input.snapshot
@@ -53,7 +60,17 @@ class ProfileLibrariesTest {
 
     @Test
     fun theCasesAreCarriedByTheLibrariesThatTestThem() {
-        assertEquals(2, ProfileLibraries.build("sitcom-household").cases.size)
+        val sitcom = ProfileLibraries.build("sitcom-household").cases.flatMap { it.titles }
+        assertEquals(
+            listOf(
+                CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE,
+                CaseTitles.ADULT_ANIMATED_SITCOM,
+                CaseTitles.SITCOM_WITH_A_FREED_GENRE,
+                CaseTitles.PG_ANIMATED_FAMILY_FILM,
+                CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY,
+            ),
+            sitcom,
+        )
         assertEquals(
             CaseTitles.SMALL_HORROR_SHELF,
             ProfileLibraries
@@ -88,5 +105,20 @@ class ProfileLibrariesTest {
         val sitcomGenres = setOf("Comedy", "Family", "Romance")
         assertEquals(listOf("Comedy"), row.genres.filter { it in sitcomGenres })
         assertEquals(1, row.genres.count { it !in sitcomGenres })
+    }
+
+    @Test
+    fun theFreedGenreSitcomAndThePgAnimatedFilmsAreWhatTheyClaim() {
+        val s = ProfileLibraries.build("sitcom-household").input.snapshot
+        val sitcom = s.series.values.single { it.name == CaseTitles.SITCOM_WITH_A_FREED_GENRE }
+        assertEquals(listOf("Comedy", "Drama"), sitcom.genres)
+        assertTrue("sitcom" in sitcom.tags)
+        val names = setOf(CaseTitles.PG_ANIMATED_FAMILY_FILM, CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY)
+        val films = s.items.filter { it.name in names }
+        assertEquals(2, films.size)
+        assertTrue(films.all { it.officialRating == "PG" && "Animation" in it.genres })
+        val family = films.single { it.name == CaseTitles.PG_ANIMATED_FAMILY_FILM }
+        assertTrue("Family" in family.genres)
+        assertTrue("Family" !in films.single { it.name == CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY }.genres)
     }
 }

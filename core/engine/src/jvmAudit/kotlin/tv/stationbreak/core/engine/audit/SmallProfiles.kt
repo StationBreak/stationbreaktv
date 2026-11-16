@@ -69,6 +69,27 @@ internal fun LibraryBuilder.addSitcomWithAnExtraGenre(): ProfileCase {
     return ProfileCase(listOf(CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE), what)
 }
 
+internal fun LibraryBuilder.addSitcomWithAFreedGenre(): ProfileCase {
+    // Comedy and Drama: an extra genre that does not mean "not a sitcom" (catalog 5 lets Laugh Track take it).
+    val spec = TitleSpec(listOf("Comedy", "Drama"), listOf("sitcom"), emptyList(), "TV-14", SITCOM_MINUTES, 2011)
+    series(spec, 4, 12, name = CaseTitles.SITCOM_WITH_A_FREED_GENRE)
+    val what = "A sitcom whose extra genre (Drama) does not mean it is not a sitcom"
+    return ProfileCase(listOf(CaseTitles.SITCOM_WITH_A_FREED_GENRE), what)
+}
+
+internal fun LibraryBuilder.addPgAnimatedFilms(): ProfileCase {
+    // A studio no recipe names and no kid list holds, rated PG: the grown-up hold passes both films.
+    val studios = listOf("Invented Pictures")
+    val family = TitleSpec(listOf("Animation", "Family"), emptyList(), studios, "PG", FILM_MINUTES, 2014)
+    film(family, CaseTitles.PG_ANIMATED_FAMILY_FILM)
+    val plain = TitleSpec(listOf("Animation", "Comedy"), emptyList(), studios, "PG", FILM_MINUTES, 2016)
+    film(plain, CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY)
+    val what =
+        "A PG animated family film that must not be homed on Cartoons After Dark, " +
+            "and a PG animated film with no Family genre"
+    return ProfileCase(listOf(CaseTitles.PG_ANIMATED_FAMILY_FILM, CaseTitles.PG_ANIMATED_FILM_NOT_FAMILY), what)
+}
+
 internal fun LibraryBuilder.addSmallHorrorShelf(): ProfileCase {
     // Four horror films of about two hours: a shelf too small for the horror starter to qualify.
     for ((i, name) in CaseTitles.SMALL_HORROR_SHELF.withIndex()) {
@@ -84,12 +105,15 @@ internal object SitcomHousehold {
         b.sitcoms(14, listOf("Comedy"), "TV-PG", 1994)
         b.sitcoms(3, listOf("Comedy", "Family"), "TV-G", 2001)
         b.sitcoms(2, listOf("Comedy", "Romance"), "TV-14", 2004)
-        val cases = listOf(b.addSitcomWithAnExtraGenre(), b.addAdultAnimatedSitcom())
+        val cases = ArrayList(listOf(b.addSitcomWithAnExtraGenre(), b.addAdultAnimatedSitcom()))
         b.films(8, listOf("Comedy", "Romance"), "PG-13")
         b.films(6, listOf("Family", "Comedy"), "PG")
         b.kidsShows(8, listOf("Animation", "Kids"), "TV-Y", 11)
         b.shows(6, listOf("Drama"), "TV-14", 44)
         b.shows(4, listOf("Crime", "Drama"), "TV-MA", 44, seasons = 4)
+        // Added last, so no title before them changes its name or ID.
+        cases += b.addSitcomWithAFreedGenre()
+        cases += b.addPgAnimatedFilms()
         val description = "A household that watches sitcoms, with some family films and kids' shows"
         return Profile("sitcom-household", description, AuditInput(b.build(), null), cases)
     }
