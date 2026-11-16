@@ -139,7 +139,7 @@ class ChannelHoldingsTest {
         val holdings = checkNotNull(held(pool, homed = emptySet()))
 
         assertEquals(HoldingsList.Mostly, holdings.list)
-        assertEquals(HomeShows.Known(0, emptyList()), holdings.homes)
+        assertEquals(HomeShows.Known(count = 0, titles = emptyList()), holdings.homes)
         assertEquals(listOf(9, 8, 7, 6, 5, 4).map { id(0x200 + it) }, holdings.listed.map { it.id })
         assertEquals(9, holdings.titleCount)
         assertEquals(3, holdings.more)

@@ -44,8 +44,16 @@ class GuideChannelHoldingsTest : GuideRig() {
         titleCount = 1,
         homes =
             HomeShows.Known(
-                1,
-                listOf(HeldTitle(CanonicalId.parse("ab".repeat(16)), "A Show", hours * HOUR_MS, anchor = true)),
+                count = 1,
+                titles =
+                    listOf(
+                        HeldTitle(
+                            id = CanonicalId.parse("ab".repeat(16)),
+                            name = "A Show",
+                            ms = hours * HOUR_MS,
+                            anchor = true,
+                        ),
+                    ),
             ),
         top = emptyList(),
         validUntilMs = until,

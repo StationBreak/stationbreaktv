@@ -151,14 +151,12 @@ class DaySnapshotCodecTest {
     // The same day with its home set not known: what a day read from a file of format 7 is.
     private fun ChannelDay.unbuiltCopy(): ChannelDay =
         days.restore(
-            scheduled.first {
-                it.channel.id == channel.id
-            },
-            pool,
-            films,
-            hidden,
-            weights,
-            null,
+            s = scheduled.first { it.channel.id == channel.id },
+            pool = pool,
+            films = films,
+            hidden = hidden,
+            weights = weights,
+            homed = null,
         )
 
     @Test
@@ -230,17 +228,17 @@ class DaySnapshotCodecTest {
         assertTrue(base.pool.none { it.groupId == stranger })
         val widened =
             ChannelDay.of(
-                base.channel,
-                base.name,
-                base.settings,
-                base.n,
-                base.pool,
-                base.films,
-                base.hidden,
-                base.ceilingRank,
-                tv.stationbreak.core.model.schedule.TitleKeeps.NONE,
-                setOf(aired, stranger),
-                base.weights,
+                channel = base.channel,
+                name = base.name,
+                settings = base.settings,
+                n = base.n,
+                pool = base.pool,
+                films = base.films,
+                hidden = base.hidden,
+                ceilingRank = base.ceilingRank,
+                keeps = tv.stationbreak.core.model.schedule.TitleKeeps.NONE,
+                homed = setOf(aired, stranger),
+                weights = base.weights,
             )
 
         assertEquals(setOf(aired), widened.homed)
@@ -265,7 +263,15 @@ class DaySnapshotCodecTest {
     @Test
     fun theCurationVersionIsAHold() {
         assertTrue(tv.stationbreak.core.engine.lineup.curation.Curation.VERSION_NAME in PersistedDays.HOLDS)
-        val restored = days.restore(scheduled.first(), emptyList(), NO_FILMS, null, TitleWeights.NONE, null)
+        val restored =
+            days.restore(
+                s = scheduled.first(),
+                pool = emptyList(),
+                films = NO_FILMS,
+                hidden = null,
+                weights = TitleWeights.NONE,
+                homed = null,
+            )
         assertEquals(TitleWeights.NONE, restored.weights)
     }
 
