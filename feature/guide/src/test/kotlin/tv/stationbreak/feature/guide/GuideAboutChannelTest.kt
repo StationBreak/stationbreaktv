@@ -64,7 +64,11 @@ class GuideAboutChannelTest : GuideRig() {
             vm.press(GuideDirection.Right)
             assertTrue(vm.toggleMenu())
             assertFalse(vm.snapshot.value.leftGoesToChannel(0L))
-            assertFalse(vm.snapshot.value.copy(menu = null, noLibraries = true).leftGoesToChannel(0L))
+            assertFalse(
+                vm.snapshot.value
+                    .copy(menu = null, noLibraries = true)
+                    .leftGoesToChannel(0L),
+            )
         }
 
     @Test
@@ -93,7 +97,12 @@ class GuideAboutChannelTest : GuideRig() {
             vm.press(GuideDirection.Left)
             assertTrue(vm.toggleMenu())
             assertEquals(GuideMenuEntry.Channels, vm.menu())
-            assertEquals(CH7, vm.snapshot.value.aboutRow()?.channel)
+            assertEquals(
+                CH7,
+                vm.snapshot.value
+                    .aboutRow()
+                    ?.channel,
+            )
         }
 
     @Test
@@ -138,7 +147,16 @@ class GuideAboutChannelTest : GuideRig() {
         guideTest { vm ->
             vm.open(CH7)
             runCurrent()
-            assertEquals(CH7, vm.snapshot.value.aboutRow()?.channel)
-            assertNull(vm.snapshot.value.copy(noLibraries = true).aboutRow())
+            assertEquals(
+                CH7,
+                vm.snapshot.value
+                    .aboutRow()
+                    ?.channel,
+            )
+            assertNull(
+                vm.snapshot.value
+                    .copy(noLibraries = true)
+                    .aboutRow(),
+            )
         }
 }
