@@ -1,0 +1,59 @@
+name: OpenSSF Scorecard
+
+# Scores the repository's security practices with OpenSSF Scorecard once a week and on every push to main, and
+# posts the results to code scanning. It never blocks anything: nothing requires it and it runs on no pull request.
+#
+# The steps are the minimum on purpose. With publish_results the Scorecard API verifies the workflow, and it
+# rejects one that has any other kind of step, a job-level env or defaults, a container or services. So this job
+# has no run: steps and nothing else besides the four below.
+on:
+  schedule:
+    # Tuesdays 05:41 UTC (off the hour, when scheduled runs are less likely to be delayed).
+    - cron: "41 5 * * 2"
+  push:
+    branches: [main]
+  branch_protection_rule:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    # Forks have no Scorecard publishing identity, so the job only runs here.
+    if: github.repository == 'StationBreak/stationbreaktv'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Reads the repository and its settings.
+      contents: read
+      # Reads the workflow runs, which Scorecard checks.
+      actions: read
+      # Uploads the SARIF file to code scanning.
+      security-events: write
+      # Lets scorecard-action publish results to the OpenSSF API (publish_results) with an OIDC token.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 7
+
+      - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: results.sarif

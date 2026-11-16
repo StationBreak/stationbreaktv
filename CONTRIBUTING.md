@@ -30,6 +30,7 @@ CI is metered, so iterate locally and let CI run once.
 - `osv-scanner` runs on a pull request only when it changes `gradle/`, a `*.gradle.kts` file, `gradle.properties` or
   `build-logic/`. It also runs weekly on `main`. The check a ruleset can require is `osv-scanner-result`: the
   reusable workflow reports a different name when it skips than when it runs ([ADR-0012](docs/adr/0012-ci-gates-advisory-until-flip.md)).
+- `scorecard.yml` runs the OpenSSF Scorecard weekly and on pushes to `main`, and posts its results to code scanning. It never blocks anything. `ossf/scorecard-action@*` is on the repository's allowed-actions list.
 
 ## Commit messages
 
