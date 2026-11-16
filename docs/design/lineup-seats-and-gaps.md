@@ -7,6 +7,7 @@
 addendum. `crew:architecture` reviewed two drafts: the first was blocked on the meaning of "pinned" and on a
 rules-format version, the second came back CONCERN, and this revision takes its findings in. The owner approved the seat
 definition in §3 on 2026-11-15.
+**Status:** built (2026-11-16). Where the build differs from this plan, "As built" at the end says so; it wins.
 
 ## 1. What the viewer saw
 
@@ -237,3 +238,62 @@ Three issues, each labelled `release:fire-v1`, each in its own worktree off `ori
    Insignia timings and file sizes through the test session).
 3. **The catalog gaps**, #786 (`core:engine` recipes shipped as catalog 5, the per-recipe qualifying bar), judged by the
    audit.
+
+## As built (2026-11-16)
+
+This section records where the build differs from the plan above. The code, the ADR-0023 addendum and the pinned audit
+goldens are the authority; the plan stays as the record of the decision. Work: #784 (audit), #785 (seat rule), #786
+(catalog 5).
+
+### The audit (#784)
+
+- The `decade` score term has no constant in `fitPointsQ16`: decade channels are guest-only and pay the guest-only
+  penalty. The audit reports that penalty as `decade`, so the term is negative.
+- The audit applies the app's own `ExtrasFilter`. The exporter does not re-implement it, so a snapshot is the read before
+  the filter, and the audit reports how many items the filter dropped.
+- The fidelity test compares at the snapshot level, because `data:library` cannot depend on the audit compilation. A
+  `data:jellyfin` test holds the exporter's first stage to the app's real decoder and mappers.
+- Hours in the JSON output are integer hundredths of an hour, so a report has no floating-point formatting.
+
+### The seat rule (#785)
+
+- Built as specified in §3, including `KEEPER_COPIES` = 60 and `MAX_CATALOG_STARTERS` = 110 (the per-copy budget stays
+  3,084 bytes). A seventh profile library, `seat-household` (invented titles; five starters switched on from the shelf and
+  one custom channel), shows the effect: the planner's picks go from 42 to 48 and the lineup from 50 to 56.
+- **The warning is permanent, not a threshold.** Instead of a message past a count, the Channels panel always shows a
+  non-focusable line: "The more channels you turn on, the longer the guide takes to get ready." The reason: the day
+  build is +0.3% per extra channel, which puts the 10% bar at about 73 channels on (interpolated). Insignia
+  (AFTJMST12) day build against main at 50 channels, median of 3: +3.2% at 60, +10.7% at 75, +26.8% with every starter on
+  (97). The day restore stays within the bar at every count (+5.1% at 97). Guide open and sync-to-lineup-ready were not
+  measured (#796). The days file is 1,716 KB at 50 channels and 1,881 KB at 100, against 16 MiB.
+- "Free and Pro (#793)" above says the warning only ever shows on the Pro path. Until #793's check exists, everyone can
+  switch channels on, so the line is accurate; showing it only where switching on is possible is #799.
+- The shelf reason for "it fits but is not in the lineup" now reads "Fits, but it isn't in your lineup right now". The
+  same reason covers a starter with no free number and a kept starter the viewer turned off, so a `NoNumber` reason is
+  #798. The test-only ranked planner paths are #797.
+
+### The catalog gaps (#786, catalog 5)
+
+- **Cartoons After Dark:** as specified (Animation genre, `notGenres` Family, no minimum-rating filter). The Family
+  exclusion is pool-wide, so it also drops a title that came in on an adult-animation tag or studio anchor and carries
+  Family; this is pinned by `FamilyExclusionTradeOffTest`. A household with a single adult cartoon still has no home for
+  it, because the channel needs 4 titles even at the lower bar.
+- **Laugh Track:** `notGenres` is Animation, Documentary, Reality, News, Talk, Soap, Horror and Thriller, plus Comedy
+  County's twist genres (one shared list, so Laugh Track cannot take Comedy County's ties). Horror and Thriller go beyond
+  the examples in §4; they keep horror comedies off Laugh Track as before, and the owner approved them on 2026-11-16.
+  Kids and TV Movie are not listed (every grown-up recipe already excludes the kids' genres, and TV Movie does nothing for
+  episodes).
+- **The lower qualifying bar** is `QualifyingBar.Niche` (6 usable hours, 4 titles) on nine recipes named in the catalog:
+  midnight-projector, dusty-trails, front-lines, matinee-tears, couch-talk, glass-house, backstage-pass,
+  tokyo-after-school and cartoons-after-dark. It is not "the catalog's one lane for a theme": other recipes fit that
+  description as well, and membership is a judgement recorded by name. The manifest fingerprint writes the bar's values
+  (only for a non-Standard bar, so catalogs 1 to 4 are unchanged), so changing the numbers forces catalog 6. Only horror and
+  Cartoons After Dark are exercised by the audit.
+- Effect on the profile libraries (titles with no home): horror-fan 1 to 0, anime-viewer 58 to 0 (it now has enough
+  channels to be finalised), the others unchanged. PG animated titles without the Family genre (the residual the held-back
+  minimum-rating filter would address) are homed on Cartoons After Dark.
+
+### Follow-ups
+
+#796 (guide open and sync-to-lineup-ready at large lineups), #797 (delete the ranked planner paths), #798 (a `NoNumber`
+shelf reason), #799 (the heads-up only where switching on is possible).
