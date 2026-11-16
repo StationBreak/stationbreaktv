@@ -400,9 +400,11 @@ internal class GuideViewModel
                     GuideDirection.Left, GuideDirection.Right -> 0
                 }
             if (step != 0) {
-                GuideMenuEntry.entries.getOrNull(entry.ordinal + step)?.let {
-                    shownSnapshot.value = current.withOpenerRestored().copy(menu = it)
-                }
+                // About is a stop only while the sheet has that row.
+                GuideMenuEntry.entries
+                    .getOrNull(entry.ordinal + step)
+                    ?.takeIf { it != GuideMenuEntry.About || current.aboutRow() != null }
+                    ?.let { shownSnapshot.value = current.withOpenerRestored().copy(menu = it) }
             }
         }
 
@@ -424,7 +426,7 @@ internal class GuideViewModel
             val ready = current.state as? GuideState.Ready
             val from = current.focus
             if (from == null || ready == null) return
-            if (direction == GuideDirection.Left && ready.model.isEarliestCell(from, narrowBreakBelowMs)) {
+            if (direction == GuideDirection.Left && current.leftGoesToChannel(narrowBreakBelowMs)) {
                 // Where Left used to do nothing: onto the channel column, which names this row.
                 shownSnapshot.value = current.copy(onChannel = true)
             } else {
@@ -461,7 +463,7 @@ internal class GuideViewModel
             synchronized(lock) {
                 val current = shownSnapshot.value
                 when {
-                    current.menu != null -> selectOnMenu(current.menu)
+                    current.menu != null -> selectOnMenu(current, current.menu)
 
                     // No grid is shown without libraries: there is no cell or channel to act on.
                     !noLibraries() -> selectOnGrid(current)
@@ -495,12 +497,19 @@ internal class GuideViewModel
         }
 
         // Select on a menu entry: what it opens, or Exit; under [lock].
-        private fun selectOnMenu(entry: GuideMenuEntry) {
+        private fun selectOnMenu(
+            current: GuideSnapshot,
+            entry: GuideMenuEntry,
+        ) {
+            if (entry == GuideMenuEntry.About) {
+                // The event OK on the channel column sends; the sheet stays, and is there again afterwards.
+                current.aboutRow()?.let { eventChannel.trySend(GuideEvent.OpenChannelProperties(it.channel)) }
+                return
+            }
             if (entry == GuideMenuEntry.Exit) {
                 // The screen leaves by dispatching Back, which the guide handles first: from a sheet the Menu key
                 // opened that Back would only close it. So Back leaves from here, as from a sheet Back opened; the
                 // opener comes back if the viewer moves, closes the sheet, or that Back arrives and does not leave.
-                val current = shownSnapshot.value
                 if (!current.menuByBack) {
                     openerBeforeExit = false
                     shownSnapshot.value = current.copy(menuByBack = true)
@@ -508,6 +517,7 @@ internal class GuideViewModel
             }
             eventChannel.trySend(
                 when (entry) {
+                    GuideMenuEntry.About -> return
                     GuideMenuEntry.Channels -> GuideEvent.OpenChannels
                     GuideMenuEntry.Settings -> GuideEvent.OpenSettings
                     GuideMenuEntry.Exit -> GuideEvent.Exit

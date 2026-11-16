@@ -438,6 +438,29 @@ class GuideMenuUiTest {
     }
 
     @Test
+    fun theSheetHasAnAboutRowForTheFocusedChannelAboveChannels() {
+        showReady()
+        press(Key.Menu)
+        sheet().assertExists()
+        awaitOnChannels()
+        // The row names the channel the focus was on (the guide opens on channel 5) and is first; Channels has focus.
+        val about = compose.onNodeWithTag(GuideTags.ABOUT_BUTTON)
+        about.assertExists()
+        about.assertIsNotSelected()
+        assertTrue(
+            about
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.Text]
+                .joinToString("") { it.text }
+                .startsWith("About "),
+        )
+        assertTrue(about.getBoundsInRoot().top < channels().getBoundsInRoot().top)
+        press(Key.DirectionUp)
+        compose.waitUntil(TIMEOUT_MS) { runCatching { about.assertIsSelected() }.isSuccess }
+        channels().assertIsNotSelected()
+    }
+
+    @Test
     fun theMenuKeyOpensAndClosesTheSheetFromTheChannelColumnAndTheFocusReturns() {
         showReady()
         press(Key.DirectionLeft)

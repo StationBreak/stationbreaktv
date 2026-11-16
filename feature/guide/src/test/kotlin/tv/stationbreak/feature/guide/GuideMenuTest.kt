@@ -329,7 +329,12 @@ class GuideMenuTest : GuideRig() {
             vm.open(CH7)
             runCurrent()
             assertTrue(vm.back())
+            // With a grid the sheet has the About row (#803) above Channels, and stops there.
             vm.up()
+            assertEquals(GuideMenuEntry.About, vm.menu())
+            vm.up()
+            assertEquals(GuideMenuEntry.About, vm.menu())
+            vm.down()
             assertEquals(GuideMenuEntry.Channels, vm.menu())
             vm.down()
             assertEquals(GuideMenuEntry.Settings, vm.menu())

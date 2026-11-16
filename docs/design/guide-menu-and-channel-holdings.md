@@ -12,10 +12,29 @@
 - Remove the Channels / Settings / Exit row from the info panel. The panel's column keeps its height, so the description gets the freed lines.
 - `KEYCODE_MENU` in the guide opens the menu sheet from anywhere, and closes it if it is open. **In full screen Menu stays Last Channel; that is not changed here.**
 - Wherever focus moves to the tab row today (Back on the playing channel's cell, and Up from the top row if that exists), the sheet opens instead. **Back stays the way out of the guide:** a sheet that Back opened is left by Back again, which leaves live TV, as Back did from the menu row. A sheet that the Menu key opened is closed by Back, which returns focus to where it came from. So Back, Back from the playing cell leaves live TV.
-- **Sheet:** left edge, 220 dp wide, full height, with the same surface, dimming and focus style as the channel properties sheet (`docs/design/channel-properties.md`). Rows 36 dp tall, 13 sp Medium: Channels, Settings, Exit. Channels has focus on open. Up and Down move, OK chooses.
+- **Sheet:** left edge, 220 dp wide, full height, with the same surface, dimming and focus style as the channel properties sheet (`docs/design/channel-properties.md`). Rows 36 dp tall, 13 sp Medium: Channels, Settings, Exit (with a grid, `About <channel name>` first, see #803 below). Channels has focus on open. Up and Down move, OK chooses.
 - **Hint row:** add a `Menu` key cap with the label `Menu`; keep `Back · To the menu` where it shows today.
 
 **Tests.** Menu opens and closes the sheet from a programme cell and from the channel column; Menu in full screen is still Last Channel; focus returns to where it was on close; Back on a sheet that Menu opened closes it, and Back on a sheet that Back opened leaves live TV (Back, Back from the playing cell); the description gains lines when the row is gone.
+
+### Making the channel box discoverable (#803)
+
+Nothing on the grid said that Left reaches the channel box, or that its column could take focus. Three changes, all in `feature:guide`; the channel box and the properties sheet are as section 2 describes.
+
+- **Hint row.** Where Left from the focused cell moves focus to the channel column (the row's earliest cell, by the grid's own rule, narrow breaks passed over), the row adds a left-arrow key cap (`◂`) with the label `About this channel`, in the style of the right-arrow `Back to programs` hint. Order: `OK`, `◂`, `Back`, `Menu`. It shows on no other cell, not on the channel column itself, and not under the sheet. The hint and the move share one rule (`leftGoesToChannel`), so they cannot disagree.
+- **Menu sheet.** When the sheet opens with focus on a programme cell or a channel, its first row is `About <channel name>` (13 sp Medium, one line, ellipsis), which opens that channel's properties sheet, as OK on the channel column does; the sheet stays under it and is there again, on that row, when the properties sheet closes. Channels keeps the initial focus, so About is one Up away, and Up stops there. The row is absent when there is no grid (nothing on, loading, or no libraries), and Up and Down skip it then.
+- **Channel tiles.** Each channel cell is a tile: card fill, a 1 dp `line` outline, a 2 dp radius, `ChannelColumnWidth` (84 dp) less a 4 dp gap to the first programme cell, so the time columns do not move. The mark stays 50 × 28 dp; inside the 80 dp tile the number box is 20 dp (was 22), the gap to the mark 4 dp (was 8) and the edges 3 dp. The tile starts at the safe area; it no longer runs on to the screen's edge.
+
+| State of the row | Number | Outline |
+|---|---|---|
+| Resting | `textSecondary` | 1 dp `line` |
+| Holds the programme focus | `textPrimary` | 1 dp `keyCapStroke` (white at 28% in Dark, the matching Light token) |
+| The playing channel | `textPrimary` | as above, by its row's state |
+| Channel focus (#631) | as above | 2 dp `accent`, unchanged |
+
+The outlines are read when drawing, so a focus move redraws and recomposes nothing; only the number's colour changes with the focused row, on the two cells that change. Light uses the Light tokens throughout.
+
+**Tests.** The hint appears on the earliest cell only (and agrees with the move); About is one Up from Channels and Up stops there; Select on About asks for the focused channel's properties and the sheet comes back as it was; no About row with no grid or with no libraries; the tile's number and outline by row state in both themes, its 80 dp width, and the first cell still 84 dp from the column's edge. Frames, dark and light, on `pr-assets-archive/<PR number>/`: a resting row and the focused row (the focused-cell frame), channel focus (the channel-box frame) and the sheet with its About row.
 
 ## 2. The channel info box shows what the channel holds
 

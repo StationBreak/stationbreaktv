@@ -42,6 +42,13 @@
     <!-- The details panel while the focus is on the channel column (#631): the line over the channel's name. -->
     <string name="guide_channel_number">Channel %1$d</string>
 
+    <!-- Left from the first cell of a row goes to the channel column (#803): the key cap is an arrow, the label is the
+         properties hint's own words. -->
+    <string name="guide_key_left">◂</string>
+
+    <!-- The menu sheet's first row (#803), while the guide shows a grid: opens the focused channel's properties. -->
+    <string name="guide_menu_about">About %1$s</string>
+
     <!-- The rows of the menu sheet (#756): the first opens channel management (spec 21), the second leaves. -->
     <string name="guide_channels_button">Channels</string>
     <string name="guide_settings_button">Settings</string>

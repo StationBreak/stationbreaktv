@@ -70,6 +70,12 @@ internal data class GuideSnapshot(
 
 /** The entries of the menu sheet (#756), top to bottom. */
 internal enum class GuideMenuEntry {
+    /**
+     * "About <channel name>": opens the properties sheet of the channel the focus was on, as OK on the channel column
+     * does. In the sheet only while there is a grid and a focused row ([aboutRow]); the sheet never opens on it.
+     */
+    About,
+
     /** Opens channel management. */
     Channels,
 

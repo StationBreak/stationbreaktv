@@ -57,6 +57,9 @@ object GuideTags {
     /** The line at the foot of the menu sheet that says what Back does there. */
     const val MENU_HINT = "guide:menuHint"
 
+    /** The About row of the menu sheet (#803): the focused channel's properties; absent with no grid. */
+    const val ABOUT_BUTTON = "guide:aboutButton"
+
     /** The Channels row of the menu sheet. */
     const val CHANNELS_BUTTON = "guide:channelsButton"
 
