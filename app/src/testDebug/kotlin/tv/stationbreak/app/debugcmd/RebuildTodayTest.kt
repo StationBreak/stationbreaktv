@@ -27,12 +27,15 @@ class RebuildTodayTest {
     fun saysWhyItSkipped() {
         run { RebuildTodayResult.NoAccount }
         run { RebuildTodayResult.NoLibraries }
+        run { RebuildTodayResult.NoLineup }
         assertEquals(
             listOf(
                 "started",
                 "skipped: nobody is signed in",
                 "started",
                 "skipped: no libraries are chosen",
+                "started",
+                "skipped: account",
             ),
             lines,
         )

@@ -138,9 +138,10 @@ class LineupRefresher(
     /**
      * Plans the active account's lineup now, whatever the lineup's state, and builds today's schedule again for every
      * channel (#812): the work the 06:00 boundary makes, without waiting for it and without the checks that make a
-     * current lineup a no-op ([LineupService.rebuildToday]). Only the debug and benchmark builds call it. The viewer's
-     * edits are kept. Runs under the account's lock, so it waits for a refresh in hand and is not mixed with it. A
-     * failure is thrown to the caller, who reports it; nothing is stored then.
+     * current lineup a no-op ([LineupService.rebuildToday]). The plan applies from the start of today.
+     * Only the debug and benchmark builds call it. The viewer's edits are kept. Runs under the account's lock, so it
+     * waits for a refresh in hand and is not mixed with it. A failure is thrown to the caller, who reports it; nothing
+     * is stored then.
      */
     @Suppress("ReturnCount") // Each early return is a reason there is nothing to do.
     suspend fun rebuildToday(): RebuildTodayResult {
@@ -148,8 +149,7 @@ class LineupRefresher(
         val chosen = libraries()?.takeIf { it.isNotEmpty() } ?: return RebuildTodayResult.NoLibraries
         // The choice is the active account's: the same check a refresh makes (#305).
         if (selectionOwner()?.let { it != account } == true) return RebuildTodayResult.NoLibraries
-        service.rebuildToday(account, chosen)
-        return RebuildTodayResult.Done
+        return if (service.rebuildToday(account, chosen)) RebuildTodayResult.Done else RebuildTodayResult.NoLineup
     }
 
     private suspend fun follow(account: LibraryAccount) {
@@ -437,4 +437,7 @@ enum class RebuildTodayResult {
 
     /** No libraries are chosen for the active account: nothing done. */
     NoLibraries,
+
+    /** The account's IDs are not canonical, so it has no lineup: nothing done. */
+    NoLineup,
 }

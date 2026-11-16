@@ -278,33 +278,42 @@ class LineupService internal constructor(
     internal suspend fun refresh(
         account: LibraryAccount,
         libraries: Set<ItemId>,
-    ) = refreshing(account, libraries, rebuildDays = false)
+    ) {
+        refreshing(account, libraries, rebuildDays = false)
+    }
 
     /**
-     * A refresh that also drops every day built from the lineup ([forgetDerived]: the kept and remembered days in
-     * memory, and the days on disk), so today's schedule is built again for every channel from now. For the debug and
-     * benchmark command that does it (#812); the lineup planned is the one [refresh] plans, and the viewer's edits,
-     * channels and repair record are kept (it is not a reset). The days go before the new revision is published, so
+     * A refresh that plans as the boundary that began today would have, and drops every day built from the lineup
+     * ([forgetDerived]: the kept and remembered days in memory, and the days on disk), so the new plan and today's
+     * schedule apply from the start of today, now, for every channel. For the debug and benchmark command that does it
+     * (#812). A refresh starts the changes it makes at the next boundary; this starts them at today's (the planner is
+     * given the moment before today's day start as its now, and that day start as its boundary). The lineup is
+     * otherwise the one [refresh] plans, and the viewer's edits, channels and repair record are kept (it is not a
+     * reset). The days go before the new revision is published, so
      * whatever reads the lineup next builds them from the planned lineup. Under the account's lock, like a refresh.
      */
     internal suspend fun rebuildToday(
         account: LibraryAccount,
         libraries: Set<ItemId>,
-    ) = refreshing(account, libraries, rebuildDays = true)
+    ): Boolean = refreshing(account, libraries, rebuildDays = true)
 
     private suspend fun refreshing(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         rebuildDays: Boolean,
-    ) {
-        val owner = ownerOf(account) ?: return report(LineupEvent.NonCanonicalAccount)
+    ): Boolean {
+        val owner =
+            ownerOf(account) ?: run {
+                report(LineupEvent.NonCanonicalAccount)
+                return false
+            }
         val entry = entryOf(owner)
         val began = TimeSource.Monotonic.markNow()
         val savedSeq = savedSeqNow()
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
-            val (planned, meta) = planned(owner, account, libraries, start)
+            val (planned, meta) = planned(owner, account, libraries, start, sinceDayStart = rebuildDays)
             val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs, savedSeq)
             if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key) }
             publish(entry, planned, meta, repairs)
@@ -313,6 +322,7 @@ class LineupService internal constructor(
         }
         // Only a refresh that ran to its publish is timed: load to publish, including any wait on the account's lock.
         seams.timed(began.elapsedNow().inWholeMilliseconds)
+        return true
     }
 
     /**
@@ -326,9 +336,18 @@ class LineupService internal constructor(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         start: Start,
+        sinceDayStart: Boolean = false,
     ): Pair<Lineup, RefreshMeta> =
         readForPlan(account, libraries).let { read ->
-            plannedFrom(owner, read, libraries, start.current, start.meta, newAccount = start.isNew)
+            plannedFrom(
+                owner,
+                read,
+                libraries,
+                start.current,
+                start.meta,
+                newAccount = start.isNew,
+                sinceDayStart = sinceDayStart,
+            )
         }
 
     /** What the library says at the moment of a plan. */
@@ -368,6 +387,7 @@ class LineupService internal constructor(
         kept: List<LineupChannel> = emptyList(),
         offsetFrom: Lineup? = current,
         newAccount: Boolean = false,
+        sinceDayStart: Boolean = false,
     ): Pair<Lineup, RefreshMeta> {
         // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
         val own =
@@ -379,7 +399,14 @@ class LineupService internal constructor(
         val nowMs = read.now.toEpochMilliseconds()
         // What is past at the read is taken off first (`rolled`); the changes this plan makes start at the next day
         // boundary, worked out here with the lineup's own offset and passed in (the engine knows no scheduler).
-        val rolled = current?.rolled(nowMs)
+        // [sinceDayStart] (the debug rebuild, #812) plans as the boundary that began today would have: it works as of
+        // the moment before today's day start and starts its changes there, so they apply now, not tomorrow. Every
+        // other plan works as of now and starts its changes at the next boundary.
+        val rolledNow = current?.rolled(nowMs)
+        val boundaryMs = nextBoundary(offsetFrom ?: rolledNow, nowMs)
+        val planNowMs = if (sinceDayStart) boundaryMs - MS_PER_DAY - 1 else nowMs
+        val planBoundaryMs = if (sinceDayStart) boundaryMs - MS_PER_DAY else boundaryMs
+        val rolled = if (sinceDayStart) current?.rolled(planNowMs) else rolledNow
         // #306: a finalised lineup is never shelved or reshaped from a snapshot with no items. That is a library not
         // synced (yet), not an empty one: keep the lineup as rolled and the meta passed in, so the generation is not
         // recorded and the next trigger plans again. A selection that really became empty is the selection-change
@@ -393,8 +420,8 @@ class LineupService internal constructor(
                 standardOffsetMinutes(),
                 read.snapshot,
                 read.names,
-                nowMs,
-                nextBoundary(offsetFrom ?: rolled, nowMs),
+                planNowMs,
+                planBoundaryMs,
                 catalog,
                 withoutCollections = read.giveUp,
                 kept = (kept + own).distinctBy { it.id },

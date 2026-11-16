@@ -28,6 +28,7 @@ internal suspend fun runRebuildToday(
             RebuildTodayResult.Done -> log("done in ${began.elapsedNow().inWholeMilliseconds} ms")
             RebuildTodayResult.NoAccount -> log("skipped: nobody is signed in")
             RebuildTodayResult.NoLibraries -> log("skipped: no libraries are chosen")
+            RebuildTodayResult.NoLineup -> log("skipped: account")
         }
     } catch (
         @Suppress("TooGenericExceptionCaught") e: Throwable,

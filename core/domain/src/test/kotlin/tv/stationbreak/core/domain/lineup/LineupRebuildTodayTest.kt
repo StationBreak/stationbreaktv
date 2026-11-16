@@ -3,10 +3,13 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.rules.Source
 import java.util.Collections
 import kotlin.test.Test
@@ -95,6 +98,51 @@ class LineupRebuildTodayTest {
             assertNotEquals("disk", builds.last().snapshot)
         }
 
+    // A lineup planned under an older catalog whose Whodunit still has rules that match nothing: the newer catalog's
+    // rules for it (Crime) are a change the plan makes, which a refresh starts at the next boundary.
+    private fun seedStale() =
+        runBlocking {
+            val old =
+                lineupOf(
+                    starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy"))),
+                    starter("whodunit", 210, ChannelState.On, rules("Whodunit", Source.Genre("Mystery"))),
+                ).copy(catalogVersion = 0)
+            lineups.inner.save(ACCOUNT, LineupCodec.encode(old))
+        }
+
+    private fun whodunit(): ChannelSource.Starter =
+        checkNotNull(
+            stored().channels.first { it.id.value == "starter:whodunit" }.source as? ChannelSource.Starter,
+        )
+
+    private fun whodunitToday() = days().first { it.channel.id.value == "starter:whodunit" }
+
+    @Test
+    fun aRefreshStartsThePlansChangeAtTheNextBoundary() =
+        runBlocking<Unit> {
+            seedStale()
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertTrue(whodunit().rulesFromMs!! > NOON.toEpochMilliseconds(), "the new rules wait for tomorrow")
+            assertTrue(whodunitToday().pool.isEmpty(), "so today still airs the old ones")
+        }
+
+    @Test
+    fun aRebuildAppliesThePlansChangeFromTheStartOfToday() =
+        runBlocking<Unit> {
+            seedStale()
+
+            assertEquals(RebuildTodayResult.Done, refresher.rebuildToday())
+
+            assertTrue(whodunit().rulesFromMs!! <= NOON.toEpochMilliseconds(), "the new rules began with today")
+            assertTrue(whodunitToday().pool.isNotEmpty(), "and today's days are built from them")
+            assertTrue(
+                stored().channels.count { it.state == ChannelState.On } > 2,
+                "the starters the plan picked are on now",
+            )
+        }
+
     @Test
     fun theViewersOwnEditsAreKept() =
         runBlocking<Unit> {
@@ -129,6 +177,15 @@ class LineupRebuildTodayTest {
 
             assertNull(lineups.inner.peek(ACCOUNT), "nothing planned or stored")
             assertEquals(0, nobody.snapshotCutoffs.size, "and the library was not read")
+        }
+
+    @Test
+    fun anAccountWithNoCanonicalIdsHasNoLineupToRebuild() =
+        runBlocking<Unit> {
+            val odd = LibraryAccount(ServerId("not an id"), UserId("nor this"))
+
+            assertEquals(false, service.rebuildToday(odd, LIBRARIES))
+            assertEquals(true, service.rebuildToday(ACCOUNT, LIBRARIES))
         }
 
     @Test
