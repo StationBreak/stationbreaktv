@@ -178,9 +178,14 @@ Owner decision, 2026-11-15: this rule replaces the cap of 50 for every viewer, a
   v1. #785 adds no gate.
 - The timings at 60, 75 and every starter on measure the Pro worst case. Free tops out at 55. The switch-on warning only
   ever shows on the Pro path.
-- **Still open in #793:** whether a free viewer can switch a starter off, hide it, renumber or swap it, edit one in
-  place, or switch on an opt-in starter. A renumber or swap that stays inside the top already costs nothing under this
-  rule, whatever the answer.
+- **All lineup reshaping is Pro** (owner, 2026-11-15): switching starters on or off, hiding and renumbering them, all
+  behind the same check. Free is "a free app that is actually useable, but not configurable": the viewer can still browse
+  the whole lineup, shelved starters included. So on free every starter is the planner's, and the lineup is exactly the
+  planner's 50 plus the custom channels.
+- Debug and benchmark builds keep Pro unlocked, so this rule's tests, the audit and the device timings run on the Pro
+  path. Only the release build ships with the gates closed.
+- Not named in #793: a swap, switching on an opt-in starter, and editing a starter in place. The first two are reshaping;
+  the third is for #793 to settle.
 
 ### Not in scope
 
