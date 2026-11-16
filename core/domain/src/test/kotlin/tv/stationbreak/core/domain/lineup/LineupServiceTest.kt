@@ -420,7 +420,7 @@ class LineupServiceTest {
     @Test
     fun newerVersionIsNeverOverwritten() =
         runBlocking<Unit> {
-            val newer = """{"version":5,"whatever":"a newer app wrote"}""".encodeToByteArray()
+            val newer = """{"version":${LineupCodec.VERSION + 1},"whatever":"a newer app wrote"}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
             store.calls.clear()
 
@@ -702,7 +702,7 @@ class LineupServiceTest {
     @Test
     fun aSessionStartedFromANewerVersionNeverSaves() =
         runBlocking<Unit> {
-            store.inner.save(ACCOUNT, """{"version":5}""".encodeToByteArray())
+            store.inner.save(ACCOUNT, """{"version":${LineupCodec.VERSION + 1}}""".encodeToByteArray())
             store.calls.clear()
 
             service.refresh(ACCOUNT, LIBRARIES)

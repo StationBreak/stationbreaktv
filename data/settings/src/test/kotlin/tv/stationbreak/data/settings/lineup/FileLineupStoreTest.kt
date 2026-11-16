@@ -274,6 +274,35 @@ class FileLineupStoreTest {
             )
         }
 
+    // The tags of one family: `v{from}` and `v{from}-to{to}` for every pair of lineup file versions a first save can
+    // skip over, kept beside each other, each written once from the file as it stood.
+    @Test
+    fun everyUpgradePairHasATagAndForgetRemovesThemAll() =
+        runBlocking {
+            store.save(one, bytes)
+            val tags = listOf("v1", "v2", "v3", "v1-to4", "v1-to5", "v2-to4", "v2-to5", "v3-to5", "v4-to5")
+            for (tag in tags) assertTrue(tag, store.keepCopy(one, tag))
+            for (tag in tags) assertArrayEquals(tag, bytes, files.held["$serverA/$userOne.json.$tag.bak"])
+            // A fresh pair is written even when another tag exists: they do not share a copy.
+            store.save(one, byteArrayOf(5))
+            assertTrue(store.keepCopy(one, "v3-to5"))
+            assertArrayEquals("first write wins", bytes, files.held["$serverA/$userOne.json.v3-to5.bak"])
+
+            assertTrue(store.forget(one))
+
+            assertTrue(files.held.keys.toString(), files.held.isEmpty())
+        }
+
+    @Test
+    fun aTagOutsideTheFamilyIsRefused() =
+        runBlocking {
+            store.save(one, bytes)
+            for (bad in listOf("v3-to", "v-to5", "v3-5", "v3-to5x", "to5", "v3-to5-to6", "v3-TO5")) {
+                assertFalse(bad, store.keepCopy(one, bad))
+            }
+            assertEquals(listOf("$serverA/$userOne.json"), files.held.keys.toList())
+        }
+
     @Test
     fun forgetAlsoRemovesAStagedUpgradeCopy() =
         runBlocking {

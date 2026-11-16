@@ -121,8 +121,10 @@ class LineupCodecV4Test {
     fun aVersion5File_isNewer() {
         val v4 = LineupCodec.encode(lineup, meta, repairs)
         val root = tree(v4)
-        val bytes = Json.encodeToString(JsonElement.serializer(), JsonObject(root + ("version" to JsonPrimitive(5))))
-        assertEquals(LineupCodec.Decoded.NewerVersion(5), LineupCodec.decode(bytes.encodeToByteArray()))
+        val newer = LineupCodec.VERSION + 1
+        val file = JsonObject(root + ("version" to JsonPrimitive(newer)))
+        val bytes = Json.encodeToString(JsonElement.serializer(), file)
+        assertEquals(LineupCodec.Decoded.NewerVersion(newer), LineupCodec.decode(bytes.encodeToByteArray()))
     }
 
     // A record that does not read loads the lineup with none: never a reason to set the lineup aside.
@@ -231,7 +233,7 @@ class LineupCodecV4Test {
             HiddenReason.entries.map { it.name },
             GUARD,
         )
-        assertEquals(4, LineupCodec.VERSION, GUARD)
+        assertEquals(5, LineupCodec.VERSION, GUARD)
     }
 
     @Test

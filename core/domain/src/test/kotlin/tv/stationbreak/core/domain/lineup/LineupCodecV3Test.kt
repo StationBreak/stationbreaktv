@@ -485,12 +485,15 @@ class LineupCodecV3Test {
     @Test
     fun theShelfReasonsArePinnedToTheFileVersion() {
         assertEquals(listOf("Empty", "TooThin", "BelowCap", "OptIn"), ShelfReason.entries.map { it.name }, GUARD)
-        assertEquals(4, LineupCodec.VERSION, GUARD)
+        assertEquals(5, LineupCodec.VERSION, GUARD)
     }
 
     @Test
     fun aVersionFiveFileIsNewer() {
-        assertEquals(LineupCodec.Decoded.NewerVersion(5), decode("""{"version":5,"useMyCollections":false}"""))
+        assertEquals(
+            LineupCodec.Decoded.NewerVersion(LineupCodec.VERSION + 1),
+            decode("""{"version":${LineupCodec.VERSION + 1},"useMyCollections":false}"""),
+        )
     }
 
     private companion object {

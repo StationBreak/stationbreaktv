@@ -21,7 +21,8 @@ import java.io.IOException
  * built only from IDs that are already canonical (32 lower-case hexadecimal characters), so no account can name a
  * path outside its own file; any other ID gets no file and no access. A file over 1 MiB reads as
  * [StoredBytes.Failed]. A set-aside copy is `<name>.unreadable.<epochMillis>`, never replaced; the newest three are
- * kept. An upgrade copy is `<name>.<tag>.bak` (`v1`, `v2`, or `repairs-unreadable`): the file's bytes as they stood,
+ * kept. An upgrade copy is `<name>.<tag>.bak` (`v1`, `v2`, `v3`, `v3-to5` and the like, or `repairs-unreadable`): the
+ * file's bytes as they stood,
  * written once with the atomic write, never moved or pruned, and removed only by `forget`. Faults never throw: a read
  * fault on an existing file is [StoredBytes.Failed] (only a missing file is [StoredBytes.Absent]), a write fault is
  * `false`, and the store logs nothing.
@@ -172,8 +173,9 @@ class FileLineupStore internal constructor(
         const val ASIDE = ".unreadable"
         const val BACKUP = ".bak"
 
-        // `v` and digits for an upgrade; `repairs-unreadable` before a file's unreadable repair record is dropped.
-        const val TAGS = "v[0-9]+|repairs-unreadable"
+        // `v` and digits for an upgrade, with `-to` and digits when the file's version is not the one below the new one
+        // (`v3-to5`); `repairs-unreadable` before a file's unreadable repair record is dropped.
+        const val TAGS = "v[0-9]+(-to[0-9]+)?|repairs-unreadable"
         val TAG = Regex(TAGS)
 
         // Copies kept per account; the oldest goes when a further one is made.

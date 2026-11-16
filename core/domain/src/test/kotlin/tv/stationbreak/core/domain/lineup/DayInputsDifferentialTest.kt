@@ -278,24 +278,22 @@ class DayInputsDifferentialTest {
         assertTrue(describe(lineup).values.any { "weights=[(" in it }, "a curated day has weights to compare")
     }
 
+    // The mark is not a day input: no day depends on it (it changes no on-set by itself), so neither Touched nor Added
+    // discards built days.
     @Test
     fun viewerChoiceAndShelfReasonDoNot() {
         val lineup = fixtures.first()
         val id = LineupIds.starter("westerns")
-        val marked =
-            lineup.copy(
-                channels =
-                    lineup.channels.map {
-                        if (it.id ==
-                            id
-                        ) {
-                            it.copy(viewerChoice = ViewerChoice.Touched, shelfReason = ShelfReason.TooThin)
-                        } else {
-                            it
-                        }
-                    },
-            )
-        assertEquals(digest(lineup), digest(marked))
+        for (choice in listOf(ViewerChoice.Touched, ViewerChoice.Added)) {
+            val marked =
+                lineup.copy(
+                    channels =
+                        lineup.channels.map {
+                            if (it.id == id) it.copy(viewerChoice = choice, shelfReason = ShelfReason.TooThin) else it
+                        },
+                )
+            assertEquals(digest(lineup), digest(marked), "$choice")
+        }
         assertEquals(digest(lineup), digest(lineup.copy(viewerChoicesKnown = false)))
     }
 

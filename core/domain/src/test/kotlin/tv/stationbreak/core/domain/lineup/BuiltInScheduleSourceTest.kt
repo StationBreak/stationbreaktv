@@ -412,7 +412,7 @@ class BuiltInScheduleSourceTest {
     fun newerVersionStillAirsInMemoryLineup() =
         runBlocking<Unit> {
             library.seed(fillingLibrary())
-            store.inner.save(ACCOUNT, """{"version":5}""".encodeToByteArray())
+            store.inner.save(ACCOUNT, """{"version":${LineupCodec.VERSION + 1}}""".encodeToByteArray())
             service.refresh(ACCOUNT, LIBRARIES)
 
             assertTrue(source.airings(NOON).isNotEmpty())

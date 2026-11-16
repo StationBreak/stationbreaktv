@@ -20,6 +20,7 @@ import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.ViewerChoice
+import tv.stationbreak.core.engine.lineup.canHoldAddedMark
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.BroadcastDay
@@ -31,7 +32,7 @@ import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.upgradedToStudioFold2
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version": 3` or `4` ([VERSION] is the newest). Only
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3, 4 or 5 ([VERSION] is the newest). Only
  * `core:domain` reads or writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`,
  * which reads as null; before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each
  * channel's `chosenByViewer` is inferred from its state and overrides); it is written back as version 3, and the
@@ -42,11 +43,25 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  *
  * Version 4 (spec 26) adds the optional top-level `repairs` object, the per-TV repair record ([TodayRepairs], read and
  * written by [RepairsCodec]). A file with no repairs is written as version 3, the lowest version that holds its
- * content, so a version-4 file exists only while a record is held. A `repairs` key in a file below version 4 makes it
+ * content, so a version-4 file exists only while a record is held (and no channel holds a version-5 mark). A
+ * `repairs` key in a file below version 4 makes it
  * [Decoded.Unreadable], and an older app sees version 4 as [Decoded.NewerVersion]. A `repairs` object that does not
  * read loads the lineup with no record ([Decoded.Loaded.repairsUnreadable]): the record is per TV and rebuilt by the
  * next repair, so it is never a reason to set the lineup aside. The service keeps a copy of a
  * version-3 file (`keepCopy`, tag `v3`) before the first version-4 save.
+ *
+ * Version 5 (the viewer's added channels, ADR-0023) adds the per-channel `addedByViewer: true`, written only for a
+ * channel marked [ViewerChoice.Added] and always beside `chosenByViewer: true`. The version of a file is the highest
+ * any feature in it needs ([versionFor]), not a rule of its own: a lineup with no added channel and no repairs is
+ * version 3, one with repairs 4, one with an added channel 5 (a file that has both holds both). An older build reads
+ * a version-5 file as [Decoded.NewerVersion]: unusable, never wrongly read, and never written over. The key is
+ * checked before anything is read from a channel: below version 5, or present and not `true` (`false`, `null`, any
+ * other type), the file is [Decoded.Unreadable]. Present on a channel that cannot hold it ([storedCanHoldAddedMark]:
+ * not an unedited starter, whether this app can read its rules or the JSON says so) it is dropped quietly and the
+ * channel reads as a chosen one; on one that can hold it without `chosenByViewer: true` the file is unreadable. The
+ * encoder writes the key only where the mark can be held, so a lineup is version 5 only then. A version-5 file whose
+ * marks are all gone loads and the next save writes version 3 or 4. Before the first save of a higher version the
+ * service keeps a copy of the file it replaces (`LineupStore.keepCopy`, tag `v{from}-to{to}`).
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
@@ -89,11 +104,17 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * Decoding never throws.
  */
 internal object LineupCodec {
-    /** The newest schema version this app reads and writes (4: the repair record). */
-    const val VERSION = 4
-
-    /** The version written when there are no repairs: the lowest that holds the content. */
+    /** The version written when nothing needs more: the lowest that holds the content. */
     const val BASE_VERSION = 3
+
+    /** The version that holds the repair record (the top-level `repairs` object). */
+    const val REPAIRS_VERSION = 4
+
+    /** The version that holds the per-channel `addedByViewer` mark. */
+    const val SWITCH_ONS_VERSION = 5
+
+    /** The newest schema version this app reads and writes (5: the viewer's added channels). */
+    const val VERSION = SWITCH_ONS_VERSION
 
     /** What [decode] found. */
     sealed interface Decoded {
@@ -126,7 +147,11 @@ internal object LineupCodec {
 
     private val json = Json
 
-    /** The bytes to store for [lineup], its [meta] and its [repairs]: version 4 only when there are repairs. */
+    /**
+     * The bytes to store for [lineup], its [meta] and its [repairs]: the lowest version that holds all of it
+     * ([BASE_VERSION], [REPAIRS_VERSION] when there are repairs, [SWITCH_ONS_VERSION] when a channel holds the added
+     * mark). A mark on a channel that cannot hold it ([canHoldAddedMark]) is written as an ordinary choice.
+     */
     fun encode(
         lineup: Lineup,
         meta: RefreshMeta = RefreshMeta(),
@@ -135,7 +160,7 @@ internal object LineupCodec {
         val ids = lineup.channels.mapTo(HashSet()) { it.id }
         val file =
             FileV1(
-                version = if (repairs.isEmpty) BASE_VERSION else VERSION,
+                version = AddedMark.versionFor(lineup, repairs),
                 serverId = lineup.serverId.value,
                 userId = lineup.userId.value,
                 catalogVersion = lineup.catalogVersion,
@@ -173,7 +198,8 @@ internal object LineupCodec {
 
                 in 1..VERSION -> {
                     val hasRepairs = (root as JsonObject).containsKey("repairs")
-                    lineupOf(json.decodeFromJsonElement(FileV1.serializer(), root), version, hasRepairs, gatePassed)
+                    val file = json.decodeFromJsonElement(FileV1.serializer(), root)
+                    lineupOf(file, version, hasRepairs, gatePassed, AddedMark.raw(root))
                 }
 
                 else -> {
@@ -207,12 +233,13 @@ internal object LineupCodec {
         fileVersion: Int,
         hasRepairs: Boolean,
         gatePassed: Boolean,
+        rawAdded: List<JsonElement?>,
     ): Decoded {
         val server = CanonicalId.parseCanonicalOrNull(file.serverId)
         val user = CanonicalId.parseCanonicalOrNull(file.userId)
         if (server == null || user == null || !validOffset(file.utcOffsetMinutes)) return Decoded.Unreadable
         val inferred = fileVersion < 3
-        val read = file.channels.map { channelOf(it, inferred) }
+        val read = file.channels.mapIndexed { i, c -> channelOf(c, inferred, rawAdded.getOrNull(i) != null) }
         val channels = read.map { upgraded(it, gatePassed) }
         val upgradedRules = read.indices.sumOf { upgradesIn(read[it], channels[it]) }
         val ids = channels.mapTo(HashSet()) { it.id }
@@ -229,7 +256,7 @@ internal object LineupCodec {
                 viewerChoicesKnown = !inferred && file.viewerChoicesKnown != false,
             )
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
-        return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs)) {
+        return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs, rawAdded)) {
             val repairs = if (hasRepairs) repairsOf(file.repairs ?: JsonNull) else TodayRepairs.NONE
             val unreadable = repairs == null
             Decoded.Loaded(
@@ -261,10 +288,12 @@ internal object LineupCodec {
         meta: RefreshMeta,
         fileVersion: Int,
         hasRepairs: Boolean,
+        rawAdded: List<JsonElement?>,
     ): Boolean =
-        (fileVersion < 2 && meta.extrasFromMs != null) ||
+        AddedMark.stray(rawAdded, fileVersion) ||
+            (fileVersion < 2 && meta.extrasFromMs != null) ||
             (fileVersion < BASE_VERSION && (hasVersion3Field(file) || meta.replanFromMs != null)) ||
-            (fileVersion < VERSION && hasRepairs)
+            (fileVersion < REPAIRS_VERSION && hasRepairs)
 
     private fun hasVersion3Field(file: FileV1): Boolean =
         file.useMyCollections != null ||
@@ -297,6 +326,7 @@ internal object LineupCodec {
             onSinceMs = channel.onSinceMs,
             source = SourceCodec.encode(channel.source),
             chosenByViewer = if (channel.chosenByViewer) true else null,
+            addedByViewer = if (AddedMark.holds(channel)) true else null,
             leavesAtMs = channel.leavesAtMs.takeIf { channel.source is ChannelSource.Starter },
             shelfReason =
                 channel.shelfReason
@@ -304,14 +334,25 @@ internal object LineupCodec {
                     ?.let { JsonPrimitive(REASON_NAMES.getValue(it)) },
         )
 
-    // Throws IllegalArgumentException for a blank ID; decode turns that into Unreadable.
+    // Throws IllegalArgumentException for a blank ID; decode turns that into Unreadable. [added] is whether the file
+    // wrote the `addedByViewer` key (already checked to be `true`): it is kept on a channel that can hold it and
+    // needs the `chosenByViewer` that goes with it, and dropped quietly on one that cannot.
     private fun channelOf(
         channel: ChannelV1,
         inferChoice: Boolean,
+        added: Boolean,
     ): LineupChannel {
         val state = channel.state.state
         val source = SourceCodec.decode(channel.source)
         val starter = source is ChannelSource.Starter
+        val touched =
+            if (inferChoice) {
+                state == ChannelState.UserHidden || channel.numberOverride != null || channel.nameOverride != null
+            } else {
+                channel.chosenByViewer == true
+            }
+        val holds = added && storedCanHoldAddedMark(source)
+        require(!holds || touched) { "An added channel is a chosen one" }
         return LineupChannel(
             id = ChannelId(channel.id),
             defaultNumber = channel.defaultNumber,
@@ -321,18 +362,10 @@ internal object LineupCodec {
             source = source,
             onSinceMs = channel.onSinceMs,
             viewerChoice =
-                if (
-                    if (inferChoice) {
-                        state == ChannelState.UserHidden ||
-                            channel.numberOverride != null ||
-                            channel.nameOverride != null
-                    } else {
-                        channel.chosenByViewer == true
-                    }
-                ) {
-                    ViewerChoice.Touched
-                } else {
-                    ViewerChoice.None
+                when {
+                    holds -> ViewerChoice.Added
+                    touched -> ViewerChoice.Touched
+                    else -> ViewerChoice.None
                 },
             // Only a starter leaves the lineup or sits on the shelf for a reason.
             leavesAtMs = channel.leavesAtMs.takeIf { starter },
@@ -386,6 +419,68 @@ internal fun kindOf(rawJson: String): String? =
     try {
         val kind = (Json.parseToJsonElement(rawJson) as? JsonObject)?.get("kind") as? JsonPrimitive
         kind?.takeIf { it.isString }?.content
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+
+/**
+ * The `addedByViewer` key of version 5 (the viewer's added channels): which version a lineup needs for it, the checks
+ * of the raw key and what a channel can hold. The raw checks run on the field as the file wrote it, before the holder
+ * rule: below version 5, or present and not `true` (`false`, `null`, any other type), the file is unreadable.
+ */
+private object AddedMark {
+    private const val KEY = "addedByViewer"
+
+    // The version a file for [lineup] and [repairs] is written as: the highest any feature in it needs.
+    fun versionFor(
+        lineup: Lineup,
+        repairs: TodayRepairs,
+    ): Int =
+        maxOf(
+            LineupCodec.BASE_VERSION,
+            if (repairs.isEmpty) 0 else LineupCodec.REPAIRS_VERSION,
+            if (lineup.channels.any { holds(it) }) LineupCodec.SWITCH_ONS_VERSION else 0,
+        )
+
+    // Each channel's key as the file wrote it, in file order: null when it is absent. Read from the raw JSON, where a
+    // key written as `null` stays a value (it is not the same as an absent key).
+    fun raw(root: JsonElement): List<JsonElement?> =
+        ((root as JsonObject)["channels"] as? JsonArray).orEmpty().map { (it as? JsonObject)?.get(KEY) }
+
+    // True when the key is where it cannot be (a file below version 5) or is not `true`.
+    fun stray(
+        raw: List<JsonElement?>,
+        fileVersion: Int,
+    ): Boolean = raw.any { it != null && (fileVersion < LineupCodec.SWITCH_ONS_VERSION || !isTrue(it)) }
+
+    // Whether the channel's mark is written: Added on a source that can hold it.
+    fun holds(channel: LineupChannel): Boolean {
+        val added = channel.viewerChoice == ViewerChoice.Added
+        return added && storedCanHoldAddedMark(channel.source)
+    }
+
+    private fun isTrue(element: JsonElement): Boolean {
+        val primitive = element as? JsonPrimitive
+        return primitive != null && !primitive.isString && primitive.booleanOrNull == true
+    }
+}
+
+/**
+ * Whether a stored channel can carry the added mark: an unedited starter ([canHoldAddedMark], the engine's half), or
+ * one this app cannot read whose JSON says it is a starter that is not edited (it keeps its mark, so a newer app's
+ * rules do not cost it). The raw JSON is what the encoder keeps; a source nested deeper than 32 levels decodes as
+ * [ChannelSource.Unusable] with none, so it cannot hold the mark and reads as a touched one.
+ */
+internal fun storedCanHoldAddedMark(source: ChannelSource): Boolean =
+    source.canHoldAddedMark() ||
+        (source is ChannelSource.Unusable && kindOf(source.rawJson) == "starter" && editedOf(source.rawJson) != true)
+
+// `edited` as the starter source reads it (`SourceCodec.starter`): a JSON boolean, else null.
+@Suppress("SwallowedException") // Raw JSON that does not parse says nothing.
+private fun editedOf(rawJson: String): Boolean? =
+    try {
+        val fields = Json.parseToJsonElement(rawJson) as? JsonObject
+        (fields?.get("edited") as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
     } catch (_: IllegalArgumentException) {
         null
     }
@@ -617,6 +712,7 @@ private class ChannelV1(
     val onSinceMs: Long,
     val source: JsonElement,
     val chosenByViewer: Boolean? = null,
+    val addedByViewer: Boolean? = null,
     val leavesAtMs: Long? = null,
     val shelfReason: JsonElement? = null,
 )

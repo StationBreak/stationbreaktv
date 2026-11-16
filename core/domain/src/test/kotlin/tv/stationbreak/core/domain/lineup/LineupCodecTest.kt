@@ -132,7 +132,10 @@ class LineupCodecTest {
 
     @Test
     fun newerVersionDecodesAsNewerVersion() {
-        assertEquals(LineupCodec.Decoded.NewerVersion(5), decode("""{"version":5,"anything":["new"]}"""))
+        assertEquals(
+            LineupCodec.Decoded.NewerVersion(LineupCodec.VERSION + 1),
+            decode("""{"version":${LineupCodec.VERSION + 1},"anything":["new"]}"""),
+        )
         // A newer file is newer even when the rest is not what this version expects.
         assertEquals(LineupCodec.Decoded.NewerVersion(7), decode("""{"version":7}"""))
         assertEquals(
