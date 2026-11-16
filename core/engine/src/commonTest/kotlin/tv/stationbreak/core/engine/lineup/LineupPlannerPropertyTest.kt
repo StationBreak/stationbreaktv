@@ -208,10 +208,13 @@ class LineupPlannerPropertyTest {
         val boundary = nextDayStart(now, lineup.utcOffsetMinutes)
         val taken = lineup.channels.flatMap { listOfNotNull(it.defaultNumber, it.numberOverride) }.toMutableSet()
         for (channel in lineup.channels) {
-            val starter = channel.source as? ChannelSource.Starter ?: continue
-            if (starter.edited) continue
+            val starter = channel.source as? ChannelSource.Starter
             val edit =
                 when {
+                    starter == null || starter.edited -> {
+                        null
+                    }
+
                     channel.state == ChannelState.Shelf && gen.chance(PIN_PERCENT) -> {
                         LineupEdit.SwitchOn(channel.id, confirmedOptIn = gen.chance(PERCENT / 2))
                     }
