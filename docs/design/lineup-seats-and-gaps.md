@@ -77,7 +77,16 @@ for sections 3 and 4, and the stand-in for "someone else's server".
 
 The viewer's mark `chosenByViewer` is also set by a renumber and by a swap (`LineupEdits.kt:198-219`), and the inference
 for older files sets it generously (`LineupPlanner.kt:476-492`). So "pinned" cannot mean "sits on top", or renumbering
-one pick would add a channel at the next boundary. The rule is worked out from the selection instead, with no new field:
+one pick would add a channel at the next boundary. The rule was first worked out from the selection alone, with no new
+field.
+
+**That decision is reversed (2026-11-16).** A seat is lost only when a starter that was not a candidate (a hidden one, a
+kept one, one with no number) is switched on and lands inside the top, or when a switched-on pin drifts into it. The
+selection alone cannot tell the viewer's addition from a renumber of a pick: both are a chosen starter, on. So the mark
+becomes `ViewerChoice` (`None`, `Touched`, `Added`; `chosenByViewer` is computed from it) and an `Added` starter is homed
+but never ranked, so it takes no seat wherever its score falls. A renumber or swap stays `Touched`: a ranked pin, as the
+list below says. ADR-0023's amendment of 2026-11-16 has the edit rules, the version 5 file and the recovery path. The rest
+of this section is the ranking of the `Touched` pins and the free picks:
 
 Each round of `Selection.select`:
 
@@ -150,6 +159,12 @@ the guide slower to get ready" on a switch-on. Nothing is shelved to make it fas
 - "Fits, but stronger channels filled the lineup" now means only that the planner's own picks are stronger.
 
 ### Tests
+
+New (2026-11-16, the viewer's added channels): a hidden pick, a kept starter and a numberless starter switched on after
+the boundary each add a channel and shelve no pick; a switched-on starter whose score rises into the top takes no seat;
+renumbering an added starter keeps it added; off and on within the pending basis changes nothing; a reset drops the marks;
+and the property test holds free picks plus in-top touched pins to the room. Sizes are counted, never checked by which
+starter is on, because an added starter joins the homing and can move a pick's title.
 
 New: switching on five shelf starters at a full lineup shelves none of the planner's picks at the boundary; a custom
 channel shelves none; renumbering or swapping picks that stay inside the top leaves the on-count unchanged; the first
@@ -292,6 +307,15 @@ goldens are the authority; the plan stays as the record of the decision. Work: #
 - Effect on the profile libraries (titles with no home): horror-fan 1 to 0, anime-viewer 58 to 0 (it now has enough
   channels to be finalised), the others unchanged. PG animated titles without the Family genre (the residual the held-back
   minimum-rating filter would address) are homed on Cartoons After Dark.
+
+### The viewer's added channels (2026-11-16)
+
+A starter the viewer switches on adds a channel and takes no seat (ADR-0023, amendment of 2026-11-16). Built as
+`ViewerChoice` (`None`, `Touched`, `Added`), `Selection.select`'s `unranked` set, `Role.Added` in `PlannerSelection`, the
+undo and leaving-pick rules in `LineupEdits`, the one-day lowering of a hidden `Added` in `Lineup.rolled`, and lineup file
+version 5 with one backup point in `LineupService.saveVerified`. No migration inference: an old file's pins stay `Touched`.
+The audit's `seat-household` profile now has ten added starters (five from the shelf, three hidden picks and two kept
+starters switched on again) and a custom channel beside the 48 picks.
 
 ### Follow-ups
 
