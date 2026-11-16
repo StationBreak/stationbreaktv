@@ -82,14 +82,16 @@ a little more often. They are a side input of the day build, not in the rules fi
 qualifies with 12 usable hours (its hours under the share cap) and at least 6 titles (4 for kids). A qualifying channel
 scores `min(usable hours, 80)` in hundredths of an hour, plus 1500 per anchor up to 4, plus 100 per title up to 30. The
 top scores fill the room, ties to the lower recipe number. The lineup keeps its cap of 50 (48 starters and the two leftovers
-channels). Channels the viewer chose count first. There are at most 6 rounds, and a chosen channel that stopped
+channels). Channels the viewer chose count first. *Amended 2026-11-15: the cap and the seats are changed by the addendum at
+the end.* There are at most 6 rounds, and a chosen channel that stopped
 qualifying is dropped and the round repeats. (In practice removing channels only adds homes, so the loop settles at once.
 A property test holds that claim, and the rounds stay as a safety net.)
 
 **Shelf reasons.** Every starter off the lineup carries one reason, shown in Channels: nothing fits it (**empty**), too
 little fits once every title has its best home (**too thin**), it fits but stronger channels filled the lineup (**below
 the cap**), or it is only on if the viewer switches it on (**opt-in**). A thin channel comes back by itself when the
-library grows.
+library grows. *Amended 2026-11-15: "below the cap" now means only that the planner's own picks are stronger (see the
+addendum).*
 
 Custom channels are never re-homed and never lose a title to a starter. An edited starter is treated like one: it is never curated and airs its own pool.
 
@@ -328,3 +330,88 @@ review: [#582](https://github.com/StationBreak/stationbreaktv/issues/582) to
 [#593](https://github.com/StationBreak/stationbreaktv/issues/593) and the builder preview
 [#594](https://github.com/StationBreak/stationbreaktv/issues/594). Extras counts for the diagnostics view:
 [#553](https://github.com/StationBreak/stationbreaktv/issues/553).
+
+## Addendum (2026-11-15): the viewer's channels take no seats
+
+Decided by the owner on 2026-11-15, as a v1 requirement from the 14-day trial ([#752](https://github.com/StationBreak/stationbreaktv/issues/752),
+track G). Issues: the audit [#784](https://github.com/StationBreak/stationbreaktv/issues/784), the seat rule
+[#785](https://github.com/StationBreak/stationbreaktv/issues/785), catalog gaps
+[#786](https://github.com/StationBreak/stationbreaktv/issues/786).
+
+This supersedes two things in section 1 and section 3: "The lineup keeps its cap of 50 (48 starters and the two leftovers
+channels). Channels the viewer chose count first.", and the keeper bound of 50.
+
+### The rule
+
+The planner's own picks are capped at `PLANNER_PICKS` = 48. A channel the planner would not have picked costs no seat.
+These cost none: custom channels, edited starters, opt-in pins, pinned starters outside the top 48 or with no score, and
+the two leftovers channels. The lineup is the planner's 48, plus those of the above that are on, plus the leftovers.
+`CAP` (50) remains only for ranked (non-selecting) catalogs and for the inference for older files.
+
+**Ranking pins.** Each Selection round homes every title over all the candidates left, pinned and free. It scores every
+qualifying candidate, pinned ones too, and puts them in one total order: by score, then `CHANNEL_ORDER` (ties to the lower
+recipe number). A pinned starter inside the top 48 uses a seat. Outside it, or with no score, it sits on top. Free places
+are 48 minus the pins inside the top, worked out again each round. Opt-in pins take part in homing but are never ranked.
+All of it is integer and ordered, so it is deterministic. The rounds still settle: a property test checks this against an
+independent ranking oracle.
+
+**Homing is unchanged for pins.** A pinned starter still takes part in homing. One that takes titles from a planner's pick
+can leave that pick too thin, and that pick goes to the shelf as "too thin".
+
+**First choice and reset.** Room is `PLANNER_PICKS` and kept custom channels sit on top, so a reset and the next boundary
+agree. A numbered leftovers channel is always on.
+
+### Keepers and the catalog
+
+`KEEPER_COPIES` = 60 replaces `CAP` for `previousKeepers` and `keeperRoom`. `MAX_CATALOG_STARTERS` goes from 120 to 110
+(95 recipes today, plus the two leftovers). The per-copy budget stays 3,084 bytes, which is (1 MiB / 2) / (110 + 60). No
+stored rules change on the day of the update.
+
+Cost: the catalog has room to grow by 15 more recipes, not 25. A test holds `StarterCatalog.recipes.size <=
+MAX_CATALOG_STARTERS` and the 3,084 budget. Past 60 starters on, a re-resolve can change today on the rest, as section 6
+already says it can past 50.
+
+### Determinism
+
+[ADR-0002](0002-determinism-scope.md)'s scope is unchanged. An identical lineup file, selection and library still give
+identical homes and days. Customs now leave the app's own channels identical to a TV without them. A switch-on outside the
+top 48 differs per TV, as it already does today.
+
+### Known effects
+
+These are accepted.
+
+1. **The first boundary after the update grows the lineup.** It adds one planner pick for each custom, edited, opt-in or
+   outside-top pinned channel that is on. That includes the inference's pins of starters the older planner put on that no
+   longer fill.
+2. **Drift at the margin.** A pin near rank 48 can move in or out of the top as the library changes. Out: it sits on top
+   and the planner fills its seat. Back in: it takes a seat again and the 48th free pick leaves. A renumber that un-leaves a
+   leaving pick makes an outside-top pin the same way.
+3. **A downgrade** to a build from before this change reads the lineup under the old rule (room = 50 minus pinned and
+   leftovers) and shelves planner picks at the boundary.
+4. **The shelf reason "below the cap"** (section 1, "Shelf reasons": it fits but stronger channels filled the lineup) now
+   means only that the planner's own picks are stronger. The copy reads "Fits, but stronger channels were picked for you".
+   Anywhere else this ADR says "below the cap" for the reason, read it this way.
+
+### Audit evidence
+
+The #784 audit, from the planner's view. On the 6 existing profile libraries the rule changes nothing, because none has a
+viewer's channel. On the new seat-household profile (invented titles; 5 starters switched on from the shelf and 1 custom
+channel, a full lineup):
+
+| Measure | Old rule | New rule |
+| --- | --- | --- |
+| Planner picks | 42 | 48 |
+| Lineup size | 50 | 56 |
+| Starters off | 48 | 42 |
+| Titles with no home | 16 | 16 |
+
+Six picks the old rule lost at the boundary are back on: prestige, order-in-the-court, code-blue, dead-drop, big-rumble and
+kung-fu-theater.
+
+### Open: pending the owner's device test session
+
+No Insignia timings are recorded here. Still to measure: build, restore and guide-open at 50, 60, 75 and every starter on
+(95 plus the leftovers plus a few custom channels), against the 10% bar; the worst-case days file against
+`FileDayStore.MAX_BYTES`; and the threshold for the "More channels make the guide slower to get ready" warning, derived from
+those. Nothing is shelved to make the guide faster.
