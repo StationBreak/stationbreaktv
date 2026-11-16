@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.FakeProEntitlement
@@ -215,15 +213,13 @@ class ChannelBuildFreeTierTest {
     fun canAddCustomGoesFalseAfterACreateMadeElsewhere() =
         runBlocking<Unit> {
             seedWith(customs = 4)
-            val seen = mutableListOf<Boolean>()
-            val job = launch(Dispatchers.Unconfined) { builder.canAddCustom(ACCOUNT).toList(seen) }
-            assertEquals(listOf(true), seen)
+            assertTrue(builder.canAddCustom(ACCOUNT).first())
+            // A collector that is already watching moves to false when the fifth custom channel is made.
+            val gone = async(start = CoroutineStart.UNDISPATCHED) { builder.canAddCustom(ACCOUNT).first { !it } }
 
             assertIs<BuildResult.Done>(create())
-            withTimeout(5_000) { while (seen.lastOrNull() != false) delay(10) }
 
-            job.cancel()
-            assertEquals(listOf(true, false), seen)
+            assertFalse(withTimeout(TIMEOUT_MS) { gone.await() })
         }
 
     @Test
@@ -234,3 +230,5 @@ class ChannelBuildFreeTierTest {
             assertTrue(builder.canAddCustom(ACCOUNT).first())
         }
 }
+
+private const val TIMEOUT_MS = 10_000L

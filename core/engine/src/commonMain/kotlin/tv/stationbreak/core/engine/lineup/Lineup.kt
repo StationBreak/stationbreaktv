@@ -237,4 +237,7 @@ object LineupIds {
 fun Lineup.viewerCustomCount(): Int = channels.count { it.isViewerCustom() }
 
 /** Whether the viewer made this channel and this app can read it: see [viewerCustomCount]. */
-fun LineupChannel.isViewerCustom(): Boolean = source is ChannelSource.Custom && id.value.startsWith(LineupIds.CUSTOM_PREFIX)
+fun LineupChannel.isViewerCustom(): Boolean {
+    val isCustom = source is ChannelSource.Custom
+    return isCustom && id.value.startsWith(LineupIds.CUSTOM_PREFIX)
+}

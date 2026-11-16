@@ -498,14 +498,38 @@ class LineupEditsTest {
         val fresh = ChannelId("n${gen.nextInt(0..3)}")
         val newRules = someRules.copy(seed = Seed(gen.nextInt(0..99).toULong()))
         return when (gen.nextInt(8)) {
-            0 -> LineupEdit.SwitchOn(id, confirmedOptIn = gen.chance(50))
-            1 -> LineupEdit.SwitchOff(id)
-            2 -> LineupEdit.SetNumber(id, number, swap)
-            3 -> LineupEdit.ClearNumber(id, swap)
-            4 -> LineupEdit.AddCustom(fresh, newRules, if (gen.chance(50)) null else number, kids = gen.chance(30), customLimit = null)
-            5 -> LineupEdit.ReplaceCustom(id, newRules, number.takeIf { gen.chance(50) }, swap, kids = gen.chance(30))
-            6 -> LineupEdit.Reseed(id, newRules.seed)
-            else -> LineupEdit.RemoveCustom(id)
+            0 -> {
+                LineupEdit.SwitchOn(id, confirmedOptIn = gen.chance(50))
+            }
+
+            1 -> {
+                LineupEdit.SwitchOff(id)
+            }
+
+            2 -> {
+                LineupEdit.SetNumber(id, number, swap)
+            }
+
+            3 -> {
+                LineupEdit.ClearNumber(id, swap)
+            }
+
+            4 -> {
+                val given = if (gen.chance(50)) null else number
+                LineupEdit.AddCustom(fresh, newRules, given, kids = gen.chance(30), customLimit = null)
+            }
+
+            5 -> {
+                LineupEdit.ReplaceCustom(id, newRules, number.takeIf { gen.chance(50) }, swap, kids = gen.chance(30))
+            }
+
+            6 -> {
+                LineupEdit.Reseed(id, newRules.seed)
+            }
+
+            else -> {
+                LineupEdit.RemoveCustom(id)
+            }
         }
     }
 
