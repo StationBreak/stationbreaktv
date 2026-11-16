@@ -12,6 +12,12 @@ internal class MemoryDayStore : DayStore {
 
     @Volatile var failWrites = false
 
+    /** How many writes landed. */
+    private val written =
+        java.util.concurrent.atomic
+            .AtomicInteger()
+    val writes get() = written.get()
+
     @Volatile var failReads = false
 
     override suspend fun read(
@@ -29,6 +35,7 @@ internal class MemoryDayStore : DayStore {
         bytes: ByteArray,
     ): Boolean {
         if (failWrites) return false
+        written.incrementAndGet()
         files[account to name] = bytes
         return true
     }
