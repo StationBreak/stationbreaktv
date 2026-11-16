@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+@file:Suppress("MagicNumber") // The shape of a library is its data: counts, minutes and years are written as numbers.
+
+package tv.stationbreak.core.engine.audit
+
+import tv.stationbreak.core.engine.lineup.Band
+import tv.stationbreak.core.engine.lineup.Recipe
+import tv.stationbreak.core.engine.lineup.StarterCatalog
+import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.rules.BroadcastDay
+import tv.stationbreak.core.rules.ChannelRules
+import tv.stationbreak.core.rules.Source
+import tv.stationbreak.core.rules.Timing
+
+/**
+ * A household whose library fills most of the catalog, so the planner's lineup is full (its 48 picks, and starters
+ * left on the shelf behind them), with the viewer's own choices on top: five starters switched on from the shelf and a
+ * custom channel. It is there for the seat rule (#785): before it those six cost the planner six of its picks.
+ *
+ * Every titled shelf is made to be a candidate of one recipe, from the catalog's own sources (no name is written here),
+ * so the library fills what the catalog can use. The titles are invented, as in every profile.
+ */
+internal object SeatHousehold {
+    /** Five starters that fill but wait on the shelf behind the planner's 48 picks, which the viewer switched on. */
+    val SWITCHED_ON = listOf("noir-nights", "starport", "paradox", "masala-hour", "graveyard-shift")
+
+    fun build(): Profile {
+        val b = LibraryBuilder(SEAT_LIBRARY)
+        for (recipe in StarterCatalog.recipes) {
+            if (!recipe.optIn) shelfFor(b, recipe)
+        }
+        val description =
+            "A household whose library fills most of the catalog: a full lineup, five starters the viewer switched " +
+                "on from the shelf and a custom channel of their own"
+        val viewer = Viewer(SWITCHED_ON, listOf(CustomChannel("My comedies", customRules("Comedy"))))
+        return Profile("seat-household", description, AuditInput(b.build(), viewer), emptyList())
+    }
+
+    private fun shelfFor(
+        b: LibraryBuilder,
+        recipe: Recipe,
+    ) {
+        val sourced = recipe.sources.filterIsInstance<Source.Genre>().map { it.name }
+        val genres = sourced + recipe.filters?.genres.orEmpty()
+        val tags = recipe.sources.filterIsInstance<Source.Tag>().map { it.name }
+        val studios = recipe.sources.filterIsInstance<Source.Studio>().map { it.name }
+        val years = recipe.sources.filterIsInstance<Source.YearRange>().firstOrNull()
+        val kids = recipe.band == Band.Kids
+        val rating = if (kids) "TV-Y" else "TV-14"
+        val minutes = if (kids) KIDS_MINUTES else SHOW_MINUTES
+        val spec = TitleSpec(genres.distinct(), tags, studios, rating, minutes, years?.from ?: SHELF_YEAR)
+        repeat(SHELF_TITLES) { b.series(spec, SEASONS, EPISODES) }
+    }
+
+    private fun customRules(genre: String) =
+        ChannelRules(
+            formatVersion = 1,
+            name = null,
+            seed = Seed(0uL),
+            sources = listOf(Source.Genre(genre)),
+            exclusions = null,
+            maxRating = null,
+            ordering = null,
+            timing = Timing(null, null, null, null, null, null, BroadcastDay(0, null)),
+            filler = null,
+        )
+
+    private const val SEAT_LIBRARY = 7
+    private const val SHELF_TITLES = 8
+    private const val SEASONS = 3
+    private const val EPISODES = 12
+    private const val SHOW_MINUTES = 44
+    private const val KIDS_MINUTES = 22
+    private const val SHELF_YEAR = 2008
+}
