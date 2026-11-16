@@ -352,8 +352,11 @@ the two leftovers channels. The lineup is the planner's 48, plus those of the ab
 qualifying candidate, pinned ones too, and puts them in one total order: by score, then `CHANNEL_ORDER` (ties to the lower
 recipe number). A pinned starter inside the top 48 uses a seat. Outside it, or with no score, it sits on top. Free places
 are 48 minus the pins inside the top, worked out again each round. Opt-in pins take part in homing but are never ranked.
-All of it is integer and ordered, so it is deterministic. The rounds still settle: a property test checks this against an
-independent ranking oracle.
+All of it is integer and ordered, so it is deterministic. The rounds still settle. Two tests cover it: a scripted multi-round
+test (round one drops the best free channel, round two lifts an outside-top pin into the top, where it takes the place of
+the next free channel) and a one-round property test that checks the result against an independent ranking oracle and
+that real homings take one round. The oracle reuses `channelScore` and `CHANNEL_ORDER`, so it pins the ranking rule, not
+the settling.
 
 **Homing is unchanged for pins.** A pinned starter still takes part in homing. One that takes titles from a planner's pick
 can leave that pick too thin, and that pick goes to the shelf as "too thin".
