@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 4, curation-1, extras-1)
+LINEUP AUDIT (catalog 5, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
@@ -14,7 +14,7 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           1
-  channels per title: 1 channels: 44 titles, 2 channels: 117 titles, 3 channels: 32 titles, 5 channels: 7 titles
+  channels per title: 1 channels: 40 titles, 2 channels: 121 titles, 3 channels: 32 titles, 5 channels: 7 titles
   titles per channel that is on:
     saturday-morning                 8
     backyard-fort                    7
@@ -23,11 +23,11 @@ TOTALS
     giggle-garage                    7
     laugh-track                     12
     rabbit-ears                     63
-    shag-carpet                     42
-    neon-decade                     26
+    shag-carpet                     40
+    neon-decade                     25
     dial-up                         19
     flip-phone                      14
-    binge-row                       12
+    binge-row                       11
     prestige                        57
     cold-case-cable                 19
     silver-screen                   45
@@ -36,7 +36,9 @@ TOTALS
     docs-and-dusters                13
     starport                        11
     dragons-and-doorways             8
+    midnight-projector               4
     tokyo-after-school               6
+    cartoons-after-dark              4
     leftovers:kids-odds-and-ends     0
     leftovers:odds-and-ends          1
 
@@ -103,7 +105,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   starport                      304  on(p)               11  11t 89.56h 0a score  9100          11t 89.56h 0a
   dragons-and-doorways          308  on(p)                8  8t 49.75h 0a score  5775           8t 49.75h 0a
   rubber-suit-theatre           312  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  midnight-projector            316  off    TooThin       4  4t 7.20h 0a score  1120 THIN       -
+  midnight-projector            316  on(p)                4  4t 7.20h 0a score  1120            4t 7.20h 0a
   the-cheap-seats               320  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   drive-in-double               324  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   cape-and-cowl                 328  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -132,7 +134,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   after-hours                   504  off    OptIn         0  -                                  -
   graveyard-shift               508  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   one-season-only               512  off    TooThin       2  2t 13.17h 0a score  1516 THIN      -
-  cartoons-after-dark           516  off    TooThin       2  2t 7.37h 0a score   936 THIN       -
+  cartoons-after-dark           516  on(p)                4  4t 31.53h 0a score  3552           4t 31.53h 0a
   family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   528  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
@@ -179,17 +181,25 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   silver-screen                dead-drop                    5 titles, 9.17h
   cold-case-cable              silver-screen                5 titles, 8.77h
   flip-phone                   docs-and-dusters             1 titles, 8.67h
-  ... and 23 more pairs (all in the JSON)
+  ... and 27 more pairs (all in the JSON)
 
 TITLES (scores in points; a term that is zero is left out)
   0000007e Kyzupe Lodarxi [film, 1 items, 1.67h]
-    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
+    home midnight-projector 138.69 = specificity 38.69 genre 40.00 tone 60.00
+    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
+    guest spots: neon-decade
   0000007f Fabravel Mitorsen [film, 1 items, 1.80h]
-    home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
+    home midnight-projector 138.69 = specificity 38.69 genre 40.00 tone 60.00
+    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
+    guest spots: dial-up
   00000080 Quinkyol Renmaxi [film, 1 items, 1.93h]
-    home flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
+    home midnight-projector 138.69 = specificity 38.69 genre 40.00 tone 60.00
+    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
+    guest spots: flip-phone
   00000081 Zupefa Olbralo [film, 1 items, 2.07h]
-    home binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
+    home midnight-projector 138.69 = specificity 38.69 genre 40.00 tone 60.00
+    runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
+    guest spots: binge-row
   00000082 Velmami Pefator [film, 1 items, 1.75h]
     home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
     runner-up silver-screen -75.00 = specificity 18.00 decade -150.00 tone 57.00
@@ -657,7 +667,8 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
     guest spots: flip-phone
   00000001 Brasenfa Quinolma [series, 78 items, 28.60h]
-    home binge-row -114.73 = specificity 26.27 decade -150.00 tone 9.00
+    home cartoons-after-dark 138.69 = specificity 38.69 genre 40.00 tone 60.00
+    runner-up binge-row -114.73 = specificity 26.27 decade -150.00 tone 9.00
   00000002 Kydarfa Braquinbra [series, 13 items, 4.77h]
     home laugh-track 241.27 = specificity 26.27 genre 40.00 tag 35.00 format 80.00 tone 60.00
     runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
@@ -753,11 +764,14 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
     guest spots: binge-row
   0000001a Miximi Famazu [series, 13 items, 4.77h]
-    home shag-carpet -127.68 = specificity 18.32 decade -150.00 tone 4.00
+    home cartoons-after-dark 208.69 = specificity 38.69 genre 40.00 tag 70.00 tone 60.00
+    runner-up shag-carpet -127.68 = specificity 18.32 decade -150.00 tone 4.00
   0000001b Senollo Mamiol [series, 26 items, 9.97h]
-    home neon-decade -127.20 = specificity 20.80 decade -150.00 tone 2.00
+    home cartoons-after-dark 208.69 = specificity 38.69 genre 40.00 tag 70.00 tone 60.00
+    runner-up neon-decade -127.20 = specificity 20.80 decade -150.00 tone 2.00
   0000001c Darzuky Torrenpe [series, 13 items, 4.77h]
-    home shag-carpet -127.68 = specificity 18.32 decade -150.00 tone 4.00
+    home cartoons-after-dark 138.69 = specificity 38.69 genre 40.00 tone 60.00
+    runner-up shag-carpet -127.68 = specificity 18.32 decade -150.00 tone 4.00
   0000001d Quinquinxi Lobravel [series, 13 items, 2.60h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
     runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00

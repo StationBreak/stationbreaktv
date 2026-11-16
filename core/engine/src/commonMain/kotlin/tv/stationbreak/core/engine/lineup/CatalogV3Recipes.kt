@@ -74,6 +74,7 @@ private fun recipe(
     filters: Filters? = null,
     format: FormatPromise? = null,
     animeOnly: Boolean = false,
+    bar: QualifyingBar = QualifyingBar.Standard,
 ): Recipe =
     Recipe(
         key = key,
@@ -94,6 +95,7 @@ private fun recipe(
         collectionHints = emptyList(),
         filters = filters,
         theme = Theme(anchors, themeStudios, format, animeOnly),
+        qualifyingBar = bar,
     )
 
 private val kidsBand: List<Recipe> =
@@ -343,6 +345,32 @@ private val kidsBand: List<Recipe> =
         ),
     )
 
+/**
+ * The genres Comedy County (528) needs one of: the "twist" a comedy takes. Laugh Track (102) leaves them out, so it
+ * does not take Comedy County's titles on ties; Comedy County is the channel to watch when this list changes.
+ */
+private val COMEDY_TWIST_GENRES: List<String> =
+    listOf(
+        "Crime",
+        "Action",
+        "Mystery",
+        "Fantasy",
+        "Science Fiction",
+        "Music",
+        "Action & Adventure",
+        "Sci-Fi & Fantasy",
+    )
+
+/**
+ * The genres Laugh Track leaves out (catalog 5): the ones that mean "not a sitcom" (animation, documentary, reality,
+ * news, talk, soaps, TV movies and the kids' genre) and a horror or thriller tone, plus [COMEDY_TWIST_GENRES]. Before
+ * catalog 5 it left out every TMDB genre but Comedy, Family and Romance, so a sitcom with one more genre (Drama,
+ * Adventure, History, War, Western) had no home.
+ */
+private val NOT_A_SITCOM_GENRES: List<String> =
+    listOf("Animation", "Documentary", "Reality", "News", "Talk", "Soap", "TV Movie", "Kids", "Horror", "Thriller") +
+        COMEDY_TWIST_GENRES
+
 private val generalBand: List<Recipe> =
     listOf(
         recipe(
@@ -356,11 +384,7 @@ private val generalBand: List<Recipe> =
                 filters(
                     kind = FilterKind.Episode,
                     maxRuntime = 35,
-                    notGenres =
-                        TMDB_GENRES.filter {
-                            it !in
-                                setOf("Comedy", "Family", "Romance")
-                        },
+                    notGenres = NOT_A_SITCOM_GENRES,
                 ),
             format = FormatPromise.ShortSeries,
         ),
@@ -435,6 +459,7 @@ private val generalBand: List<Recipe> =
             name = "Glass House",
             says = "Real people, real drama, a camera in every corner.",
             sources = genres("Reality") + tags("reality", "reality-tv", "reality tv"),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.General,
@@ -451,6 +476,7 @@ private val generalBand: List<Recipe> =
             name = "Couch Talk",
             says = "Hosts, guests and chat from a comfortable seat.",
             sources = genres("Talk") + tags("talk show", "chat show", "late night"),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.General,
@@ -459,6 +485,7 @@ private val generalBand: List<Recipe> =
             name = "Matinee Tears",
             says = "Long-running soaps with secrets, slaps and plot twists.",
             sources = genres("Soap") + tags("soap opera", "telenovela"),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.General,
@@ -525,6 +552,7 @@ private val generalBand: List<Recipe> =
             name = "Backstage Pass",
             says = "Concerts, music films and the stories behind the songs.",
             sources = genres("Music") + tags("concert", "live music", "music documentary", "music video"),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.General,
@@ -681,6 +709,7 @@ private val dramaBand: List<Recipe> =
             says = "War stories, from the trenches to the command tent.",
             sources = genres("War", "War & Politics") + tags("war", "world war", "military"),
             anchors = titles(Prefix("M*A*S*H")) + collections(Contains("Top Gun")),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.Drama,
@@ -690,6 +719,7 @@ private val dramaBand: List<Recipe> =
             says = "Westerns: horses, saloons and a showdown at noon.",
             sources = genres("Western") + tags("western", "cowboys", "spaghetti western"),
             anchors = collections(Exact("Westerns")),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.Drama,
@@ -798,6 +828,7 @@ private val genreBand: List<Recipe> =
                     Contains("Evil Dead"),
                     Contains("Blair Witch"),
                 ),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.Genre,
@@ -960,6 +991,7 @@ private val worldBand: List<Recipe> =
             says = "Anime of every stripe, from the bell to bedtime.",
             sources = genres("Anime") + tags("anime"),
             animeOnly = true,
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.World,
@@ -1087,7 +1119,7 @@ private val premiumBand: List<Recipe> =
             key = "cartoons-after-dark",
             name = "Cartoons After Dark",
             says = "Animation made for adults, with grown-up language.",
-            sources = tags("adult animation", "adult cartoon", "animated sitcom"),
+            sources = genres("Animation") + tags("adult animation", "adult cartoon", "animated sitcom"),
             anchors =
                 studios(Contains("Adult Swim"), Contains("Comedy Central")) +
                     collections(Contains("Aqua Teen"), Contains("Heavy Metal")),
@@ -1099,7 +1131,11 @@ private val premiumBand: List<Recipe> =
                     Exact("FXX"),
                     Prefix("FX Productions"),
                 ),
-            filters = filters(genres = listOf("Animation")),
+            // The grown-up hold drops only what is made for kids and passes PG, so a PG animated family film from a
+            // studio off the kid list would come in on the Animation genre: Family stays out. No minimum rating (that
+            // would be rules format 6).
+            filters = filters(genres = listOf("Animation"), notGenres = listOf("Family")),
+            bar = QualifyingBar.Niche,
         ),
         recipe(
             Band.Premium,
@@ -1126,17 +1162,7 @@ private val premiumBand: List<Recipe> =
             sources = genres("Comedy"),
             filters =
                 filters(
-                    genres =
-                        listOf(
-                            "Crime",
-                            "Action",
-                            "Mystery",
-                            "Fantasy",
-                            "Science Fiction",
-                            "Music",
-                            "Action & Adventure",
-                            "Sci-Fi & Fantasy",
-                        ),
+                    genres = COMEDY_TWIST_GENRES,
                     kind = FilterKind.Episode,
                     maxRuntime = 35,
                     notGenres = listOf("Animation"),

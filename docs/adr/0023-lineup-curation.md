@@ -79,7 +79,9 @@ rule is applied. Films are never trimmed.
 a little more often. They are a side input of the day build, not in the rules file.
 
 **Selection by identity.** Each round, every title is homed over all the candidate channels that are left. A channel
-qualifies with 12 usable hours (its hours under the share cap) and at least 6 titles (4 for kids). A qualifying channel
+qualifies with 12 usable hours (its hours under the share cap) and at least 6 titles (4 for kids); the recipes that are
+the catalog's single lane for a niche theme carry a lower bar of their own, 6 usable hours and 4 titles (catalog 5, a
+recipe field frozen in the catalog manifest, so it depends on the catalog and the library only). A qualifying channel
 scores `min(usable hours, 80)` in hundredths of an hour, plus 1500 per anchor up to 4, plus 100 per title up to 30. The
 top scores fill the room, ties to the lower recipe number. The lineup keeps its cap of 50 (48 starters and the two leftovers
 channels). Channels the viewer chose count first. There are at most 6 rounds, and a chosen channel that stopped

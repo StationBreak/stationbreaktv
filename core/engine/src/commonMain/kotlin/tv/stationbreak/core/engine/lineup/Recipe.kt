@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup
 
+import tv.stationbreak.core.engine.lineup.curation.CurationDefaults
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.rules.AutoSeed
 import tv.stationbreak.core.rules.Filters
@@ -27,10 +28,25 @@ enum class Band(
 }
 
 /**
+ * What a starter must hold to qualify as a channel (catalog 5, #786). It is recipe data, frozen in the catalog
+ * manifest, so it depends on the catalog and the library only, never on which channels are on, and the selection
+ * rounds still settle. [Standard] is the global bar (12 usable hours, 6 titles; a kid channel 4 titles). [Niche] is for
+ * the recipes that are the catalog's single lane for a niche theme, so a thin shelf of it still gets a channel.
+ */
+enum class QualifyingBar(
+    val usableMs: Long,
+    val titles: Int,
+) {
+    Standard(CurationDefaults.MIN_USABLE_MS, CurationDefaults.MIN_TITLES),
+    Niche(CurationDefaults.MIN_USABLE_MS_NICHE, CurationDefaults.MIN_TITLES_NICHE),
+}
+
+/**
  * A themed channel the catalog can fill from a library. [sources] and [exclusions] are portable (genre, tag, year
  * range); [collectionHints] are collection names turned into collection sources by ID, from the collections the server
  * has now. A kid-safe recipe (the Kids band) carries a [maxRating], a rating-ladder name no higher than PG; a grown-up
- * recipe carries none.
+ * recipe carries none. [qualifyingBar] is the standard one unless the catalog names the recipe as the single lane of a
+ * niche theme; a kid recipe always has the standard bar.
  */
 data class Recipe(
     val key: String,
@@ -46,6 +62,7 @@ data class Recipe(
     val collectionHints: List<String>,
     val filters: Filters? = null,
     val theme: Theme? = null,
+    val qualifyingBar: QualifyingBar = QualifyingBar.Standard,
 ) {
     init {
         require(AutoSeed.isValidRecipeKey(key)) { "The recipe key is not valid" }
@@ -55,6 +72,7 @@ data class Recipe(
         if (kidSafe) require(atMostPg(maxRating)) { "A kid-safe recipe has a ceiling of PG or lower" }
         require(sources.isNotEmpty()) { "A recipe needs a source" }
         require((sources + exclusions).all(::isPortable)) { "A recipe uses genre, tag, studio, year range" }
+        require(!kidSafe || qualifyingBar == QualifyingBar.Standard) { "A kid recipe has the standard qualifying bar" }
         if (theme != null) {
             require(ordering == OrderingMode.Curated) { "A themed recipe is programmed (curated)" }
             require(collectionHints.isEmpty()) { "A themed recipe has no collection hints" }

@@ -61,6 +61,10 @@ internal fun fingerprintOf(recipe: Recipe): String {
             append("]")
             recipe.filters?.let { append("filters[").append(canonicalOf(it)).append("]") }
             recipe.theme?.let { append("theme[").append(canonicalOf(it)).append("]") }
+            // Catalog 5: only a lower bar is written, so a recipe at the standard one keeps its earlier fingerprint.
+            if (recipe.qualifyingBar != QualifyingBar.Standard) {
+                append("bar[").append(recipe.qualifyingBar.name).append("]")
+            }
         }
     return fnv1a64(canonical)
 }

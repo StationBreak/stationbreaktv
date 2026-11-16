@@ -103,7 +103,8 @@ class LineupFieldTripwireTest {
             Recipe::class.java,
             // Read by a day: band, number, optIn, sources, exclusions, maxRating, ordering, collectionHints, filters,
             // theme (the curation, the opt-in withholding, the leftovers' ceilings). No day reads: name, personality
-            // (text), and the key beyond which recipe a starter is.
+            // (text), and the key beyond which recipe a starter is. qualifyingBar (catalog 5) is read only by the
+            // planner's selection (`ChannelStats.qualifies`), never by a day's curation, so no day input changes.
             setOf(
                 "key",
                 "name",
@@ -118,6 +119,7 @@ class LineupFieldTripwireTest {
                 "collectionHints",
                 "filters",
                 "theme",
+                "qualifyingBar",
             ),
         )
 

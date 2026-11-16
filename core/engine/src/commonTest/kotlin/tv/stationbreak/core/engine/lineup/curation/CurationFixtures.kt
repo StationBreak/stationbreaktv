@@ -3,6 +3,7 @@ package tv.stationbreak.core.engine.lineup.curation
 
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.FormatPromise
+import tv.stationbreak.core.engine.lineup.QualifyingBar
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.Theme
 import tv.stationbreak.core.engine.rules
@@ -112,6 +113,7 @@ internal fun channel(
     anchors: List<Source> = emptyList(),
     theme: Theme = NO_THEME,
     extraSources: List<Source> = emptyList(),
+    bar: QualifyingBar = QualifyingBar.Standard,
 ): CurationChannel {
     val band = if (kid) Band.Kids else checkNotNull(Band.of(number))
     val recipe =
@@ -128,6 +130,7 @@ internal fun channel(
             ordering = OrderingMode.Curated,
             collectionHints = emptyList(),
             theme = theme,
+            qualifyingBar = bar,
         )
     val rules = rules(sources = recipe.sources + anchors, formatVersion = 3)
     return CurationChannel(ChannelId(id), number, recipe, kid, rules, rules.toSchedulerSettings(), pool)

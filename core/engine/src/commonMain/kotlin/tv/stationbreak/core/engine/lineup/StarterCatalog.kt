@@ -30,8 +30,14 @@ object StarterCatalog : StarterCatalogView {
      * collection pass: until one applies it, a selecting lineup is in `PlannerSelection.Mode.Hold`, so no starter is
      * switched on or leaves in that window. The bump cannot be undone by a lower catalog: an older app freezes the
      * planner on a catalog 4 lineup (`LineupPlanner.plan`).
+     *
+     * Version 5 (the catalog gaps, #786): every key, number, band, ceiling and opt-in kept, and no rules format or hold
+     * version changes. Cartoons After Dark takes the Animation genre (not Family); Laugh Track leaves out only the
+     * genres that mean "not a sitcom" and Comedy County's twist genres (Comedy County is the channel to watch); the
+     * single lanes of a niche theme carry a lower qualifying bar ([QualifyingBar.Niche]: 6 usable hours, 4 titles).
+     * Unedited starters take it at the next boundary, as for any catalog update.
      */
-    const val VERSION = 4
+    const val VERSION = 5
 
     override val version: Int = VERSION
 

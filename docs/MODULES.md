@@ -372,7 +372,7 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
     The planner (for selection) and `LineupDays` (for each day) run the same code. The planner reads the plan's snapshot
     without rating ceilings, and a day reads the snapshot at its cut-off under its ceilings.
   - `Selection`: chooses the starters to switch on by identity, and gives every other one its shelf reason.
-  - `CurationDefaults`: the tunables in one place (12 usable hours, 6 titles (4 for kids), the 25% share cap, the 30% guest limit, the
+  - `CurationDefaults`: the tunables in one place (12 usable hours, 6 titles (4 for kids; 6 hours and 4 titles for a recipe with `QualifyingBar.Niche`), the 25% share cap, the 30% guest limit, the
     score caps).
   The tables it reads (anchors, theme studios, anime studios) are in `CurationTables`, beside the catalog-3 recipes.
 - **`core:engine` `LineupDay`** (the `lineup` package) is one broadcast day, with the day-boundary predicates the planner,
