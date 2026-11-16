@@ -55,6 +55,32 @@ private fun MutableList<Choice>.addChanges(
     if (row.hasOverride) add(Choice.DefaultNumber)
 }
 
+/**
+ * Why [choice] on [row] is marked and does not act (#793), or null when it is free. A marked choice stays listed.
+ * Reshaping the planner's lineup (switching a built-in channel, numbering it) is Pro; the viewer's own custom
+ * channels are free. Copy to customise makes a custom channel, so it is held to the cap. One rule for the marks and
+ * for what Select does.
+ */
+internal fun lockOf(
+    choice: Choice,
+    row: ChannelRow,
+    isPro: Boolean,
+    canAddCustom: Boolean,
+): ChannelsMessage? =
+    when (choice) {
+        Choice.SwitchOn, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber -> {
+            ChannelsMessage.NeedsPro.takeIf { !isPro && row.kind != ChannelKind.Custom }
+        }
+
+        Choice.CopyToCustomise -> {
+            ChannelsMessage.CustomLimit.takeIf { !canAddCustom }
+        }
+
+        else -> {
+            null
+        }
+    }
+
 /** What the properties sheet offers for [row]: the actions panel's choices, without the one that opened the sheet. */
 internal fun sheetActionsOf(
     row: ChannelRow,

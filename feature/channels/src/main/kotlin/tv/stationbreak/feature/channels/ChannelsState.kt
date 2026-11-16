@@ -69,6 +69,12 @@ internal enum class ChannelsMessage {
     SaveFailed,
     Failed,
     LibrariesUnavailable,
+
+    /** The change is a Pro feature (#793). Placeholder copy until the owner approves it. */
+    NeedsPro,
+
+    /** Free holds a few custom channels, and they are all made (#793). Placeholder copy until approved. */
+    CustomLimit,
 }
 
 /** Where the focus is, by identity, so it follows a row that moves group. */
@@ -119,6 +125,10 @@ internal data class ChannelsUi(
     val properties: ChannelProperties? = null,
     /** The first list of channels has arrived, so a channel missing from [rows] is not just late. */
     val listed: Boolean = false,
+    /** Pro is unlocked (#793): when it is not, the choices that reshape the planner's lineup are marked. */
+    val isPro: Boolean = true,
+    /** Another custom channel may be made now (#793): when it may not, New and Copy to customise are marked. */
+    val canAddCustom: Boolean = true,
 ) {
     companion object {
         val Empty =

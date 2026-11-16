@@ -152,4 +152,33 @@ class ChannelsChoicesTest {
             }
         }
     }
+
+    @Test
+    fun theFreeTierMarksReshapingOfTheLineup() {
+        val starter = row(ChannelGroup.On)
+        val marked = listOf(Choice.SwitchOn, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber)
+        marked.forEach {
+            assertEquals(ChannelsMessage.NeedsPro, lockOf(it, starter, isPro = false, canAddCustom = true))
+            assertEquals(null, lockOf(it, starter, isPro = true, canAddCustom = true))
+        }
+        assertEquals(null, lockOf(Choice.Watch, starter, isPro = false, canAddCustom = false))
+        assertEquals(null, lockOf(Choice.About, starter, isPro = false, canAddCustom = false))
+    }
+
+    @Test
+    fun theFreeTierDoesNotMarkTheViewersOwnCustomChannels() {
+        val custom = row(ChannelGroup.On, ChannelKind.Custom)
+        listOf(Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber, Choice.Edit).forEach {
+            assertEquals(null, lockOf(it, custom, isPro = false, canAddCustom = false))
+        }
+    }
+
+    @Test
+    fun copyToCustomiseIsMarkedOnlyAtTheCap() {
+        val starter = row(ChannelGroup.On)
+        val atCap = lockOf(Choice.CopyToCustomise, starter, isPro = false, canAddCustom = false)
+        assertEquals(ChannelsMessage.CustomLimit, atCap)
+        assertEquals(null, lockOf(Choice.CopyToCustomise, starter, isPro = false, canAddCustom = true))
+        assertEquals(null, lockOf(Choice.CopyToCustomise, starter, isPro = true, canAddCustom = true))
+    }
 }

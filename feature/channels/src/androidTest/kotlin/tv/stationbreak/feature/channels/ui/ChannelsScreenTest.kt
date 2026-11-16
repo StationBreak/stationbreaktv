@@ -51,6 +51,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChangeRefusal
@@ -318,7 +319,20 @@ class ChannelsScreenTest {
         currentNow.value = current
         runBlocking { library.useAccount(account) }
         val properties = SamplePropertiesReader { lineup }
-        vm = ChannelsViewModel(library, lineup, lineup, lineup, schedule, properties, FakeReadiness(), clock, work)
+        vm =
+            ChannelsViewModel(
+                library,
+                lineup,
+                lineup,
+                lineup,
+                FakeProEntitlement(),
+                builder,
+                schedule,
+                properties,
+                FakeReadiness(),
+                clock,
+                work,
+            )
         val builderVm =
             BuilderViewModel(library, builder, FakeCatalogPicker(), FakeChannelPreviews(), lineup, clock, work)
         compose.setContent {

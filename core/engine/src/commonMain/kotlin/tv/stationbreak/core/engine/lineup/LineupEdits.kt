@@ -50,13 +50,17 @@ sealed interface LineupEdit {
      * Adds a custom channel, switched on. [number] null means "the first free one", worked out inside
      * [LineupEdits.apply] (so inside the caller's lock): from 600 for grown-up, 1..99 when [kids]. A given number
      * decides alone whether the channel is a kid channel (1..99); [kids] with a number outside that band is refused. A
-     * given number may be one the catalog retired; only the automatic pick skips those.
+     * given number may be one the catalog retired; only the automatic pick skips those. [customLimit] is the most
+     * [ChannelSource.Custom] channels the lineup may hold: one that already holds that many refuses the add as
+     * [EditRefusal.CustomLimit], checked inside the caller's lock. Null is no limit. The engine only enforces the number
+     * it is given; what that number is belongs to the caller.
      */
     data class AddCustom(
         override val id: ChannelId,
         val rules: ChannelRules,
         val number: Int?,
         val kids: Boolean,
+        val customLimit: Int? = null,
     ) : ChannelEdit
 
     /**
@@ -122,6 +126,9 @@ sealed interface EditRefusal {
 
     /** The numbers 1 to 99 are for kid channels. */
     data object KidsBandOnly : EditRefusal
+
+    /** The lineup already holds as many custom channels as [LineupEdit.AddCustom.customLimit] allows. */
+    data object CustomLimit : EditRefusal
 
     /** Another channel, [holder], has the number (or the one named to swap is not it). */
     data class NumberTaken(
@@ -310,6 +317,10 @@ object LineupEdits {
         return when {
             lineup.channels.any { it.id == edit.id } -> {
                 refused(EditRefusal.IdTaken)
+            }
+
+            edit.customLimit != null && lineup.channels.count { it.source is ChannelSource.Custom } >= edit.customLimit -> {
+                refused(EditRefusal.CustomLimit)
             }
 
             number == null -> {

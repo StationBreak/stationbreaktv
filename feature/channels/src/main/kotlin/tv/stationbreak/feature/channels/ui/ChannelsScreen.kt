@@ -157,4 +157,6 @@ private fun messageRes(message: ChannelsMessage): Int =
         ChannelsMessage.SaveFailed -> R.string.channels_save_failed
         ChannelsMessage.Failed -> R.string.channels_failed
         ChannelsMessage.LibrariesUnavailable -> R.string.channels_libraries_unavailable
+        ChannelsMessage.NeedsPro -> R.string.pro_needs_note
+        ChannelsMessage.CustomLimit -> R.string.pro_custom_limit_note
     }

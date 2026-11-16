@@ -8,6 +8,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -318,7 +319,7 @@ class LineupServiceEditTest {
     fun accessIsNotEditableWhileTheHeldLineupIsAFromScratchPlan() =
         runBlocking<Unit> {
             val chosen = afterAFailedRead()
-            val manager = ChannelManager(service) { LIBRARIES }
+            val manager = ChannelManager(service, FakeProEntitlement()) { LIBRARIES }
             assertEquals(LineupAccess.ReadOnly, manager.access(ACCOUNT).first(), "memory is not yet the stored lineup")
 
             assertIs<EditOutcome.Refused>(edit(LineupEdit.SetNumber(frights, 210)))
@@ -393,7 +394,7 @@ class LineupServiceEditTest {
     @Test
     fun accessIsLoadingWithNoLineup() =
         runBlocking<Unit> {
-            val editable = ChannelManager(service) { LIBRARIES }.access(ACCOUNT).first()
+            val editable = ChannelManager(service, FakeProEntitlement()) { LIBRARIES }.access(ACCOUNT).first()
             assertEquals(LineupAccess.Loading, editable)
         }
 }

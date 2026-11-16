@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.model.ChannelId
@@ -30,6 +32,9 @@ class FakeChannelBuilder : ChannelBuilder {
 
     /** What [freeNumbers] answers next; null is the whole of the band asked for. */
     var free: Listed<List<Int>>? = null
+
+    /** What [canAddCustom] answers; true (no cap in the way) by default. */
+    val canAdd = MutableStateFlow(true)
 
     /** The `forChannel` of each [freeNumbers] call, in order. */
     val freeFor = mutableListOf<ChannelId?>()
@@ -95,6 +100,8 @@ class FakeChannelBuilder : ChannelBuilder {
         freeFor += forChannel
         return free ?: Listed.Ok((if (kids) ChannelNumbers.kids else ChannelNumbers.custom).toList())
     }
+
+    override fun canAddCustom(account: LibraryAccount): Flow<Boolean> = canAdd
 
     private companion object {
         const val FIRST_NUMBER = 600

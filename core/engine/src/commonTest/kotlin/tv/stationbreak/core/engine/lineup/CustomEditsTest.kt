@@ -203,6 +203,43 @@ class CustomEditsTest {
         assertEquals(setOf(600, 602), setOf(b.byId(ChannelId("custom:a")).number, b.byId(ChannelId("custom:b")).number))
     }
 
+    private fun addWithLimit(limit: Int?) = LineupEdit.AddCustom(newId, rulesOf("n"), null, kids = false, customLimit = limit)
+
+    @Test
+    fun addCustomUnderTheLimitIsApplied() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602))
+
+        assertEquals(603, applied(lineup, addWithLimit(3)).byId(newId).number)
+    }
+
+    @Test
+    fun addCustomAtTheLimitIsRefused() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602))
+
+        assertEquals(EditRefusal.CustomLimit, refusal(lineup, addWithLimit(2)))
+    }
+
+    @Test
+    fun addCustomOverTheLimitIsRefused() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602), custom("c", 603))
+
+        assertEquals(EditRefusal.CustomLimit, refusal(lineup, addWithLimit(2)))
+    }
+
+    @Test
+    fun addCustomWithNoLimitIsNeverRefusedForTheCount() {
+        val lineup = lineupOf(starter("western", 310), custom("a", 600), custom("b", 602), custom("c", 603))
+
+        assertEquals(604, applied(lineup, addWithLimit(null)).byId(newId).number)
+    }
+
+    @Test
+    fun theLimitCountsOnlyCustomChannels() {
+        val lineup = lineupOf(starter("western", 310), starter("drama", 311), custom("a", 600))
+
+        assertEquals(602, applied(lineup, addWithLimit(2)).byId(newId).number)
+    }
+
     @Test
     fun addCustomWithNoNumberAndAFullBandIsNoFreeNumber() {
         val full = lineupOf(starter("western", 310), *customsFilling(LineupDefaults.CUSTOM_NUMBERS))

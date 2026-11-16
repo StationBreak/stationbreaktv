@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChangeResult
@@ -30,6 +31,7 @@ import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.ShelfReason
+import tv.stationbreak.core.domain.lineup.builder.FakeChannelBuilder
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
@@ -130,6 +132,8 @@ internal class ChannelsRig(
     val household = FakeHousehold()
     val editor = FakeChannelEditor()
     val gated = GatedEditor(editor)
+    val pro = FakeProEntitlement()
+    val builder = FakeChannelBuilder()
     val schedule = FakeSchedule()
     val properties = FakeProperties(repo)
     val readiness = FakeReadiness()
@@ -143,6 +147,8 @@ internal class ChannelsRig(
             repo,
             household,
             gated,
+            pro,
+            builder,
             schedule,
             properties,
             readiness,

@@ -8,6 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.ACCOUNT
@@ -81,7 +82,10 @@ class ChannelPreviewsTest {
     private val previews = BuiltInChannelPreviews(service, library, shared) { LIBRARIES }
     private val keyLabels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String> =
         { _, sources -> sources.associateWith { it.key } }
-    private val builder = ChannelBuildManager(service, { Seed(1uL) }, { "built" }, keyLabels) { _, _ -> emptyMap() }
+    private val builder =
+        ChannelBuildManager(service, FakeProEntitlement(), { Seed(1uL) }, { "built" }, keyLabels) { _, _ ->
+            emptyMap()
+        }
     private val libraryItem = ItemId(LIBRARY_ID.value)
 
     init {

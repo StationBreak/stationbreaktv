@@ -28,6 +28,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.SelectionStore
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
@@ -189,7 +190,8 @@ internal object LineupModule {
         service: LineupService,
         settings: ServerSettings,
         switchOns: ChannelSwitchOns,
-    ): ChannelEditor = ChannelManager(service, switchOns) { settings.loadPlayableLibraries() }
+        pro: ProEntitlement,
+    ): ChannelEditor = ChannelManager(service, pro, switchOns) { settings.loadPlayableLibraries() }
 
     /**
      * The channels the viewer switched on that are getting ready, and the notice that they are ready (#776): one for
@@ -248,15 +250,17 @@ internal object LineupModule {
     /** How features build channels (spec 22): through the service's lock, with the sources' words from the pickers. */
     @Provides
     @Singleton
+    @Suppress("LongParameterList") // One port for each thing the builder reads, and the entitlement.
     fun channelBuilder(
         service: LineupService,
         newSeed: NewSeed,
         library: LibraryRepository,
         sessions: SessionRepository,
         server: MediaServer,
+        pro: ProEntitlement,
     ): ChannelBuilder {
         val labels = SourceLabels(library) { serverLibraries(sessions, server, it) }
-        return ChannelBuildManager(service, newSeed, { newCustomId() }, labels::invoke, labels::studios)
+        return ChannelBuildManager(service, pro, newSeed, { newCustomId() }, labels::invoke, labels::studios)
     }
 
     /**

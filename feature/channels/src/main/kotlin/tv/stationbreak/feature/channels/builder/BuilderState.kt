@@ -172,6 +172,9 @@ internal enum class BuilderMessage {
 
     /** Not a failure: a Reshuffle saved its new seed. */
     Reshuffled,
+
+    /** Free holds a few custom channels and they are all made (#793). */
+    CustomLimit,
 }
 
 /** One-shot effects, collected by the destination (as the guide's event channel is). */

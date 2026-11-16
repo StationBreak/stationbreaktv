@@ -186,9 +186,10 @@ private fun Actions(
     val covered = ui.panel != null
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val choices = if (covered) sheetChoices(ui) else choicesOf(ui)
+        val row = ui.rows.firstOrNull { it.id == ui.about }
         choices.forEachIndexed { i, choice ->
             Text(
-                labelOf(choice, ui.panel),
+                labelOf(choice, ui.panel, isLocked(choice, row, ui)),
                 Modifier
                     .fillMaxWidth()
                     .drawnFocus(!covered && i == ui.choice)
