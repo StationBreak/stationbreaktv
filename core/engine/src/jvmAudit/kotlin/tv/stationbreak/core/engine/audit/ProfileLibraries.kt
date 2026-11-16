@@ -43,5 +43,9 @@ internal object ProfileLibraries {
 internal object CaseTitles {
     const val ADULT_ANIMATED_SITCOM = "Brasenfa Quinolma"
     const val SITCOM_WITH_AN_EXTRA_GENRE = "Velmiren Dartorlo"
+    const val SITCOM_WITH_A_FREED_GENRE = "Dartormi Kyfalo"
+    const val PG_ANIMATED_FAMILY_FILM = "Mavelzu Torkyren"
+    const val PG_ANIMATED_FILM_NOT_FAMILY = "Olxima Pebraren"
+    const val ADULT_CARTOON_WITH_FAMILY = "Zukyfa Brapemi"
     val SMALL_HORROR_SHELF = listOf("Kyzupe Lodarxi", "Fabravel Mitorsen", "Quinkyol Renmaxi", "Zupefa Olbralo")
 }

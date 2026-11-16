@@ -6,6 +6,7 @@ import tv.stationbreak.core.engine.lineup.AnchorKind
 import tv.stationbreak.core.engine.lineup.CurationTables
 import tv.stationbreak.core.engine.lineup.FormatPromise
 import tv.stationbreak.core.engine.lineup.NameMatcher
+import tv.stationbreak.core.engine.lineup.QualifyingBar
 import tv.stationbreak.core.engine.lineup.Theme
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -388,14 +389,31 @@ class CurationTest {
         assertFalse(statsFor(List(4) { 2 * HOUR }, kid = true).qualifies)
     }
 
+    // A recipe's own bar (the catalog's single lane of a niche theme) is six usable hours and four titles.
+    @Test
+    fun aNicheRecipeQualifiesOnSixUsableHoursAndFourTitles() {
+        val niche = QualifyingBar.Niche
+        assertTrue(statsFor(List(4) { 2 * HOUR }, bar = niche).qualifies, "4 titles, 8 hours")
+        assertTrue(statsFor(List(6) { 2 * HOUR }, bar = niche).qualifies)
+        assertFalse(statsFor(List(3) { 4 * HOUR }, bar = niche).qualifies, "3 titles")
+        assertFalse(statsFor(List(4) { HOUR }, bar = niche).qualifies, "4 hours")
+        // The share cap counts: 7 hours, a quarter (1.75) at most from a title, is 6.25 usable; 6 hours is 5.
+        assertTrue(statsFor(listOf(2 * HOUR, 2 * HOUR, 2 * HOUR, HOUR), bar = niche).qualifies)
+        assertFalse(statsFor(listOf(2 * HOUR, 2 * HOUR, HOUR, HOUR), bar = niche).qualifies)
+        // The same shelves do not qualify a standard recipe.
+        assertFalse(statsFor(List(4) { 2 * HOUR }).qualifies)
+        assertEquals(6 * HOUR, QualifyingBar.Niche.usableMs)
+    }
+
     private fun statsFor(
         hours: List<Long>,
         kid: Boolean = false,
+        bar: QualifyingBar = QualifyingBar.Standard,
     ): ChannelStats {
         val lib = Library()
         val titles = hours.map { lib.show(eps = (it / HOUR).toInt(), genres = listOf("Kids"), rating = "TV-Y") }
         val all = lib.itemsOf(titles)
-        val c = channel(if (kid) "kid-a" else "ch-a", if (kid) 10 else 200, listOf("Kids"), all, kid = kid)
+        val c = channel(if (kid) "kid-a" else "ch-a", if (kid) 10 else 200, listOf("Kids"), all, kid = kid, bar = bar)
         return Curation.homes(lib.snapshot(), listOf(c)).stats(c.id)
     }
 

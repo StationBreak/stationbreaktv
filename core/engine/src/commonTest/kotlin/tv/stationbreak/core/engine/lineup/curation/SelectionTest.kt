@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup.curation
 
+import tv.stationbreak.core.engine.lineup.QualifyingBar
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -95,6 +96,23 @@ class SelectionTest {
         assertEquals(channels.take(48).map { it.id }.toSet(), picked.on)
         assertEquals(setOf(channels[48].id, channels[49].id), picked.shelf.keys)
         assertTrue(picked.shelf.values.all { it == ShelfReason.BelowCap })
+    }
+
+    // A real library (not a script): a niche lane of four 2-hour films is chosen; a standard one of the same shelf is
+    // shelved too thin. (Dropping a channel only adds homes to the rest, so a niche lane that qualifies in round one
+    // cannot fail in a later one; the property test below covers that for every lane.)
+    @Test
+    fun aNicheLaneOfFourFilmsIsChosenAndAStandardOneIsShelved() {
+        val lib = Library()
+        val films = List(4) { lib.film(genres = listOf("Western")) }
+        val items = lib.itemsOf(films)
+        val niche = channel("niche", 200, listOf("Western"), items, bar = QualifyingBar.Niche)
+        val plain = channel("plain", 201, listOf("Western"), items)
+        val onlyNiche = Selection.select(lib.snapshot(), listOf(niche), emptySet(), emptySet(), 5)
+        assertEquals(setOf(niche.id), onlyNiche.on)
+        val onlyPlain = Selection.select(lib.snapshot(), listOf(plain), emptySet(), emptySet(), 5)
+        assertEquals(emptySet(), onlyPlain.on)
+        assertEquals(ShelfReason.TooThin, onlyPlain.shelf.getValue(plain.id))
     }
 
     @Test

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.lineup.curation
 
+import tv.stationbreak.core.engine.lineup.QualifyingBar
+
 /** The curation's tunables: safe defaults in one place. Later curation tasks read them. */
 internal object CurationDefaults {
     /** The least a channel must air in a day to be worth a number: 12 hours. */
@@ -8,6 +10,12 @@ internal object CurationDefaults {
 
     /** The fewest titles a grown-up channel needs. */
     const val MIN_TITLES: Int = 6
+
+    /** The least a [QualifyingBar.Niche] recipe (the catalog's single lane of a niche theme) must air: 6 hours. */
+    const val MIN_USABLE_MS_NICHE: Long = 21_600_000L
+
+    /** The fewest titles a niche recipe needs. */
+    const val MIN_TITLES_NICHE: Int = 4
 
     /** The fewest titles a kid channel needs. */
     const val MIN_TITLES_KIDS: Int = 4

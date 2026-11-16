@@ -24,7 +24,7 @@ class CatalogManifestTest {
 
     private fun catalog(
         recipes: List<Recipe> = shipped,
-        version: Int = 4,
+        version: Int = 5,
         leftovers: List<LeftoversRecipe> = StarterCatalog.leftovers,
         retiredKeys: Set<String> = emptySet(),
         retiredNumbers: Set<Int> = emptySet(),
@@ -32,7 +32,7 @@ class CatalogManifestTest {
 
     private fun withFirst(change: (Recipe) -> Recipe) = shipped.map { if (it == first) change(it) else it }
 
-    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V4)
+    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V5)
 
     @Test
     fun theShippedCatalogKeepsEveryManifest() {
@@ -42,11 +42,44 @@ class CatalogManifestTest {
         val versions = CATALOG_MANIFESTS.map { it.version }
         assertEquals(versions.sorted().distinct(), versions, "manifests are oldest first, one per version")
         assertEquals(StarterCatalog.VERSION, CATALOG_MANIFESTS.last().version, "the current version is frozen too")
-        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V4.recipes.size)
+        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V5.recipes.size)
         assertEquals(1, CATALOG_MANIFEST_V1.version)
         assertEquals(2, CATALOG_MANIFEST_V2.version)
         assertEquals(3, CATALOG_MANIFEST_V3.version)
         assertEquals(4, CATALOG_MANIFEST_V4.version)
+        assertEquals(5, CATALOG_MANIFEST_V5.version)
+    }
+
+    // Catalog 5 (#786, the catalog gaps) keeps every key, number, band, opt-in flag and ceiling and the leftovers. It
+    // changes what exactly the recipes named below air or need: Cartoons After Dark (the Animation genre, not Family),
+    // Laugh Track (its narrower notGenres) and the single lanes of a niche theme (a lower qualifying bar).
+    @Test
+    fun versionFiveChangesOnlyTheRecipesTheCatalogGapsNames() {
+        assertEquals(CATALOG_MANIFEST_V4.recipes.keys, CATALOG_MANIFEST_V5.recipes.keys)
+        assertEquals(CATALOG_MANIFEST_V4.leftovers, CATALOG_MANIFEST_V5.leftovers)
+        for ((key, old) in CATALOG_MANIFEST_V4.recipes) {
+            val now = CATALOG_MANIFEST_V5.recipes.getValue(key)
+            assertEquals(old.number, now.number, key)
+            assertEquals(old.band, now.band, key)
+            assertEquals(old.optIn, now.optIn, key)
+            assertEquals(old.maxRating, now.maxRating, key)
+        }
+        val before = CATALOG_MANIFEST_V4.recipes
+        val after = CATALOG_MANIFEST_V5.recipes
+        val changed = before.keys.filter { before.getValue(it).fingerprint != after.getValue(it).fingerprint }
+        val named =
+            setOf("cartoons-after-dark", "laugh-track") +
+                StarterCatalog.recipes.filter { it.qualifyingBar == QualifyingBar.Niche }.map { it.key }
+        assertEquals(named, changed.toSet())
+    }
+
+    // The bar joins the fingerprint only when it is not the standard one, so every earlier manifest still holds.
+    @Test
+    fun theQualifyingBarIsInTheFingerprintOnlyWhenItIsNotTheStandardOne() {
+        val grownUp = CATALOG_V2_RECIPES.first { it.band != Band.Kids }
+        val standard = fingerprintOf(grownUp)
+        assertEquals(standard, fingerprintOf(grownUp.copy(qualifyingBar = QualifyingBar.Standard)))
+        assertNotEquals(standard, fingerprintOf(grownUp.copy(qualifyingBar = QualifyingBar.Niche)))
     }
 
     // Catalog 4 (the spread day end) changed no recipe and no leftovers: the bump only moves starters to format 5.
@@ -197,29 +230,29 @@ class CatalogManifestTest {
                 shipped + recipeOf("brand-new", 598),
             )
         for (recipes in changed) {
-            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 4")
-            assertEquals(emptyList(), problems(catalog(recipes, version = 5)), "allowed at version 5")
+            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 5")
+            assertEquals(emptyList(), problems(catalog(recipes, version = 6)), "allowed at version 6")
         }
         val stricter = StarterCatalog.leftovers.map { if (it.number == 99) it.copy(maxRating = "G") else it }
         assertTrue(problems(catalog(leftovers = stricter)).isNotEmpty())
-        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 5)))
+        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 6)))
     }
 
     @Test
     fun aShippedKeyStaysAtItsNumberOrIsRetiredWithIt() {
         val moved = withFirst { it.copy(number = it.number + 1) }
-        assertTrue(problems(catalog(moved, version = 5)).isNotEmpty(), "a shipped number never changes")
+        assertTrue(problems(catalog(moved, version = 6)).isNotEmpty(), "a shipped number never changes")
 
         val dropped = shipped.drop(1)
-        assertTrue(problems(catalog(dropped, version = 5)).isNotEmpty(), "dropped without retiring")
-        val keyOnly = catalog(dropped, version = 5, retiredKeys = setOf(first.key))
+        assertTrue(problems(catalog(dropped, version = 6)).isNotEmpty(), "dropped without retiring")
+        val keyOnly = catalog(dropped, version = 6, retiredKeys = setOf(first.key))
         assertTrue(problems(keyOnly).isNotEmpty(), "retired without its number")
-        val retired = catalog(dropped, 5, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
+        val retired = catalog(dropped, 6, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
         assertEquals(emptyList(), problems(retired))
 
         val noLeftovers = StarterCatalog.leftovers.filter { it.number != 199 }
-        assertTrue(problems(catalog(leftovers = noLeftovers, version = 5)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = noLeftovers, version = 6)).isNotEmpty())
         val movedLeftovers = StarterCatalog.leftovers.map { if (it.number == 199) it.copy(number = 198) else it }
-        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 5)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 6)).isNotEmpty())
     }
 }
