@@ -165,6 +165,23 @@ Changed (they pin the old rule): `LineupPlannerCurationTest` (`theCapCountsPinne
 `LineupPlannerViewerChoicesTest:57-68`, `LineupEditsTest:146-149`, `RecipeResolverThemeTest` (if the budget's
 derivation moves), `LineupServiceResetKeepsCustomTest`, `LineupCodecV3Test`'s worst cases.
 
+### Free and Pro (#793)
+
+Owner decision, 2026-11-15: this rule replaces the cap of 50 for every viewer, and #793 adds the free-tier gates in v1.
+
+- **Free:** the planner's lineup (`PLANNER_PICKS` plus Odds & Ends, 50) and up to 5 custom channels on top, so 55 at
+  most. Copying a starter to customise it counts toward the 5. Shelved starters can be seen and browsed, but switching
+  one on is Pro. On free, only custom channels sit on top.
+- **Pro (later):** switch-ons on top of the planner's picks, as this section defines them, and more than 5 custom
+  channels.
+- The rule is built and tested in full in v1 (#785). The gates are #793's, behind one Pro check that returns false in
+  v1. #785 adds no gate.
+- The timings at 60, 75 and every starter on measure the Pro worst case. Free tops out at 55. The switch-on warning only
+  ever shows on the Pro path.
+- **Still open in #793:** whether a free viewer can switch a starter off, hide it, renumber or swap it, edit one in
+  place, or switch on an opt-in starter. A renumber or swap that stays inside the top already costs nothing under this
+  rule, whatever the answer.
+
 ### Not in scope
 
 A custom channel claiming its titles as homes. With this rule a custom channel costs no seat, and the remaining overlap is
